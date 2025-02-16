@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "policybench"
+version = "0.3.0"
+description = "A mini-benchmark comparing LLM estimates to PolicyEngine US policy calculations."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+  {name = "PolicyEngine", email = "hello@policyengine.org"},
+]
+keywords = ["PolicyEngine", "LLM", "tax", "benchmark"]
+classifiers = [
+  "Programming Language :: Python :: 3.9",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+requires-python = ">=3.9"
+
+dependencies = [
+  "numpy",
+  "pandas",
+  "edsl",
+  "policyengine-us>=0.7.0",
+  "pytest",
+]
+
+[project.optional-dependencies]
+dev = [
+  "black",
+  "flake8",
+  "pytest-cov",
+  # etc.
+]
+
+[project.scripts]
+# This entry creates a CLI command `policybench` that calls the run_benchmark function.
+policybench = "policybench.main:run_benchmark"
+
+[tool.setuptools.packages.find]
+include = ["policybench*"]
