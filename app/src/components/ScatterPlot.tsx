@@ -9,28 +9,8 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { BenchData } from "../App";
-
-const MODEL_COLORS: Record<string, string> = {
-  "claude-opus": "#00d4ff",
-  "claude-sonnet-4.5": "#ffaa00",
-  "claude-sonnet-4.6": "#00ff88",
-  "gpt-5.2": "#ff4466",
-};
-
-const MODEL_LABELS: Record<string, string> = {
-  "claude-opus": "Claude Opus 4.6",
-  "claude-sonnet-4.5": "Claude Sonnet 4.5",
-  "claude-sonnet-4.6": "Claude Sonnet 4.6",
-  "gpt-5.2": "GPT-5.2",
-};
-
-type Condition = "no_tools" | "with_tools";
-
-function fmt(v: number): string {
-  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1_000) return `$${(v / 1_000).toFixed(0)}k`;
-  return `$${v.toFixed(0)}`;
-}
+import { formatDollars } from "../lib/format";
+import { MODEL_COLORS, MODEL_LABELS, MODEL_ORDER } from "../modelMeta";
 
 function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: Record<string, unknown> }> }) {
   if (!active || !payload?.length) return null;
@@ -42,15 +22,15 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<
       <div className="mt-1.5 space-y-0.5">
         <div>
           <span className="text-text-secondary">Predicted:</span>{" "}
-          <span className="text-text font-[family-name:var(--font-mono)]">{fmt(d.prediction as number)}</span>
+          <span className="text-text font-[family-name:var(--font-mono)]">{formatDollars(d.prediction as number)}</span>
         </div>
         <div>
           <span className="text-text-secondary">Actual:</span>{" "}
-          <span className="text-text font-[family-name:var(--font-mono)]">{fmt(d.groundTruth as number)}</span>
+          <span className="text-text font-[family-name:var(--font-mono)]">{formatDollars(d.groundTruth as number)}</span>
         </div>
         <div>
           <span className="text-text-secondary">Error:</span>{" "}
-          <span className="text-coral font-[family-name:var(--font-mono)]">{fmt(Math.abs(d.error as number))}</span>
+          <span className="text-coral font-[family-name:var(--font-mono)]">{formatDollars(Math.abs(d.error as number))}</span>
         </div>
       </div>
     </div>
@@ -58,23 +38,26 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<
 }
 
 export default function ScatterPlot({ data }: { data: BenchData }) {
-  const [condition, setCondition] = useState<Condition>("no_tools");
   const [selectedModels, setSelectedModels] = useState<Set<string>>(
-    new Set(Object.keys(MODEL_COLORS))
+    new Set(MODEL_ORDER)
   );
 
   const models = useMemo(() => {
-    const unique = new Set(data.scatter.map((d) => d.model));
-    return Object.keys(MODEL_COLORS).filter((m) => unique.has(m));
+    const unique = new Set(
+      data.scatter
+        .filter((d) => d.condition === "no_tools")
+        .map((d) => d.model)
+    );
+    return MODEL_ORDER.filter((m) => unique.has(m));
   }, [data]);
 
   const filtered = useMemo(() => {
     const byModel: Record<string, Array<{ prediction: number; groundTruth: number; model: string; variable: string; error: number }>> = {};
     for (const d of data.scatter) {
-      if (d.condition !== condition) continue;
+      if (d.condition !== "no_tools") continue;
       if (!selectedModels.has(d.model)) continue;
-      // Skip binary/rate programs that clutter the dollar scatter
-      if (d.variable === "is_medicaid_eligible" || d.variable === "marginal_tax_rate" || d.variable === "free_school_meals") continue;
+      // Skip binary programs that clutter the dollar scatter
+      if (d.variable === "is_medicaid_eligible" || d.variable === "free_school_meals") continue;
       if (!byModel[d.model]) byModel[d.model] = [];
       byModel[d.model].push({
         prediction: d.prediction,
@@ -85,7 +68,7 @@ export default function ScatterPlot({ data }: { data: BenchData }) {
       });
     }
     return byModel;
-  }, [data, condition, selectedModels]);
+  }, [data, selectedModels]);
 
   const domain = useMemo(() => {
     let max = 0;
@@ -119,35 +102,12 @@ export default function ScatterPlot({ data }: { data: BenchData }) {
         className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Each point is one model's prediction for a specific household-program
+        Each point is one model&apos;s prediction for a specific household-program
         pair. Points on the diagonal are perfect predictions.
       </p>
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-4 mt-8 mb-6">
-        {/* Condition toggle */}
-        <div className="flex bg-surface rounded-lg p-0.5 border border-border-subtle">
-          {(
-            [
-              ["no_tools", "AI alone"],
-              ["with_tools", "With tools"],
-            ] as const
-          ).map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setCondition(val)}
-              className={`px-4 py-1.5 rounded-md text-xs font-medium tracking-wider uppercase transition-all ${
-                condition === val
-                  ? "bg-card text-text shadow-sm"
-                  : "text-text-muted hover:text-text-secondary"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Model filters */}
         <div className="flex gap-2">
           {models.map((m) => (
             <button
@@ -182,7 +142,7 @@ export default function ScatterPlot({ data }: { data: BenchData }) {
               dataKey="groundTruth"
               name="Actual"
               domain={domain}
-              tickFormatter={fmt}
+              tickFormatter={formatDollars}
               label={{
                 value: "Ground truth",
                 position: "bottom",
@@ -195,7 +155,7 @@ export default function ScatterPlot({ data }: { data: BenchData }) {
               dataKey="prediction"
               name="Predicted"
               domain={domain}
-              tickFormatter={fmt}
+              tickFormatter={formatDollars}
               label={{
                 value: "Model prediction",
                 angle: -90,

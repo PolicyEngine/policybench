@@ -1,0 +1,145 @@
+model,scenario_id,variable,prediction,raw_response,error,elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens,estimated_cost_usd
+claude-opus,scenario_087,income_tax,,"I need to calculate the total federal income tax liability for this married couple filing jointly in 2025.
+
+**Step 1: Determine Gross Income**
+
+Adult 1:
+- Taxable interest: $8
+- Qualified dividends: $1,344
+- Short-term capital",,2.494559915998252,263,64,327,0,0,0.002915
+claude-opus,scenario_087,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+**Step 1: Determine Gross Income**
+
+Adult 1:
+- Taxable interest: $8
+- Qualified dividends: $1,344
+- Short",,2.5770250000059605,266,64,330,0,0,0.0029300000000000003
+claude-opus,scenario_087,eitc,0.0,0,,2.0244570420181844,264,5,269,0,0,0.001445
+claude-opus,scenario_087,ctc,0.0,0,,1.8939234999998007,262,5,267,0,0,0.001435
+claude-opus,scenario_087,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in PA for tax year 2025.
+
+Let me first calculate their income:
+
+**Adult 1:**
+- Taxable interest: $8
+- Qualified dividends: $1,344
+- Short-",,2.787351624981966,264,64,328,0,0,0.0029200000000000003
+claude-opus,scenario_087,snap,,"I need to determine the annual SNAP benefit for this elderly, disabled married couple in PA for 2025.
+
+**Step 1: Determine Household Size and Category**
+- 2-person household
+- Both adults are elderly (60+) and disabled
+- This qualifies them for elderly",,3.3710760830144864,267,64,331,0,0,0.002935
+claude-opus,scenario_087,ssi,,"I need to determine the SSI eligibility and amount for this married couple.
+
+**Step 1: Understand SSI basics for 2025**
+
+SSI is a needs-based program for aged (65+), blind, or disabled individuals with limited income and resources. Both adults qualify as aged (",,3.410404041002039,269,64,333,0,0,0.002945
+claude-opus,scenario_087,free_school_meals,,"To determine eligibility for free school meals (National School Lunch Program), I need to consider:
+
+1. **Household composition**: This is a married couple with no children. They are both elderly adults (83 and 81 years old).
+
+2. **Key requirement**: The free school meals program",,2.71388762499555,279,64,343,0,0,0.0029950000000000003
+claude-opus,scenario_087,is_medicaid_eligible,,"I need to determine Medicaid eligibility for this elderly, disabled married couple in Pennsylvania for 2025.
+
+**Step 1: Identify the relevant Medicaid category**
+
+Both adults are over 65 and disabled. In PA, they would potentially qualify under aged/blind/disabled Medic",,2.9623467920173425,279,64,343,0,0,0.0029950000000000003
+claude-opus,scenario_087,household_state_income_tax,,"I need to calculate Pennsylvania state income tax for this married couple filing jointly in tax year 2025.
+
+**Pennsylvania Tax Key Facts:**
+- PA has a flat income tax rate of 3.07%
+- PA does not tax Social Security benefits
+- PA does not tax retirement income (including Social Security",,2.85898466699291,262,64,326,0,0,0.0029100000000000003
+claude-opus,scenario_087,household_net_income,,"I need to calculate the household's net income: market income + benefits - taxes.
+
+## Market Income
+
+**Adult 1:**
+- Taxable interest: $8
+- Qualified dividends: $1,344
+- Short-term capital gains: $30
+- Long-term capital gains",,2.4178662089980207,269,64,333,0,0,0.002945
+claude-opus,scenario_087,household_benefits,,"I need to calculate the total government benefits received by this household in PA for tax year 2025.
+
+Let me identify all potential government benefits for this elderly, disabled couple.
+
+**Social Security Retirement Income:**
+- Adult 1: $19,776/year
+- Adult 2: $0",,2.8167913329962175,262,64,326,0,0,0.0029100000000000003
+claude-opus,scenario_087,household_market_income,,"I need to calculate total market income, which is pre-tax and pre-transfer income. Market income includes employment income, interest income, dividend income, and capital gains. It does NOT include government transfers like Social Security retirement income.
+
+**Adult 1:**
+- Employment income: $0
+- Tax",,3.7310791250201873,270,64,334,0,0,0.0029500000000000004
+claude-opus,scenario_087,marginal_tax_rate,,"I need to determine the effective marginal tax rate for this household. Let me work through their tax situation.
+
+**Income Summary:**
+- Adult 1: $8 taxable interest + $1,344 qualified dividends + $30 short-term capital gains + $220 long-term",,2.6459862909978256,281,64,345,0,0,0.0030050000000000003
+claude-opus,scenario_088,income_tax,,"I need to calculate the total federal income tax liability for a married couple filing jointly in 2025.
+
+**Step 1: Calculate Adjusted Gross Income (AGI)**
+- Adult 1 income: $40,000
+- Adult 2 income: $35,000
+- Total",,3.6087570840027183,186,64,250,0,0,0.00253
+claude-opus,scenario_088,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for a married couple filing jointly in tax year 2025.
+
+**Step 1: Calculate Adjusted Gross Income (AGI)**
+- Adult 1 income: $40,000
+- Adult 2 income: $35",,2.2970372080162633,189,64,253,0,0,0.0025450000000000004
+claude-opus,scenario_088,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this couple.
+
+**Key facts:**
+- Married filing jointly
+- No children
+- Combined earned income: $40,000 + $35,000 = $75,000
+- Both are 22 ",,3.2560316669987515,187,64,251,0,0,0.002535
+claude-opus,scenario_088,ctc,0.0,0,,1.995582875009859,185,5,190,0,0,0.0010500000000000002
+claude-opus,scenario_088,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in MD for tax year 2025.
+
+Let me consider each potential refundable tax credit:
+
+**1. Earned Income Tax Credit (EITC)**
+- Married filing jointly, no children, both",,3.4143452090211213,187,64,251,0,0,0.002535
+claude-opus,scenario_088,snap,,"I need to determine SNAP eligibility and benefits for this household in Maryland for 2025.
+
+**Household Details:**
+- Married couple, both age 22, no children
+- Household size: 2
+- Combined gross income: $40,000 + $35,000 ",,3.4435783329827245,190,64,254,0,0,0.00255
+claude-opus,scenario_088,ssi,,"I need to determine if this household is eligible for Supplemental Security Income (SSI).
+
+SSI is a federal program that provides monthly cash assistance to people who are:
+1. Aged (65 or older), OR
+2. Blind, OR
+3. Disabled
+
+AND who have",,3.0110845409799367,192,64,256,0,0,0.00256
+claude-opus,scenario_088,free_school_meals,0.0,0,,1.6882543340034317,202,5,207,0,0,0.0011350000000000002
+claude-opus,scenario_088,is_medicaid_eligible,0.0,0,,1.8864552500017453,202,5,207,0,0,0.0011350000000000002
+claude-opus,scenario_088,household_state_income_tax,,"I need to calculate Maryland state income tax for a married couple filing jointly with combined income of $75,000 for tax year 2025.
+
+**Step 1: Maryland Adjusted Gross Income (AGI)**
+Combined income: $40,000 + $35,000 = $75",,2.656887209013803,185,64,249,0,0,0.0025250000000000003
+claude-opus,scenario_088,household_net_income,,"I'll calculate the household net income for this married couple filing jointly in Maryland for tax year 2025.
+
+**Market Income:**
+- Adult 1: $40,000
+- Adult 2: $35,000
+- Total: $75,000
+
+**Federal Income Tax:**
+- Standard",,2.7189137910027057,192,64,256,0,0,0.00256
+claude-opus,scenario_088,household_benefits,,"I need to calculate total government benefits for a married couple filing jointly in MD, both 22, with combined income of $75,000 ($40,000 + $35,000), no children.
+
+Let me go through potential benefits:
+
+**1. Federal Earned Income Tax Credit (",,2.7737396669981536,185,64,249,0,0,0.0025250000000000003
+claude-opus,scenario_088,household_market_income,75000.0,75000,,2.308646041987231,193,6,199,0,0,0.001115
+claude-opus,scenario_088,marginal_tax_rate,,"I need to calculate the effective marginal tax rate for this household, considering federal, state, and payroll taxes, as well as any phase-outs of credits.
+
+**Household details:**
+- Married filing jointly, Maryland, 2025
+- Combined income: $75,000
+-",,4.835461790993577,204,64,268,0,0,0.00262

@@ -1,0 +1,2 @@
+model,run_count,within10pct_run_mean,within10pct_run_std,within10pct_run_min,within10pct_run_max,mae_run_mean,mae_run_std,coverage_run_mean,coverage_run_std,accuracy_run_mean,accuracy_run_std
+gpt-5.4,2,1.0,0.0,1.0,1.0,7.5,3.5355339059327378,1.0,0.0,,

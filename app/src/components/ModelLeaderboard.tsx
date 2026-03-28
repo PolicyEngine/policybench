@@ -1,18 +1,11 @@
 import { useMemo } from "react";
 import type { BenchData } from "../App";
+import { MODEL_COLORS, MODEL_LABELS } from "../modelMeta";
 
-const MODEL_LABELS: Record<string, string> = {
-  "claude-opus": "Claude Opus 4.6",
-  "claude-sonnet-4.5": "Claude Sonnet 4.5",
-  "claude-sonnet-4.6": "Claude Sonnet 4.6",
-  "gpt-5.2": "GPT-5.2",
-};
-
-const MODEL_COLORS: Record<string, string> = {
-  "claude-opus": "#00d4ff",
-  "claude-sonnet-4.5": "#ffaa00",
-  "claude-sonnet-4.6": "#00ff88",
-  "gpt-5.2": "#ff4466",
+type ModelStat = BenchData["modelStats"][number] & {
+  runCount?: number;
+  within10pctRunMean?: number;
+  within10pctRunStd?: number;
 };
 
 function Badge({ children, variant }: { children: React.ReactNode; variant: "cyan" | "coral" | "amber" | "green" }) {
@@ -36,26 +29,29 @@ function accColor(pct: number): "green" | "cyan" | "amber" | "coral" {
   return "coral";
 }
 
+function fmtRunStability(
+  mean?: number,
+  std?: number,
+  runCount?: number
+): string | null {
+  if (runCount == null || runCount <= 1 || mean == null || Number.isNaN(mean)) {
+    return null;
+  }
+  const meanLabel = `${mean.toFixed(1)}%`;
+  if (std == null || Number.isNaN(std)) {
+    return `${meanLabel} over ${runCount} runs`;
+  }
+  return `${meanLabel} +/- ${std.toFixed(1)} over ${runCount} runs`;
+}
+
 export default function ModelLeaderboard({ data }: { data: BenchData }) {
-  const noTools = useMemo(
+  const noTools = useMemo<ModelStat[]>(
     () =>
-      data.modelStats
+      (data.modelStats as ModelStat[])
         .filter((m) => m.condition === "no_tools")
         .sort((a, b) => b.within10pct - a.within10pct),
     [data]
   );
-
-  const withTools = useMemo(
-    () =>
-      data.modelStats.filter((m) => m.condition === "with_tools"),
-    [data]
-  );
-
-  const withToolsMap = useMemo(() => {
-    const map: Record<string, (typeof withTools)[0]> = {};
-    for (const m of withTools) map[m.model] = m;
-    return map;
-  }, [withTools]);
 
   return (
     <div>
@@ -70,23 +66,20 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
         className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Models ranked by share of predictions within 10% of ground truth.
-        The "with tools" column shows results when models can call PolicyEngine.
+        Models ranked by share of predictions within 10% of ground truth in the
+        no-tools condition.
       </p>
 
       <div className="mt-10 space-y-3">
         {/* Header */}
         <div className="grid grid-cols-12 gap-3 px-4 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
           <div className="col-span-1">#</div>
-          <div className="col-span-3">Model</div>
-          <div className="col-span-2 text-right">Accuracy (alone)</div>
-          <div className="col-span-2 text-right">MAE (alone)</div>
-          <div className="col-span-2 text-right">Accuracy (tools)</div>
-          <div className="col-span-2 text-right">MAE (tools)</div>
+          <div className="col-span-5">Model</div>
+          <div className="col-span-3 text-right">Within 10%</div>
+          <div className="col-span-3 text-right">MAE</div>
         </div>
 
         {noTools.map((m, i) => {
-          const wt = withToolsMap[m.model];
           return (
             <div
               key={m.model}
@@ -101,7 +94,7 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
               </div>
 
               {/* Model name */}
-              <div className="col-span-3 flex items-center gap-2.5">
+              <div className="col-span-5 flex items-center gap-2.5">
                 <span
                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                   style={{ backgroundColor: MODEL_COLORS[m.model] || "#6c6c84" }}
@@ -112,31 +105,28 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
               </div>
 
               {/* No-tools accuracy */}
-              <div className="col-span-2 text-right">
+              <div className="col-span-3 text-right">
                 <Badge variant={accColor(m.within10pct)}>
                   {m.within10pct.toFixed(1)}%
                 </Badge>
-              </div>
-
-              {/* No-tools MAE */}
-              <div className="col-span-2 text-right font-[family-name:var(--font-mono)] text-sm text-coral">
-                ${Math.round(m.mae).toLocaleString()}
-              </div>
-
-              {/* With-tools accuracy */}
-              <div className="col-span-2 text-right">
-                {wt ? (
-                  <Badge variant="green">
-                    {wt.within10pct.toFixed(1)}%
-                  </Badge>
-                ) : (
-                  <span className="text-text-muted text-xs">--</span>
+                {fmtRunStability(
+                  m.within10pctRunMean,
+                  m.within10pctRunStd,
+                  m.runCount
+                ) && (
+                  <div className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1">
+                    {fmtRunStability(
+                      m.within10pctRunMean,
+                      m.within10pctRunStd,
+                      m.runCount
+                    )}
+                  </div>
                 )}
               </div>
 
-              {/* With-tools MAE */}
-              <div className="col-span-2 text-right font-[family-name:var(--font-mono)] text-sm text-green">
-                {wt ? `$${Math.round(wt.mae).toLocaleString()}` : "--"}
+              {/* No-tools MAE */}
+              <div className="col-span-3 text-right font-[family-name:var(--font-mono)] text-sm text-coral">
+                ${Math.round(m.mae).toLocaleString()}
               </div>
             </div>
           );
@@ -146,18 +136,33 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
       {/* Summary callout */}
       <div className="mt-8 card px-5 py-4 border-cyan/20 bg-cyan-soft/30 animate-fade-up" style={{ animationDelay: "600ms" }}>
         <p className="text-text-secondary text-sm leading-relaxed">
-          <span className="text-cyan font-medium">Key finding:</span> The best model without tools
+          <span className="text-cyan font-medium">Key finding:</span> The best
+          no-tools model
           ({MODEL_LABELS[noTools[0]?.model] || noTools[0]?.model}) achieves{" "}
           <span className="text-text font-[family-name:var(--font-mono)]">
             {noTools[0]?.within10pct.toFixed(1)}%
           </span>{" "}
+          {fmtRunStability(
+            noTools[0]?.within10pctRunMean,
+            noTools[0]?.within10pctRunStd,
+            noTools[0]?.runCount
+          ) && (
+            <>
+              and across repeated runs averages{" "}
+              <span className="text-text font-[family-name:var(--font-mono)]">
+                {fmtRunStability(
+                  noTools[0]?.within10pctRunMean,
+                  noTools[0]?.within10pctRunStd,
+                  noTools[0]?.runCount
+                )}
+              </span>{" "}
+            </>
+          )}
           accuracy with an average error of{" "}
           <span className="text-text font-[family-name:var(--font-mono)]">
             ${Math.round(noTools[0]?.mae || 0).toLocaleString()}
           </span>
-          . With PolicyEngine tools, all models achieve{" "}
-          <span className="text-green font-[family-name:var(--font-mono)]">100% accuracy</span> and{" "}
-          <span className="text-green font-[family-name:var(--font-mono)]">$0 error</span>.
+          .
         </p>
       </div>
     </div>

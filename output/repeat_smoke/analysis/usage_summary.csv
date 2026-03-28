@@ -1,0 +1,2 @@
+model,total_rows,parsed_rows,error_rows,total_estimated_cost_usd,total_elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens
+gpt-5.4,2,2,0,,,,,,,

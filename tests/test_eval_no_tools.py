@@ -1,10 +1,19 @@
 """Tests for AI-alone evaluation (mocked LiteLLM calls)."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import litellm
 import pytest
 
-from policybench.eval_no_tools import extract_number, run_single_no_tools
+from policybench.eval_no_tools import (
+    extract_number,
+    extract_prediction,
+    load_repeated_predictions,
+    run_no_tools_eval,
+    run_repeated_no_tools_eval,
+    run_single_no_tools,
+)
 from policybench.prompts import make_no_tools_prompt
 from policybench.scenarios import Person, Scenario
 
@@ -36,8 +45,30 @@ class TestExtractNumber:
     def test_negative(self):
         assert extract_number("-1500") == -1500.0
 
-    def test_number_in_text(self):
-        assert extract_number("The income tax is approximately 3500.") == 3500.0
+    def test_json_answer_object(self):
+        assert extract_number('{"answer": 3500}') == 3500.0
+
+    def test_json_answer_with_explanation_after(self):
+        assert (
+            extract_number(
+                '{"answer": 3500}\nThe household has no refundable credits.'
+            )
+            == 3500.0
+        )
+
+    def test_truncated_json_answer_prefix(self):
+        assert extract_number('{"answer": 4923') == 4923.0
+
+    def test_multiline_response_with_numeric_final_line(self):
+        assert (
+            extract_number(
+                "I estimate the federal income tax is modest.\n\n3500"
+            )
+            == 3500.0
+        )
+
+    def test_none_for_explanatory_sentence(self):
+        assert extract_number("The income tax is approximately 3500.") is None
 
     def test_none_for_empty(self):
         assert extract_number("") is None
@@ -45,8 +76,54 @@ class TestExtractNumber:
     def test_none_for_no_number(self):
         assert extract_number("I cannot determine this.") is None
 
-    def test_takes_last_number(self):
-        assert extract_number("Between 3000 and 5000, I estimate 4200.") == 4200.0
+    def test_none_for_multiple_numbers_in_explanation(self):
+        assert extract_number("Between 3000 and 5000, I estimate 4200.") is None
+
+    def test_none_for_verbose_response_without_standalone_final_answer(self):
+        assert (
+            extract_number(
+                "Adult 2 has $24,002 of wage income, so the household owes "
+                "about $11,271 in income tax."
+            )
+            is None
+        )
+
+    def test_none_for_age_in_verbose_boolean_response(self):
+        assert (
+            extract_number(
+                "Adult 2 is 42 years old and therefore the household should "
+                "qualify for Medicaid."
+            )
+            is None
+        )
+
+
+class TestExtractPrediction:
+    def test_tool_call_arguments_take_priority(self):
+        tool_calls = [
+            SimpleNamespace(
+                function=SimpleNamespace(
+                    name="submit_answer",
+                    arguments='{"answer": 3500}',
+                )
+            )
+        ]
+
+        assert (
+            extract_prediction(
+                content="Adult 2 has $24,002 of wage income, so the answer is 11271.",
+                tool_calls=tool_calls,
+            )
+            == 3500.0
+        )
+
+    def test_legacy_function_call_is_supported(self):
+        function_call = {"name": "submit_answer", "arguments": '{"answer": 0.25}'}
+
+        assert extract_prediction(content=None, function_call=function_call) == 0.25
+
+    def test_falls_back_to_text_when_no_tool_call_exists(self):
+        assert extract_prediction(content='{"answer": 4923}', tool_calls=None) == 4923.0
 
 
 def test_no_tools_prompt_contains_household_info(mini_scenario):
@@ -63,20 +140,437 @@ def test_no_tools_prompt_asks_for_numeric(mini_scenario):
     """Prompt should request numeric-only response."""
     prompt = make_no_tools_prompt(mini_scenario, "income_tax")
     assert "numeric" in prompt.lower()
+    assert "submit_answer" in prompt
+    assert "plain text" in prompt.lower()
+
+
+def test_no_tools_prompt_supports_json_contract(mini_scenario):
+    """Gemini path should be able to request JSON output instead of a tool call."""
+    prompt = make_no_tools_prompt(mini_scenario, "income_tax", answer_contract="json")
+    assert '{"answer": 1234.5}' in prompt
+    assert "submit_answer" not in prompt
 
 
 @patch("policybench.eval_no_tools.completion")
 def test_run_single_no_tools(mock_completion, mini_scenario):
-    """Should call LiteLLM and extract numeric prediction."""
+    """Should call LiteLLM and extract numeric prediction from tool arguments."""
     message = MagicMock()
-    message.content = "3500"
+    message.content = None
+    message.tool_calls = [
+        SimpleNamespace(
+            function=SimpleNamespace(
+                name="submit_answer",
+                arguments='{"answer": 3500}',
+            )
+        )
+    ]
+    message.function_call = None
 
     response = MagicMock()
     response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(
+        prompt_tokens=12,
+        completion_tokens=3,
+        total_tokens=15,
+        reasoning_tokens=2,
+        prompt_tokens_details={"cached_tokens": 4},
+        cost=0.00123,
+    )
     mock_completion.return_value = response
 
-    result = run_single_no_tools(mini_scenario, "income_tax", "gpt-5.2")
+    result = run_single_no_tools(mini_scenario, "income_tax", "gpt-5.4")
 
     assert result["prediction"] == 3500.0
-    assert result["raw_response"] == "3500"
+    assert "submit_answer" in result["raw_response"]
+    assert "3500" in result["raw_response"]
+    assert result["error"] is None
+    assert result["prompt_tokens"] == 12
+    assert result["completion_tokens"] == 3
+    assert result["total_tokens"] == 15
+    assert result["reasoning_tokens"] == 2
+    assert result["cached_prompt_tokens"] == 4
+    assert result["estimated_cost_usd"] == 0.00123
+    assert result["elapsed_seconds"] is not None
+    assert result["elapsed_seconds"] >= 0
     mock_completion.assert_called_once()
+    assert mock_completion.call_args.kwargs["timeout"] == 20
+    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 256
+    assert mock_completion.call_args.kwargs["tools"][0]["function"]["name"] == "submit_answer"
+    assert mock_completion.call_args.kwargs["tool_choice"]["function"]["name"] == "submit_answer"
+    assert "temperature" not in mock_completion.call_args.kwargs
+    assert "reasoning_effort" not in mock_completion.call_args.kwargs
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_run_single_no_tools_does_not_retry_auth_error(mock_completion, mini_scenario):
+    """Authentication failures should fail fast instead of backing off."""
+    mock_completion.side_effect = litellm.AuthenticationError(
+        message="missing key",
+        llm_provider="anthropic",
+        model="claude-opus-4-6",
+    )
+
+    with pytest.raises(litellm.AuthenticationError):
+        run_single_no_tools(mini_scenario, "income_tax", "claude-opus-4-6")
+
+    mock_completion.assert_called_once()
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_run_single_no_tools_uses_default_completion_budget_for_claude(
+    mock_completion, mini_scenario
+):
+    """Anthropic models should get the extended cap without GPT reasoning knobs."""
+    message = MagicMock()
+    message.content = None
+    message.tool_calls = [
+        SimpleNamespace(
+            function=SimpleNamespace(
+                name="submit_answer",
+                arguments='{"answer": 3500}',
+            )
+        )
+    ]
+    message.function_call = None
+
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(prompt_tokens=12, completion_tokens=3, total_tokens=15)
+    mock_completion.return_value = response
+
+    run_single_no_tools(mini_scenario, "income_tax", "claude-opus-4-6")
+
+    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 256
+    assert "reasoning_effort" not in mock_completion.call_args.kwargs
+    assert "response_format" not in mock_completion.call_args.kwargs
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_run_single_no_tools_falls_back_to_text_content(
+    mock_completion, mini_scenario
+):
+    """Text parsing should still work when no tool call is present."""
+    message = MagicMock()
+    message.content = '{"answer": 777}'
+    message.tool_calls = None
+    message.function_call = None
+
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(prompt_tokens=12, completion_tokens=3, total_tokens=15)
+    mock_completion.return_value = response
+
+    result = run_single_no_tools(mini_scenario, "income_tax", "gpt-5.4")
+
+    assert result["prediction"] == 777.0
+    assert result["raw_response"] == '{"answer": 777}'
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_run_single_no_tools_uses_json_contract_for_gemini(
+    mock_completion, mini_scenario
+):
+    """Gemini should use JSON structured output instead of the tool-call transport."""
+    message = MagicMock()
+    message.content = '{"answer": 3500}'
+    message.tool_calls = None
+    message.function_call = None
+
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(prompt_tokens=12, completion_tokens=3, total_tokens=15)
+    mock_completion.return_value = response
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "gemini/gemini-3.1-pro-preview",
+    )
+
+    assert result["prediction"] == 3500.0
+    assert mock_completion.call_args.kwargs["response_format"] == {"type": "json_object"}
+    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 512
+    assert "tools" not in mock_completion.call_args.kwargs
+    assert "tool_choice" not in mock_completion.call_args.kwargs
+
+
+@patch("policybench.eval_no_tools.completion_cost", return_value=0.00456)
+@patch("policybench.eval_no_tools.completion")
+def test_run_single_no_tools_falls_back_to_completion_cost(
+    mock_completion,
+    mock_completion_cost,
+    mini_scenario,
+):
+    """Cost should be computed from LiteLLM when the provider omits usage.cost."""
+    message = MagicMock()
+    message.content = "123"
+    message.tool_calls = None
+    message.function_call = None
+
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(
+        prompt_tokens=9,
+        completion_tokens=2,
+        total_tokens=11,
+        completion_tokens_details={"reasoning_tokens": 1},
+    )
+    mock_completion.return_value = response
+
+    result = run_single_no_tools(mini_scenario, "eitc", "gpt-5.4")
+
+    assert result["estimated_cost_usd"] == 0.00456
+    assert result["reasoning_tokens"] == 1
+    mock_completion_cost.assert_called_once()
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_skips_remaining_model_after_fatal_error(
+    mock_run_single_no_tools,
+    mini_scenario,
+):
+    """A fatal model error should not abort the whole benchmark."""
+    auth_error = litellm.AuthenticationError(
+        message="missing key",
+        llm_provider="anthropic",
+        model="claude-opus-4-6",
+    )
+    mock_run_single_no_tools.side_effect = auth_error
+
+    df = run_no_tools_eval(
+        [mini_scenario],
+        models={"claude-opus": "claude-opus-4-6"},
+        programs=["income_tax", "eitc"],
+    )
+
+    assert df.empty
+    mock_run_single_no_tools.assert_called_once()
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_resumes_from_existing_output(
+    mock_run_single_no_tools,
+    mini_scenario,
+    tmp_path,
+):
+    """Existing rows should be loaded and skipped on resume."""
+    output_path = tmp_path / "predictions.csv"
+    pd = pytest.importorskip("pandas")
+    pd.DataFrame(
+        [
+            {
+                "model": "gpt-5.4",
+                "scenario_id": "mini",
+                "variable": "income_tax",
+                "prediction": 123.0,
+                "raw_response": "123",
+                "error": None,
+            }
+        ]
+    ).to_csv(output_path, index=False)
+
+    mock_run_single_no_tools.return_value = {
+        "prediction": 456.0,
+        "raw_response": "456",
+        "error": None,
+    }
+
+    df = run_no_tools_eval(
+        [mini_scenario],
+        models={"gpt-5.4": "gpt-5.4"},
+        programs=["income_tax", "eitc"],
+        output_path=str(output_path),
+    )
+
+    assert len(df) == 2
+    assert set(df["variable"]) == {"income_tax", "eitc"}
+    assert mock_run_single_no_tools.call_count == 1
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_retries_rows_with_existing_errors(
+    mock_run_single_no_tools,
+    mini_scenario,
+    tmp_path,
+):
+    """Error rows should not count as completed when resuming."""
+    output_path = tmp_path / "predictions.csv"
+    pd = pytest.importorskip("pandas")
+    pd.DataFrame(
+        [
+            {
+                "model": "gpt-5.4",
+                "scenario_id": "mini",
+                "variable": "income_tax",
+                "prediction": None,
+                "raw_response": None,
+                "error": "AuthenticationError: missing key",
+            },
+            {
+                "model": "gpt-5.4",
+                "scenario_id": "mini",
+                "variable": "eitc",
+                "prediction": 456.0,
+                "raw_response": "456",
+                "error": None,
+            },
+        ]
+    ).to_csv(output_path, index=False)
+
+    mock_run_single_no_tools.return_value = {
+        "prediction": 123.0,
+        "raw_response": "123",
+        "error": None,
+    }
+
+    df = run_no_tools_eval(
+        [mini_scenario],
+        models={"gpt-5.4": "gpt-5.4"},
+        programs=["income_tax", "eitc"],
+        output_path=str(output_path),
+    )
+
+    assert len(df) == 2
+    assert set(df["variable"]) == {"income_tax", "eitc"}
+    assert df.loc[df["variable"] == "income_tax", "prediction"].iloc[0] == 123.0
+    assert mock_run_single_no_tools.call_count == 1
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_retries_rows_with_missing_predictions(
+    mock_run_single_no_tools,
+    mini_scenario,
+    tmp_path,
+):
+    """Rows without a parsed prediction should be retried on resume."""
+    output_path = tmp_path / "predictions.csv"
+    pd = pytest.importorskip("pandas")
+    pd.DataFrame(
+        [
+            {
+                "model": "gpt-5.4",
+                "scenario_id": "mini",
+                "variable": "income_tax",
+                "prediction": None,
+                "raw_response": '{"answer":',
+                "error": None,
+            },
+            {
+                "model": "gpt-5.4",
+                "scenario_id": "mini",
+                "variable": "eitc",
+                "prediction": 456.0,
+                "raw_response": "456",
+                "error": None,
+            },
+        ]
+    ).to_csv(output_path, index=False)
+
+    mock_run_single_no_tools.return_value = {
+        "prediction": 123.0,
+        "raw_response": "123",
+        "error": None,
+    }
+
+    df = run_no_tools_eval(
+        [mini_scenario],
+        models={"gpt-5.4": "gpt-5.4"},
+        programs=["income_tax", "eitc"],
+        output_path=str(output_path),
+    )
+
+    assert len(df) == 2
+    assert df.loc[df["variable"] == "income_tax", "prediction"].iloc[0] == 123.0
+    assert mock_run_single_no_tools.call_count == 1
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_includes_run_id(
+    mock_run_single_no_tools,
+    mini_scenario,
+):
+    """Repeated runs should stamp each output row with a run_id."""
+    mock_run_single_no_tools.return_value = {
+        "prediction": 123.0,
+        "raw_response": "123",
+        "error": None,
+    }
+
+    df = run_no_tools_eval(
+        [mini_scenario],
+        models={"gpt-5.4": "gpt-5.4"},
+        programs=["income_tax"],
+        run_id="run_000",
+    )
+
+    assert df["run_id"].tolist() == ["run_000"]
+
+
+@patch("policybench.eval_no_tools.run_no_tools_eval")
+def test_run_repeated_no_tools_eval_writes_one_file_per_run(
+    mock_run_no_tools_eval,
+    mini_scenario,
+    tmp_path,
+):
+    """Repeated evaluation should create separate artifacts and preserve run ids."""
+    def fake_run(*args, **kwargs):
+        pd = pytest.importorskip("pandas")
+        frame = pd.DataFrame(
+            [
+                {
+                    "run_id": kwargs["run_id"],
+                    "model": "gpt-5.4",
+                    "scenario_id": "mini",
+                    "variable": "income_tax",
+                    "prediction": 123.0,
+                    "raw_response": "123",
+                    "error": None,
+                }
+            ]
+        )
+        frame.to_csv(kwargs["output_path"], index=False)
+        return frame
+
+    mock_run_no_tools_eval.side_effect = fake_run
+
+    df = run_repeated_no_tools_eval(
+        [mini_scenario],
+        repeats=2,
+        output_dir=str(tmp_path),
+        models={"gpt-5.4": "gpt-5.4"},
+        programs=["income_tax"],
+    )
+
+    assert set(df["run_id"]) == {"run_000", "run_001"}
+    assert (tmp_path / "run_000.csv").exists()
+    assert (tmp_path / "run_001.csv").exists()
+
+
+def test_load_repeated_predictions_adds_run_id_from_filename(tmp_path):
+    """Repeated-run loader should infer run ids when the column is missing."""
+    pd = pytest.importorskip("pandas")
+    pd.DataFrame(
+        [
+            {
+                "model": "gpt-5.4",
+                "scenario_id": "mini",
+                "variable": "income_tax",
+                "prediction": 123.0,
+            }
+        ]
+    ).to_csv(tmp_path / "run_000.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "model": "gpt-5.4",
+                "scenario_id": "mini",
+                "variable": "income_tax",
+                "prediction": 456.0,
+                "run_id": "already_set",
+            }
+        ]
+    ).to_csv(tmp_path / "run_001.csv", index=False)
+
+    df = load_repeated_predictions(str(tmp_path))
+
+    assert set(df["run_id"]) == {"run_000", "already_set"}

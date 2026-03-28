@@ -1,0 +1,126 @@
+@import "tailwindcss";
+@import "./theme.css";
+
+:root {
+  --f-display: var(--font-display), Georgia, serif;
+  --f-body: var(--font-body), "Helvetica Neue", sans-serif;
+  --f-mono: var(--font-mono), "Fira Code", monospace;
+}
+
+html {
+  background: var(--color-void);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: var(--f-body);
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.5;
+  background:
+    radial-gradient(circle at top left, rgba(124, 226, 207, 0.12), transparent 28%),
+    radial-gradient(circle at 85% 12%, rgba(213, 165, 101, 0.14), transparent 24%),
+    radial-gradient(circle at 50% 120%, rgba(255, 143, 107, 0.08), transparent 32%),
+    linear-gradient(180deg, #07080d 0%, #0a0c12 45%, #06070a 100%);
+  color: var(--color-text);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-cyan) 30%, transparent);
+  color: var(--color-text);
+}
+
+a {
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-void);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--color-border-subtle);
+  stroke-dasharray: 2 4;
+}
+
+.recharts-text {
+  font-family: var(--f-mono);
+  fill: var(--color-text-muted);
+  font-size: 10px;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s var(--ease-out) both;
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(124, 226, 207, 0.15);
+  }
+
+  50% {
+    box-shadow: 0 0 24px rgba(124, 226, 207, 0.3);
+  }
+}
+
+.glow-cyan {
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-cyan-dim);
+}
+
+.card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  backdrop-filter: blur(18px);
+}
+
+.card-hover {
+  transition:
+    border-color 0.2s var(--ease-out),
+    box-shadow 0.2s var(--ease-out),
+    transform 0.2s var(--ease-out);
+}
+
+.card-hover:hover {
+  border-color: var(--color-border);
+  box-shadow: 0 0 0 1px var(--color-border);
+  transform: translateY(-2px);
+}

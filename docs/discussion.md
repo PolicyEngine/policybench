@@ -14,27 +14,13 @@ The AI-alone results reveal systematic patterns in model errors that reflect the
 
 **State-level variation adds complexity.** State income tax calculations require knowledge of state-specific bracket structures, deductions, credits, and their interactions with federal provisions. Models must effectively maintain 50 separate tax code implementations in their parameters. Errors are systematically larger for states with complex tax systems (California, New York) than for states with no income tax (Texas, Florida, Washington).
 
-**Marginal tax rates are especially challenging.** Computing the marginal tax rate requires determining how a one-dollar increase in income changes tax liability and benefit amounts across all programs simultaneously. This involves understanding not just each program's rules but their interactions --- how additional income affects SNAP eligibility, EITC phase-out, and federal tax brackets concurrently. The resulting effective marginal tax rates can exceed 100% in some income ranges due to benefit cliffs, a phenomenon that models rarely capture.
-
 **Income tax estimates are closer but still unreliable.** Federal income tax is the program where models perform best in the AI-alone condition, likely because tax bracket calculations are well-represented in training data and involve relatively straightforward arithmetic. However, even here, models make errors on the order of thousands of dollars for complex returns, particularly those involving interactions between the standard deduction, credits, and the alternative minimum tax.
 
-## Why tool access works
+## What this benchmark is meant to measure
 
-The tool-augmented condition produces near-perfect accuracy because it shifts the computational burden from the model to the microsimulation engine. The model's role changes from "compute the answer" to "translate the question into the correct API call." This is a fundamentally easier task: the model must construct a valid household JSON object and specify the correct variable name, but it does not need to execute any tax or benefit calculations itself.
+PolicyBench is now scoped to the no-tools condition because that is the capability question of interest: whether frontier models can actually compute household-level tax-benefit outcomes from a description alone. Tool use may still matter in production systems, but it answers a different question. A benchmark centered on tool access tends to measure interface compliance and delegation quality more than unaided policy-calculation ability.
 
-The residual errors in the tool-augmented condition fall into a few categories:
-
-- **Malformed household JSON.** Occasionally, a model constructs a household object that is syntactically valid but semantically incorrect --- for example, placing a child in the wrong tax unit or omitting the state code.
-- **Wrong variable name.** A model might request `federal_income_tax` instead of `income_tax`, or `snap_benefits` instead of `snap`.
-- **Failure to invoke the tool.** In rare cases, a model attempts to answer from memory rather than using the available tool, particularly for variables it perceives as simple (like market income).
-
-These errors are model-specific but small in aggregate. Importantly, they are addressable through better tool documentation, structured output schemas, or few-shot examples --- unlike the fundamental computational limitations exposed in the AI-alone condition.
-
-## The tool matters more than the model
-
-Perhaps the most striking finding is the relative magnitude of the two gaps: (1) the gap between models within each condition, and (2) the gap between conditions for each model. The between-model differences in the AI-alone condition are modest: all frontier models struggle with the same programs and make qualitatively similar errors. The between-condition difference, by contrast, is transformative: the worst model with tools outperforms the best model without tools by a wide margin.
-
-This finding has a direct practical implication: investments in better computational tools yield larger returns than investments in better base models, at least for the specific task of policy calculation. An organization seeking accurate AI-assisted policy analysis should prioritize tool access over model selection.
+That distinction matters because the failure modes in the AI-alone condition are substantive. Models are not just formatting answers badly or missing one step in a schema. They are making large quantitative mistakes on thresholds, phase-outs, nonlinear interactions, and state-specific rules. Those are the core computational limits the benchmark is intended to expose.
 
 ## Implications for AI-assisted policy analysis
 
@@ -44,17 +30,17 @@ These results suggest a clear architecture for AI systems that provide policy an
 
 2. **Models add value as interfaces, not calculators.** The appropriate role for an LLM in policy analysis is to translate natural language questions into structured API calls, interpret results for non-technical users, and synthesize findings across multiple scenarios. These are tasks where models excel.
 
-3. **Benchmarks should test tool-augmented performance.** Evaluating models on unaided policy computation may be informative for understanding model capabilities but is not predictive of real-world utility. Practical evaluations should measure the full system --- model plus tools --- since that is what users will interact with.
+3. **Benchmarks should distinguish capability from system design.** A no-tools benchmark is useful for measuring raw model capability. A separate system benchmark can measure how well models use tools in practice. Conflating the two makes the headline harder to interpret.
 
-4. **Tool quality is a bottleneck.** If the tool matters more than the model, then the accuracy, coverage, and usability of the computational tool become the binding constraints on system performance. Expanding microsimulation coverage to more programs, states, and countries is likely to have a larger impact than improving model reasoning on policy questions.
+4. **Household realism matters.** Sampling benchmark cases from realistic microdata is important because many policy mistakes come from interactions between filing status, age structure, income mix, and household composition. Benchmarks built from independently sampled attributes risk testing unrealistic combinations instead of real policy difficulty.
 
 ## Limitations
 
 Several limitations qualify these findings:
 
-**Scope of programs.** PolicyBench evaluates 14 variables covering the major federal and state tax-and-benefit programs, but the US system includes hundreds of additional provisions (housing subsidies, healthcare premium tax credits, education credits, retirement savings incentives, and more). Model performance may differ on programs not included in this benchmark.
+**Scope of programs.** PolicyBench evaluates 10 variables covering major federal and state tax-and-benefit programs, but the US system includes hundreds of additional provisions (housing subsidies, healthcare premium tax credits, education credits, retirement savings incentives, and more). Model performance may differ on programs not included in this benchmark.
 
-**Household complexity.** Our 100 scenarios vary across six dimensions (state, filing status, income, children, adult ages) but do not include many real-world complications: multiple income sources (self-employment, investment, retirement), itemized deductions, prior-year carryovers, mid-year moves, or non-standard family structures. More complex households may be even harder for models to evaluate correctly.
+**Household complexity.** Sampling from the Enhanced CPS improves realism substantially, but the benchmark still uses a filtered subset of households so that cases remain promptable and interpretable. More complex multi-tax-unit households, itemized-deduction-heavy filers, and unusual household structures remain underrepresented.
 
 **Single tax year.** All evaluations use tax year 2025. Model performance may differ for historical years (where training data is more abundant) or future years (where models must extrapolate from known rules).
 

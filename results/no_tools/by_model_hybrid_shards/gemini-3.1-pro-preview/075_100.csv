@@ -1,0 +1,632 @@
+model,scenario_id,variable,prediction,raw_response,error,elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens,estimated_cost_usd
+gemini-3.1-pro-preview,scenario_075,income_tax,0.0,"{""answer"": 0.0}",,4.756330500007607,163.0,221.0,384.0,213.0,,0.002978
+gemini-3.1-pro-preview,scenario_075,income_tax_before_refundable_credits,0.0,"{""answer"": 0.0}",,3.68107529199915,164.0,136.0,300.0,128.0,,0.00196
+gemini-3.1-pro-preview,scenario_075,eitc,0.0,"{""answer"": 0.0}",,10.642157041002063,164.0,166.0,330.0,158.0,,0.00232
+gemini-3.1-pro-preview,scenario_075,ctc,0.0,"{""answer"": 0}",,7.493651083001168,162.0,209.0,371.0,203.0,,0.002832
+gemini-3.1-pro-preview,scenario_075,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,8.387733500014292,162.0,199.0,361.0,191.0,,0.002712
+gemini-3.1-pro-preview,scenario_075,snap,9216.0,"{
+  ""answer"": 9216.0
+}",,5.395025667006848,166.0,349.0,515.0,334.0,,0.00452
+gemini-3.1-pro-preview,scenario_075,ssi,0.0,"{
+  ""answer"": 0.0
+}",,3.563059667008929,166.0,164.0,330.0,152.0,,0.0023
+gemini-3.1-pro-preview,scenario_075,free_school_meals,1.0,"{""answer"": 1}",,4.874037083995063,176.0,199.0,375.0,193.0,,0.00274
+gemini-3.1-pro-preview,scenario_075,is_medicaid_eligible,1.0,"{""answer"": 1}",,4.204232209012844,175.0,205.0,380.0,199.0,,0.00281
+gemini-3.1-pro-preview,scenario_075,household_state_income_tax,0.0,"{""answer"": 0.0}",,5.555481415998656,162.0,231.0,393.0,223.0,,0.003096
+gemini-3.1-pro-preview,scenario_075,household_net_income,9216.0,"{
+  ""answer"": 9216",,6.917008666991023,169.0,498.0,667.0,487.0,,0.006314
+gemini-3.1-pro-preview,scenario_075,household_benefits,1420.0,"{""answer"": 1420",,6.55560995900305,162.0,498.0,660.0,490.0,,0.0062999999999999
+gemini-3.1-pro-preview,scenario_075,household_market_income,0.0,"{""answer"": 0}",,3.1829183329828084,170.0,61.0,231.0,55.0,,0.001072
+gemini-3.1-pro-preview,scenario_075,marginal_tax_rate,-0.44,"{
+  ""answer"": -0.44",,6.475481667002896,181.0,498.0,679.0,487.0,,0.006338
+gemini-3.1-pro-preview,scenario_076,income_tax,0.0,"{""answer"": 0.0}",,5.618139166996116,157.0,417.0,574.0,409.0,,0.005318
+gemini-3.1-pro-preview,scenario_076,income_tax_before_refundable_credits,0.0,"{
+  ""answer"": 0.0
+}",,3.1170033749949653,158.0,130.0,288.0,118.0,,0.001876
+gemini-3.1-pro-preview,scenario_076,eitc,4.0,"{
+  ""answer"": 4
+}
+",,15.3394935830147,158.0,498.0,656.0,487.0,,0.006292
+gemini-3.1-pro-preview,scenario_076,ctc,0.0,"{
+  ""answer"": 0.0
+}",,2.865855209005531,156.0,89.0,245.0,77.0,,0.00138
+gemini-3.1-pro-preview,scenario_076,income_tax_refundable_credits,3.0,"{
+  ""answer"": 3",,6.697709708008915,156.0,498.0,654.0,490.0,,0.0062879999999999
+gemini-3.1-pro-preview,scenario_076,snap,3504.0,"{
+  ""answer"": 3504.0
+}",,11.884694541979115,160.0,347.0,507.0,332.0,,0.0044839999999999
+gemini-3.1-pro-preview,scenario_076,ssi,0.0,"{
+  ""answer"": 0.0
+}",,3.3654880409885664,160.0,129.0,289.0,117.0,,0.001868
+gemini-3.1-pro-preview,scenario_076,free_school_meals,0.0,"{
+  ""answer"": 0
+}",,3.413376291980967,170.0,135.0,305.0,125.0,,0.00196
+gemini-3.1-pro-preview,scenario_076,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+}",,5.418357791000744,169.0,117.0,286.0,107.0,,0.001742
+gemini-3.1-pro-preview,scenario_076,household_state_income_tax,0.0,"{
+  ""answer"": 0.0
+}",,2.872136374993715,156.0,62.0,218.0,50.0,,0.001056
+gemini-3.1-pro-preview,scenario_076,household_net_income,354.0,"{
+  ""answer"": 354",,7.305209957994521,163.0,498.0,661.0,488.0,,0.006302
+gemini-3.1-pro-preview,scenario_076,household_benefits,349.0,"{
+  ""answer"": 349",,6.482523707993096,156.0,498.0,654.0,488.0,,0.006288
+gemini-3.1-pro-preview,scenario_076,household_market_income,50.0,"{
+  ""answer"": 50.0
+}",,2.836048583005322,164.0,56.0,220.0,43.0,,0.001
+gemini-3.1-pro-preview,scenario_076,marginal_tax_rate,0.0,"{
+  ""answer"": 0.0
+}",,5.332018832996255,175.0,373.0,548.0,361.0,,0.0048259999999999
+gemini-3.1-pro-preview,scenario_077,income_tax,0.0,"{""answer"": 0}",,4.677880582981743,153.0,130.0,283.0,124.0,,0.001866
+gemini-3.1-pro-preview,scenario_077,income_tax_before_refundable_credits,0.0,"{""answer"": 0.0}",,4.758396833989536,154.0,127.0,281.0,119.0,,0.0018319999999999
+gemini-3.1-pro-preview,scenario_077,eitc,0.0,"{
+  ""answer"": 0.0
+}",,5.547172792023048,154.0,122.0,276.0,110.0,,0.001772
+gemini-3.1-pro-preview,scenario_077,ctc,0.0,"{
+  ""answer"": 0.0
+}",,6.393039332993794,152.0,127.0,279.0,115.0,,0.001828
+gemini-3.1-pro-preview,scenario_077,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,3.887066458002664,152.0,203.0,355.0,195.0,,0.00274
+gemini-3.1-pro-preview,scenario_077,snap,3504.0,"{
+  ""answer"": 3504.0
+}",,4.286000541993417,156.0,167.0,323.0,152.0,,0.002316
+gemini-3.1-pro-preview,scenario_077,ssi,11604.0,"{""answer"": 11604.0}",,7.429470958013553,156.0,249.0,405.0,237.0,,0.0033
+gemini-3.1-pro-preview,scenario_077,free_school_meals,0.0,"{
+  ""answer"": 0
+}",,3.282847624999704,166.0,144.0,310.0,134.0,,0.00206
+gemini-3.1-pro-preview,scenario_077,is_medicaid_eligible,1.0,"{""answer"": 1}",,3.0985410420107655,165.0,127.0,292.0,121.0,,0.001854
+gemini-3.1-pro-preview,scenario_077,household_state_income_tax,0.0,"{""answer"": 0}",,2.834556874993723,152.0,76.0,228.0,70.0,,0.001216
+gemini-3.1-pro-preview,scenario_077,household_net_income,12.0,"{
+  ""answer"": 12",,6.474552333995234,159.0,498.0,657.0,489.0,,0.0062939999999999
+gemini-3.1-pro-preview,scenario_077,household_benefits,151.0,"{
+  ""answer"": 151",,6.768332999985432,152.0,498.0,650.0,488.0,,0.00628
+gemini-3.1-pro-preview,scenario_077,household_market_income,0.0,"{""answer"": 0.0}",,17.817697124992264,160.0,66.0,226.0,58.0,,0.001112
+gemini-3.1-pro-preview,scenario_077,marginal_tax_rate,-0.0,"{
+  ""answer"": -0.0",,6.5902228339982685,171.0,498.0,669.0,488.0,,0.006318
+gemini-3.1-pro-preview,scenario_078,income_tax,2.0,"{
+  ""answer"": 2",,9.177085041999815,242.0,498.0,740.0,490.0,,0.00646
+gemini-3.1-pro-preview,scenario_078,income_tax_before_refundable_credits,14.0,"{
+  ""answer"": 14",,6.544815874978667,243.0,498.0,741.0,489.0,,0.006462
+gemini-3.1-pro-preview,scenario_078,eitc,0.0,"{""answer"": 0.0}",,4.408742041996447,243.0,302.0,545.0,294.0,,0.00411
+gemini-3.1-pro-preview,scenario_078,ctc,0.0,"{""answer"": 0}",,17.938491790991975,241.0,49.0,290.0,43.0,,0.00107
+gemini-3.1-pro-preview,scenario_078,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,8.875982541998383,241.0,347.0,588.0,339.0,,0.004646
+gemini-3.1-pro-preview,scenario_078,snap,0.0,"{""answer"": 0.0}",,4.744157625013031,245.0,312.0,557.0,304.0,,0.004234
+gemini-3.1-pro-preview,scenario_078,ssi,0.0,"{""answer"": 0}",,5.483388249995187,245.0,255.0,500.0,249.0,,0.00355
+gemini-3.1-pro-preview,scenario_078,free_school_meals,0.0,"{""answer"": 0}",,2.5658628749952186,255.0,64.0,319.0,58.0,,0.001278
+gemini-3.1-pro-preview,scenario_078,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+}",,3.7672910419933032,254.0,190.0,444.0,180.0,,0.0027879999999999
+gemini-3.1-pro-preview,scenario_078,household_state_income_tax,0.0,"{
+  ""answer"": 0.0
+}",,6.341403041995363,241.0,194.0,435.0,182.0,,0.00281
+gemini-3.1-pro-preview,scenario_078,household_net_income,158.0,"{
+  ""answer"": 158",,8.290631999989273,248.0,498.0,746.0,488.0,,0.006472
+gemini-3.1-pro-preview,scenario_078,household_benefits,67132.0,"{""answer"": 67132.0}",,5.8050457919889595,241.0,337.0,578.0,325.0,,0.004526
+gemini-3.1-pro-preview,scenario_078,household_market_income,129500.0,"{""answer"": 129500.0}",,3.751649458979955,249.0,219.0,468.0,206.0,,0.003126
+gemini-3.1-pro-preview,scenario_078,marginal_tax_rate,0.0,"{
+  ""answer"": 0.",,5.855565667006886,260.0,498.0,758.0,489.0,,0.0064959999999999
+gemini-3.1-pro-preview,scenario_079,income_tax,3336.0,"{
+  ""answer"": 3336",,8.330554999993183,178.0,498.0,676.0,487.0,,0.006332
+gemini-3.1-pro-preview,scenario_079,income_tax_before_refundable_credits,333.0,"{
+  ""answer"": 333",,5.924090541986516,179.0,498.0,677.0,488.0,,0.006334
+gemini-3.1-pro-preview,scenario_079,eitc,0.0,"{""answer"": 0}",,9.378170834010234,179.0,385.0,564.0,379.0,,0.004978
+gemini-3.1-pro-preview,scenario_079,ctc,2000.0,"{
+  ""answer"": 2000.0
+}",,3.8970798749942337,177.0,253.0,430.0,238.0,,0.00339
+gemini-3.1-pro-preview,scenario_079,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,6.186247125006048,177.0,498.0,675.0,490.0,,0.00633
+gemini-3.1-pro-preview,scenario_079,snap,0.0,"{
+  ""answer"": 0.0
+}",,4.838853332999861,181.0,324.0,505.0,312.0,,0.00425
+gemini-3.1-pro-preview,scenario_079,ssi,0.0,"{""answer"": 0}",,5.010499166994123,181.0,124.0,305.0,118.0,,0.0018499999999999
+gemini-3.1-pro-preview,scenario_079,free_school_meals,0.0,"{""answer"": 0}",,3.702467124996474,191.0,216.0,407.0,210.0,,0.002974
+gemini-3.1-pro-preview,scenario_079,is_medicaid_eligible,0.0,"{""answer"": 0}",,6.808987249998609,190.0,383.0,573.0,377.0,,0.004976
+gemini-3.1-pro-preview,scenario_079,household_state_income_tax,2781.0,"{
+  ""answer"": 2781",,6.316508292016806,177.0,498.0,675.0,487.0,,0.00633
+gemini-3.1-pro-preview,scenario_079,household_net_income,5.0,"{
+  ""answer"": 5",,10.062584291998064,184.0,498.0,682.0,490.0,,0.006344
+gemini-3.1-pro-preview,scenario_079,household_benefits,0.0,"{""answer"": 0}",,5.933537417004118,177.0,458.0,635.0,452.0,,0.00585
+gemini-3.1-pro-preview,scenario_079,household_market_income,69133.0,"{
+  ""answer"": 69133.0
+}",,2.7180789999838453,185.0,115.0,300.0,99.0,,0.00175
+gemini-3.1-pro-preview,scenario_079,marginal_tax_rate,0.0,"{
+  ""answer"": 0.",,7.2590052080049645,196.0,498.0,694.0,489.0,,0.0063679999999999
+gemini-3.1-pro-preview,scenario_080,income_tax,0.0,"{""answer"": 0.0}",,6.387920332985232,204.0,495.0,699.0,487.0,,0.006348
+gemini-3.1-pro-preview,scenario_080,income_tax_before_refundable_credits,0.0,"{""answer"": 0.0}",,3.86919445899548,205.0,226.0,431.0,218.0,,0.003122
+gemini-3.1-pro-preview,scenario_080,eitc,6960.0,"{
+  ""answer"": 6960",,6.349183124984847,205.0,498.0,703.0,487.0,,0.006386
+gemini-3.1-pro-preview,scenario_080,ctc,17.0,"{
+  ""answer"": 17",,6.186544958996819,203.0,498.0,701.0,489.0,,0.006382
+gemini-3.1-pro-preview,scenario_080,income_tax_refundable_credits,862.0,"{
+  ""answer"": 862",,6.642087458982132,203.0,498.0,701.0,488.0,,0.006382
+gemini-3.1-pro-preview,scenario_080,snap,6216.0,"{
+  ""answer"": 6216",,5.924870042013936,207.0,498.0,705.0,487.0,,0.00639
+gemini-3.1-pro-preview,scenario_080,ssi,0.0,"{""answer"": 0.0}",,3.629909083014354,207.0,132.0,339.0,124.0,,0.0019979999999999
+gemini-3.1-pro-preview,scenario_080,free_school_meals,1.0,"{""answer"": 1}",,9.341732625005534,217.0,493.0,710.0,487.0,,0.00635
+gemini-3.1-pro-preview,scenario_080,is_medicaid_eligible,1.0,"{
+  ""answer"": 1
+}",,7.055154333007522,216.0,498.0,714.0,488.0,,0.006408
+gemini-3.1-pro-preview,scenario_080,household_state_income_tax,0.0,"{""answer"": 0.0}",,2.646589792013401,203.0,74.0,277.0,66.0,,0.001294
+gemini-3.1-pro-preview,scenario_080,household_net_income,371.0,"{
+  ""answer"": 371",,9.61041504199966,210.0,498.0,708.0,488.0,,0.006396
+gemini-3.1-pro-preview,scenario_080,household_market_income,26001.0,"{
+  ""answer"": 26001.0
+}",,6.010809583996888,211.0,327.0,538.0,311.0,,0.004346
+gemini-3.1-pro-preview,scenario_080,marginal_tax_rate,0.0,"{
+  ""answer"": 0.",,6.476541499985615,222.0,498.0,720.0,489.0,,0.0064199999999999
+gemini-3.1-pro-preview,scenario_081,income_tax,12.0,"{
+  ""answer"": 12",,6.0024068749917205,172.0,498.0,670.0,489.0,,0.0063199999999999
+gemini-3.1-pro-preview,scenario_081,income_tax_before_refundable_credits,1267.0,"{
+  ""answer"": 1267",,7.48374633298954,173.0,498.0,671.0,487.0,,0.006322
+gemini-3.1-pro-preview,scenario_081,eitc,0.0,"{""answer"": 0.0}",,6.203083250002237,173.0,442.0,615.0,434.0,,0.00565
+gemini-3.1-pro-preview,scenario_081,ctc,0.0,"{""answer"": 0.0}",,3.1187002079968806,171.0,87.0,258.0,79.0,,0.001386
+gemini-3.1-pro-preview,scenario_081,income_tax_refundable_credits,0.0,"{""answer"": 0}",,5.213552333007101,171.0,317.0,488.0,311.0,,0.004146
+gemini-3.1-pro-preview,scenario_081,snap,0.0,"{""answer"": 0.0}",,6.219540624995716,175.0,430.0,605.0,422.0,,0.0055099999999999
+gemini-3.1-pro-preview,scenario_081,ssi,0.0,"{""answer"": 0}",,5.891586124984315,175.0,347.0,522.0,341.0,,0.004514
+gemini-3.1-pro-preview,scenario_081,free_school_meals,0.0,"{""answer"": 0}",,3.0657625000167172,185.0,80.0,265.0,74.0,,0.00133
+gemini-3.1-pro-preview,scenario_081,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+}",,15.618481624987908,184.0,200.0,384.0,190.0,,0.0027679999999999
+gemini-3.1-pro-preview,scenario_081,household_state_income_tax,0.0,"{""answer"": 0.0}",,1.982833500020206,171.0,30.0,201.0,22.0,,0.0007019999999999
+gemini-3.1-pro-preview,scenario_081,household_net_income,2454.0,"{
+  ""answer"": 2454",,6.352836958976695,178.0,498.0,676.0,487.0,,0.006332
+gemini-3.1-pro-preview,scenario_081,household_benefits,4.0,"{
+  ""answer"": 4",,5.875985542021226,171.0,498.0,669.0,490.0,,0.006318
+gemini-3.1-pro-preview,scenario_081,household_market_income,23000.0,"{
+  ""answer"": 23000.0
+}",,4.373908624984324,179.0,155.0,334.0,139.0,,0.002218
+gemini-3.1-pro-preview,scenario_081,marginal_tax_rate,0.19,"{
+  ""answer"": 0.19",,6.397955250024097,190.0,498.0,688.0,487.0,,0.006356
+gemini-3.1-pro-preview,scenario_082,income_tax,0.0,"{""answer"": 0}",,6.636502125009429,173.0,461.0,634.0,455.0,,0.005878
+gemini-3.1-pro-preview,scenario_082,income_tax_before_refundable_credits,0.0,"{""answer"": 0.0}",,6.172477792017162,174.0,260.0,434.0,252.0,,0.003468
+gemini-3.1-pro-preview,scenario_082,eitc,0.0,"{""answer"": 0}",,7.548724416992627,174.0,32.0,206.0,26.0,,0.000732
+gemini-3.1-pro-preview,scenario_082,ctc,0.0,"{
+  ""answer"": 0.0
+}",,2.5316429170197807,172.0,61.0,233.0,49.0,,0.001076
+gemini-3.1-pro-preview,scenario_082,income_tax_refundable_credits,140.0,"{
+  ""answer"": 140.",,8.444605249998858,172.0,498.0,670.0,487.0,,0.00632
+gemini-3.1-pro-preview,scenario_082,snap,0.0,"{
+  ""answer"": 0.",,6.549017874989659,176.0,498.0,674.0,489.0,,0.0063279999999999
+gemini-3.1-pro-preview,scenario_082,ssi,0.0,"{""answer"": 0}",,3.862149332999252,176.0,269.0,445.0,263.0,,0.00358
+gemini-3.1-pro-preview,scenario_082,free_school_meals,0.0,"{
+  ""answer"": 0
+}",,3.9404667080088984,186.0,128.0,314.0,118.0,,0.001908
+gemini-3.1-pro-preview,scenario_082,is_medicaid_eligible,0.0,"{""answer"": 0}",,6.218205416022101,185.0,405.0,590.0,399.0,,0.0052299999999999
+gemini-3.1-pro-preview,scenario_082,household_state_income_tax,0.0,"{
+  ""answer"": 0.0
+}",,4.910214499977883,172.0,278.0,450.0,266.0,,0.00368
+gemini-3.1-pro-preview,scenario_082,household_net_income,1947.0,"{""answer"": 1947",,6.497622374998173,179.0,498.0,677.0,490.0,,0.0063339999999999
+gemini-3.1-pro-preview,scenario_082,household_benefits,19000.0,"{""answer"": 19000.0}",,4.051844083005562,172.0,235.0,407.0,223.0,,0.003164
+gemini-3.1-pro-preview,scenario_082,household_market_income,476.0,"{""answer"": 476.0}",,2.9636701669951435,180.0,120.0,300.0,110.0,,0.0018
+gemini-3.1-pro-preview,scenario_082,marginal_tax_rate,0.0,"{
+  ""answer"": 0.0",,6.291196875012247,191.0,498.0,689.0,488.0,,0.006358
+gemini-3.1-pro-preview,scenario_083,income_tax,1696.0,"{
+  ""answer"": 1696",,6.136743540992029,216.0,498.0,714.0,487.0,,0.006408
+gemini-3.1-pro-preview,scenario_083,income_tax_before_refundable_credits,0.0,"{
+  ""answer"": 0.0
+",,12.9746185830154,217.0,498.0,715.0,487.0,,0.00641
+gemini-3.1-pro-preview,scenario_083,eitc,0.0,"{""answer"": 0}",,7.047505833004834,217.0,493.0,710.0,487.0,,0.00635
+gemini-3.1-pro-preview,scenario_083,ctc,0.0,"{""answer"": 0.0}",,2.875815542007331,215.0,62.0,277.0,54.0,,0.001174
+gemini-3.1-pro-preview,scenario_083,income_tax_refundable_credits,0.0,"{
+  ""answer"": 0.0
+",,6.358023084001616,215.0,498.0,713.0,487.0,,0.006406
+gemini-3.1-pro-preview,scenario_083,snap,0.0,"{
+  ""answer"": 0.0
+",,9.014665624999909,219.0,498.0,717.0,487.0,,0.006414
+gemini-3.1-pro-preview,scenario_083,ssi,0.0,"{""answer"": 0}",,3.4123812500038184,219.0,189.0,408.0,183.0,,0.002706
+gemini-3.1-pro-preview,scenario_083,free_school_meals,0.0,"{""answer"": 0}",,2.562232750002295,229.0,69.0,298.0,63.0,,0.001286
+gemini-3.1-pro-preview,scenario_083,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+}",,5.438454791001277,228.0,312.0,540.0,302.0,,0.0042
+gemini-3.1-pro-preview,scenario_083,household_state_income_tax,0.0,"{
+  ""answer"": 0.0",,8.971702832990559,215.0,498.0,713.0,488.0,,0.006406
+gemini-3.1-pro-preview,scenario_083,household_net_income,2761.0,"{
+  ""answer"": 2761",,7.596964625001419,222.0,498.0,720.0,487.0,,0.00642
+gemini-3.1-pro-preview,scenario_083,household_benefits,0.0,"{
+  ""answer"": 0.",,6.768745375011349,215.0,498.0,713.0,489.0,,0.0064059999999999
+gemini-3.1-pro-preview,scenario_083,household_market_income,30750.0,"{""answer"": 30750.0}",,4.451119083008962,223.0,94.0,317.0,82.0,,0.001574
+gemini-3.1-pro-preview,scenario_083,marginal_tax_rate,0.0,"{
+  ""answer"": 0.",,7.971620958007406,234.0,498.0,732.0,489.0,,0.0064439999999999
+gemini-3.1-pro-preview,scenario_084,income_tax,0.0,"{""answer"": 0}",,5.614251874998445,162.0,416.0,578.0,410.0,,0.0053159999999999
+gemini-3.1-pro-preview,scenario_084,income_tax_before_refundable_credits,0.0,"{""answer"": 0.0}",,3.686390874994686,163.0,187.0,350.0,179.0,,0.00257
+gemini-3.1-pro-preview,scenario_084,eitc,0.0,"{
+  ""answer"": 0.0
+}",,6.845518374990206,163.0,472.0,635.0,460.0,,0.00599
+gemini-3.1-pro-preview,scenario_084,ctc,0.0,"{
+  ""answer"": 0.0
+}",,2.3854577919992153,161.0,98.0,259.0,86.0,,0.001498
+gemini-3.1-pro-preview,scenario_084,income_tax_refundable_credits,0.0,"{""answer"": 0}",,6.746689499996137,161.0,450.0,611.0,444.0,,0.005722
+gemini-3.1-pro-preview,scenario_084,snap,2244.0,"{
+  ""answer"": 2244",,6.819767540990142,165.0,498.0,663.0,487.0,,0.006306
+gemini-3.1-pro-preview,scenario_084,ssi,8014.0,"{""answer"": 8014.",,9.359034916997189,165.0,498.0,663.0,489.0,,0.0063059999999999
+gemini-3.1-pro-preview,scenario_084,free_school_meals,0.0,"{
+  ""answer"": 0
+}",,12.888406875019427,175.0,105.0,280.0,95.0,,0.00161
+gemini-3.1-pro-preview,scenario_084,is_medicaid_eligible,1.0,"{""answer"": 1}",,4.835868667025352,174.0,265.0,439.0,259.0,,0.003528
+gemini-3.1-pro-preview,scenario_084,household_state_income_tax,0.0,"{
+  ""answer"": 0.0
+}",,5.6646121670200955,161.0,381.0,542.0,369.0,,0.004894
+gemini-3.1-pro-preview,scenario_084,household_net_income,12799.0,"{""answer"": 12799}",,6.895551833003992,168.0,498.0,666.0,488.0,,0.006312
+gemini-3.1-pro-preview,scenario_084,household_benefits,80.0,"{
+  ""answer"": 80",,6.269552957994165,161.0,498.0,659.0,489.0,,0.006298
+gemini-3.1-pro-preview,scenario_084,household_market_income,8200.0,"{
+  ""answer"": 8200.0
+}",,6.095221583993407,169.0,107.0,276.0,92.0,,0.001622
+gemini-3.1-pro-preview,scenario_084,marginal_tax_rate,0.0,"{
+  ""answer"": 0.",,13.853164583008038,180.0,497.0,677.0,488.0,,0.006324
+gemini-3.1-pro-preview,scenario_085,income_tax,9.0,"{
+  ""answer"": 9",,6.170242666994454,174.0,498.0,672.0,490.0,,0.006324
+gemini-3.1-pro-preview,scenario_085,income_tax_before_refundable_credits,649.0,"{
+  ""answer"": 649.",,6.424016625009244,175.0,498.0,673.0,487.0,,0.006326
+gemini-3.1-pro-preview,scenario_085,eitc,0.0,"{""answer"": 0}",,14.864618791994872,175.0,494.0,669.0,488.0,,0.006278
+gemini-3.1-pro-preview,scenario_085,ctc,0.0,"{
+  ""answer"": 0.0
+}",,2.681421582994517,173.0,85.0,258.0,73.0,,0.001366
+gemini-3.1-pro-preview,scenario_085,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,6.491472207999323,173.0,498.0,671.0,490.0,,0.0063219999999999
+gemini-3.1-pro-preview,scenario_085,snap,276.0,"{
+  ""answer"": 276",,7.846757541992702,177.0,498.0,675.0,488.0,,0.00633
+gemini-3.1-pro-preview,scenario_085,ssi,0.0,"{
+  ""answer"": 0.0
+}",,2.693220166984247,177.0,118.0,295.0,106.0,,0.00177
+gemini-3.1-pro-preview,scenario_085,free_school_meals,0.0,"{
+  ""answer"": 0
+}",,4.730214791983599,187.0,115.0,302.0,105.0,,0.001754
+gemini-3.1-pro-preview,scenario_085,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+}",,5.932654542004457,186.0,458.0,644.0,448.0,,0.005868
+gemini-3.1-pro-preview,scenario_085,household_state_income_tax,605.0,"{
+  ""answer"": 605.",,6.186694125004578,173.0,498.0,671.0,487.0,,0.006322
+gemini-3.1-pro-preview,scenario_085,household_net_income,19.0,"{
+  ""answer"": 19",,7.621650707995286,180.0,498.0,678.0,489.0,,0.006336
+gemini-3.1-pro-preview,scenario_085,household_benefits,27.0,"{
+  ""answer"": 27",,6.807907666981919,173.0,498.0,671.0,489.0,,0.0063219999999999
+gemini-3.1-pro-preview,scenario_085,household_market_income,22000.0,"{""answer"": 22000.0}",,3.0042701670026872,181.0,117.0,298.0,105.0,,0.001766
+gemini-3.1-pro-preview,scenario_085,marginal_tax_rate,0.0,"{
+  ""answer"": 0",,6.748299833008787,192.0,498.0,690.0,490.0,,0.0063599999999999
+gemini-3.1-pro-preview,scenario_086,income_tax,6569.0,"{
+  ""answer"": 6569",,6.83766900000046,219.0,498.0,717.0,487.0,,0.006414
+gemini-3.1-pro-preview,scenario_086,income_tax_before_refundable_credits,6.0,"{
+  ""answer"": 6",,5.560307250008918,220.0,497.0,717.0,489.0,,0.006404
+gemini-3.1-pro-preview,scenario_086,eitc,0.0,"{""answer"": 0.0}",,4.0863563339808024,220.0,240.0,460.0,232.0,,0.00332
+gemini-3.1-pro-preview,scenario_086,ctc,0.0,"{""answer"": 0.0}",,2.911130874999799,218.0,72.0,290.0,64.0,,0.0013
+gemini-3.1-pro-preview,scenario_086,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,5.068931500019971,218.0,372.0,590.0,364.0,,0.0049
+gemini-3.1-pro-preview,scenario_086,snap,0.0,"{""answer"": 0.0}",,4.175713375007035,222.0,310.0,532.0,302.0,,0.004164
+gemini-3.1-pro-preview,scenario_086,ssi,0.0,"{""answer"": 0.0}",,3.862191124993842,222.0,192.0,414.0,184.0,,0.002748
+gemini-3.1-pro-preview,scenario_086,free_school_meals,0.0,"{""answer"": 0}",,3.604151624982478,232.0,175.0,407.0,169.0,,0.002564
+gemini-3.1-pro-preview,scenario_086,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+}",,5.0726094160054345,231.0,258.0,489.0,248.0,,0.0035579999999999
+gemini-3.1-pro-preview,scenario_086,household_state_income_tax,22.0,"{
+  ""answer"": 22",,6.553905166016193,218.0,498.0,716.0,489.0,,0.0064119999999999
+gemini-3.1-pro-preview,scenario_086,household_net_income,7254.0,"{
+  ""answer"": 7254",,7.073174374992959,225.0,498.0,723.0,487.0,,0.006426
+gemini-3.1-pro-preview,scenario_086,household_benefits,0.0,"{
+  ""answer"": 0.0
+}",,5.977933832997223,218.0,473.0,691.0,461.0,,0.006112
+gemini-3.1-pro-preview,scenario_086,household_market_income,88720.0,"{
+  ""answer"": 88720.0
+}",,3.7313617920153774,226.0,186.0,412.0,170.0,,0.002684
+gemini-3.1-pro-preview,scenario_086,marginal_tax_rate,0.0,"{
+  ""answer"": 0.",,9.250053041992942,237.0,498.0,735.0,489.0,,0.0064499999999999
+gemini-3.1-pro-preview,scenario_087,income_tax,0.0,"{
+  ""answer"": 0.",,6.25730774999829,268.0,497.0,765.0,488.0,,0.0065
+gemini-3.1-pro-preview,scenario_087,income_tax_before_refundable_credits,0.0,"{""answer"": 0}",,5.984310125000775,269.0,493.0,762.0,487.0,,0.006454
+gemini-3.1-pro-preview,scenario_087,eitc,0.0,"{""answer"": 0.0}",,3.6909530829871073,269.0,177.0,446.0,169.0,,0.002662
+gemini-3.1-pro-preview,scenario_087,ctc,0.0,"{""answer"": 0.0}",,5.753098708984908,267.0,76.0,343.0,68.0,,0.001446
+gemini-3.1-pro-preview,scenario_087,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,6.930644334002864,267.0,411.0,678.0,403.0,,0.0054659999999999
+gemini-3.1-pro-preview,scenario_087,snap,4.0,"{
+  ""answer"": 4",,6.354281625011936,271.0,498.0,769.0,490.0,,0.0065179999999999
+gemini-3.1-pro-preview,scenario_087,ssi,0.0,"{
+  ""answer"": 0.0
+}",,5.082180041994434,271.0,338.0,609.0,326.0,,0.004598
+gemini-3.1-pro-preview,scenario_087,free_school_meals,0.0,"{""answer"": 0}",,6.172720124974148,281.0,336.0,617.0,330.0,,0.004594
+gemini-3.1-pro-preview,scenario_087,household_state_income_tax,0.0,"{
+  ""answer"": 0.",,8.260281917027896,267.0,498.0,765.0,489.0,,0.0065099999999999
+gemini-3.1-pro-preview,scenario_087,household_net_income,2445.0,"{""answer"": 2445",,8.754546625015792,274.0,498.0,772.0,490.0,,0.0065239999999999
+gemini-3.1-pro-preview,scenario_087,household_benefits,19776.0,"{
+  ""answer"": 19776.0
+}",,8.380609999992885,267.0,153.0,420.0,137.0,,0.0023699999999999
+gemini-3.1-pro-preview,scenario_087,household_market_income,4682.0,"{""answer"": 4682}",,4.95320137499948,275.0,269.0,544.0,260.0,,0.003778
+gemini-3.1-pro-preview,scenario_087,marginal_tax_rate,0.0,"{""answer"": 0.0}
+",,6.421578459005104,286.0,498.0,784.0,489.0,,0.006548
+gemini-3.1-pro-preview,scenario_088,income_tax,4923.0,"{""answer"": 4923}",,5.435949957987759,195.0,377.0,572.0,368.0,,0.0049139999999999
+gemini-3.1-pro-preview,scenario_088,income_tax_before_refundable_credits,4923.0,"{
+  ""answer"": 4923.",,8.072015207988443,196.0,498.0,694.0,486.0,,0.006368
+gemini-3.1-pro-preview,scenario_088,eitc,0.0,"{""answer"": 0}",,4.544988249981543,196.0,277.0,473.0,271.0,,0.003716
+gemini-3.1-pro-preview,scenario_088,ctc,0.0,"{
+  ""answer"": 0.0
+}",,3.3176813749887515,194.0,108.0,302.0,96.0,,0.001684
+gemini-3.1-pro-preview,scenario_088,income_tax_refundable_credits,0.0,"{
+  ""answer"": 0.0
+}",,6.6568354580085725,194.0,442.0,636.0,430.0,,0.005692
+gemini-3.1-pro-preview,scenario_088,snap,0.0,"{""answer"": 0.0}",,12.420000583981164,198.0,234.0,432.0,226.0,,0.003204
+gemini-3.1-pro-preview,scenario_088,ssi,0.0,"{""answer"": 0.0}",,3.618674999976065,198.0,222.0,420.0,214.0,,0.00306
+gemini-3.1-pro-preview,scenario_088,free_school_meals,0.0,"{""answer"": 0}",,2.5529504159931093,208.0,73.0,281.0,67.0,,0.001292
+gemini-3.1-pro-preview,scenario_088,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+}",,4.134758291998878,207.0,222.0,429.0,212.0,,0.003078
+gemini-3.1-pro-preview,scenario_088,household_state_income_tax,2.0,"{
+  ""answer"": 2",,6.492915416980395,194.0,498.0,692.0,490.0,,0.006364
+gemini-3.1-pro-preview,scenario_088,household_net_income,599.0,"{
+  ""answer"": 599",,7.022988250013441,201.0,498.0,699.0,488.0,,0.006378
+gemini-3.1-pro-preview,scenario_088,household_benefits,0.0,"{""answer"": 0.0}",,5.284524334012531,194.0,387.0,581.0,379.0,,0.005032
+gemini-3.1-pro-preview,scenario_088,household_market_income,75000.0,"{
+  ""answer"": 75000.0
+}",,3.943423290998908,202.0,56.0,258.0,40.0,,0.001076
+gemini-3.1-pro-preview,scenario_088,marginal_tax_rate,0.27,"{
+  ""answer"": 0.27",,6.485145083017414,213.0,498.0,711.0,487.0,,0.006402
+gemini-3.1-pro-preview,scenario_089,income_tax_before_refundable_credits,0.0,"{""answer"": 0.0}",,4.6278445000061765,170.0,245.0,415.0,237.0,,0.00328
+gemini-3.1-pro-preview,scenario_089,eitc,0.0,"{""answer"": 0}",,3.0645712910045404,170.0,129.0,299.0,123.0,,0.001888
+gemini-3.1-pro-preview,scenario_089,ctc,0.0,"{""answer"": 0}",,7.038144707999891,168.0,50.0,218.0,44.0,,0.000936
+gemini-3.1-pro-preview,scenario_089,income_tax_refundable_credits,0.0,"{""answer"": 0}",,3.902626125025563,168.0,183.0,351.0,177.0,,0.002532
+gemini-3.1-pro-preview,scenario_089,snap,1128.0,"{""answer"": 1128.0",,6.841140874981647,172.0,498.0,670.0,488.0,,0.00632
+gemini-3.1-pro-preview,scenario_089,ssi,1503.0,"{""answer"": 1503.",,5.544462499994552,172.0,498.0,670.0,489.0,,0.0063199999999999
+gemini-3.1-pro-preview,scenario_089,free_school_meals,0.0,"{
+  ""answer"": 0
+}",,3.0753829579916783,182.0,139.0,321.0,129.0,,0.002032
+gemini-3.1-pro-preview,scenario_089,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+}",,6.35105820800527,181.0,456.0,637.0,446.0,,0.005834
+gemini-3.1-pro-preview,scenario_089,household_state_income_tax,0.0,"{""answer"": 0.0}",,16.888236208003946,168.0,58.0,226.0,50.0,,0.001032
+gemini-3.1-pro-preview,scenario_089,household_net_income,10341.0,"{""answer"": 10341.0}",,5.600400291994447,175.0,395.0,570.0,383.0,,0.00509
+gemini-3.1-pro-preview,scenario_089,household_benefits,0.0,"{""answer"": 0.0}",,8.061645500012673,168.0,275.0,443.0,267.0,,0.003636
+gemini-3.1-pro-preview,scenario_089,household_market_income,10341.0,"{
+  ""answer"": 10341.0
+}",,3.2337349579902366,176.0,159.0,335.0,143.0,,0.00226
+gemini-3.1-pro-preview,scenario_089,marginal_tax_rate,0.0,"{""answer"": 0.0}",,4.840939999994589,187.0,329.0,516.0,321.0,,0.004322
+gemini-3.1-pro-preview,scenario_090,income_tax,0.0,"{
+  ""answer"": 0.0
+}",,4.158225625025807,180.0,211.0,391.0,199.0,,0.002892
+gemini-3.1-pro-preview,scenario_090,income_tax_before_refundable_credits,0.0,"{""answer"": 0.0}",,3.5646175000001676,181.0,210.0,391.0,202.0,,0.002882
+gemini-3.1-pro-preview,scenario_090,eitc,0.0,"{""answer"": 0.0}",,14.822491667000577,181.0,249.0,430.0,241.0,,0.00335
+gemini-3.1-pro-preview,scenario_090,ctc,0.0,"{
+  ""answer"": 0.0
+}",,5.409290792013053,179.0,28.0,207.0,16.0,,0.000694
+gemini-3.1-pro-preview,scenario_090,income_tax_refundable_credits,0.0,"{
+  ""answer"": 0.0
+}",,3.5985628749767784,179.0,206.0,385.0,194.0,,0.00283
+gemini-3.1-pro-preview,scenario_090,snap,6432.0,"{
+  ""answer"": 6432.0
+}",,4.630943750002189,183.0,293.0,476.0,278.0,,0.003882
+gemini-3.1-pro-preview,scenario_090,ssi,17400.0,"{""answer"": 17400}",,6.025798415997997,183.0,441.0,624.0,431.0,,0.005658
+gemini-3.1-pro-preview,scenario_090,free_school_meals,0.0,"{""answer"": 0}",,2.3860839169938117,193.0,81.0,274.0,75.0,,0.001358
+gemini-3.1-pro-preview,scenario_090,is_medicaid_eligible,1.0,"{""answer"": 1}",,12.299372332985511,192.0,315.0,507.0,309.0,,0.004164
+gemini-3.1-pro-preview,scenario_090,household_state_income_tax,0.0,"{""answer"": 0.0}",,3.717245209001703,179.0,178.0,357.0,170.0,,0.002494
+gemini-3.1-pro-preview,scenario_090,household_net_income,-1.0,"{
+  ""answer"": -1",,6.147372625011485,186.0,498.0,684.0,490.0,,0.0063479999999999
+gemini-3.1-pro-preview,scenario_090,household_benefits,238.0,"{
+  ""answer"": 238",,7.653840541985119,179.0,498.0,677.0,488.0,,0.006334
+gemini-3.1-pro-preview,scenario_090,household_market_income,-1737.0,"{
+  ""answer"": -1737.0
+}",,3.0129051659896504,187.0,103.0,290.0,88.0,,0.00161
+gemini-3.1-pro-preview,scenario_090,marginal_tax_rate,0.0,"{
+  ""answer"": 0.0
+}",,5.486556832998758,198.0,399.0,597.0,387.0,,0.0051839999999999
+gemini-3.1-pro-preview,scenario_091,income_tax,0.0,"{""answer"": 0.0}",,6.538281999994069,197.0,344.0,541.0,336.0,,0.004522
+gemini-3.1-pro-preview,scenario_091,income_tax_before_refundable_credits,0.0,"{""answer"": 0}",,6.669194249989232,198.0,384.0,582.0,378.0,,0.005004
+gemini-3.1-pro-preview,scenario_091,eitc,0.0,"{""answer"": 0}",,4.372816999995848,198.0,267.0,465.0,261.0,,0.0036
+gemini-3.1-pro-preview,scenario_091,ctc,0.0,"{
+  ""answer"": 0.0
+}",,2.553934958006721,196.0,49.0,245.0,37.0,,0.00098
+gemini-3.1-pro-preview,scenario_091,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,4.207094000012148,196.0,217.0,413.0,209.0,,0.002996
+gemini-3.1-pro-preview,scenario_091,snap,0.0,"{""answer"": 0.0}",,6.2180975830124225,200.0,469.0,669.0,461.0,,0.006028
+gemini-3.1-pro-preview,scenario_091,ssi,0.0,"{""answer"": 0.0}",,5.5584268750099,200.0,415.0,615.0,407.0,,0.00538
+gemini-3.1-pro-preview,scenario_091,free_school_meals,0.0,"{
+  ""answer"": 0
+}",,2.5746105830185115,210.0,89.0,299.0,79.0,,0.001488
+gemini-3.1-pro-preview,scenario_091,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+",,7.194766500004334,209.0,498.0,707.0,489.0,,0.0063939999999999
+gemini-3.1-pro-preview,scenario_091,household_state_income_tax,0.0,"{""answer"": 0.0}",,3.0584766249812674,196.0,55.0,251.0,47.0,,0.001052
+gemini-3.1-pro-preview,scenario_091,household_net_income,-35092.0,"{""answer"": -35092.0",,8.269306915986817,203.0,498.0,701.0,487.0,,0.006382
+gemini-3.1-pro-preview,scenario_091,household_benefits,27037.0,"{""answer"": 27037.0}",,5.283079166023526,196.0,335.0,531.0,323.0,,0.004412
+gemini-3.1-pro-preview,scenario_091,household_market_income,-62129.0,"{""answer"": -62129.0}",,4.977835583995329,204.0,231.0,435.0,219.0,,0.00318
+gemini-3.1-pro-preview,scenario_091,marginal_tax_rate,0.0,"{""answer"": 0.0}",,8.301633041992318,215.0,260.0,475.0,252.0,,0.00355
+gemini-3.1-pro-preview,scenario_092,income_tax,2821.6,"{""answer"": 2821.6",,6.033859041985124,170.0,498.0,668.0,488.0,,0.006316
+gemini-3.1-pro-preview,scenario_092,income_tax_before_refundable_credits,2821.6,"{""answer"": 2821.6",,6.070850582997082,171.0,498.0,669.0,488.0,,0.006318
+gemini-3.1-pro-preview,scenario_092,eitc,0.0,"{""answer"": 0}",,8.682702791993506,171.0,312.0,483.0,306.0,,0.004086
+gemini-3.1-pro-preview,scenario_092,ctc,0.0,"{
+  ""answer"": 0.0
+}",,2.824161583004752,169.0,91.0,260.0,79.0,,0.00143
+gemini-3.1-pro-preview,scenario_092,income_tax_refundable_credits,0.0,"{
+  ""answer"": 0.0
+}",,18.38735854200786,169.0,318.0,487.0,306.0,,0.004154
+gemini-3.1-pro-preview,scenario_092,snap,0.0,"{""answer"": 0.0}",,4.5510209999920335,173.0,267.0,440.0,259.0,,0.00355
+gemini-3.1-pro-preview,scenario_092,ssi,0.0,"{""answer"": 0}",,16.085528750001686,173.0,136.0,309.0,130.0,,0.001978
+gemini-3.1-pro-preview,scenario_092,free_school_meals,0.0,"{
+  ""answer"": 0
+}",,3.290760665986454,183.0,134.0,317.0,124.0,,0.001974
+gemini-3.1-pro-preview,scenario_092,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+}",,3.4861157500126865,182.0,149.0,331.0,139.0,,0.002152
+gemini-3.1-pro-preview,scenario_092,household_state_income_tax,0.0,"{""answer"": 0}",,3.450480916973902,169.0,56.0,225.0,50.0,,0.00101
+gemini-3.1-pro-preview,scenario_092,household_net_income,34.0,"{
+  ""answer"": 34",,6.308678166999016,176.0,498.0,674.0,489.0,,0.0063279999999999
+gemini-3.1-pro-preview,scenario_092,household_benefits,0.0,"{""answer"": 0}",,6.196388125012163,169.0,454.0,623.0,448.0,,0.005786
+gemini-3.1-pro-preview,scenario_092,household_market_income,40501.0,"{""answer"": 40501}",,3.5334924579947256,177.0,101.0,278.0,91.0,,0.001566
+gemini-3.1-pro-preview,scenario_092,marginal_tax_rate,0.19,"{
+  ""answer"": 0.19",,6.832072625024011,188.0,498.0,686.0,487.0,,0.006352
+gemini-3.1-pro-preview,scenario_093,income_tax,-20.0,"{
+  ""answer"": -20",,6.2950169169926085,166.0,498.0,664.0,489.0,,0.0063079999999999
+gemini-3.1-pro-preview,scenario_093,income_tax_before_refundable_credits,0.0,"{
+  ""answer"": 0.0
+}",,3.643093540973496,167.0,208.0,375.0,196.0,,0.00283
+gemini-3.1-pro-preview,scenario_093,eitc,1700.0,"{
+  ""answer"": 1700.0
+}",,6.507725749979727,167.0,412.0,579.0,397.0,,0.005278
+gemini-3.1-pro-preview,scenario_093,ctc,375.0,"{
+  ""answer"": 375.",,5.741941083018901,165.0,498.0,663.0,487.0,,0.006306
+gemini-3.1-pro-preview,scenario_093,income_tax_refundable_credits,2501.0,"{""answer"": 2501.0",,6.091674540977692,165.0,498.0,663.0,488.0,,0.006306
+gemini-3.1-pro-preview,scenario_093,snap,596.0,"{
+  ""answer"": 596",,6.31731574999867,169.0,498.0,667.0,488.0,,0.006314
+gemini-3.1-pro-preview,scenario_093,ssi,0.0,"{""answer"": 0.0}",,3.684023791982326,169.0,168.0,337.0,160.0,,0.002354
+gemini-3.1-pro-preview,scenario_093,free_school_meals,1.0,"{
+  ""answer"": 1
+}",,4.849052542005666,179.0,239.0,418.0,229.0,,0.0032259999999999
+gemini-3.1-pro-preview,scenario_093,is_medicaid_eligible,1.0,"{
+  ""answer"": 1
+}",,4.020933666994097,178.0,235.0,413.0,225.0,,0.003176
+gemini-3.1-pro-preview,scenario_093,household_state_income_tax,0.0,"{
+  ""answer"": 0.0
+}",,13.609622415999183,165.0,279.0,444.0,267.0,,0.003678
+gemini-3.1-pro-preview,scenario_093,household_net_income,1285.0,"{
+  ""answer"": 1285",,5.966196084016701,172.0,498.0,670.0,487.0,,0.00632
+gemini-3.1-pro-preview,scenario_093,household_benefits,8636.0,"{
+  ""answer"": 8636",,6.8427645830088295,165.0,498.0,663.0,487.0,,0.006306
+gemini-3.1-pro-preview,scenario_093,household_market_income,5000.0,"{""answer"": 5000}",,2.213083167007426,173.0,57.0,230.0,48.0,,0.00103
+gemini-3.1-pro-preview,scenario_093,marginal_tax_rate,-0.75,"{
+  ""answer"": -0.75",,8.397863083024276,184.0,498.0,682.0,487.0,,0.006344
+gemini-3.1-pro-preview,scenario_094,income_tax,29.0,"{
+  ""answer"": 29",,5.873021000006702,161.0,498.0,659.0,489.0,,0.006298
+gemini-3.1-pro-preview,scenario_094,income_tax_before_refundable_credits,2961.42,"{
+  ""answer"": 2961.42
+}",,17.114555292006116,162.0,422.0,584.0,406.0,,0.005388
+gemini-3.1-pro-preview,scenario_094,eitc,0.0,"{""answer"": 0.0}",,7.260369124996941,162.0,373.0,535.0,365.0,,0.0048
+gemini-3.1-pro-preview,scenario_094,ctc,0.0,"{
+  ""answer"": 0.0
+}",,2.4808602090051863,160.0,85.0,245.0,73.0,,0.00134
+gemini-3.1-pro-preview,scenario_094,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,6.532915290998062,160.0,344.0,504.0,336.0,,0.004448
+gemini-3.1-pro-preview,scenario_094,snap,0.0,"{
+  ""answer"": 0.0
+}",,5.215464792010607,164.0,222.0,386.0,210.0,,0.002992
+gemini-3.1-pro-preview,scenario_094,ssi,0.0,"{""answer"": 0.0}",,3.2323286249884404,164.0,162.0,326.0,154.0,,0.002272
+gemini-3.1-pro-preview,scenario_094,free_school_meals,0.0,"{""answer"": 0}",,2.5345605420006905,174.0,61.0,235.0,55.0,,0.00108
+gemini-3.1-pro-preview,scenario_094,is_medicaid_eligible,0.0,"{
+  ""answer"": 0
+}",,3.8249614169762935,173.0,212.0,385.0,202.0,,0.0028899999999999
+gemini-3.1-pro-preview,scenario_094,household_state_income_tax,983.0,"{""answer"": 983.",,6.321728167007677,160.0,498.0,658.0,490.0,,0.0062959999999999
+gemini-3.1-pro-preview,scenario_094,household_net_income,341.0,"{
+  ""answer"": 341",,6.226527125021676,167.0,498.0,665.0,488.0,,0.00631
+gemini-3.1-pro-preview,scenario_094,household_benefits,0.0,"{
+  ""answer"": 0",,6.647645749995718,160.0,498.0,658.0,490.0,,0.0062959999999999
+gemini-3.1-pro-preview,scenario_094,household_market_income,41666.0,"{""answer"": 41666}",,3.776501708984142,168.0,128.0,296.0,118.0,,0.001872
+gemini-3.1-pro-preview,scenario_094,marginal_tax_rate,0.0,"{
+  ""answer"": 0.",,6.3539898750022985,179.0,498.0,677.0,489.0,,0.0063339999999999
+gemini-3.1-pro-preview,scenario_095,income_tax,105.0,"{
+  ""answer"": 105",,5.6909567909897305,263.0,498.0,761.0,488.0,,0.006502
+gemini-3.1-pro-preview,scenario_095,income_tax_before_refundable_credits,3730.0,"{""answer"": 3730",,6.147976666019531,264.0,498.0,762.0,490.0,,0.0065039999999999
+gemini-3.1-pro-preview,scenario_095,eitc,0.0,"{
+  ""answer"": 0.0
+}",,4.282356917014113,264.0,302.0,566.0,290.0,,0.004152
+gemini-3.1-pro-preview,scenario_095,ctc,0.0,"{""answer"": 0}",,3.08067804199527,262.0,75.0,337.0,69.0,,0.001424
+gemini-3.1-pro-preview,scenario_095,income_tax_refundable_credits,0.0,"{
+  ""answer"": 0",,5.975006833003135,262.0,498.0,760.0,490.0,,0.0065
+gemini-3.1-pro-preview,scenario_095,snap,0.0,"{
+  ""answer"": 0.0
+}",,4.944651416008128,266.0,336.0,602.0,324.0,,0.004564
+gemini-3.1-pro-preview,scenario_095,ssi,0.0,"{""answer"": 0}",,3.3110631669987924,266.0,90.0,356.0,84.0,,0.001612
+gemini-3.1-pro-preview,scenario_095,free_school_meals,0.0,"{""answer"": 0}",,3.5702191660238896,276.0,58.0,334.0,52.0,,0.001248
+gemini-3.1-pro-preview,scenario_095,is_medicaid_eligible,0.0,"{""answer"": 0}",,4.143443334003678,275.0,282.0,557.0,276.0,,0.003934
+gemini-3.1-pro-preview,scenario_095,household_state_income_tax,242.0,"{
+  ""answer"": 242",,6.15584433299955,262.0,498.0,760.0,488.0,,0.0065
+gemini-3.1-pro-preview,scenario_095,household_net_income,612.0,"{
+  ""answer"": 612",,6.362716583011206,269.0,498.0,767.0,488.0,,0.006514
+gemini-3.1-pro-preview,scenario_095,household_benefits,0.0,"{""answer"": 0.0}",,5.901428125012899,262.0,472.0,734.0,464.0,,0.006188
+gemini-3.1-pro-preview,scenario_095,household_market_income,69976.0,"{
+  ""answer"": 69976.0
+}",,19.259597917000065,270.0,378.0,648.0,362.0,,0.005076
+gemini-3.1-pro-preview,scenario_095,marginal_tax_rate,0.0,"{
+  ""answer"": 0",,19.691909417015268,281.0,498.0,779.0,490.0,,0.0065379999999999
+gemini-3.1-pro-preview,scenario_096,income_tax,5.0,"{
+  ""answer"": 5",,6.687888832995668,225.0,498.0,723.0,490.0,,0.0064259999999999
+gemini-3.1-pro-preview,scenario_096,income_tax_before_refundable_credits,542.0,"{
+  ""answer"": 542",,5.931993415986653,226.0,498.0,724.0,488.0,,0.006428
+gemini-3.1-pro-preview,scenario_096,eitc,0.0,"{""answer"": 0.0}",,3.766892499988898,226.0,231.0,457.0,223.0,,0.003224
+gemini-3.1-pro-preview,scenario_096,ctc,0.0,"{""answer"": 0}",,8.856274459016277,224.0,61.0,285.0,55.0,,0.00118
+gemini-3.1-pro-preview,scenario_096,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,4.20131112501258,224.0,261.0,485.0,253.0,,0.00358
+gemini-3.1-pro-preview,scenario_096,snap,0.0,"{""answer"": 0}",,3.1984852910100017,228.0,162.0,390.0,156.0,,0.0024
+gemini-3.1-pro-preview,scenario_096,ssi,0.0,"{""answer"": 0.0}",,2.720326125010615,228.0,114.0,342.0,106.0,,0.001824
+gemini-3.1-pro-preview,scenario_096,free_school_meals,0.0,"{""answer"": 0}",,2.240554832998896,238.0,44.0,282.0,38.0,,0.001004
+gemini-3.1-pro-preview,scenario_096,is_medicaid_eligible,0.0,"{""answer"": 0}",,2.983425417012768,237.0,147.0,384.0,141.0,,0.002238
+gemini-3.1-pro-preview,scenario_096,household_state_income_tax,0.0,"{""answer"": 0.0}",,2.0715175829827785,224.0,42.0,266.0,34.0,,0.0009519999999999
+gemini-3.1-pro-preview,scenario_096,household_net_income,2362.0,"{
+  ""answer"": 2362",,5.854462584014982,231.0,498.0,729.0,487.0,,0.006438
+gemini-3.1-pro-preview,scenario_096,household_benefits,0.0,"{""answer"": 0}",,3.8422372920031194,224.0,205.0,429.0,199.0,,0.002908
+gemini-3.1-pro-preview,scenario_096,household_market_income,316209.0,"{
+  ""answer"": 316209.0
+}",,3.573526916996343,232.0,184.0,416.0,167.0,,0.002672
+gemini-3.1-pro-preview,scenario_096,marginal_tax_rate,0.0,"{
+  ""answer"": 0",,6.388057125004707,243.0,498.0,741.0,490.0,,0.006462
+gemini-3.1-pro-preview,scenario_097,income_tax,106.0,"{""answer"": 106.",,6.591019708983367,182.0,498.0,680.0,490.0,,0.0063399999999999
+gemini-3.1-pro-preview,scenario_097,income_tax_before_refundable_credits,106.7,"{""answer"": 106.7",,6.294741666992195,183.0,498.0,681.0,489.0,,0.0063419999999999
+gemini-3.1-pro-preview,scenario_097,eitc,0.0,"{""answer"": 0.0}",,3.857260624994524,183.0,217.0,400.0,209.0,,0.00297
+gemini-3.1-pro-preview,scenario_097,ctc,0.0,"{""answer"": 0.0}",,2.633832749997964,181.0,68.0,249.0,60.0,,0.001178
+gemini-3.1-pro-preview,scenario_097,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,4.790998416981893,181.0,331.0,512.0,323.0,,0.004334
+gemini-3.1-pro-preview,scenario_097,snap,0.0,"{""answer"": 0.0}
+",,6.392526542011183,185.0,498.0,683.0,489.0,,0.0063459999999999
+gemini-3.1-pro-preview,scenario_097,ssi,0.0,"{
+  ""answer"": 0.0
+}",,3.5083198329957668,185.0,220.0,405.0,208.0,,0.00301
+gemini-3.1-pro-preview,scenario_097,free_school_meals,0.0,"{""answer"": 0}",,3.5951762499753386,195.0,136.0,331.0,130.0,,0.002022
+gemini-3.1-pro-preview,scenario_097,is_medicaid_eligible,0.0,"{""answer"": 0}",,4.870070874982048,194.0,277.0,471.0,271.0,,0.003712
+gemini-3.1-pro-preview,scenario_097,household_state_income_tax,0.0,"{
+  ""answer"": 0.0
+}",,4.3300935000006575,181.0,281.0,462.0,269.0,,0.003734
+gemini-3.1-pro-preview,scenario_097,household_net_income,3001.0,"{
+  ""answer"": 3001",,6.3577734580030665,188.0,498.0,686.0,487.0,,0.006352
+gemini-3.1-pro-preview,scenario_097,household_benefits,12000.0,"{
+  ""answer"": 12000.0
+}",,3.3605976669932716,181.0,164.0,345.0,148.0,,0.00233
+gemini-3.1-pro-preview,scenario_097,household_market_income,18017.0,"{""answer"": 18017}",,3.952966707991436,189.0,205.0,394.0,195.0,,0.002838
+gemini-3.1-pro-preview,scenario_097,marginal_tax_rate,0.1,"{
+  ""answer"": 0.1",,7.454738750006072,200.0,498.0,698.0,488.0,,0.006376
+gemini-3.1-pro-preview,scenario_098,income_tax,5597.0,"{""answer"": 5597",,6.073244041996077,240.0,498.0,738.0,490.0,,0.006456
+gemini-3.1-pro-preview,scenario_098,income_tax_before_refundable_credits,52026.0,"{""answer"": 52026",,17.71579774998827,241.0,498.0,739.0,489.0,,0.0064579999999999
+gemini-3.1-pro-preview,scenario_098,eitc,0.0,"{
+  ""answer"": 0.0
+}",,4.182005749986274,241.0,237.0,478.0,225.0,,0.003326
+gemini-3.1-pro-preview,scenario_098,ctc,0.0,"{
+  ""answer"": 0.0
+}",,2.8987457919865847,239.0,48.0,287.0,36.0,,0.001054
+gemini-3.1-pro-preview,scenario_098,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,4.542676625016611,239.0,313.0,552.0,305.0,,0.004234
+gemini-3.1-pro-preview,scenario_098,snap,0.0,"{""answer"": 0.0}",,3.569498458004091,243.0,195.0,438.0,187.0,,0.002826
+gemini-3.1-pro-preview,scenario_098,ssi,0.0,"{""answer"": 0}",,3.395131042023422,243.0,205.0,448.0,199.0,,0.002946
+gemini-3.1-pro-preview,scenario_098,free_school_meals,0.0,"{
+  ""answer"": 0
+}",,2.754928333015414,253.0,59.0,312.0,49.0,,0.0012139999999999
+gemini-3.1-pro-preview,scenario_098,is_medicaid_eligible,0.0,"{""answer"": 0}",,4.701898291998077,252.0,231.0,483.0,225.0,,0.003276
+gemini-3.1-pro-preview,scenario_098,household_state_income_tax,1555.0,"{
+  ""answer"": 1555",,6.801618666999275,239.0,498.0,737.0,487.0,,0.006454
+gemini-3.1-pro-preview,scenario_098,household_net_income,2345.0,"{
+  ""answer"": 2345",,5.664928749989485,246.0,498.0,744.0,487.0,,0.006468
+gemini-3.1-pro-preview,scenario_098,household_benefits,7360.0,"{""answer"": 7360.0}",,3.220729416992981,239.0,176.0,415.0,165.0,,0.00259
+gemini-3.1-pro-preview,scenario_098,household_market_income,311999.0,"{
+  ""answer"": 311999.0
+}",,3.614448042004369,247.0,232.0,479.0,215.0,,0.003278
+gemini-3.1-pro-preview,scenario_098,marginal_tax_rate,0.0,"{
+  ""answer"": 0.",,6.319225541985361,258.0,498.0,756.0,489.0,,0.0064919999999999
+gemini-3.1-pro-preview,scenario_099,income_tax,154.0,"{
+  ""answer"": 154",,6.364216917019803,175.0,498.0,673.0,488.0,,0.006326
+gemini-3.1-pro-preview,scenario_099,income_tax_before_refundable_credits,1.0,"{
+  ""answer"": 1",,5.801811332989018,176.0,498.0,674.0,490.0,,0.0063279999999999
+gemini-3.1-pro-preview,scenario_099,eitc,0.0,"{""answer"": 0}",,6.625526416028151,176.0,277.0,453.0,271.0,,0.003676
+gemini-3.1-pro-preview,scenario_099,ctc,0.0,"{""answer"": 0}",,3.0360070829920005,174.0,86.0,260.0,80.0,,0.00138
+gemini-3.1-pro-preview,scenario_099,income_tax_refundable_credits,0.0,"{
+  ""answer"": 0.0
+}",,15.509362208016682,174.0,311.0,485.0,299.0,,0.00408
+gemini-3.1-pro-preview,scenario_099,snap,0.0,"{
+  ""answer"": 0.0
+}",,10.922075667011086,178.0,236.0,414.0,224.0,,0.003188
+gemini-3.1-pro-preview,scenario_099,ssi,0.0,"{
+  ""answer"": 0.0
+}",,3.0515751669881865,178.0,172.0,350.0,160.0,,0.00242
+gemini-3.1-pro-preview,scenario_099,free_school_meals,0.0,"{
+  ""answer"": 0
+}",,2.9704752919788007,188.0,111.0,299.0,101.0,,0.001708
+gemini-3.1-pro-preview,scenario_099,is_medicaid_eligible,0.0,"{""answer"": 0}",,3.3033716670179274,187.0,180.0,367.0,174.0,,0.002534
+gemini-3.1-pro-preview,scenario_099,household_state_income_tax,0.0,"{""answer"": 0.0}",,3.7398332500015385,174.0,122.0,296.0,114.0,,0.001812
+gemini-3.1-pro-preview,scenario_099,household_net_income,915.0,"{
+  ""answer"": 915",,5.711062665999634,181.0,498.0,679.0,488.0,,0.006338
+gemini-3.1-pro-preview,scenario_099,household_benefits,25200.0,"{
+  ""answer"": 25200.0
+}",,3.949798167013796,174.0,167.0,341.0,151.0,,0.002352
+gemini-3.1-pro-preview,scenario_099,household_market_income,90000.0,"{
+  ""answer"": 90000.0
+}",,2.9196027500147466,182.0,118.0,300.0,102.0,,0.00178
+gemini-3.1-pro-preview,scenario_099,marginal_tax_rate,0.2,"{
+  ""answer"": 0.2",,6.6619352910202,193.0,498.0,691.0,488.0,,0.006362
+gemini-3.1-pro-preview,scenario_089,income_tax,0.0,"{
+  ""answer"": 0.0
+}",,7.237660582992248,169.0,259.0,428.0,247.0,,0.003446
+gemini-3.1-pro-preview,scenario_080,household_benefits,,"{
+  ""answer"":",,0.011118249996798113,203.0,495.0,698.0,489.0,,0.006346
+gemini-3.1-pro-preview,scenario_087,is_medicaid_eligible,,"{
+  ""answer"": ",,0.0013107919949106872,280.0,497.0,777.0,490.0,,0.006523999999999999

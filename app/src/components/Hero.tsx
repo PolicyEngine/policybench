@@ -33,12 +33,14 @@ function Stat({
 
 export default function Hero({ data }: { data: BenchData }) {
   const noTools = data.modelStats.filter((m) => m.condition === "no_tools");
-  const withTools = data.modelStats.filter((m) => m.condition === "with_tools");
+  const noToolsPredictions = data.scatter.filter(
+    (d) => d.condition === "no_tools"
+  );
+  const noToolsPrograms = data.programStats.length;
+  const bestNoToolsAcc = Math.max(...noTools.map((m) => m.within10pct));
 
   const avgNoToolsAcc =
     noTools.reduce((s, m) => s + m.within10pct, 0) / noTools.length;
-  const avgWithToolsAcc =
-    withTools.reduce((s, m) => s + m.within10pct, 0) / withTools.length;
   const avgNoToolsMAE =
     noTools.reduce((s, m) => s + m.mae, 0) / noTools.length;
 
@@ -61,35 +63,36 @@ export default function Hero({ data }: { data: BenchData }) {
           className="text-text-secondary text-lg max-w-2xl mt-7 leading-relaxed animate-fade-up"
           style={{ animationDelay: "160ms" }}
         >
-          Can frontier AI models accurately calculate US taxes and benefits? We
-          benchmarked {noTools.length} models on{" "}
-          {data.scatter.length.toLocaleString()} predictions across 14 programs
-          and 100 household scenarios.
+          How much household-level policy calculation can frontier models do
+          from parametric knowledge alone? This benchmark evaluates{" "}
+          {noTools.length} no-tools models on{" "}
+          {noToolsPredictions.length.toLocaleString()} predictions across {noToolsPrograms}
+          programs and {Object.keys(data.scenarios).length} household scenarios.
         </p>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-12">
           <Stat
             value={`${avgNoToolsAcc.toFixed(1)}%`}
-            label="Accuracy / AI alone"
+            label="Avg within 10%"
             accent="coral"
             delay={250}
           />
           <Stat
-            value={`${avgWithToolsAcc.toFixed(1)}%`}
-            label="Accuracy / with tools"
+            value={`${bestNoToolsAcc.toFixed(1)}%`}
+            label="Best model"
             accent="cyan"
             delay={350}
           />
           <Stat
             value={`$${Math.round(avgNoToolsMAE).toLocaleString()}`}
-            label="Avg error / AI alone"
+            label="Avg error"
             accent="coral"
             delay={450}
           />
           <Stat
-            value="$0"
-            label="Avg error / with tools"
-            accent="cyan"
+            value={String(noTools.length)}
+            label="Models benchmarked"
+            accent="amber"
             delay={550}
           />
         </div>

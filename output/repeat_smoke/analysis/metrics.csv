@@ -1,0 +1,2 @@
+model,variable,n,n_parsed,coverage,mae,mape,accuracy,within_10pct
+gpt-5.4,income_tax,2,2,1.0,10.0,0.07500000000000001,,1.0

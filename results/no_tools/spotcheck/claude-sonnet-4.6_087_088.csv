@@ -1,0 +1,173 @@
+model,scenario_id,variable,prediction,raw_response,error,elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens,estimated_cost_usd
+claude-sonnet-4.6,scenario_087,income_tax,,"I need to calculate the federal income tax for this married couple filing jointly for tax year 2025.
+
+## Step 1: Gather All Income
+
+**Adult 1:**
+- Taxable interest: $8
+- Qualified dividends: $1,344
+- Short-term capital gains",,2.352382916986244,263,64,327,0,0,0.0017490000000000001
+claude-sonnet-4.6,scenario_087,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+## Step 1: Gather All Income
+
+**Adult 1:**
+- Taxable interest: $8
+- Qualified dividends: $1,344
+- Short-",,2.7691073330061045,266,64,330,0,0,0.001758
+claude-sonnet-4.6,scenario_087,eitc,,"To determine the Earned Income Tax Credit (EITC) for this household, I need to check the eligibility requirements.
+
+**EITC Requirements:**
+
+1. **Earned Income**: The EITC requires earned income (wages, salaries, self-employment income). Both adults",,2.82405004100292,264,64,328,0,0,0.001752
+claude-sonnet-4.6,scenario_087,ctc,0.0,0,,2.2138586249784566,262,5,267,0,0,0.000861
+claude-sonnet-4.6,scenario_087,income_tax_refundable_credits,,"I need to find the total refundable tax credits for this household.
+
+## Step 1: Calculate Total Income
+
+**Adult 1:**
+- Taxable interest: $8
+- Qualified dividends: $1,344
+- Short-term capital gains: $30
+- Long-",,1.6183722499990836,264,64,328,0,0,0.001752
+claude-sonnet-4.6,scenario_087,snap,,"I need to calculate the annual SNAP benefit for this household.
+
+## Step 1: Determine Household Composition
+- 2 adults, both elderly (60+) and disabled
+- Filing jointly, married couple
+
+## Step 2: Calculate Gross Income for SNAP
+
+SNAP counts",,3.1485764579847455,267,64,331,0,0,0.001761
+claude-sonnet-4.6,scenario_087,ssi,,"I need to calculate the annual SSI amount for this household.
+
+## SSI Eligibility and Calculation
+
+SSI is a federal program administered by the Social Security Administration. For 2025, the federal benefit rate (FBR) for a couple is $1,415/month (both members",,2.6246082919824403,269,64,333,0,0,0.001767
+claude-sonnet-4.6,scenario_087,free_school_meals,,"I need to determine if this household qualifies for free school meals under the National School Lunch Program (NSLP).
+
+## Step 1: Determine Household Size
+The household consists of 2 adults (married couple, no children).
+
+## Step 2: Free School Meals",,2.7841809579986148,279,64,343,0,0,0.001797
+claude-sonnet-4.6,scenario_087,is_medicaid_eligible,,"I need to determine if this household is eligible for Medicaid in Pennsylvania for 2025.
+
+## Key Considerations for Medicaid Eligibility
+
+For elderly and disabled individuals (65+), Medicaid eligibility in Pennsylvania falls under the ""aged, blind, and disabled"" (ABD)",,2.148346000001766,279,64,343,0,0,0.001797
+claude-sonnet-4.6,scenario_087,household_state_income_tax,,"I need to calculate Pennsylvania state income tax for this married couple filing jointly.
+
+## Pennsylvania Tax Rules
+
+Pennsylvania has a flat income tax rate of 3.07% for 2025.
+
+Pennsylvania does not tax Social Security income.
+Pennsylvania does not tax most retirement income (pensions, 401k distributions",,2.4634577079850715,262,64,326,0,0,0.0017460000000000002
+claude-sonnet-4.6,scenario_087,household_net_income,,"I need to calculate household net income = market income + benefits - taxes.
+
+## Step 1: Identify all income sources
+
+**Adult 1:**
+- Taxable interest: $8
+- Qualified dividends: $1,344
+- Short-term capital gains: $30
+-",,1.9521078749967273,269,64,333,0,0,0.001767
+claude-sonnet-4.6,scenario_087,household_benefits,,"I need to find the total government benefits received for this household.
+
+The question asks about ""government benefits received."" Looking at the income sources listed, the only government benefit I can identify is Social Security retirement income.
+
+Adult 1 receives $19,776 in Social Security retirement income.
+Adult 2",,2.610944332991494,262,64,326,0,0,0.0017460000000000002
+claude-sonnet-4.6,scenario_087,household_market_income,,"I need to calculate total market income, which is pre-tax, pre-transfer income. Market income typically includes wages, salaries, self-employment income, capital gains, dividends, interest, and other investment income. It excludes government transfer payments like Social Security.
+
+Let me identify each income source:",,2.2600992920051794,270,64,334,0,0,0.00177
+claude-sonnet-4.6,scenario_087,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. Let me calculate their tax situation carefully.
+
+## Income Summary
+
+**Adult 1:**
+- Taxable interest: $8
+- Qualified dividends: $1,344
+- Short-term capital gains: $30
+-",,1.735917874990264,281,64,345,0,0,0.001803
+claude-sonnet-4.6,scenario_088,income_tax,,"I need to calculate the federal income tax for a married couple filing jointly with combined income of $75,000.
+
+## Step 1: Calculate Gross Income
+- Adult 1: $40,000
+- Adult 2: $35,000
+- Total: $75,000
+
+## Step",,1.789134999999078,186,64,250,0,0,0.001518
+claude-sonnet-4.6,scenario_088,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for a married couple filing jointly with combined income of $75,000.
+
+## Step 1: Calculate Adjusted Gross Income (AGI)
+- Adult 1 employment income: $40,000
+- Adult 2 employment",,2.1561398330086377,189,64,253,0,0,0.0015270000000000001
+claude-sonnet-4.6,scenario_088,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for this couple filing jointly in 2025.
+
+## Key Information
+- Filing status: Married Filing Jointly
+- Both adults are 22 years old
+- Adult 1: $40,000 employment income,",,2.449751332984306,187,64,251,0,0,0.001521
+claude-sonnet-4.6,scenario_088,ctc,0.0,0,,1.566638749995036,185,5,190,0,0,0.00063
+claude-sonnet-4.6,scenario_088,income_tax_refundable_credits,,"I need to find the total refundable tax credits for this household.
+
+## Household Information
+- Married filing jointly (MFJ)
+- Both age 22, no children
+- Combined income: $40,000 + $35,000 = $75,000
+- Tax",,2.2344457499857526,187,64,251,0,0,0.001521
+claude-sonnet-4.6,scenario_088,snap,,"I need to determine if this household qualifies for SNAP and calculate their benefit.
+
+## Step 1: Determine SNAP Eligibility
+
+**Gross Income Test (130% of Federal Poverty Level)**
+For a 2-person household in 2025, the poverty guideline is $",,3.1293145419913344,190,64,254,0,0,0.0015300000000000001
+claude-sonnet-4.6,scenario_088,ssi,,"I need to determine the SSI eligibility and benefit amount for this household.
+
+## SSI Eligibility Analysis
+
+**SSI Basic Rules:**
+- SSI is a needs-based program for aged, blind, or disabled individuals
+- Neither adult is aged (65+), blind, or disabled based",,3.1619401250209194,192,64,256,0,0,0.001536
+claude-sonnet-4.6,scenario_088,free_school_meals,,"I need to determine if this household qualifies for free school meals.
+
+## Free School Meals Eligibility
+
+For the National School Lunch Program (NSLP), free meals are provided to households with income at or below 130% of the Federal Poverty Level (FPL).
+
+**",,1.9360736669914331,202,64,266,0,0,0.0015660000000000001
+claude-sonnet-4.6,scenario_088,is_medicaid_eligible,,"I need to determine if this married couple filing jointly in Maryland is eligible for Medicaid in 2025.
+
+## Key Facts
+- Married couple, filing jointly
+- Both age 22, no children
+- Adult 1: $40,000 employment income
+- Adult 2: $",,2.3530966250109486,202,64,266,0,0,0.0015660000000000001
+claude-sonnet-4.6,scenario_088,household_state_income_tax,,"I need to calculate Maryland state income tax for a married couple filing jointly with combined income of $75,000 in 2025.
+
+## Step 1: Calculate Combined Income
+- Adult 1: $40,000
+- Adult 2: $35,000
+- Total: $75,",,2.5997988340095617,185,64,249,0,0,0.001515
+claude-sonnet-4.6,scenario_088,household_net_income,,"I need to calculate net income = market income + benefits - taxes for this household.
+
+## Market Income
+- Adult 1: $40,000
+- Adult 2: $35,000
+- Total market income: $75,000
+
+## Benefits
+Let me check eligibility for major benefit programs",,1.7214151250082068,192,64,256,0,0,0.001536
+claude-sonnet-4.6,scenario_088,household_benefits,,"I need to determine what government benefits this household receives.
+
+Let me analyze this household:
+- Married couple filing jointly in Maryland
+- Adult 1: 22 years old, $40,000 employment income, ~20 hours/week
+- Adult 2: 22 years old",,4.632470499986084,185,64,249,0,0,0.001515
+claude-sonnet-4.6,scenario_088,household_market_income,75000.0,75000,,1.0604289160110056,193,6,199,0,0,0.000669
+claude-sonnet-4.6,scenario_088,marginal_tax_rate,,"I need to find the effective marginal tax rate for this couple. I'll calculate the taxes at their current income and at a slightly higher income to find the marginal rate.
+
+## Setup
+- Filing status: Married Filing Jointly (MFJ)
+- Combined income: $40,000 ",,2.865355207992252,204,64,268,0,0,0.001572

@@ -33,6 +33,30 @@ def family_low_income():
     )
 
 
+@pytest.fixture
+def single_parent_single():
+    return Scenario(
+        id="gt_single_parent_single",
+        state="CA",
+        filing_status="single",
+        adults=[Person(name="adult1", age=30, employment_income=50_000.0)],
+        children=[Person(name="child1", age=8, employment_income=0.0)],
+        year=2025,
+    )
+
+
+@pytest.fixture
+def single_parent_hoh():
+    return Scenario(
+        id="gt_single_parent_hoh",
+        state="CA",
+        filing_status="head_of_household",
+        adults=[Person(name="adult1", age=30, employment_income=50_000.0)],
+        children=[Person(name="child1", age=8, employment_income=0.0)],
+        year=2025,
+    )
+
+
 @pytest.mark.slow
 class TestGroundTruth:
     """Tests that require PolicyEngine-US (slow)."""
@@ -60,6 +84,22 @@ class TestGroundTruth:
         """A $15k family with kids should receive SNAP benefits."""
         snap = calculate_single(family_low_income, "snap")
         assert snap > 0
+
+    def test_filing_status_affects_ground_truth(
+        self,
+        single_parent_single,
+        single_parent_hoh,
+    ):
+        """Single and HoH versions of the same household should not collapse."""
+        single_tax = calculate_single(
+            single_parent_single,
+            "income_tax_before_refundable_credits",
+        )
+        hoh_tax = calculate_single(
+            single_parent_hoh,
+            "income_tax_before_refundable_credits",
+        )
+        assert single_tax != hoh_tax
 
     def test_household_net_income_reasonable(self, single_50k):
         """Net income should be close to market income minus taxes."""

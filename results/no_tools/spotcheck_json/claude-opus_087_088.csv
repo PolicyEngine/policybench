@@ -1,0 +1,347 @@
+model,scenario_id,variable,prediction,raw_response,error,elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens,estimated_cost_usd
+claude-opus,scenario_087,income_tax,0.0,"{""answer"": 0}
+
+Let me walk through the calculation:
+
+**Step 1: Determine Gross Income**
+
+- Taxable interest: $8 + $8 = $16
+- Qualified dividends: $1,344 + $72 = $1,416
+- Short-term capital gains: $30 + $360 = $390
+- Long-term capital gains: $220 + $2,640 = $2,860
+- Social Security: $19,776 (need to determine taxable portion)
+
+**Step 2: Determine Taxable Social Security**
+
+Provisional income = AGI (excluding SS) + tax-exempt interest + 50% of SS
+= ($16 + $1,416 + $390 + $2,860) + 0 + 50% × $19,776
+= $4,682 + $9,888 = $14,570
+
+For MFJ, the first threshold is $32,000 and the second is $44,000. Since $14,570 < $32,000, **no Social Security is taxable**.
+
+**",,6.089627249981277,277,256,533,0,0,0.007785
+claude-opus,scenario_087,income_tax_before_refundable_credits,0.0,"{""answer"": 0}
+
+Let me walk through the calculation:
+
+**Income Components:**
+- Taxable interest: $8 + $8 = $16
+- Qualified dividends: $1,344 + $72 = $1,416
+- Short-term capital gains: $30 + $360 = $390
+- Long-term capital gains: $220 + $2,640 = $2,860
+- Social Security: $19,776
+
+**Social Security Taxability:**
+Combined income = AGI (excluding SS) + tax-exempt interest + 50% of SS
+= ($16 + $1,416 + $390 + $2,860) + 0 + $9,888
+= $4,682 + $9,888 = $14,570
+
+For MFJ, the base amount is $32,000. Since $14,570 < $32,000, none of the Social Security is taxable.
+
+**Adjusted Gross Income (AGI):**
+= $16 + $1,416 + $390 + $2,860 = $4,",,5.929861249984242,280,256,536,0,0,0.0078000000000000005
+claude-opus,scenario_087,eitc,0.0,"{""answer"": 0}
+
+The Earned Income Tax Credit (EITC) requires earned income (such as wages, salaries, or self-employment income) to qualify. This household has zero employment/earned income — their income consists entirely of taxable interest, dividends, capital gains, and Social Security retirement benefits. Additionally, their investment income ($8 + $8 + $1,344 + $72 + $30 + $360 + $220 + $2,640 = $4,682) exceeds the 2025 investment income limit (approximately $11,950), but more fundamentally, with $0 in earned income, they cannot receive any EITC. The credit amount is $0.",,6.078551667014835,278,164,442,0,0,0.00549
+claude-opus,scenario_087,ctc,0.0,"{""answer"": 0}
+
+They have no children, so the Child Tax Credit amount is $0.",,2.168628459010506,276,25,301,0,0,0.0020050000000000003
+claude-opus,scenario_087,income_tax_refundable_credits,0.0,"{""answer"": 0}
+
+The household's total refundable tax credits are $0.
+
+**Reasoning:**
+
+Let me evaluate the potential refundable federal tax credits:
+
+1. **Earned Income Tax Credit (EITC):** Requires earned income. Neither adult has employment income, so they don't qualify. $0.
+
+2. **Additional Child Tax Credit (ACTC):** They have no children. $0.
+
+3. **American Opportunity Tax Credit (refundable portion):** No education expenses mentioned. $0.
+
+4. **Premium Tax Credit:** No marketplace insurance mentioned. $0.
+
+5. **Credit for the Elderly or Disabled:** Both adults are over 65 and disabled, so they potentially qualify. However, this credit is **non-refundable**, not refundable. Moreover, their Social Security income ($19,776) would reduce the initial amount significantly. The initial amount for married filing jointly (both 65+) is $7,500. Half of Social Security ($9,888) exceeds $7,500, so the credit base is $0 anyway.
+
+6. **Recovery Rebate Credit / Other ref",,7.481958249991294,278,256,534,0,0,0.00779
+claude-opus,scenario_087,snap,3516.0,"{""answer"": 3516}
+
+Let me work through the SNAP calculation for this household.
+
+**Step 1: Determine Gross Income for SNAP**
+
+SNAP counts most income. Social Security benefits are counted. Investment income (interest, dividends, capital gains) is also counted.
+
+- Adult 1: $8 (interest) + $1,344 (qualified dividends) + $30 (short-term CG) + $220 (long-term CG) + $19,776 (SS) = $21,378
+- Adult 2: $8 (interest) + $72 (dividends) + $360 (short-term CG) + $2,640 (long-term CG) = $3,080
+
+Total annual gross income = $21,378 + $3,080 = $24,458
+Monthly gross income = $24,458 / 12 = $2,038.17
+
+**Step 2: Gross Income Test**
+
+For elderly/disabled households, there is NO gross income test — only a net income test applies.
+
+**Step 3: Deductions**",,6.597965624998324,281,256,537,0,0,0.007805
+claude-opus,scenario_087,ssi,0.0,"{""answer"": 0}
+
+SSI is a needs-based program for aged, blind, or disabled individuals with limited income and resources. While both adults are over 65 and disabled (potentially qualifying categories), SSI eligibility depends on income and resource limits.
+
+For 2025, the federal SSI benefit rate for a couple is approximately $1,415/month ($16,980/year). However, SSI has strict income tests. Social Security benefits count as unearned income for SSI purposes.
+
+Adult 1 receives $19,776 in Social Security retirement income annually ($1,648/month). For a couple, after the $20 general income exclusion, the countable unearned income from Social Security alone would be approximately $1,628/month. This significantly exceeds the federal benefit rate for couples (~$1,415/month), making the household ineligible for SSI since countable income exceeds the maximum benefit amount.
+
+Therefore, the annual SSI amount for this household is $0.",,8.37203091601259,283,223,506,0,0,0.00699
+claude-opus,scenario_087,free_school_meals,0.0,"{""answer"": 0}",,2.7600357090122998,293,9,302,0,0,0.00169
+claude-opus,scenario_087,is_medicaid_eligible,1.0,"{""answer"": 1}",,2.2317814999842085,293,9,302,0,0,0.00169
+claude-opus,scenario_087,household_state_income_tax,0.0,"{""answer"": 0}
+
+Pennsylvania has a flat income tax rate of 3.07% for 2025. However, Pennsylvania does not tax Social Security benefits, and importantly, Pennsylvania provides a Tax Forgiveness credit for low-income taxpayers.
+
+Let me calculate:
+
+**PA Taxable Income:**
+- Social Security is exempt in PA
+- Taxable interest: $8 + $8 = $16
+- Dividends: $1,344 + $72 = $1,416
+- Short-term capital gains: $30 + $360 = $390
+- Long-term capital gains: $220 + $2,640 = $2,860
+
+Total PA taxable income = $16 + $1,416 + $390 + $2,860 = $4,682
+
+**PA Tax before credits:** $4,682 × 3.07% = $143.74
+
+**Tax Forgiveness (SP Schedule):**
+For a married couple filing jointly, PA's Tax Forgiveness credit uses ""eligibility income"" which includes all income sources. Social Security is included in eligibility income.
+
+Eligibility",,6.6032666669925675,276,256,532,0,0,0.0077800000000000005
+claude-opus,scenario_087,household_net_income,24458.0,"{""answer"": 24458.0}
+
+Let me work through this step by step.
+
+## Market Income
+
+**Adult 1:**
+- Taxable interest: $8
+- Qualified dividends: $1,344
+- Short-term capital gains: $30
+- Long-term capital gains: $220
+- Social Security: $19,776
+- Total: $21,378
+
+**Adult 2:**
+- Taxable interest: $8
+- Qualified dividends: $72
+- Short-term capital gains: $360
+- Long-term capital gains: $2,640
+- Total: $3,080
+
+**Total household market income: $24,458**
+
+## Benefits
+
+**Social Security** is already counted in market income above.
+
+No additional benefits like SSI would apply given their income levels.
+
+## Federal Income Tax
+
+Combined income for Social Security taxation test:
+- Non-SS income: $8+$1,344+$30+$220+$8+$72+$360+$2,640 = $4,682
+- Half of SS: $9,888
+- Combined income: $14,570",,6.022309040999971,283,255,538,0,0,0.00779
+claude-opus,scenario_087,household_benefits,19776.0,"{""answer"": 19776}
+
+The total government benefits received for this household is $19,776, which consists entirely of Adult 1's Social Security retirement income. Adult 2 does not receive any Social Security or other government benefits based on the information provided.",,2.9852277080062777,276,58,334,0,0,0.00283
+claude-opus,scenario_087,household_market_income,4674.0,"{""answer"": 4674}
+
+Total market income includes all pre-tax, pre-transfer income from market sources (employment, interest, dividends, capital gains) but excludes government transfers like Social Security.
+
+Adult 1: $0 (employment) + $8 (interest) + $1,344 (qualified dividends) + $30 (short-term capital gains) + $220 (long-term capital gains) = $1,602
+
+Adult 2: $0 (employment) + $8 (interest) + $72 (qualified dividends) + $360 (short-term capital gains) + $2,640 (long-term capital gains) = $3,080
+
+Household subtotal from market sources: $1,602 + $3,080 = $4,682
+
+Wait - let me reconsider. Social Security is a government transfer, not market income. So market income is just the sum of employment income, interest, dividends, and capital gains.
+
+Adult 1: $8 + $1,344 + $30 + $220 = $1,602
+Adult 2: $8 ",,5.0838027500140015,284,256,540,0,0,0.00782
+claude-opus,scenario_087,marginal_tax_rate,0.0,"{""answer"": 0.0}
+
+The household's total income consists of:
+- Taxable interest: $16
+- Qualified dividends: $1,416
+- Short-term capital gains: $390
+- Long-term capital gains: $2,860
+- Social Security: $19,776
+
+**Federal Analysis:**
+The non-Social Security income totals $4,682. To determine how much Social Security is taxable, we use the provisional income calculation:
+
+Provisional income = $4,682 + 50% × $19,776 = $4,682 + $9,888 = $14,570
+
+For married filing jointly, the first threshold is $32,000 and the second is $44,000. Since $14,570 < $32,000, none of the Social Security benefits are taxable.
+
+So federal AGI = $4,682. The standard deduction for MFJ in 2025 is $30,000, plus additional amounts for being 65+ ($1,600 × 2 = $3,200), giving a total standard deduction of $33,200. This far exceeds",,6.47329537497717,295,256,551,0,0,0.007875
+claude-opus,scenario_088,income_tax,4840.0,"{""answer"": 4840.0}
+
+## Calculation
+
+**Combined Income:** $40,000 + $35,000 = $75,000
+
+**Standard Deduction (MFJ 2025):** $30,000
+
+**Taxable Income:** $75,000 - $30,000 = $45,000
+
+**Federal Income Tax (MFJ 2025 brackets):**
+- 10% on first $23,850 = $2,385.00
+- 12% on remaining ($45,000 - $23,850) = $21,150 × 0.12 = $2,538.00
+
+**Total before credits:** $2,385 + $2,538 = $4,923.00
+
+**Credits:**
+- Neither spouse qualifies for the Earned Income Tax Credit (no children, and combined AGI of $75,000 exceeds the EITC threshold for childless filers which is around $19,104 for MFJ in 2025)
+- Saver's Credit: With AGI of $75,000, for MFJ in ",,5.697989125008462,200,256,456,0,0,0.0074
+claude-opus,scenario_088,income_tax_before_refundable_credits,4543.0,"{""answer"": 4543.0}
+
+## Calculation
+
+**Total Income:** $40,000 + $35,000 = $75,000
+
+**Standard Deduction (MFJ 2025):** $30,000
+
+**Taxable Income:** $75,000 - $30,000 = $45,000
+
+**Federal Income Tax (2025 MFJ brackets):**
+- 10% on first $23,850 = $2,385.00
+- 12% on remainder ($45,000 - $23,850) = $21,150 × 0.12 = $2,538.00
+
+**Total Federal Income Tax Before Refundable Credits:** $2,385 + $2,538 = $4,923.00
+
+Wait, let me reconsider whether there are any nonrefundable credits that apply ""before refundable credits.""
+
+The Saver's Credit could potentially apply. Adult 1 works part-time (~20 hrs/week) and Adult 2 works full-time. But the problem doesn't mention any retirement contributions, so I won't assume any",,7.5280109999876,203,256,459,0,0,0.007415000000000001
+claude-opus,scenario_088,eitc,0.0,"{""answer"": 0}
+
+The household's combined earned income is $75,000, which exceeds the EITC income threshold for married filing jointly with no qualifying children. For tax year 2025, the EITC phase-out for couples with no children is complete well below $75,000 in combined income (the upper income limit for no-child filers is approximately $25,511 for singles and roughly $32,000-$33,000 for MFJ). Therefore, this couple does not qualify for any federal EITC.",,15.389007999998285,201,125,326,0,0,0.00413
+claude-opus,scenario_088,ctc,0.0,"{""answer"": 0}
+
+They have no children, so the Child Tax Credit amount is $0.",,2.4433089999947697,199,25,224,0,0,0.00162
+claude-opus,scenario_088,income_tax_refundable_credits,0.0,"{""answer"": 0}
+
+The household's combined AGI of $75,000 is too high to qualify for most refundable tax credits:
+
+1. **Earned Income Tax Credit (EITC)**: For a married couple filing jointly with no children in 2025, the EITC phases out completely well below $75,000 combined income. The income limit for no-child filers is approximately $18,591 (single) / $25,511 (MFJ), so they don't qualify.
+
+2. **Child Tax Credit / Additional Child Tax Credit**: They have no children, so this doesn't apply.
+
+3. **American Opportunity Tax Credit (AOTC)**: No indication they are enrolled in post-secondary education or paying qualified education expenses.
+
+4. **Premium Tax Credit**: No indication of marketplace health insurance.
+
+5. **Maryland EITC (state-level)**: Since they don't qualify for the federal EITC, they don't qualify for Maryland's state EITC either.
+
+Total refundable credits = $0.",,8.599583625007654,201,242,443,0,0,0.0070550000000000005
+claude-opus,scenario_088,snap,0.0,"{""answer"": 0}
+
+The household's gross income of $75,000/year ($6,250/month) far exceeds the SNAP gross income limit for a household of 2 in FY2025, which is 130% of the federal poverty level (approximately $2,106/month or about $25,272/year for a 2-person household). Therefore, this household is not eligible for SNAP benefits.",,4.624368083983427,204,97,301,0,0,0.003445
+claude-opus,scenario_088,ssi,0.0,"{""answer"": 0}
+
+SSI (Supplemental Security Income) is a needs-based program administered by the Social Security Administration for individuals who are aged (65+), blind, or disabled, and who have limited income and resources.
+
+This household consists of two 22-year-old adults with no disabilities mentioned. Neither person meets the categorical eligibility requirements for SSI:
+- They are not aged 65 or older
+- They are not blind
+- They are not disabled
+
+Additionally, even if they were categorically eligible, their combined earned income of $75,000 would far exceed SSI income limits, which would disqualify them on income grounds as well.
+
+Therefore, the annual SSI amount for this household is $0.",,5.124330999999074,206,162,368,0,0,0.0050799999999999994
+claude-opus,scenario_088,free_school_meals,0.0,"{""answer"": 0}
+
+They have no children, so there are no children who could receive free school meals. The household is not eligible for the free school meals program.",,2.8781075419974513,216,39,255,0,0,0.002055
+claude-opus,scenario_088,is_medicaid_eligible,0.0,"{""answer"": 0}
+
+Maryland expanded Medicaid under the ACA covers adults up to 138% of the Federal Poverty Level (FPL). For a household of 2 in 2025, 138% FPL is approximately $27,214. Their combined MAGI of $75,000 far exceeds this threshold, making them ineligible for Medicaid.",,3.505466458009323,216,89,305,0,0,0.0033049999999999998
+claude-opus,scenario_088,household_state_income_tax,3381.75,"{""answer"": 3381.75}
+
+## Calculation
+
+**Combined Income:** $40,000 + $35,000 = $75,000
+
+**Maryland Standard Deduction (2025, Married Filing Jointly):** 15% of AGI, with a minimum of $1,500 and maximum of $4,850. 15% × $75,000 = $11,250, but capped at $4,850.
+
+**Maryland Taxable Income:** $75,000 - $4,850 = $70,150
+
+**Personal Exemptions:** 2 × $3,200 = $6,400 (Maryland personal exemption for 2025 is $3,200 per person for AGI under $100,000 MFJ)
+
+**Taxable income after exemptions:** $70,150 - $6,400 = $63,750
+
+**Maryland State Income Tax Brackets (2025, MFJ):**
+- 2.00% on first $1,000 = $20.00
+- 3.00% on $1,001–$2,000",,6.296549499995308,199,256,455,0,0,0.0073950000000000005
+claude-opus,scenario_088,household_net_income,63029.5,"{""answer"": 63029.50}
+
+## Detailed Calculation
+
+### Market Income
+- Adult 1: $40,000
+- Adult 2: $35,000
+- **Total market income: $75,000**
+
+### Federal Income Tax (2025)
+- Standard deduction (MFJ): $30,000
+- Taxable income: $75,000 - $30,000 = $45,000
+- Tax: 10% on first $23,850 = $2,385.00; 12% on remaining $21,150 = $2,538.00
+- **Federal income tax: $4,923.00**
+
+### FICA Taxes
+- Social Security (6.2%): $75,000 × 0.062 = $4,650.00
+- Medicare (1.45%): $75,000 × 0.0145 = $1,087.50
+- **Total FICA: $5,737.50**
+
+### Maryland State Income Tax (2025)
+- Standard deduction (MFJ): $5,150 (max for",,5.503742582979612,206,256,462,0,0,0.007430000000000001
+claude-opus,scenario_088,household_benefits,0.0,"{""answer"": 0}
+
+Based on my analysis of this household's situation for tax year 2025:
+
+**Household Profile:**
+- Married filing jointly in Maryland
+- Combined income: $75,000
+- No children
+- Both adults are 22 years old
+
+**Benefits Analysis:**
+
+1. **SNAP (Food Stamps):** With $75,000 gross income, they are well above the 130% FPL threshold for a 2-person household (approximately $25,636 for 2025). Not eligible.
+
+2. **Medicaid:** With $75,000 combined income, they far exceed the income limits for Medicaid in Maryland (138% FPL for adults ≈ $27,214 for a household of 2). Not eligible.
+
+3. **ACA Premium Tax Credits:** At $75,000, they are above 400% FPL for a household of 2, but under the Inflation Reduction Act extensions, subsidies can still apply if the benchmark plan exceeds 8.5% of income. However, at this income level, the expected contribution (~8.5% of income = ~",,7.237620166997658,199,256,455,0,0,0.0073950000000000005
+claude-opus,scenario_088,household_market_income,75000.0,"{""answer"": 75000}
+
+Total market income is simply the sum of all pre-tax, pre-transfer income from employment (and any other market sources). In this case:
+
+$40,000 (Adult 1) + $35,000 (Adult 2) = $75,000",,3.093134499998996,207,68,275,0,0,0.0027350000000000005
+claude-opus,scenario_088,marginal_tax_rate,0.3535,"{""answer"": 0.3535}
+
+The effective marginal tax rate for this household considers federal income tax, state income tax, and payroll taxes on an additional dollar of income.
+
+**Combined income:** $40,000 + $35,000 = $75,000
+
+**Federal Income Tax:**
+- Standard deduction for MFJ 2025: $30,000
+- Taxable income: $75,000 - $30,000 = $45,000
+- This falls in the 12% federal bracket (for MFJ, the 12% bracket covers $23,850 to $96,950 in 2025)
+- Federal marginal rate: **12%**
+
+**FICA (Social Security + Medicare):**
+- Employee side: 6.2% Social Security + 1.45% Medicare = 7.65%
+- Both earners are well below the SS wage base
+- FICA marginal rate: **7.65%**
+
+**Maryland State Income Tax:**
+- Maryland taxable income (after standard deduction of ~$5,150 for MFJ): ~$69,850",,5.76637299999129,218,255,473,0,0,0.007465

@@ -1,6 +1,9 @@
+"use client";
+
 import { useState } from "react";
 import data from "./data.json";
 import Hero from "./components/Hero";
+import Methodology from "./components/Methodology";
 import ScatterPlot from "./components/ScatterPlot";
 import ModelLeaderboard from "./components/ModelLeaderboard";
 import ProgramHeatmap from "./components/ProgramHeatmap";
@@ -9,6 +12,7 @@ import ScenarioExplorer from "./components/ScenarioExplorer";
 export type BenchData = typeof data;
 
 const NAV_ITEMS = [
+  { id: "methodology", label: "Method" },
   { id: "scatter", label: "Scatter" },
   { id: "models", label: "Models" },
   { id: "programs", label: "Programs" },
@@ -16,7 +20,14 @@ const NAV_ITEMS = [
 ] as const;
 
 export default function App() {
-  const [activeNav, setActiveNav] = useState<string>("scatter");
+  const [activeNav, setActiveNav] = useState<string>("methodology");
+  const noToolsPredictions = data.scatter.filter((d) => d.condition === "no_tools");
+  const noToolsModels = new Set(
+    data.modelStats
+      .filter((m) => m.condition === "no_tools")
+      .map((m) => m.model)
+  );
+  const noToolsPrograms = data.programStats.length;
 
   return (
     <div className="min-h-screen bg-void">
@@ -41,7 +52,7 @@ export default function App() {
               className={`px-4 py-3 text-xs font-medium tracking-wider uppercase transition-colors border-b-2 ${
                 activeNav === item.id
                   ? "border-amber text-amber"
-                  : "border-transparent text-text-2 hover:text-text-1"
+                  : "border-transparent text-text-secondary hover:text-text"
               }`}
             >
               {item.label}
@@ -51,6 +62,10 @@ export default function App() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6">
+        <section id="methodology" className="pt-16 pb-20">
+          <Methodology data={data} />
+        </section>
+
         <section id="scatter" className="pt-16 pb-20">
           <ScatterPlot data={data} />
         </section>
@@ -69,20 +84,21 @@ export default function App() {
       </main>
 
       <footer className="border-t border-border py-10 px-6 text-center">
-        <p className="text-text-3 text-xs tracking-wide">
-          PolicyBench v2 &mdash; 9,800 predictions across 4 frontier models, 14
-          programs, and 100 household scenarios.
+        <p className="text-text-muted text-xs tracking-wide">
+          PolicyBench v2 &mdash; {noToolsPredictions.length.toLocaleString()}{" "}
+          no-tools predictions across {noToolsModels.size} frontier models, {noToolsPrograms}
+          programs, and {Object.keys(data.scenarios).length} household scenarios.
         </p>
-        <p className="text-text-3 text-xs mt-2">
-          <a href="https://cosilico.ai" className="text-text-2 hover:text-amber transition-colors">
+        <p className="text-text-muted text-xs mt-2">
+          <a href="https://cosilico.ai" className="text-text-secondary hover:text-amber transition-colors">
             Cosilico
           </a>
           {" "}&middot;{" "}
-          <a href="https://policyengine.org" className="text-text-2 hover:text-amber transition-colors">
+          <a href="https://policyengine.org" className="text-text-secondary hover:text-amber transition-colors">
             PolicyEngine
           </a>
           {" "}&middot;{" "}
-          <a href="https://github.com/CosilicoAI/policybench" className="text-text-2 hover:text-amber transition-colors">
+          <a href="https://github.com/CosilicoAI/policybench" className="text-text-secondary hover:text-amber transition-colors">
             GitHub
           </a>
         </p>

@@ -1,13 +1,6 @@
 import { useMemo } from "react";
 import type { BenchData } from "../App";
-
-const MODEL_ORDER = ["claude-opus", "claude-sonnet-4.6", "claude-sonnet-4.5", "gpt-5.2"];
-const MODEL_LABELS: Record<string, string> = {
-  "claude-opus": "Opus 4.6",
-  "claude-sonnet-4.5": "Sonnet 4.5",
-  "claude-sonnet-4.6": "Sonnet 4.6",
-  "gpt-5.2": "GPT-5.2",
-};
+import { MODEL_LABELS, MODEL_ORDER } from "../modelMeta";
 
 const VARIABLE_LABELS: Record<string, string> = {
   income_tax: "Income tax",
@@ -20,10 +13,6 @@ const VARIABLE_LABELS: Record<string, string> = {
   free_school_meals: "Free school meals",
   is_medicaid_eligible: "Medicaid eligible",
   household_state_income_tax: "State income tax",
-  household_net_income: "Net income",
-  household_benefits: "Total benefits",
-  household_market_income: "Market income",
-  marginal_tax_rate: "Marginal tax rate",
 };
 
 function cellColor(pct: number): string {
@@ -50,6 +39,7 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
     // Build lookup: model+variable → accuracy (some entries use "accuracy", others "within10pct")
     const lookup: Record<string, number> = {};
     for (const h of data.heatmap) {
+      if (h.condition !== "no_tools") continue;
       const acc = (h as Record<string, unknown>).within10pct ?? (h as Record<string, unknown>).accuracy ?? 0;
       lookup[`${h.model}|${h.variable}`] = acc as number;
     }
@@ -57,6 +47,7 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
     // Get unique variables sorted by average accuracy (worst first for impact)
     const varAcc: Record<string, number[]> = {};
     for (const h of data.heatmap) {
+      if (h.condition !== "no_tools") continue;
       const acc = (h as Record<string, unknown>).within10pct ?? (h as Record<string, unknown>).accuracy ?? 0;
       if (!varAcc[h.variable]) varAcc[h.variable] = [];
       varAcc[h.variable].push(acc as number);
@@ -71,7 +62,7 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
   }, [data]);
 
   const models = MODEL_ORDER.filter((m) =>
-    data.heatmap.some((h) => h.model === m)
+    data.heatmap.some((h) => h.condition === "no_tools" && h.model === m)
   );
 
   return (

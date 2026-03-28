@@ -1,0 +1,158 @@
+model,scenario_id,variable,prediction,raw_response,error,elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens,estimated_cost_usd
+gpt-5.4,scenario_087,income_tax,,,,4.619180125009734,249,256,505,256,0,0.0044625
+gpt-5.4,scenario_087,income_tax_before_refundable_credits,,,,3.941424791002646,250,256,506,256,0,0.004465
+gpt-5.4,scenario_087,eitc,0.0,"{""answer"": 0}
+For 2025, the Earned Income Tax Credit requires earned income. This couple has no employment/self-employment income, and Social Security, interest, dividends, and capital gains do not count as earned income for EITC. So their EITC is 0.",,1.9614562499918975,250,65,315,0,0,0.0016
+gpt-5.4,scenario_087,ctc,0.0,"{""answer"": 0}
+The Child Tax Credit is $0 because the household has no qualifying children.",,1.2354786670184694,248,24,272,0,0,0.00098
+gpt-5.4,scenario_087,income_tax_refundable_credits,0.0,"{""answer"": 0}
+For a married couple filing jointly in Pennsylvania for 2025, with no earned income and only investment income plus Social Security, there are no refundable federal or PA tax credits available here.
+
+Why:
+- Earned Income Tax Credit: requires earned income; they have none.
+- Additional Child Tax Credit: no children.
+- American Opportunity Credit / other common refundable education credits: not applicable.
+- Recovery rebate or similar broad refundable credit: none for 2025.
+- PA Property Tax/Rent Rebate is not a tax credit on the PA income tax return and no rent/property-tax facts were provided, so it is not counted here.
+- Credit for the Elderly or Disabled is nonrefundable, so it does not count toward refundable tax credits.
+
+So total refundable tax credits = 0.",,4.30059766600607,248,168,416,0,0,0.00314
+gpt-5.4,scenario_087,snap,0.0,"{""answer"": 0}",,1.004934584023431,252,15,267,0,0,0.0008550000000000001
+gpt-5.4,scenario_087,ssi,0.0,"{""answer"": 0}
+
+0. SSI is a means-tested program with very low income/resource limits. This couple’s unearned income, especially Social Security retirement benefits, would reduce any federal SSI benefit to zero. For SSI counting purposes, most unearned income counts after a small general exclusion, and a couple with this level of Social Security income is ineligible for a positive SSI payment.",,2.8246645420149434,252,81,333,0,0,0.0018449999999999999
+gpt-5.4,scenario_087,free_school_meals,1.0,"{""answer"": 1}
+
+For free school meals, compare household income to the federal income eligibility guideline for the household size.
+
+Household size: 2
+
+Countable annual income:
+- Adult 1: 8 + 1344 + 30 + 220 = 1602
+- Adult 2: 8 + 72 + 360 + 2640 = 3080
+- Social Security for Adult 1: 19776
+
+Total household income = 1602 + 3080 + 19776 = 24458
+
+For school meal eligibility in PA, disability and age do not create a separate income test here; use gross household income against the federal guideline for household size 2.
+
+The free meal threshold for a 2-person household is above this income level for the relevant school-year guideline based on 130% of poverty, so the household qualifies.
+
+Therefore, the household qualifies for free school meals: 1",,4.262129665992688,262,195,457,0,0,0.0035800000000000003
+gpt-5.4,scenario_087,is_medicaid_eligible,0.0,"{""answer"": 0}
+
+For a married couple in Pennsylvania in 2025, Medicaid for aged/blind/disabled households is generally based on SSI-related or long-term care income/resource rules, not ACA MAGI adult expansion rules.
+
+Here, both adults are over 65 and disabled, so the relevant category is aged/disabled Medicaid. Their countable unearned income is approximately:
+
+- Adult 1:
+  - Taxable interest: 8
+  - Qualified dividends: 1344
+  - Short-term gains: 30
+  - Long-term gains: 220
+  - Social Security: 19776
+- Adult 2:
+  - Taxable interest: 8
+  - Qualified dividends: 72
+  - Short-term gains: 360
+  - Long-term gains: 2640
+
+Total annual income = 24458
+
+That is about 2038.17 per month before any Medicaid disregards. Even with typical small SSI-related disregards, this is well above the usual income limit for a two-person aged/disabled household for full Medicaid eligibility in PA absent spend-down or special long-term-care pathways. No such additional facts are provided.
+
+So the household is not eligible based on the information given.",,5.333378042007098,261,255,516,0,0,0.004477500000000001
+gpt-5.4,scenario_087,household_state_income_tax,,,,4.963350375008304,248,256,504,256,0,0.00446
+gpt-5.4,scenario_087,household_net_income,,,,5.213913957995828,255,256,511,256,0,0.004477500000000001
+gpt-5.4,scenario_087,household_benefits,19776.0,"{""answer"": 19776}",,0.9700217499921564,248,10,258,0,0,0.0007700000000000001
+gpt-5.4,scenario_087,household_market_income,4682.0,"{""answer"": 4682}
+
+Market income (pre-tax, pre-transfer) includes private income like interest, dividends, and capital gains, but excludes government transfers such as Social Security.
+
+So:
+
+- Adult 1:
+  - Taxable interest: 8
+  - Qualified dividends: 1344
+  - Short-term capital gains: 30
+  - Long-term capital gains: 220
+  - Social Security: excluded
+  - Total: 1602
+
+- Adult 2:
+  - Taxable interest: 8
+  - Qualified dividends: 72
+  - Short-term capital gains: 360
+  - Long-term capital gains: 2640
+  - Total: 3080
+
+Household total market income = 1602 + 3080 = 4682",,2.916036707989406,254,168,422,0,0,0.0031550000000000003
+gpt-5.4,scenario_087,marginal_tax_rate,,,,5.78141733299708,264,256,520,256,0,0.0045000000000000005
+gpt-5.4,scenario_088,income_tax,,,,4.989668125024764,185,256,441,256,0,0.0043025
+gpt-5.4,scenario_088,income_tax_before_refundable_credits,5360.0,"{""answer"": 5360}
+
+Married filing jointly, 2025:
+
+- Total earned income: 40000 + 35000 = 75000
+- Standard deduction (MFJ, 2025): 30000
+- Taxable income: 75000 - 30000 = 45000
+
+Using 2025 federal income tax brackets for MFJ:
+- 10% on first 23850 = 2385
+- 12% on remaining 45000 - 23850 = 21150 → 2538
+
+Total federal income tax before refundable credits:
+- 2385 + 2538 = 4923
+
+However, because the question asks for federal income tax before refundable credits, and nonrefundable credits may still apply:
+- Saver’s credit: not available here because neither spouse is stated to make retirement contributions.
+- Child tax credit: none, no children.
+- Other common nonrefundable credits: none indicated.
+
+So the correct federal income tax before refundable credits is 4923.",,4.5002870419994,186,213,399,0,0,0.00366
+gpt-5.4,scenario_088,eitc,0.0,"{""answer"": 0}
+
+For tax year 2025, a married couple filing jointly with no children must have earned income and AGI below the no-children EITC limit to qualify. With combined earned income of $75,000, this household is far above the limit, so the federal Earned Income Tax Credit is 0.",,1.746905833017081,186,73,259,0,0,0.0015600000000000002
+gpt-5.4,scenario_088,ctc,0.0,"{""answer"": 0}
+The Child Tax Credit is 0 because this household has no qualifying children.",,1.1216441669967026,184,24,208,0,0,0.00082
+gpt-5.4,scenario_088,income_tax_refundable_credits,0.0,"{""answer"": 0}
+For a married couple filing jointly in Maryland in 2025 with earned income of $75,000 total and no children, the total refundable tax credits are 0.
+
+Reason:
+- Federal Earned Income Tax Credit: not eligible because MFJ with no children phases out at much lower income.
+- Maryland refundable EITC: generally tied to federal EITC eligibility, so also 0.
+- No children means no Child Tax Credit refundable portion.
+- Ages 22/22 do not create eligibility for senior or childless-worker credits beyond the EITC structure.
+- Work hours do not create an additional standard refundable tax credit here.",,3.3605082919821143,184,144,328,0,0,0.00262
+gpt-5.4,scenario_088,snap,0.0,"{""answer"": 0}",,1.6331207500188611,188,9,197,0,0,0.0006050000000000001
+gpt-5.4,scenario_088,ssi,0.0,"{""answer"": 0}
+
+SSI is 0 for this household.
+
+Reason: Supplemental Security Income is a means-tested federal benefit for people who are aged 65+, blind, or disabled, with very limited income/resources. Both adults here are 22, and there is no indication either is blind or disabled. Their earnings are also far above SSI income limits. Therefore the household would receive no SSI.",,2.5369225000031292,188,83,271,0,0,0.001715
+gpt-5.4,scenario_088,free_school_meals,0.0,"{""answer"": 0}",,0.9424403329903726,198,15,213,0,0,0.0007199999999999999
+gpt-5.4,scenario_088,is_medicaid_eligible,0.0,"{""answer"": 0}
+
+For Maryland in 2025, Medicaid for non-disabled adults generally covers adults ages 19–64 with household income up to 138% of the federal poverty level using MAGI rules.
+
+Household size: 2  
+Household income: 40000 + 35000 = 75000
+
+This income is far above the Medicaid income limit for a 2-person household, so the household is not eligible for Medicaid.
+
+Therefore, eligibility = 0.",,2.831228249997366,197,102,299,0,0,0.0020225
+gpt-5.4,scenario_088,household_state_income_tax,,,,5.191957708011614,184,256,440,256,0,0.0043
+gpt-5.4,scenario_088,household_net_income,,,,5.478941999987001,191,256,447,256,0,0.0043175
+gpt-5.4,scenario_088,household_benefits,0.0,"{""answer"": 0}
+
+For a married couple filing jointly in Maryland in 2025 with combined annual earned income of $75,000 and no children, total direct government cash/near-cash benefits are generally $0.
+
+Reasoning, at a high level:
+- EITC: $0 at this income level for a childless married couple.
+- CTC: $0 because there are no children.
+- SNAP: $0 because gross income is far above typical eligibility limits for a 2-person household.
+- TANF: $0 with no children and income too high.
+- Housing/Medicaid-style means-tested benefits: generally $0 at this income level for this household composition.
+- ACA premium tax credits are not counted unless health insurance enrollment/premiums are specified.",,4.27254333399469,184,168,352,0,0,0.00298
+gpt-5.4,scenario_088,household_market_income,75000.0,"{""answer"": 75000}",,1.1748062500264496,190,10,200,0,0,0.0006250000000000001
+gpt-5.4,scenario_088,marginal_tax_rate,,,,5.283386374998372,200,256,456,256,0,0.00434

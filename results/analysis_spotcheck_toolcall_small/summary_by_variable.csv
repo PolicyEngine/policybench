@@ -1,0 +1,6 @@
+variable,mean_mae,mean_mape,mean_within_10pct,mean_accuracy,mean_coverage,total_n,parsed_n
+household_market_income,10414.75,0.42582181699239513,0.5,,1.0,8,8
+household_net_income,41050.574869791664,0.8939139745157654,0.375,,0.75,8,6
+income_tax,244.5,0.10309930423782417,0.625,,0.75,8,6
+is_medicaid_eligible,0.625,,,0.5,0.875,8,7
+marginal_tax_rate,0.40453254493077595,,0.0,,0.75,8,6

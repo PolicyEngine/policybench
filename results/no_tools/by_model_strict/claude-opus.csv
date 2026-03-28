@@ -1,0 +1,2753 @@
+model,scenario_id,variable,prediction,raw_response,error,elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens,estimated_cost_usd
+claude-opus,scenario_000,income_tax,,"I need to calculate the federal income tax liability for a single filer in PA for tax year 2025.
+
+**Income Summary:**
+- Employment income: $0
+- Self-employment income: -$144,905
+- Short-term capital gains: -$1,242
+- Long-",,2.7878834170114715,183,64,247,0,0,0.002515
+claude-opus,scenario_000,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this single filer.
+
+**Step 1: Determine Gross Income**
+
+- Employment income: $0
+- Self-employment income: -$144,905
+- Short-term capital gains: -$1,242",,3.235305750014959,186,63,249,0,0,0.002505
+claude-opus,scenario_000,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this single filer.
+
+**Key facts:**
+- Single filer, age 63, no children
+- Self-employment income: -$144,905 (a loss)
+- Short-term capital gains:",,3.2953331249882467,184,64,248,0,0,0.00252
+claude-opus,scenario_000,ctc,0.0,0,,1.857049999991432,182,5,187,0,0,0.001035
+claude-opus,scenario_000,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this single filer in PA for tax year 2025.
+
+Let me analyze the situation:
+
+**Income:**
+- Employment income: $0
+- Self-employment income: -$144,905 (a loss)
+- Short-",,3.1044121669838205,184,64,248,0,0,0.00252
+claude-opus,scenario_000,snap,,"I need to determine the annual SNAP benefit for this household.
+
+**Step 1: Determine SNAP eligibility and household composition**
+- Single person household, age 63, in Pennsylvania
+- Tax year 2025
+
+**Step 2: Determine countable income for SNAP purposes**",,3.5520547080086544,187,64,251,0,0,0.002535
+claude-opus,scenario_000,ssi,,"I need to determine the SSI eligibility and benefit amount for this individual.
+
+**SSI Basics for 2025:**
+- SSI is a federal program for aged (65+), blind, or disabled individuals with limited income and resources.
+- The federal SSI benefit rate for an individual in",,3.134237292018952,189,64,253,0,0,0.002545
+claude-opus,scenario_000,free_school_meals,,"To determine eligibility for free school meals, I need to assess the household's income against the federal poverty guidelines used for the National School Lunch Program (NSLP).
+
+For the 2024-2025 school year (tax year 2025), free school meals are available to households with income",,2.9857645829906687,199,64,263,0,0,0.002595
+claude-opus,scenario_000,is_medicaid_eligible,,"To determine Medicaid eligibility for this household, I need to calculate their Modified Adjusted Gross Income (MAGI) and compare it to the Medicaid threshold.
+
+**Household Details:**
+- Single filer, age 63, no children
+- Lives in Pennsylvania
+- Tax year",,2.7716921249812003,199,64,263,0,0,0.002595
+claude-opus,scenario_000,household_state_income_tax,,"I need to calculate Pennsylvania state income tax for this single filer.
+
+**Pennsylvania Income Tax Key Facts:**
+- PA has a flat income tax rate of 3.07%
+- PA does not allow negative income (losses) to reduce tax below $0
+- PA taxes eight classes of income separately and",,4.0881257920118514,182,64,246,0,0,0.00251
+claude-opus,scenario_000,household_net_income,,"I need to calculate the household net income for a single filer in PA, age 63, with negative self-employment income and negative capital gains.
+
+## Income Components
+
+- Employment income: $0
+- Self-employment income: -$144,905
+- Short-term capital gains: -$",,3.607811041001696,189,64,253,0,0,0.002545
+claude-opus,scenario_000,household_benefits,,"I need to calculate the total government benefits for a single filer in PA, age 63, with significant negative self-employment income and negative capital gains.
+
+Let me work through the various benefit programs:
+
+**Income Summary:**
+- Employment income: $0
+- Self-employment income: -$144",,2.9633661250118166,182,64,246,0,0,0.00251
+claude-opus,scenario_000,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes all pre-tax, pre-transfer income sources:
+
+1. Employment income: $0
+2. Self-employment income: -$144,905
+3. Short-term capital",,2.791280250006821,190,64,254,0,0,0.00255
+claude-opus,scenario_000,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. The household has all negative income sources:
+- Self-employment income: -$144,905
+- Short-term capital gains: -$1,242
+- Long-term capital gains: -$1,862
+
+**Total income",,2.52439362500445,201,64,265,0,0,0.002605
+claude-opus,scenario_001,income_tax,,"I need to calculate the federal income tax liability for a head of household filer in FL for tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Employment income: $190,000
+- Taxable interest: $20
+- Total gross income: $190,",,4.067801041004714,175,64,239,0,0,0.002475
+claude-opus,scenario_001,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for a head of household filer in tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Employment income: $190,000
+- Taxable interest: $20
+- Total gross income: $",,2.2185667919984553,178,64,242,0,0,0.00249
+claude-opus,scenario_001,eitc,0.0,0,,1.987434457987547,176,5,181,0,0,0.001005
+claude-opus,scenario_001,ctc,,"I need to determine the Child Tax Credit (CTC) for this household for tax year 2025.
+
+**Household details:**
+- Filing status: Head of Household
+- Adult 1: 40 years old, $190,000 employment income, $20 taxable interest,",,2.8431760419916827,174,64,238,0,0,0.00247
+claude-opus,scenario_001,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this head of household filer in FL for tax year 2025.
+
+Let me identify the potential refundable tax credits:
+
+1. **Child Tax Credit (CTC)** - $2,000 per qualifying child, with up to",,2.5796669159899466,176,64,240,0,0,0.00248
+claude-opus,scenario_001,snap,,"I need to determine SNAP eligibility and benefits for this household in Florida for 2025.
+
+**Household composition:** 2 people (1 adult who is disabled, 1 child age 10), head of household filer.
+
+**Step 1: Gross Income**
+-",,3.790448625019053,179,64,243,0,0,0.002495
+claude-opus,scenario_001,ssi,,"I need to determine the SSI eligibility and amount for this household.
+
+**SSI Basics for 2025:**
+- The federal SSI benefit rate for an individual in 2025 is $967/month ($11,604/year).
+- Florida does not provide a state SSI",,3.2542575410043355,181,64,245,0,0,0.002505
+claude-opus,scenario_001,free_school_meals,,"To determine eligibility for free school meals under the National School Lunch Program (NSLP), I need to check if the household income is at or below 130% of the Federal Poverty Level (FPL).
+
+**Household size:** 2 (Adult 1 + Child ",,3.255054167006165,191,64,255,0,0,0.002555
+claude-opus,scenario_001,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in Florida for tax year 2025, I need to consider the household's Modified Adjusted Gross Income (MAGI) relative to the Medicaid income thresholds.
+
+**Household composition:** Head of household (Adult 1, age ",,2.9718602080247365,191,64,255,0,0,0.002555
+claude-opus,scenario_001,household_state_income_tax,0.0,"Florida has no state income tax.
+
+0",,1.974144082982093,174,12,186,0,0,0.00117
+claude-opus,scenario_001,household_net_income,,"I need to calculate the household net income for a head of household filer in FL for tax year 2025.
+
+**Market Income:**
+- Employment income: $190,000
+- Taxable interest: $20
+- Total market income: $190,020
+
+**Federal Income Tax Calculation",,2.7458492500009015,181,64,245,0,0,0.002505
+claude-opus,scenario_001,household_benefits,,"I need to determine all government benefits for this household in FL for tax year 2025.
+
+**Household details:**
+- Head of household filer in Florida
+- Adult 1: 40 years old, $190,000 employment income, $20 taxable interest, disabled, works",,3.004552375001367,174,64,238,0,0,0.00247
+claude-opus,scenario_001,household_market_income,190020.0,190020,,1.6003259170101956,182,6,188,0,0,0.00106
+claude-opus,scenario_001,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household, considering federal income tax, FICA taxes, and any phase-outs of credits/deductions.
+
+**Basic Info:**
+- Head of Household filer in FL (no state income tax)
+- Adult 1: $",,3.1678986250190064,193,64,257,0,0,0.002565
+claude-opus,scenario_002,income_tax,,"I need to calculate the federal income tax liability for a single filer, age 70, in CA for tax year 2025.
+
+**Step 1: Determine Gross Income Components**
+
+- Taxable IRA distributions: $22,638
+- Taxable private pension income: $",,2.4905749169993214,180,64,244,0,0,0.0025
+claude-opus,scenario_002,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for a single filer, age 70, in tax year 2025.
+
+**Step 1: Determine Gross Income**
+
+- Taxable IRA distributions: $22,638
+- Taxable private pension income:",,2.6931512499868404,183,64,247,0,0,0.002515
+claude-opus,scenario_002,eitc,0.0,0,,2.14403116700123,181,5,186,0,0,0.00103
+claude-opus,scenario_002,ctc,0.0,0,,2.101480957993772,179,5,184,0,0,0.00102
+claude-opus,scenario_002,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this single filer in California for tax year 2025.
+
+Let me first establish the income details:
+- Taxable IRA distributions: $22,638
+- Taxable private pension income: $16,873
+- Social Security",,2.725585832988145,181,64,245,0,0,0.002505
+claude-opus,scenario_002,snap,,"I need to calculate the annual SNAP benefit for this household in California for 2025.
+
+**Step 1: Determine Household Size and Basic Info**
+- Single person, age 70 (elderly household)
+- No children
+
+**Step 2: Calculate Gross Income for SNAP",,2.9104414590110537,184,64,248,0,0,0.00252
+claude-opus,scenario_002,ssi,,"I need to determine if this individual qualifies for Supplemental Security Income (SSI) and, if so, the annual amount.
+
+**SSI Eligibility Requirements:**
+
+SSI is a needs-based program for aged (65+), blind, or disabled individuals with limited income and resources.",,3.0381184170255437,186,63,249,0,0,0.002505
+claude-opus,scenario_002,free_school_meals,0.0,0,,1.6820636249904055,196,5,201,0,0,0.001105
+claude-opus,scenario_002,is_medicaid_eligible,,"I need to determine Medicaid eligibility for this household in California for 2025.
+
+In California, Medicaid is called Medi-Cal. California expanded Medicaid under the ACA, so adults can qualify through MAGI-based Medicaid.
+
+**Step 1:",,2.8180258339853026,196,64,260,0,0,0.00258
+claude-opus,scenario_002,household_state_income_tax,,"I need to calculate California state income tax for a single filer, age 70, with the following income:
+- Taxable IRA distributions: $22,638
+- Taxable private pension income: $16,873
+- Social Security retirement income: $10,876
+
+**Step ",,2.438837624998996,179,64,243,0,0,0.002495
+claude-opus,scenario_002,household_net_income,,"I need to calculate the household net income: market income + benefits - taxes.
+
+## Step 1: Determine Market Income
+- IRA distributions: $22,638
+- Private pension income: $16,873
+- Social Security retirement income: $10,876
+- Total market income: $",,2.388101499993354,186,64,250,0,0,0.00253
+claude-opus,scenario_002,household_benefits,,"
+
+I need to calculate the total government benefits for a 70-year-old single filer in California for tax year 2025.
+
+**Income Summary:**
+- Taxable IRA distributions: $22,638
+- Taxable private pension income: $16,873
+- Social Security",,2.4145178749749903,179,64,243,0,0,0.002495
+claude-opus,scenario_002,household_market_income,,"I need to determine the total market income (pre-tax, pre-transfer) for this household.
+
+Market income typically includes income earned from market activities before any government taxes or transfers. This includes:
+
+1. Employment income
+2. Private pension income
+3. IRA distributions (these are from private retirement",,3.030145457974868,187,64,251,0,0,0.002535
+claude-opus,scenario_002,marginal_tax_rate,,"I'll calculate the effective marginal tax rate for this single filer in CA for tax year 2025.
+
+## Step 1: Determine Federal Taxable Income
+
+**Gross Income Components:**
+- Taxable IRA distributions: $22,638
+- Taxable private pension:",,3.7939432919956744,198,64,262,0,0,0.00259
+claude-opus,scenario_003,income_tax,,"I'll work through this step-by-step for tax year 2025.
+
+**Step 1: Calculate Adjusted Gross Income (AGI)**
+- Adult 1 employment income: $0
+- Adult 2 employment income: $98,002
+- Taxable interest:",,2.6905459580011666,220,64,284,0,0,0.0027
+claude-opus,scenario_003,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+**Step 1: Calculate Gross Income**
+- Adult 1 employment income: $0
+- Adult 2 employment income: $98,002
+- Adult 1",,2.9011368750070687,223,64,287,0,0,0.002715
+claude-opus,scenario_003,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Household characteristics:**
+- Married Filing Jointly
+- Two qualifying children (ages 7 and 5)
+- Earned income: $98,002 ",,2.50029591700877,221,64,285,0,0,0.002705
+claude-opus,scenario_003,ctc,,"I need to calculate the Child Tax Credit for this household for tax year 2025.
+
+**Household details:**
+- Married filing jointly
+- Two qualifying children: age 7 and age 5
+- Combined income: $0 + $98,002 = $98,002 ",,2.578250916005345,219,64,283,0,0,0.002695
+claude-opus,scenario_003,income_tax_refundable_credits,,"I need to determine all refundable tax credits for this household for tax year 2025.
+
+**Household Summary:**
+- Married Filing Jointly, Colorado
+- Adult 1: 35, $0 employment income, $1 taxable interest
+- Adult 2: 34",,2.912889791012276,221,64,285,0,0,0.002705
+claude-opus,scenario_003,snap,,"I need to determine the SNAP (food stamps) eligibility and benefit amount for this household in Colorado for 2025.
+
+**Household composition:** 4 people (2 adults, 2 children)
+
+**Income Calculation:**
+
+Gross income:
+- Adult 1: $",,3.0487495419802144,224,64,288,0,0,0.00272
+claude-opus,scenario_003,ssi,,"I need to determine if anyone in this household qualifies for Supplemental Security Income (SSI).
+
+SSI is a federal program that provides monthly payments to people who are:
+1. Aged (65 or older), OR
+2. Blind, OR
+3. Disabled
+
+AND who",,3.0706246249901596,226,64,290,0,0,0.00273
+claude-opus,scenario_003,free_school_meals,,"To determine eligibility for free school meals, I need to check if the household income falls at or below 130% of the Federal Poverty Level (FPL) for their household size.
+
+**Household size:** 4 (2 adults + 2 children)
+
+**2024-",,3.0787000420095865,236,64,300,0,0,0.00278
+claude-opus,scenario_003,is_medicaid_eligible,,"I need to determine if this household is eligible for Medicaid in Colorado for tax year 2025.
+
+**Household composition:** 2 adults (ages 35 and 34) and 2 children (ages 7 and 5) = 4 people
+
+**Medic",,2.7296484590042382,236,64,300,0,0,0.00278
+claude-opus,scenario_003,household_state_income_tax,,"I need to calculate the Colorado state income tax liability for this household for tax year 2025.
+
+**Step 1: Calculate Federal Adjusted Gross Income (AGI)**
+
+- Adult 1 employment income: $0
+- Adult 2 employment income: $98,002
+-",,2.3705364170018584,219,64,283,0,0,0.002695
+claude-opus,scenario_003,household_net_income,,"I'll work through this step-by-step, calculating all taxes and benefits for this household.
+
+**Household Income:**
+- Employment income: $98,002
+- Taxable interest: $1 + $2 = $3
+- Qualified dividends: $2
+- Total",,2.781086957984371,226,64,290,0,0,0.00273
+claude-opus,scenario_003,household_benefits,,"I'll work through each potential government benefit for this household systematically.
+
+**Household Summary:**
+- Married filing jointly, Colorado, 2025
+- Adult 1: 35, $0 employment income, $1 taxable interest
+- Adult 2: 34, $98",,2.889430083014304,219,64,283,0,0,0.002695
+claude-opus,scenario_003,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes all income earned from market activities before any taxes or government transfers. This includes:
+
+1. **Adult 1's employment income:** $0
+2. **Adult 1's taxable",,2.846465957991313,227,64,291,0,0,0.002735
+claude-opus,scenario_003,marginal_tax_rate,,"I need to find the effective marginal tax rate for an additional dollar of income for this household.
+
+**Household details:**
+- Married filing jointly, CO, 2025
+- Adult 1: 35, $0 employment, $1 taxable interest
+- Adult 2:",,3.1014280000235885,238,64,302,0,0,0.00279
+claude-opus,scenario_004,income_tax,,"I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Calculate Total Income
+
+**Adult 1:**
+- Employment income: $100,000
+- Taxable interest: $1,034
+
+**Adult 2:**
+-",,2.613699125009589,243,64,307,0,0,0.002815
+claude-opus,scenario_004,income_tax_before_refundable_credits,,"I'll work through this step-by-step for tax year 2025.
+
+**Step 1: Calculate Adjusted Gross Income (AGI)**
+
+- Adult 1 employment income: $100,000
+- Adult 2 employment income: $100,000
+- Adult 1",,2.7883487500075717,246,64,310,0,0,0.00283
+claude-opus,scenario_004,eitc,0.0,0,,1.841656124975998,244,5,249,0,0,0.001345
+claude-opus,scenario_004,ctc,0.0,0,,2.3114342920016497,242,5,247,0,0,0.001335
+claude-opus,scenario_004,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in Indiana for tax year 2025.
+
+Let me identify their income:
+- Adult 1: $100,000 employment income, $1,034 taxable interest
+- Adult 2: $100,",,3.0148047500115354,244,64,308,0,0,0.00282
+claude-opus,scenario_004,snap,0.0,0,,2.1444298749847803,247,5,252,0,0,0.00136
+claude-opus,scenario_004,ssi,0.0,0,,2.772204042004887,249,5,254,0,0,0.00137
+claude-opus,scenario_004,free_school_meals,0.0,0,,1.723871541005792,259,5,264,0,0,0.00142
+claude-opus,scenario_004,is_medicaid_eligible,0.0,0,,1.809844500006875,259,5,264,0,0,0.00142
+claude-opus,scenario_004,household_state_income_tax,,"I need to calculate Indiana state income tax for this married couple filing jointly in 2025.
+
+**Step 1: Determine Indiana Adjusted Gross Income (AGI)**
+
+Indiana uses a flat tax rate and starts with federal AGI.
+
+Federal AGI components:
+- Adult 1 employment",,2.919179082993651,242,64,306,0,0,0.00281
+claude-opus,scenario_004,household_net_income,,"I'll calculate the household net income step by step for tax year 2025.
+
+## Market Income
+
+- Adult 1 employment: $100,000
+- Adult 2 employment: $100,000
+- Adult 1 taxable interest: $1,034
+- Adult 2",,2.959014082996873,249,64,313,0,0,0.002845
+claude-opus,scenario_004,household_benefits,,"I need to determine the total government benefits received by this household for tax year 2025.
+
+Let me analyze their situation:
+
+- Married couple filing jointly in Indiana
+- Adult 1: 36 years old, $100,000 employment income, $1,034 taxable interest",,2.370845625002403,242,63,305,0,0,0.002785
+claude-opus,scenario_004,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household by summing all income sources for both adults.
+
+**Adult 1:**
+- Employment income: $100,000
+- Taxable interest income: $1,034
+
+**Adult 2:**",,2.4757069580082316,250,63,313,0,0,0.002825
+claude-opus,scenario_004,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. The marginal tax rate applies to the last dollar of income earned.
+
+**Step 1: Calculate total income**
+
+- Adult 1 employment: $100,000
+- Adult 2 employment: $100,000
+-",,3.2407832909957506,261,64,325,0,0,0.002905
+claude-opus,scenario_005,income_tax,,"
+
+I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Determine Gross Income
+
+- Adult 1 employment income: $74,126
+- Adult 2 employment income: $377,529
+- Adult 2",,2.8392954999872018,259,64,323,0,0,0.002895
+claude-opus,scenario_005,income_tax_before_refundable_credits,,"
+
+I need to calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+**Step 1: Calculate Adjusted Gross Income (AGI)**
+
+- Adult 1 employment income: $74,126
+- Adult 2 employment income: $",,2.67530624999199,262,64,326,0,0,0.00291
+claude-opus,scenario_005,eitc,0.0,0,,1.868458874989301,260,5,265,0,0,0.001425
+claude-opus,scenario_005,ctc,,"I need to calculate the Child Tax Credit for this married couple filing jointly for tax year 2025.
+
+**Step 1: Determine the number of qualifying children.**
+- Child 1 is 12 years old → qualifies
+- Child 2 is 11 years old → qual",,2.706069915991975,258,64,322,0,0,0.00289
+claude-opus,scenario_005,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this household filing MFJ in NY for tax year 2025.
+
+**Household Summary:**
+- MFJ, two children ages 12 and 11
+- Adult 1: $74,126 employment income, $843",,2.8935445829993114,260,64,324,0,0,0.0029
+claude-opus,scenario_005,snap,0.0,0,,1.9019014999794308,263,5,268,0,0,0.00144
+claude-opus,scenario_005,ssi,0.0,0,,1.94181099999696,265,5,270,0,0,0.00145
+claude-opus,scenario_005,free_school_meals,0.0,0,,2.0268392500001937,275,5,280,0,0,0.0015
+claude-opus,scenario_005,is_medicaid_eligible,0.0,0,,2.0657623329898342,275,5,280,0,0,0.0015
+claude-opus,scenario_005,household_state_income_tax,,"
+
+I need to calculate New York State income tax for this married couple filing jointly in 2025.
+
+**Step 1: Determine NY Adjusted Gross Income (AGI)**
+
+- Adult 1 employment income: $74,126
+- Adult 2 employment income: $377,",,3.1655732080107555,258,64,322,0,0,0.00289
+claude-opus,scenario_005,household_net_income,,"I'll calculate the household net income step by step.
+
+## Market Income
+
+- Adult 1 employment income: $74,126
+- Adult 2 employment income: $377,529
+- Adult 2 self-employment income: $3,261
+- Qualified dividends: $",,3.0304590839950833,265,64,329,0,0,0.002925
+claude-opus,scenario_005,household_benefits,,"I need to determine all government benefits this household would receive in 2025.
+
+**Household Summary:**
+- Married filing jointly, NY residents
+- Adult 1: $74,126 employment income, $843 qualified dividends, -$3,222 short-term capital gains,",,2.877896999998484,258,64,322,0,0,0.00289
+claude-opus,scenario_005,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household. Market income includes all income earned from market activities before any taxes or government transfers.
+
+Let me identify all income sources:
+
+**Adult 1:**
+- Employment income: $74,126
+- Qualified",,2.7952489579911344,266,64,330,0,0,0.00293
+claude-opus,scenario_005,marginal_tax_rate,,"
+
+I need to find the effective marginal tax rate for this household. This means the total tax impact of an additional dollar of income, considering federal income tax, state/local tax, FICA/self-employment tax, and phase-outs.
+
+**Step 1: Determine total income and",,3.391853582987096,277,64,341,0,0,0.002985
+claude-opus,scenario_006,income_tax,,"I need to calculate the total federal income tax liability for this married couple filing jointly in TX for 2025.
+
+**Income:**
+- Adult 1: $0 employment income, $127 taxable interest
+- Adult 2: $0 employment income, $1,308 self-",,2.550768832996255,223,64,287,0,0,0.002715
+claude-opus,scenario_006,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this household.
+
+**Step 1: Calculate Total Income**
+- Adult 1 employment income: $0
+- Adult 2 self-employment income: $1,308
+- Taxable interest income: $127",,2.369014750001952,226,63,289,0,0,0.002705
+claude-opus,scenario_006,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Household details:**
+- Married filing jointly
+- Three qualifying children (ages 16, 11, and 3)
+- Adult 1: $0 ",,3.4259505409863777,224,64,288,0,0,0.00272
+claude-opus,scenario_006,ctc,,"I need to calculate the Child Tax Credit for this household for tax year 2025.
+
+**Step 1: Identify qualifying children**
+- Child 1: 16 years old (qualifies for CTC - under 17)
+- Child 2: 11 years old (qual",,3.3575242499937303,222,64,286,0,0,0.00271
+claude-opus,scenario_006,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this household.
+
+**Household Summary:**
+- Married filing jointly, Texas (no state income tax)
+- Adult 1: 38, $0 employment income, $127 taxable interest
+- Adult 2: 36",,3.73527454098803,224,64,288,0,0,0.00272
+claude-opus,scenario_006,snap,,"I need to calculate the annual SNAP benefit for this household in Texas for 2025.
+
+**Household Size:** 5 (2 adults + 3 children)
+
+**Step 1: Determine Gross Income**
+- Taxable interest: $127/month... wait,",,2.939260874991305,227,64,291,0,0,0.002735
+claude-opus,scenario_006,ssi,,"I need to determine the SSI eligibility and amount for this household.
+
+**SSI Basics for 2025:**
+- SSI is for individuals who are aged (65+), blind, or disabled
+- The Federal Benefit Rate (FBR) for 2025 is $967",,3.0681800830061547,229,64,293,0,0,0.002745
+claude-opus,scenario_006,free_school_meals,,"I need to determine if this household qualifies for free school meals under the National School Lunch Program (NSLP) for 2025.
+
+**Household size:** 5 people (2 adults + 3 children)
+
+**Household income:**
+- Adult 1: $",,2.489535792003153,239,64,303,0,0,0.002795
+claude-opus,scenario_006,is_medicaid_eligible,,"I need to determine if this household is eligible for Medicaid in Texas for 2025.
+
+**Household composition:** Married couple with 3 children (ages 16, 11, 3) = 5 person household
+
+**Income calculation for Medicaid (MAGI-",,3.21532066600048,239,64,303,0,0,0.002795
+claude-opus,scenario_006,household_state_income_tax,0.0,"Texas has no state income tax.
+
+0",,1.8356006250251085,222,12,234,0,0,0.00141
+claude-opus,scenario_006,household_net_income,,"I'll work through this step-by-step, calculating market income, benefits, and taxes for this household.
+
+## Market Income
+- Taxable interest: $127
+- Self-employment income: $1,308
+- Total market income: $1,435
+
+## Taxes
+
+**Self",,2.92124791702372,229,64,293,0,0,0.002745
+claude-opus,scenario_006,household_benefits,,"I'll calculate the total government benefits for this household step by step.
+
+**Household Profile:**
+- Married filing jointly, Texas
+- Adult 1 (38): $0 employment income, $127 taxable interest
+- Adult 2 (36): $0 employment income,",,2.679640709015075,222,64,286,0,0,0.00271
+claude-opus,scenario_006,household_market_income,,"To calculate total market income (pre-tax, pre-transfer), I need to sum all income from market sources before any taxes or government transfers.
+
+Market income includes:
+- Employment income: $0 (Adult 1) + $0 (Adult 2) = $0
+- Tax",,2.8162215830234345,230,64,294,0,0,0.00275
+claude-opus,scenario_006,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. Let me work through this step-by-step.
+
+**Household Income:**
+- Taxable interest: $127
+- Self-employment income: $1,308
+- Total income: $1,435
+
+**Self-",,2.8648393340117764,241,64,305,0,0,0.002805
+claude-opus,scenario_007,income_tax,,"I'll calculate the total federal income tax liability step by step for tax year 2025.
+
+**Step 1: Determine Gross Income**
+
+- Taxable private pension: $24,321
+- Social Security: $23,367 (need to determine taxable portion)
+
+**Step",,3.1404781250166707,168,64,232,0,0,0.00244
+claude-opus,scenario_007,income_tax_before_refundable_credits,,"I'll calculate the federal income tax before refundable credits step by step.
+
+**Step 1: Determine Gross Income**
+
+- Taxable private pension: $24,321
+- Social Security: $23,367 (need to determine taxable portion)
+
+**Step 2:",,2.886473082995508,171,64,235,0,0,0.002455
+claude-opus,scenario_007,eitc,0.0,0,,2.000892374984687,169,5,174,0,0,0.00097
+claude-opus,scenario_007,ctc,0.0,0,,2.1761583749903366,167,5,172,0,0,0.00096
+claude-opus,scenario_007,income_tax_refundable_credits,,"I need to find the total refundable tax credits for this single filer in Utah for tax year 2025.
+
+Let me work through the tax situation step by step.
+
+**Income:**
+- Private pension: $24,321
+- Social Security: $23,367
+
+**Federal Tax Analysis",,2.727250333002303,169,64,233,0,0,0.002445
+claude-opus,scenario_007,snap,,"I need to calculate the annual SNAP benefit for a single 78-year-old filer in Utah for 2025.
+
+**Step 1: Determine SNAP Eligibility**
+
+For a household with an elderly member (60+), there's no gross income test - only a net income",,2.8013553750060964,172,64,236,0,0,0.00246
+claude-opus,scenario_007,ssi,,"I need to determine the SSI eligibility and amount for this individual.
+
+**SSI Basics for 2025:**
+- SSI is a needs-based program for aged (65+), blind, or disabled individuals with limited income and resources.
+- The Federal Benefit Rate (FBR",,4.455010958015919,174,64,238,0,0,0.00247
+claude-opus,scenario_007,free_school_meals,0.0,0,,1.907376374991145,184,5,189,0,0,0.001045
+claude-opus,scenario_007,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in Utah for tax year 2025, I need to assess their income against the relevant Medicaid thresholds.
+
+**Household details:**
+- Single filer, age 78, living in Utah
+- No employment income
+- $24,",,3.226375750004081,184,64,248,0,0,0.00252
+claude-opus,scenario_007,household_state_income_tax,,"I'll calculate the Utah state income tax liability for this single filer step by step.
+
+**Step 1: Determine Utah Taxable Income**
+
+Utah starts with federal AGI. I need to determine how much Social Security is taxable at the federal level.
+
+**Federal Social Security Taxation:**",,2.951587167015532,167,64,231,0,0,0.002435
+claude-opus,scenario_007,household_net_income,,"I'll calculate the household net income step by step.
+
+## Market Income
+- Employment income: $0
+- Private pension income: $24,321
+- Social Security retirement income: $23,367
+- **Total market income: $47,688**
+
+## Federal Income Tax
+
+**Adjusted",,2.4455642079992685,174,64,238,0,0,0.00247
+claude-opus,scenario_007,household_benefits,,"I need to calculate the total government benefits received by this 78-year-old single filer in Utah for tax year 2025.
+
+## Step 1: Social Security Benefits
+The household receives $23,367 in Social Security retirement income.
+
+## Step 2: Federal Tax Analysis
+Let",,3.8647883330122568,167,64,231,0,0,0.002435
+claude-opus,scenario_007,household_market_income,,"I need to determine the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes income earned from market activities before any government taxes or transfers. This typically includes:
+
+- Employment income (wages, salaries)
+- Private pension income
+- Investment income
+- Other private",,3.663705167011358,175,64,239,0,0,0.002475
+claude-opus,scenario_007,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household, which means the total tax increase from an additional dollar of income, considering all taxes (federal, state, and any phase-outs).
+
+## Step 1: Determine Social Security Taxation
+
+First, I need to figure out how much",,2.796567541983677,186,64,250,0,0,0.00253
+claude-opus,scenario_008,income_tax,,"I need to calculate the federal income tax liability for this married couple filing jointly in 2025.
+
+**Step 1: Determine Gross Income**
+- Adult 1: $0 employment income
+- Adult 2: $30,000 employment income
+- Veterans benefits: $2,",,2.7265479160123505,188,64,252,0,0,0.00254
+claude-opus,scenario_008,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+**Step 1: Determine Gross Income**
+- Adult 1: $0 employment income
+- Adult 2: $30,000 employment income
+- Veterans benefits",,2.596380750008393,191,64,255,0,0,0.002555
+claude-opus,scenario_008,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+Key facts:
+- Married filing jointly
+- No qualifying children
+- Adult 1: 72 years old, $0 employment income
+- Adult 2:",,2.4559081670013256,189,64,253,0,0,0.002545
+claude-opus,scenario_008,ctc,0.0,0,,2.653979041991988,187,5,192,0,0,0.00106
+claude-opus,scenario_008,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in TX for tax year 2025.
+
+Let me analyze each potential refundable tax credit:
+
+**1. Earned Income Tax Credit (EITC)**
+
+For 2025, married filing jointly with no",,2.664496916986536,189,64,253,0,0,0.002545
+claude-opus,scenario_008,snap,,"I need to calculate the annual SNAP benefit for this household in Texas for 2025.
+
+**Step 1: Determine household size and relevant characteristics.**
+- Married couple, no children = 2-person household
+- Adult 1 is 72 (elderly, 60+)",,3.46049095899798,192,64,256,0,0,0.00256
+claude-opus,scenario_008,ssi,,"I need to determine the SSI eligibility and amount for this household.
+
+**SSI Basics for 2025:**
+- The Federal Benefit Rate (FBR) for an individual is $967/month ($11,604/year)
+- The FBR for a couple (both",,3.1202363750198856,194,64,258,0,0,0.00257
+claude-opus,scenario_008,free_school_meals,0.0,0,,1.958060208009556,204,5,209,0,0,0.001145
+claude-opus,scenario_008,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in Texas for 2025, I need to consider several factors.
+
+**Texas Medicaid Context:**
+- Texas did not expand Medicaid under the ACA.
+- For adults without dependent children, Medicaid eligibility is extremely limited in Texas",,2.795461792004062,204,64,268,0,0,0.00262
+claude-opus,scenario_008,household_state_income_tax,0.0,"Texas has no state income tax.
+
+0",,2.040498167014448,187,12,199,0,0,0.001235
+claude-opus,scenario_008,household_net_income,,"I'll calculate the household net income step by step for a married couple filing jointly in TX for tax year 2025.
+
+**Market Income:**
+- Employment income: $30,000
+- Veterans benefits: $2,040/month × 12 = $24,480
+
+**Federal Income Tax",,2.9094583749829326,194,64,258,0,0,0.00257
+claude-opus,scenario_008,household_benefits,,"I need to calculate all government benefits this household would receive in 2025.
+
+Let me analyze each potential benefit:
+
+**1. Social Security Benefits**
+- Adult 1 (72 years old): At 72, they would be receiving Social Security. With $0 employment income, they likely",,2.8368705000029877,187,64,251,0,0,0.002535
+claude-opus,scenario_008,household_market_income,,"Market income includes employment income and other pre-tax, pre-transfer income earned in the market. Veterans benefits are government transfers, not market income.
+
+Adult 1: $0 employment income
+Adult 2: $30,000 employment income
+Veterans benefits ($2,040) are a government transfer",,3.4751764580141753,195,64,259,0,0,0.002575
+claude-opus,scenario_008,marginal_tax_rate,,"I need to determine the effective marginal tax rate for this household, meaning the rate at which the next dollar of income would be taxed, considering all taxes (federal income tax, FICA, state).
+
+**Household details:**
+- Married filing jointly, Texas (no state income tax)",,3.178389457985759,206,63,269,0,0,0.002605
+claude-opus,scenario_009,income_tax,,"I need to calculate the federal income tax liability for this married couple filing jointly in 2025.
+
+**Step 1: Determine Gross Income Components**
+
+- Adult 1: $0 employment, $681 taxable interest, $15,296 Social Security, $2,040 ",,2.5937551250099204,208,64,272,0,0,0.00264
+claude-opus,scenario_009,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+**Step 1: Determine Gross Income Components**
+
+- Adult 1: $0 employment, $681 taxable interest, $15,296 Social Security, $",,2.228297042020131,211,64,275,0,0,0.002655
+claude-opus,scenario_009,eitc,0.0,0,,2.257683875010116,209,5,214,0,0,0.00117
+claude-opus,scenario_009,ctc,0.0,0,,1.7620919999899345,207,5,212,0,0,0.00116
+claude-opus,scenario_009,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in Missouri for tax year 2025.
+
+**Step 1: Determine their income**
+- Adult 1: $0 employment income, $681 taxable interest, $15,296 Social Security,",,2.6236278750002384,209,64,273,0,0,0.002645
+claude-opus,scenario_009,snap,,"I need to calculate the annual SNAP benefit for this elderly couple in Missouri for 2025.
+
+**Step 1: Determine Gross Income for SNAP**
+
+SNAP counts most income. Social Security is counted. Taxable interest is counted. Veterans benefits are generally counted as unearned income",,3.18422733299667,212,64,276,0,0,0.00266
+claude-opus,scenario_009,ssi,,"I need to determine the SSI eligibility and amount for this household.
+
+**SSI Basics for 2025:**
+- SSI is an individual benefit (though couples both eligible get a couple rate)
+- The 2025 Federal Benefit Rate (FBR) for an individual is",,3.486155292019248,214,64,278,0,0,0.00267
+claude-opus,scenario_009,free_school_meals,,"To determine eligibility for free school meals, I need to consider the National School Lunch Program (NSLP) requirements.
+
+First, free school meals are provided to **children** in households that meet income eligibility guidelines. This household consists of two adults aged 79 and 77 with **",,3.8041927080194,224,64,288,0,0,0.00272
+claude-opus,scenario_009,is_medicaid_eligible,,"To determine Medicaid eligibility for this married couple in Missouri for tax year 2025, I need to evaluate their income against Missouri's Medicaid thresholds.
+
+Missouri expanded Medicaid under the ACA. For adults, the income limit is 138% of the Federal Poverty Level (",,3.023429542023223,224,64,288,0,0,0.00272
+claude-opus,scenario_009,household_state_income_tax,,"
+
+I need to calculate Missouri state income tax for this married couple filing jointly in 2025.
+
+**Step 1: Determine Federal AGI**
+
+- Taxable interest: $681
+- Social Security: Need to determine taxable portion
+- Veterans benefits: $2,040 (not",,2.8080937920021825,207,64,271,0,0,0.002635
+claude-opus,scenario_009,household_net_income,,"I need to calculate the household net income (market income + benefits - taxes) for this married couple filing jointly in Missouri for tax year 2025.
+
+**Step 1: Identify all income sources**
+- Adult 1: $681 taxable interest, $15,296 Social Security,",,2.5697062499821186,214,64,278,0,0,0.00267
+claude-opus,scenario_009,household_benefits,,"I need to calculate the total government benefits received by this household for tax year 2025.
+
+Let me identify all the government benefits:
+
+1. **Social Security retirement income (Adult 1):** $15,296
+2. **Social Security retirement income (Adult 2):** $26,096",,2.4679849999956787,207,64,271,0,0,0.002635
+claude-opus,scenario_009,household_market_income,,"I need to determine the total market income (pre-tax, pre-transfer) for this household.
+
+Market income refers to income earned from market activities before any government taxes or transfers. This includes:
+- Employment income (wages, salaries)
+- Business income
+- Capital income (interest, dividends",,2.9579001249803696,215,64,279,0,0,0.002675
+claude-opus,scenario_009,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. Let me work through their tax situation step by step.
+
+**Income Summary:**
+- Adult 1: $681 taxable interest, $15,296 Social Security, $2,040 veterans benefits
+- Adult 2:",,2.731622833001893,226,64,290,0,0,0.00273
+claude-opus,scenario_010,income_tax,,"I need to calculate the federal income tax liability for a 79-year-old single filer in 2025.
+
+**Step 1: Determine Gross Income Components**
+- Taxable interest: $365
+- Qualified dividends: $284
+- Short-term capital gains:",,2.6611022500146646,196,64,260,0,0,0.00258
+claude-opus,scenario_010,income_tax_before_refundable_credits,,"I'll work through this step-by-step for a single filer, age 79, tax year 2025.
+
+## Step 1: Determine Gross Income
+
+- Taxable interest: $365
+- Qualified dividends: $284
+- Short-term capital gains: $",,2.5884915000060573,199,64,263,0,0,0.002595
+claude-opus,scenario_010,eitc,0.0,0,,1.8225255419965831,197,5,202,0,0,0.0011099999999999
+claude-opus,scenario_010,ctc,0.0,0,,2.298775709001347,195,5,200,0,0,0.0011
+claude-opus,scenario_010,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this single filer in Rhode Island for tax year 2025.
+
+**Step 1: Determine the household's income and tax situation**
+
+- Employment income: $0
+- Taxable interest: $365
+- Qualified dividends",,3.144163707998814,197,64,261,0,0,0.002585
+claude-opus,scenario_010,snap,,"I need to determine the annual SNAP benefit for this household. Let me work through the SNAP eligibility and benefit calculation.
+
+**Step 1: Determine SNAP Gross Income**
+
+For SNAP purposes, I need to count income. Social Security benefits count as unearned income for SNAP",,2.9511961250100285,200,64,264,0,0,0.0026
+claude-opus,scenario_010,ssi,,"I need to determine the annual Supplemental Security Income (SSI) amount for this household.
+
+SSI is a federal program administered by the Social Security Administration that provides monthly payments to people who are aged (65+), blind, or disabled AND have limited income and resources.
+
+**Step 1:",,2.8777741249941755,202,64,266,0,0,0.00261
+claude-opus,scenario_010,free_school_meals,0.0,0,,1.8009388750069777,212,5,217,0,0,0.001185
+claude-opus,scenario_010,is_medicaid_eligible,,"I need to determine Medicaid eligibility for this household in Rhode Island for tax year 2025.
+
+**Step 1: Determine the household composition**
+- Single filer, age 79, no children
+- Household size: 1
+
+**Step 2: Determine which",,3.0109176670084707,212,64,276,0,0,0.00266
+claude-opus,scenario_010,household_state_income_tax,,"
+
+I need to calculate the Rhode Island state income tax for this single filer, age 79, for tax year 2025.
+
+**Step 1: Determine Federal AGI**
+
+First, I need to figure out how much Social Security is taxable at the federal level.
+
+- Tax",,3.1340904170065187,195,64,259,0,0,0.002575
+claude-opus,scenario_010,household_net_income,,"
+
+I need to calculate the household net income for this single filer in Rhode Island for tax year 2025.
+
+## Step 1: Determine Market Income
+
+- Taxable interest: $365
+- Qualified dividends: $284
+- Short-term capital gains: $720
+-",,2.517505916999653,202,64,266,0,0,0.00261
+claude-opus,scenario_010,household_benefits,,"
+
+I need to calculate the total government benefits received by this household. Let me work through each potential benefit.
+
+**Household Profile:**
+- Single filer, 79 years old, living in Rhode Island
+- No employment income
+- $365 taxable interest
+- $284 qualified divid",,2.963994042016566,195,64,259,0,0,0.002575
+claude-opus,scenario_010,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household.
+
+Market income typically includes all income earned from market activities before any government taxes or transfers. This includes:
+
+1. Employment income: $0
+2. Taxable interest income: $365
+3.",,3.2938515410060063,203,64,267,0,0,0.002615
+claude-opus,scenario_010,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. This means I need to determine what happens when they earn one additional dollar of income.
+
+**Step 1: Calculate current income**
+
+- Taxable interest: $365
+- Qualified dividends: $284
+- Short-term",,3.3380120420188177,214,64,278,0,0,0.00267
+claude-opus,scenario_011,income_tax,,"I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Calculate Gross Income
+
+- Adult 1 employment income: $4,433
+- Adult 2 employment income: $20,153
+- Taxable interest:",,2.898608458985109,231,64,295,0,0,0.002755
+claude-opus,scenario_011,income_tax_before_refundable_credits,,"I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Calculate Adjusted Gross Income (AGI)
+
+- Adult 1 employment income: $4,433
+- Adult 2 employment income: $20,153",,2.6717709169897716,234,63,297,0,0,0.002745
+claude-opus,scenario_011,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Key facts:**
+- Married filing jointly
+- No qualifying children
+- Adult 1: age 67, earned income $4,433
+- Adult 2:",,14.28336429101182,232,64,296,0,0,0.00276
+claude-opus,scenario_011,ctc,0.0,0,,1.9882347920211032,230,5,235,0,0,0.001275
+claude-opus,scenario_011,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in NJ for tax year 2025.
+
+Let me first calculate their income:
+- Adult 1 employment income: $4,433
+- Adult 2 employment income: $20,153
+- Total",,2.5168619999894872,232,64,296,0,0,0.00276
+claude-opus,scenario_011,snap,,"
+
+I need to calculate the annual SNAP benefit for this household in NJ for 2025.
+
+**Step 1: Determine household composition and special categories**
+- 2-person household
+- Adult 1 is 67 (elderly, 60+)
+- Adult 2",,3.1499122499953955,235,64,299,0,0,0.002775
+claude-opus,scenario_011,ssi,,"I need to determine the SSI eligibility and benefit amount for this household.
+
+**SSI Basics for 2025:**
+- SSI is for aged (65+), blind, or disabled individuals with limited income and resources.
+- The 2025 Federal Benefit Rate (FBR",,3.025661666993983,237,64,301,0,0,0.002785
+claude-opus,scenario_011,free_school_meals,0.0,0,,1.9758964169886897,247,5,252,0,0,0.00136
+claude-opus,scenario_011,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in New Jersey for 2025, I need to calculate their Modified Adjusted Gross Income (MAGI) and compare it to the Medicaid income threshold.
+
+**MAGI Calculation:**
+
+MAGI for Medicaid purposes is based",,2.750158957991516,247,64,311,0,0,0.002835
+claude-opus,scenario_011,household_state_income_tax,,"I need to calculate New Jersey state income tax for a married couple filing jointly in 2025.
+
+**Step 1: Determine NJ Gross Income**
+
+New Jersey taxes most income similarly to federal but has its own rules.
+
+- Adult 1 employment income: $4,433
+-",,3.753433000005316,230,64,294,0,0,0.00275
+claude-opus,scenario_011,household_net_income,,"I'll work through this step-by-step, calculating all income, benefits, and taxes for this household.
+
+## Market Income
+
+- Adult 1 employment income: $4,433
+- Adult 2 employment income: $20,153
+- Taxable interest: $215
+-",,2.800213915994391,237,64,301,0,0,0.002785
+claude-opus,scenario_011,household_benefits,,"I need to calculate all government benefits this household would receive in 2025.
+
+**Household Profile:**
+- Married filing jointly, NJ residents
+- Adult 1: 67 years old, $4,433 employment income, ~20 hrs/week
+- Adult 2:",,2.7832863749936223,230,64,294,0,0,0.00275
+claude-opus,scenario_011,household_market_income,2.0,"I need to calculate the total market income (pre-tax, pre-transfer) for this household. Market income includes all income earned from market activities before any taxes or government transfers.
+
+Let me add up all sources of market income:
+
+1. Adult 1 employment income: $4,433
+2",,2.746880874998169,238,64,302,0,0,0.00279
+claude-opus,scenario_011,marginal_tax_rate,,"I'll calculate the effective marginal tax rate for this household by determining what happens when they earn one additional dollar of ordinary income.
+
+## Household Income Summary
+
+**Wages:** $4,433 + $20,153 = $24,586
+**Taxable Interest:** $215
+**",,3.482178667007247,249,64,313,0,0,0.002845
+claude-opus,scenario_012,income_tax,,"I'll calculate the total federal income tax liability for this married couple filing jointly in 2025.
+
+**Step 1: Calculate Total Income**
+- Adult 1: $14,319 (taxable interest) + $1,344 (qualified dividends) = $15,663
+-",,2.4970270409830846,209,64,273,0,0,0.002645
+claude-opus,scenario_012,income_tax_before_refundable_credits,,"I'll work through this step-by-step for tax year 2025.
+
+**Step 1: Calculate Total Income**
+
+- Adult 1: $14,319 (taxable interest) + $1,344 (qualified dividends) = $15,663
+- Adult 2",,2.684680208010832,212,64,276,0,0,0.00266
+claude-opus,scenario_012,eitc,0.0,0,,2.299660832999507,210,5,215,0,0,0.001175
+claude-opus,scenario_012,ctc,0.0,0,,2.0478329159959685,208,5,213,0,0,0.001165
+claude-opus,scenario_012,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in WV for tax year 2025.
+
+Let me first establish their income:
+- Adult 1: $14,319 taxable interest + $1,344 qualified dividends = $15,663",,2.536186250013998,210,63,273,0,0,0.002625
+claude-opus,scenario_012,snap,,"I need to determine the annual SNAP benefit for this household. Let me work through the SNAP eligibility and benefit calculation.
+
+**Step 1: Determine Household Size and Relevant Thresholds**
+- Household size: 2
+- Since one member is 67 (elderly",,2.950295125017874,213,64,277,0,0,0.002665
+claude-opus,scenario_012,ssi,,"I need to determine the SSI eligibility and benefit amount for this married couple.
+
+**SSI Basics for 2025:**
+- SSI is a needs-based program for aged (65+), blind, or disabled individuals with limited income and resources.
+- The 2025 Federal",,3.6978472079790663,215,64,279,0,0,0.002675
+claude-opus,scenario_012,free_school_meals,,"To determine eligibility for free school meals, I need to consider the National School Lunch Program (NSLP) requirements.
+
+**Key consideration:** Free school meals (under the National School Lunch Program) are for **children** in school. This household consists of two adults (ages 67 and",,3.03096341600758,225,64,289,0,0,0.002725
+claude-opus,scenario_012,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in West Virginia for tax year 2025, I need to calculate their Modified Adjusted Gross Income (MAGI) and compare it to the relevant threshold.
+
+**Household Income Calculation:**
+
+Adult 1:
+- Taxable interest:",,2.7941985829966143,225,64,289,0,0,0.002725
+claude-opus,scenario_012,household_state_income_tax,,"
+
+I need to calculate West Virginia state income tax for a married couple filing jointly in tax year 2025.
+
+**Step 1: Calculate total income**
+- Adult 1: $14,319 (taxable interest) + $1,344 (qualified dividends) = $15,",,2.8791015000024345,208,64,272,0,0,0.00264
+claude-opus,scenario_012,household_net_income,,"I need to calculate the household's net income: market income + benefits - taxes.
+
+## Market Income
+- Adult 1: $14,319 (taxable interest) + $1,344 (qualified dividends) = $15,663
+- Adult 2: $5,481 ",,3.625842916982947,215,64,279,0,0,0.002675
+claude-opus,scenario_012,household_benefits,,"I need to calculate the total government benefits for this married couple filing jointly in WV for tax year 2025.
+
+**Household Summary:**
+- Adult 1: Age 67, $14,319 taxable interest, $1,344 qualified dividends
+- Adult 2: Age",,2.6129766670055687,208,64,272,0,0,0.00264
+claude-opus,scenario_012,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes all income earned from market activities before any taxes or government transfers. This includes employment income, interest income, dividend income, capital gains, etc.
+
+**Adult 1:**
+- Employment income",,3.1806241669983137,216,64,280,0,0,0.00268
+claude-opus,scenario_012,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household, which means the total tax increase from an additional dollar of income divided by that dollar.
+
+**Step 1: Calculate total income**
+- Adult 1: $14,319 (interest) + $1,344 (qualified divid",,3.1629049999755807,227,64,291,0,0,0.002735
+claude-opus,scenario_013,income_tax,,"I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Calculate Gross Income
+
+- Adult 1 employment income: $20,672
+- Adult 1 self-employment income: $461
+- Adult 1 tax",,2.852266458008671,265,64,329,0,0,0.002925
+claude-opus,scenario_013,income_tax_before_refundable_credits,,"I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Calculate Adjusted Gross Income (AGI)
+
+- Adult 1 employment income: $20,672
+- Adult 1 self-employment income: $461",,3.154628165997565,268,63,331,0,0,0.002915
+claude-opus,scenario_013,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Step 1: Determine filing status and number of qualifying children.**
+- Married Filing Jointly
+- 3 qualifying children (ages 15, 10,",,2.793354833003832,266,64,330,0,0,0.00293
+claude-opus,scenario_013,ctc,,"I need to calculate the Child Tax Credit (CTC) for this married couple filing jointly for tax year 2025.
+
+**Step 1: Identify qualifying children**
+- Child 1: 15 years old → qualifies for CTC
+- Child 2: 10 years old",,2.501422166998964,264,64,328,0,0,0.00292
+claude-opus,scenario_013,income_tax_refundable_credits,,"
+
+I need to calculate the total refundable tax credits for this household for tax year 2025.
+
+**Household Summary:**
+- Married Filing Jointly
+- Ohio residents
+- Adult 1: 34, employment income $20,672, self-employment $461, taxable pension",,2.8476788330008276,266,64,330,0,0,0.00293
+claude-opus,scenario_013,snap,,"
+
+I need to calculate the annual SNAP benefit for this household in Ohio for 2025.
+
+**Household Size:** 5 (2 adults, 3 children)
+
+**Step 1: Determine Gross Monthly Income**
+
+Annual income:
+- Adult 1 employment:",,2.935453417012468,269,64,333,0,0,0.002945
+claude-opus,scenario_013,ssi,,"I need to determine if this household is eligible for Supplemental Security Income (SSI).
+
+SSI is a federal program that provides monthly cash assistance to people who are:
+1. Aged (65 or older), OR
+2. Blind, OR
+3. Disabled
+
+AND who have",,3.5412527909793425,271,64,335,0,0,0.002955
+claude-opus,scenario_013,free_school_meals,,"To determine eligibility for free school meals under the National School Lunch Program (NSLP), I need to compare the household's gross income to 130% of the Federal Poverty Level (FPL) for their household size.
+
+**Household size:** 5 (2 adults +",,2.557088917004876,281,64,345,0,0,0.003005
+claude-opus,scenario_013,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in Ohio for tax year 2025, I need to calculate their Modified Adjusted Gross Income (MAGI) and compare it to the Medicaid income thresholds.
+
+**Household Size:** 5 (2 adults + 3",,2.7570262500084937,281,64,345,0,0,0.003005
+claude-opus,scenario_013,household_state_income_tax,,"
+
+I need to calculate Ohio state income tax for this married couple filing jointly in 2025.
+
+**Step 1: Determine Ohio Adjusted Gross Income (AGI)**
+
+Ohio starts with federal AGI. Let me first calculate federal AGI.
+
+Income items:
+- Adult 1 ",,2.922843540989561,264,64,328,0,0,0.00292
+claude-opus,scenario_013,household_net_income,,"
+
+I'll work through this step-by-step, calculating market income, benefits, and taxes for this household.
+
+## Market Income
+- Adult 1 employment: $20,672
+- Adult 1 self-employment: $461
+- Adult 1 private pension: $271",,2.9003670410020277,271,63,334,0,0,0.00293
+claude-opus,scenario_013,household_benefits,,"
+
+I need to calculate all government benefits for this household in Ohio for tax year 2025.
+
+**Household Summary:**
+- Married filing jointly, OH
+- Adult 1 (34): $20,672 employment, $461 self-employment, $271 private pension
+-",,6.754820542002562,264,64,328,0,0,0.00292
+claude-opus,scenario_013,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes all income earned from market activities before any government taxes or transfers. This includes:
+
+- Employment income
+- Self-employment income
+- Private pension income
+- Dividend income
+- Capital",,2.822198167006718,272,64,336,0,0,0.00296
+claude-opus,scenario_013,marginal_tax_rate,,"
+
+I need to calculate the effective marginal tax rate for this household. This requires determining how an additional dollar of income changes their total tax burden (including federal income tax, state tax, payroll taxes, and phase-outs of credits).
+
+**Step 1: Calculate total income**
+- Adult ",,3.4683169159980025,283,64,347,0,0,0.003015
+claude-opus,scenario_014,income_tax,,"I'll calculate the total federal income tax liability for this married couple filing jointly in tax year 2025.
+
+**Step 1: Calculate Gross Income**
+- Adult 1: $43,200
+- Adult 2: $103,500
+- Total Gross Income: $146,700",,2.2920500409964006,204,64,268,0,0,0.00262
+claude-opus,scenario_014,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+**Step 1: Calculate Gross Income**
+- Adult 1 employment income: $43,200
+- Adult 2 employment income: $103,500
+- Total",,2.95843691698974,207,64,271,0,0,0.002635
+claude-opus,scenario_014,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Household details:**
+- Filing status: Married Filing Jointly
+- Two qualifying children (ages 12 and 7)
+- Combined earned income: $43",,3.041218165977625,205,64,269,0,0,0.002625
+claude-opus,scenario_014,ctc,,"I need to determine the Child Tax Credit for this household for tax year 2025.
+
+**Key facts:**
+- Filing status: Married Filing Jointly
+- Two children: age 12 and age 7 (both under 17, so both qualify)
+- Combined income: $43",,2.821394083002815,203,64,267,0,0,0.002615
+claude-opus,scenario_014,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this household for tax year 2025.
+
+**Household Summary:**
+- Married Filing Jointly
+- Missouri residents
+- Combined income: $43,200 + $103,500 = $146,700
+- Two children:",,3.0734656669956166,205,64,269,0,0,0.002625
+claude-opus,scenario_014,snap,,"I need to determine if this household qualifies for SNAP benefits in Missouri for 2025.
+
+**Household Size:** 4 (2 adults, 2 children)
+
+**Gross Income:** $43,200 + $103,500 = $146,700 annually,",,3.103431625000667,208,64,272,0,0,0.00264
+claude-opus,scenario_014,ssi,,"I need to determine if this household qualifies for Supplemental Security Income (SSI).
+
+SSI is a federal program that provides monthly payments to people who are:
+- Aged (65 or older), OR
+- Blind, OR
+- Disabled
+
+AND who have limited income and resources",,3.014581208000891,210,64,274,0,0,0.00265
+claude-opus,scenario_014,free_school_meals,,"To determine eligibility for free school meals under the National School Lunch Program (NSLP), I need to compare the household's gross income to the federal poverty guidelines for their household size.
+
+**Household size:** 4 (2 adults + 2 children)
+
+**Household gross",,2.7956625829974655,220,64,284,0,0,0.0027
+claude-opus,scenario_014,is_medicaid_eligible,0.0,0,,1.8685064999735912,220,5,225,0,0,0.001225
+claude-opus,scenario_014,household_state_income_tax,,"I'll calculate the Missouri state income tax liability for this married couple filing jointly in tax year 2025.
+
+**Step 1: Determine Missouri Adjusted Gross Income (AGI)**
+
+Total income: $43,200 + $103,500 = $146,700
+
+**Step ",,2.65027245800593,203,64,267,0,0,0.002615
+claude-opus,scenario_014,household_net_income,,"I'll calculate the household net income step by step for a married couple filing jointly in Missouri for tax year 2025.
+
+**Total Market Income:** $43,200 + $103,500 = $146,700
+
+## Federal Taxes
+
+**Federal Income Tax:**
+- Standard deduction (",,2.5963246670144144,210,64,274,0,0,0.00265
+claude-opus,scenario_014,household_benefits,,"I need to determine all government benefits this household would receive in tax year 2025.
+
+**Household Summary:**
+- Married filing jointly in Missouri
+- Combined income: $43,200 + $103,500 = $146,700
+- Two children: ages 12 and ",,2.9700368749909103,203,64,267,0,0,0.002615
+claude-opus,scenario_014,household_market_income,,"Total market income is the sum of all employment income earned by the household members before any taxes or government transfers.
+
+Adult 1 employment income: $43,200
+Adult 2 employment income: $103,500
+
+Total market income: $43,200 + $103,500 = $",,4.342685499985237,211,64,275,0,0,0.002655
+claude-opus,scenario_014,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household, considering federal income tax, state income tax, FICA taxes, and any phase-outs.
+
+**Household basics:**
+- Married Filing Jointly, 2025
+- Combined income: $43,200 + $",,3.17080791699118,222,64,286,0,0,0.00271
+claude-opus,scenario_015,income_tax,,"I need to calculate the total federal income tax liability for a single filer with $50,000 in employment income for tax year 2025.
+
+**Step 1: Gross Income**
+- Employment income: $50,000
+
+**Step 2: Adjustments to Income (Above-",,3.0577317500137724,154,64,218,0,0,0.00237
+claude-opus,scenario_015,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for a single filer with $50,000 in employment income for tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Employment income: $50,000
+
+**Step 2: Adjustments",,2.622538875002647,157,64,221,0,0,0.002385
+claude-opus,scenario_015,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for a single filer with no children, age 36, earning $50,000 in 2025.
+
+For tax year 2025, the EITC for a single filer with no qualifying children has the",,2.993761291989358,155,64,219,0,0,0.002375
+claude-opus,scenario_015,ctc,0.0,0,,2.2304216669872403,153,5,158,0,0,0.00089
+claude-opus,scenario_015,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for a single filer in MD with $50,000 in employment income, age 36, no children, for tax year 2025.
+
+Let me consider each potential refundable tax credit:
+
+**Federal Refundable Credits:**",,2.859017540991772,155,63,218,0,0,0.00235
+claude-opus,scenario_015,snap,,"I need to determine the SNAP eligibility and benefit amount for a single person in Maryland with $50,000 annual employment income.
+
+**Step 1: Check SNAP Eligibility**
+
+For SNAP in FY2025 (October 2024 - September 2025), for",,2.843794082989916,158,64,222,0,0,0.00239
+claude-opus,scenario_015,ssi,0.0,0,,2.493584875017405,160,5,165,0,0,0.000925
+claude-opus,scenario_015,free_school_meals,0.0,0,,2.3740893329959363,170,5,175,0,0,0.000975
+claude-opus,scenario_015,is_medicaid_eligible,0.0,0,,1.9439539999875703,170,5,175,0,0,0.000975
+claude-opus,scenario_015,household_state_income_tax,,"I need to calculate Maryland state income tax for a single filer with $50,000 in employment income for tax year 2025.
+
+**Step 1: Maryland Adjusted Gross Income (AGI)**
+AGI = $50,000
+
+**Step 2: Maryland Standard Deduction",,2.716086542000994,153,64,217,0,0,0.002365
+claude-opus,scenario_015,household_net_income,,"I need to calculate the net income for a single filer in Maryland with $50,000 in employment income for tax year 2025.
+
+**Market Income:** $50,000
+
+**Benefits:**
+- No children, single, 36 years old, $50,000 income — likely",,3.123118749994319,160,64,224,0,0,0.0024
+claude-opus,scenario_015,household_benefits,,"I need to calculate the total government benefits for a single filer in Maryland with $50,000 in employment income, no children, age 36.
+
+Let me go through potential government benefits:
+
+**1. Earned Income Tax Credit (EITC) - Federal**
+For a single f",,2.828199667012086,153,64,217,0,0,0.002365
+claude-opus,scenario_015,household_market_income,50000.0,50000,,2.4172233330027666,161,6,167,0,0,0.000955
+claude-opus,scenario_015,marginal_tax_rate,,"I need to calculate the effective marginal tax rate for a single filer in MD with $50,000 in employment income for tax year 2025. This means I need to find how much of an additional dollar of income is lost to all taxes combined.
+
+**Federal Income Tax:**
+- Standard de",,3.1051757920067757,172,64,236,0,0,0.00246
+claude-opus,scenario_016,income_tax,,"I'll calculate the total federal income tax liability step by step for tax year 2025.
+
+**Gross Income:** $24,447
+
+**Adjustments to Gross Income:** None indicated, so AGI = $24,447
+
+**Standard Deduction:**
+For a single filer in",,2.888614791998407,161,64,225,0,0,0.002405
+claude-opus,scenario_016,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this single filer.
+
+**Step 1: Determine Gross Income**
+- Employment income: $24,447
+
+**Step 2: Determine Adjustments to Income**
+- No adjustments mentioned, so AGI",,0.005432332982309163,164,64,228,0,0,0.0024200000000000003
+claude-opus,scenario_016,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for a single filer with no qualifying children for tax year 2025.
+
+**Key facts:**
+- Single filer, no children
+- Age 35
+- Earned income: $24,447
+- Disabled",,0.0005452079931274056,162,64,226,0,0,0.0024100000000000002
+claude-opus,scenario_016,ctc,0.0,0,,0.0004759170114994049,160,5,165,0,0,0.000925
+claude-opus,scenario_016,income_tax_refundable_credits,,"I need to calculate the total refundable tax credits for this single filer in NJ for tax year 2025.
+
+**Federal Refundable Tax Credits:**
+
+**1. Earned Income Tax Credit (EITC)**
+- Single, no children, age 35
+-",,0.0004949159920215607,162,64,226,0,0,0.0024100000000000002
+claude-opus,scenario_016,snap,,"I need to calculate the annual SNAP benefit for this household in New Jersey for 2025.
+
+**Step 1: Determine Household Size**
+Household size: 1 person
+
+**Step 2: Gross Income**
+Monthly employment income: $24,447 / 12",,0.0005887919978704304,165,64,229,0,0,0.002425
+claude-opus,scenario_016,ssi,,"I need to determine the SSI amount for a single, blind, disabled individual in NJ with $24,447 in annual employment income.
+
+**Step 1: Determine the 2025 Federal SSI benefit rate**
+
+For 2025, the federal SSI maximum for an individual is",,0.0004598330124281347,167,64,231,0,0,0.002435
+claude-opus,scenario_016,free_school_meals,0.0,"The household has no children, so they would not be eligible for free school meals (which are provided through the National School Lunch Program for school-aged children).
+
+0",,0.0005368750134948641,177,38,215,0,0,0.001835
+claude-opus,scenario_016,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in New Jersey for tax year 2025:
+
+**Household composition:** Single adult, age 35, disabled and blind, no children.
+
+**New Jersey Medicaid eligibility for adults:**
+
+New Jersey expanded Medicaid under the ACA.",,0.0004811669932678342,177,64,241,0,0,0.0024850000000000002
+claude-opus,scenario_016,household_state_income_tax,,"I need to calculate the New Jersey state income tax liability for a single filer with $24,447 in employment income.
+
+**Step 1: Determine Gross Income**
+- Employment income: $24,447
+
+**Step 2: New Jersey Exemptions and Deductions**",,0.00044516701018437743,160,63,223,0,0,0.002375
+claude-opus,scenario_016,household_net_income,,"I'll calculate the household net income step by step for a single, disabled, blind filer in NJ with $24,447 employment income in 2025.
+
+**Federal Income Tax:**
+- Standard deduction for single: $15,350
+- Additional deduction for blind: $1,",,0.0004982090031262487,167,64,231,0,0,0.002435
+claude-opus,scenario_016,household_benefits,,"I'll calculate all government benefits for this household step by step.
+
+**Household Profile:**
+- Single filer, 35 years old, disabled and blind
+- Employment income: $24,447
+- Works ~42 hours/week
+- No children
+- Lives in New Jersey
+
+**",,0.0005348749982658774,160,64,224,0,0,0.0024000000000000002
+claude-opus,scenario_016,household_market_income,24447.0,24447,,0.0005390419973991811,168,6,174,0,0,0.00099
+claude-opus,scenario_016,marginal_tax_rate,,"
+
+I need to calculate the effective marginal tax rate for a single filer in NJ with $24,447 in employment income who is disabled and blind.
+
+Let me work through each tax and benefit program to find how an additional dollar of income affects total taxes and benefits.
+
+**Federal Income Tax:**",,0.0004582919937092811,179,64,243,0,0,0.0024950000000000003
+claude-opus,scenario_017,income_tax,,"I need to calculate the total federal income tax liability for this head of household filer.
+
+**Step 1: Determine Gross Income**
+- Employment income: $16,000
+- Unemployment compensation: $2,088
+- Total gross income: $18,088
+
+**Step 2",,0.00046054201084189117,175,64,239,0,0,0.002475
+claude-opus,scenario_017,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for a head of household filer.
+
+**Step 1: Determine Gross Income**
+- Employment income: $16,000
+- Unemployment compensation: $2,088
+- Total gross income: $18,088
+
+**",,0.000496208987897262,178,64,242,0,0,0.00249
+claude-opus,scenario_017,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Household details:**
+- Filing status: Head of Household
+- Adult 1: 30 years old, $16,000 employment income, $2,",,0.00045720802154392004,176,64,240,0,0,0.00248
+claude-opus,scenario_017,ctc,,"I need to determine the Child Tax Credit (CTC) for this household for tax year 2025.
+
+**Household details:**
+- Head of Household filer
+- Adult 1: 30 years old, $16,000 employment income, $2,088 unemployment compensation,",,0.0005177920102141798,174,64,238,0,0,0.00247
+claude-opus,scenario_017,income_tax_refundable_credits,,"I need to calculate all refundable tax credits for this head of household filer in Oregon for tax year 2025.
+
+**Household Details:**
+- Head of Household, Oregon resident
+- Adult 1: 30 years old, $16,000 employment income, $2,",,0.0004362089966889471,176,64,240,0,0,0.00248
+claude-opus,scenario_017,snap,,"I need to calculate the annual SNAP benefit for a household in Oregon with a head of household (adult, 30, disabled, working 30 hrs/week, $16,000 employment income + $2,088 unemployment) and one child (age 6).
+
+**Household Size:**",,0.0004624580033123493,179,64,243,0,0,0.0024950000000000003
+claude-opus,scenario_017,ssi,,"I need to calculate the SSI amount for Adult 1, who is disabled.
+
+**Step 1: Determine SSI Eligibility and Federal Benefit Rate (FBR)**
+
+For 2025, the Federal SSI benefit rate for an individual is $967 per month.
+
+**",,0.00048395799240097404,181,64,245,0,0,0.0025050000000000003
+claude-opus,scenario_017,free_school_meals,,"I need to determine if this household qualifies for free school meals.
+
+**Household composition:** 1 adult + 1 child = 2 people
+
+**Household income:**
+- Employment income: $16,000
+- Unemployment compensation: $2,088
+- Total annual income",,3.5600647919927724,191,64,255,0,0,0.002555
+claude-opus,scenario_017,is_medicaid_eligible,,"I need to determine Medicaid eligibility for this household in Oregon for tax year 2025.
+
+**Household composition:** Head of household (Adult 1, age 30, disabled) with one child (age 6). This is a 2-person household.
+
+**Income calculation for",,2.9247168749861885,191,64,255,0,0,0.002555
+claude-opus,scenario_017,household_state_income_tax,,"
+
+I need to calculate Oregon state income tax for a head of household filer with $16,000 employment income and $2,088 unemployment compensation, with one child age 6.
+
+## Step 1: Determine Oregon Adjusted Gross Income (AGI)
+
+Oregon starts with federal AG",,3.2219394580170047,174,64,238,0,0,0.00247
+claude-opus,scenario_017,household_net_income,,"
+
+I need to calculate the household's net income: market income + benefits - taxes.
+
+**Market Income:**
+- Employment income: $16,000
+- Unemployment compensation: $2,088
+- Total market income: $18,088
+
+**Benefits:**
+
+1. **EITC",,2.6943296249955893,181,64,245,0,0,0.0025050000000000003
+claude-opus,scenario_017,household_benefits,,"I'll calculate all government benefits for this household step by step.
+
+**Household Profile:**
+- Head of household, Oregon, 2025
+- Adult 1: 30 years old, $16,000 employment income, ~30 hrs/week, $2,088 unemployment compensation",,2.864581250003539,174,64,238,0,0,0.00247
+claude-opus,scenario_017,household_market_income,,"I need to determine the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes income earned from market activities before any government taxes or transfers. This typically includes:
+
+- Employment income (wages, salaries)
+- Self-employment income
+- Capital income (interest,",,3.0200957500201184,182,64,246,0,0,0.00251
+claude-opus,scenario_017,marginal_tax_rate,,"
+
+I need to calculate the effective marginal tax rate for this household by determining how much of an additional dollar of income is lost to taxes and benefit phase-outs.
+
+**Household details:**
+- Head of Household filer in Oregon
+- Adult 1: 30 years old, $",,3.2951249170000665,193,64,257,0,0,0.002565
+claude-opus,scenario_018,income_tax,,"I'll work through the federal income tax calculation step by step for this married couple filing jointly in 2025.
+
+## Step 1: Calculate Total Income
+
+- Adult 1 employment income: $61,354
+- Adult 1 self-employment income: $81
+- Adult 1 ",,2.99678345900611,214,64,278,0,0,0.00267
+claude-opus,scenario_018,income_tax_before_refundable_credits,,"I'll calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+## Step 1: Calculate Adjusted Gross Income (AGI)
+
+- Adult 1 employment income: $61,354
+- Adult 1 self-employment income: $",,3.1287505419750232,217,64,281,0,0,0.002685
+claude-opus,scenario_018,eitc,,"
+
+I need to calculate the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Household details:**
+- Married Filing Jointly
+- One qualifying child (Child 1, age 0)
+- Adult 1: Age 27,",,3.5474198749870993,215,64,279,0,0,0.0026750000000000003
+claude-opus,scenario_018,ctc,,"I need to determine the Child Tax Credit (CTC) for this household for tax year 2025.
+
+**Step 1: Identify qualifying children**
+Child 1 is 0 years old, which qualifies for the Child Tax Credit (under age 17).
+
+**Step 2",,3.3596378339861985,213,64,277,0,0,0.0026650000000000003
+claude-opus,scenario_018,income_tax_refundable_credits,,"
+
+I need to determine the total refundable tax credits for this household for tax year 2025.
+
+**Household Summary:**
+- Married Filing Jointly
+- California residents
+- Adult 1: 27, employment income $61,354, self-employment income $81, taxable",,3.0044277500128374,215,64,279,0,0,0.0026750000000000003
+claude-opus,scenario_018,snap,,"I need to determine the annual SNAP benefit for this household in California for 2025.
+
+**Household Composition:** 3 people (2 adults + 1 child)
+
+**Step 1: Determine Gross Income**
+- Adult 1 employment income: $61,",,2.8371798750013113,218,64,282,0,0,0.00269
+claude-opus,scenario_018,ssi,,"I need to determine if anyone in this household is eligible for Supplemental Security Income (SSI).
+
+SSI is a federal program that provides monthly payments to people who are:
+1. Aged (65 or older), OR
+2. Blind, OR
+3. Disabled
+
+AND who",,3.346762832981767,220,64,284,0,0,0.0027
+claude-opus,scenario_018,free_school_meals,,"To determine eligibility for free school meals (National School Lunch Program), I need to consider:
+
+1. **Household size**: 3 (2 adults + 1 child)
+
+2. **Age of children**: Child 1 is 0 years old. Free school meals (",,2.79593045799993,230,64,294,0,0,0.0027500000000000003
+claude-opus,scenario_018,is_medicaid_eligible,,"I need to determine Medicaid eligibility for this household in California for 2025.
+
+In California, Medicaid is called Medi-Cal. California expanded Medicaid under the ACA, so eligibility is based on Modified Adjusted Gross Income (MAGI).
+
+**Step",,3.237887666997267,230,64,294,0,0,0.0027500000000000003
+claude-opus,scenario_018,household_state_income_tax,,"
+
+I need to calculate California state income tax for a married couple filing jointly in 2025.
+
+**Step 1: Calculate total income**
+- Adult 1 employment income: $61,354
+- Adult 1 self-employment income: $81
+- Adult 1 taxable",,2.740779667015886,213,64,277,0,0,0.0026650000000000003
+claude-opus,scenario_018,household_net_income,,"
+
+I need to calculate the household's net income: market income + benefits - taxes.
+
+## Market Income
+- Adult 1 employment income: $61,354
+- Adult 1 self-employment income: $81
+- Adult 1 taxable private pension: $80,794",,2.4341648330155294,220,63,283,0,0,0.0026750000000000003
+claude-opus,scenario_018,household_benefits,,"I'll work through each potential government benefit for this household.
+
+**Household Summary:**
+- Married filing jointly, California
+- Adult 1: 27, $61,354 employment + $81 self-employment + $80,794 taxable pension = $142,229 total",,3.1546822920208797,213,64,277,0,0,0.0026650000000000003
+claude-opus,scenario_018,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes all income earned from market activities before any taxes or government transfers. This includes:
+
+1. Adult 1's employment income: $61,354
+2. Adult 1's self-",,2.7080256670014933,221,64,285,0,0,0.002705
+claude-opus,scenario_018,marginal_tax_rate,,"
+
+I'll calculate the effective marginal tax rate for this household by determining how much of an additional dollar of income is lost to taxes and reduced benefits.
+
+## Household Income Summary
+- Adult 1 employment: $61,354
+- Adult 1 self-employment: $81
+- Adult",,2.955349916999694,232,64,296,0,0,0.0027600000000000003
+claude-opus,scenario_019,income_tax,,"I need to calculate the total federal income tax liability for a single filer in LA for tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Employment income: $36,000
+- Unemployment compensation: $2,000
+- Total gross income: $38,",,2.401562291983282,164,64,228,0,0,0.0024200000000000003
+claude-opus,scenario_019,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this single filer in tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Employment income: $36,000
+- Unemployment compensation: $2,000
+- Total gross income: $38",,2.863024749996839,167,64,231,0,0,0.002435
+claude-opus,scenario_019,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this taxpayer for tax year 2025.
+
+**Taxpayer details:**
+- Single filer
+- Age 32
+- No children
+- Earned income: $36,000 (employment income)",,2.4406963330111466,165,63,228,0,0,0.0024000000000000002
+claude-opus,scenario_019,ctc,0.0,0,,2.0413970419904217,163,5,168,0,0,0.0009400000000000001
+claude-opus,scenario_019,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this single filer in LA for tax year 2025.
+
+**Household details:**
+- Single filer, 32 years old
+- $36,000 employment income
+- $2,000 unemployment compensation
+- No children",,2.877760458010016,165,64,229,0,0,0.002425
+claude-opus,scenario_019,snap,,"I need to determine the SNAP benefit for this household in Los Angeles for 2025.
+
+**Step 1: Determine SNAP eligibility**
+
+For a household of 1 in the 48 contiguous states, the SNAP income limits for FY2025 are:
+-",,3.1552997090038843,168,64,232,0,0,0.0024400000000000003
+claude-opus,scenario_019,ssi,,"I need to determine if this individual qualifies for Supplemental Security Income (SSI).
+
+SSI is a federal program that provides monthly payments to people who are:
+- Aged (65 or older), OR
+- Blind, OR
+- Disabled
+
+AND who have limited income and resources",,3.2301334170042537,170,64,234,0,0,0.00245
+claude-opus,scenario_019,free_school_meals,0.0,0,,1.924110916996142,180,5,185,0,0,0.001025
+claude-opus,scenario_019,is_medicaid_eligible,,"To determine Medicaid eligibility for this household, I need to calculate their Modified Adjusted Gross Income (MAGI) and compare it to the Medicaid income threshold.
+
+**Household Details:**
+- Single filer, 32 years old, no children
+- Living in LA (",,2.918385833996581,180,64,244,0,0,0.0025
+claude-opus,scenario_019,household_state_income_tax,,"I need to calculate California state income tax for a single filer with $36,000 employment income + $2,000 unemployment compensation = $38,000 total income.
+
+**Step 1: Determine California Adjusted Gross Income (AGI)**
+
+California taxes unemployment compensation (unlike some",,3.099398500024108,163,64,227,0,0,0.002415
+claude-opus,scenario_019,household_net_income,,"I'll calculate the household net income for this single filer in LA for tax year 2025.
+
+**Market Income:**
+- Employment income: $36,000
+- Unemployment compensation: $2,000
+- Total market income: $38,000
+
+**Benefits:**
+
+1. **",,3.073485790984705,170,64,234,0,0,0.00245
+claude-opus,scenario_019,household_benefits,,"I need to calculate the total government benefits for a single filer in LA (Los Angeles) with $36,000 employment income and $2,000 unemployment compensation, no children, age 32.
+
+Let me go through potential benefits:
+
+**1. Federal Income Tax (not a benefit, but",,2.9010026659816504,163,64,227,0,0,0.002415
+claude-opus,scenario_019,household_market_income,36000.0,36000,,3.1010036660009064,171,6,177,0,0,0.001005
+claude-opus,scenario_019,marginal_tax_rate,,"I need to calculate the effective marginal tax rate for this household, considering all taxes and phase-outs on an additional dollar of income.
+
+**Federal Income Tax:**
+- Total income: $36,000 (wages) + $2,000 (unemployment) = $38,000
+-",,3.7486952079925686,182,64,246,0,0,0.00251
+claude-opus,scenario_020,income_tax,,"I'll work through this step-by-step for tax year 2025, single filer.
+
+## Step 1: Determine Gross Income
+
+- Employment income: $44,159
+- Self-employment income: $166,524
+- Unemployment compensation: $2,400
+-",,2.6257859169854783,262,64,326,0,0,0.0029100000000000003
+claude-opus,scenario_020,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this single filer in 2025.
+
+**Step 1: Determine Gross Income**
+
+- Employment income: $44,159
+- Self-employment income: $166,524
+- Unemployment compensation: $2,",,3.284620874997927,265,64,329,0,0,0.002925
+claude-opus,scenario_020,eitc,0.0,0,,2.408598083013203,263,5,268,0,0,0.0014400000000000003
+claude-opus,scenario_020,ctc,0.0,0,,2.03824049999821,261,5,266,0,0,0.0014300000000000003
+claude-opus,scenario_020,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this single filer in Vermont for tax year 2025.
+
+Let me first establish the income and key facts:
+- Age: 61
+- Filing status: Single
+- Employment income: $44,159
+- Self-employment income:",,2.655910750007024,263,64,327,0,0,0.002915
+claude-opus,scenario_020,snap,,"I need to determine the SNAP eligibility and benefit amount for this household in Vermont for 2025.
+
+**Step 1: Determine household size and basic parameters.**
+- Household size: 1 person
+- Age: 61 (not yet 60+ for elderly exemptions...",,3.3640580420033075,266,64,330,0,0,0.0029300000000000003
+claude-opus,scenario_020,ssi,,"I need to determine the SSI eligibility and amount for this individual.
+
+**SSI Basics for 2025:**
+- SSI is a needs-based program for aged (65+), blind, or disabled individuals with limited income and resources.
+- The federal benefit rate (FBR)",,3.2167752499808557,268,64,332,0,0,0.00294
+claude-opus,scenario_020,free_school_meals,,"To determine eligibility for free school meals, I need to consider the household composition and income.
+
+**Key observations:**
+
+1. **Household composition:** This is a single filer with no children. Free school meals (under the National School Lunch Program) are for children in school. Since there are no",,3.0525790420069825,278,64,342,0,0,0.0029900000000000005
+claude-opus,scenario_020,is_medicaid_eligible,,"To determine Medicaid eligibility in Vermont for 2025, I need to calculate the household's Modified Adjusted Gross Income (MAGI) and compare it to the Medicaid income threshold.
+
+Vermont expanded Medicaid under the ACA, so adults without children can qualify with income up to",,3.0112356670142617,278,64,342,0,0,0.0029900000000000005
+claude-opus,scenario_020,household_state_income_tax,,"
+
+I need to calculate Vermont state income tax for a single filer in 2025.
+
+**Step 1: Determine Vermont Taxable Income**
+
+Vermont starts with federal AGI and then applies Vermont-specific adjustments.
+
+**Federal AGI Calculation:**
+
+- Employment income: $44",,4.458295541990083,261,64,325,0,0,0.0029050000000000005
+claude-opus,scenario_020,household_net_income,,"I'll calculate the household net income by determining market income, benefits, and taxes.
+
+## Market Income
+
+- Employment income: $44,159
+- Self-employment income: $166,524
+- Taxable interest: $6,045
+- Qualified dividends: $13,885",,4.44891937499051,268,63,331,0,0,0.002915
+claude-opus,scenario_020,household_benefits,,"I need to calculate the total government benefits received for this household.
+
+Let me identify all the income sources and determine which are government benefits:
+
+1. **Employment income**: $44,159 - Not a government benefit
+2. **Self-employment income**: $166,524 - Not a government benefit",,2.550363707996439,261,64,325,0,0,0.0029050000000000005
+claude-opus,scenario_020,household_market_income,,"I need to calculate total market income, which is pre-tax and pre-transfer income. Market income includes income earned from market activities (labor and capital) but excludes government transfers.
+
+Let me categorize each income source:
+
+**Market income (included):**
+- Employment income: $44,159",,3.208803875022568,269,64,333,0,0,0.002945
+claude-opus,scenario_020,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. This means I need to determine what happens when they earn one additional dollar of income, considering all taxes (federal income tax, state income tax, FICA/SE tax, and any phaseouts).
+
+**Income Summary:**
+- Employment",,3.4504597920167726,280,64,344,0,0,0.003
+claude-opus,scenario_021,income_tax,,"I need to calculate the total federal income tax liability for this household for tax year 2025.
+
+**Household Members:**
+- Adult 1: 55, employed, $30,000 employment income
+- Adult 2: 53, employed, $30,000 employment income, $",,2.6719806250184774,221,64,285,0,0,0.002705
+claude-opus,scenario_021,income_tax_before_refundable_credits,,"
+
+I need to calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+**Step 1: Determine Gross Income**
+
+- Adult 1 employment income: $30,000
+- Adult 2 employment income: $30,000",,2.8605911250051577,224,63,287,0,0,0.0026950000000000003
+claude-opus,scenario_021,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Key facts:**
+- Married filing jointly
+- Living in LA (Los Angeles, California)
+- Adult 1: 55 years old, $30,000",,2.997257290990092,222,64,286,0,0,0.00271
+claude-opus,scenario_021,ctc,,"To determine the Child Tax Credit for this household, I need to analyze the eligibility requirements.
+
+**Child Tax Credit Rules for Tax Year 2025:**
+
+The Child Tax Credit (CTC) for 2025 provides up to $2,000 per qualifying child under age 17 at the",,2.92590608302271,220,64,284,0,0,0.0027
+claude-opus,scenario_021,income_tax_refundable_credits,,"
+
+I need to determine the total refundable tax credits for this household filing jointly in tax year 2025.
+
+**Household details:**
+- Married filing jointly, living in LA (Los Angeles, California)
+- Adult 1: 55, $30,000 employment income, ",,4.159053292009048,222,64,286,0,0,0.00271
+claude-opus,scenario_021,snap,,"
+
+I need to determine the SNAP benefit for this household in Los Angeles for 2025.
+
+**Step 1: Household Composition**
+- Married couple (Adults 1 and 2) and Child 1 (17 years old)
+- 3-person household",,5.277906333998544,225,63,288,0,0,0.0027
+claude-opus,scenario_021,ssi,,"I need to determine if this household is eligible for Supplemental Security Income (SSI).
+
+SSI is a federal program that provides monthly payments to people who are:
+1. Aged (65 or older), OR
+2. Blind, OR
+3. Disabled
+
+AND who have limited",,3.070369374996517,227,64,291,0,0,0.0027350000000000005
+claude-opus,scenario_021,free_school_meals,,"To determine eligibility for free school meals (National School Lunch Program), I need to consider the household's income against the federal poverty guidelines for the 2024-2025 school year.
+
+**Household size:** 3 (two adults and one child)
+
+**Household income:**
+-",,2.7826034589961637,237,64,301,0,0,0.002785
+claude-opus,scenario_021,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in Los Angeles, California for tax year 2025, I need to evaluate their income against California's Medi-Cal (Medicaid) thresholds.
+
+**Household composition:** 3 people (2 adults, 1 child",,3.8027234999754,237,64,301,0,0,0.002785
+claude-opus,scenario_021,household_state_income_tax,,"
+
+I need to calculate the California state income tax liability for this married couple filing jointly in 2025.
+
+**Step 1: Determine filing status and income**
+
+The married couple files jointly. Child 1 is 17, which means the child likely files their own return separately (they work ",,3.296351124998182,220,64,284,0,0,0.0027
+claude-opus,scenario_021,household_net_income,,"
+
+I need to calculate the household net income for a married couple filing jointly in LA (Los Angeles) for tax year 2025.
+
+**Step 1: Determine Market Income**
+
+- Adult 1: $30,000 employment income
+- Adult 2: $30,000 employment",,3.420083875011187,227,64,291,0,0,0.0027350000000000005
+claude-opus,scenario_021,household_benefits,,"
+
+I need to determine all government benefits this household receives for tax year 2025. Let me work through this systematically.
+
+**Household Details:**
+- Married filing jointly, living in LA (Los Angeles, California)
+- Adult 1: 55, $30,000 employment income",,3.011793249985203,220,64,284,0,0,0.0027
+claude-opus,scenario_021,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes all income earned from market activities before any taxes or government transfers. This includes employment income, interest income, and any other market-based income.
+
+Let me identify each person's market income:",,3.242808833019808,228,64,292,0,0,0.0027400000000000002
+claude-opus,scenario_021,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. Let me work through this step by step.
+
+**Household Income:**
+- Adult 1: $30,000 employment income
+- Adult 2: $30,000 employment income + $248 taxable interest
+-",,2.8333865409949794,239,64,303,0,0,0.002795
+claude-opus,scenario_022,income_tax,,"I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Identify Income Sources
+
+**Adult 1:**
+- Employment income: $2,003
+- SS retirement: $1,575
+- SS disability: $1,575",,2.8456536250014324,262,64,326,0,0,0.0029100000000000003
+claude-opus,scenario_022,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+**Step 1: Determine Gross Income**
+
+- Adult 1 employment income: $2,003
+- Adult 2 employment income: $80,020
+-",,2.6492821669962723,265,64,329,0,0,0.002925
+claude-opus,scenario_022,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Key parameters for EITC eligibility:**
+
+1. **Filing status:** Married Filing Jointly
+2. **Number of qualifying children:** 0
+3.",,2.692268040991621,263,64,327,0,0,0.002915
+claude-opus,scenario_022,ctc,0.0,0,,1.9697307089809328,261,5,266,0,0,0.0014300000000000003
+claude-opus,scenario_022,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in WA for tax year 2025.
+
+Let me first establish their income and situation:
+- Adult 1: $2,003 employment income, $1,575 SS retirement, $1,575 ",,2.5260468749911524,263,64,327,0,0,0.002915
+claude-opus,scenario_022,snap,,"I need to determine the SNAP eligibility and benefit amount for this household in Washington state for 2025.
+
+**Step 1: Determine household composition**
+- 2 adults, married filing jointly, no children
+- Adult 1: age 63 (elderly, 60+),",,3.3801723750075325,266,64,330,0,0,0.0029300000000000003
+claude-opus,scenario_022,ssi,,"I need to determine the SSI eligibility and amount for this household.
+
+**SSI Basics for 2025:**
+- SSI is an individual benefit (though spouse's income can affect it through deeming)
+- Federal Benefit Rate (FBR) for 2025: $",,3.1951085420150775,268,64,332,0,0,0.00294
+claude-opus,scenario_022,free_school_meals,0.0,0,,1.6586491669877432,278,5,283,0,0,0.0015150000000000003
+claude-opus,scenario_022,is_medicaid_eligible,,"To determine Medicaid eligibility, I need to calculate the household's Modified Adjusted Gross Income (MAGI) for Medicaid purposes.
+
+**MAGI for Medicaid** includes:
+- Adjusted Gross Income (AGI)
+- Tax-exempt interest
+- Non",,2.9249265840044245,278,64,342,0,0,0.0029900000000000005
+claude-opus,scenario_022,household_state_income_tax,0.0,0,,2.3253157919971272,261,5,266,0,0,0.0014300000000000003
+claude-opus,scenario_022,household_net_income,,"I'll calculate the household net income step by step.
+
+## Market Income
+
+**Employment Income:**
+- Adult 1: $2,003
+- Adult 2: $80,020
+
+**Investment Income:**
+- Taxable interest: $103
+- Qualified dividends: $5,",,2.7126307919970714,268,64,332,0,0,0.00294
+claude-opus,scenario_022,household_benefits,,"I need to calculate the total government benefits received by this household.
+
+Let me identify all government benefits:
+
+1. **Social Security Retirement Income (Adult 1):** $1,575
+2. **Social Security Disability Income (Adult 1):** $1,575
+3. **Veterans",,3.2312414170010015,261,64,325,0,0,0.0029050000000000005
+claude-opus,scenario_022,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes income earned from market activities before any government taxes or transfers. This includes:
+
+- Employment income
+- Interest income
+- Dividend income
+- Capital gains
+
+Market income does NOT include government",,3.3927332499879412,269,64,333,0,0,0.002945
+claude-opus,scenario_022,marginal_tax_rate,,"I need to determine the effective marginal tax rate for this household. Let me work through their tax situation for 2025.
+
+**Income Summary:**
+- Adult 1 employment income: $2,003
+- Adult 2 employment income: $80,020
+- Total wages: $82",,2.67984600001364,280,64,344,0,0,0.003
+claude-opus,scenario_023,income_tax,,"I'll work through the federal income tax calculation step by step for this married couple filing jointly in tax year 2025.
+
+**Step 1: Calculate Total Income**
+
+Adult 1:
+- Employment income: $116,358
+- Taxable interest: $1
+
+Adult 2:",,3.0764152909978293,237,63,300,0,0,0.0027600000000000003
+claude-opus,scenario_023,income_tax_before_refundable_credits,,"I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Calculate Adjusted Gross Income (AGI)
+
+- Adult 1 employment income: $116,358
+- Adult 2 employment income: $48,146",,3.2321345419913996,240,63,303,0,0,0.002775
+claude-opus,scenario_023,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Household details:**
+- Married Filing Jointly
+- One qualifying child (Child 1, age 0)
+- Adult 1: $116,358 ",,2.345195458998205,238,64,302,0,0,0.00279
+claude-opus,scenario_023,ctc,2000.0,2000,,1.9642058329773135,236,6,242,0,0,0.00133
+claude-opus,scenario_023,income_tax_refundable_credits,,"
+
+I need to determine the total refundable tax credits for this household for tax year 2025.
+
+**Household Summary:**
+- Married Filing Jointly, NY
+- Adult 1: $116,358 employment income, $1 taxable interest
+- Adult 2: $",,3.208665583981201,238,64,302,0,0,0.00279
+claude-opus,scenario_023,snap,,"I need to determine SNAP eligibility and benefits for this household in New York for 2025.
+
+**Household composition:** 3 people (2 adults, 1 child)
+
+**Step 1: Calculate Gross Monthly Income**
+
+Annual income:
+- Adult 1 employment",,3.0078536250221077,241,64,305,0,0,0.002805
+claude-opus,scenario_023,ssi,0.0,0,,1.9154569169913884,243,5,248,0,0,0.00134
+claude-opus,scenario_023,free_school_meals,0.0,0,,1.715305041987449,253,5,258,0,0,0.0013900000000000002
+claude-opus,scenario_023,is_medicaid_eligible,0.0,0,,2.0312253329902887,253,5,258,0,0,0.0013900000000000002
+claude-opus,scenario_023,household_state_income_tax,,"
+
+I need to calculate New York State income tax for a married couple filing jointly in 2025.
+
+**Step 1: Calculate Federal AGI (which is the starting point for NY)**
+
+- Adult 1 employment income: $116,358
+- Adult 2 employment income: $48",,5.634929125022609,236,64,300,0,0,0.0027800000000000004
+claude-opus,scenario_023,household_net_income,,"
+
+I need to calculate the household net income = market income + benefits - taxes for this married couple filing jointly in NY for tax year 2025.
+
+## Step 1: Calculate Market Income
+
+- Adult 1 employment income: $116,358
+- Adult 1 taxable interest: $",,2.648986624990357,243,64,307,0,0,0.0028150000000000002
+claude-opus,scenario_023,household_benefits,,"
+
+I need to calculate total government benefits for this household in NY for tax year 2025.
+
+**Household Summary:**
+- Married filing jointly, living in NY
+- Adult 1: $116,358 employment income, $1 taxable interest
+- Adult 2: $48",,3.1157566669862717,236,64,300,0,0,0.0027800000000000004
+claude-opus,scenario_023,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household. Market income includes all income earned from market activities before any taxes or government transfers.
+
+Let me identify all income sources:
+
+**Adult 1:**
+- Employment income: $116,358
+- Tax",,3.103782417019829,244,64,308,0,0,0.0028200000000000005
+claude-opus,scenario_023,marginal_tax_rate,,"I'll calculate the effective marginal tax rate for this household by determining how an additional dollar of income would be taxed across all relevant tax and benefit systems.
+
+**Household Income Summary:**
+- Adult 1 employment: $116,358
+- Adult 2 employment: $48,146",,3.270745874993736,255,63,318,0,0,0.00285
+claude-opus,scenario_024,income_tax,,"I'll calculate the total federal income tax liability for this married couple filing jointly in 2025.
+
+**Step 1: Calculate Total Income**
+
+- Adult 1 employment income: $80,324
+- Adult 2 employment income: $38,726
+- Taxable interest: $",,2.7353631670121104,229,64,293,0,0,0.002745
+claude-opus,scenario_024,income_tax_before_refundable_credits,,"I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Calculate Total Income
+
+- Adult 1 employment income: $80,324
+- Adult 2 employment income: $38,726
+- Taxable interest: $",,3.2074422079895157,232,64,296,0,0,0.0027600000000000003
+claude-opus,scenario_024,eitc,0.0,0,,2.0840797499986365,230,5,235,0,0,0.001275
+claude-opus,scenario_024,ctc,0.0,0,,2.17799241701141,228,5,233,0,0,0.001265
+claude-opus,scenario_024,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in TX for tax year 2025.
+
+Let me identify the potential refundable tax credits:
+
+1. **Earned Income Tax Credit (EITC)**: For a married couple filing jointly with no children in",,2.74048920799396,230,64,294,0,0,0.0027500000000000003
+claude-opus,scenario_024,snap,,"I need to determine if this household is eligible for SNAP benefits and, if so, calculate the annual benefit amount.
+
+**Step 1: Determine household gross income**
+
+- Adult 1 employment income: $80,324
+- Adult 2 employment income: $38,726
+-",,2.8743943749868777,233,64,297,0,0,0.002765
+claude-opus,scenario_024,ssi,0.0,0,,2.2662529579829425,235,5,240,0,0,0.0013
+claude-opus,scenario_024,free_school_meals,0.0,0,,2.363106291013537,245,5,250,0,0,0.00135
+claude-opus,scenario_024,is_medicaid_eligible,0.0,0,,1.8911598749982659,245,5,250,0,0,0.00135
+claude-opus,scenario_024,household_state_income_tax,0.0,"Texas has no state income tax.
+
+0",,1.9811845839722082,228,12,240,0,0,0.0014400000000000003
+claude-opus,scenario_024,household_net_income,,"I'll calculate the household net income step by step.
+
+## Step 1: Calculate Total Market Income
+
+- Adult 1 employment income: $80,324
+- Adult 2 employment income: $38,726
+- Taxable interest: $44
+- Qualified dividends: $",,2.595738666015677,235,64,299,0,0,0.002775
+claude-opus,scenario_024,household_benefits,,"I need to determine all government benefits this household would receive in 2025.
+
+Let me analyze their situation:
+- Married filing jointly in Texas (no state income tax)
+- Adult 1: 62 years old, $80,324 employment income, $44 taxable interest,",,5.730898749985499,228,64,292,0,0,0.0027400000000000002
+claude-opus,scenario_024,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes all income earned from market activities before any taxes or government transfers. This includes:
+
+1. Adult 1 employment income: $80,324
+2. Adult 2 employment income",,2.681373542000074,236,64,300,0,0,0.0027800000000000004
+claude-opus,scenario_024,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. This means the rate on the next dollar of ordinary income, accounting for all taxes (federal income tax, FICA/payroll taxes).
+
+**Step 1: Calculate AGI/Taxable Income**
+
+- Adult 1 ",,3.2123758750094566,247,64,311,0,0,0.0028350000000000003
+claude-opus,scenario_025,income_tax,,"I'll work through this step-by-step for tax year 2025.
+
+**Step 1: Calculate Adjusted Gross Income (AGI)**
+
+- Adult 1 employment income: $35,000
+- Adult 1 taxable interest: $827
+- Adult 2 ",,2.81644199998118,198,64,262,0,0,0.0025900000000000003
+claude-opus,scenario_025,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this married couple filing jointly in 2025.
+
+**Step 1: Calculate Adjusted Gross Income (AGI)**
+
+- Adult 1 employment income: $35,000
+- Adult 1 taxable interest: $",,2.8349121660285164,201,64,265,0,0,0.002605
+claude-opus,scenario_025,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Key facts:**
+- Married filing jointly
+- No qualifying children
+- Adult 1: age 67, earned income $35,000, taxable interest $827",,2.570062874990981,199,64,263,0,0,0.002595
+claude-opus,scenario_025,ctc,0.0,0,,2.117889750021277,197,5,202,0,0,0.0011099999999999999
+claude-opus,scenario_025,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in TX for tax year 2025.
+
+Let me identify the potential refundable tax credits:
+
+1. **Earned Income Tax Credit (EITC)**
+2. **Additional Child Tax Credit** - No",,2.8108837920008227,199,64,263,0,0,0.002595
+claude-opus,scenario_025,snap,,"I need to calculate the annual SNAP benefit for this household in Texas for 2025.
+
+**Step 1: Determine household composition and special categories**
+- Adult 1: 67 years old (elderly), employed
+- Adult 2: 60 years old, disabled
+-",,2.9893589580024127,202,64,266,0,0,0.0026100000000000003
+claude-opus,scenario_025,ssi,,"I need to determine the SSI eligibility and amount for this household.
+
+**SSI Basics for 2025:**
+- The Federal Benefit Rate (FBR) for an individual is $967/month
+- The FBR for a couple (both eligible) is $1,450",,3.3315648330026306,204,64,268,0,0,0.00262
+claude-opus,scenario_025,free_school_meals,0.0,0,,1.819230166991474,214,5,219,0,0,0.0011949999999999999
+claude-opus,scenario_025,is_medicaid_eligible,0.0,0,,2.3277385830006097,214,5,219,0,0,0.0011949999999999999
+claude-opus,scenario_025,household_state_income_tax,0.0,"Texas has no state income tax.
+
+0",,1.9700318339746445,197,12,209,0,0,0.0012850000000000001
+claude-opus,scenario_025,household_net_income,,"I'll work through this step-by-step, calculating all taxes and benefits for this household.
+
+**Household Characteristics:**
+- Married Filing Jointly, Texas (no state income tax)
+- Adult 1: 67, employed, $35,000 wages, $827 tax",,2.9025065830210224,204,64,268,0,0,0.00262
+claude-opus,scenario_025,household_benefits,,"I'll calculate all government benefits for this household in TX for tax year 2025.
+
+**Household Profile:**
+- Adult 1: 67 years old, $35,000 employment income, $827 taxable interest
+- Adult 2: 60 years old, $0",,2.5966027500107884,197,64,261,0,0,0.002585
+claude-opus,scenario_025,household_market_income,35834.0,35834,,1.9461883750045672,205,6,211,0,0,0.001175
+claude-opus,scenario_025,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. Let me work through this step by step.
+
+**Household Income:**
+- Adult 1 employment income: $35,000
+- Adult 1 taxable interest: $827
+- Adult 2 taxable interest:",,2.3906723340041935,216,64,280,0,0,0.00268
+claude-opus,scenario_026,income_tax,,"I'll calculate the total federal income tax liability for this married couple filing jointly for tax year 2025.
+
+**Step 1: Calculate Total Income**
+- Adult 1 employment income: $64,000
+- Adult 2 employment income: $290,000
+- Adult 1 ",,2.801156458008336,214,64,278,0,0,0.00267
+claude-opus,scenario_026,income_tax_before_refundable_credits,,"
+
+I need to calculate the federal income tax for a married couple filing jointly in 2025.
+
+**Step 1: Calculate Total Income**
+
+- Adult 1 employment income: $64,000
+- Adult 2 employment income: $290,000
+- Adult 1 taxable",,4.199960291996831,217,64,281,0,0,0.002685
+claude-opus,scenario_026,eitc,0.0,0,,2.278790457989089,215,5,220,0,0,0.0012000000000000001
+claude-opus,scenario_026,ctc,0.0,0,,2.7832608339958824,213,5,218,0,0,0.00119
+claude-opus,scenario_026,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in tax year 2025.
+
+Let me analyze their situation:
+
+**Household Income:**
+- Adult 1 employment income: $64,000
+- Adult 2 employment income: $290,000",,4.319743874977576,215,63,278,0,0,0.00265
+claude-opus,scenario_026,snap,,"I need to determine if this household is eligible for SNAP benefits.
+
+**Household Information:**
+- 2-person household in New York
+- Combined gross employment income: $64,000 + $290,000 = $354,000 annually, or $29,500/month",,3.0264332499937154,218,63,281,0,0,0.002665
+claude-opus,scenario_026,ssi,0.0,0,,2.1574229590187315,220,5,225,0,0,0.001225
+claude-opus,scenario_026,free_school_meals,0.0,0,,1.7819698750099633,230,5,235,0,0,0.001275
+claude-opus,scenario_026,is_medicaid_eligible,0.0,0,,1.9335137919988483,230,5,235,0,0,0.001275
+claude-opus,scenario_026,household_state_income_tax,,"
+
+I need to calculate the New York State income tax liability for this married couple filing jointly for tax year 2025.
+
+## Step 1: Calculate Federal AGI (which is the starting point for NY)
+
+- Adult 1 employment income: $64,000
+- Adult 2 employment",,3.1098366669903044,213,64,277,0,0,0.0026650000000000003
+claude-opus,scenario_026,household_net_income,,"
+
+I need to calculate the household net income: market income + benefits - taxes.
+
+## Market Income
+- Adult 1 employment income: $64,000
+- Adult 2 employment income: $290,000
+- Taxable interest: $272 + $311 = $583",,3.5327234999858774,220,64,284,0,0,0.0027
+claude-opus,scenario_026,household_benefits,,"I need to calculate the total government benefits received by this household for tax year 2025.
+
+Let me consider all possible government benefits:
+
+**1. Social Security Benefits:** Both adults are working and earning income. They are not retired (ages 51 and 50), so no Social Security retirement benefits.",,2.900889917014865,213,64,277,0,0,0.0026650000000000003
+claude-opus,scenario_026,household_market_income,,"I need to calculate the total market income (pre-tax, pre-transfer) for this household. Market income includes all income earned from market activities before any taxes or government transfers.
+
+This includes:
+- Employment income for both adults
+- Taxable interest income for both adults
+- Qualified dividend income",,2.756845458992757,221,64,285,0,0,0.002705
+claude-opus,scenario_026,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household, which I interpret as the marginal tax rate on the next dollar of earned income, considering all taxes (federal income tax, state/local income tax, FICA taxes).
+
+**Step 1: Calculate AGI/Taxable Income",,3.1934597920044325,232,64,296,0,0,0.0027600000000000003
+claude-opus,scenario_027,income_tax,,"I'll work through the federal income tax calculation step by step for this head of household filer in tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Employment income: $7,000
+- Social Security disability income: $11,448
+
+**Step 2:",,2.9447731249965727,199,64,263,0,0,0.002595
+claude-opus,scenario_027,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this head of household filer in tax year 2025.
+
+**Step 1: Determine Gross Income**
+
+- Employment income: $7,000
+- Social Security disability income: $11,448
+
+**Step 2",,2.338257249997696,202,64,266,0,0,0.0026100000000000003
+claude-opus,scenario_027,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Household details:**
+- Filing status: Head of Household
+- Adult 1: 39 years old, $7,000 earned income, $11,",,2.1625834589940496,200,64,264,0,0,0.0026
+claude-opus,scenario_027,ctc,,"I need to calculate the Child Tax Credit for this household for tax year 2025.
+
+**Identifying qualifying children:**
+- Child 1: 16 years old (qualifies for CTC - under 17)
+- Child 2: 8 years old (qualifies for CTC",,2.6863587500120047,198,64,262,0,0,0.0025900000000000003
+claude-opus,scenario_027,income_tax_refundable_credits,,"I need to calculate all refundable tax credits for this head of household filer in GA for tax year 2025.
+
+**Household Summary:**
+- Adult 1 (39, HOH filer): $7,000 employment income + $11,448 SSDI
+-",,2.667604084010236,200,64,264,0,0,0.0026
+claude-opus,scenario_027,snap,,"I need to calculate the annual SNAP benefit for a household of 4 (1 adult + 3 children) in Georgia for 2025.
+
+**Step 1: Household Size**
+4 people (Adult 1, Child 1 age 16, Child 2 ",,3.253300083015347,203,64,267,0,0,0.002615
+claude-opus,scenario_027,ssi,,"I need to determine the SSI amount for this household. SSI is an individual benefit, so I need to figure out who in this household is eligible for SSI.
+
+**Identifying potential SSI recipients:**
+
+- **Adult 1**: Receives Social Security disability income (SSDI) of $",,2.9287344590120483,205,64,269,0,0,0.002625
+claude-opus,scenario_027,free_school_meals,,"I need to determine if this household qualifies for free school meals under the National School Lunch Program (NSLP) for the 2025-2026 school year.
+
+**Household Size:** 4 (Adult 1 + 3 children)
+
+**Household Income:**",,2.4097096670011524,215,64,279,0,0,0.0026750000000000003
+claude-opus,scenario_027,is_medicaid_eligible,,"I need to determine Medicaid eligibility for this household in Georgia for tax year 2025.
+
+**Household Composition:**
+- Adult 1 (head of household): 39 years old, $7,000 employment income + $11,448 Social Security disability income
+-",,3.045922833000077,215,64,279,0,0,0.0026750000000000003
+claude-opus,scenario_027,household_state_income_tax,,"I need to calculate the Georgia state income tax liability for this head of household filer for tax year 2025.
+
+**Georgia Tax System for 2025:**
+Georgia transitioned to a flat tax rate. For 2025, Georgia has a flat income tax rate of 5.39%.
+
+**",,2.93385808300809,198,64,262,0,0,0.0025900000000000003
+claude-opus,scenario_027,household_net_income,,"I'll work through this step-by-step, calculating all benefits and taxes for this household.
+
+**Household Summary:**
+- Head of Household filer in GA, 2025
+- Adult 1: age 39, $7,000 employment income, $11,448 ",,3.381616958999075,205,64,269,0,0,0.002625
+claude-opus,scenario_027,household_benefits,,"I need to calculate all government benefits for this household: a head of household filer in GA with $7,000 employment income, $11,448 in SS disability income, and three children (ages 16, 8, and 6, with the 16-year-old being disabled).",,2.9555743749951944,198,64,262,0,0,0.0025900000000000003
+claude-opus,scenario_027,household_market_income,,"Market income (pre-tax, pre-transfer) includes income earned from market activities such as wages, salaries, and employment income. It does not include government transfers like Social Security disability income (SSDI), which is a transfer payment.
+
+Therefore, the total market income for this household is simply the employment",,3.5789434580074158,206,64,270,0,0,0.0026300000000000004
+claude-opus,scenario_027,marginal_tax_rate,,"I'll work through this step-by-step, calculating the marginal tax rate by considering what happens when this household earns an additional dollar of income.
+
+**Household Summary:**
+- Head of Household filer, GA, 2025
+- Adult: $7,000 employment income +",,3.3345487090118695,217,64,281,0,0,0.002685
+claude-opus,scenario_028,income_tax,,"I need to calculate the federal income tax liability for this household for tax year 2025.
+
+**Household Summary:**
+- Married Filing Jointly
+- Adult 1: 44 years old, $3,000 employment income
+- Adult 2: 22 years old, $",,2.4180733330140356,189,64,253,0,0,0.0025450000000000004
+claude-opus,scenario_028,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this household for tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Adult 1 employment income: $3,000
+- Adult 2 employment income: $0
+- Total gross income",,3.2808531670016237,192,64,256,0,0,0.00256
+claude-opus,scenario_028,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Household details:**
+- Married filing jointly
+- Adult 1: 44 years old, $3,000 earned income
+- Adult 2: ",,2.8183120420144405,190,64,254,0,0,0.00255
+claude-opus,scenario_028,ctc,,"I need to determine the Child Tax Credit for this household for tax year 2025.
+
+**Household details:**
+- Married filing jointly
+- Adult 1: 44 years old, $3,000 employment income
+- Adult 2: 22 years old, $0 ",,2.4740422909962945,188,64,252,0,0,0.00254
+claude-opus,scenario_028,income_tax_refundable_credits,,"I need to determine all refundable tax credits for this household for tax year 2025.
+
+**Household Details:**
+- Married Filing Jointly
+- Living in PA
+- Adult 1: 44 years old, $3,000 employment income, ~10 hrs/week",,2.789858957985416,190,64,254,0,0,0.00255
+claude-opus,scenario_028,snap,,"I need to determine the annual SNAP benefit for this household in Pennsylvania for 2025.
+
+**Household Composition:** 3 people (2 adults, 1 child)
+
+**Step 1: Determine eligibility and work requirements**
+- Adult 1 works 10 ",,4.0170266249915585,193,64,257,0,0,0.002565
+claude-opus,scenario_028,ssi,,"I need to determine the SSI eligibility and benefit amount for this household.
+
+**SSI Basics for 2025:**
+- The federal SSI benefit rate for an individual is $967/month ($11,604/year)
+- The federal SSI benefit rate for a couple (both eligible",,3.2540607920091134,195,64,259,0,0,0.002575
+claude-opus,scenario_028,free_school_meals,,"To determine eligibility for free school meals under the National School Lunch Program (NSLP), I need to check whether this household's income falls at or below 130% of the federal poverty level (FPL) for their household size.
+
+**Household size:** 3 (Adult ",,2.924498834006954,205,64,269,0,0,0.002625
+claude-opus,scenario_028,is_medicaid_eligible,,"I need to determine Medicaid eligibility for this household in Pennsylvania for tax year 2025.
+
+**Household composition:** Married couple filing jointly with one child = 3 person household.
+
+**Household income:** $3,000 (Adult 1) + $0 (Adult",,3.3185753330180887,205,64,269,0,0,0.002625
+claude-opus,scenario_028,household_state_income_tax,,"Pennsylvania has a flat state income tax rate of 3.07%.
+
+The household's total income is $3,000 (Adult 1's employment income). Adult 2 has $0 income.
+
+Pennsylvania taxable income = $3,000
+
+Pennsylvania does not have a standard deduction or",,3.719246041000588,188,64,252,0,0,0.00254
+claude-opus,scenario_028,household_net_income,,"I need to calculate the household net income for this family: married filing jointly in PA, with $3,000 total earned income, one full-time student spouse, and one child age 10.
+
+**Market Income:** $3,000
+
+**Federal Income Tax:**
+- Standard deduction for M",,2.9063187499996275,195,64,259,0,0,0.002575
+claude-opus,scenario_028,household_benefits,,"I'll work through each major government benefit program for this household: married filing jointly, PA resident, 2025. Household: Adult 1 (44, $3,000 earnings), Adult 2 (22, full-time student, $0 earnings), Child 1 (age",,3.073390042001847,188,64,252,0,0,0.00254
+claude-opus,scenario_028,household_market_income,3000.0,3000,,2.2057706249761395,196,6,202,0,0,0.0011300000000000001
+claude-opus,scenario_028,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household on the next dollar of earned income (above $3,000).
+
+Let me analyze each tax and benefit program:
+
+**Current situation: $3,000 employment income, married filing jointly, 1 child age 10, 1",,4.053647499997169,207,64,271,0,0,0.002635
+claude-opus,scenario_029,income_tax,,"I need to calculate the federal income tax liability for a single filer with $1,500 in employment income for tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Employment income: $1,500
+
+**Step 2: Determine Adjustments to Income",,3.7513978329952806,154,64,218,0,0,0.00237
+claude-opus,scenario_029,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for a single filer with $1,500 in employment income for tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Employment income: $1,500
+
+**Step 2: Determine",,4.477928499982227,157,64,221,0,0,0.002385
+claude-opus,scenario_029,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for a single filer with no children and $1,500 in earned income for tax year 2025.
+
+For tax year 2025, the EITC parameters for single filers with no qualifying children are:",,2.59702358400682,155,64,219,0,0,0.0023750000000000004
+claude-opus,scenario_029,ctc,0.0,0,,1.8838650409888942,153,5,158,0,0,0.0008900000000000001
+claude-opus,scenario_029,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for a single filer in OH with $1,500 in employment income, age 30, no children, for tax year 2025.
+
+Let me consider each potential refundable credit:
+
+**1. Federal Earned Income Tax Credit (",,3.9536037920042872,155,64,219,0,0,0.0023750000000000004
+claude-opus,scenario_029,snap,,"I need to calculate the annual SNAP benefit for a single person in Ohio with $1,500 annual employment income.
+
+**Step 1: Determine eligibility**
+
+The person is 30 years old, works 40 hours per week (meets work requirements), and is a single person with",,3.2982587080041412,158,64,222,0,0,0.00239
+claude-opus,scenario_029,ssi,,"I need to calculate the SSI benefit for this individual.
+
+**Step 1: Determine the 2025 Federal Benefit Rate (FBR)**
+The SSI Federal Benefit Rate for an individual in 2025 is $967 per month.
+
+**Step 2: Calculate",,4.062589416978881,160,64,224,0,0,0.0024000000000000002
+claude-opus,scenario_029,free_school_meals,0.0,0,,2.059389125002781,170,5,175,0,0,0.0009750000000000001
+claude-opus,scenario_029,is_medicaid_eligible,,"To determine Medicaid eligibility in Ohio for 2025, I need to check if this individual's income falls below the relevant threshold.
+
+Ohio expanded Medicaid under the ACA. For non-disabled, non-elderly adults without dependent children, Ohio's Medicaid expansion covers adults aged 19",,3.1779746249958407,170,64,234,0,0,0.00245
+claude-opus,scenario_029,household_state_income_tax,,"I need to calculate the Ohio state income tax liability for a single filer with $1,500 in employment income for tax year 2025.
+
+**Step 1: Determine Ohio Adjusted Gross Income**
+The filer has $1,500 in employment income, so Ohio AGI",,2.7706982500094455,153,64,217,0,0,0.002365
+claude-opus,scenario_029,household_net_income,,"I'll calculate the household net income for a single filer in Ohio with $1,500 in annual employment income for tax year 2025.
+
+**Market Income:** $1,500
+
+**Federal Income Tax:**
+- Standard deduction for single filer: $15,350 (2025",,3.043746999988798,160,64,224,0,0,0.0024000000000000002
+claude-opus,scenario_029,household_benefits,,"I need to calculate total government benefits for a single filer in Ohio, age 30, earning $1,500/year, no children, working ~40 hours/week.
+
+Let me go through each potential benefit program:
+
+**1. Federal Income Tax / Refund:**
+- Standard de",,3.795474832993932,153,64,217,0,0,0.002365
+claude-opus,scenario_029,household_market_income,1500.0,1500,,1.8236186249996535,161,6,167,0,0,0.0009550000000000001
+claude-opus,scenario_029,marginal_tax_rate,,"I need to calculate the effective marginal tax rate for a single filer in Ohio with $1,500 in annual employment income and no children.
+
+Let me consider what happens when this person earns an additional dollar of income.
+
+**Federal Income Tax:**
+- Standard deduction for 2025 ",,3.0535880840034224,172,64,236,0,0,0.0024600000000000004
+claude-opus,scenario_030,income_tax,,"I need to calculate the federal income tax liability for this single filer in FL for tax year 2025.
+
+**Step 1: Determine Gross Income Components**
+
+- Employment income: $14,126
+- Taxable interest: $30
+- Taxable private pension: $36",,2.7671760829980485,188,64,252,0,0,0.00254
+claude-opus,scenario_030,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this single filer in 2025.
+
+**Step 1: Determine Gross Income**
+
+- Employment income: $14,126
+- Taxable interest: $30
+- Private pension income: $36,423",,2.948471374984365,191,63,254,0,0,0.00253
+claude-opus,scenario_030,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for this single filer with no children for tax year 2025.
+
+**Step 1: Determine eligibility requirements**
+- Single filer, age 36 (between 25 and 65), no qualifying",,2.94004537499859,189,64,253,0,0,0.0025450000000000004
+claude-opus,scenario_030,ctc,0.0,0,,2.0821146669914015,187,5,192,0,0,0.0010600000000000002
+claude-opus,scenario_030,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this single filer in FL for tax year 2025.
+
+**Step 1: Determine the relevant refundable credits**
+
+The main refundable credits for a single filer with no children are:
+1. Earned Income Tax",,3.0926250419870485,189,64,253,0,0,0.0025450000000000004
+claude-opus,scenario_030,snap,,"I'll calculate the annual SNAP benefit for this single-person household in Florida for 2025.
+
+**Step 1: Determine Gross Monthly Income**
+
+- Employment income: $14,126 / 12 = $1,177.17/month
+- Taxable interest:",,3.032398874987848,192,64,256,0,0,0.00256
+claude-opus,scenario_030,ssi,,"I need to determine the SSI eligibility and payment amount for this individual.
+
+**SSI Basics for 2025:**
+- The federal SSI benefit rate for an individual in 2025 is $967/month ($11,604/year).
+- SSI is a means-tested",,3.982293250010116,194,64,258,0,0,0.0025700000000000002
+claude-opus,scenario_030,free_school_meals,0.0,0,,1.6914075000095181,204,5,209,0,0,0.0011450000000000002
+claude-opus,scenario_030,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in Florida for tax year 2025, I need to consider several factors.
+
+**Florida Medicaid Context:**
+Florida did NOT expand Medicaid under the ACA. This means the state uses traditional Medicaid eligibility criteria, which are very restrict",,3.1411362500221003,204,64,268,0,0,0.00262
+claude-opus,scenario_030,household_state_income_tax,0.0,"Florida has no state income tax.
+
+0",,2.2200742910208646,187,12,199,0,0,0.001235
+claude-opus,scenario_030,household_net_income,,"I'll work through this step-by-step, calculating market income, benefits, and taxes for this single filer in FL for tax year 2025.
+
+## Market Income
+- Employment income: $14,126
+- Taxable interest: $30
+- Private pension: $36,423",,2.5163715000089724,194,64,258,0,0,0.0025700000000000002
+claude-opus,scenario_030,household_benefits,,"I'll calculate the total government benefits for this single filer in FL for tax year 2025.
+
+**Household Profile:**
+- Single filer, age 36, no children
+- Employment income: $14,126 (25 hrs/week)
+- Taxable interest: $",,3.3794297499989625,187,64,251,0,0,0.002535
+claude-opus,scenario_030,household_market_income,,"I need to determine the total market income (pre-tax, pre-transfer) for this household.
+
+Market income includes income earned from market activities before any government taxes or transfers. This typically includes:
+
+1. **Employment income**: $14,126 — This is market income (earned from work).",,3.439792874996783,195,63,258,0,0,0.00255
+claude-opus,scenario_030,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. This means I need to determine what happens when they earn an additional dollar of income, considering all the taxes and benefit phase-outs that apply.
+
+**Step 1: Determine the income components**
+- Employment income: $14,",,2.85859916699701,206,64,270,0,0,0.0026300000000000004
+claude-opus,scenario_031,income_tax,,"I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Determine Gross Income Components
+
+- Employment income (Adult 2): $107,357
+- Taxable interest: $5
+- Qualified dividends: $45",,3.1931884590012487,283,64,347,0,0,0.0030150000000000003
+claude-opus,scenario_031,income_tax_before_refundable_credits,,"I'll work through this step-by-step for tax year 2025, married filing jointly.
+
+## Step 1: Calculate Adjusted Gross Income (AGI)
+
+**Employment income:** $107,357
+**Taxable interest:** $5
+**Qualified dividends:** $45",,3.1671029590070248,286,64,350,0,0,0.00303
+claude-opus,scenario_031,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+Let me check the eligibility requirements:
+
+**Investment Income Test:**
+The EITC has a disqualifying investment income limit. For 2025, the investment income",,3.30353758300771,284,64,348,0,0,0.00302
+claude-opus,scenario_031,ctc,0.0,0,,2.1361720410059206,282,5,287,0,0,0.001535
+claude-opus,scenario_031,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in MN for 2025.
+
+Let me first establish their income and then check each refundable credit.
+
+**Income Calculation:**
+- Employment income (Adult 2): $107,357
+- Tax",,10.134597416996257,284,64,348,0,0,0.00302
+claude-opus,scenario_031,snap,,"I need to determine the SNAP (food stamps) benefit for this household in Minnesota for 2025.
+
+**Step 1: Determine SNAP Household Composition**
+- 2 adults, one is 74 (elderly/disabled), one is 45 (disabled)
+-",,3.3758597080013715,287,64,351,0,0,0.0030350000000000004
+claude-opus,scenario_031,ssi,,"I need to determine the SSI eligibility and amount for this household.
+
+**SSI Basics for 2025:**
+- SSI is an individual benefit (though spouse's income can affect eligibility through deeming)
+- The Federal Benefit Rate (FBR) for 2025",,3.570742916985182,289,64,353,0,0,0.003045
+claude-opus,scenario_031,free_school_meals,0.0,0,,1.91546116702375,299,5,304,0,0,0.00162
+claude-opus,scenario_031,is_medicaid_eligible,0.0,0,,1.6610909169830848,299,5,304,0,0,0.00162
+claude-opus,scenario_031,household_state_income_tax,,"I'll work through the Minnesota state income tax calculation for this married couple filing jointly in 2025.
+
+**Step 1: Calculate Federal AGI**
+
+- Employment income (Adult 2): $107,357
+- Taxable interest: $5
+- Qualified dividends: $45 ",,2.8784420419833623,282,64,346,0,0,0.00301
+claude-opus,scenario_031,household_net_income,,"I'll work through this step-by-step, calculating all income, benefits, and taxes for this household.
+
+## Market Income
+
+**Employment income:** $107,357
+**Taxable interest:** $5
+**Qualified dividends:** $45 + $1,131 = $1",,2.9700702090049163,289,64,353,0,0,0.003045
+claude-opus,scenario_031,household_benefits,,"I need to calculate all government benefits for this household in Minnesota for tax year 2025.
+
+Let me go through each potential benefit:
+
+**1. Social Security Retirement Income**
+Adult 1 receives $31,564 in Social Security retirement income. This is a government benefit.
+
+**2",,3.8588846659986302,282,64,346,0,0,0.00301
+claude-opus,scenario_031,household_market_income,,"I need to calculate total market income, which is pre-tax and pre-transfer income. Market income typically includes employment income, interest, dividends, capital gains, and private pensions. It excludes government transfers like Social Security retirement benefits.
+
+Let me identify each component:
+
+**Adult 1:**",,3.1048227499995846,290,63,353,0,0,0.003025
+claude-opus,scenario_031,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household, which means the rate on the next dollar of income earned by the primary earner (Adult 2).
+
+**Step 1: Calculate AGI**
+
+- Employment income (Adult 2): $107,357
+- Taxable interest",,3.0303428750194144,301,64,365,0,0,0.003105
+claude-opus,scenario_032,income_tax,,"I'll work through this step-by-step for tax year 2025.
+
+**Self-Employment Tax Calculation:**
+- Self-employment income: $30,000
+- SE tax base: $30,000 × 92.35% = $27,705
+- Self-employment",,2.8240912500186823,185,64,249,0,0,0.0025250000000000003
+claude-opus,scenario_032,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this married couple filing jointly.
+
+**Step 1: Determine Gross Income**
+- Adult 1: $0 employment income
+- Adult 2: $30,000 self-employment income
+- Total gross income:",,2.7241734999988694,188,64,252,0,0,0.00254
+claude-opus,scenario_032,eitc,,"I need to determine the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Key facts:**
+- Married filing jointly
+- No children
+- Adult 1: age 66, $0 income
+- Adult 2: age 63",,2.731769083009567,186,64,250,0,0,0.00253
+claude-opus,scenario_032,ctc,0.0,0,,2.0867829579801764,184,5,189,0,0,0.001045
+claude-opus,scenario_032,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this married couple filing jointly in Arkansas for tax year 2025.
+
+**Household details:**
+- Married filing jointly
+- Adult 1: 66 years old, $0 employment income
+- Adult 2: 63 ",,3.3863062910095323,186,64,250,0,0,0.00253
+claude-opus,scenario_032,snap,,"I need to determine the SNAP benefit for this household in Arkansas for 2025.
+
+**Step 1: Household Composition**
+- Married couple, no children = 2-person household
+- Adult 1: 66 years old (elderly, no income)
+- Adult ",,2.6481454579916317,189,64,253,0,0,0.0025450000000000004
+claude-opus,scenario_032,ssi,,"I need to determine the SSI eligibility and amount for this household.
+
+**SSI Eligibility Analysis:**
+
+SSI is for individuals who are aged (65+), blind, or disabled, AND have limited income and resources.
+
+**Adult 1:** 66 years old, so meets the",,2.633185374987079,191,64,255,0,0,0.002555
+claude-opus,scenario_032,free_school_meals,0.0,0,,1.7181852080102544,201,5,206,0,0,0.00113
+claude-opus,scenario_032,is_medicaid_eligible,,"I need to determine Medicaid eligibility for this household in Arkansas for tax year 2025.
+
+**Household Details:**
+- Married couple filing jointly in Arkansas
+- Adult 1: 66 years old, $0 employment income
+- Adult 2: 63 years old",,2.5120782910089474,201,64,265,0,0,0.002605
+claude-opus,scenario_032,household_state_income_tax,,"I'll calculate the Arkansas state income tax liability for this married couple filing jointly in 2025.
+
+**Step 1: Determine Gross Income**
+- Self-employment income: $30,000
+
+**Step 2: Adjustments to Income (State level)**
+- Deductible",,3.469318958988879,184,64,248,0,0,0.00252
+claude-opus,scenario_032,household_net_income,,"I need to calculate the household net income for this married couple filing jointly in Arkansas for tax year 2025.
+
+**Market Income:**
+- Self-employment income: $30,000
+
+**Step 1: Self-Employment Tax (FICA)**
+- Net earnings from self-employment: $",,3.9455250419850927,191,64,255,0,0,0.002555
+claude-opus,scenario_032,household_benefits,,"I'll calculate the total government benefits for this household step by step.
+
+**Household Profile:**
+- Married filing jointly, Arkansas
+- Adult 1: 66 years old, $0 employment income
+- Adult 2: 63 years old, $30,000 self-",,11.45854441600386,184,64,248,0,0,0.00252
+claude-opus,scenario_032,household_market_income,30000.0,30000,,2.291348458005814,192,6,198,0,0,0.00111
+claude-opus,scenario_032,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household, which means the rate on the next dollar of income considering all taxes.
+
+**Self-Employment Tax:**
+- Self-employment income: $30,000
+- SE tax base: $30,000 × 0.9235 ",,3.365352916996926,203,64,267,0,0,0.002615
+claude-opus,scenario_033,income_tax,,"I'll calculate the total federal income tax liability for this household step by step.
+
+**Filing Status:** Married Filing Jointly
+
+**Gross Income:** $50,000
+
+**Step 1: Standard Deduction**
+For 2025, the standard deduction for MFJ is $30",,3.284128624974983,193,64,257,0,0,0.002565
+claude-opus,scenario_033,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this household.
+
+**Step 1: Determine Gross Income**
+- Adult 2 employment income: $50,000
+- Total gross income: $50,000
+
+**Step 2: Determine Adjustments (",,3.0026728749799076,196,64,260,0,0,0.0025800000000000003
+claude-opus,scenario_033,eitc,,"I need to calculate the Earned Income Tax Credit (EITC) for this household for tax year 2025.
+
+**Household details:**
+- Married Filing Jointly
+- Two qualifying children (ages 13 and 9)
+- Earned income: $50,000",,2.8176481669943314,194,63,257,0,0,0.002545
+claude-opus,scenario_033,ctc,,"I need to determine the Child Tax Credit for this household for tax year 2025.
+
+**Household details:**
+- Married filing jointly
+- AGI: $50,000 (only Adult 2 has income)
+- Two qualifying children: age 13 and age 9",,3.128133374993922,192,63,255,0,0,0.002535
+claude-opus,scenario_033,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this household for tax year 2025.
+
+**Household Summary:**
+- Married filing jointly
+- Living in Tennessee
+- Adult 1: 37, $0 income
+- Adult 2: 37, $50,000",,2.678840125008719,194,64,258,0,0,0.0025700000000000002
+claude-opus,scenario_033,snap,,"I need to determine SNAP eligibility and benefits for this household in Tennessee for 2025.
+
+**Household:** 4 people (2 adults, 2 children)
+
+**Step 1: Determine Gross Income**
+- Annual employment income: $50,000
+- Monthly",,3.2816567920090165,197,64,261,0,0,0.002585
+claude-opus,scenario_033,ssi,,"I need to determine if this household is eligible for Supplemental Security Income (SSI).
+
+SSI is a federal program that provides monthly cash assistance to people who are:
+1. Aged (65 or older), OR
+2. Blind, OR
+3. Disabled
+
+AND who have",,2.9088972920144442,199,64,263,0,0,0.002595
+claude-opus,scenario_033,free_school_meals,,"To determine eligibility for free school meals, I need to compare the household's gross income to the Federal Income Eligibility Guidelines for the National School Lunch Program (NSLP) for the 2024-2025 school year.
+
+**Household size:** 4 (2 adults",,2.8837842920038383,209,64,273,0,0,0.002645
+claude-opus,scenario_033,is_medicaid_eligible,0.0,0,,1.8678147089958657,209,5,214,0,0,0.00117
+claude-opus,scenario_033,household_state_income_tax,,"Tennessee does not levy a state income tax on wages and salaries. The Hall Income Tax (which applied to interest and dividend income) was fully phased out as of January 1, 2021. Therefore, for tax year 2025, a household with only employment income in Tennessee owes no state income",,3.8784863329783548,192,64,256,0,0,0.00256
+claude-opus,scenario_033,household_net_income,,"I'll calculate the household net income step by step for a married couple filing jointly in Tennessee for tax year 2025.
+
+**Household Details:**
+- Married filing jointly
+- Adult 1: 37, $0 income
+- Adult 2: 37, $50,000 ",,2.8141957909974735,199,64,263,0,0,0.002595
+claude-opus,scenario_033,household_benefits,,"I'll calculate the total government benefits for this household step by step.
+
+**Household Profile:**
+- Married filing jointly, Tennessee
+- 2 adults (both 37), 2 children (13 and 9)
+- One earner with $50,000 employment income",,3.095431749999989,192,63,255,0,0,0.002535
+claude-opus,scenario_033,household_market_income,50000.0,50000,,1.9205213749955874,200,6,206,0,0,0.00115
+claude-opus,scenario_033,marginal_tax_rate,,"I need to calculate the effective marginal tax rate for this household, considering federal income tax, payroll taxes, and any phase-ins/phase-outs of credits.
+
+**Household details:**
+- Married filing jointly, Tennessee (no state income tax)
+- Two adults (37), two",,3.6033110829885118,211,64,275,0,0,0.0026550000000000002
+claude-opus,scenario_034,income_tax,,"I need to calculate the federal income tax liability for a 74-year-old single filer in FL for tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Employment income: $0
+- Taxable interest income: $1,506
+- Total gross",,2.7760620420158375,155,64,219,0,0,0.0023750000000000004
+claude-opus,scenario_034,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for a single filer, age 74, with $1,506 in taxable interest income, living in Florida, for tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Taxable interest",,2.397315249982057,158,64,222,0,0,0.00239
+claude-opus,scenario_034,eitc,0.0,0,,1.9839952499896754,156,5,161,0,0,0.0009050000000000001
+claude-opus,scenario_034,ctc,0.0,0,,2.0190287079894915,154,5,159,0,0,0.0008950000000000001
+claude-opus,scenario_034,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this single filer in FL for tax year 2025.
+
+**Household details:**
+- Single filer, age 74
+- Lives in Florida (no state income tax)
+- $0 employment income
+- $1,506",,2.735861749999458,156,64,220,0,0,0.00238
+claude-opus,scenario_034,snap,,"I need to calculate the annual SNAP benefit for a single-person household in Florida for tax year 2025.
+
+**Step 1: Determine Gross Income**
+- Employment income: $0
+- Taxable interest income: $1,506/year = $125.50/month",,11.312588667002274,159,64,223,0,0,0.002395
+claude-opus,scenario_034,ssi,,"I need to determine the annual Supplemental Security Income (SSI) amount for this household.
+
+**SSI Basics for 2025:**
+- The federal SSI maximum benefit for an individual in 2025 is $967 per month, or $11,604 annually.
+-",,3.614680541009875,161,64,225,0,0,0.002405
+claude-opus,scenario_034,free_school_meals,0.0,0,,2.9659795830084477,171,5,176,0,0,0.00098
+claude-opus,scenario_034,is_medicaid_eligible,,"To determine Medicaid eligibility for this household, I need to consider the following:
+
+**Household Profile:**
+- Single filer, 74 years old, living in Florida
+- No employment income
+- $1,506 in taxable interest income
+- No children
+
+**Florida",,2.93129483301891,171,64,235,0,0,0.002455
+claude-opus,scenario_034,household_state_income_tax,0.0,"Florida has no state income tax.
+
+0",,2.374039416987216,154,12,166,0,0,0.0010700000000000002
+claude-opus,scenario_034,household_net_income,,"I need to calculate the household net income for a 74-year-old single filer in Florida with $1,506 in taxable interest income for tax year 2025.
+
+**Market Income:**
+- Employment income: $0
+- Taxable interest income: $1,506",,2.9365728750126436,161,63,224,0,0,0.00238
+claude-opus,scenario_034,household_benefits,,"I need to calculate the total government benefits for a 74-year-old single filer in Florida with $0 employment income and $1,506 in taxable interest income.
+
+Let me consider each potential benefit:
+
+**1. Social Security**
+The person is 74 years old.",,2.961112583987415,154,64,218,0,0,0.00237
+claude-opus,scenario_034,household_market_income,1506.0,1506,,1.8585305409797002,162,6,168,0,0,0.0009600000000000001
+claude-opus,scenario_034,marginal_tax_rate,,"I need to determine the effective marginal tax rate for a 74-year-old single filer in Florida with $1,506 in taxable interest income for tax year 2025.
+
+**Step 1: Determine the standard deduction.**
+For 2025, the standard deduction",,3.2755462499917485,173,64,237,0,0,0.002465
+claude-opus,scenario_035,income_tax,,"I need to calculate the federal income tax liability for this single filer in 2025.
+
+**Step 1: Determine Gross Income**
+
+- Employment income: $0
+- Taxable interest: $477
+- Social Security: $32,096
+
+**Step 2: Determine",,3.306126499985112,168,64,232,0,0,0.0024400000000000003
+claude-opus,scenario_035,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this single filer.
+
+**Step 1: Determine Taxable Social Security Benefits**
+
+The taxpayer has:
+- Taxable interest: $477
+- Social Security benefits: $32,096
+
+To determine taxable",,3.083595125004649,171,64,235,0,0,0.002455
+claude-opus,scenario_035,eitc,0.0,0,,2.4270048330072314,169,5,174,0,0,0.00097
+claude-opus,scenario_035,ctc,0.0,0,,2.2609607920167036,167,5,172,0,0,0.00096
+claude-opus,scenario_035,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this single filer in Wisconsin for tax year 2025.
+
+Let me analyze the situation:
+
+**Taxpayer Profile:**
+- Single filer, age 85, disabled
+- $0 employment income
+- $477 taxable",,2.5853632079961244,169,64,233,0,0,0.002445
+claude-opus,scenario_035,snap,,"I need to calculate the annual SNAP benefit for this household in Wisconsin for 2025.
+
+**Step 1: Determine household size and eligibility**
+- Single person, age 85, disabled
+- As an elderly/disabled individual, they may qualify under different income limits
+
+**Step 2",,3.22969245899003,172,64,236,0,0,0.0024600000000000004
+claude-opus,scenario_035,ssi,,"I need to determine the SSI amount for this individual.
+
+**SSI Eligibility Analysis:**
+
+SSI (Supplemental Security Income) is a federal program for aged (65+), blind, or disabled individuals with limited income and resources.
+
+This person qualifies categorically as they are:",,3.2935597090108786,174,63,237,0,0,0.002445
+claude-opus,scenario_035,free_school_meals,,"To determine eligibility for free school meals, I need to consider the National School Lunch Program (NSLP) guidelines.
+
+First, the key question: this household has **no children**. Free school meals are a benefit for school-aged children in the household.
+
+Since there are no children in",,2.9255572499823757,184,64,248,0,0,0.00252
+claude-opus,scenario_035,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in Wisconsin for tax year 2025, I need to consider the relevant Medicaid pathway.
+
+**Household Details:**
+- Single filer, 85 years old, disabled
+- No employment income
+- $477 taxable interest income",,2.8468886249756906,184,63,247,0,0,0.002495
+claude-opus,scenario_035,household_state_income_tax,,"I need to calculate the Wisconsin state income tax liability for this single filer.
+
+**Step 1: Determine Federal Adjusted Gross Income (AGI)**
+
+- Employment income: $0
+- Taxable interest: $477
+- Social Security: $32,096
+
+For federal purposes,",,3.1198115830193274,167,64,231,0,0,0.002435
+claude-opus,scenario_035,household_net_income,,"I'll calculate the household net income step by step.
+
+## Market Income
+- Employment income: $0
+- Taxable interest income: $477
+- Social Security retirement income: $32,096
+
+**Total market income: $32,573**
+
+## Benefits
+
+### Social Security
+Already counted",,3.118201792007312,174,64,238,0,0,0.00247
+claude-opus,scenario_035,household_benefits,,"I need to calculate the total government benefits received by this household: an 85-year-old single filer in Wisconsin with $477 in taxable interest income and $32,096 in Social Security retirement income, who is disabled, with no children.
+
+Let me work through the various potential benefits:",,3.587592041993048,167,64,231,0,0,0.002435
+claude-opus,scenario_035,household_market_income,,"Market income (pre-tax, pre-transfer) includes income from market sources such as employment income and taxable interest income, but excludes government transfers like Social Security retirement benefits.
+
+Employment income: $0
+Taxable interest income: $477
+Social Security retirement income is a government transfer, so it",,7.896859916014364,175,64,239,0,0,0.002475
+claude-opus,scenario_035,marginal_tax_rate,,"I need to find the effective marginal tax rate for this household. This means I need to determine what happens when they earn one additional dollar of income.
+
+**Current Situation:**
+- Age: 85, single, disabled
+- Employment income: $0
+- Taxable interest: $477",,2.957081458007451,186,63,249,0,0,0.0025050000000000003
+claude-opus,scenario_036,income_tax,,"I need to calculate the federal income tax liability for a single filer in 2025 who is 85 years old, disabled, blind, with $0 employment income and no children.
+
+**Income:**
+- Employment income: $0
+- No other income mentioned, so total gross income =",,2.862378624995472,149,64,213,0,0,0.0023450000000000003
+claude-opus,scenario_036,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this single filer.
+
+**Income:**
+- Employment income: $0
+- No other income mentioned, so total income = $0
+
+**Standard Deduction for 2025:**
+- Base standard deduction for single filer",,3.990466458024457,152,64,216,0,0,0.00236
+claude-opus,scenario_036,eitc,0.0,0,,2.8143819579854608,150,5,155,0,0,0.000875
+claude-opus,scenario_036,ctc,0.0,0,,8.140026666980702,148,5,153,0,0,0.0008650000000000001
+claude-opus,scenario_036,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this household in South Carolina for tax year 2025.
+
+Let me analyze the situation:
+- Single filer, 85 years old, disabled and blind
+- $0 employment income
+- No children
+- Lives in South Carolina",,2.677464875014266,150,63,213,0,0,0.002325
+claude-opus,scenario_036,snap,,"I need to calculate the annual SNAP benefit for an elderly (85), disabled, blind single person in South Carolina with $0 employment income for 2025.
+
+**Step 1: Determine household size and category**
+- Household size: 1 person
+- Elderly (60+",,3.014490208006464,153,64,217,0,0,0.002365
+claude-opus,scenario_036,ssi,,"I need to determine the SSI amount for a single individual who is 85 years old, disabled, and blind, with no employment income, living in South Carolina for 2025.
+
+**Federal SSI Base Amount for 2025:**
+The federal SSI benefit rate for an eligible individual in ",,3.6663243749935646,155,64,219,0,0,0.0023750000000000004
+claude-opus,scenario_036,free_school_meals,0.0,0,,2.6064092500018887,165,5,170,0,0,0.0009500000000000001
+claude-opus,scenario_036,is_medicaid_eligible,,"To determine Medicaid eligibility for this household in South Carolina for tax year 2025:
+
+**Household details:**
+- Single filer, 85 years old
+- $0 annual employment income
+- Disabled and blind
+- No children
+
+**South Carolina Medicaid Analysis:**",,3.1720272089878563,165,64,229,0,0,0.002425
+claude-opus,scenario_036,household_state_income_tax,,"I need to calculate the South Carolina state income tax liability for a single filer who is 85 years old, disabled, blind, with $0 in employment income and no children.
+
+Since the taxpayer has $0 in annual employment income and no other income is mentioned, their gross income is $",,3.303231291996781,148,64,212,0,0,0.00234
+claude-opus,scenario_036,household_net_income,,"I need to calculate the net income for an 85-year-old single filer in South Carolina with $0 employment income who is disabled and blind.
+
+## Market Income
+- Employment income: $0
+- Total market income: $0
+
+## Federal Benefits
+
+**Social Security:** With $0",,3.118389749986818,155,64,219,0,0,0.0023750000000000004
+claude-opus,scenario_036,household_benefits,,"I need to calculate the total government benefits for an 85-year-old single filer in South Carolina with $0 employment income who is disabled and blind.
+
+Let me go through each potential benefit:
+
+**1. Social Security (SSI - Supplemental Security Income)**
+With $0 ",,2.797771375015145,148,64,212,0,0,0.00234
+claude-opus,scenario_036,household_market_income,0.0,0,,2.0887928330048453,156,5,161,0,0,0.0009050000000000001
+claude-opus,scenario_036,marginal_tax_rate,,"I need to find the effective marginal tax rate for an 85-year-old single filer in South Carolina with $0 employment income who is disabled and blind, for tax year 2025.
+
+Since they have $0 income, I need to determine the marginal rate on the next dollar",,3.2886408340127673,167,64,231,0,0,0.002435
+claude-opus,scenario_037,income_tax,,"I need to calculate the federal income tax liability for this single filer.
+
+**Step 1: Determine Gross Income**
+
+- Employment income: $0
+- Taxable interest: $1
+- Social Security retirement income: $10,872
+
+**Step 2: Determine how much",,2.8630680830101483,168,64,232,0,0,0.0024400000000000003
+claude-opus,scenario_037,income_tax_before_refundable_credits,,"I need to calculate the federal income tax before refundable credits for this taxpayer.
+
+**Step 1: Determine Gross Income**
+
+First, I need to figure out how much Social Security is taxable.
+
+- Taxable interest: $1
+- Social Security benefits: $10,",,12.684555165993515,171,64,235,0,0,0.002455
+claude-opus,scenario_037,eitc,0.0,0,,1.933140083012404,169,5,174,0,0,0.00097
+claude-opus,scenario_037,ctc,0.0,0,,1.956420958013041,167,5,172,0,0,0.00096
+claude-opus,scenario_037,income_tax_refundable_credits,,"I need to determine the total refundable tax credits for this single filer in Hawaii for tax year 2025.
+
+**Household Profile:**
+- Single filer, 75 years old, disabled
+- $0 employment income
+- $1 taxable interest income
+- $10",,2.507275624986505,169,64,233,0,0,0.002445
+claude-opus,scenario_037,snap,,"I need to calculate the annual SNAP benefit for a single elderly/disabled individual in Hawaii.
+
+**Step 1: Determine Gross Income**
+- Employment income: $0
+- Taxable interest: $1
+- Social Security: $10,872
+
+For SNAP, Social Security income",,2.8076302080007736,172,64,236,0,0,0.0024600000000000004
+claude-opus,scenario_037,ssi,,"I need to calculate the SSI amount for this individual in Hawaii for 2025.
+
+**Step 1: Determine SSI Eligibility**
+
+SSI is available to individuals who are aged (65+), blind, or disabled, and who have limited income and resources. This person is 75",,7.104970666026929,174,64,238,0,0,0.00247

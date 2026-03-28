@@ -18,7 +18,7 @@ Policy analysis is a domain where approximate answers can be worse than no answe
 
 The stakes are compounded by the complexity of the US tax-and-benefit system. Federal income tax alone involves multiple filing statuses, bracket structures, deductions, exemptions, and credits --- each with its own phase-in and phase-out schedules. Layered on top are state income taxes (with their own brackets and rules), means-tested benefits like SNAP and SSI (with asset tests, income disregards, and categorical eligibility rules), and tax credits like the EITC and CTC (with earned income requirements, child age limits, and investment income thresholds). These programs interact in ways that create effective marginal tax rates that are discontinuous, non-monotonic, and difficult to compute even for domain experts.
 
-Microsimulation models exist precisely to handle this complexity. Tools like PolicyEngine-US encode the full logic of each program and compute exact outcomes for arbitrary household configurations. The question is whether AI models, armed with their training data, can approximate these computations --- or whether they require access to such tools to produce reliable results.
+Microsimulation models exist precisely to handle this complexity. Tools like PolicyEngine-US encode the full logic of each program and compute exact outcomes for arbitrary household configurations. The question is whether AI models, armed only with their training data, can approximate these computations well enough to be useful.
 
 ## Prior work
 
@@ -26,14 +26,14 @@ Benchmarking AI models on quantitative reasoning tasks is a well-established are
 
 However, benchmarks for tax and benefit computation are scarce. TaxBench evaluated LLMs on tax preparation questions but focused on qualitative understanding of tax rules rather than precise numerical computation for specific households. No prior benchmark, to our knowledge, has systematically evaluated frontier models on their ability to compute exact tax liabilities, credit amounts, and benefit levels for diverse household scenarios across multiple programs.
 
-PolicyBench fills this gap. It provides a rigorous, reproducible benchmark that isolates the computational challenge: given a fully specified household and a specific policy variable, can the model produce the correct numerical answer? By testing under two conditions --- with and without tool access --- we can separate what models know from what they can compute.
+PolicyBench fills this gap. It provides a rigorous, reproducible benchmark that isolates the computational challenge: given a fully specified household and a specific policy variable, can the model produce the correct numerical answer without external computation?
 
 ## This paper's contributions
 
 This paper makes three contributions:
 
-1. **A new benchmark for AI-assisted policy analysis.** PolicyBench defines 100 household scenarios across 12 US states with varying income levels ($0--$500,000), filing statuses, and family compositions. For each scenario, we evaluate 14 tax-and-benefit variables, producing 1,400 ground-truth values computed by PolicyEngine-US. This benchmark is open-source and extensible to additional countries and programs.
+1. **A new benchmark for AI-assisted policy analysis.** PolicyBench defines 100 household scenarios by sampling realistic cases from the Enhanced CPS and encoding them faithfully in PolicyEngine-US. For each scenario, we evaluate 10 tax-and-benefit variables, producing 1,000 ground-truth values. This benchmark is open-source and extensible to additional countries and programs.
 
-2. **An empirical evaluation of frontier model capabilities.** We test GPT-5.2, Claude Sonnet 4.5, and Claude Opus 4.6 under both AI-alone and tool-augmented conditions. Our results quantify the gap between what models know about policy rules and what they can accurately compute.
+2. **An empirical evaluation of frontier model capabilities.** We test Claude Opus 4.6, Claude Sonnet 4.6, GPT-5.4, and Gemini 3.1 Pro Preview in a no-tools setting. Our results quantify how much household-level policy calculation frontier models can actually do from parametric knowledge alone.
 
-3. **Evidence for tool-augmented policy analysis.** We show that tool access transforms model performance from unreliable to near-perfect, demonstrating that the computational tool matters more than the choice of frontier model. This finding has direct implications for how AI systems should be designed for policy analysis applications.
+3. **Evidence about the limits of unaided policy calculation.** We show where frontier models systematically fail on thresholds, phase-outs, state variation, and program interactions, and provide a benchmark that can track whether future model generations close that gap.

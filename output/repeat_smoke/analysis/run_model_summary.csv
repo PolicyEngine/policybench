@@ -1,0 +1,3 @@
+run_id,model,mean_mae,mean_mape,mean_within_10pct,mean_accuracy,mean_coverage,total_n,parsed_n
+run_000,gpt-5.4,10.0,0.07500000000000001,1.0,,1.0,2,2
+run_001,gpt-5.4,5.0,0.025,1.0,,1.0,2,2

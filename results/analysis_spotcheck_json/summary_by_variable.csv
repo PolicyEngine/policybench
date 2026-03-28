@@ -1,0 +1,15 @@
+variable,mean_mae,mean_mape,mean_within_10pct,mean_accuracy,mean_coverage,total_n,parsed_n
+ctc,0.0,,1.0,,1.0,8,8
+eitc,0.0,,1.0,,1.0,8,8
+free_school_meals,0.125,,,0.875,1.0,8,8
+household_benefits,937.31201171875,0.07048883344940007,0.875,,0.875,8,7
+household_market_income,7417.0,0.30325455883555485,0.5,,0.875,8,7
+household_net_income,11106.099609375,0.2401969345896765,0.25,,0.5,8,4
+household_state_income_tax,213.6875,0.5744281550825754,0.0,,0.5,8,4
+income_tax,69.25,0.029200927682901116,0.5,,0.5,8,4
+income_tax_before_refundable_credits,269.0,0.0700681706374306,0.5,,0.625,8,5
+income_tax_refundable_credits,0.0,,0.75,,0.75,8,6
+is_medicaid_eligible,0.8333333333333334,,,0.375,0.75,8,6
+marginal_tax_rate,0.40832421159744264,,0.0,,0.5,8,4
+snap,1190.050048828125,2.8344657950055385,0.375,,0.75,8,6
+ssi,0.0,,0.875,,0.875,8,7

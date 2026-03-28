@@ -6,13 +6,12 @@ TAX_YEAR = 2025
 # Random seed for reproducible scenario generation
 SEED = 42
 
-# Models to benchmark (latest from each provider as of Feb 2026)
+# Models to benchmark (latest provider-published versions as of 2026-03-25)
 MODELS = {
     "claude-opus": "claude-opus-4-6",
-    "claude-sonnet-4.5": "claude-sonnet-4-5-20250929",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
-    "gpt-5.2": "gpt-5.2",
-    "gemini-3-pro": "gemini/gemini-3-pro-preview",
+    "gpt-5.4": "gpt-5.4",
+    "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
 }
 
 # PolicyEngine-US variables to evaluate
@@ -31,103 +30,13 @@ PROGRAMS = [
     "is_medicaid_eligible",
     # State tax
     "household_state_income_tax",
-    # Aggregates
-    "household_net_income",
-    "household_benefits",
-    "household_market_income",
-    # Rates
-    "marginal_tax_rate",
 ]
 
 # Binary (eligibility) variables — evaluated with accuracy, not MAE
 BINARY_PROGRAMS = ["is_medicaid_eligible", "free_school_meals"]
 
 # Rate variables — evaluated with absolute error, not percentage
-RATE_PROGRAMS = ["marginal_tax_rate"]
-
-# States to include in scenarios
-STATES = [
-    "CA",
-    "TX",
-    "NY",
-    "FL",
-    "IL",
-    "PA",
-    "OH",
-    "GA",
-    "NC",
-    "WA",
-    "MA",
-    "CO",
-]
-
-# Filing statuses
-FILING_STATUSES = ["single", "joint", "head_of_household"]
-
-# Income levels to sample from (annual employment income)
-INCOME_LEVELS = [
-    0,
-    5_000,
-    10_000,
-    15_000,
-    20_000,
-    25_000,
-    30_000,
-    40_000,
-    50_000,
-    60_000,
-    75_000,
-    100_000,
-    125_000,
-    150_000,
-    200_000,
-    250_000,
-    300_000,
-    400_000,
-    500_000,
-]
-
-# Number of children options
-NUM_CHILDREN_OPTIONS = [0, 1, 2, 3, 4]
+RATE_PROGRAMS = []
 
 # Number of scenarios to generate
 NUM_SCENARIOS = 100
-
-# PolicyEngine tool definition for LiteLLM tool-calling
-PE_TOOL_DEFINITION = {
-    "type": "function",
-    "function": {
-        "name": "calculate_policy",
-        "description": (
-            "Calculate a US tax or benefit variable for a specific household "
-            "using PolicyEngine-US microsimulation. Returns the exact computed "
-            "value for the given household and variable."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "household": {
-                    "type": "object",
-                    "description": (
-                        "Household definition with 'people', 'tax_units', "
-                        "'spm_units', 'families', 'households' keys. "
-                        "Each person needs age, employment_income. "
-                        "Household needs state_code."
-                    ),
-                },
-                "variable": {
-                    "type": "string",
-                    "description": (
-                        "The PolicyEngine-US variable to calculate, e.g. "
-                        "'income_tax', 'snap', 'eitc'."
-                    ),
-                },
-                "year": {
-                    "type": "integer",
-                    "description": "Tax year for the calculation.",
-                },
-            },
-            "required": ["household", "variable", "year"],
-        },
-    },
-}

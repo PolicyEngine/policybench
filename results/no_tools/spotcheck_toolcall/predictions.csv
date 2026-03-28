@@ -1,0 +1,114 @@
+model,scenario_id,variable,prediction,raw_response,error,elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens,estimated_cost_usd
+claude-opus,scenario_087,income_tax,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.8946144999936223,942.0,33.0,975.0,0.0,0.0,0.005535000000000001
+claude-opus,scenario_087,income_tax_before_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,7.527108500013128,945.0,33.0,978.0,0.0,0.0,0.00555
+claude-opus,scenario_087,eitc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,3.5067261660005897,943.0,33.0,976.0,0.0,0.0,0.005540000000000001
+claude-opus,scenario_087,ctc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.5701079170103185,941.0,33.0,974.0,0.0,0.0,0.00553
+claude-opus,scenario_087,income_tax_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,10.482060125010321,943.0,33.0,976.0,0.0,0.0,0.005540000000000001
+claude-opus,scenario_087,snap,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,11.046653957979288,946.0,33.0,979.0,0.0,0.0,0.005555000000000001
+claude-opus,scenario_087,ssi,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,9.92410933302017,948.0,33.0,981.0,0.0,0.0,0.0055650000000000005
+claude-opus,scenario_087,free_school_meals,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.3603541670017876,958.0,33.0,991.0,0.0,0.0,0.005615
+claude-opus,scenario_087,is_medicaid_eligible,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.18081587497727,958.0,33.0,991.0,0.0,0.0,0.005615
+claude-opus,scenario_087,household_state_income_tax,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.4806800840015057,941.0,33.0,974.0,0.0,0.0,0.00553
+claude-opus,scenario_087,household_net_income,24458.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 24458}""}]}",,2.7381830000085756,948.0,34.0,982.0,0.0,0.0,0.00559
+claude-opus,scenario_087,household_benefits,19776.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 19776}""}]}",,5.945590917021036,941.0,34.0,975.0,0.0,0.0,0.005555
+claude-opus,scenario_087,household_market_income,4682.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 4682}""}]}",,2.25384704201133,949.0,34.0,983.0,0.0,0.0,0.005595
+claude-opus,scenario_087,marginal_tax_rate,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0.0}""}]}",,2.417952082992997,960.0,35.0,995.0,0.0,0.0,0.005675
+claude-opus,scenario_088,income_tax,4543.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 4543}""}]}",,5.89334583299933,865.0,34.0,899.0,0.0,0.0,0.005175000000000001
+claude-opus,scenario_088,income_tax_before_refundable_credits,5113.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 5113}""}]}",,2.6703594159916975,868.0,34.0,902.0,0.0,0.0,0.00519
+claude-opus,scenario_088,eitc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,15.668862791004358,866.0,33.0,899.0,0.0,0.0,0.005155000000000001
+claude-opus,scenario_088,ctc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.105831583001418,864.0,33.0,897.0,0.0,0.0,0.005145
+claude-opus,scenario_088,income_tax_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.1706322499958333,866.0,33.0,899.0,0.0,0.0,0.005155000000000001
+claude-opus,scenario_088,snap,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.5947773749940097,869.0,33.0,902.0,0.0,0.0,0.005170000000000001
+claude-opus,scenario_088,ssi,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.224527583020972,871.0,33.0,904.0,0.0,0.0,0.005180000000000001
+claude-opus,scenario_088,free_school_meals,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.7341585000103805,881.0,33.0,914.0,0.0,0.0,0.00523
+claude-opus,scenario_088,is_medicaid_eligible,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.326805708988104,881.0,33.0,914.0,0.0,0.0,0.00523
+claude-opus,scenario_088,household_state_income_tax,2583.75,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 2583.75}""}]}",,2.679755999997724,864.0,36.0,900.0,0.0,0.0,0.00522
+claude-opus,scenario_088,household_net_income,63653.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 63653}""}]}",,2.684914541983744,871.0,34.0,905.0,0.0,0.0,0.005205
+claude-opus,scenario_088,household_benefits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,3.5974391249765176,864.0,33.0,897.0,0.0,0.0,0.005145
+claude-opus,scenario_088,household_market_income,75000.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 75000}""}]}",,17.778597625001566,872.0,34.0,906.0,0.0,0.0,0.00521
+claude-opus,scenario_088,marginal_tax_rate,0.3415,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0.3415}""}]}",,2.052561999997124,883.0,36.0,919.0,0.0,0.0,0.005315
+claude-sonnet-4.6,scenario_087,income_tax,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.4029482080077287,942.0,33.0,975.0,0.0,0.0,0.003321
+claude-sonnet-4.6,scenario_087,income_tax_before_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.5501708750089165,945.0,33.0,978.0,0.0,0.0,0.0033300000000000005
+claude-sonnet-4.6,scenario_087,eitc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.255346791993361,943.0,33.0,976.0,0.0,0.0,0.0033239999999999997
+claude-sonnet-4.6,scenario_087,ctc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.6697301249951124,941.0,33.0,974.0,0.0,0.0,0.0033179999999999998
+claude-sonnet-4.6,scenario_087,income_tax_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.5042602909961715,943.0,33.0,976.0,0.0,0.0,0.0033239999999999997
+claude-sonnet-4.6,scenario_087,snap,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,0.9799094999907538,946.0,33.0,979.0,0.0,0.0,0.003333
+claude-sonnet-4.6,scenario_087,ssi,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.0891924999887124,948.0,33.0,981.0,0.0,0.0,0.003339
+claude-sonnet-4.6,scenario_087,free_school_meals,1.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 1}""}]}",,1.57218854202074,958.0,33.0,991.0,0.0,0.0,0.0033690000000000005
+claude-sonnet-4.6,scenario_087,is_medicaid_eligible,1.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 1}""}]}",,2.0933565000013914,958.0,33.0,991.0,0.0,0.0,0.0033690000000000005
+claude-sonnet-4.6,scenario_087,household_state_income_tax,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,9.35257016698597,941.0,33.0,974.0,0.0,0.0,0.0033179999999999998
+claude-sonnet-4.6,scenario_087,household_net_income,,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{}""}]}",,1.5233046670036856,948.0,16.0,964.0,0.0,0.0,0.0030840000000000004
+claude-sonnet-4.6,scenario_087,household_benefits,19776.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 19776}""}]}",,1.5639506669831462,941.0,34.0,975.0,0.0,0.0,0.003333
+claude-sonnet-4.6,scenario_087,household_market_income,4682.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 4682}""}]}",,1.5462240000197198,949.0,34.0,983.0,0.0,0.0,0.003357
+claude-sonnet-4.6,scenario_087,marginal_tax_rate,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.5963167919835541,960.0,33.0,993.0,0.0,0.0,0.0033750000000000004
+claude-sonnet-4.6,scenario_088,income_tax,6158.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 6158}""}]}",,1.6988846250169445,865.0,34.0,899.0,0.0,0.0,0.003105
+claude-sonnet-4.6,scenario_088,income_tax_before_refundable_credits,5528.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 5528}""}]}",,1.6232956669991836,868.0,34.0,902.0,0.0,0.0,0.003114
+claude-sonnet-4.6,scenario_088,eitc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,0.9792910830001347,866.0,33.0,899.0,0.0,0.0,0.0030930000000000003
+claude-sonnet-4.6,scenario_088,ctc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.9499692499812227,864.0,33.0,897.0,0.0,0.0,0.0030870000000000003
+claude-sonnet-4.6,scenario_088,income_tax_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.6108938340039458,866.0,33.0,899.0,0.0,0.0,0.0030930000000000003
+claude-sonnet-4.6,scenario_088,snap,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,0.9695970410248265,869.0,33.0,902.0,0.0,0.0,0.0031019999999999997
+claude-sonnet-4.6,scenario_088,ssi,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.2201995000068564,871.0,33.0,904.0,0.0,0.0,0.0031079999999999997
+claude-sonnet-4.6,scenario_088,free_school_meals,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.1100870000082068,881.0,33.0,914.0,0.0,0.0,0.003138
+claude-sonnet-4.6,scenario_088,is_medicaid_eligible,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.716343833017163,881.0,33.0,914.0,0.0,0.0,0.003138
+claude-sonnet-4.6,scenario_088,household_state_income_tax,3695.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 3695}""}]}",,2.8058907910017297,864.0,34.0,898.0,0.0,0.0,0.003102
+claude-sonnet-4.6,scenario_088,household_net_income,62941.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 62941}""}]}",,1.8700740410131402,871.0,34.0,905.0,0.0,0.0,0.003123
+claude-sonnet-4.6,scenario_088,household_benefits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.635358666011598,864.0,33.0,897.0,0.0,0.0,0.0030870000000000003
+claude-sonnet-4.6,scenario_088,household_market_income,75000.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 75000}""}]}",,1.5229514589882456,872.0,34.0,906.0,0.0,0.0,0.0031260000000000003
+claude-sonnet-4.6,scenario_088,marginal_tax_rate,0.2965,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0.2965}""}]}",,2.015738166985102,883.0,36.0,919.0,0.0,0.0,0.003189
+gpt-5.4,scenario_087,income_tax,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,3.182048999995459,376.0,17.0,393.0,0.0,0.0,0.001195
+gpt-5.4,scenario_087,income_tax_before_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,0.983694458991522,377.0,17.0,394.0,0.0,0.0,0.0011975000000000002
+gpt-5.4,scenario_087,eitc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.6186223329859786,377.0,17.0,394.0,0.0,0.0,0.0011975000000000002
+gpt-5.4,scenario_087,ctc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.512058291991707,375.0,17.0,392.0,0.0,0.0,0.0011925
+gpt-5.4,scenario_087,income_tax_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.6250508329831064,375.0,17.0,392.0,0.0,0.0,0.0011925
+gpt-5.4,scenario_087,snap,2148.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":2148}""}]}",,1.7332120839855634,379.0,18.0,397.0,0.0,0.0,0.0012175
+gpt-5.4,scenario_087,ssi,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.5474124159954954,379.0,17.0,396.0,0.0,0.0,0.0012025
+gpt-5.4,scenario_087,free_school_meals,1.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":1}""}]}",,1.40233241597889,389.0,17.0,406.0,0.0,0.0,0.0012275
+gpt-5.4,scenario_087,is_medicaid_eligible,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,0.9877689589920919,388.0,17.0,405.0,0.0,0.0,0.001225
+gpt-5.4,scenario_087,household_state_income_tax,110.48,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":110.48}""}]}",,1.3728699580242392,375.0,19.0,394.0,0.0,0.0,0.0012225
+gpt-5.4,scenario_087,household_net_income,24458.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":24458}""}]}",,1.0935487499809824,382.0,18.0,400.0,0.0,0.0,0.0012250000000000002
+gpt-5.4,scenario_087,household_benefits,19776.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":19776}""}]}",,2.0143116250110324,375.0,18.0,393.0,0.0,0.0,0.0012075
+gpt-5.4,scenario_087,household_market_income,468.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":468}""}]}",,1.064341333025368,381.0,17.0,398.0,0.0,0.0,0.0012075000000000002
+gpt-5.4,scenario_087,marginal_tax_rate,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.5662067500234116,391.0,17.0,408.0,0.0,0.0,0.0012325
+gpt-5.4,scenario_088,income_tax,4190.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":4190}""}]}",,1.3008965000044554,312.0,18.0,330.0,0.0,0.0,0.0010500000000000002
+gpt-5.4,scenario_088,income_tax_before_refundable_credits,5281.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":5281}""}]}",,1.5714664999977686,313.0,18.0,331.0,0.0,0.0,0.0010525
+gpt-5.4,scenario_088,eitc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.4596432089747395,313.0,17.0,330.0,0.0,0.0,0.0010375000000000002
+gpt-5.4,scenario_088,ctc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.413523334020283,311.0,17.0,328.0,0.0,0.0,0.0010325
+gpt-5.4,scenario_088,income_tax_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.5314397499896586,311.0,17.0,328.0,0.0,0.0,0.0010325
+gpt-5.4,scenario_088,snap,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.5063940410036594,315.0,17.0,332.0,0.0,0.0,0.0010425
+gpt-5.4,scenario_088,ssi,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.5857827920117415,315.0,17.0,332.0,0.0,0.0,0.0010425
+gpt-5.4,scenario_088,free_school_meals,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.1841795000073034,325.0,17.0,342.0,0.0,0.0,0.0010675
+gpt-5.4,scenario_088,is_medicaid_eligible,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.6897378750145435,324.0,17.0,341.0,0.0,0.0,0.001065
+gpt-5.4,scenario_088,household_state_income_tax,3064.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":3064}""}]}",,1.636667375016259,311.0,18.0,329.0,0.0,0.0,0.0010475
+gpt-5.4,scenario_088,household_net_income,61268.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":61268}""}]}",,1.523818708024919,318.0,18.0,336.0,0.0,0.0,0.001065
+gpt-5.4,scenario_088,household_benefits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.5037613750027958,311.0,17.0,328.0,0.0,0.0,0.0010325
+gpt-5.4,scenario_088,household_market_income,75000.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":75000}""}]}",,2.001100374996895,317.0,18.0,335.0,0.0,0.0,0.0010625
+gpt-5.4,scenario_088,marginal_tax_rate,0.2275,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0.2275}""}]}",,1.1234847089799587,327.0,20.0,347.0,0.0,0.0,0.0011175
+gemini-3.1-pro-preview,scenario_087,income_tax,,,,7.473034499998903,326.0,0.0,326.0,,,0.000652
+gemini-3.1-pro-preview,scenario_087,income_tax_before_refundable_credits,,,,7.996894790994702,327.0,0.0,327.0,,,0.000654
+gemini-3.1-pro-preview,scenario_087,eitc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,6.021588540985249,567.0,254.0,821.0,240.0,,0.004182
+gemini-3.1-pro-preview,scenario_087,ctc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,3.037876332993619,325.0,98.0,423.0,84.0,,0.001826
+gemini-3.1-pro-preview,scenario_087,income_tax_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,10.896359250007663,567.0,354.0,921.0,340.0,,0.005382
+gemini-3.1-pro-preview,scenario_087,snap,,,,10.433486583002377,329.0,0.0,329.0,,,0.000658
+gemini-3.1-pro-preview,scenario_087,ssi,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,13.527256417000899,570.0,476.0,1046.0,462.0,,0.0068520000000000005
+gemini-3.1-pro-preview,scenario_087,free_school_meals,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,3.64423975002137,339.0,145.0,484.0,131.0,,0.002418
+gemini-3.1-pro-preview,scenario_087,is_medicaid_eligible,,,,14.63424600000144,338.0,0.0,338.0,,,0.000676
+gemini-3.1-pro-preview,scenario_087,household_state_income_tax,,,,8.168206791975535,325.0,0.0,325.0,,,0.00065
+gemini-3.1-pro-preview,scenario_087,household_net_income,,,,9.096847792010522,332.0,0.0,332.0,,,0.000664
+gemini-3.1-pro-preview,scenario_087,household_benefits,,,,17.807639291975647,325.0,0.0,325.0,,,0.00065
+gemini-3.1-pro-preview,scenario_087,household_market_income,4682.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 4682}""}]}",,9.500213708000956,577.0,405.0,982.0,388.0,,0.006014
+gemini-3.1-pro-preview,scenario_087,marginal_tax_rate,,,,9.435088582977187,344.0,0.0,344.0,,,0.0006879999999999999
+gemini-3.1-pro-preview,scenario_088,income_tax,,,Timeout: litellm.Timeout: Connection timed out after None seconds.,,,,,,,
+gemini-3.1-pro-preview,scenario_088,income_tax_before_refundable_credits,,,,8.978880624985322,254.0,0.0,254.0,,,0.000508
+gemini-3.1-pro-preview,scenario_088,eitc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,4.011752708000131,254.0,233.0,487.0,219.0,,0.0033040000000000005
+gemini-3.1-pro-preview,scenario_088,ctc,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,3.0080736659874674,252.0,128.0,380.0,114.0,,0.00204
+gemini-3.1-pro-preview,scenario_088,income_tax_refundable_credits,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,11.002781000017421,494.0,435.0,929.0,421.0,,0.006208
+gemini-3.1-pro-preview,scenario_088,snap,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,6.639882417017361,500.0,393.0,893.0,379.0,,0.005716
+gemini-3.1-pro-preview,scenario_088,ssi,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,3.823050457984209,256.0,191.0,447.0,177.0,,0.002804
+gemini-3.1-pro-preview,scenario_088,free_school_meals,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,4.174094333022367,266.0,120.0,386.0,106.0,,0.0019720000000000002
+gemini-3.1-pro-preview,scenario_088,is_medicaid_eligible,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,6.8189414579828735,503.0,252.0,755.0,238.0,,0.004030000000000001
+gemini-3.1-pro-preview,scenario_088,household_state_income_tax,,,,8.83683020900935,252.0,0.0,252.0,,,0.000504
+gemini-3.1-pro-preview,scenario_088,household_net_income,,,,7.646037458995124,259.0,0.0,259.0,,,0.000518
+gemini-3.1-pro-preview,scenario_088,household_benefits,,,,18.20887845798279,252.0,0.0,252.0,,,0.000504
+gemini-3.1-pro-preview,scenario_088,household_market_income,75000.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 75000}""}]}",,3.5592675829830114,260.0,124.0,384.0,106.0,,0.0020080000000000002
+gemini-3.1-pro-preview,scenario_088,marginal_tax_rate,,"2%
+1000 - 20",,9.358839209016878,513.0,497.0,1010.0,486.0,,0.0069900000000000006

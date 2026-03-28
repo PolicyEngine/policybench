@@ -9,7 +9,7 @@ ruff format .             # Format
 ```
 
 ## Architecture
-- **Two conditions**: AI alone (EDSL) vs AI with PE tools (LiteLLM)
+- **One condition**: AI alone (no tools)
 - **Ground truth**: policyengine-us Simulation
 - **TDD**: Write tests first, then implement
 
@@ -18,12 +18,11 @@ ruff format .             # Format
 - `policybench/scenarios.py` — Household scenario generation
 - `policybench/ground_truth.py` — PE-US calculations
 - `policybench/prompts.py` — Natural language prompt templates
-- `policybench/eval_no_tools.py` — EDSL-based AI-alone benchmark
-- `policybench/eval_with_tools.py` — LiteLLM tool-calling benchmark
+- `policybench/eval_no_tools.py` — LiteLLM-based AI-alone benchmark
 - `policybench/analysis.py` — Metrics and reporting
 
 ## Testing
-- All tests mock external calls (EDSL, LiteLLM, PE-US API)
+- All tests mock external calls (LiteLLM, PE-US API)
 - `pytest -m "not slow"` to skip slow tests
 - Full benchmark runs are manual and expensive
 

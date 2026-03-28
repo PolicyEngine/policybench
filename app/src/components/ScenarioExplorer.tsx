@@ -1,19 +1,9 @@
 import { useState, useMemo } from "react";
 import type { BenchData } from "../App";
+import { formatDollars } from "../lib/format";
+import { MODEL_COLORS, MODEL_LABELS, MODEL_ORDER } from "../modelMeta";
 
-const MODEL_LABELS: Record<string, string> = {
-  "claude-opus": "Claude Opus 4.6",
-  "claude-sonnet-4.5": "Claude Sonnet 4.5",
-  "claude-sonnet-4.6": "Claude Sonnet 4.6",
-  "gpt-5.2": "GPT-5.2",
-};
-
-const MODEL_COLORS: Record<string, string> = {
-  "claude-opus": "#00d4ff",
-  "claude-sonnet-4.5": "#ffaa00",
-  "claude-sonnet-4.6": "#00ff88",
-  "gpt-5.2": "#ff4466",
-};
+type PromptByVariable = Record<string, { tool?: string; json?: string }>;
 
 const VARIABLE_LABELS: Record<string, string> = {
   income_tax: "Income tax",
@@ -26,18 +16,7 @@ const VARIABLE_LABELS: Record<string, string> = {
   free_school_meals: "Free school meals",
   is_medicaid_eligible: "Medicaid eligible",
   household_state_income_tax: "State income tax",
-  household_net_income: "Net income",
-  household_benefits: "Total benefits",
-  household_market_income: "Market income",
-  marginal_tax_rate: "Marginal tax rate",
 };
-
-function fmt(v: number): string {
-  if (v === 0) return "$0";
-  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1_000) return `$${(v / 1_000).toFixed(1)}k`;
-  return `$${v.toFixed(0)}`;
-}
 
 function errorColor(error: number, truth: number): string {
   if (truth === 0 && error === 0) return "#00ff88";
@@ -54,13 +33,13 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
     [data]
   );
   const [selectedScenario, setSelectedScenario] = useState(scenarioIds[0]);
-  const [condition, setCondition] = useState<"no_tools" | "with_tools">("no_tools");
+  const [selectedVariable, setSelectedVariable] = useState<string | null>(null);
 
   const scenario = data.scenarios[selectedScenario as keyof typeof data.scenarios];
 
   const predictions = useMemo(() => {
     const rows = data.scatter.filter(
-      (d) => d.scenario === selectedScenario && d.condition === condition
+      (d) => d.scenario === selectedScenario && d.condition === "no_tools"
     );
     // Group by variable
     const byVar: Record<string, Record<string, { prediction: number; error: number; groundTruth: number }>> = {};
@@ -73,19 +52,26 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
       };
     }
     return byVar;
-  }, [data, selectedScenario, condition]);
+  }, [data, selectedScenario]);
 
   const variables = useMemo(
     () => Object.keys(predictions).sort(),
     [predictions]
   );
+  const activeVariable =
+    selectedVariable && variables.includes(selectedVariable)
+      ? selectedVariable
+      : variables[0];
+  const promptByVariable = (scenario as Record<string, unknown>)
+    .promptByVariable as PromptByVariable | undefined;
+  const activePrompt = activeVariable ? promptByVariable?.[activeVariable] : undefined;
 
   const models = useMemo(() => {
     const unique = new Set<string>();
     for (const varData of Object.values(predictions)) {
       for (const m of Object.keys(varData)) unique.add(m);
     }
-    return Object.keys(MODEL_LABELS).filter((m) => unique.has(m));
+    return MODEL_ORDER.filter((m) => unique.has(m));
   }, [predictions]);
 
   if (!scenario) return null;
@@ -103,8 +89,8 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
         className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Select a household to see every model's prediction for each program,
-        compared against PolicyEngine's ground truth.
+        Select a household to see every model&apos;s prediction for each program,
+        compared against PolicyEngine&apos;s ground truth.
       </p>
 
       {/* Controls row */}
@@ -124,34 +110,30 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
               return (
                 <option key={id} value={id}>
                   {id.replace("scenario_", "#")} &mdash; {s.state},{" "}
-                  {s.filingStatus}, ${Number(s.totalIncome).toLocaleString()}
+                  {s.filingStatus}, {formatDollars(Number(s.totalIncome))}
                 </option>
               );
             })}
           </select>
         </div>
 
-        {/* Condition toggle */}
-        <div className="flex bg-surface rounded-lg p-0.5 border border-border-subtle">
-          {(
-            [
-              ["no_tools", "AI alone"],
-              ["with_tools", "With tools"],
-            ] as const
-          ).map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setCondition(val)}
-              className={`px-4 py-1.5 rounded-md text-xs font-medium tracking-wider uppercase transition-all ${
-                condition === val
-                  ? "bg-card text-text shadow-sm"
-                  : "text-text-muted hover:text-text-secondary"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div>
+          <label className="block text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium mb-1.5">
+            Prompt variable
+          </label>
+          <select
+            value={activeVariable}
+            onChange={(e) => setSelectedVariable(e.target.value)}
+            className="bg-surface border border-border text-text text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-cyan/50"
+          >
+            {variables.map((variable) => (
+              <option key={variable} value={variable}>
+                {VARIABLE_LABELS[variable] || variable.replace(/_/g, " ")}
+              </option>
+            ))}
+          </select>
         </div>
+
       </div>
 
       {/* Scenario summary card */}
@@ -161,7 +143,7 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
           ["Filing status", scenario.filingStatus],
           ["Adults", String(scenario.numAdults)],
           ["Children", String(scenario.numChildren)],
-          ["Income", fmt(scenario.totalIncome as number)],
+          ["Income", formatDollars(scenario.totalIncome as number)],
         ].map(([label, value]) => (
           <div key={label}>
             <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
@@ -173,6 +155,46 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
           </div>
         ))}
       </div>
+
+      {activeVariable && activePrompt && (
+        <details
+          className="card px-5 py-4 mt-6 animate-fade-up"
+          style={{ animationDelay: "280ms" }}
+        >
+          <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                Exact prompts
+              </div>
+              <div className="text-text text-sm mt-1">
+                {VARIABLE_LABELS[activeVariable] || activeVariable.replace(/_/g, " ")}
+              </div>
+            </div>
+            <div className="text-text-muted text-xs">
+              GPT/Claude use function calling; Gemini uses JSON mode
+            </div>
+          </summary>
+
+          <div className="grid md:grid-cols-2 gap-4 mt-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium mb-2">
+                Function-call contract
+              </div>
+              <pre className="bg-surface rounded-lg border border-border-subtle p-3 text-xs text-text-secondary whitespace-pre-wrap leading-relaxed overflow-x-auto">
+                {activePrompt.tool}
+              </pre>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium mb-2">
+                JSON contract
+              </div>
+              <pre className="bg-surface rounded-lg border border-border-subtle p-3 text-xs text-text-secondary whitespace-pre-wrap leading-relaxed overflow-x-auto">
+                {activePrompt.json}
+              </pre>
+            </div>
+          </div>
+        </details>
+      )}
 
       {/* Results table */}
       <div className="mt-6 overflow-x-auto animate-fade-up" style={{ animationDelay: "320ms" }}>
@@ -206,21 +228,29 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
               const varData = predictions[v] || {};
               const truth = Object.values(varData)[0]?.groundTruth ?? 0;
               const isBinary = v === "is_medicaid_eligible" || v === "free_school_meals";
-              const isRate = v === "marginal_tax_rate";
 
               return (
-                <tr key={v} className="border-t border-border-subtle">
+                <tr
+                  key={v}
+                  className={`border-t border-border-subtle ${
+                    activeVariable === v ? "bg-cyan-soft/10" : ""
+                  }`}
+                >
                   <td className="py-2.5 pr-4 text-sm text-text-secondary">
-                    {VARIABLE_LABELS[v] || v.replace(/_/g, " ")}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedVariable(v)}
+                      className="text-left hover:text-text transition-colors"
+                    >
+                      {VARIABLE_LABELS[v] || v.replace(/_/g, " ")}
+                    </button>
                   </td>
                   <td className="py-2.5 px-3 text-right font-[family-name:var(--font-mono)] text-sm text-text">
                     {isBinary
                       ? truth === 1
                         ? "Yes"
                         : "No"
-                      : isRate
-                        ? `${(truth * 100).toFixed(1)}%`
-                        : fmt(truth)}
+                      : formatDollars(truth)}
                   </td>
                   {models.map((m) => {
                     const pred = varData[m];
@@ -235,9 +265,7 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
                       ? pred.prediction === 1
                         ? "Yes"
                         : "No"
-                      : isRate
-                        ? `${(pred.prediction * 100).toFixed(1)}%`
-                        : fmt(pred.prediction);
+                      : formatDollars(pred.prediction);
 
                     const isCorrect = isBinary
                       ? pred.prediction === truth

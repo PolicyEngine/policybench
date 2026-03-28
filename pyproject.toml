@@ -25,9 +25,6 @@ dev = [
 ]
 docs = [
     "jupyter-book>=2.0",
-    "myst-nb>=1.0",
-    "matplotlib>=3.8",
-    "seaborn>=0.13",
 ]
 
 [project.scripts]

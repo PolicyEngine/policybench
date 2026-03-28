@@ -1,0 +1,41 @@
+model,scenario_id,variable,ground_truth,prediction,raw_response,error,elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens,estimated_cost_usd
+claude-opus,scenario_087,income_tax,0.0,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.3056467919959687,942,33,975,0.0,0.0,0.005535000000000001
+claude-opus,scenario_087,household_market_income,24458.0,4682.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 4682}""}]}",,2.0918141250149347,949,34,983,0.0,0.0,0.005595
+claude-opus,scenario_087,household_net_income,45727.69921875,24458.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 24458}""}]}",,9.459471750014927,948,34,982,0.0,0.0,0.00559
+claude-opus,scenario_087,is_medicaid_eligible,2.0,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,13.020418416010216,958,33,991,0.0,0.0,0.005615
+claude-opus,scenario_087,marginal_tax_rate,0.6353983879089355,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0.0}""}]}",,4.461307374993339,960,35,995,0.0,0.0,0.005675
+claude-opus,scenario_088,income_tax,4743.0,4543.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 4543}""}]}",,11.15996270798496,865,34,899,0.0,0.0,0.005175000000000001
+claude-opus,scenario_088,household_market_income,75000.0,75000.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 75000}""}]}",,1.9579324160004035,872,34,906,0.0,0.0,0.00521
+claude-opus,scenario_088,household_net_income,61688.75,63076.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 63076}""}]}",,7.2620473749993835,871,34,905,0.0,0.0,0.005205
+claude-opus,scenario_088,is_medicaid_eligible,0.0,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,2.5130030419968534,881,33,914,0.0,0.0,0.00523
+claude-opus,scenario_088,marginal_tax_rate,0.4880000352859497,0.3415,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0.3415}""}]}",,2.1197562500019558,883,36,919,0.0,0.0,0.005315
+claude-sonnet-4.6,scenario_087,income_tax,0.0,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.5816446249955334,942,33,975,0.0,0.0,0.003321
+claude-sonnet-4.6,scenario_087,household_market_income,24458.0,4682.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 4682}""}]}",,5.696901415998582,949,34,983,0.0,0.0,0.003357
+claude-sonnet-4.6,scenario_087,household_net_income,45727.69921875,24458.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 24458}""}]}",,10.232488416018896,948,34,982,0.0,0.0,0.003354
+claude-sonnet-4.6,scenario_087,is_medicaid_eligible,2.0,1.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 1}""}]}",,1.2720409579924308,958,33,991,0.0,0.0,0.0033690000000000005
+claude-sonnet-4.6,scenario_087,marginal_tax_rate,0.6353983879089355,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.614777500013588,960,33,993,0.0,0.0,0.0033750000000000004
+claude-sonnet-4.6,scenario_088,income_tax,4743.0,5768.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 5768}""}]}",,2.035709624993615,865,34,899,0.0,0.0,0.003105
+claude-sonnet-4.6,scenario_088,household_market_income,75000.0,75000.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 75000}""}]}",,1.1483167500118725,872,34,906,0.0,0.0,0.0031260000000000003
+claude-sonnet-4.6,scenario_088,household_net_income,61688.75,62761.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 62761}""}]}",,1.7688019579800311,871,34,905,0.0,0.0,0.003123
+claude-sonnet-4.6,scenario_088,is_medicaid_eligible,0.0,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,1.951521875016624,881,33,914,0.0,0.0,0.003138
+claude-sonnet-4.6,scenario_088,marginal_tax_rate,0.4880000352859497,0.32,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0.32}""}]}",,0.9893562079814728,883,35,918,0.0,0.0,0.0031739999999999997
+gpt-5.4,scenario_087,income_tax,0.0,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.0955872920167167,376,17,393,0.0,0.0,0.001195
+gpt-5.4,scenario_087,household_market_income,24458.0,468.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":468}""}]}",,2.171982708008727,381,17,398,0.0,0.0,0.0012075000000000002
+gpt-5.4,scenario_087,household_net_income,45727.69921875,245458.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":245458}""}]}",,1.9584062920184806,382,18,400,0.0,0.0,0.0012250000000000002
+gpt-5.4,scenario_087,is_medicaid_eligible,2.0,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.590357999986736,388,17,405,0.0,0.0,0.001225
+gpt-5.4,scenario_087,marginal_tax_rate,0.6353983879089355,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.5272401660040487,391,17,408,0.0,0.0,0.0012325
+gpt-5.4,scenario_088,income_tax,4743.0,4985.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":4985}""}]}",,1.2022242919774726,312,18,330,0.0,0.0,0.0010500000000000002
+gpt-5.4,scenario_088,household_market_income,75000.0,75000.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":75000}""}]}",,2.56644850000157,317,18,335,0.0,0.0,0.0010625
+gpt-5.4,scenario_088,household_net_income,61688.75,63263.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":63263}""}]}",,1.3947406250226777,318,18,336,0.0,0.0,0.001065
+gpt-5.4,scenario_088,is_medicaid_eligible,0.0,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0}""}]}",,1.689511709002545,324,17,341,0.0,0.0,0.001065
+gpt-5.4,scenario_088,marginal_tax_rate,0.4880000352859497,0.2815,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"":0.2815}""}]}",,1.615842832979979,327,20,347,0.0,0.0,0.0011175
+gemini-3.1-pro-preview,scenario_087,income_tax,0.0,,,,12.711196332995314,326,0,326,,,0.000652
+gemini-3.1-pro-preview,scenario_087,household_market_income,24458.0,4682.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 4682}""}]}",,8.80595529198763,575,388,963,371.0,,0.005806
+gemini-3.1-pro-preview,scenario_087,household_net_income,45727.69921875,,,,10.459747374989092,332,0,332,,,0.000664
+gemini-3.1-pro-preview,scenario_087,is_medicaid_eligible,2.0,,,,9.836460999998963,338,0,338,,,0.000676
+gemini-3.1-pro-preview,scenario_087,marginal_tax_rate,0.6353983879089355,,,,8.337581166997552,344,0,344,,,0.0006879999999999999
+gemini-3.1-pro-preview,scenario_088,income_tax,4743.0,,,,19.18995320799877,253,0,253,,,0.0005059999999999999
+gemini-3.1-pro-preview,scenario_088,household_market_income,75000.0,75000.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 75000}""}]}",,7.385429000016302,260,121,381,103.0,,0.0019720000000000002
+gemini-3.1-pro-preview,scenario_088,household_net_income,61688.75,,,,9.022421041008784,259,0,259,,,0.000518
+gemini-3.1-pro-preview,scenario_088,is_medicaid_eligible,0.0,0.0,"{""tool_calls"": [{""name"": ""submit_answer"", ""arguments"": ""{\""answer\"": 0}""}]}",,4.977969458006555,265,250,515,236.0,,0.00353
+gemini-3.1-pro-preview,scenario_088,marginal_tax_rate,0.4880000352859497,,,,8.207626916992012,271,0,271,,,0.000542

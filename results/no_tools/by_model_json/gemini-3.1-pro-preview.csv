@@ -1,0 +1,63 @@
+model,scenario_id,variable,prediction,raw_response,error,elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens,estimated_cost_usd
+gemini-3.1-pro-preview,scenario_000,income_tax,0.0,"{""answer"": 0}
+
+The taxpayer",,3.993887624994386,193.0,252.0,445.0,243.0,,0.0034100000000000003
+gemini-3.1-pro-preview,scenario_000,income_tax_before_refundable_credits,0.0,"{""answer"": 0}
+
+With a",,5.342472624994116,194.0,252.0,446.0,243.0,,0.003412
+gemini-3.1-pro-preview,scenario_000,eitc,0.0,"{""answer"": 0.0}
+
+To",,5.839479957998265,194.0,252.0,446.0,242.0,,0.0034119999999999997
+gemini-3.1-pro-preview,scenario_000,ctc,0.0,"{""answer"": 0.0}
+
+The household has no children, so they are not eligible for the Child Tax Credit.",,3.4032615839969367,192.0,103.0,295.0,78.0,,0.0016200000000000001
+gemini-3.1-pro-preview,scenario_000,income_tax_refundable_credits,0.0,"{""answer"": 0.0}",,4.502773166983388,192.0,252.0,444.0,244.0,,0.0034080000000000004
+gemini-3.1-pro-preview,scenario_000,snap,3504.0,"{""answer"": 3504.0",,4.783525959006511,196.0,252.0,448.0,242.0,,0.0034159999999999998
+gemini-3.1-pro-preview,scenario_000,ssi,0.0,"{""answer"": 0.0}
+
+The individual is 63 years old and there is no mention of a disability or blindness. To be eligible for Supplemental Security Income (SSI) based on age alone, an individual must be at least 65 years old. Therefore, the annual SSI amount is $0.",,4.134328542015282,196.0,237.0,433.0,172.0,,0.0032359999999999997
+gemini-3.1-pro-preview,scenario_000,free_school_meals,0.0,"{""answer"": 0}
+
+The household does not have any children, so they do not qualify for free school meals.",,3.4094865420192946,206.0,170.0,376.0,145.0,,0.002452
+gemini-3.1-pro-preview,scenario_000,is_medicaid_eligible,1.0,"{""answer"": 1}
+
+The household",,4.261711416998878,205.0,252.0,457.0,243.0,,0.0034340000000000004
+gemini-3.1-pro-preview,scenario_000,household_state_income_tax,0.0,"{""answer"": 0.0}
+
+In Pennsylvania, state income tax is levied at a flat rate of 3.07%. However, Pennsylvania tax law does not allow you to offset income from one class with losses from another class. Moreover, since all of the income sources provided are negative (net losses), the taxable income in each class is considered $0.
+
+- Self-Employment Income Taxable: $0
+- Capital Gains Taxable: $0
+- Total PA Taxable Income: $0
+
+Therefore",,4.862556915992172,192.0,252.0,444.0,145.0,,0.0034079999999999996
+gemini-3.1-pro-preview,scenario_000,household_net_income,-14800.0,"{""answer"": -14800",,3.5858122080098838,199.0,252.0,451.0,243.0,,0.003422
+gemini-3.1-pro-preview,scenario_000,household_benefits,3504.0,"{""answer"": 3504.",,4.374143833993003,192.0,252.0,444.0,243.0,,0.0034080000000000004
+gemini-3.1-pro-preview,scenario_000,household_market_income,-148009.0,"{""answer"": -148009}
+
+The total market income is calculated by summing all the individual income components:
+$0 (employment income) + $-144,905 (self-employment income) + $-1,242 (short-term capital gains) + $-1,862 (long-term capital gains) = $-148,009.",,4.549842290987726,200.0,206.0,406.0,120.0,,0.0028720000000000004
+gemini-3.1-pro-preview,scenario_000,marginal_tax_rate,0.0,"{""answer"": 0.0}
+
+",,8.450256791024003,211.0,252.0,463.0,243.0,,0.0034460000000000003
+gemini-3.1-pro-preview,scenario_001,income_tax,29846.0,"{""answer"": 29846",,4.904825041012373,185.0,252.0,437.0,243.0,,0.0033940000000000003
+gemini-3.1-pro-preview,scenario_001,income_tax_before_refundable_credits,3133.0,"{""answer"": 3133",,3.5966215840016957,186.0,252.0,438.0,244.0,,0.003396
+gemini-3.1-pro-preview,scenario_001,eitc,0.0,"{""answer"": 0.0}
+
+The",,5.575034166977275,186.0,252.0,438.0,242.0,,0.0033959999999999997
+gemini-3.1-pro-preview,scenario_001,ctc,2000.0,"{""answer"": 2000",,6.2966797499975655,184.0,252.0,436.0,244.0,,0.003392
+gemini-3.1-pro-preview,scenario_001,income_tax_refundable_credits,0.0,"{""answer"": 0}
+
+For tax year ",,5.863405666023027,184.0,252.0,436.0,241.0,,0.003392
+gemini-3.1-pro-preview,scenario_001,snap,0.0,"{""answer"": 0.0}
+
+The",,4.214956457988592,188.0,252.0,440.0,242.0,,0.0034
+gemini-3.1-pro-preview,scenario_001,ssi,,,Timeout: litellm.Timeout: Connection timed out after None seconds.,,,,,,,
+gemini-3.1-pro-preview,scenario_001,free_school_meals,0.0,"{""answer"": 0}
+
+The household's total income of $190,020 is",,4.335402583004907,198.0,252.0,450.0,229.0,,0.00342
+gemini-3.1-pro-preview,scenario_001,is_medicaid_eligible,0.0,"{""answer"": 0}",,4.017763457988622,197.0,247.0,444.0,241.0,,0.003358
+gemini-3.1-pro-preview,scenario_001,household_state_income_tax,0.0,"{""answer"": 0.0}
+
+Florida does not have a state individual income tax, so the state income tax liability for this household is $0.",,3.526686291996157,184.0,86.0,270.0,54.0,,0.0014
+gemini-3.1-pro-preview,scenario_001,household_net_income,14940.0,"{""answer"": 14940",,12.08739791699918,191.0,252.0,443.0,243.0,,0.003406
