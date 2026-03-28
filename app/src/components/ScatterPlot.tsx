@@ -9,7 +9,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { BenchData } from "../App";
-import { formatDollars } from "../lib/format";
+import { formatDollars } from "../format";
 import { MODEL_COLORS, MODEL_LABELS, MODEL_ORDER } from "../modelMeta";
 
 function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: Record<string, unknown> }> }) {

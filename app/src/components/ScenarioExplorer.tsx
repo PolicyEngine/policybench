@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import type { BenchData } from "../App";
-import { formatDollars } from "../lib/format";
+import { formatDollars } from "../format";
 import { MODEL_COLORS, MODEL_LABELS, MODEL_ORDER } from "../modelMeta";
 
 type PromptByVariable = Record<string, { tool?: string; json?: string }>;
