@@ -13,6 +13,7 @@ from litellm import completion, completion_cost, responses
 from policybench.config import MODELS, PROGRAMS
 from policybench.prompts import (
     VARIABLE_DESCRIPTIONS,
+    make_no_tools_batch_repair_prompt,
     make_no_tools_batch_prompt,
     make_no_tools_prompt,
 )
@@ -22,6 +23,7 @@ MAX_RETRIES = 2
 RETRY_BASE_DELAY = 2
 REQUEST_TIMEOUT_SECONDS = 20
 CHECKPOINT_EVERY_ROWS = 25
+MAX_REPAIR_ROUNDS = 2
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 GEMINI_JSON_MAX_COMPLETION_TOKENS = 512
@@ -150,13 +152,13 @@ def _chat_completion_request_kwargs(
     scenario: Scenario,
     variables: list[str],
     model_id: str,
+    repair: bool = False,
 ) -> tuple[list[dict], dict]:
     answer_contract = _answer_contract_for_model(model_id)
-    prompt = make_no_tools_batch_prompt(
-        scenario,
-        variables,
-        answer_contract=answer_contract,
+    prompt_builder = (
+        make_no_tools_batch_repair_prompt if repair else make_no_tools_batch_prompt
     )
+    prompt = prompt_builder(scenario, variables, answer_contract=answer_contract)
     messages = [{"role": "user", "content": prompt}]
     request_kwargs = {
         "model": model_id,
@@ -185,13 +187,13 @@ def _responses_request_kwargs(
     scenario: Scenario,
     variables: list[str],
     model_id: str,
+    repair: bool = False,
 ) -> tuple[list[dict], dict]:
     answer_contract = _answer_contract_for_model(model_id)
-    prompt = make_no_tools_batch_prompt(
-        scenario,
-        variables,
-        answer_contract=answer_contract,
+    prompt_builder = (
+        make_no_tools_batch_repair_prompt if repair else make_no_tools_batch_prompt
     )
+    prompt = prompt_builder(scenario, variables, answer_contract=answer_contract)
     request_kwargs = {
         "model": model_id,
         "input": prompt,
@@ -216,7 +218,10 @@ def _build_answer_tool(variables: list[str]) -> dict:
         "type": "function",
         "function": {
             "name": ANSWER_FUNCTION_NAME,
-            "description": "Submit all requested numeric answers for the benchmark.",
+            "description": (
+                "Submit all requested numeric answers for the benchmark. "
+                "Every requested key is required, including keys whose value is 0."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -247,6 +252,100 @@ def _normalize_variables(variables: str | Iterable[str]) -> list[str]:
     if isinstance(variables, str):
         return [variables]
     return list(variables)
+
+
+def _sum_optional_numbers(values: Iterable[float | int | None]) -> float | None:
+    present = [float(value) for value in values if value is not None]
+    if not present:
+        return None
+    return sum(present)
+
+
+def _combine_raw_responses(raw_responses: list[str | None]) -> str | None:
+    present = [raw_response for raw_response in raw_responses if raw_response]
+    if not present:
+        return None
+    if len(present) == 1:
+        return present[0]
+    return json.dumps({"responses": present})
+
+
+def _missing_variables(predictions: dict[str, float | None]) -> list[str]:
+    return [variable for variable, value in predictions.items() if value is None]
+
+
+def _merge_predictions(
+    base: dict[str, float | None],
+    incoming: dict[str, float | None],
+) -> dict[str, float | None]:
+    merged = dict(base)
+    for variable, value in incoming.items():
+        if value is not None:
+            merged[variable] = value
+    return merged
+
+
+def _aggregate_request_results(results: list[dict]) -> dict:
+    if not results:
+        return {
+            "raw_response": None,
+            "elapsed_seconds": None,
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+            "reasoning_tokens": None,
+            "cached_prompt_tokens": None,
+            "provider_reported_cost_usd": None,
+            "reconstructed_cost_usd": None,
+            "total_cost_usd": None,
+            "cost_is_estimated": None,
+            "estimated_cost_usd": None,
+        }
+
+    cost_flags = [result.get("cost_is_estimated") for result in results]
+    if any(flag is True for flag in cost_flags):
+        cost_is_estimated = True
+    elif any(flag is False for flag in cost_flags):
+        cost_is_estimated = False
+    else:
+        cost_is_estimated = None
+
+    return {
+        "raw_response": _combine_raw_responses(
+            [result.get("raw_response") for result in results]
+        ),
+        "elapsed_seconds": _sum_optional_numbers(
+            result.get("elapsed_seconds") for result in results
+        ),
+        "prompt_tokens": _sum_optional_numbers(
+            result.get("prompt_tokens") for result in results
+        ),
+        "completion_tokens": _sum_optional_numbers(
+            result.get("completion_tokens") for result in results
+        ),
+        "total_tokens": _sum_optional_numbers(
+            result.get("total_tokens") for result in results
+        ),
+        "reasoning_tokens": _sum_optional_numbers(
+            result.get("reasoning_tokens") for result in results
+        ),
+        "cached_prompt_tokens": _sum_optional_numbers(
+            result.get("cached_prompt_tokens") for result in results
+        ),
+        "provider_reported_cost_usd": _sum_optional_numbers(
+            result.get("provider_reported_cost_usd") for result in results
+        ),
+        "reconstructed_cost_usd": _sum_optional_numbers(
+            result.get("reconstructed_cost_usd") for result in results
+        ),
+        "total_cost_usd": _sum_optional_numbers(
+            result.get("total_cost_usd") for result in results
+        ),
+        "cost_is_estimated": cost_is_estimated,
+        "estimated_cost_usd": _sum_optional_numbers(
+            result.get("estimated_cost_usd") for result in results
+        ),
+    }
 
 
 def extract_number(text: str) -> float | None:
@@ -495,18 +594,19 @@ def extract_predictions(
     return _extract_predictions_from_text(content, variables)
 
 
-def run_single_no_tools(
+def _request_predictions_once(
     scenario: Scenario,
-    variable: str | Iterable[str],
+    variables: list[str],
     model_id: str,
+    *,
+    repair: bool = False,
 ) -> dict:
-    """Run a single scenario for one or more variables without tools."""
-    variables = _normalize_variables(variable)
     if _uses_responses_api(model_id):
         messages, request_kwargs = _responses_request_kwargs(
             scenario=scenario,
             variables=variables,
             model_id=model_id,
+            repair=repair,
         )
         request_fn = responses
     else:
@@ -514,6 +614,7 @@ def run_single_no_tools(
             scenario=scenario,
             variables=variables,
             model_id=model_id,
+            repair=repair,
         )
         request_fn = completion
 
@@ -543,9 +644,7 @@ def run_single_no_tools(
             )
             return {
                 "predictions": predictions,
-                "prediction": predictions[variables[0]] if len(variables) == 1 else None,
                 "raw_response": raw_response,
-                "error": None,
                 "elapsed_seconds": elapsed_seconds,
                 **_extract_usage_metadata(
                     response,
@@ -560,22 +659,57 @@ def run_single_no_tools(
             delay = RETRY_BASE_DELAY * (2**attempt)
             print(f"  Retry {attempt + 1}: {e!r:.60s}... {delay}s")
             time.sleep(delay)
-    return {  # unreachable
-        "predictions": {name: None for name in variables},
-        "prediction": None,
-        "raw_response": None,
-        "error": None,
-        "elapsed_seconds": None,
-        "prompt_tokens": None,
-        "completion_tokens": None,
-        "total_tokens": None,
-        "reasoning_tokens": None,
-        "cached_prompt_tokens": None,
-        "provider_reported_cost_usd": None,
-        "reconstructed_cost_usd": None,
-        "total_cost_usd": None,
-        "cost_is_estimated": None,
-        "estimated_cost_usd": None,
+
+    raise RuntimeError("Request loop exited unexpectedly")
+
+
+def run_single_no_tools(
+    scenario: Scenario,
+    variable: str | Iterable[str],
+    model_id: str,
+) -> dict:
+    """Run a single scenario for one or more variables without tools."""
+    variables = _normalize_variables(variable)
+    request_results = []
+    initial_result = _request_predictions_once(
+        scenario,
+        variables,
+        model_id,
+        repair=False,
+    )
+    request_results.append(initial_result)
+    predictions = dict(initial_result["predictions"])
+
+    missing = _missing_variables(predictions)
+    repair_errors = []
+    for _ in range(MAX_REPAIR_ROUNDS):
+        if not missing:
+            break
+        try:
+            repair_result = _request_predictions_once(
+                scenario,
+                missing,
+                model_id,
+                repair=True,
+            )
+        except Exception as error:
+            repair_errors.append(_format_error(error))
+            break
+        request_results.append(repair_result)
+        predictions = _merge_predictions(predictions, repair_result["predictions"])
+        missing = _missing_variables(predictions)
+
+    if missing:
+        repair_errors.append(
+            "Missing predictions after repair: " + ", ".join(sorted(missing))
+        )
+
+    aggregated = _aggregate_request_results(request_results)
+    return {
+        "predictions": predictions,
+        "prediction": predictions[variables[0]] if len(variables) == 1 else None,
+        "error": "; ".join(repair_errors) if repair_errors else None,
+        **aggregated,
     }
 
 
@@ -649,7 +783,7 @@ def run_no_tools_eval(
                 continue
             try:
                 result = run_single_no_tools(scenario, programs, model_id)
-                error = None
+                error = result.get("error")
             except Exception as e:
                 error = _format_error(e)
                 print(f"  ERROR [{model_name}] {scenario.id}: {error}")

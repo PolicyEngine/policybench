@@ -279,6 +279,7 @@ def make_no_tools_batch_prompt(
         answer_instructions = (
             "Return a single JSON object containing every requested quantity. "
             f'Use the exact variable names as keys, for example {{{requested_keys}}}. '
+            "Include every requested key exactly once, even if the value is 0. "
             "Put only numeric values in the JSON object, with no dollar signs, "
             "commas, or explanatory text in the values. "
             "Do not rely on plain text outside the JSON object for the final answers. "
@@ -289,12 +290,55 @@ def make_no_tools_batch_prompt(
             "requested quantity. "
             "Use the exact variable names as keys and put only numeric values "
             "in the arguments. "
+            "Include every requested key exactly once, even if the value is 0. "
             "Do not rely on plain text for the final answers. "
         )
 
     return (
         f"{description}\n\n"
         "Provide the following policy quantities for this household:\n"
+        f"{requested_variables}\n\n"
+        f"{answer_instructions}"
+        "If an answer is a dollar amount, give the annual amount. "
+        "If an answer is a rate, give a decimal (e.g. 0.25 for 25%)."
+    )
+
+
+def make_no_tools_batch_repair_prompt(
+    scenario: Scenario,
+    variables: list[str],
+    answer_contract: str = "tool",
+) -> str:
+    """Create a repair prompt for only the missing benchmark outputs."""
+    description = describe_household(scenario)
+    requested_variables = "\n".join(_variable_request_line(variable) for variable in variables)
+
+    if answer_contract == "json":
+        requested_keys = ", ".join(f'"{variable}": 1234.5' for variable in variables)
+        answer_instructions = (
+            "A prior response omitted required keys. Return a single JSON object "
+            "containing only the missing quantities listed below. "
+            f'Use the exact variable names as keys, for example {{{requested_keys}}}. '
+            "Include every listed key exactly once, even if the value is 0. "
+            "Do not include any keys that are not listed below. "
+            "Put only numeric values in the JSON object, with no dollar signs, "
+            "commas, or explanatory text in the values. "
+            "Do not rely on plain text outside the JSON object for the final answers. "
+        )
+    else:
+        answer_instructions = (
+            "A prior response omitted required keys. Use the `submit_answers` "
+            "function exactly once to return only the missing quantities listed below. "
+            "Use the exact variable names as keys and put only numeric values in "
+            "the arguments. "
+            "Include every listed key exactly once, even if the value is 0. "
+            "Do not include any keys that are not listed below. "
+            "Do not rely on plain text for the final answers. "
+        )
+
+    return (
+        f"{description}\n\n"
+        "Provide only the following missing policy quantities for this household:\n"
         f"{requested_variables}\n\n"
         f"{answer_instructions}"
         "If an answer is a dollar amount, give the annual amount. "

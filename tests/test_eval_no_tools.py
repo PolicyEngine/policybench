@@ -198,6 +198,7 @@ def test_no_tools_batch_prompt_requests_all_variables(mini_scenario):
     assert "- income_tax_before_refundable_credits:" in prompt
     assert "- eitc:" in prompt
     assert "submit_answers" in prompt
+    assert "include every requested key exactly once" in prompt.lower()
 
 
 def test_no_tools_prompt_includes_nonzero_raw_inputs_across_entities(rich_scenario):
@@ -374,6 +375,109 @@ def test_run_single_no_tools_uses_default_completion_budget_for_claude(
     assert mock_completion.call_args.kwargs["max_completion_tokens"] == 256
     assert "reasoning_effort" not in mock_completion.call_args.kwargs
     assert "response_format" not in mock_completion.call_args.kwargs
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_run_single_no_tools_repairs_partial_batch_response(
+    mock_completion, mini_scenario
+):
+    """A follow-up repair request should fill in missing Anthropic keys."""
+    first_message = MagicMock()
+    first_message.content = None
+    first_message.tool_calls = [
+        SimpleNamespace(
+            function=SimpleNamespace(
+                name="submit_answers",
+                arguments='{"income_tax_before_refundable_credits": 3500}',
+            )
+        )
+    ]
+    first_message.function_call = None
+
+    second_message = MagicMock()
+    second_message.content = None
+    second_message.tool_calls = [
+        SimpleNamespace(
+            function=SimpleNamespace(
+                name="submit_answers",
+                arguments='{"eitc": 1200}',
+            )
+        )
+    ]
+    second_message.function_call = None
+
+    first_response = MagicMock()
+    first_response.choices = [MagicMock(message=first_message)]
+    first_response.usage = litellm.Usage(
+        prompt_tokens=12,
+        completion_tokens=3,
+        total_tokens=15,
+    )
+
+    second_response = MagicMock()
+    second_response.choices = [MagicMock(message=second_message)]
+    second_response.usage = litellm.Usage(
+        prompt_tokens=4,
+        completion_tokens=2,
+        total_tokens=6,
+    )
+
+    mock_completion.side_effect = [first_response, second_response]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        ["income_tax_before_refundable_credits", "eitc"],
+        "claude-opus-4-6",
+    )
+
+    assert result["predictions"] == {
+        "income_tax_before_refundable_credits": 3500.0,
+        "eitc": 1200.0,
+    }
+    assert result["error"] is None
+    assert result["prompt_tokens"] == 16
+    assert result["completion_tokens"] == 5
+    assert result["total_tokens"] == 21
+    assert mock_completion.call_count == 2
+    repair_prompt = mock_completion.call_args_list[1].kwargs["messages"][0]["content"]
+    assert "provide only the following missing policy quantities" in repair_prompt.lower()
+    assert "- eitc:" in repair_prompt
+    assert "- income_tax_before_refundable_credits:" not in repair_prompt
+    assert '"responses"' in result["raw_response"]
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_run_single_no_tools_marks_missing_predictions_after_repair(
+    mock_completion, mini_scenario
+):
+    """Rows should remain retryable when keys are still missing after repair."""
+    message = MagicMock()
+    message.content = None
+    message.tool_calls = [
+        SimpleNamespace(
+            function=SimpleNamespace(
+                name="submit_answers",
+                arguments='{"income_tax_before_refundable_credits": 3500}',
+            )
+        )
+    ]
+    message.function_call = None
+
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(prompt_tokens=12, completion_tokens=3, total_tokens=15)
+    mock_completion.side_effect = [response, response, response]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        ["income_tax_before_refundable_credits", "eitc"],
+        "claude-opus-4-6",
+    )
+
+    assert result["predictions"]["income_tax_before_refundable_credits"] == 3500.0
+    assert result["predictions"]["eitc"] is None
+    assert "Missing predictions after repair: eitc" == result["error"]
+    assert mock_completion.call_count == 3
 
 
 @patch("policybench.eval_no_tools.responses")
