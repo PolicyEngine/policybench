@@ -1,4 +1,4 @@
-import type { BenchData } from "../App";
+import type { BenchData } from "../types";
 
 function Stat({
   value,
@@ -8,13 +8,13 @@ function Stat({
 }: {
   value: string;
   label: string;
-  accent: "cyan" | "coral" | "amber";
+  accent: "primary" | "info" | "warning";
   delay: number;
 }) {
   const styles = {
-    cyan: "text-cyan border-cyan/20 bg-cyan-soft",
-    coral: "text-coral border-coral/20 bg-coral-soft",
-    amber: "text-amber border-amber/20 bg-amber-soft",
+    primary: "text-primary border-primary/15 bg-primary-soft",
+    info: "text-info border-info/15 bg-info-soft",
+    warning: "text-warning border-warning/15 bg-warning-soft",
   };
   return (
     <div
@@ -46,8 +46,7 @@ export default function Hero({ data }: { data: BenchData }) {
 
   return (
     <header className="relative overflow-hidden">
-      {/* Ambient glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[450px] bg-cyan/[0.03] rounded-full blur-[150px]" />
+      <div className="absolute inset-x-0 top-0 h-[360px] bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--color-primary)_13%,transparent),transparent_58%)]" />
 
       <div className="relative max-w-7xl mx-auto px-6 pt-24 pb-16">
         <div className="eyebrow mb-5 animate-fade-up">Benchmark</div>
@@ -56,12 +55,22 @@ export default function Hero({ data }: { data: BenchData }) {
           className="font-[family-name:var(--font-display)] text-6xl md:text-7xl lg:text-8xl text-text leading-[0.92] tracking-tight animate-fade-up"
           style={{ animationDelay: "80ms" }}
         >
-          Policy<span className="text-cyan">Bench</span>
+          PolicyBench
         </h1>
+
+        <div
+          className="mt-5 inline-flex items-center gap-2 rounded-full border border-border bg-bg px-3 py-1.5 text-sm text-text-secondary animate-fade-up"
+          style={{ animationDelay: "120ms" }}
+        >
+          <span>by</span>
+          <a href="https://policyengine.org" className="font-semibold text-primary hover:text-primary-strong transition-colors">
+            PolicyEngine
+          </a>
+        </div>
 
         <p
           className="text-text-secondary text-lg max-w-2xl mt-7 leading-relaxed animate-fade-up"
-          style={{ animationDelay: "160ms" }}
+          style={{ animationDelay: "180ms" }}
         >
           How much household-level policy calculation can frontier models do
           from parametric knowledge alone? This benchmark evaluates{" "}
@@ -74,32 +83,31 @@ export default function Hero({ data }: { data: BenchData }) {
           <Stat
             value={`${avgNoToolsAcc.toFixed(1)}%`}
             label="Avg within 10%"
-            accent="coral"
+            accent="primary"
             delay={250}
           />
           <Stat
             value={`${bestNoToolsAcc.toFixed(1)}%`}
             label="Best model"
-            accent="cyan"
+            accent="info"
             delay={350}
           />
           <Stat
             value={`$${Math.round(avgNoToolsMAE).toLocaleString()}`}
             label="Avg error"
-            accent="coral"
+            accent="warning"
             delay={450}
           />
           <Stat
             value={String(noTools.length)}
             label="Models benchmarked"
-            accent="amber"
+            accent="primary"
             delay={550}
           />
         </div>
       </div>
 
-      {/* Divider line with glow */}
-      <div className="h-px bg-gradient-to-r from-transparent via-cyan/30 to-transparent" />
+      <div className="h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent" />
     </header>
   );
 }

@@ -27,24 +27,27 @@ Models are prompted to return only a single numeric value, with explicit instruc
 
 ## Programs evaluated
 
-We evaluate 10 PolicyEngine-US variables spanning federal taxes, tax credits, means-tested benefits, and state taxes:
+We evaluate 13 PolicyEngine-US variables spanning federal taxes, tax credits, means-tested benefits, and state taxes:
 
 | Variable | Description | Category |
 |:---------|:-----------|:---------|
-| `income_tax` | Federal income tax liability | Federal tax |
-| `income_tax_before_refundable_credits` | Federal tax before refundable credits | Federal tax |
+| `adjusted_gross_income` | Federal adjusted gross income (AGI) | Federal tax |
+| `income_tax_before_refundable_credits` | Federal income tax before refundable credits | Federal tax |
 | `eitc` | Earned Income Tax Credit | Credits |
 | `ctc` | Child Tax Credit | Credits |
-| `income_tax_refundable_credits` | Total refundable credits | Credits |
+| `income_tax_refundable_credits` | Total refundable federal tax credits | Credits |
 | `snap` | SNAP (food stamps) annual benefit | Benefits |
 | `ssi` | Supplemental Security Income | Benefits |
-| `free_school_meals` | Free school meal eligibility | Benefits |
-| `is_medicaid_eligible` | Medicaid eligibility | Benefits |
+| `free_school_meals` | Household free school meal eligibility | Benefits |
+| `is_medicaid_eligible` | Whether anyone in the household is Medicaid-eligible | Benefits |
+| `state_agi` | State adjusted gross income | State tax |
+| `state_income_tax_before_refundable_credits` | State income tax before refundable credits | State tax |
+| `state_refundable_credits` | State refundable credits | State tax |
 | `household_state_income_tax` | State income tax liability | State tax |
 
-These variables were chosen to span the major components of the US tax-and-benefit system and to test different types of computational challenges. Federal and state income tax require bracket calculations and interactions with deductions and exemptions. Tax credits involve phase-in and phase-out schedules that depend on earned income, number of children, and filing status. Means-tested benefits (SNAP, SSI) involve income and categorical eligibility tests, benefit reduction rates, and state-specific maximum allotments.
+These variables were chosen to span the major components of the US tax-and-benefit system and to test different types of computational challenges. AGI and pre-credit tax require models to combine wage and non-wage income sources and track how filing status and deductions shape tax bases. Tax credits involve phase-in and phase-out schedules that depend on earned income, number of children, and filing status. Means-tested benefits (SNAP, SSI) involve income and categorical eligibility tests, benefit reduction rates, and state-specific maximum allotments.
 
-Binary variables (Medicaid eligibility, free school meals) are evaluated using classification accuracy rather than error metrics.
+Binary variables are evaluated as household booleans: `free_school_meals` is 1 if the household qualifies for free school meals (not reduced-price meals), and `is_medicaid_eligible` is 1 if anyone in the household is eligible for Medicaid. These are scored with classification accuracy rather than error metrics.
 
 ## Household scenarios
 
@@ -54,7 +57,7 @@ Each scenario is converted to a PolicyEngine-US household JSON object specifying
 
 ## Ground truth computation
 
-Ground truth values are computed using PolicyEngine-US, an open-source microsimulation model that encodes federal and state tax law, benefit program rules, and their interactions for all 50 US states and DC. For each of the 100 scenarios and 10 variables, we run a PolicyEngine simulation for tax year 2025 and record the computed value. This produces 1,000 ground-truth data points.
+Ground truth values are computed using PolicyEngine-US, an open-source microsimulation model that encodes federal and state tax law, benefit program rules, and their interactions for all 50 US states and DC. For each of the 100 scenarios and 13 variables, we run a PolicyEngine simulation for tax year 2025 and record the computed value. This produces 1,300 ground-truth data points.
 
 PolicyEngine-US is the authoritative source: its calculations implement the actual statutory rules and have been validated against official tax calculators, benefit program documentation, and expert review. Any discrepancy between a model's output and the PolicyEngine value is treated as a model error, not a ground truth error.
 
@@ -74,4 +77,4 @@ $$\text{MAPE} = \frac{1}{|S|}\sum_{i \in S}\left|\frac{\hat{y}_i - y_i}{y_i}\rig
 
 $$\text{Acc}_{10\%} = \frac{1}{n}\sum_{i=1}^{n}\mathbf{1}\left[\frac{|\hat{y}_i - y_i|}{|y_i|} \leq 0.10\right]$$
 
-For binary variables (Medicaid eligibility, free school meals), we report classification accuracy.
+For household-boolean variables (`is_medicaid_eligible`, `free_school_meals`), we report classification accuracy.

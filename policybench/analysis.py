@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from policybench.config import BINARY_PROGRAMS, RATE_PROGRAMS
-from policybench.prompts import make_no_tools_prompt
+from policybench.prompts import make_no_tools_batch_prompt
 from policybench.scenarios import scenario_from_dict
 
 
@@ -237,6 +237,10 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
     usage = predictions.copy()
     for column in (
         "error",
+        "provider_reported_cost_usd",
+        "reconstructed_cost_usd",
+        "total_cost_usd",
+        "cost_is_estimated",
         "estimated_cost_usd",
         "elapsed_seconds",
         "prompt_tokens",
@@ -247,6 +251,8 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
     ):
         if column not in usage.columns and column == "error":
             usage[column] = None
+        elif column not in usage.columns and column == "cost_is_estimated":
+            usage[column] = False
         elif column not in usage.columns:
             usage[column] = float("nan")
 
@@ -256,6 +262,10 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
             total_rows=("variable", "size"),
             parsed_rows=("prediction", lambda s: int(s.notna().sum())),
             error_rows=("error", lambda s: int(s.notna().sum())),
+            total_provider_reported_cost_usd=("provider_reported_cost_usd", _sum_or_nan),
+            total_reconstructed_cost_usd=("reconstructed_cost_usd", _sum_or_nan),
+            total_cost_usd=("total_cost_usd", _sum_or_nan),
+            estimated_cost_rows=("cost_is_estimated", lambda s: int(s.fillna(False).sum())),
             total_estimated_cost_usd=("estimated_cost_usd", _sum_or_nan),
             total_elapsed_seconds=("elapsed_seconds", _sum_or_nan),
             prompt_tokens=("prompt_tokens", _sum_or_nan),
@@ -359,26 +369,27 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
             )
 
     if not usage_summary.empty:
-        total_cost = _sum_or_nan(usage_summary["total_estimated_cost_usd"])
+        total_cost = _sum_or_nan(usage_summary["total_cost_usd"])
         total_runtime = _sum_or_nan(usage_summary["total_elapsed_seconds"])
         lines.extend(
             [
                 "## Usage",
                 "",
                 (
-                    f"Estimated total cost: `{_format_metric(total_cost)}` USD. "
+                    f"Total cost: `{_format_metric(total_cost)}` USD. "
                     f"Estimated total runtime: `{_format_seconds(total_runtime)}`."
                 ),
                 "",
-                "| model | total_estimated_cost_usd | total_elapsed | total_tokens | reasoning_tokens | parsed_rows | total_rows |",
-                "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+                "| model | total_cost_usd | cost_rows_estimated | total_elapsed | total_tokens | reasoning_tokens | parsed_rows | total_rows |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
         for _, row in usage_summary.iterrows():
             lines.append(
                 "| "
                 f"{row['model']} | "
-                f"{_format_metric(row['total_estimated_cost_usd'])} | "
+                f"{_format_metric(row['total_cost_usd'])} | "
+                f"{int(row['estimated_cost_rows'])} | "
                 f"{_format_seconds(row['total_elapsed_seconds'])} | "
                 f"{_format_metric(row['total_tokens'])} | "
                 f"{_format_metric(row['reasoning_tokens'])} | "
@@ -460,6 +471,202 @@ def _clean_json_number(value):
     if pd.isna(value):
         return None
     return float(value)
+
+
+def _scenario_feature_frame(scenarios: pd.DataFrame) -> pd.DataFrame:
+    """Build scenario-level feature slices for failure-mode analysis."""
+    rows = []
+    for _, row in scenarios.iterrows():
+        scenario_id = row["scenario_id"]
+        state = row.get("state")
+        filing_status = row.get("filing_status")
+        num_children = int(row.get("num_children", 0))
+        total_income = float(row.get("total_income", 0.0))
+        feature_row = {
+            "scenario_id": scenario_id,
+            "state": state,
+            "filing_status": filing_status,
+            "num_children": num_children,
+            "has_children": int(num_children > 0),
+            "total_income": total_income,
+            "low_income": int(total_income <= 30_000),
+            "high_income": int(total_income >= 100_000),
+            "no_income_tax_state": int(
+                state in {"AK", "FL", "NV", "SD", "TN", "TX", "WA", "WY", "NH"}
+            ),
+            "elderly_adult": 0,
+            "any_disabled": 0,
+            "has_retirement_income": 0,
+            "has_capital_income": 0,
+            "wage_only": 1,
+        }
+
+        scenario_json = row.get("scenario_json")
+        if isinstance(scenario_json, str) and scenario_json:
+            scenario = json.loads(scenario_json)
+            adults = scenario.get("adults", [])
+            children = scenario.get("children", [])
+            people = adults + children
+
+            adult_ages = [int(person.get("age", 0)) for person in adults]
+            retirement_income = 0.0
+            capital_income = 0.0
+            non_wage_income = 0.0
+            any_disabled = False
+
+            for person in people:
+                inputs = person.get("inputs", {})
+                any_disabled = any_disabled or bool(inputs.get("is_disabled"))
+                retirement_income += sum(
+                    float(inputs.get(key, 0.0) or 0.0)
+                    for key in (
+                        "social_security_retirement",
+                        "taxable_ira_distributions",
+                        "taxable_private_pension_income",
+                    )
+                )
+                capital_income += sum(
+                    float(inputs.get(key, 0.0) or 0.0)
+                    for key in (
+                        "taxable_interest_income",
+                        "qualified_dividend_income",
+                        "short_term_capital_gains",
+                        "long_term_capital_gains",
+                    )
+                )
+                for key, value in inputs.items():
+                    if key in {
+                        "weekly_hours_worked",
+                        "is_disabled",
+                        "is_blind",
+                        "is_full_time_college_student",
+                    }:
+                        continue
+                    non_wage_income += float(value or 0.0)
+
+            feature_row.update(
+                {
+                    "elderly_adult": int(any(age >= 65 for age in adult_ages)),
+                    "any_disabled": int(any_disabled),
+                    "has_retirement_income": int(abs(retirement_income) > 1e-6),
+                    "has_capital_income": int(abs(capital_income) > 1e-6),
+                    "wage_only": int(abs(non_wage_income) <= 1e-6),
+                }
+            )
+
+        rows.append(feature_row)
+
+    return pd.DataFrame(rows)
+
+
+def _row_is_correct(row: pd.Series) -> bool:
+    if row["variable"] in BINARY_PROGRAMS:
+        return bool(round(row["prediction"]) == round(row["value"]))
+    if row["value"] == 0:
+        return bool(abs(row["prediction"]) <= 1.0)
+    return bool(abs(row["prediction"] - row["value"]) / abs(row["value"]) <= 0.10)
+
+
+def build_failure_modes_payload(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+    scenarios: pd.DataFrame,
+) -> dict[str, list[dict] | dict]:
+    """Build structured failure-mode slices for the frontend."""
+    features = _scenario_feature_frame(scenarios)
+    merged = predictions.merge(
+        ground_truth,
+        on=["scenario_id", "variable"],
+        how="inner",
+    ).dropna(subset=["prediction"])
+    merged = merged.merge(features, on="scenario_id", how="left")
+    merged["correct"] = merged.apply(_row_is_correct, axis=1)
+    merged["positive_truth"] = merged["value"] > 0
+    merged["zero_truth"] = merged["value"] == 0
+    merged["underpredict_positive"] = np.where(
+        (~merged["variable"].isin(BINARY_PROGRAMS)) & merged["positive_truth"],
+        merged["prediction"] < merged["value"],
+        np.nan,
+    )
+    merged["nonzero_prediction_on_zero"] = np.where(
+        (~merged["variable"].isin(BINARY_PROGRAMS)) & merged["zero_truth"],
+        merged["prediction"].abs() > 1.0,
+        np.nan,
+    )
+
+    program_slices = []
+    for variable, group in merged.groupby("variable"):
+        item: dict[str, float | int | str | bool | None] = {
+            "variable": variable,
+            "isBinary": variable in BINARY_PROGRAMS,
+            "overallCorrectPct": float(group["correct"].mean() * 100),
+            "withChildrenPct": float(
+                group.loc[group["has_children"] == 1, "correct"].mean() * 100
+            )
+            if (group["has_children"] == 1).any()
+            else None,
+            "withoutChildrenPct": float(
+                group.loc[group["has_children"] == 0, "correct"].mean() * 100
+            )
+            if (group["has_children"] == 0).any()
+            else None,
+            "lowIncomePct": float(
+                group.loc[group["low_income"] == 1, "correct"].mean() * 100
+            )
+            if (group["low_income"] == 1).any()
+            else None,
+            "highIncomePct": float(
+                group.loc[group["high_income"] == 1, "correct"].mean() * 100
+            )
+            if (group["high_income"] == 1).any()
+            else None,
+        }
+        if variable in BINARY_PROGRAMS:
+            positive = group[group["value"] > 0]
+            negative = group[group["value"] == 0]
+            item["positiveCasePct"] = float(positive["correct"].mean() * 100) if not positive.empty else None
+            item["zeroCasePct"] = float(negative["correct"].mean() * 100) if not negative.empty else None
+        else:
+            positive = group[group["positive_truth"]]
+            zero = group[group["zero_truth"]]
+            item["positiveCasePct"] = float(positive["correct"].mean() * 100) if not positive.empty else None
+            item["zeroCasePct"] = float((~zero["nonzero_prediction_on_zero"].astype(bool)).mean() * 100) if not zero.empty else None
+            item["underpredictSharePositivePct"] = (
+                float(positive["underpredict_positive"].mean() * 100)
+                if not positive.empty
+                else None
+            )
+        program_slices.append(item)
+
+    segment_defs = [
+        ("Households with children", merged["has_children"] == 1),
+        ("Low-income households", merged["low_income"] == 1),
+        ("Disabled households", merged["any_disabled"] == 1),
+        ("Retirement-income households", merged["has_retirement_income"] == 1),
+        ("Wage-only households", merged["wage_only"] == 1),
+        ("No-income-tax states", merged["no_income_tax_state"] == 1),
+        ("High-income households", merged["high_income"] == 1),
+    ]
+    household_segments = []
+    for label, mask in segment_defs:
+        segment = merged.loc[mask]
+        if segment.empty:
+            continue
+        household_segments.append(
+            {
+                "label": label,
+                "correctPct": float(segment["correct"].mean() * 100),
+                "n": int(len(segment)),
+            }
+        )
+
+    program_slices = sorted(program_slices, key=lambda item: item["overallCorrectPct"])
+    household_segments = sorted(household_segments, key=lambda item: item["correctPct"])
+
+    return {
+        "programs": program_slices,
+        "households": household_segments,
+    }
 
 
 def build_dashboard_payload(
@@ -622,6 +829,11 @@ def build_dashboard_payload(
         "programStats": program_stats,
         "heatmap": heatmap,
         "scatter": scatter,
+        "failureModes": build_failure_modes_payload(
+            ground_truth,
+            predictions,
+            scenarios,
+        ),
     }
 
 
@@ -658,18 +870,20 @@ def build_scenario_prompt_map(
     prompt_map: dict[str, dict[str, dict[str, str]]] = {}
     for _, row in scenarios.dropna(subset=["scenario_json"]).iterrows():
         scenario = scenario_from_dict(json.loads(row["scenario_json"]))
+        tool_prompt = make_no_tools_batch_prompt(
+            scenario,
+            variables,
+            answer_contract="tool",
+        )
+        json_prompt = make_no_tools_batch_prompt(
+            scenario,
+            variables,
+            answer_contract="json",
+        )
         prompt_map[row["scenario_id"]] = {
             variable: {
-                "tool": make_no_tools_prompt(
-                    scenario,
-                    variable,
-                    answer_contract="tool",
-                ),
-                "json": make_no_tools_prompt(
-                    scenario,
-                    variable,
-                    answer_contract="json",
-                ),
+                "tool": tool_prompt,
+                "json": json_prompt,
             }
             for variable in variables
         }

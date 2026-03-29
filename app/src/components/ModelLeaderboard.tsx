@@ -1,19 +1,25 @@
 import { useMemo } from "react";
-import type { BenchData } from "../App";
-import { MODEL_COLORS, MODEL_LABELS } from "../modelMeta";
+import type { BenchData, ModelStat } from "../types";
+import {
+  MODEL_COLORS,
+  MODEL_LABELS,
+  UI_COLORS,
+  getPerformanceSurfaceColor,
+  getPerformanceTextColor,
+} from "../modelMeta";
 
-type ModelStat = BenchData["modelStats"][number] & {
-  runCount?: number;
-  within10pctRunMean?: number;
-  within10pctRunStd?: number;
-};
-
-function Badge({ children, variant }: { children: React.ReactNode; variant: "cyan" | "coral" | "amber" | "green" }) {
+function Badge({
+  children,
+  variant,
+}: {
+  children: React.ReactNode;
+  variant: "primary" | "warning" | "danger" | "success";
+}) {
   const styles = {
-    cyan: "text-cyan bg-cyan-soft border-cyan/20",
-    coral: "text-coral bg-coral-soft border-coral/20",
-    amber: "text-amber bg-amber-soft border-amber/20",
-    green: "text-green bg-green-soft border-green/20",
+    primary: "text-primary bg-primary-soft border-primary/15",
+    warning: "text-warning bg-warning-soft border-warning/15",
+    danger: "text-danger bg-danger-soft border-danger/15",
+    success: "text-success bg-success-soft border-success/15",
   };
   return (
     <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium tracking-wide uppercase border ${styles[variant]}`}>
@@ -22,11 +28,11 @@ function Badge({ children, variant }: { children: React.ReactNode; variant: "cya
   );
 }
 
-function accColor(pct: number): "green" | "cyan" | "amber" | "coral" {
-  if (pct >= 80) return "green";
-  if (pct >= 65) return "cyan";
-  if (pct >= 50) return "amber";
-  return "coral";
+function accColor(pct: number): "success" | "primary" | "warning" | "danger" {
+  if (pct >= 80) return "success";
+  if (pct >= 65) return "primary";
+  if (pct >= 50) return "warning";
+  return "danger";
 }
 
 function fmtRunStability(
@@ -47,10 +53,16 @@ function fmtRunStability(
 export default function ModelLeaderboard({ data }: { data: BenchData }) {
   const noTools = useMemo<ModelStat[]>(
     () =>
-      (data.modelStats as ModelStat[])
+      data.modelStats
         .filter((m) => m.condition === "no_tools")
         .sort((a, b) => b.within10pct - a.within10pct),
     [data]
+  );
+  const leadModel = noTools[0];
+  const leadStabilityLabel = fmtRunStability(
+    leadModel?.within10pctRunMean,
+    leadModel?.within10pctRunStd,
+    leadModel?.runCount
   );
 
   return (
@@ -80,6 +92,11 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
         </div>
 
         {noTools.map((m, i) => {
+          const stabilityLabel = fmtRunStability(
+            m.within10pctRunMean,
+            m.within10pctRunStd,
+            m.runCount
+          );
           return (
             <div
               key={m.model}
@@ -97,7 +114,7 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
               <div className="col-span-5 flex items-center gap-2.5">
                 <span
                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: MODEL_COLORS[m.model] || "#6c6c84" }}
+                  style={{ backgroundColor: MODEL_COLORS[m.model] || UI_COLORS.inactive }}
                 />
                 <span className="text-text font-medium text-sm">
                   {MODEL_LABELS[m.model] || m.model}
@@ -109,23 +126,15 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
                 <Badge variant={accColor(m.within10pct)}>
                   {m.within10pct.toFixed(1)}%
                 </Badge>
-                {fmtRunStability(
-                  m.within10pctRunMean,
-                  m.within10pctRunStd,
-                  m.runCount
-                ) && (
+                {stabilityLabel && (
                   <div className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1">
-                    {fmtRunStability(
-                      m.within10pctRunMean,
-                      m.within10pctRunStd,
-                      m.runCount
-                    )}
+                    {stabilityLabel}
                   </div>
                 )}
               </div>
 
               {/* No-tools MAE */}
-              <div className="col-span-3 text-right font-[family-name:var(--font-mono)] text-sm text-coral">
+              <div className="col-span-3 text-right font-[family-name:var(--font-mono)] text-sm text-info">
                 ${Math.round(m.mae).toLocaleString()}
               </div>
             </div>
@@ -134,33 +143,25 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
       </div>
 
       {/* Summary callout */}
-      <div className="mt-8 card px-5 py-4 border-cyan/20 bg-cyan-soft/30 animate-fade-up" style={{ animationDelay: "600ms" }}>
+      <div className="mt-8 card px-5 py-4 animate-fade-up" style={{ animationDelay: "600ms", borderColor: getPerformanceTextColor(leadModel?.within10pct ?? 0), backgroundColor: getPerformanceSurfaceColor(leadModel?.within10pct ?? 0) }}>
         <p className="text-text-secondary text-sm leading-relaxed">
-          <span className="text-cyan font-medium">Key finding:</span> The best
+          <span className="text-primary font-medium">Key finding:</span> The best
           no-tools model
-          ({MODEL_LABELS[noTools[0]?.model] || noTools[0]?.model}) achieves{" "}
+          ({MODEL_LABELS[leadModel?.model ?? ""] || leadModel?.model}) achieves{" "}
           <span className="text-text font-[family-name:var(--font-mono)]">
-            {noTools[0]?.within10pct.toFixed(1)}%
+            {leadModel?.within10pct.toFixed(1)}%
           </span>{" "}
-          {fmtRunStability(
-            noTools[0]?.within10pctRunMean,
-            noTools[0]?.within10pctRunStd,
-            noTools[0]?.runCount
-          ) && (
+          {leadStabilityLabel && (
             <>
               and across repeated runs averages{" "}
               <span className="text-text font-[family-name:var(--font-mono)]">
-                {fmtRunStability(
-                  noTools[0]?.within10pctRunMean,
-                  noTools[0]?.within10pctRunStd,
-                  noTools[0]?.runCount
-                )}
+                {leadStabilityLabel}
               </span>{" "}
             </>
           )}
           accuracy with an average error of{" "}
           <span className="text-text font-[family-name:var(--font-mono)]">
-            ${Math.round(noTools[0]?.mae || 0).toLocaleString()}
+            ${Math.round(leadModel?.mae || 0).toLocaleString()}
           </span>
           .
         </p>

@@ -9,12 +9,13 @@ import pytest
 from policybench.eval_no_tools import (
     extract_number,
     extract_prediction,
+    extract_predictions,
     load_repeated_predictions,
     run_no_tools_eval,
     run_repeated_no_tools_eval,
     run_single_no_tools,
 )
-from policybench.prompts import make_no_tools_prompt
+from policybench.prompts import make_no_tools_batch_prompt, make_no_tools_prompt
 from policybench.scenarios import Person, Scenario
 
 
@@ -25,6 +26,32 @@ def mini_scenario():
         state="CA",
         filing_status="single",
         adults=[Person(name="adult1", age=35, employment_income=50_000.0)],
+        year=2025,
+    )
+
+
+@pytest.fixture
+def rich_scenario():
+    return Scenario(
+        id="rich",
+        state="CA",
+        filing_status="head_of_household",
+        adults=[
+            Person(
+                name="adult1",
+                age=35,
+                employment_income=50_000.0,
+                inputs={
+                    "real_estate_taxes": 4_000.0,
+                    "home_mortgage_interest": 9_000.0,
+                    "weekly_hours_worked": 40.0,
+                },
+            )
+        ],
+        children=[Person(name="child1", age=8, employment_income=0.0)],
+        tax_unit_inputs={"health_savings_account_ald": 800.0},
+        spm_unit_inputs={"spm_unit_pre_subsidy_childcare_expenses": 2_400.0},
+        household_inputs={"auto_loan_interest": 300.0},
         year=2025,
     )
 
@@ -103,7 +130,7 @@ class TestExtractPrediction:
         tool_calls = [
             SimpleNamespace(
                 function=SimpleNamespace(
-                    name="submit_answer",
+                    name="submit_answers",
                     arguments='{"answer": 3500}',
                 )
             )
@@ -118,22 +145,31 @@ class TestExtractPrediction:
         )
 
     def test_legacy_function_call_is_supported(self):
-        function_call = {"name": "submit_answer", "arguments": '{"answer": 0.25}'}
+        function_call = {"name": "submit_answers", "arguments": '{"answer": 0.25}'}
 
         assert extract_prediction(content=None, function_call=function_call) == 0.25
 
     def test_falls_back_to_text_when_no_tool_call_exists(self):
         assert extract_prediction(content='{"answer": 4923}', tool_calls=None) == 4923.0
 
+    def test_extract_predictions_returns_mapping(self):
+        predictions = extract_predictions(
+            content='{"income_tax": 4923, "eitc": 0}',
+            variables=["income_tax", "eitc"],
+            tool_calls=None,
+        )
+        assert predictions == {"income_tax": 4923.0, "eitc": 0.0}
+
 
 def test_no_tools_prompt_contains_household_info(mini_scenario):
     """Prompt should describe the household."""
     prompt = make_no_tools_prompt(mini_scenario, "income_tax")
-    assert "single filer" in prompt
-    assert "CA" in prompt
-    assert "50,000" in prompt
-    assert "35 years old" in prompt
-    assert "2025" in prompt
+    prompt_lower = prompt.lower()
+    assert "household:" in prompt_lower
+    assert "filing status: single" in prompt_lower
+    assert "state: ca" in prompt_lower
+    assert "employment income: $50,000" in prompt
+    assert "tax year: 2025" in prompt_lower
 
 
 def test_no_tools_prompt_asks_for_numeric(mini_scenario):
@@ -151,37 +187,128 @@ def test_no_tools_prompt_supports_json_contract(mini_scenario):
     assert "submit_answer" not in prompt
 
 
-@patch("policybench.eval_no_tools.completion")
-def test_run_single_no_tools(mock_completion, mini_scenario):
-    """Should call LiteLLM and extract numeric prediction from tool arguments."""
-    message = MagicMock()
-    message.content = None
-    message.tool_calls = [
-        SimpleNamespace(
-            function=SimpleNamespace(
-                name="submit_answer",
+def test_no_tools_batch_prompt_requests_all_variables(mini_scenario):
+    """Batch benchmark prompt should ask for every output in one response."""
+    prompt = make_no_tools_batch_prompt(
+        mini_scenario,
+        ["income_tax_before_refundable_credits", "eitc"],
+    )
+    prompt_lower = prompt.lower()
+    assert "provide the following policy quantities" in prompt_lower
+    assert "- income_tax_before_refundable_credits:" in prompt
+    assert "- eitc:" in prompt
+    assert "submit_answers" in prompt
+
+
+def test_no_tools_prompt_includes_nonzero_raw_inputs_across_entities(rich_scenario):
+    """Prompt should expose the same raw nonzero inputs passed to PE."""
+    prompt = make_no_tools_prompt(rich_scenario, "ctc")
+    prompt_lower = prompt.lower()
+    assert "real estate taxes: $4,000" in prompt_lower
+    assert "home mortgage interest: $9,000" in prompt_lower
+    assert "hours worked per week: 40" in prompt_lower
+    assert "tax unit:" in prompt_lower
+    assert "health savings account deduction: $800" in prompt_lower
+    assert "spm unit:" in prompt_lower
+    assert "pre-subsidy childcare expenses: $2,400" in prompt_lower
+    assert "household inputs:" in prompt_lower
+    assert "auto loan interest: $300" in prompt_lower
+
+
+def test_income_tax_prompt_clarifies_negative_after_refundable_credits(mini_scenario):
+    """Income tax prompt should make the target semantics explicit."""
+    prompt = make_no_tools_prompt(mini_scenario, "income_tax")
+    prompt_lower = prompt.lower()
+    assert "after refundable credits" in prompt_lower
+    assert "can be negative" in prompt_lower
+
+
+def test_precredit_tax_prompt_distinguishes_it_from_final_tax(mini_scenario):
+    """Pre-credit tax prompt should explicitly exclude refundable credits."""
+    prompt = make_no_tools_prompt(
+        mini_scenario, "income_tax_before_refundable_credits"
+    )
+    prompt_lower = prompt.lower()
+    assert "federal income tax" in prompt_lower
+    assert "before refundable credits" in prompt_lower
+    assert "do not subtract refundable credits" in prompt_lower
+
+
+def test_refundable_credits_prompt_distinguishes_it_from_tax_liability(mini_scenario):
+    """Refundable credits prompt should not be confusable with tax liability."""
+    prompt = make_no_tools_prompt(mini_scenario, "income_tax_refundable_credits")
+    prompt_lower = prompt.lower()
+    assert "refundable federal tax credits only" in prompt_lower
+    assert "not pre-credit tax liability" in prompt_lower
+
+
+def test_agi_prompt_is_explicitly_federal(mini_scenario):
+    """AGI prompt should clarify that the quantity is federal unless marked state."""
+    prompt = make_no_tools_prompt(mini_scenario, "adjusted_gross_income")
+    prompt_lower = prompt.lower()
+    assert "federal adjusted gross income" in prompt_lower
+
+
+def test_free_school_meals_prompt_clarifies_household_boolean(mini_scenario):
+    """School meals prompt should ask for household free-meal eligibility, not dollars."""
+    prompt = make_no_tools_prompt(mini_scenario, "free_school_meals")
+    prompt_lower = prompt.lower()
+    assert "household qualifies for free school meals" in prompt_lower
+    assert "reduced-price meals do not count as 1" in prompt_lower
+
+
+def test_medicaid_prompt_clarifies_anyone_in_household(mini_scenario):
+    """Medicaid prompt should ask whether any household member is eligible."""
+    prompt = make_no_tools_prompt(mini_scenario, "is_medicaid_eligible")
+    prompt_lower = prompt.lower()
+    assert "anyone in the household" in prompt_lower
+    assert "(1 if yes, 0 if no)" in prompt_lower
+
+
+def test_state_income_tax_before_refundable_prompt_is_explicit(mini_scenario):
+    """State pre-credit tax prompt should distinguish it from final state tax."""
+    prompt = make_no_tools_prompt(
+        mini_scenario, "state_income_tax_before_refundable_credits"
+    )
+    prompt_lower = prompt.lower()
+    assert "state income tax before refundable credits" in prompt_lower
+    assert "do not subtract state refundable credits" in prompt_lower
+
+
+def test_state_refundable_credits_prompt_is_explicit(mini_scenario):
+    """State refundable credits prompt should not be conflated with final state tax."""
+    prompt = make_no_tools_prompt(mini_scenario, "state_refundable_credits")
+    assert "total refundable state tax credits only" in prompt.lower()
+
+
+@patch("policybench.eval_no_tools.responses")
+def test_run_single_no_tools(mock_responses, mini_scenario):
+    """GPT-5 models should use Responses API and extract tool-call answers."""
+    response = SimpleNamespace(
+        output_text="",
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name="submit_answers",
                 arguments='{"answer": 3500}',
             )
-        )
-    ]
-    message.function_call = None
-
-    response = MagicMock()
-    response.choices = [MagicMock(message=message)]
-    response.usage = litellm.Usage(
-        prompt_tokens=12,
-        completion_tokens=3,
-        total_tokens=15,
-        reasoning_tokens=2,
-        prompt_tokens_details={"cached_tokens": 4},
-        cost=0.00123,
+        ],
+        usage=SimpleNamespace(
+            input_tokens=12,
+            output_tokens=3,
+            total_tokens=15,
+            cost=0.00123,
+            input_tokens_details=SimpleNamespace(cached_tokens=4),
+            output_tokens_details=SimpleNamespace(reasoning_tokens=2),
+        ),
     )
-    mock_completion.return_value = response
+    mock_responses.return_value = response
 
     result = run_single_no_tools(mini_scenario, "income_tax", "gpt-5.4")
 
     assert result["prediction"] == 3500.0
-    assert "submit_answer" in result["raw_response"]
+    assert result["predictions"]["income_tax"] == 3500.0
+    assert "submit_answers" in result["raw_response"]
     assert "3500" in result["raw_response"]
     assert result["error"] is None
     assert result["prompt_tokens"] == 12
@@ -189,16 +316,20 @@ def test_run_single_no_tools(mock_completion, mini_scenario):
     assert result["total_tokens"] == 15
     assert result["reasoning_tokens"] == 2
     assert result["cached_prompt_tokens"] == 4
+    assert result["provider_reported_cost_usd"] == 0.00123
+    assert result["reconstructed_cost_usd"] is not None
+    assert result["total_cost_usd"] == 0.00123
+    assert result["cost_is_estimated"] is False
     assert result["estimated_cost_usd"] == 0.00123
     assert result["elapsed_seconds"] is not None
     assert result["elapsed_seconds"] >= 0
-    mock_completion.assert_called_once()
-    assert mock_completion.call_args.kwargs["timeout"] == 20
-    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 256
-    assert mock_completion.call_args.kwargs["tools"][0]["function"]["name"] == "submit_answer"
-    assert mock_completion.call_args.kwargs["tool_choice"]["function"]["name"] == "submit_answer"
-    assert "temperature" not in mock_completion.call_args.kwargs
-    assert "reasoning_effort" not in mock_completion.call_args.kwargs
+    mock_responses.assert_called_once()
+    assert mock_responses.call_args.kwargs["timeout"] == 20
+    assert mock_responses.call_args.kwargs["max_output_tokens"] == 256
+    assert mock_responses.call_args.kwargs["tools"][0]["name"] == "submit_answers"
+    assert mock_responses.call_args.kwargs["tool_choice"]["name"] == "submit_answers"
+    assert "temperature" not in mock_responses.call_args.kwargs
+    assert "reasoning_effort" not in mock_responses.call_args.kwargs
 
 
 @patch("policybench.eval_no_tools.completion")
@@ -226,7 +357,7 @@ def test_run_single_no_tools_uses_default_completion_budget_for_claude(
     message.tool_calls = [
         SimpleNamespace(
             function=SimpleNamespace(
-                name="submit_answer",
+                name="submit_answers",
                 arguments='{"answer": 3500}',
             )
         )
@@ -245,25 +376,59 @@ def test_run_single_no_tools_uses_default_completion_budget_for_claude(
     assert "response_format" not in mock_completion.call_args.kwargs
 
 
-@patch("policybench.eval_no_tools.completion")
+@patch("policybench.eval_no_tools.responses")
 def test_run_single_no_tools_falls_back_to_text_content(
-    mock_completion, mini_scenario
+    mock_responses, mini_scenario
 ):
-    """Text parsing should still work when no tool call is present."""
-    message = MagicMock()
-    message.content = '{"answer": 777}'
-    message.tool_calls = None
-    message.function_call = None
-
-    response = MagicMock()
-    response.choices = [MagicMock(message=message)]
-    response.usage = litellm.Usage(prompt_tokens=12, completion_tokens=3, total_tokens=15)
-    mock_completion.return_value = response
+    """Responses API text output should still parse when no function call is present."""
+    response = SimpleNamespace(
+        output_text='{"income_tax": 777}',
+        output=[
+            SimpleNamespace(
+                type="message",
+                content=[SimpleNamespace(type="output_text", text='{"income_tax": 777}')],
+            )
+        ],
+        usage=SimpleNamespace(input_tokens=12, output_tokens=3, total_tokens=15),
+    )
+    mock_responses.return_value = response
 
     result = run_single_no_tools(mini_scenario, "income_tax", "gpt-5.4")
 
     assert result["prediction"] == 777.0
-    assert result["raw_response"] == '{"answer": 777}'
+    assert result["predictions"]["income_tax"] == 777.0
+    assert result["raw_response"] == '{"income_tax": 777}'
+
+
+@patch("policybench.eval_no_tools.responses")
+def test_run_single_no_tools_supports_multiple_variables(
+    mock_responses, mini_scenario
+):
+    """Batch path should parse a full mapping from one Responses API tool call."""
+    response = SimpleNamespace(
+        output_text="",
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name="submit_answers",
+                arguments='{"income_tax_before_refundable_credits": 3500, "eitc": 0}',
+            )
+        ],
+        usage=SimpleNamespace(input_tokens=12, output_tokens=3, total_tokens=15),
+    )
+    mock_responses.return_value = response
+
+    result = run_single_no_tools(
+        mini_scenario,
+        ["income_tax_before_refundable_credits", "eitc"],
+        "gpt-5.4",
+    )
+
+    assert result["predictions"] == {
+        "income_tax_before_refundable_credits": 3500.0,
+        "eitc": 0.0,
+    }
+    assert "submit_answers" in result["raw_response"]
 
 
 @patch("policybench.eval_no_tools.completion")
@@ -272,7 +437,7 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
 ):
     """Gemini should use JSON structured output instead of the tool-call transport."""
     message = MagicMock()
-    message.content = '{"answer": 3500}'
+    message.content = '{"income_tax": 3500}'
     message.tool_calls = None
     message.function_call = None
 
@@ -288,6 +453,7 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
     )
 
     assert result["prediction"] == 3500.0
+    assert result["predictions"]["income_tax"] == 3500.0
     assert mock_completion.call_args.kwargs["response_format"] == {"type": "json_object"}
     assert mock_completion.call_args.kwargs["max_completion_tokens"] == 512
     assert "tools" not in mock_completion.call_args.kwargs
@@ -295,30 +461,38 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
 
 
 @patch("policybench.eval_no_tools.completion_cost", return_value=0.00456)
-@patch("policybench.eval_no_tools.completion")
+@patch("policybench.eval_no_tools.responses")
 def test_run_single_no_tools_falls_back_to_completion_cost(
-    mock_completion,
+    mock_responses,
     mock_completion_cost,
     mini_scenario,
 ):
-    """Cost should be computed from LiteLLM when the provider omits usage.cost."""
-    message = MagicMock()
-    message.content = "123"
-    message.tool_calls = None
-    message.function_call = None
-
-    response = MagicMock()
-    response.choices = [MagicMock(message=message)]
-    response.usage = litellm.Usage(
-        prompt_tokens=9,
-        completion_tokens=2,
-        total_tokens=11,
-        completion_tokens_details={"reasoning_tokens": 1},
+    """Responses cost should be reconstructed when the provider omits billed cost."""
+    response = SimpleNamespace(
+        output_text='{"eitc": 123}',
+        output=[
+            SimpleNamespace(
+                type="message",
+                content=[SimpleNamespace(type="output_text", text='{"eitc": 123}')],
+            )
+        ],
+        usage=SimpleNamespace(
+            input_tokens=9,
+            output_tokens=2,
+            total_tokens=11,
+            input_tokens_details=SimpleNamespace(cached_tokens=0),
+            output_tokens_details=SimpleNamespace(reasoning_tokens=1),
+            cost=None,
+        ),
     )
-    mock_completion.return_value = response
+    mock_responses.return_value = response
 
     result = run_single_no_tools(mini_scenario, "eitc", "gpt-5.4")
 
+    assert result["provider_reported_cost_usd"] is None
+    assert result["reconstructed_cost_usd"] == 0.00456
+    assert result["total_cost_usd"] == 0.00456
+    assert result["cost_is_estimated"] is True
     assert result["estimated_cost_usd"] == 0.00456
     assert result["reasoning_tokens"] == 1
     mock_completion_cost.assert_called_once()
@@ -339,7 +513,7 @@ def test_run_no_tools_eval_skips_remaining_model_after_fatal_error(
 
     df = run_no_tools_eval(
         [mini_scenario],
-        models={"claude-opus": "claude-opus-4-6"},
+        models={"claude-opus-4.6": "claude-opus-4-6"},
         programs=["income_tax", "eitc"],
     )
 
@@ -370,7 +544,8 @@ def test_run_no_tools_eval_resumes_from_existing_output(
     ).to_csv(output_path, index=False)
 
     mock_run_single_no_tools.return_value = {
-        "prediction": 456.0,
+        "predictions": {"income_tax": 123.0, "eitc": 456.0},
+        "prediction": 123.0,
         "raw_response": "456",
         "error": None,
     }
@@ -384,6 +559,7 @@ def test_run_no_tools_eval_resumes_from_existing_output(
 
     assert len(df) == 2
     assert set(df["variable"]) == {"income_tax", "eitc"}
+    assert df.loc[df["variable"] == "income_tax", "prediction"].iloc[0] == 123.0
     assert mock_run_single_no_tools.call_count == 1
 
 
@@ -418,6 +594,7 @@ def test_run_no_tools_eval_retries_rows_with_existing_errors(
     ).to_csv(output_path, index=False)
 
     mock_run_single_no_tools.return_value = {
+        "predictions": {"income_tax": 123.0, "eitc": 456.0},
         "prediction": 123.0,
         "raw_response": "123",
         "error": None,
@@ -467,6 +644,7 @@ def test_run_no_tools_eval_retries_rows_with_missing_predictions(
     ).to_csv(output_path, index=False)
 
     mock_run_single_no_tools.return_value = {
+        "predictions": {"income_tax": 123.0, "eitc": 456.0},
         "prediction": 123.0,
         "raw_response": "123",
         "error": None,
@@ -491,6 +669,7 @@ def test_run_no_tools_eval_includes_run_id(
 ):
     """Repeated runs should stamp each output row with a run_id."""
     mock_run_single_no_tools.return_value = {
+        "predictions": {"income_tax": 123.0},
         "prediction": 123.0,
         "raw_response": "123",
         "error": None,

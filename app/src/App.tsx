@@ -1,21 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import data from "./data.json";
+import rawData from "./data.json";
 import Hero from "./components/Hero";
+import FailureModes from "./components/FailureModes";
 import Methodology from "./components/Methodology";
 import ScatterPlot from "./components/ScatterPlot";
 import ModelLeaderboard from "./components/ModelLeaderboard";
 import ProgramHeatmap from "./components/ProgramHeatmap";
 import ScenarioExplorer from "./components/ScenarioExplorer";
+import type { BenchData } from "./types";
 
-export type BenchData = typeof data;
+const data = rawData as BenchData;
+
+export type { BenchData } from "./types";
 
 const NAV_ITEMS = [
   { id: "methodology", label: "Method" },
   { id: "scatter", label: "Scatter" },
   { id: "models", label: "Models" },
   { id: "programs", label: "Programs" },
+  { id: "failure-modes", label: "Failure" },
   { id: "scenarios", label: "Scenarios" },
 ] as const;
 
@@ -42,7 +47,7 @@ export default function App() {
       <Hero data={data} />
 
       {/* Sticky nav */}
-      <nav className="sticky top-0 z-40 bg-void/80 backdrop-blur-md border-b border-border">
+      <nav className="sticky top-0 z-40 bg-bg/90 backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto px-6 flex gap-1">
           {NAV_ITEMS.map((item) => (
             <a
@@ -51,7 +56,7 @@ export default function App() {
               onClick={() => setActiveNav(item.id)}
               className={`px-4 py-3 text-xs font-medium tracking-wider uppercase transition-colors border-b-2 ${
                 activeNav === item.id
-                  ? "border-amber text-amber"
+                  ? "border-primary text-primary"
                   : "border-transparent text-text-secondary hover:text-text"
               }`}
             >
@@ -78,6 +83,10 @@ export default function App() {
           <ProgramHeatmap data={data} />
         </section>
 
+        <section id="failure-modes" className="pb-20">
+          <FailureModes data={data} />
+        </section>
+
         <section id="scenarios" className="pb-20">
           <ScenarioExplorer data={data} />
         </section>
@@ -90,15 +99,15 @@ export default function App() {
           programs, and {Object.keys(data.scenarios).length} household scenarios.
         </p>
         <p className="text-text-muted text-xs mt-2">
-          <a href="https://cosilico.ai" className="text-text-secondary hover:text-amber transition-colors">
-            Cosilico
-          </a>
-          {" "}&middot;{" "}
-          <a href="https://policyengine.org" className="text-text-secondary hover:text-amber transition-colors">
+          <a href="https://policyengine.org" className="text-text-secondary hover:text-primary transition-colors">
             PolicyEngine
           </a>
           {" "}&middot;{" "}
-          <a href="https://github.com/CosilicoAI/policybench" className="text-text-secondary hover:text-amber transition-colors">
+          <a href="https://policybench.org" className="text-text-secondary hover:text-primary transition-colors">
+            PolicyBench.org
+          </a>
+          {" "}&middot;{" "}
+          <a href="https://github.com/PolicyEngine/policybench" className="text-text-secondary hover:text-primary transition-colors">
             GitHub
           </a>
         </p>

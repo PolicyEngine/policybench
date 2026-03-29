@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { DM_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const display = Instrument_Serif({
+const inter = Inter({
   subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-display",
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-ui",
   display: "swap",
 });
 
@@ -17,15 +16,8 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-const body = DM_Sans({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  variable: "--font-body",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
-  title: "PolicyBench",
+  title: "PolicyBench, by PolicyEngine",
   description:
     "Benchmarking no-tools household-level policy calculation across frontier models.",
 };
@@ -36,10 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${display.variable} ${mono.variable} ${body.variable}`}
-    >
+    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body className="antialiased">{children}</body>
     </html>
   );

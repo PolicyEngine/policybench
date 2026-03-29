@@ -6,6 +6,19 @@ from policyengine_us import Simulation
 from policybench.config import PROGRAMS, TAX_YEAR
 from policybench.scenarios import Scenario
 
+HOUSEHOLD_BOOLEAN_VARIABLES = {
+    "free_school_meals",
+    "is_medicaid_eligible",
+}
+
+
+def _extract_scalar_value(result, variable: str) -> float:
+    """Convert a PolicyEngine result array into the benchmark scalar."""
+    value = float(result.sum())
+    if variable in HOUSEHOLD_BOOLEAN_VARIABLES:
+        return float(value > 0)
+    return value
+
 
 def calculate_single(
     scenario: Scenario,
@@ -15,10 +28,7 @@ def calculate_single(
     """Calculate a single variable for a scenario using PE-US."""
     household = scenario.to_pe_household()
     sim = Simulation(situation=household)
-    result = sim.calculate(variable, year)
-    # Most variables return arrays; take first element or sum as appropriate
-    value = float(result.sum())
-    return value
+    return _extract_scalar_value(sim.calculate(variable, year), variable)
 
 
 def calculate_ground_truth(
@@ -37,7 +47,7 @@ def calculate_ground_truth(
     for scenario in scenarios:
         sim = Simulation(situation=scenario.to_pe_household())
         for variable in programs:
-            value = float(sim.calculate(variable, year).sum())
+            value = _extract_scalar_value(sim.calculate(variable, year), variable)
             rows.append(
                 {
                     "scenario_id": scenario.id,

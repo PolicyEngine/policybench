@@ -1,6 +1,7 @@
 """Household scenario generation for PolicyBench."""
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 import json
 from typing import Any
 
@@ -22,46 +23,123 @@ PE_FILING_STATUSES = {
     "head_of_household": "HEAD_OF_HOUSEHOLD",
 }
 
-PERSON_NUMERIC_INPUT_FIELDS = (
-    "self_employment_income",
-    "weekly_hours_worked",
-    "unemployment_compensation",
-    "taxable_interest_income",
+ALLOWED_INPUT_ENTITIES = {"person", "tax_unit", "spm_unit", "household"}
+
+EXCLUDED_INPUT_VARIABLES = {
+    "age",
+    "business_is_qualified",
+    "business_is_sstb",
+    "co_ccap_is_in_entry_process",
+    "county_fips",
+    "family_id",
+    "filing_status",
+    "has_itin",
+    "household_count",
+    "household_id",
+    "household_weight",
+    "id_receives_aged_or_disabled_credit",
+    "is_computer_scientist",
+    "is_executive_administrative_professional",
+    "is_farmer_fisher",
+    "is_female",
+    "is_hispanic",
+    "is_household_head",
+    "is_related_to_head_or_spouse",
+    "is_tafdc_related_to_head_or_spouse",
+    "is_tax_unit_head",
+    "is_tax_unit_spouse",
+    "la_receives_blind_exemption",
+    "person_count",
+    "person_family_id",
+    "person_household_id",
+    "person_id",
+    "person_marital_unit_id",
+    "person_spm_unit_id",
+    "person_tax_unit_id",
+    "previous_year_income_available",
+    "spm_unit_id",
+    "spm_unit_capped_work_childcare_expenses",
+    "spm_unit_spm_threshold",
+    "state_code",
+    "state_fips",
+    "tax_unit_count",
+    "tax_unit_id",
+    "wy_power_shelter_qualified",
+}
+
+EXCLUDED_INPUT_PREFIXES = (
+    "takes_up_",
+    "would_",
+)
+
+EXCLUDED_INPUT_SUFFIXES = (
+    "_count",
+    "_fips",
+    "_id",
+    "_reported",
+    "_would_be_qualified",
+)
+
+INPUT_NAME_ALIASES = {
+    "employment_income_before_lsr": "employment_income",
+    "self_employment_income_before_lsr": "self_employment_income",
+    "weekly_hours_worked_before_lsr": "weekly_hours_worked",
+    "long_term_capital_gains_before_response": "long_term_capital_gains",
+}
+
+DEFAULT_TAKEUP_INPUTS = {
+    "person": {
+        "takes_up_medicaid_if_eligible": True,
+        "takes_up_ssi_if_eligible": True,
+    },
+    "tax_unit": {
+        "takes_up_aca_if_eligible": True,
+        "takes_up_dc_ptc": True,
+        "takes_up_eitc": True,
+        "would_file_if_eligible_for_refundable_credit": True,
+        "would_file_taxes_voluntarily": True,
+    },
+    "spm_unit": {
+        "takes_up_snap_if_eligible": True,
+    },
+    "household": {},
+}
+
+MONETARY_INCOME_FIELDS = {
+    "alimony_income",
+    "child_support_received",
+    "disability_benefits",
+    "employment_income",
+    "estate_income",
+    "farm_income",
+    "farm_operations_income",
+    "farm_rent_income",
+    "miscellaneous_income",
+    "non_qualified_dividend_income",
+    "partnership_s_corp_income",
+    "partnership_se_income",
     "qualified_dividend_income",
+    "rental_income",
+    "salt_refund_income",
+    "self_employment_income",
     "short_term_capital_gains",
-    "long_term_capital_gains",
+    "social_security_dependents",
+    "social_security_disability",
+    "social_security_retirement",
+    "social_security_survivors",
+    "ssi_reported",
+    "tax_exempt_interest_income",
+    "taxable_401k_distributions",
+    "taxable_403b_distributions",
+    "taxable_interest_income",
     "taxable_ira_distributions",
     "taxable_private_pension_income",
-    "social_security_retirement",
-    "social_security_disability",
-    "disability_benefits",
+    "taxable_sep_distributions",
+    "tip_income",
+    "unemployment_compensation",
     "veterans_benefits",
-)
-
-PERSON_BOOLEAN_INPUT_FIELDS = (
-    "is_disabled",
-    "is_blind",
-    "is_full_time_college_student",
-)
-
-PERSON_INPUT_VARIABLES = {
-    "employment_income": "employment_income_before_lsr",
-    "self_employment_income": "self_employment_income_before_lsr",
-    "weekly_hours_worked": "weekly_hours_worked_before_lsr",
-    "unemployment_compensation": "unemployment_compensation",
-    "taxable_interest_income": "taxable_interest_income",
-    "qualified_dividend_income": "qualified_dividend_income",
-    "short_term_capital_gains": "short_term_capital_gains",
-    "long_term_capital_gains": "long_term_capital_gains_before_response",
-    "taxable_ira_distributions": "taxable_ira_distributions",
-    "taxable_private_pension_income": "taxable_private_pension_income",
-    "social_security_retirement": "social_security_retirement",
-    "social_security_disability": "social_security_disability",
-    "disability_benefits": "disability_benefits",
-    "veterans_benefits": "veterans_benefits",
-    "is_disabled": "is_disabled",
-    "is_blind": "is_blind",
-    "is_full_time_college_student": "is_full_time_college_student",
+    "workers_compensation",
+    "long_term_capital_gains",
 }
 
 BASE_CPS_COLUMNS = {
@@ -92,25 +170,62 @@ REQUIRED_CPS_COLUMNS = {
 
 OPTIONAL_CPS_DEFAULTS = {
     "employment_income": 0.0,
-    "self_employment_income": 0.0,
-    "weekly_hours_worked": 0.0,
-    "unemployment_compensation": 0.0,
-    "taxable_interest_income": 0.0,
-    "qualified_dividend_income": 0.0,
-    "short_term_capital_gains": 0.0,
-    "long_term_capital_gains": 0.0,
-    "taxable_ira_distributions": 0.0,
-    "taxable_private_pension_income": 0.0,
-    "social_security_retirement": 0.0,
-    "social_security_disability": 0.0,
-    "disability_benefits": 0.0,
-    "veterans_benefits": 0.0,
-    "is_disabled": False,
-    "is_blind": False,
-    "is_full_time_college_student": False,
     "is_tax_unit_head": False,
     "is_tax_unit_spouse": False,
 }
+
+
+@dataclass(frozen=True)
+class InputVariableSpec:
+    """Promptable raw input metadata."""
+
+    output_name: str
+    source_name: str
+    entity: str
+    value_type: str
+
+
+def _is_promptable_input_variable(name: str, variable) -> bool:
+    if variable.entity.key not in ALLOWED_INPUT_ENTITIES:
+        return False
+    if name in EXCLUDED_INPUT_VARIABLES:
+        return False
+    if name.startswith(EXCLUDED_INPUT_PREFIXES):
+        return False
+    if name.endswith(EXCLUDED_INPUT_SUFFIXES):
+        return False
+
+    value_type = getattr(variable.value_type, "__name__", str(variable.value_type))
+    return value_type in {"float", "bool"}
+
+
+@lru_cache(maxsize=1)
+def get_promptable_input_specs() -> tuple[InputVariableSpec, ...]:
+    """Discover promptable raw inputs from the default PE-US variable registry."""
+    sim = Microsimulation()
+    specs: dict[str, InputVariableSpec] = {}
+
+    for source_name, variable in sim.tax_benefit_system.variables.items():
+        if not variable.is_input_variable():
+            continue
+        if not _is_promptable_input_variable(source_name, variable):
+            continue
+
+        output_name = INPUT_NAME_ALIASES.get(source_name, source_name)
+        value_type = getattr(variable.value_type, "__name__", str(variable.value_type))
+        specs[output_name] = InputVariableSpec(
+            output_name=output_name,
+            source_name=source_name,
+            entity=variable.entity.key,
+            value_type=value_type,
+        )
+
+    return tuple(
+        sorted(
+            specs.values(),
+            key=lambda spec: (spec.entity, spec.output_name),
+        )
+    )
 
 
 @dataclass
@@ -125,7 +240,9 @@ class Person:
     @property
     def total_income(self) -> float:
         return self.employment_income + sum(
-            float(self.inputs.get(field, 0.0)) for field in PERSON_NUMERIC_INPUT_FIELDS
+            float(value)
+            for field, value in self.inputs.items()
+            if field in MONETARY_INCOME_FIELDS
         )
 
 
@@ -138,6 +255,9 @@ class Scenario:
     filing_status: str
     adults: list[Person]
     children: list[Person] = field(default_factory=list)
+    tax_unit_inputs: dict[str, Any] = field(default_factory=dict)
+    spm_unit_inputs: dict[str, Any] = field(default_factory=dict)
+    household_inputs: dict[str, Any] = field(default_factory=dict)
     year: int = TAX_YEAR
     source_dataset: str = "enhanced_cps"
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -170,6 +290,8 @@ class Scenario:
             }
             for field, value in person.inputs.items():
                 person_data[field] = self._yearize(value)
+            for field, value in DEFAULT_TAKEUP_INPUTS["person"].items():
+                person_data.setdefault(field, self._yearize(value))
             people[person.name] = person_data
             adult_names.append(person.name)
 
@@ -180,29 +302,43 @@ class Scenario:
             }
             for field, value in person.inputs.items():
                 person_data[field] = self._yearize(value)
+            for field, value in DEFAULT_TAKEUP_INPUTS["person"].items():
+                person_data.setdefault(field, self._yearize(value))
             people[person.name] = person_data
             child_names.append(person.name)
 
         all_names = adult_names + child_names
 
+        tax_unit_data = {
+            "members": all_names,
+            "filing_status": self._yearize(PE_FILING_STATUSES[self.filing_status]),
+        }
+        for field, value in self.tax_unit_inputs.items():
+            tax_unit_data[field] = self._yearize(value)
+        for field, value in DEFAULT_TAKEUP_INPUTS["tax_unit"].items():
+            tax_unit_data.setdefault(field, self._yearize(value))
+
+        spm_unit_data = {"members": all_names}
+        for field, value in self.spm_unit_inputs.items():
+            spm_unit_data[field] = self._yearize(value)
+        for field, value in DEFAULT_TAKEUP_INPUTS["spm_unit"].items():
+            spm_unit_data.setdefault(field, self._yearize(value))
+
+        household_data = {
+            "members": all_names,
+            "state_code": self._yearize(self.state),
+        }
+        for field, value in self.household_inputs.items():
+            household_data[field] = self._yearize(value)
+        for field, value in DEFAULT_TAKEUP_INPUTS["household"].items():
+            household_data.setdefault(field, self._yearize(value))
+
         return {
             "people": people,
-            "tax_units": {
-                "tax_unit": {
-                    "members": all_names,
-                    "filing_status": self._yearize(
-                        PE_FILING_STATUSES[self.filing_status]
-                    ),
-                }
-            },
-            "spm_units": {"spm_unit": {"members": all_names}},
+            "tax_units": {"tax_unit": tax_unit_data},
+            "spm_units": {"spm_unit": spm_unit_data},
             "families": {"family": {"members": all_names}},
-            "households": {
-                "household": {
-                    "members": all_names,
-                    "state_code": self._yearize(self.state),
-                }
-            },
+            "households": {"household": household_data},
         }
 
 
@@ -234,6 +370,9 @@ def scenario_to_dict(scenario: Scenario) -> dict[str, Any]:
         "filing_status": scenario.filing_status,
         "adults": [person_to_dict(person) for person in scenario.adults],
         "children": [person_to_dict(person) for person in scenario.children],
+        "tax_unit_inputs": scenario.tax_unit_inputs,
+        "spm_unit_inputs": scenario.spm_unit_inputs,
+        "household_inputs": scenario.household_inputs,
         "year": int(scenario.year),
         "source_dataset": scenario.source_dataset,
         "metadata": scenario.metadata,
@@ -248,6 +387,9 @@ def scenario_from_dict(data: dict[str, Any]) -> Scenario:
         filing_status=str(data["filing_status"]),
         adults=[person_from_dict(person) for person in data.get("adults", [])],
         children=[person_from_dict(person) for person in data.get("children", [])],
+        tax_unit_inputs=dict(data.get("tax_unit_inputs", {})),
+        spm_unit_inputs=dict(data.get("spm_unit_inputs", {})),
+        household_inputs=dict(data.get("household_inputs", {})),
         year=int(data.get("year", TAX_YEAR)),
         source_dataset=str(data.get("source_dataset", "enhanced_cps")),
         metadata=dict(data.get("metadata", {})),
@@ -258,17 +400,27 @@ def load_enhanced_cps_person_frame() -> tuple[pd.DataFrame, int]:
     """Load a person-level frame from the default Enhanced CPS microsimulation."""
     sim = Microsimulation()
     dataset_year = sim.default_input_period
+    input_specs = get_promptable_input_specs()
 
     values = {}
-    for output_name, variable_name in {
-        **BASE_CPS_COLUMNS,
-        **PERSON_INPUT_VARIABLES,
-    }.items():
-        values[output_name] = sim.calculate(
-            variable_name,
-            dataset_year,
-            map_to="person",
-            use_weights=False,
+    for output_name, variable_name in BASE_CPS_COLUMNS.items():
+        values[output_name] = np.asarray(
+            sim.calculate(
+                variable_name,
+                dataset_year,
+                map_to="person",
+                use_weights=False,
+            )
+        )
+
+    for spec in input_specs:
+        values[spec.output_name] = np.asarray(
+            sim.calculate(
+                spec.source_name,
+                dataset_year,
+                map_to="person",
+                use_weights=False,
+            )
         )
 
     return pd.DataFrame(values), dataset_year
@@ -305,15 +457,33 @@ def _prepare_cps_frame(person_df: pd.DataFrame) -> pd.DataFrame:
 
     df = person_df.copy()
 
-    for column, default in OPTIONAL_CPS_DEFAULTS.items():
-        if column not in df.columns:
-            df[column] = default
+    input_specs = get_promptable_input_specs()
+
+    missing_defaults = {
+        column: default
+        for column, default in OPTIONAL_CPS_DEFAULTS.items()
+        if column not in df.columns
+    }
+    missing_defaults.update(
+        {
+            spec.output_name: False if spec.value_type == "bool" else 0.0
+            for spec in input_specs
+            if spec.output_name not in df.columns
+        }
+    )
+    if missing_defaults:
+        defaults_df = pd.DataFrame(missing_defaults, index=df.index)
+        df = pd.concat([df, defaults_df], axis=1).copy()
 
     numeric_columns = {
         "age",
         "household_weight",
         "employment_income",
-        *PERSON_NUMERIC_INPUT_FIELDS,
+        *(
+            spec.output_name
+            for spec in input_specs
+            if spec.value_type == "float"
+        ),
     }
     for column in numeric_columns:
         df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0.0)
@@ -321,7 +491,11 @@ def _prepare_cps_frame(person_df: pd.DataFrame) -> pd.DataFrame:
     boolean_columns = {
         "is_tax_unit_head",
         "is_tax_unit_spouse",
-        *PERSON_BOOLEAN_INPUT_FIELDS,
+        *(
+            spec.output_name
+            for spec in input_specs
+            if spec.value_type == "bool"
+        ),
     }
     for column in boolean_columns:
         df[column] = df[column].fillna(False).astype(bool)
@@ -346,12 +520,9 @@ def _eligible_households(person_df: pd.DataFrame) -> pd.DataFrame:
         person_df.groupby("household_id")
         .agg(
             household_weight=("household_weight", "first"),
-            state_nunique=("state_code", "nunique"),
-            filing_nunique=("filing_status", "nunique"),
             tax_units=("tax_unit_id", "nunique"),
             spm_units=("spm_unit_id", "nunique"),
             families=("family_id", "nunique"),
-            household_size=("person_id", "size"),
             adults=("is_adult", "sum"),
             filing_status=("filing_status", "first"),
         )
@@ -359,12 +530,9 @@ def _eligible_households(person_df: pd.DataFrame) -> pd.DataFrame:
     )
 
     summary = summary[
-        (summary["state_nunique"] == 1)
-        & (summary["filing_nunique"] == 1)
-        & (summary["tax_units"] == 1)
+        (summary["tax_units"] == 1)
         & (summary["spm_units"] == 1)
         & (summary["families"] == 1)
-        & (summary["household_size"].between(1, 6))
         & (summary["filing_status"].isin(SUPPORTED_FILING_STATUSES))
     ]
 
@@ -407,17 +575,23 @@ def _sample_household_ids(
     return [int(household_id) for household_id in sampled]
 
 
-def _extract_person_inputs(row: pd.Series) -> dict[str, Any]:
+def _extract_entity_inputs(
+    row: pd.Series,
+    entity: str,
+) -> dict[str, Any]:
     inputs: dict[str, Any] = {}
+    for spec in get_promptable_input_specs():
+        if spec.entity != entity or spec.output_name == "employment_income":
+            continue
 
-    for field in PERSON_NUMERIC_INPUT_FIELDS:
-        value = float(row[field])
+        if spec.value_type == "bool":
+            if bool(row[spec.output_name]):
+                inputs[spec.output_name] = True
+            continue
+
+        value = float(row[spec.output_name])
         if abs(value) > 1e-6:
-            inputs[field] = value
-
-    for field in PERSON_BOOLEAN_INPUT_FIELDS:
-        if bool(row[field]):
-            inputs[field] = True
+            inputs[spec.output_name] = value
 
     return inputs
 
@@ -427,7 +601,7 @@ def _build_person(row: pd.Series, label: str) -> Person:
         name=label,
         age=int(round(float(row["age"]))),
         employment_income=float(row["employment_income"]),
-        inputs=_extract_person_inputs(row),
+        inputs=_extract_entity_inputs(row, "person"),
     )
 
 
@@ -485,6 +659,9 @@ def scenarios_from_cps_frame(
                 filing_status=filing_status,
                 adults=adults,
                 children=children,
+                tax_unit_inputs=_extract_entity_inputs(household.iloc[0], "tax_unit"),
+                spm_unit_inputs=_extract_entity_inputs(household.iloc[0], "spm_unit"),
+                household_inputs=_extract_entity_inputs(household.iloc[0], "household"),
                 year=year,
                 source_dataset=source_dataset,
                 metadata=metadata,

@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from policybench.config import MODELS
+from policybench.config import MODELS, PROGRAMS
 
 
 def _ensure_parent_dir(output_path: str) -> None:
@@ -22,6 +22,19 @@ def _parse_models(selected: list[str] | None) -> dict[str, str]:
             f"Valid choices: {', '.join(MODELS)}"
         )
     return {name: MODELS[name] for name in selected}
+
+
+def _parse_programs(selected: list[str] | None) -> list[str]:
+    if not selected:
+        return PROGRAMS
+
+    unknown = [name for name in selected if name not in PROGRAMS]
+    if unknown:
+        raise SystemExit(
+            f"Unknown program(s): {', '.join(sorted(unknown))}. "
+            f"Valid choices: {', '.join(PROGRAMS)}"
+        )
+    return selected
 
 
 def _slice_scenarios(scenarios: list, start: int, end: int | None) -> list:
@@ -48,6 +61,12 @@ def main():
         default="results/scenarios.csv",
         help="CSV file for exported scenario metadata",
     )
+    gt_parser.add_argument(
+        "--program",
+        action="append",
+        dest="programs",
+        help="Restrict ground-truth generation to one or more configured program names",
+    )
 
     # Eval no tools
     nt_parser = subparsers.add_parser("eval-no-tools", help="Run AI-alone evaluation")
@@ -71,6 +90,12 @@ def main():
         type=int,
         default=None,
         help="Exclusive scenario index to stop at",
+    )
+    nt_parser.add_argument(
+        "--program",
+        action="append",
+        dest="programs",
+        help="Restrict evaluation to one or more configured program names",
     )
 
     # Eval no tools repeated
@@ -109,6 +134,12 @@ def main():
         type=int,
         default=None,
         help="Exclusive scenario index to stop at",
+    )
+    ntr_parser.add_argument(
+        "--program",
+        action="append",
+        dest="programs",
+        help="Restrict evaluation to one or more configured program names",
     )
 
     # Analyze
@@ -153,7 +184,8 @@ def main():
         from policybench.scenarios import generate_scenarios, scenario_manifest
 
         scenarios = generate_scenarios(n=args.num_scenarios, seed=args.seed)
-        df = calculate_ground_truth(scenarios)
+        programs = _parse_programs(args.programs)
+        df = calculate_ground_truth(scenarios, programs=programs)
         _ensure_parent_dir(args.output)
         df.to_csv(args.output, index=False)
         _ensure_parent_dir(args.scenario_manifest_output)
@@ -168,8 +200,14 @@ def main():
         scenarios = generate_scenarios(n=args.num_scenarios, seed=args.seed)
         scenarios = _slice_scenarios(scenarios, args.scenario_start, args.scenario_end)
         models = _parse_models(args.models)
+        programs = _parse_programs(args.programs)
         _ensure_parent_dir(args.output)
-        df = run_no_tools_eval(scenarios, models=models, output_path=args.output)
+        df = run_no_tools_eval(
+            scenarios,
+            models=models,
+            programs=programs,
+            output_path=args.output,
+        )
         df.to_csv(args.output, index=False)
         print(f"No-tools predictions saved to {args.output}")
 
@@ -180,11 +218,13 @@ def main():
         scenarios = generate_scenarios(n=args.num_scenarios, seed=args.seed)
         scenarios = _slice_scenarios(scenarios, args.scenario_start, args.scenario_end)
         models = _parse_models(args.models)
+        programs = _parse_programs(args.programs)
         df = run_repeated_no_tools_eval(
             scenarios,
             repeats=args.repeats,
             output_dir=args.output_dir,
             models=models,
+            programs=programs,
         )
         print(f"Repeated no-tools predictions saved to {args.output_dir}")
         print(f"Total rows: {len(df)}")

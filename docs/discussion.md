@@ -38,7 +38,7 @@ These results suggest a clear architecture for AI systems that provide policy an
 
 Several limitations qualify these findings:
 
-**Scope of programs.** PolicyBench evaluates 10 variables covering major federal and state tax-and-benefit programs, but the US system includes hundreds of additional provisions (housing subsidies, healthcare premium tax credits, education credits, retirement savings incentives, and more). Model performance may differ on programs not included in this benchmark.
+**Scope of programs.** PolicyBench evaluates 13 variables covering major federal and state tax-and-benefit programs, including state AGI, state pre-credit tax, state refundable credits, and final state income tax. The US system still includes hundreds of additional provisions (housing subsidies, healthcare premium tax credits, education credits, retirement savings incentives, and more). We currently prefer AGI and pre-credit tax over final net federal income tax because those targets are cleaner and less semantically ambiguous in a no-tools benchmark. Model performance may differ on programs not included in this benchmark.
 
 **Household complexity.** Sampling from the Enhanced CPS improves realism substantially, but the benchmark still uses a filtered subset of households so that cases remain promptable and interpretable. More complex multi-tax-unit households, itemized-deduction-heavy filers, and unusual household structures remain underrepresented.
 
@@ -54,7 +54,7 @@ Several extensions of PolicyBench are planned or in progress:
 
 **International coverage.** PolicyEngine supports the UK, Canadian, and other tax-benefit systems. Extending PolicyBench to multiple countries would test whether models' computational limitations are specific to US policy complexity or are more general.
 
-**Specialized policy models.** Cosilico is developing AI models specifically trained for policy analysis, with fine-tuning on microsimulation inputs and outputs. PolicyBench provides a natural evaluation framework for measuring whether specialized training improves unaided performance.
+**Specialized policy models.** PolicyBench provides a natural evaluation framework for testing whether future domain-adapted policy models improve unaided performance on tax and benefit calculation, not just general-language reasoning.
 
 **Dynamic scenarios.** Current scenarios are static household snapshots. Future versions could test models on reform scenarios (e.g., "What would this household's SNAP benefits be if the maximum allotment increased by 10%?"), which require understanding both baseline rules and the proposed change.
 

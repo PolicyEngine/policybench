@@ -21,11 +21,18 @@ def sample_person_frame():
                 "tax_unit_id": 201,
                 "spm_unit_id": 301,
                 "family_id": 401,
+                "marital_unit_id": 501,
                 "household_weight": 2.0,
                 "state_code": "CA",
                 "filing_status": "HEAD_OF_HOUSEHOLD",
                 "age": 35,
                 "employment_income": 30_000.0,
+                "real_estate_taxes": 4_000.0,
+                "home_mortgage_interest": 9_000.0,
+                "health_savings_account_ald": 800.0,
+                "spm_unit_pre_subsidy_childcare_expenses": 2_400.0,
+                "auto_loan_interest": 300.0,
+                "auto_loan_balance": 5_000.0,
                 "is_tax_unit_head": True,
             },
             {
@@ -34,6 +41,7 @@ def sample_person_frame():
                 "tax_unit_id": 201,
                 "spm_unit_id": 301,
                 "family_id": 401,
+                "marital_unit_id": 501,
                 "household_weight": 2.0,
                 "state_code": "CA",
                 "filing_status": "HEAD_OF_HOUSEHOLD",
@@ -46,6 +54,7 @@ def sample_person_frame():
                 "tax_unit_id": 202,
                 "spm_unit_id": 302,
                 "family_id": 402,
+                "marital_unit_id": 502,
                 "household_weight": 3.0,
                 "state_code": "TX",
                 "filing_status": "JOINT",
@@ -59,6 +68,7 @@ def sample_person_frame():
                 "tax_unit_id": 202,
                 "spm_unit_id": 302,
                 "family_id": 402,
+                "marital_unit_id": 502,
                 "household_weight": 3.0,
                 "state_code": "TX",
                 "filing_status": "JOINT",
@@ -73,6 +83,7 @@ def sample_person_frame():
                 "tax_unit_id": 202,
                 "spm_unit_id": 302,
                 "family_id": 402,
+                "marital_unit_id": 502,
                 "household_weight": 3.0,
                 "state_code": "TX",
                 "filing_status": "JOINT",
@@ -85,6 +96,7 @@ def sample_person_frame():
                 "tax_unit_id": 202,
                 "spm_unit_id": 302,
                 "family_id": 402,
+                "marital_unit_id": 502,
                 "household_weight": 3.0,
                 "state_code": "TX",
                 "filing_status": "JOINT",
@@ -97,6 +109,7 @@ def sample_person_frame():
                 "tax_unit_id": 203,
                 "spm_unit_id": 303,
                 "family_id": 403,
+                "marital_unit_id": 503,
                 "household_weight": 1.0,
                 "state_code": "NY",
                 "filing_status": "SINGLE",
@@ -111,6 +124,7 @@ def sample_person_frame():
                 "tax_unit_id": 203,
                 "spm_unit_id": 303,
                 "family_id": 403,
+                "marital_unit_id": 504,
                 "household_weight": 1.0,
                 "state_code": "NY",
                 "filing_status": "SINGLE",
@@ -124,6 +138,7 @@ def sample_person_frame():
                 "tax_unit_id": 204,
                 "spm_unit_id": 304,
                 "family_id": 404,
+                "marital_unit_id": 505,
                 "household_weight": 4.0,
                 "state_code": "FL",
                 "filing_status": "SINGLE",
@@ -137,6 +152,7 @@ def sample_person_frame():
                 "tax_unit_id": 205,
                 "spm_unit_id": 304,
                 "family_id": 404,
+                "marital_unit_id": 505,
                 "household_weight": 4.0,
                 "state_code": "FL",
                 "filing_status": "SINGLE",
@@ -149,6 +165,7 @@ def sample_person_frame():
                 "tax_unit_id": 206,
                 "spm_unit_id": 306,
                 "family_id": 406,
+                "marital_unit_id": 506,
                 "household_weight": 5.0,
                 "state_code": "CO",
                 "filing_status": "SINGLE",
@@ -157,6 +174,98 @@ def sample_person_frame():
                 "disability_benefits": 18_000.0,
                 "is_disabled": True,
                 "is_tax_unit_head": True,
+            },
+            {
+                "person_id": 12,
+                "household_id": 106,
+                "tax_unit_id": 207,
+                "spm_unit_id": 307,
+                "family_id": 407,
+                "marital_unit_id": 507,
+                "household_weight": 6.0,
+                "state_code": "AZ",
+                "filing_status": "HEAD_OF_HOUSEHOLD",
+                "age": 45,
+                "employment_income": 38_000.0,
+                "is_tax_unit_head": True,
+            },
+            {
+                "person_id": 13,
+                "household_id": 106,
+                "tax_unit_id": 207,
+                "spm_unit_id": 307,
+                "family_id": 407,
+                "marital_unit_id": 507,
+                "household_weight": 6.0,
+                "state_code": "AZ",
+                "filing_status": "HEAD_OF_HOUSEHOLD",
+                "age": 16,
+                "employment_income": 0.0,
+            },
+            {
+                "person_id": 14,
+                "household_id": 106,
+                "tax_unit_id": 207,
+                "spm_unit_id": 307,
+                "family_id": 407,
+                "marital_unit_id": 507,
+                "household_weight": 6.0,
+                "state_code": "AZ",
+                "filing_status": "HEAD_OF_HOUSEHOLD",
+                "age": 14,
+                "employment_income": 0.0,
+            },
+            {
+                "person_id": 15,
+                "household_id": 106,
+                "tax_unit_id": 207,
+                "spm_unit_id": 307,
+                "family_id": 407,
+                "marital_unit_id": 507,
+                "household_weight": 6.0,
+                "state_code": "AZ",
+                "filing_status": "HEAD_OF_HOUSEHOLD",
+                "age": 12,
+                "employment_income": 0.0,
+            },
+            {
+                "person_id": 16,
+                "household_id": 106,
+                "tax_unit_id": 207,
+                "spm_unit_id": 307,
+                "family_id": 407,
+                "marital_unit_id": 507,
+                "household_weight": 6.0,
+                "state_code": "AZ",
+                "filing_status": "HEAD_OF_HOUSEHOLD",
+                "age": 10,
+                "employment_income": 0.0,
+            },
+            {
+                "person_id": 17,
+                "household_id": 106,
+                "tax_unit_id": 207,
+                "spm_unit_id": 307,
+                "family_id": 407,
+                "marital_unit_id": 507,
+                "household_weight": 6.0,
+                "state_code": "AZ",
+                "filing_status": "HEAD_OF_HOUSEHOLD",
+                "age": 8,
+                "employment_income": 0.0,
+            },
+            {
+                "person_id": 18,
+                "household_id": 106,
+                "tax_unit_id": 207,
+                "spm_unit_id": 307,
+                "family_id": 407,
+                "marital_unit_id": 507,
+                "household_weight": 6.0,
+                "state_code": "AZ",
+                "filing_status": "HEAD_OF_HOUSEHOLD",
+                "age": 6,
+                "employment_income": 0.0,
             },
         ]
     )
@@ -207,15 +316,25 @@ def test_scenario_structure(sample_person_frame):
 
 def test_invalid_households_are_filtered(sample_person_frame):
     """Ambiguous or multi-tax-unit households should not be benchmark scenarios."""
-    scenarios = scenarios_from_cps_frame(sample_person_frame, n=3, seed=0)
+    scenarios = scenarios_from_cps_frame(sample_person_frame, n=4, seed=0)
     household_ids = {scenario.metadata["household_id"] for scenario in scenarios}
     assert 104 not in household_ids
     assert 103 not in household_ids
 
 
+def test_large_households_are_allowed_when_structure_is_clean(sample_person_frame):
+    """Large households with one tax/SPM/family/marital unit should remain eligible."""
+    scenarios = scenarios_from_cps_frame(sample_person_frame, n=4, seed=0)
+    scenario_106 = next(
+        scenario for scenario in scenarios if scenario.metadata["household_id"] == 106
+    )
+    assert len(scenario_106.adults) == 1
+    assert scenario_106.num_children == 6
+
+
 def test_joint_filers_have_exactly_two_adults(sample_person_frame):
     """Joint filers should map to exactly two adults in promptable scenarios."""
-    scenarios = scenarios_from_cps_frame(sample_person_frame, n=3, seed=0)
+    scenarios = scenarios_from_cps_frame(sample_person_frame, n=4, seed=0)
     for scenario in scenarios:
         if scenario.filing_status == "joint":
             assert len(scenario.adults) == 2
@@ -223,15 +342,15 @@ def test_joint_filers_have_exactly_two_adults(sample_person_frame):
 
 def test_single_and_hoh_filers_have_exactly_one_adult(sample_person_frame):
     """Single and HoH scenarios should exclude extra unlabeled adults."""
-    scenarios = scenarios_from_cps_frame(sample_person_frame, n=3, seed=0)
+    scenarios = scenarios_from_cps_frame(sample_person_frame, n=4, seed=0)
     for scenario in scenarios:
         if scenario.filing_status in {"single", "head_of_household"}:
             assert len(scenario.adults) == 1
 
 
 def test_richer_cps_inputs_are_preserved(sample_person_frame):
-    """Selected non-wage CPS inputs should be carried into the scenario."""
-    scenarios = scenarios_from_cps_frame(sample_person_frame, n=3, seed=0)
+    """Raw nonzero inputs across entities should be carried into the scenario."""
+    scenarios = scenarios_from_cps_frame(sample_person_frame, n=4, seed=0)
     joint = next(s for s in scenarios if s.filing_status == "joint")
     assert joint.adults[1].inputs["self_employment_income"] == 5_000.0
 
@@ -239,10 +358,18 @@ def test_richer_cps_inputs_are_preserved(sample_person_frame):
     assert disabled_single.adults[0].inputs["is_disabled"] is True
     assert disabled_single.adults[0].inputs["disability_benefits"] == 18_000.0
 
+    hoh = next(s for s in scenarios if s.state == "CA")
+    assert hoh.adults[0].inputs["real_estate_taxes"] == 4_000.0
+    assert hoh.adults[0].inputs["home_mortgage_interest"] == 9_000.0
+    assert hoh.tax_unit_inputs["health_savings_account_ald"] == 800.0
+    assert hoh.spm_unit_inputs["spm_unit_pre_subsidy_childcare_expenses"] == 2_400.0
+    assert hoh.household_inputs["auto_loan_interest"] == 300.0
+    assert hoh.household_inputs["auto_loan_balance"] == 5_000.0
+
 
 def test_children_and_adults_split_by_age(sample_person_frame):
     """Adults and children should be split at age 18."""
-    scenarios = scenarios_from_cps_frame(sample_person_frame, n=3, seed=0)
+    scenarios = scenarios_from_cps_frame(sample_person_frame, n=4, seed=0)
     for scenario in scenarios:
         for adult in scenario.adults:
             assert adult.age >= 18
@@ -267,9 +394,63 @@ def test_pe_household_format(simple_single_scenario):
 
     tax_unit = household["tax_units"]["tax_unit"]
     assert tax_unit["filing_status"]["2025"] == "SINGLE"
+    assert tax_unit["takes_up_eitc"]["2025"] is True
+    assert tax_unit["would_file_if_eligible_for_refundable_credit"]["2025"] is True
+    assert tax_unit["would_file_taxes_voluntarily"]["2025"] is True
 
     housing = household["households"]["household"]
     assert "state_code" in housing
+    assert household["people"]["adult1"]["takes_up_medicaid_if_eligible"]["2025"] is True
+    assert household["people"]["adult1"]["takes_up_ssi_if_eligible"]["2025"] is True
+
+
+def test_pe_household_includes_cross_entity_inputs():
+    """Scenario-level tax-unit, SPM, and household inputs should be emitted."""
+    scenario = scenarios_from_cps_frame(
+        pd.DataFrame(
+            [
+                {
+                    "person_id": 1,
+                    "household_id": 1,
+                    "tax_unit_id": 1,
+                    "spm_unit_id": 1,
+                    "family_id": 1,
+                    "marital_unit_id": 1,
+                    "household_weight": 1.0,
+                    "state_code": "CA",
+                    "filing_status": "SINGLE",
+                    "age": 40,
+                    "employment_income": 50_000.0,
+                    "real_estate_taxes": 4_200.0,
+                    "health_savings_account_ald": 900.0,
+                    "spm_unit_pre_subsidy_childcare_expenses": 1_200.0,
+                    "auto_loan_interest": 250.0,
+                    "is_tax_unit_head": True,
+                }
+            ]
+        ),
+        n=1,
+        seed=0,
+    )[0]
+
+    household = scenario.to_pe_household()
+    assert household["people"]["adult1"]["real_estate_taxes"]["2025"] == 4_200.0
+    assert household["tax_units"]["tax_unit"]["health_savings_account_ald"]["2025"] == 900.0
+    assert (
+        household["spm_units"]["spm_unit"][
+            "spm_unit_pre_subsidy_childcare_expenses"
+        ]["2025"]
+        == 1_200.0
+    )
+    assert household["spm_units"]["spm_unit"]["takes_up_snap_if_eligible"]["2025"] is True
+    assert household["households"]["household"]["auto_loan_interest"]["2025"] == 250.0
+
+
+def test_total_income_ignores_deductions_and_hours(sample_person_frame):
+    """Display income should not add deductions or weekly hours as income."""
+    scenarios = scenarios_from_cps_frame(sample_person_frame, n=4, seed=0)
+    hoh = next(s for s in scenarios if s.state == "CA")
+    assert hoh.total_income == 30_000.0
 
 
 def test_pe_household_with_children(family_scenario):

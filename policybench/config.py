@@ -8,16 +8,21 @@ SEED = 42
 
 # Models to benchmark (latest provider-published versions as of 2026-03-25)
 MODELS = {
-    "claude-opus": "claude-opus-4-6",
+    "claude-opus-4.6": "claude-opus-4-6",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
+    "claude-haiku-4.5": "claude-haiku-4-5-20251001",
     "gpt-5.4": "gpt-5.4",
+    "gpt-5.4-mini": "gpt-5.4-mini",
+    "gpt-5.4-nano": "gpt-5.4-nano",
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
+    "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
 }
 
 # PolicyEngine-US variables to evaluate
 PROGRAMS = [
     # Federal tax
-    "income_tax",
+    "adjusted_gross_income",
     "income_tax_before_refundable_credits",
     # Credits
     "eitc",
@@ -29,6 +34,9 @@ PROGRAMS = [
     "free_school_meals",
     "is_medicaid_eligible",
     # State tax
+    "state_agi",
+    "state_income_tax_before_refundable_credits",
+    "state_refundable_credits",
     "household_state_income_tax",
 ]
 

@@ -1,30 +1,20 @@
 import { useState, useMemo } from "react";
-import type { BenchData } from "../App";
+import {
+  getVariableLabel,
+  isBinaryVariable,
+  type BenchData,
+  type ScenarioPredictionsByVariable,
+} from "../types";
 import { formatDollars } from "../format";
-import { MODEL_COLORS, MODEL_LABELS, MODEL_ORDER } from "../modelMeta";
+import {
+  MODEL_COLORS,
+  MODEL_LABELS,
+  MODEL_ORDER,
+  getPredictionTextColor,
+} from "../modelMeta";
 
-type PromptByVariable = Record<string, { tool?: string; json?: string }>;
-
-const VARIABLE_LABELS: Record<string, string> = {
-  income_tax: "Income tax",
-  income_tax_before_refundable_credits: "Tax (pre-refundable)",
-  income_tax_refundable_credits: "Refundable credits",
-  eitc: "EITC",
-  ctc: "CTC",
-  snap: "SNAP",
-  ssi: "SSI",
-  free_school_meals: "Free school meals",
-  is_medicaid_eligible: "Medicaid eligible",
-  household_state_income_tax: "State income tax",
-};
-
-function errorColor(error: number, truth: number): string {
-  if (truth === 0 && error === 0) return "#00ff88";
-  const pctErr = truth !== 0 ? Math.abs(error / truth) : error !== 0 ? 1 : 0;
-  if (pctErr <= 0.1) return "#00ff88";
-  if (pctErr <= 0.25) return "#00d4ff";
-  if (pctErr <= 0.5) return "#ffaa00";
-  return "#ff4466";
+function formatBoolean(value: number): string {
+  return value === 1 ? "Yes" : "No";
 }
 
 export default function ScenarioExplorer({ data }: { data: BenchData }) {
@@ -35,14 +25,13 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
   const [selectedScenario, setSelectedScenario] = useState(scenarioIds[0]);
   const [selectedVariable, setSelectedVariable] = useState<string | null>(null);
 
-  const scenario = data.scenarios[selectedScenario as keyof typeof data.scenarios];
+  const scenario = data.scenarios[selectedScenario];
 
   const predictions = useMemo(() => {
     const rows = data.scatter.filter(
       (d) => d.scenario === selectedScenario && d.condition === "no_tools"
     );
-    // Group by variable
-    const byVar: Record<string, Record<string, { prediction: number; error: number; groundTruth: number }>> = {};
+    const byVar: ScenarioPredictionsByVariable = {};
     for (const r of rows) {
       if (!byVar[r.variable]) byVar[r.variable] = {};
       byVar[r.variable][r.model] = {
@@ -62,9 +51,10 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
     selectedVariable && variables.includes(selectedVariable)
       ? selectedVariable
       : variables[0];
-  const promptByVariable = (scenario as Record<string, unknown>)
-    .promptByVariable as PromptByVariable | undefined;
-  const activePrompt = activeVariable ? promptByVariable?.[activeVariable] : undefined;
+  const activePrompt =
+    activeVariable != null
+      ? scenario.promptByVariable?.[activeVariable]
+      : undefined;
 
   const models = useMemo(() => {
     const unique = new Set<string>();
@@ -103,10 +93,10 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
           <select
             value={selectedScenario}
             onChange={(e) => setSelectedScenario(e.target.value)}
-            className="bg-surface border border-border text-text text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-cyan/50 font-[family-name:var(--font-mono)]"
+            className="bg-surface border border-border text-text text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-primary/50 font-[family-name:var(--font-mono)]"
           >
             {scenarioIds.map((id) => {
-              const s = data.scenarios[id as keyof typeof data.scenarios];
+              const s = data.scenarios[id];
               return (
                 <option key={id} value={id}>
                   {id.replace("scenario_", "#")} &mdash; {s.state},{" "}
@@ -124,11 +114,11 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
           <select
             value={activeVariable}
             onChange={(e) => setSelectedVariable(e.target.value)}
-            className="bg-surface border border-border text-text text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-cyan/50"
+            className="bg-surface border border-border text-text text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-primary/50"
           >
             {variables.map((variable) => (
               <option key={variable} value={variable}>
-                {VARIABLE_LABELS[variable] || variable.replace(/_/g, " ")}
+                {getVariableLabel(variable)}
               </option>
             ))}
           </select>
@@ -167,7 +157,7 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
                 Exact prompts
               </div>
               <div className="text-text text-sm mt-1">
-                {VARIABLE_LABELS[activeVariable] || activeVariable.replace(/_/g, " ")}
+                {getVariableLabel(activeVariable)}
               </div>
             </div>
             <div className="text-text-muted text-xs">
@@ -227,13 +217,13 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
             {variables.map((v) => {
               const varData = predictions[v] || {};
               const truth = Object.values(varData)[0]?.groundTruth ?? 0;
-              const isBinary = v === "is_medicaid_eligible" || v === "free_school_meals";
+              const isBinary = isBinaryVariable(v);
 
               return (
                 <tr
                   key={v}
                   className={`border-t border-border-subtle ${
-                    activeVariable === v ? "bg-cyan-soft/10" : ""
+                    activeVariable === v ? "bg-primary-soft/40" : ""
                   }`}
                 >
                   <td className="py-2.5 pr-4 text-sm text-text-secondary">
@@ -242,15 +232,11 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
                       onClick={() => setSelectedVariable(v)}
                       className="text-left hover:text-text transition-colors"
                     >
-                      {VARIABLE_LABELS[v] || v.replace(/_/g, " ")}
+                      {getVariableLabel(v)}
                     </button>
                   </td>
                   <td className="py-2.5 px-3 text-right font-[family-name:var(--font-mono)] text-sm text-text">
-                    {isBinary
-                      ? truth === 1
-                        ? "Yes"
-                        : "No"
-                      : formatDollars(truth)}
+                    {isBinary ? formatBoolean(truth) : formatDollars(truth)}
                   </td>
                   {models.map((m) => {
                     const pred = varData[m];
@@ -262,9 +248,7 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
                       );
 
                     const displayPred = isBinary
-                      ? pred.prediction === 1
-                        ? "Yes"
-                        : "No"
+                      ? formatBoolean(pred.prediction)
                       : formatDollars(pred.prediction);
 
                     const isCorrect = isBinary
@@ -278,8 +262,8 @@ export default function ScenarioExplorer({ data }: { data: BenchData }) {
                         className="py-2.5 px-3 text-right font-[family-name:var(--font-mono)] text-sm"
                         style={{
                           color: isCorrect
-                            ? "#00ff88"
-                            : errorColor(pred.error, truth),
+                            ? getPredictionTextColor(0, 1)
+                            : getPredictionTextColor(pred.error, truth),
                         }}
                       >
                         {displayPred}

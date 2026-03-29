@@ -270,6 +270,10 @@ class TestSummaries:
                 "variable": ["income_tax", "eitc", "income_tax"],
                 "prediction": [1.0, None, 2.0],
                 "error": [None, None, "Timeout"],
+                "provider_reported_cost_usd": [0.1, None, 0.3],
+                "reconstructed_cost_usd": [0.1, 0.2, 0.3],
+                "total_cost_usd": [0.1, 0.2, 0.3],
+                "cost_is_estimated": [False, True, False],
                 "estimated_cost_usd": [0.1, 0.2, 0.3],
                 "elapsed_seconds": [1.0, 2.0, 3.0],
                 "prompt_tokens": [10, 20, 30],
@@ -286,6 +290,8 @@ class TestSummaries:
         assert model_a["total_rows"] == 2
         assert model_a["parsed_rows"] == 1
         assert model_a["error_rows"] == 0
+        assert model_a["total_cost_usd"] == pytest.approx(0.3)
+        assert model_a["estimated_cost_rows"] == 1
         assert model_a["total_estimated_cost_usd"] == pytest.approx(0.3)
         assert model_a["total_elapsed_seconds"] == 3.0
         assert model_a["total_tokens"] == 33.0
@@ -301,6 +307,10 @@ class TestSummaries:
                     "total_rows": [100],
                     "parsed_rows": [95],
                     "error_rows": [5],
+                    "total_provider_reported_cost_usd": [1.00],
+                    "total_reconstructed_cost_usd": [1.23],
+                    "total_cost_usd": [1.23],
+                    "estimated_cost_rows": [100],
                     "total_estimated_cost_usd": [1.23],
                     "total_elapsed_seconds": [120.0],
                     "prompt_tokens": [1000.0],
@@ -316,6 +326,8 @@ class TestSummaries:
         report = render_markdown_report(analysis)
         assert "# PolicyBench Analysis" in report
         assert "## Usage" in report
+        assert "Total cost" in report
+        assert "cost_rows_estimated" in report
         assert "## Summary by model" in report
         assert "## Summary by variable" in report
 
@@ -374,6 +386,10 @@ class TestSummaries:
                     "total_rows": [100],
                     "parsed_rows": [95],
                     "error_rows": [5],
+                    "total_provider_reported_cost_usd": [1.00],
+                    "total_reconstructed_cost_usd": [1.23],
+                    "total_cost_usd": [1.23],
+                    "estimated_cost_rows": [100],
                     "total_estimated_cost_usd": [1.23],
                     "total_elapsed_seconds": [120.0],
                     "prompt_tokens": [1000.0],
@@ -461,6 +477,7 @@ class TestSummaries:
         )
 
         assert set(payload) == {
+            "failureModes",
             "scenarios",
             "modelStats",
             "programStats",
@@ -554,6 +571,9 @@ class TestSummaries:
         )
 
         assert payload["scenarios"]["s1"]["promptByVariable"]["income_tax"]["tool"] == "tool prompt"
+        assert "failureModes" in payload
+        assert "programs" in payload["failureModes"]
+        assert "households" in payload["failureModes"]
 
     def test_build_scenario_prompt_map_from_manifest_json(self):
         scenario = {
@@ -583,8 +603,8 @@ class TestSummaries:
         prompt_map = build_scenario_prompt_map(scenarios_df, ["income_tax"])
 
         assert "income_tax" in prompt_map["s1"]
-        assert "submit_answer" in prompt_map["s1"]["income_tax"]["tool"]
-        assert '"answer"' in prompt_map["s1"]["income_tax"]["json"]
+        assert "submit_answers" in prompt_map["s1"]["income_tax"]["tool"]
+        assert '"income_tax": 1234.5' in prompt_map["s1"]["income_tax"]["json"]
 
     def test_export_dashboard_data_writes_json(self, tmp_path):
         ground_truth_df = pd.DataFrame(
@@ -625,3 +645,4 @@ class TestSummaries:
 
         assert exported.exists()
         assert '"modelStats"' in exported.read_text()
+        assert '"failureModes"' in exported.read_text()

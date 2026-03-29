@@ -1,31 +1,9 @@
-import type { BenchData } from "../App";
+import {
+  VARIABLE_CATEGORIES,
+  getVariableLabel,
+  type BenchData,
+} from "../types";
 import { MODEL_LABELS } from "../modelMeta";
-
-const VARIABLE_LABELS: Record<string, string> = {
-  income_tax: "Income tax",
-  income_tax_before_refundable_credits: "Tax before refundable credits",
-  income_tax_refundable_credits: "Refundable credits",
-  eitc: "EITC",
-  ctc: "CTC",
-  snap: "SNAP",
-  ssi: "SSI",
-  free_school_meals: "Free school meals",
-  is_medicaid_eligible: "Medicaid eligibility",
-  household_state_income_tax: "State income tax",
-};
-
-const VARIABLE_CATEGORIES: Record<string, string> = {
-  income_tax: "Federal tax",
-  income_tax_before_refundable_credits: "Federal tax",
-  income_tax_refundable_credits: "Credits",
-  eitc: "Credits",
-  ctc: "Credits",
-  snap: "Benefits",
-  ssi: "Benefits",
-  free_school_meals: "Benefits",
-  is_medicaid_eligible: "Benefits",
-  household_state_income_tax: "State tax",
-};
 
 function StatCard({
   value,
@@ -34,12 +12,12 @@ function StatCard({
 }: {
   value: string;
   label: string;
-  accent: "cyan" | "amber" | "coral";
+  accent: "primary" | "warning" | "info";
 }) {
   const styles = {
-    cyan: "text-cyan border-cyan/20 bg-cyan-soft",
-    amber: "text-amber border-amber/20 bg-amber-soft",
-    coral: "text-coral border-coral/20 bg-coral-soft",
+    primary: "text-primary border-primary/15 bg-primary-soft",
+    warning: "text-warning border-warning/15 bg-warning-soft",
+    info: "text-info border-info/15 bg-info-soft",
   };
 
   return (
@@ -78,16 +56,11 @@ export default function Methodology({ data }: { data: BenchData }) {
   const modelNames = noToolsModels.map((m) => MODEL_LABELS[m.model] || m.model);
   const variables = [...data.programStats]
     .map((program) => program.variable)
-    .sort((a, b) =>
-      (VARIABLE_LABELS[a] || a).localeCompare(VARIABLE_LABELS[b] || b)
-    );
+    .sort((a, b) => getVariableLabel(a).localeCompare(getVariableLabel(b)));
   const scenarioCount = Object.keys(data.scenarios).length;
   const scoredPoints =
     noToolsModels[0]?.n ?? scenarioCount * data.programStats.length;
-  const hasRepeatedRuns = noToolsModels.some((model) => {
-    const runCount = (model as Record<string, unknown>).runCount;
-    return typeof runCount === "number" && runCount > 1;
-  });
+  const hasRepeatedRuns = noToolsModels.some((model) => (model.runCount ?? 0) > 1);
 
   return (
     <div>
@@ -112,22 +85,22 @@ export default function Methodology({ data }: { data: BenchData }) {
         <StatCard
           value={`${scenarioCount}`}
           label="Enhanced CPS households"
-          accent="cyan"
+          accent="primary"
         />
         <StatCard
           value={`${variables.length}`}
           label="Scored variables"
-          accent="amber"
+          accent="warning"
         />
         <StatCard
           value={`${scoredPoints.toLocaleString()}`}
           label="Model-output targets"
-          accent="coral"
+          accent="info"
         />
         <StatCard
           value={`${modelNames.length}`}
           label="Frontier models"
-          accent="cyan"
+          accent="primary"
         />
       </div>
 
@@ -151,18 +124,21 @@ export default function Methodology({ data }: { data: BenchData }) {
         <SectionCard title="Ground Truth">
           PolicyEngine-US computes the authoritative label for every
           household-variable pair in tax year 2025. The current scope covers
-          federal income tax, refundable credits, SNAP, SSI, Medicaid
-          eligibility, free school meals, and state income tax. The benchmark
-          no longer scores PolicyEngine-specific aggregates like total benefits
-          or household net income.
+          federal adjusted gross income, federal pre-credit income tax,
+          refundable federal tax credits, SNAP, SSI, household-level Medicaid eligibility,
+          household-level free school meals eligibility, state AGI, state
+          pre-credit income tax, state refundable credits, and final state
+          income tax. The benchmark no longer scores PolicyEngine-specific
+          aggregates like total benefits or household net income.
         </SectionCard>
 
         <SectionCard title="Scoring">
           Dollar-valued outputs are scored with mean absolute error, mean
           absolute percentage error, and share within 10% of ground truth.
-          Binary outcomes are scored with classification accuracy. Coverage
-          tracks how often a model produced a parseable numeric answer. The
-          leaderboard is a point estimate on this fixed test set
+          Household booleans like Medicaid and free school meals are scored
+          with classification accuracy. Coverage tracks how often a model
+          produced a parseable numeric answer. The leaderboard is a point
+          estimate on this fixed test set
           {hasRepeatedRuns
             ? "; when repeated runs are loaded, the app also shows run-to-run stability."
             : "."}
@@ -194,9 +170,7 @@ export default function Methodology({ data }: { data: BenchData }) {
               key={variable}
               className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-secondary"
             >
-              <span className="text-text">
-                {VARIABLE_LABELS[variable] || variable.replace(/_/g, " ")}
-              </span>
+              <span className="text-text">{getVariableLabel(variable)}</span>
               <span className="text-text-muted">
                 {VARIABLE_CATEGORIES[variable] || "Other"}
               </span>

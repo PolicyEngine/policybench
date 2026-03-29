@@ -1,8 +1,10 @@
 """Tests for ground truth calculations."""
 
+import numpy as np
 import pandas as pd
 import pytest
 
+import policybench.ground_truth as ground_truth
 from policybench.ground_truth import calculate_ground_truth, calculate_single
 from policybench.scenarios import Person, Scenario
 
@@ -61,12 +63,10 @@ def single_parent_hoh():
 class TestGroundTruth:
     """Tests that require PolicyEngine-US (slow)."""
 
-    def test_income_tax_positive_for_50k(self, single_50k):
-        """A $50k single filer should owe some federal income tax."""
-        tax = calculate_single(single_50k, "income_tax")
-        assert tax > 0
-        # Rough sanity check: should be between $1k and $15k
-        assert 1_000 < tax < 15_000
+    def test_adjusted_gross_income_matches_simple_wages(self, single_50k):
+        """A simple $50k wage earner should have AGI equal to wages."""
+        agi = calculate_single(single_50k, "adjusted_gross_income")
+        assert agi == pytest.approx(50_000.0, abs=1e-6)
 
     def test_eitc_zero_for_50k_single(self, single_50k):
         """A $50k single filer with no kids should get $0 EITC."""
@@ -113,7 +113,7 @@ class TestGroundTruth:
         """calculate_ground_truth returns proper DataFrame structure."""
         df = calculate_ground_truth(
             [single_50k],
-            programs=["income_tax", "eitc"],
+            programs=["adjusted_gross_income", "eitc"],
         )
         assert isinstance(df, pd.DataFrame)
         assert set(df.columns) == {"scenario_id", "variable", "value"}
@@ -124,7 +124,45 @@ class TestGroundTruth:
         """Ground truth works with multiple scenarios."""
         df = calculate_ground_truth(
             [single_50k, family_low_income],
-            programs=["income_tax"],
+            programs=["adjusted_gross_income"],
         )
         assert len(df) == 2
         assert set(df["scenario_id"]) == {"gt_single_50k", "gt_family_low"}
+
+
+class TestGroundTruthScalarExtraction:
+    def test_free_school_meals_amount_becomes_household_boolean(self):
+        assert (
+            ground_truth._extract_scalar_value(
+                np.array([1116.0]),
+                "free_school_meals",
+            )
+            == 1.0
+        )
+
+    def test_medicaid_person_level_counts_become_household_boolean(self):
+        assert (
+            ground_truth._extract_scalar_value(
+                np.array([1.0, 0.0, 1.0]),
+                "is_medicaid_eligible",
+            )
+            == 1.0
+        )
+
+    def test_household_boolean_variables_keep_zero_as_zero(self):
+        assert (
+            ground_truth._extract_scalar_value(
+                np.array([0.0, 0.0]),
+                "is_medicaid_eligible",
+            )
+            == 0.0
+        )
+
+    def test_non_boolean_variables_still_sum(self):
+        assert (
+            ground_truth._extract_scalar_value(
+                np.array([2000.0, 250.0]),
+                "snap",
+            )
+            == 2250.0
+        )

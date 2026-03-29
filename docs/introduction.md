@@ -32,7 +32,7 @@ PolicyBench fills this gap. It provides a rigorous, reproducible benchmark that 
 
 This paper makes three contributions:
 
-1. **A new benchmark for AI-assisted policy analysis.** PolicyBench defines 100 household scenarios by sampling realistic cases from the Enhanced CPS and encoding them faithfully in PolicyEngine-US. For each scenario, we evaluate 10 tax-and-benefit variables, producing 1,000 ground-truth values. This benchmark is open-source and extensible to additional countries and programs.
+1. **A new benchmark for AI-assisted policy analysis.** PolicyBench defines 100 household scenarios by sampling realistic cases from the Enhanced CPS and encoding them faithfully in PolicyEngine-US. For each scenario, we evaluate 13 tax-and-benefit variables, producing 1,300 ground-truth values. This benchmark is open-source and extensible to additional countries and programs.
 
 2. **An empirical evaluation of frontier model capabilities.** We test Claude Opus 4.6, Claude Sonnet 4.6, GPT-5.4, and Gemini 3.1 Pro Preview in a no-tools setting. Our results quantify how much household-level policy calculation frontier models can actually do from parametric knowledge alone.
 

@@ -19,7 +19,7 @@ Benchmark scenarios are sampled from real households in the Enhanced CPS and the
 
 ## Programs evaluated
 
-Federal tax, EITC, CTC, SNAP, SSI, Medicaid eligibility, state income tax, and related core household policy outputs.
+Federal tax, EITC, CTC, SNAP, SSI, Medicaid eligibility, and a fuller state-tax slice including state AGI, state taxable income, state tax before refundable credits, state refundable credits, and final state income tax.
 
 ## Quick start
 

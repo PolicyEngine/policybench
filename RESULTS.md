@@ -24,4 +24,4 @@ policybench analyze --output-dir results/analysis
 See the [full paper](docs/) and [benchmark code](policybench/) for complete methodology. Ground truth is computed via [PolicyEngine-US](https://github.com/PolicyEngine/policyengine-us). LLM responses are cached for reproducibility.
 
 ---
-*[Cosilico](https://cosilico.ai) · [PolicyEngine](https://policyengine.org)*
+*[PolicyEngine](https://policyengine.org) · [PolicyBench](https://policybench.org)*

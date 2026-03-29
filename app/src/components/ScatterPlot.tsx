@@ -8,9 +8,14 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import type { BenchData } from "../App";
+import type { BenchData } from "../types";
 import { formatDollars } from "../format";
-import { MODEL_COLORS, MODEL_LABELS, MODEL_ORDER } from "../modelMeta";
+import {
+  MODEL_COLORS,
+  MODEL_LABELS,
+  MODEL_ORDER,
+  UI_COLORS,
+} from "../modelMeta";
 
 function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: Record<string, unknown> }> }) {
   if (!active || !payload?.length) return null;
@@ -30,7 +35,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<
         </div>
         <div>
           <span className="text-text-secondary">Error:</span>{" "}
-          <span className="text-coral font-[family-name:var(--font-mono)]">{formatDollars(Math.abs(d.error as number))}</span>
+          <span className="text-danger font-[family-name:var(--font-mono)]">{formatDollars(Math.abs(d.error as number))}</span>
         </div>
       </div>
     </div>
@@ -124,7 +129,7 @@ export default function ScatterPlot({ data }: { data: BenchData }) {
                 style={{
                   backgroundColor: selectedModels.has(m)
                     ? MODEL_COLORS[m]
-                    : "#6c6c84",
+                    : UI_COLORS.inactive,
                 }}
               />
               {MODEL_LABELS[m] || m}
@@ -147,7 +152,7 @@ export default function ScatterPlot({ data }: { data: BenchData }) {
                 value: "Ground truth",
                 position: "bottom",
                 offset: 0,
-                style: { fill: "#6c6c84", fontSize: 11, fontFamily: "var(--font-mono)" },
+                style: { fill: UI_COLORS.chartLabel, fontSize: 11, fontFamily: "var(--font-mono)" },
               }}
             />
             <YAxis
@@ -161,7 +166,7 @@ export default function ScatterPlot({ data }: { data: BenchData }) {
                 angle: -90,
                 position: "left",
                 offset: 0,
-                style: { fill: "#6c6c84", fontSize: 11, fontFamily: "var(--font-mono)" },
+                style: { fill: UI_COLORS.chartLabel, fontSize: 11, fontFamily: "var(--font-mono)" },
               }}
             />
             <Tooltip content={<CustomTooltip />} />
@@ -170,7 +175,7 @@ export default function ScatterPlot({ data }: { data: BenchData }) {
                 { x: domain[0], y: domain[0] },
                 { x: domain[1], y: domain[1] },
               ]}
-              stroke="#242432"
+              stroke={UI_COLORS.chartReference}
               strokeDasharray="4 4"
               ifOverflow="extendDomain"
             />

@@ -4,13 +4,18 @@ import json
 from pathlib import Path
 import re
 import time
+from typing import Iterable
 
 import pandas as pd
 import litellm
-from litellm import completion, completion_cost
+from litellm import completion, completion_cost, responses
 
 from policybench.config import MODELS, PROGRAMS
-from policybench.prompts import make_no_tools_prompt
+from policybench.prompts import (
+    VARIABLE_DESCRIPTIONS,
+    make_no_tools_batch_prompt,
+    make_no_tools_prompt,
+)
 from policybench.scenarios import Scenario
 
 MAX_RETRIES = 2
@@ -20,25 +25,7 @@ CHECKPOINT_EVERY_ROWS = 25
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 GEMINI_JSON_MAX_COMPLETION_TOKENS = 512
-ANSWER_FUNCTION_NAME = "submit_answer"
-ANSWER_TOOL = {
-    "type": "function",
-    "function": {
-        "name": ANSWER_FUNCTION_NAME,
-        "description": "Submit the final numeric answer for the benchmark.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "answer": {
-                    "type": "number",
-                    "description": "Final numeric answer for the requested policy quantity.",
-                }
-            },
-            "required": ["answer"],
-            "additionalProperties": False,
-        },
-    },
-}
+ANSWER_FUNCTION_NAME = "submit_answers"
 NON_RETRYABLE_ERRORS = (
     litellm.AuthenticationError,
     litellm.BadRequestError,
@@ -86,30 +73,49 @@ def _get_usage_value(obj, key: str):
 def _extract_usage_metadata(response, model_id: str, messages: list[dict], content: str) -> dict:
     usage = getattr(response, "usage", None)
     prompt_tokens_details = _get_usage_value(usage, "prompt_tokens_details")
+    if prompt_tokens_details is None:
+        prompt_tokens_details = _get_usage_value(usage, "input_tokens_details")
     completion_tokens_details = _get_usage_value(usage, "completion_tokens_details")
+    if completion_tokens_details is None:
+        completion_tokens_details = _get_usage_value(usage, "output_tokens_details")
     reasoning_tokens = _get_usage_value(usage, "reasoning_tokens")
     if reasoning_tokens is None:
         reasoning_tokens = _get_usage_value(completion_tokens_details, "reasoning_tokens")
 
-    estimated_cost_usd = _get_usage_value(usage, "cost")
-    if estimated_cost_usd is None:
-        try:
-            estimated_cost_usd = completion_cost(
-                completion_response=response,
-                model=model_id,
-                messages=messages,
-                completion=content,
-            )
-        except Exception:
-            estimated_cost_usd = None
+    provider_reported_cost_usd = _get_usage_value(usage, "cost")
+    reconstructed_cost_usd = None
+    try:
+        cost_kwargs = {
+            "completion_response": response,
+            "model": model_id,
+        }
+        if messages:
+            cost_kwargs["messages"] = messages
+        if content:
+            cost_kwargs["completion"] = content
+        reconstructed_cost_usd = completion_cost(**cost_kwargs)
+    except Exception:
+        reconstructed_cost_usd = None
+
+    total_cost_usd = provider_reported_cost_usd
+    if total_cost_usd is None:
+        total_cost_usd = reconstructed_cost_usd
 
     return {
-        "prompt_tokens": _get_usage_value(usage, "prompt_tokens"),
-        "completion_tokens": _get_usage_value(usage, "completion_tokens"),
+        "prompt_tokens": _get_usage_value(usage, "prompt_tokens")
+        or _get_usage_value(usage, "input_tokens"),
+        "completion_tokens": _get_usage_value(usage, "completion_tokens")
+        or _get_usage_value(usage, "output_tokens"),
         "total_tokens": _get_usage_value(usage, "total_tokens"),
         "reasoning_tokens": reasoning_tokens,
         "cached_prompt_tokens": _get_usage_value(prompt_tokens_details, "cached_tokens"),
-        "estimated_cost_usd": estimated_cost_usd,
+        "provider_reported_cost_usd": provider_reported_cost_usd,
+        "reconstructed_cost_usd": reconstructed_cost_usd,
+        "total_cost_usd": total_cost_usd,
+        "cost_is_estimated": (
+            provider_reported_cost_usd is None and total_cost_usd is not None
+        ),
+        "estimated_cost_usd": total_cost_usd,
     }
 
 
@@ -136,15 +142,19 @@ def _answer_contract_for_model(model_id: str) -> str:
     return "tool"
 
 
-def _completion_request_kwargs(
+def _uses_responses_api(model_id: str) -> bool:
+    return model_id.startswith("gpt-5")
+
+
+def _chat_completion_request_kwargs(
     scenario: Scenario,
-    variable: str,
+    variables: list[str],
     model_id: str,
 ) -> tuple[list[dict], dict]:
     answer_contract = _answer_contract_for_model(model_id)
-    prompt = make_no_tools_prompt(
+    prompt = make_no_tools_batch_prompt(
         scenario,
-        variable,
+        variables,
         answer_contract=answer_contract,
     )
     messages = [{"role": "user", "content": prompt}]
@@ -156,9 +166,10 @@ def _completion_request_kwargs(
         **_completion_controls(model_id),
     }
     if answer_contract == "tool":
+        tool = _build_answer_tool(variables)
         request_kwargs.update(
             {
-                "tools": [ANSWER_TOOL],
+                "tools": [tool],
                 "tool_choice": {
                     "type": "function",
                     "function": {"name": ANSWER_FUNCTION_NAME},
@@ -168,6 +179,74 @@ def _completion_request_kwargs(
     else:
         request_kwargs["response_format"] = {"type": "json_object"}
     return messages, request_kwargs
+
+
+def _responses_request_kwargs(
+    scenario: Scenario,
+    variables: list[str],
+    model_id: str,
+) -> tuple[list[dict], dict]:
+    answer_contract = _answer_contract_for_model(model_id)
+    prompt = make_no_tools_batch_prompt(
+        scenario,
+        variables,
+        answer_contract=answer_contract,
+    )
+    request_kwargs = {
+        "model": model_id,
+        "input": prompt,
+        "timeout": REQUEST_TIMEOUT_SECONDS,
+        "max_output_tokens": EXTENDED_MAX_COMPLETION_TOKENS,
+    }
+    if answer_contract == "tool":
+        request_kwargs.update(
+            {
+                "tools": [_responses_tool_schema(variables)],
+                "tool_choice": {
+                    "type": "function",
+                    "name": ANSWER_FUNCTION_NAME,
+                },
+            }
+        )
+    return [{"role": "user", "content": prompt}], request_kwargs
+
+
+def _build_answer_tool(variables: list[str]) -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": ANSWER_FUNCTION_NAME,
+            "description": "Submit all requested numeric answers for the benchmark.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    variable: {
+                        "type": "number",
+                        "description": VARIABLE_DESCRIPTIONS.get(variable, variable),
+                    }
+                    for variable in variables
+                },
+                "required": list(variables),
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
+def _responses_tool_schema(variables: list[str]) -> dict:
+    function_schema = _build_answer_tool(variables)["function"]
+    return {
+        "type": "function",
+        "name": function_schema["name"],
+        "description": function_schema["description"],
+        "parameters": function_schema["parameters"],
+    }
+
+
+def _normalize_variables(variables: str | Iterable[str]) -> list[str]:
+    if isinstance(variables, str):
+        return [variables]
+    return list(variables)
 
 
 def extract_number(text: str) -> float | None:
@@ -188,6 +267,64 @@ def extract_number(text: str) -> float | None:
     if not lines:
         return None
     return _parse_standalone_number(lines[-1])
+
+
+def _coerce_prediction_value(value) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    if isinstance(value, str):
+        return extract_number(value)
+    return None
+
+
+def _extract_predictions_from_payload(
+    payload,
+    variables: list[str],
+) -> dict[str, float | None]:
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except Exception:
+            payload = None
+
+    if isinstance(payload, dict) and isinstance(payload.get("answers"), dict):
+        payload = payload["answers"]
+
+    predictions = {variable: None for variable in variables}
+    if isinstance(payload, dict):
+        if len(variables) == 1 and "answer" in payload:
+            predictions[variables[0]] = _coerce_prediction_value(payload.get("answer"))
+            return predictions
+        for variable in variables:
+            predictions[variable] = _coerce_prediction_value(payload.get(variable))
+        return predictions
+
+    return predictions
+
+
+def _extract_predictions_from_text(
+    text: str | None,
+    variables: list[str],
+) -> dict[str, float | None]:
+    predictions = {variable: None for variable in variables}
+    if not text:
+        return predictions
+
+    parsed = _extract_predictions_from_payload(text, variables)
+    if any(value is not None for value in parsed.values()):
+        return parsed
+
+    for variable in variables:
+        match = re.search(
+            rf'["\']{re.escape(variable)}["\']\s*:\s*["\']?(-?(?:\d{{1,3}}(?:,\d{{3}})+|\d+)(?:\.\d+)?)',
+            text,
+            re.IGNORECASE,
+        )
+        if match is not None:
+            predictions[variable] = _parse_standalone_number(match.group(1))
+    if len(variables) == 1 and predictions[variables[0]] is None:
+        predictions[variables[0]] = extract_number(text)
+    return predictions
 
 
 def _get_tool_call_function(tool_call):
@@ -262,6 +399,45 @@ def _serialize_response_payload(content, tool_calls=None, function_call=None) ->
     return json.dumps(payload)
 
 
+def _get_response_item_attr(item, key: str):
+    if item is None:
+        return None
+    if isinstance(item, dict):
+        return item.get(key)
+    return getattr(item, key, None)
+
+
+def _responses_content_and_tool_calls(response) -> tuple[str | None, list[dict]]:
+    output = getattr(response, "output", None) or []
+    content_segments = []
+    tool_calls = []
+    for item in output:
+        item_type = _get_response_item_attr(item, "type")
+        if item_type == "function_call":
+            tool_calls.append(
+                {
+                    "function": {
+                        "name": _get_response_item_attr(item, "name"),
+                        "arguments": _get_response_item_attr(item, "arguments"),
+                    }
+                }
+            )
+            continue
+        if item_type != "message":
+            continue
+        for part in _get_response_item_attr(item, "content") or []:
+            if _get_response_item_attr(part, "type") != "output_text":
+                continue
+            text = _get_response_item_attr(part, "text")
+            if text:
+                content_segments.append(text)
+
+    content = getattr(response, "output_text", None)
+    if not content and content_segments:
+        content = "\n".join(content_segments)
+    return content, tool_calls
+
+
 def extract_prediction(
     content: str | None,
     tool_calls=None,
@@ -294,41 +470,80 @@ def extract_prediction(
     return extract_number(content or "")
 
 
+def extract_predictions(
+    content: str | None,
+    variables: list[str],
+    tool_calls=None,
+    function_call=None,
+) -> dict[str, float | None]:
+    """Extract a mapping of variable -> prediction from tool output or JSON/text."""
+    for tool_call in tool_calls or []:
+        function = _get_tool_call_function(tool_call)
+        if _get_function_name(function) != ANSWER_FUNCTION_NAME:
+            continue
+        arguments = _get_function_arguments(function)
+        predictions = _extract_predictions_from_payload(arguments, variables)
+        if any(value is not None for value in predictions.values()):
+            return predictions
+
+    if _get_function_name(function_call) == ANSWER_FUNCTION_NAME:
+        arguments = _get_function_arguments(function_call)
+        predictions = _extract_predictions_from_payload(arguments, variables)
+        if any(value is not None for value in predictions.values()):
+            return predictions
+
+    return _extract_predictions_from_text(content, variables)
+
+
 def run_single_no_tools(
     scenario: Scenario,
-    variable: str,
+    variable: str | Iterable[str],
     model_id: str,
 ) -> dict:
-    """Run a single scenario/variable without tools.
-
-    Returns dict with: prediction, raw_response
-    """
-    messages, completion_kwargs = _completion_request_kwargs(
-        scenario=scenario,
-        variable=variable,
-        model_id=model_id,
-    )
+    """Run a single scenario for one or more variables without tools."""
+    variables = _normalize_variables(variable)
+    if _uses_responses_api(model_id):
+        messages, request_kwargs = _responses_request_kwargs(
+            scenario=scenario,
+            variables=variables,
+            model_id=model_id,
+        )
+        request_fn = responses
+    else:
+        messages, request_kwargs = _chat_completion_request_kwargs(
+            scenario=scenario,
+            variables=variables,
+            model_id=model_id,
+        )
+        request_fn = completion
 
     for attempt in range(MAX_RETRIES):
         try:
             started_at = time.perf_counter()
-            response = completion(**completion_kwargs)
+            response = request_fn(**request_kwargs)
             elapsed_seconds = time.perf_counter() - started_at
-            message = response.choices[0].message
-            content = getattr(message, "content", None)
-            tool_calls = getattr(message, "tool_calls", None)
-            function_call = getattr(message, "function_call", None)
+            if _uses_responses_api(model_id):
+                content, tool_calls = _responses_content_and_tool_calls(response)
+                function_call = None
+            else:
+                message = response.choices[0].message
+                content = getattr(message, "content", None)
+                tool_calls = getattr(message, "tool_calls", None)
+                function_call = getattr(message, "function_call", None)
             raw_response = _serialize_response_payload(
                 content=content,
                 tool_calls=tool_calls,
                 function_call=function_call,
             )
+            predictions = extract_predictions(
+                content=content,
+                variables=variables,
+                tool_calls=tool_calls,
+                function_call=function_call,
+            )
             return {
-                "prediction": extract_prediction(
-                    content=content,
-                    tool_calls=tool_calls,
-                    function_call=function_call,
-                ),
+                "predictions": predictions,
+                "prediction": predictions[variables[0]] if len(variables) == 1 else None,
                 "raw_response": raw_response,
                 "error": None,
                 "elapsed_seconds": elapsed_seconds,
@@ -346,6 +561,7 @@ def run_single_no_tools(
             print(f"  Retry {attempt + 1}: {e!r:.60s}... {delay}s")
             time.sleep(delay)
     return {  # unreachable
+        "predictions": {name: None for name in variables},
         "prediction": None,
         "raw_response": None,
         "error": None,
@@ -355,11 +571,18 @@ def run_single_no_tools(
         "total_tokens": None,
         "reasoning_tokens": None,
         "cached_prompt_tokens": None,
+        "provider_reported_cost_usd": None,
+        "reconstructed_cost_usd": None,
+        "total_cost_usd": None,
+        "cost_is_estimated": None,
         "estimated_cost_usd": None,
     }
 
 
-def _load_existing_rows(output_path: str | None) -> tuple[list[dict], set[tuple[str, str, str]]]:
+def _load_existing_rows(
+    output_path: str | None,
+    programs: list[str],
+) -> tuple[list[dict], set[tuple[str, str]]]:
     if not output_path:
         return [], set()
 
@@ -371,19 +594,26 @@ def _load_existing_rows(output_path: str | None) -> tuple[list[dict], set[tuple[
     if existing.empty:
         return [], set()
 
-    if "error" in existing.columns:
-        existing = existing[existing["error"].isna()].copy()
-    if "prediction" in existing.columns:
-        existing = existing[existing["prediction"].notna()].copy()
     if existing.empty:
         return [], set()
 
-    rows = existing.to_dict("records")
-    completed = {
-        (row["model"], row["scenario_id"], row["variable"])
-        for row in rows
-    }
-    return rows, completed
+    group_columns = ["model", "scenario_id"]
+    completed_keys: set[tuple[str, str]] = set()
+    keep_mask = pd.Series(False, index=existing.index)
+
+    for key, group in existing.groupby(group_columns):
+        has_all_programs = set(group["variable"]) >= set(programs)
+        has_no_errors = "error" not in group.columns or group["error"].isna().all()
+        has_all_predictions = (
+            "prediction" not in group.columns or group["prediction"].notna().all()
+        )
+        if has_all_programs and has_no_errors and has_all_predictions:
+            completed_keys.add((key[0], key[1]))
+            keep_mask.loc[group.index] = True
+
+    retained = existing.loc[keep_mask].copy()
+    rows = retained.to_dict("records")
+    return rows, completed_keys
 
 
 def run_no_tools_eval(
@@ -407,58 +637,135 @@ def run_no_tools_eval(
     if programs is None:
         programs = PROGRAMS
 
-    all_rows, completed = _load_existing_rows(output_path)
-    total = len(models) * len(scenarios) * len(programs)
+    all_rows, completed = _load_existing_rows(output_path, programs)
+    total = len(models) * len(scenarios)
     done = len(completed)
 
     for model_name, model_id in models.items():
         model_fatal = False
         for scenario in scenarios:
+            key = (model_name, scenario.id)
+            if key in completed:
+                continue
+            try:
+                result = run_single_no_tools(scenario, programs, model_id)
+                error = None
+            except Exception as e:
+                error = _format_error(e)
+                print(f"  ERROR [{model_name}] {scenario.id}: {error}")
+                if isinstance(e, MODEL_FATAL_ERRORS):
+                    model_fatal = True
+                    print(
+                        f"  Stopping {model_name} due to fatal error; "
+                        "unattempted rows will be retried on resume."
+                    )
+                    if output_path:
+                        pd.DataFrame(all_rows).to_csv(output_path, index=False)
+                    break
+                result = {
+                    "predictions": {variable: None for variable in programs},
+                    "raw_response": None,
+                    "error": error,
+                    "elapsed_seconds": None,
+                    "prompt_tokens": None,
+                    "completion_tokens": None,
+                    "total_tokens": None,
+                    "reasoning_tokens": None,
+                    "cached_prompt_tokens": None,
+                    "provider_reported_cost_usd": None,
+                    "reconstructed_cost_usd": None,
+                    "total_cost_usd": None,
+                    "cost_is_estimated": None,
+                    "estimated_cost_usd": None,
+                }
+
+            batch_size = len(programs)
+            call_id = ":".join(
+                [part for part in [run_id, model_name, scenario.id] if part is not None]
+            )
+            elapsed_seconds = result.get("elapsed_seconds")
+            prompt_tokens = result.get("prompt_tokens")
+            completion_tokens = result.get("completion_tokens")
+            total_tokens = result.get("total_tokens")
+            reasoning_tokens = result.get("reasoning_tokens")
+            cached_prompt_tokens = result.get("cached_prompt_tokens")
+            provider_reported_cost_usd = result.get("provider_reported_cost_usd")
+            reconstructed_cost_usd = result.get("reconstructed_cost_usd")
+            total_cost_usd = result.get("total_cost_usd")
+            cost_is_estimated = result.get("cost_is_estimated")
+            estimated_cost_usd = result.get("estimated_cost_usd")
             for variable in programs:
-                key = (model_name, scenario.id, variable)
-                if key in completed:
-                    continue
-                try:
-                    result = run_single_no_tools(scenario, variable, model_id)
-                except Exception as e:
-                    error = _format_error(e)
-                    print(f"  ERROR [{model_name}] {scenario.id}/{variable}: {error}")
-                    if isinstance(e, MODEL_FATAL_ERRORS):
-                        model_fatal = True
-                        print(
-                            f"  Stopping {model_name} due to fatal error; "
-                            "unattempted rows will be retried on resume."
-                        )
-                        if output_path:
-                            pd.DataFrame(all_rows).to_csv(output_path, index=False)
-                        break
-                    result = {
-                        "prediction": None,
-                        "raw_response": None,
-                        "error": error,
-                        "elapsed_seconds": None,
-                        "prompt_tokens": None,
-                        "completion_tokens": None,
-                        "total_tokens": None,
-                        "reasoning_tokens": None,
-                        "cached_prompt_tokens": None,
-                        "estimated_cost_usd": None,
-                    }
+                prediction = result["predictions"].get(variable)
                 all_rows.append(
                     {
                         **({"run_id": run_id} if run_id is not None else {}),
+                        "call_id": call_id,
                         "model": model_name,
                         "scenario_id": scenario.id,
                         "variable": variable,
-                        **result,
+                        "prediction": prediction,
+                        "raw_response": result["raw_response"],
+                        "error": error,
+                        "elapsed_seconds": (
+                            elapsed_seconds / batch_size
+                            if elapsed_seconds is not None
+                            else None
+                        ),
+                        "prompt_tokens": (
+                            prompt_tokens / batch_size
+                            if prompt_tokens is not None
+                            else None
+                        ),
+                        "completion_tokens": (
+                            completion_tokens / batch_size
+                            if completion_tokens is not None
+                            else None
+                        ),
+                        "total_tokens": (
+                            total_tokens / batch_size
+                            if total_tokens is not None
+                            else None
+                        ),
+                        "reasoning_tokens": (
+                            reasoning_tokens / batch_size
+                            if reasoning_tokens is not None
+                            else None
+                        ),
+                        "cached_prompt_tokens": (
+                            cached_prompt_tokens / batch_size
+                            if cached_prompt_tokens is not None
+                            else None
+                        ),
+                        "provider_reported_cost_usd": (
+                            provider_reported_cost_usd / batch_size
+                            if provider_reported_cost_usd is not None
+                            else None
+                        ),
+                        "reconstructed_cost_usd": (
+                            reconstructed_cost_usd / batch_size
+                            if reconstructed_cost_usd is not None
+                            else None
+                        ),
+                        "total_cost_usd": (
+                            total_cost_usd / batch_size
+                            if total_cost_usd is not None
+                            else None
+                        ),
+                        "cost_is_estimated": cost_is_estimated,
+                        "estimated_cost_usd": (
+                            estimated_cost_usd / batch_size
+                            if estimated_cost_usd is not None
+                            else None
+                        ),
                     }
                 )
-                completed.add(key)
-                done += 1
-                if done % CHECKPOINT_EVERY_ROWS == 0:
-                    print(f"  Progress: {done}/{total} ({done * 100 // total}%)")
-                    if output_path:
-                        pd.DataFrame(all_rows).to_csv(output_path, index=False)
+
+            completed.add(key)
+            done += 1
+            if done % CHECKPOINT_EVERY_ROWS == 0:
+                print(f"  Progress: {done}/{total} ({done * 100 // total}%)")
+                if output_path:
+                    pd.DataFrame(all_rows).to_csv(output_path, index=False)
             if model_fatal:
                 break
 
