@@ -559,7 +559,7 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
     assert result["prediction"] == 3500.0
     assert result["predictions"]["income_tax"] == 3500.0
     assert mock_completion.call_args.kwargs["response_format"] == {"type": "json_object"}
-    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 512
+    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 2048
     assert "tools" not in mock_completion.call_args.kwargs
     assert "tool_choice" not in mock_completion.call_args.kwargs
 
