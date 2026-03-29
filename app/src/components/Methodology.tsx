@@ -106,10 +106,10 @@ export default function Methodology({ data }: { data: BenchData }) {
 
       <div className="grid lg:grid-cols-2 gap-4 mt-8">
         <SectionCard title="Task">
-          Each model sees the same household description and one named policy
-          variable, then must return a single numeric answer with no tool use.
-          The exact provider-specific prompts are visible in the scenario
-          explorer, so you can inspect the contract instead of inferring it.
+          Each model sees the same household description and must return all
+          scored outputs in one response, with no tool use. The exact
+          provider-specific prompts are visible in the scenario explorer, so
+          you can inspect the contract instead of inferring it.
         </SectionCard>
 
         <SectionCard title="Households">
@@ -133,12 +133,13 @@ export default function Methodology({ data }: { data: BenchData }) {
         </SectionCard>
 
         <SectionCard title="Scoring">
-          Dollar-valued outputs are scored with mean absolute error, mean
-          absolute percentage error, and share within 10% of ground truth.
-          Household booleans like Medicaid and free school meals are scored
-          with classification accuracy. Coverage tracks how often a model
-          produced a parseable numeric answer. The leaderboard is a point
-          estimate on this fixed test set
+          The headline leaderboard uses a bounded score from 0 to 100. For
+          dollar-valued outputs, that score averages exact-dollar hit rate,
+          within-1%, within-5%, and within-10% hit rates. Household booleans
+          like Medicaid and free school meals use exact accuracy. Coverage
+          still tracks how often a model produced a parseable numeric answer,
+          and mean absolute error remains as a diagnostic. The leaderboard is
+          a point estimate on this fixed test set
           {hasRepeatedRuns
             ? "; when repeated runs are loaded, the app also shows run-to-run stability."
             : "."}

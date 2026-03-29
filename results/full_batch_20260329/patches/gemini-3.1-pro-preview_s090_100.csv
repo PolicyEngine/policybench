@@ -1,0 +1,1951 @@
+call_id,model,scenario_id,variable,prediction,raw_response,error,elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens,provider_reported_cost_usd,reconstructed_cost_usd,total_cost_usd,cost_is_estimated,estimated_cost_usd
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,adjusted_gross_income,-255912.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,income_tax_before_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,eitc,0.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,ctc,0.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,income_tax_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,snap,0.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,ssi,0.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,free_school_meals,1.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,is_medicaid_eligible,1.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,state_agi,-255912.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,state_income_tax_before_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,state_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_090,gemini-3.1-pro-preview,scenario_090,household_state_income_tax,0.0,"{
+  ""adjusted_gross_income"": -255912.0,
+  ""income_tax_before_refundable_credits"": 0.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 1,
+  ""is_medicaid_eligible"": 1,
+  ""state_agi"": -255912.0,
+  ""state_income_tax_before_refundable_credits"": 0.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 0.0
+}",,0.0007518782306131191,80.0,83.84615384615384,163.84615384615384,69.15384615384616,,,0.0011661538461538463,0.0011661538461538463,True,0.0011661538461538463
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,adjusted_gross_income,80465.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,income_tax_before_refundable_credits,5195.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,eitc,0.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,ctc,0.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,income_tax_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,snap,0.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,ssi,0.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,free_school_meals,0.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,is_medicaid_eligible,0.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,state_agi,52782.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,state_income_tax_before_refundable_credits,1750.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,state_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_091,gemini-3.1-pro-preview,scenario_091,household_state_income_tax,1750.0,"{
+  ""adjusted_gross_income"": 80465,
+  ""income_tax_before_refundable_credits"": 5195,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 52782,
+  ""state_income_tax_before_refundable_credits"": 1750,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1750
+}",,9.725000004087073e-05,80.15384615384616,137.53846153846155,217.69230769230768,124.0,,,0.0018107692307692306,0.0018107692307692306,True,0.0018107692307692306
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,adjusted_gross_income,18588.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,income_tax_before_refundable_credits,164.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,eitc,17.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,ctc,0.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,income_tax_refundable_credits,17.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,snap,0.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,ssi,0.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,free_school_meals,0.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,is_medicaid_eligible,0.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,state_agi,18588.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,state_income_tax_before_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,state_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_092,gemini-3.1-pro-preview,scenario_092,household_state_income_tax,0.0,"{
+  ""adjusted_gross_income"": 18588,
+  ""income_tax_before_refundable_credits"": 164,
+  ""eitc"": 17,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 17,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 18588,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,5.175315387672387e-05,57.38461538461539,73.0,130.3846153846154,59.84615384615385,,,0.0009907692307692308,0.0009907692307692308,True,0.0009907692307692308
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,adjusted_gross_income,174234.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,income_tax_before_refundable_credits,21500.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,eitc,0.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,ctc,2000.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,income_tax_refundable_credits,2000.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,snap,0.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,ssi,0.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,free_school_meals,0.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,is_medicaid_eligible,0.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,state_agi,174234.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,state_income_tax_before_refundable_credits,4355.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,state_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_093,gemini-3.1-pro-preview,scenario_093,household_state_income_tax,4355.0,"{
+  ""adjusted_gross_income"": 174234.0,
+  ""income_tax_before_refundable_credits"": 21500.0,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 2000.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 174234.0,
+  ""state_income_tax_before_refundable_credits"": 4355.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 4355.0
+}",,1.4921929519231736,81.53846153846153,95.15384615384616,176.69230769230768,79.23076923076923,,,0.001304923076923077,0.001304923076923077,True,0.001304923076923077
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,adjusted_gross_income,31518.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,income_tax_before_refundable_credits,1510.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,eitc,0.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,ctc,0.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,income_tax_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,snap,0.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,ssi,0.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,free_school_meals,0.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,is_medicaid_eligible,0.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,state_agi,31518.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,state_income_tax_before_refundable_credits,1434.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,state_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_094,gemini-3.1-pro-preview,scenario_094,household_state_income_tax,1000.0,"{
+  ""adjusted_gross_income"": 31518,
+  ""income_tax_before_refundable_credits"": 1510,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 31518,
+  ""state_income_tax_before_refundable_credits"": 1434,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 1000
+}",,0.7930654775381509,59.53846153846154,77.38461538461539,136.92307692307693,63.84615384615385,,,0.0010476923076923076,0.0010476923076923076,True,0.0010476923076923076
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,adjusted_gross_income,218693.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,income_tax_before_refundable_credits,29340.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,eitc,0.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,ctc,2000.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,income_tax_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,snap,0.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,ssi,0.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,free_school_meals,0.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,is_medicaid_eligible,0.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,state_agi,218693.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,state_income_tax_before_refundable_credits,8693.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,state_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_095,gemini-3.1-pro-preview,scenario_095,household_state_income_tax,8693.0,"{
+  ""adjusted_gross_income"": 218693,
+  ""income_tax_before_refundable_credits"": 29340,
+  ""eitc"": 0,
+  ""ctc"": 2000,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 0,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 218693,
+  ""state_income_tax_before_refundable_credits"": 8693,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 8693
+}",,0.9099294390767821,82.53846153846153,91.76923076923077,174.30769230769232,77.76923076923077,,,0.0012663076923076924,0.0012663076923076924,True,0.0012663076923076924
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,adjusted_gross_income,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,income_tax_before_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,eitc,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,ctc,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,income_tax_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,snap,804.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,ssi,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,free_school_meals,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,is_medicaid_eligible,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,state_agi,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,state_income_tax_before_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,state_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_096,gemini-3.1-pro-preview,scenario_096,household_state_income_tax,0.0,"{
+  ""adjusted_gross_income"": 0,
+  ""income_tax_before_refundable_credits"": 0,
+  ""eitc"": 0,
+  ""ctc"": 0,
+  ""income_tax_refundable_credits"": 0,
+  ""snap"": 804,
+  ""ssi"": 0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 0,
+  ""state_income_tax_before_refundable_credits"": 0,
+  ""state_refundable_credits"": 0,
+  ""household_state_income_tax"": 0
+}",,0.7660019871540359,55.92307692307692,68.46153846153847,124.38461538461539,56.07692307692308,,,0.0009333846153846154,0.0009333846153846154,True,0.0009333846153846154
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,adjusted_gross_income,71918.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,income_tax_before_refundable_credits,3277.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,eitc,0.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,ctc,0.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,income_tax_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,snap,0.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,ssi,0.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,free_school_meals,0.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,is_medicaid_eligible,0.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,state_agi,37422.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,state_income_tax_before_refundable_credits,300.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,state_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_097,gemini-3.1-pro-preview,scenario_097,household_state_income_tax,300.0,"{
+  ""adjusted_gross_income"": 71918.0,
+  ""income_tax_before_refundable_credits"": 3277.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 37422.0,
+  ""state_income_tax_before_refundable_credits"": 300.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 300.0
+}",,1.1367275930001948,73.76923076923077,108.46153846153847,182.23076923076923,93.07692307692308,,,0.0014490769230769232,0.0014490769230769232,True,0.0014490769230769232
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,adjusted_gross_income,270122.0,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,income_tax_before_refundable_credits,41323.28,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,eitc,0.0,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,ctc,2000.0,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,income_tax_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,snap,0.0,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,ssi,0.0,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,free_school_meals,0.0,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,is_medicaid_eligible,0.0,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,state_agi,270122.0,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,state_income_tax_before_refundable_credits,14136.59,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,state_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_098,gemini-3.1-pro-preview,scenario_098,household_state_income_tax,14136.59,"{
+  ""adjusted_gross_income"": 270122.0,
+  ""income_tax_before_refundable_credits"": 41323.28,
+  ""eitc"": 0.0,
+  ""ctc"": 2000.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0,
+  ""is_medicaid_eligible"": 0,
+  ""state_agi"": 270122.0,
+  ""state_income_tax_before_refundable_credits"": 14136.59,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 14136.59
+}",,0.9353076826927673,85.92307692307692,100.92307692307692,186.84615384615384,84.84615384615384,,,0.001382923076923077,0.001382923076923077,True,0.001382923076923077
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,adjusted_gross_income,54439.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,income_tax_before_refundable_credits,4494.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,eitc,0.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,ctc,0.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,income_tax_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,snap,0.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,ssi,0.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,free_school_meals,0.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,is_medicaid_eligible,0.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,state_agi,54439.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,state_income_tax_before_refundable_credits,2366.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,state_refundable_credits,0.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309
+gemini-3.1-pro-preview:scenario_099,gemini-3.1-pro-preview,scenario_099,household_state_income_tax,2366.0,"{
+  ""adjusted_gross_income"": 54439.0,
+  ""income_tax_before_refundable_credits"": 4494.0,
+  ""eitc"": 0.0,
+  ""ctc"": 0.0,
+  ""income_tax_refundable_credits"": 0.0,
+  ""snap"": 0.0,
+  ""ssi"": 0.0,
+  ""free_school_meals"": 0.0,
+  ""is_medicaid_eligible"": 0.0,
+  ""state_agi"": 54439.0,
+  ""state_income_tax_before_refundable_credits"": 2366.0,
+  ""state_refundable_credits"": 0.0,
+  ""household_state_income_tax"": 2366.0
+}",,0.7849312949228289,60.23076923076923,60.69230769230769,120.92307692307692,45.15384615384615,,,0.0008487692307692309,0.0008487692307692309,True,0.0008487692307692309

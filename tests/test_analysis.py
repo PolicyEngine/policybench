@@ -11,6 +11,7 @@ from policybench.analysis import (
     build_scenario_prompt_map,
     build_dashboard_payload,
     compute_metrics,
+    exact_amount_match,
     export_dashboard_data,
     export_analysis,
     mean_absolute_error,
@@ -83,6 +84,11 @@ class TestBasicMetrics:
 
         y_pred_far = np.array([5.0])  # Outside $1 tolerance
         assert within_tolerance(y_true, y_pred_far) == 0.0
+
+    def test_exact_amount_match_known(self):
+        y_true = np.array([100.0, 200.0, 300.0])
+        y_pred = np.array([100.5, 202.0, 299.5])
+        assert exact_amount_match(y_true, y_pred) == pytest.approx(2 / 3)
 
 
 class TestComputeMetrics:
@@ -165,7 +171,37 @@ class TestComputeMetrics:
         assert row["n_parsed"] == 1
         assert row["coverage"] == 0.5
         assert row["mae"] == 0.0
+        assert row["exact"] == 0.5
+        assert row["within_1pct"] == 0.5
+        assert row["within_5pct"] == 0.5
         assert row["within_10pct"] == 0.5
+        assert row["score"] == 0.5
+
+    def test_compute_metrics_score_averages_thresholds(self):
+        ground_truth_df = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s2", "s3", "s4"],
+                "variable": ["income_tax"] * 4,
+                "value": [100.0, 100.0, 100.0, 100.0],
+            }
+        )
+        predictions_df = pd.DataFrame(
+            {
+                "model": ["model_a"] * 4,
+                "scenario_id": ["s1", "s2", "s3", "s4"],
+                "variable": ["income_tax"] * 4,
+                "prediction": [100.0, 100.5, 104.0, 112.0],
+            }
+        )
+
+        metrics = compute_metrics(ground_truth_df, predictions_df)
+        row = metrics.iloc[0]
+
+        assert row["exact"] == pytest.approx(0.5)
+        assert row["within_1pct"] == pytest.approx(0.5)
+        assert row["within_5pct"] == pytest.approx(0.75)
+        assert row["within_10pct"] == pytest.approx(0.75)
+        assert row["score"] == pytest.approx(0.625)
 
 
 class TestSummaries:
@@ -175,6 +211,10 @@ class TestSummaries:
             {
                 "model": ["a", "a", "b", "b"],
                 "variable": ["income_tax", "eitc", "income_tax", "eitc"],
+                "score": [0.55, 0.75, 0.40, 0.50],
+                "exact": [0.3, 0.6, 0.2, 0.3],
+                "within_1pct": [0.4, 0.7, 0.3, 0.4],
+                "within_5pct": [0.6, 0.8, 0.4, 0.5],
                 "mae": [500.0, 300.0, 1000.0, 800.0],
                 "mape": [0.10, 0.05, 0.20, 0.15],
                 "accuracy": [float("nan")] * 4,
@@ -189,6 +229,7 @@ class TestSummaries:
         summary = summary_by_model(metrics_df)
         assert len(summary) == 2
         model_a = summary[summary["model"] == "a"]
+        assert abs(model_a["mean_score"].iloc[0] - 0.65) < 1e-10
         assert abs(model_a["mean_mae"].iloc[0] - 400.0) < 1e-10
         assert model_a["parsed_n"].iloc[0] == 100
         assert model_a["mean_coverage"].iloc[0] == 1.0
@@ -197,6 +238,7 @@ class TestSummaries:
         summary = summary_by_variable(metrics_df)
         assert len(summary) == 2
         it = summary[summary["variable"] == "income_tax"]
+        assert abs(it["mean_score"].iloc[0] - 0.475) < 1e-10
         assert abs(it["mean_mae"].iloc[0] - 750.0) < 1e-10
 
     def test_analyze_no_tools_returns_expected_tables(self):
@@ -349,6 +391,10 @@ class TestSummaries:
                 {
                     "run_id": ["run_000", "run_001", "run_002"],
                     "model": ["a", "a", "a"],
+                    "mean_score": [0.72, 0.74, 0.76],
+                    "mean_exact": [0.52, 0.54, 0.56],
+                    "mean_within_1pct": [0.62, 0.64, 0.66],
+                    "mean_within_5pct": [0.72, 0.74, 0.76],
                     "mean_mae": [390.0, 410.0, 400.0],
                     "mean_mape": [0.1, 0.11, 0.09],
                     "mean_within_10pct": [0.83, 0.85, 0.87],
@@ -362,6 +408,10 @@ class TestSummaries:
                 {
                     "model": ["a"],
                     "run_count": [3],
+                    "score_run_mean": [0.74],
+                    "score_run_std": [0.02],
+                    "score_run_min": [0.72],
+                    "score_run_max": [0.76],
                     "within10pct_run_mean": [0.85],
                     "within10pct_run_std": [0.02],
                     "within10pct_run_min": [0.83],
@@ -373,7 +423,7 @@ class TestSummaries:
         }
         report = render_markdown_report(analysis)
         assert "## Run stability" in report
-        assert "within10_run_mean" in report
+        assert "score_run_mean" in report
 
     def test_export_analysis_writes_expected_files(self, metrics_df, tmp_path):
         analysis = {
@@ -403,6 +453,10 @@ class TestSummaries:
                 {
                     "run_id": ["run_000"],
                     "model": ["a"],
+                    "mean_score": [0.75],
+                    "mean_exact": [0.55],
+                    "mean_within_1pct": [0.65],
+                    "mean_within_5pct": [0.75],
                     "mean_mae": [400.0],
                     "mean_mape": [0.1],
                     "mean_within_10pct": [0.8],
@@ -416,6 +470,10 @@ class TestSummaries:
                 {
                     "model": ["a"],
                     "run_count": [1],
+                    "score_run_mean": [0.75],
+                    "score_run_std": [float("nan")],
+                    "score_run_min": [0.75],
+                    "score_run_max": [0.75],
                     "within10pct_run_mean": [0.8],
                     "within10pct_run_std": [float("nan")],
                     "within10pct_run_min": [0.8],
@@ -486,6 +544,7 @@ class TestSummaries:
         }
         assert payload["scenarios"]["s1"]["filingStatus"] == "single"
         assert payload["modelStats"][0]["condition"] == "no_tools"
+        assert "score" in payload["modelStats"][0]
         assert "within10pctRunMean" not in payload["modelStats"][0]
         assert payload["heatmap"][0]["condition"] == "no_tools"
         assert payload["scatter"][0]["condition"] == "no_tools"

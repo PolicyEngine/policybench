@@ -114,11 +114,13 @@ export default function FailureModes({ data }: { data: BenchData }) {
           Read this carefully
         </div>
         <p className="mt-3 text-sm leading-relaxed text-text-secondary">
-          For dollar-valued programs, <span className="text-text">overall</span> reflects
-          within-10% accuracy across all households, including many true-zero cases.
-          <span className="text-text"> Positive-amount cases</span> is the harder and more
-          informative number for benefits and refundable credits. For household booleans,
-          the cards instead compare positive and negative class accuracy.
+          These cards are intentionally stricter than the old headline view but
+          still use <span className="text-text">within-10% accuracy</span> for
+          dollar-valued programs so positive cases stay interpretable.
+          <span className="text-text"> Positive-amount cases</span> is the
+          harder and more informative number for benefits and refundable
+          credits. For household booleans, the cards compare positive and
+          negative class accuracy.
         </p>
       </div>
 

@@ -32,6 +32,15 @@ def accuracy(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.mean(y_true_binary == y_pred_binary))
 
 
+def exact_amount_match(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    absolute_tolerance: float = 1.0,
+) -> float:
+    """Fraction of amount predictions within an absolute tolerance."""
+    return float(np.mean(np.abs(y_true - y_pred) <= absolute_tolerance))
+
+
 def within_tolerance(
     y_true: np.ndarray,
     y_pred: np.ndarray,
@@ -103,6 +112,10 @@ def run_stability_by_model(run_model_summary: pd.DataFrame) -> pd.DataFrame:
         run_model_summary.groupby("model")
         .agg(
             run_count=("run_id", "nunique"),
+            score_run_mean=("mean_score", "mean"),
+            score_run_std=("mean_score", _std_or_nan),
+            score_run_min=("mean_score", "min"),
+            score_run_max=("mean_score", "max"),
             within10pct_run_mean=("mean_within_10pct", "mean"),
             within10pct_run_std=("mean_within_10pct", _std_or_nan),
             within10pct_run_min=("mean_within_10pct", "min"),
@@ -129,7 +142,7 @@ def compute_metrics(
         predictions: DataFrame with columns [model, scenario_id, variable, prediction]
 
     Returns:
-        DataFrame with columns [model, variable, mae, mape, accuracy_10pct, n]
+        DataFrame with bounded hit-rate scores plus diagnostic error metrics
     """
     merged = predictions.merge(
         ground_truth,
@@ -157,10 +170,13 @@ def compute_metrics(
             row["mape"] = float("nan")
             if variable in BINARY_PROGRAMS:
                 row["accuracy"] = 0.0
-                row["within_10pct"] = float("nan")
             else:
                 row["accuracy"] = float("nan")
-                row["within_10pct"] = 0.0
+            row["exact"] = 0.0
+            row["within_1pct"] = 0.0
+            row["within_5pct"] = 0.0
+            row["within_10pct"] = 0.0
+            row["score"] = 0.0
             rows.append(row)
             continue
 
@@ -168,20 +184,41 @@ def compute_metrics(
         y_pred = scored["prediction"].values
 
         if variable in BINARY_PROGRAMS:
+            accuracy_score = accuracy(y_true, y_pred) * coverage
             row["mae"] = mean_absolute_error(y_true, y_pred)
             row["mape"] = float("nan")
-            row["accuracy"] = accuracy(y_true, y_pred) * coverage
-            row["within_10pct"] = float("nan")
+            row["accuracy"] = accuracy_score
+            row["exact"] = accuracy_score
+            row["within_1pct"] = accuracy_score
+            row["within_5pct"] = accuracy_score
+            row["within_10pct"] = accuracy_score
+            row["score"] = accuracy_score
         elif variable in RATE_PROGRAMS:
+            exact = exact_amount_match(y_true, y_pred, absolute_tolerance=1e-4) * coverage
+            within_1pct = within_tolerance(y_true, y_pred, tolerance=0.01) * coverage
+            within_5pct = within_tolerance(y_true, y_pred, tolerance=0.05) * coverage
+            within_10pct = within_tolerance(y_true, y_pred, tolerance=0.10) * coverage
             row["mae"] = mean_absolute_error(y_true, y_pred)
             row["mape"] = float("nan")
             row["accuracy"] = float("nan")
-            row["within_10pct"] = within_tolerance(y_true, y_pred, tolerance=0.10) * coverage
+            row["exact"] = exact
+            row["within_1pct"] = within_1pct
+            row["within_5pct"] = within_5pct
+            row["within_10pct"] = within_10pct
+            row["score"] = float(np.mean([exact, within_1pct, within_5pct, within_10pct]))
         else:
+            exact = exact_amount_match(y_true, y_pred, absolute_tolerance=1.0) * coverage
+            within_1pct = within_tolerance(y_true, y_pred, tolerance=0.01) * coverage
+            within_5pct = within_tolerance(y_true, y_pred, tolerance=0.05) * coverage
+            within_10pct = within_tolerance(y_true, y_pred, tolerance=0.10) * coverage
             row["mae"] = mean_absolute_error(y_true, y_pred)
             row["mape"] = mean_absolute_percentage_error(y_true, y_pred)
             row["accuracy"] = float("nan")
-            row["within_10pct"] = within_tolerance(y_true, y_pred, tolerance=0.10) * coverage
+            row["exact"] = exact
+            row["within_1pct"] = within_1pct
+            row["within_5pct"] = within_5pct
+            row["within_10pct"] = within_10pct
+            row["score"] = float(np.mean([exact, within_1pct, within_5pct, within_10pct]))
 
         rows.append(row)
 
@@ -193,6 +230,10 @@ def summary_by_model(metrics: pd.DataFrame) -> pd.DataFrame:
     return (
         metrics.groupby("model")
         .agg(
+            mean_score=("score", "mean"),
+            mean_exact=("exact", "mean"),
+            mean_within_1pct=("within_1pct", "mean"),
+            mean_within_5pct=("within_5pct", "mean"),
             mean_mae=("mae", "mean"),
             mean_mape=("mape", "mean"),
             mean_within_10pct=("within_10pct", "mean"),
@@ -210,6 +251,10 @@ def summary_by_variable(metrics: pd.DataFrame) -> pd.DataFrame:
     return (
         metrics.groupby("variable")
         .agg(
+            mean_score=("score", "mean"),
+            mean_exact=("exact", "mean"),
+            mean_within_1pct=("within_1pct", "mean"),
+            mean_within_5pct=("within_5pct", "mean"),
             mean_mae=("mae", "mean"),
             mean_mape=("mape", "mean"),
             mean_within_10pct=("within_10pct", "mean"),
@@ -291,7 +336,7 @@ def analyze_no_tools(
     if not run_stability.empty:
         model_summary = model_summary.merge(run_stability, on="model", how="left")
     model_summary = model_summary.sort_values(
-        "mean_within_10pct",
+        "mean_score",
         ascending=False,
     )
     variable_summary = summary_by_variable(metrics).sort_values("variable")
@@ -340,7 +385,8 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
                 "",
                 (
                     f"Top model: `{top_model['model']}` with "
-                    f"`mean_within_10pct={_format_metric(top_model['mean_within_10pct'])}` "
+                    f"`mean_score={_format_metric(top_model['mean_score'])}` "
+                    f"`mean_exact={_format_metric(top_model['mean_exact'])}` "
                     f"and `mean_mae={_format_metric(top_model['mean_mae'])}`."
                 ),
                 "",
@@ -350,17 +396,18 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
             "run_count" in top_model.index
             and not pd.isna(top_model.get("run_count"))
             and top_model.get("run_count", 0) > 1
+            and "score_run_mean" in top_model.index
         ):
             lines.extend(
                 [
                     (
                         f"Across `{int(top_model['run_count'])}` repeated runs on the fixed "
                         "scenario set, this model averaged "
-                        f"`{_format_metric(top_model['within10pct_run_mean'])}` "
-                        "within-10% accuracy"
+                        f"`{_format_metric(top_model['score_run_mean'])}` "
+                        "headline score"
                         + (
-                            f" with run-to-run std `{_format_metric(top_model['within10pct_run_std'])}`."
-                            if not pd.isna(top_model.get("within10pct_run_std"))
+                            f" with run-to-run std `{_format_metric(top_model['score_run_std'])}`."
+                            if not pd.isna(top_model.get("score_run_std"))
                             else "."
                         )
                     ),
@@ -405,22 +452,22 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
                 "",
                 "Repeated runs on the same fixed household set, summarized by model.",
                 "",
-                "| model | run_count | within10_run_mean | within10_run_std | within10_run_min | within10_run_max | mae_run_mean | mae_run_std |",
+                "| model | run_count | score_run_mean | score_run_std | score_run_min | score_run_max | mae_run_mean | mae_run_std |",
                 "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
         for _, row in run_stability.sort_values(
-            "within10pct_run_mean",
+            "score_run_mean",
             ascending=False,
         ).iterrows():
             lines.append(
                 "| "
                 f"{row['model']} | "
                 f"{int(row['run_count'])} | "
-                f"{_format_metric(row['within10pct_run_mean'])} | "
-                f"{_format_metric(row['within10pct_run_std'])} | "
-                f"{_format_metric(row['within10pct_run_min'])} | "
-                f"{_format_metric(row['within10pct_run_max'])} | "
+                f"{_format_metric(row['score_run_mean'])} | "
+                f"{_format_metric(row['score_run_std'])} | "
+                f"{_format_metric(row['score_run_min'])} | "
+                f"{_format_metric(row['score_run_max'])} | "
                 f"{_format_metric(row['mae_run_mean'])} | "
                 f"{_format_metric(row['mae_run_std'])} |"
             )
@@ -430,17 +477,20 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
         [
             "## Summary by model",
             "",
-            "| model | mean_mae | mean_mape | mean_within_10pct | total_n |",
-            "| --- | ---: | ---: | ---: | ---: |",
+            "| model | mean_score | mean_exact | mean_within_1pct | mean_within_5pct | mean_within_10pct | mean_mae | total_n |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
     for _, row in model_summary.iterrows():
         lines.append(
             "| "
             f"{row['model']} | "
-            f"{_format_metric(row['mean_mae'])} | "
-            f"{_format_metric(row['mean_mape'])} | "
+            f"{_format_metric(row['mean_score'])} | "
+            f"{_format_metric(row['mean_exact'])} | "
+            f"{_format_metric(row['mean_within_1pct'])} | "
+            f"{_format_metric(row['mean_within_5pct'])} | "
             f"{_format_metric(row['mean_within_10pct'])} | "
+            f"{_format_metric(row['mean_mae'])} | "
             f"{int(row['total_n'])} |"
         )
 
@@ -449,17 +499,20 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
             "",
             "## Summary by variable",
             "",
-            "| variable | mean_mae | mean_mape | mean_within_10pct | total_n |",
-            "| --- | ---: | ---: | ---: | ---: |",
+            "| variable | mean_score | mean_exact | mean_within_1pct | mean_within_5pct | mean_within_10pct | mean_mae | total_n |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
     for _, row in variable_summary.iterrows():
         lines.append(
             "| "
             f"{row['variable']} | "
-            f"{_format_metric(row['mean_mae'])} | "
-            f"{_format_metric(row['mean_mape'])} | "
+            f"{_format_metric(row['mean_score'])} | "
+            f"{_format_metric(row['mean_exact'])} | "
+            f"{_format_metric(row['mean_within_1pct'])} | "
+            f"{_format_metric(row['mean_within_5pct'])} | "
             f"{_format_metric(row['mean_within_10pct'])} | "
+            f"{_format_metric(row['mean_mae'])} | "
             f"{int(row['total_n'])} |"
         )
 
@@ -706,11 +759,31 @@ def build_dashboard_payload(
 
     model_stats = []
     for _, row in analysis["model_summary"].sort_values(
-        "mean_within_10pct", ascending=False
+        "mean_score", ascending=False
     ).iterrows():
         item = {
             "model": row["model"],
             "condition": "no_tools",
+            "score": _clean_json_number(
+                row["mean_score"] * 100
+                if not pd.isna(row["mean_score"])
+                else row["mean_score"]
+            ),
+            "exact": _clean_json_number(
+                row["mean_exact"] * 100
+                if not pd.isna(row["mean_exact"])
+                else row["mean_exact"]
+            ),
+            "within1pct": _clean_json_number(
+                row["mean_within_1pct"] * 100
+                if not pd.isna(row["mean_within_1pct"])
+                else row["mean_within_1pct"]
+            ),
+            "within5pct": _clean_json_number(
+                row["mean_within_5pct"] * 100
+                if not pd.isna(row["mean_within_5pct"])
+                else row["mean_within_5pct"]
+            ),
             "mae": float(row["mean_mae"]),
             "mape": _clean_json_number(
                 row["mean_mape"] * 100 if not pd.isna(row["mean_mape"]) else row["mean_mape"]
@@ -730,6 +803,30 @@ def build_dashboard_payload(
             "runCount": int(row["run_count"])
             if "run_count" in row.index and not pd.isna(row["run_count"])
             else None,
+            "scoreRunMean": _clean_json_number(
+                row["score_run_mean"] * 100
+                if "score_run_mean" in row.index
+                and not pd.isna(row["score_run_mean"])
+                else float("nan")
+            ),
+            "scoreRunStd": _clean_json_number(
+                row["score_run_std"] * 100
+                if "score_run_std" in row.index
+                and not pd.isna(row["score_run_std"])
+                else float("nan")
+            ),
+            "scoreRunMin": _clean_json_number(
+                row["score_run_min"] * 100
+                if "score_run_min" in row.index
+                and not pd.isna(row["score_run_min"])
+                else float("nan")
+            ),
+            "scoreRunMax": _clean_json_number(
+                row["score_run_max"] * 100
+                if "score_run_max" in row.index
+                and not pd.isna(row["score_run_max"])
+                else float("nan")
+            ),
             "within10pctRunMean": _clean_json_number(
                 row["within10pct_run_mean"] * 100
                 if "within10pct_run_mean" in row.index
@@ -773,6 +870,10 @@ def build_dashboard_payload(
     for variable, group in metrics.groupby("variable"):
         item = {
             "variable": variable,
+            "score": float(group["score"].mean() * 100),
+            "exact": float(group["exact"].mean() * 100),
+            "within1pct": float(group["within_1pct"].mean() * 100),
+            "within5pct": float(group["within_5pct"].mean() * 100),
             "mae": float(group["mae"].mean()),
             "n": int(group["n"].sum()),
             "nParsed": int(group["n_parsed"].sum()),
@@ -798,6 +899,10 @@ def build_dashboard_payload(
             "model": row["model"],
             "variable": row["variable"],
             "condition": "no_tools",
+            "score": float(row["score"] * 100),
+            "exact": float(row["exact"] * 100),
+            "within1pct": float(row["within_1pct"] * 100),
+            "within5pct": float(row["within_5pct"] * 100),
             "mae": float(row["mae"]),
             "n": int(row["n"]),
             "nParsed": int(row["n_parsed"]),

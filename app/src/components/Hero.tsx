@@ -37,10 +37,10 @@ export default function Hero({ data }: { data: BenchData }) {
     (d) => d.condition === "no_tools"
   );
   const noToolsPrograms = data.programStats.length;
-  const bestNoToolsAcc = Math.max(...noTools.map((m) => m.within10pct));
+  const bestNoToolsScore = Math.max(...noTools.map((m) => m.score));
 
-  const avgNoToolsAcc =
-    noTools.reduce((s, m) => s + m.within10pct, 0) / noTools.length;
+  const avgNoToolsScore =
+    noTools.reduce((s, m) => s + m.score, 0) / noTools.length;
   const avgNoToolsMAE =
     noTools.reduce((s, m) => s + m.mae, 0) / noTools.length;
 
@@ -76,18 +76,19 @@ export default function Hero({ data }: { data: BenchData }) {
           from parametric knowledge alone? This benchmark evaluates{" "}
           {noTools.length} no-tools models on{" "}
           {noToolsPredictions.length.toLocaleString()} predictions across {noToolsPrograms}
-          programs and {Object.keys(data.scenarios).length} household scenarios.
+          programs and {Object.keys(data.scenarios).length} household scenarios,
+          with a bounded score that reaches 100% only when outputs are exact.
         </p>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-12">
           <Stat
-            value={`${avgNoToolsAcc.toFixed(1)}%`}
-            label="Avg within 10%"
+            value={`${avgNoToolsScore.toFixed(1)}%`}
+            label="Avg score"
             accent="primary"
             delay={250}
           />
           <Stat
-            value={`${bestNoToolsAcc.toFixed(1)}%`}
+            value={`${bestNoToolsScore.toFixed(1)}%`}
             label="Best model"
             accent="info"
             delay={350}

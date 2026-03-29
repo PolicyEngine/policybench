@@ -8,7 +8,7 @@ import {
 } from "../modelMeta";
 
 function getHeatmapScore(entry: HeatmapEntry): number {
-  return entry.within10pct ?? entry.accuracy ?? 0;
+  return entry.score ?? entry.within10pct ?? entry.accuracy ?? 0;
 }
 
 function cellColor(pct: number): string {
@@ -21,14 +21,14 @@ function textColor(pct: number): string {
 
 export default function ProgramHeatmap({ data }: { data: BenchData }) {
   const { grid, variables } = useMemo(() => {
-    // Build lookup: model+variable → accuracy (some entries use "accuracy", others "within10pct")
+    // Build lookup: model+variable → bounded score
     const lookup: Record<string, number> = {};
     for (const h of data.heatmap) {
       if (h.condition !== "no_tools") continue;
       lookup[`${h.model}|${h.variable}`] = getHeatmapScore(h);
     }
 
-    // Get unique variables sorted by average accuracy (worst first for impact)
+    // Get unique variables sorted by average score (worst first for impact)
     const varAcc: Record<string, number[]> = {};
     for (const h of data.heatmap) {
       if (h.condition !== "no_tools") continue;
@@ -61,9 +61,9 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
         className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Accuracy by program and model (AI alone, without tools). Dollar targets use
-        share within 10% of the true value; household booleans use classification
-        accuracy.
+        Bounded score by program and model (AI alone, without tools). Dollar
+        targets average exact, within-1%, within-5%, and within-10% hit rates;
+        household booleans use exact accuracy.
       </p>
 
       <div className="mt-10 overflow-x-auto animate-fade-up" style={{ animationDelay: "240ms" }}>

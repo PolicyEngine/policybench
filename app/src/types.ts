@@ -56,6 +56,10 @@ export type BenchScenario = {
 export type ModelStat = {
   model: string;
   condition: string;
+  score: number;
+  exact?: number;
+  within1pct?: number;
+  within5pct?: number;
   mae: number;
   within10pct: number;
   n: number;
@@ -64,6 +68,10 @@ export type ModelStat = {
   mape?: number;
   accuracy?: number;
   runCount?: number;
+  scoreRunMean?: number;
+  scoreRunStd?: number;
+  scoreRunMin?: number;
+  scoreRunMax?: number;
   within10pctRunMean?: number;
   within10pctRunStd?: number;
   within10pctRunMin?: number;
@@ -74,6 +82,10 @@ export type ModelStat = {
 
 export type ProgramStat = {
   variable: string;
+  score: number;
+  exact?: number;
+  within1pct?: number;
+  within5pct?: number;
   mae: number;
   n: number;
   nParsed: number;
@@ -87,6 +99,10 @@ export type HeatmapEntry = {
   model: string;
   variable: string;
   condition: string;
+  score: number;
+  exact?: number;
+  within1pct?: number;
+  within5pct?: number;
   mae: number;
   n: number;
   nParsed: number;

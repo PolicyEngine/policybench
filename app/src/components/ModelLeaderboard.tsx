@@ -55,13 +55,13 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
     () =>
       data.modelStats
         .filter((m) => m.condition === "no_tools")
-        .sort((a, b) => b.within10pct - a.within10pct),
+        .sort((a, b) => b.score - a.score),
     [data]
   );
   const leadModel = noTools[0];
   const leadStabilityLabel = fmtRunStability(
-    leadModel?.within10pctRunMean,
-    leadModel?.within10pctRunStd,
+    leadModel?.scoreRunMean,
+    leadModel?.scoreRunStd,
     leadModel?.runCount
   );
 
@@ -78,8 +78,9 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
         className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Models ranked by share of predictions within 10% of ground truth in the
-        no-tools condition.
+        Models ranked by a bounded benchmark score. Dollar outputs average exact,
+        within-1%, within-5%, and within-10% hit rates; household booleans use
+        exact accuracy.
       </p>
 
       <div className="mt-10 space-y-3">
@@ -87,14 +88,14 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
         <div className="grid grid-cols-12 gap-3 px-4 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
           <div className="col-span-1">#</div>
           <div className="col-span-5">Model</div>
-          <div className="col-span-3 text-right">Within 10%</div>
+          <div className="col-span-3 text-right">Score</div>
           <div className="col-span-3 text-right">MAE</div>
         </div>
 
         {noTools.map((m, i) => {
           const stabilityLabel = fmtRunStability(
-            m.within10pctRunMean,
-            m.within10pctRunStd,
+            m.scoreRunMean,
+            m.scoreRunStd,
             m.runCount
           );
           return (
@@ -123,8 +124,8 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
 
               {/* No-tools accuracy */}
               <div className="col-span-3 text-right">
-                <Badge variant={accColor(m.within10pct)}>
-                  {m.within10pct.toFixed(1)}%
+                <Badge variant={accColor(m.score)}>
+                  {m.score.toFixed(1)}%
                 </Badge>
                 {stabilityLabel && (
                   <div className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1">
@@ -143,13 +144,13 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
       </div>
 
       {/* Summary callout */}
-      <div className="mt-8 card px-5 py-4 animate-fade-up" style={{ animationDelay: "600ms", borderColor: getPerformanceTextColor(leadModel?.within10pct ?? 0), backgroundColor: getPerformanceSurfaceColor(leadModel?.within10pct ?? 0) }}>
+      <div className="mt-8 card px-5 py-4 animate-fade-up" style={{ animationDelay: "600ms", borderColor: getPerformanceTextColor(leadModel?.score ?? 0), backgroundColor: getPerformanceSurfaceColor(leadModel?.score ?? 0) }}>
         <p className="text-text-secondary text-sm leading-relaxed">
           <span className="text-primary font-medium">Key finding:</span> The best
           no-tools model
           ({MODEL_LABELS[leadModel?.model ?? ""] || leadModel?.model}) achieves{" "}
           <span className="text-text font-[family-name:var(--font-mono)]">
-            {leadModel?.within10pct.toFixed(1)}%
+            {leadModel?.score.toFixed(1)}%
           </span>{" "}
           {leadStabilityLabel && (
             <>
@@ -159,7 +160,7 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
               </span>{" "}
             </>
           )}
-          accuracy with an average error of{" "}
+          on the bounded benchmark score, with an average absolute error of{" "}
           <span className="text-text font-[family-name:var(--font-mono)]">
             ${Math.round(leadModel?.mae || 0).toLocaleString()}
           </span>
