@@ -2,7 +2,11 @@
 
 How well can frontier models calculate tax and benefit outcomes without tools?
 
-PolicyBench measures how well frontier AI models estimate US tax/benefit values for specific households using pure reasoning alone.
+PolicyBench measures how well frontier AI models estimate selected household tax
+and benefit outputs without tools.
+
+For benchmark scope, snapshot policy, and terminology, see the
+[benchmark card](docs/benchmark_card.md).
 
 Benchmark scenarios are sampled from real households in the Enhanced CPS and then evaluated under 2025 policy rules with PolicyEngine-US. That gives the benchmark more realistic joint distributions of age, income, filing status, and family composition than independent synthetic sampling.
 

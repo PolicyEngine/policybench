@@ -1,9 +1,12 @@
-import {
-  VARIABLE_CATEGORIES,
-  getVariableLabel,
-  type BenchData,
-} from "../types";
 import { MODEL_LABELS } from "../modelMeta";
+import {
+  getVariableCategory,
+  getVariableLabel,
+  VIEW_LABELS,
+  type BenchData,
+  type GlobalBenchData,
+  type ViewKey,
+} from "../types";
 
 function StatCard({
   value,
@@ -51,16 +54,128 @@ function SectionCard({
   );
 }
 
-export default function Methodology({ data }: { data: BenchData }) {
-  const noToolsModels = data.modelStats.filter((m) => m.condition === "no_tools");
+export default function Methodology({
+  data,
+  selectedView,
+}: {
+  data: BenchData | GlobalBenchData;
+  selectedView: ViewKey;
+}) {
+  const isGlobal = selectedView === "global";
+
+  if (isGlobal) {
+    const globalData = data as GlobalBenchData;
+    const totalHouseholds = globalData.countrySummaries.reduce(
+      (sum, country) => sum + country.households,
+      0
+    );
+
+    return (
+      <div>
+        <div className="eyebrow mb-3 animate-fade-up">Methodology</div>
+        <h2
+          className="font-[family-name:var(--font-display)] text-4xl md:text-5xl text-text tracking-tight animate-fade-up"
+          style={{ animationDelay: "80ms" }}
+        >
+          How global scores work
+        </h2>
+        <p
+          className="text-text-secondary mt-3 max-w-3xl leading-relaxed animate-fade-up"
+          style={{ animationDelay: "160ms" }}
+        >
+          The global leaderboard is a shared-model aggregate, not a separate
+          benchmark. Each model’s global score is the equal-weight average of
+          its country-level PolicyBench scores for the United States and United
+          Kingdom.
+        </p>
+
+        <div
+          className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-10 animate-fade-up"
+          style={{ animationDelay: "240ms" }}
+        >
+          <StatCard value="2" label="Country benchmarks" accent="primary" />
+          <StatCard
+            value={`${globalData.sharedModelCount}`}
+            label="Shared models"
+            accent="warning"
+          />
+          <StatCard
+            value={totalHouseholds.toLocaleString()}
+            label="Total households"
+            accent="info"
+          />
+          <StatCard value="2025" label="Tax year" accent="primary" />
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-4 mt-8">
+          <SectionCard title="Aggregation">
+            Only models with both country runs appear in the global table.
+            Their global score is the average of the bounded country scores,
+            rather than a currency-weighted or output-weighted blend.
+          </SectionCard>
+
+          <SectionCard title="Interpretation">
+            This view answers a narrow question: which models travel best across
+            policy systems? It does not replace the country-specific leaderboards,
+            and it intentionally omits mean absolute error because dollars and
+            pounds are not directly comparable.
+          </SectionCard>
+        </div>
+
+        <div
+          className="card px-5 py-5 mt-8 animate-fade-up"
+          style={{ animationDelay: "320ms" }}
+        >
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            Included country benchmarks
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {globalData.countrySummaries.map((summary) => (
+              <div
+                key={summary.key}
+                className="rounded-2xl border border-border bg-surface px-4 py-4"
+              >
+                <div className="text-text text-sm font-medium">
+                  {summary.label}
+                </div>
+                <div className="mt-2 text-xs leading-relaxed text-text-secondary">
+                  {summary.households.toLocaleString()} households,{" "}
+                  {summary.programs} outputs, {summary.models} evaluated models.
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const benchData = data as BenchData;
+  const country = benchData.country;
+  const noToolsModels = benchData.modelStats.filter(
+    (m) => m.condition === "no_tools"
+  );
   const modelNames = noToolsModels.map((m) => MODEL_LABELS[m.model] || m.model);
-  const variables = [...data.programStats]
+  const variables = [...benchData.programStats]
     .map((program) => program.variable)
-    .sort((a, b) => getVariableLabel(a).localeCompare(getVariableLabel(b)));
-  const scenarioCount = Object.keys(data.scenarios).length;
+    .sort((a, b) =>
+      getVariableLabel(a, country).localeCompare(getVariableLabel(b, country))
+    );
+  const scenarioCount = Object.keys(benchData.scenarios).length;
   const scoredPoints =
-    noToolsModels[0]?.n ?? scenarioCount * data.programStats.length;
-  const hasRepeatedRuns = noToolsModels.some((model) => (model.runCount ?? 0) > 1);
+    noToolsModels[0]?.n ?? scenarioCount * benchData.programStats.length;
+  const hasRepeatedRuns = noToolsModels.some(
+    (model) => (model.runCount ?? 0) > 1
+  );
+
+  const householdsLabel =
+    country === "uk" ? "Enhanced CPS households" : "Enhanced CPS households";
+  const groundTruthSource =
+    country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
+  const benchmarkDescription =
+    country === "uk"
+      ? "This app shows the current no-tools UK benchmark on a fixed test set, with ground truth computed by PolicyEngine-UK for tax year 2025."
+      : "This app shows the current no-tools US benchmark on a fixed test set, with ground truth computed by PolicyEngine-US for tax year 2025.";
 
   return (
     <div>
@@ -69,22 +184,24 @@ export default function Methodology({ data }: { data: BenchData }) {
         className="font-[family-name:var(--font-display)] text-4xl md:text-5xl text-text tracking-tight animate-fade-up"
         style={{ animationDelay: "80ms" }}
       >
-        How the benchmark works
+        How the {VIEW_LABELS[country]} benchmark works
       </h2>
       <p
         className="text-text-secondary mt-3 max-w-3xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
         PolicyBench measures one thing: how well frontier models can estimate
-        household-level tax and benefit outputs from the prompt alone. This
-        app shows the current no-tools benchmark on a fixed test set, with
-        ground truth computed by PolicyEngine-US for tax year 2025.
+        household-level tax and benefit outputs from the prompt alone.{" "}
+        {benchmarkDescription}
       </p>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-10 animate-fade-up" style={{ animationDelay: "240ms" }}>
+      <div
+        className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-10 animate-fade-up"
+        style={{ animationDelay: "240ms" }}
+      >
         <StatCard
-          value={`${scenarioCount}`}
-          label="Enhanced CPS households"
+          value={`${scenarioCount.toLocaleString()}`}
+          label={householdsLabel}
           accent="primary"
         />
         <StatCard
@@ -116,30 +233,27 @@ export default function Methodology({ data }: { data: BenchData }) {
           The benchmark samples real households from the Enhanced CPS with a
           fixed seed. To keep cases realistic and interpretable, the current
           set is restricted to households with a single tax unit, a single SPM
-          unit, and a single family. Filing status, ages, children, and the
-          observed wage and selected non-wage income sources are carried
-          through into both the prompt and the PolicyEngine input.
+          unit, and a single family. Ages, children, income sources, and
+          other nonzero promptable inputs are carried through into both the
+          prompt and the {groundTruthSource} input.
         </SectionCard>
 
         <SectionCard title="Ground Truth">
-          PolicyEngine-US computes the authoritative label for every
-          household-variable pair in tax year 2025. The current scope covers
-          federal adjusted gross income, federal pre-credit income tax,
-          refundable federal tax credits, SNAP, SSI, household-level Medicaid eligibility,
-          household-level free school meals eligibility, state AGI, state
-          pre-credit income tax, state refundable credits, and final state
-          income tax. The benchmark no longer scores PolicyEngine-specific
-          aggregates like total benefits or household net income.
+          {country === "uk"
+            ? "PolicyEngine-UK computes the authoritative label for every household-variable pair in tax year 2025. The current scope covers Income Tax, National Insurance, Child Benefit, Universal Credit, Pension Credit, and Personal Independence Payment."
+            : "PolicyEngine-US computes the authoritative label for every household-variable pair in tax year 2025. The current scope covers federal adjusted gross income, federal pre-credit income tax, refundable federal tax credits, SNAP, SSI, household-level Medicaid eligibility, household-level free school meals eligibility, state AGI, state pre-credit income tax, state refundable credits, and final state income tax."}
         </SectionCard>
 
         <SectionCard title="Scoring">
           The headline leaderboard uses a bounded score from 0 to 100. For
           dollar-valued outputs, that score averages exact-dollar hit rate,
-          within-1%, within-5%, and within-10% hit rates. Household booleans
-          like Medicaid and free school meals use exact accuracy. Coverage
-          still tracks how often a model produced a parseable numeric answer,
-          and mean absolute error remains as a diagnostic. The leaderboard is
-          a point estimate on this fixed test set
+          within-1%, within-5%, and within-10% hit rates.
+          {country === "us"
+            ? " Household booleans like Medicaid and free school meals use exact accuracy."
+            : ""}
+          {" "}Coverage still tracks how often a model produced a parseable numeric
+          answer, and mean absolute error remains as a diagnostic. The
+          leaderboard is a point estimate on this fixed test set
           {hasRepeatedRuns
             ? "; when repeated runs are loaded, the app also shows run-to-run stability."
             : "."}
@@ -156,8 +270,9 @@ export default function Methodology({ data }: { data: BenchData }) {
               Current benchmark scope
             </div>
             <div className="mt-1 text-text-secondary text-sm leading-relaxed">
-              Latest run in this app evaluates {modelNames.join(", ")} on{" "}
-              {scoredPoints.toLocaleString()} scored outputs.
+              Latest {VIEW_LABELS[country]} run in this app evaluates{" "}
+              {modelNames.join(", ")} on {scoredPoints.toLocaleString()} scored
+              outputs.
             </div>
           </div>
           <div className="text-text-muted text-xs">
@@ -171,9 +286,11 @@ export default function Methodology({ data }: { data: BenchData }) {
               key={variable}
               className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-secondary"
             >
-              <span className="text-text">{getVariableLabel(variable)}</span>
+              <span className="text-text">
+                {getVariableLabel(variable, country)}
+              </span>
               <span className="text-text-muted">
-                {VARIABLE_CATEGORIES[variable] || "Other"}
+                {getVariableCategory(variable, country)}
               </span>
             </span>
           ))}

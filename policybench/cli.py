@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from policybench.config import MODELS, PROGRAMS
+from policybench.config import COUNTRY_PROGRAMS, MODELS, PROGRAMS, get_programs
 
 
 def _ensure_parent_dir(output_path: str) -> None:
@@ -24,15 +24,16 @@ def _parse_models(selected: list[str] | None) -> dict[str, str]:
     return {name: MODELS[name] for name in selected}
 
 
-def _parse_programs(selected: list[str] | None) -> list[str]:
+def _parse_programs(selected: list[str] | None, allowed: list[str] | None = None) -> list[str]:
+    allowed_programs = PROGRAMS if allowed is None else allowed
     if not selected:
-        return PROGRAMS
+        return allowed_programs
 
-    unknown = [name for name in selected if name not in PROGRAMS]
+    unknown = [name for name in selected if name not in allowed_programs]
     if unknown:
         raise SystemExit(
             f"Unknown program(s): {', '.join(sorted(unknown))}. "
-            f"Valid choices: {', '.join(PROGRAMS)}"
+            f"Valid choices: {', '.join(allowed_programs)}"
         )
     return selected
 
@@ -57,6 +58,12 @@ def main():
     gt_parser.add_argument("-n", "--num-scenarios", type=int, default=100)
     gt_parser.add_argument("--seed", type=int, default=42)
     gt_parser.add_argument(
+        "--country",
+        choices=sorted(COUNTRY_PROGRAMS),
+        default="us",
+        help="Benchmark country to sample and score",
+    )
+    gt_parser.add_argument(
         "--scenario-manifest-output",
         default="results/scenarios.csv",
         help="CSV file for exported scenario metadata",
@@ -67,12 +74,23 @@ def main():
         dest="programs",
         help="Restrict ground-truth generation to one or more configured program names",
     )
+    gt_parser.add_argument(
+        "--exclude-scenario-manifest",
+        default=None,
+        help="Existing scenario manifest whose sampled households should be excluded",
+    )
 
     # Eval no tools
     nt_parser = subparsers.add_parser("eval-no-tools", help="Run AI-alone evaluation")
     nt_parser.add_argument("-o", "--output", default="results/no_tools/predictions.csv")
     nt_parser.add_argument("-n", "--num-scenarios", type=int, default=100)
     nt_parser.add_argument("--seed", type=int, default=42)
+    nt_parser.add_argument(
+        "--country",
+        choices=sorted(COUNTRY_PROGRAMS),
+        default="us",
+        help="Benchmark country to sample and score",
+    )
     nt_parser.add_argument(
         "--model",
         action="append",
@@ -97,6 +115,21 @@ def main():
         dest="programs",
         help="Restrict evaluation to one or more configured program names",
     )
+    nt_parser.add_argument(
+        "--include-explanations",
+        action="store_true",
+        help="Require per-program explanations alongside numeric answers",
+    )
+    nt_parser.add_argument(
+        "--single-output",
+        action="store_true",
+        help="Evaluate one configured output per request instead of one batch per household",
+    )
+    nt_parser.add_argument(
+        "--exclude-scenario-manifest",
+        default=None,
+        help="Existing scenario manifest whose sampled households should be excluded",
+    )
 
     # Eval no tools repeated
     ntr_parser = subparsers.add_parser(
@@ -111,6 +144,12 @@ def main():
     )
     ntr_parser.add_argument("-n", "--num-scenarios", type=int, default=100)
     ntr_parser.add_argument("--seed", type=int, default=42)
+    ntr_parser.add_argument(
+        "--country",
+        choices=sorted(COUNTRY_PROGRAMS),
+        default="us",
+        help="Benchmark country to sample and score",
+    )
     ntr_parser.add_argument(
         "--repeats",
         type=int,
@@ -140,6 +179,21 @@ def main():
         action="append",
         dest="programs",
         help="Restrict evaluation to one or more configured program names",
+    )
+    ntr_parser.add_argument(
+        "--include-explanations",
+        action="store_true",
+        help="Require per-program explanations alongside numeric answers",
+    )
+    ntr_parser.add_argument(
+        "--single-output",
+        action="store_true",
+        help="Evaluate one configured output per request instead of one batch per household",
+    )
+    ntr_parser.add_argument(
+        "--exclude-scenario-manifest",
+        default=None,
+        help="Existing scenario manifest whose sampled households should be excluded",
     )
 
     # Analyze
@@ -181,10 +235,25 @@ def main():
 
     if args.command == "ground-truth":
         from policybench.ground_truth import calculate_ground_truth
-        from policybench.scenarios import generate_scenarios, scenario_manifest
+        from policybench.scenarios import (
+            generate_scenarios,
+            load_excluded_household_ids,
+            scenario_manifest,
+        )
 
-        scenarios = generate_scenarios(n=args.num_scenarios, seed=args.seed)
-        programs = _parse_programs(args.programs)
+        excluded_household_ids = None
+        if args.exclude_scenario_manifest:
+            excluded_household_ids = load_excluded_household_ids(
+                args.exclude_scenario_manifest
+            )
+
+        scenarios = generate_scenarios(
+            n=args.num_scenarios,
+            seed=args.seed,
+            excluded_household_ids=excluded_household_ids,
+            country=args.country,
+        )
+        programs = _parse_programs(args.programs, get_programs(args.country))
         df = calculate_ground_truth(scenarios, programs=programs)
         _ensure_parent_dir(args.output)
         df.to_csv(args.output, index=False)
@@ -194,37 +263,66 @@ def main():
         print(f"Scenario manifest saved to {args.scenario_manifest_output}")
 
     elif args.command == "eval-no-tools":
-        from policybench.eval_no_tools import run_no_tools_eval
-        from policybench.scenarios import generate_scenarios
+        from policybench.eval_no_tools import (
+            run_no_tools_eval,
+            run_no_tools_single_output_eval,
+        )
+        from policybench.scenarios import generate_scenarios, load_excluded_household_ids
 
-        scenarios = generate_scenarios(n=args.num_scenarios, seed=args.seed)
+        excluded_household_ids = None
+        if args.exclude_scenario_manifest:
+            excluded_household_ids = load_excluded_household_ids(
+                args.exclude_scenario_manifest
+            )
+
+        scenarios = generate_scenarios(
+            n=args.num_scenarios,
+            seed=args.seed,
+            excluded_household_ids=excluded_household_ids,
+            country=args.country,
+        )
         scenarios = _slice_scenarios(scenarios, args.scenario_start, args.scenario_end)
         models = _parse_models(args.models)
-        programs = _parse_programs(args.programs)
+        programs = _parse_programs(args.programs, get_programs(args.country))
         _ensure_parent_dir(args.output)
-        df = run_no_tools_eval(
+        runner = run_no_tools_single_output_eval if args.single_output else run_no_tools_eval
+        df = runner(
             scenarios,
             models=models,
             programs=programs,
             output_path=args.output,
+            include_explanations=args.include_explanations,
         )
         df.to_csv(args.output, index=False)
         print(f"No-tools predictions saved to {args.output}")
 
     elif args.command == "eval-no-tools-repeated":
         from policybench.eval_no_tools import run_repeated_no_tools_eval
-        from policybench.scenarios import generate_scenarios
+        from policybench.scenarios import generate_scenarios, load_excluded_household_ids
 
-        scenarios = generate_scenarios(n=args.num_scenarios, seed=args.seed)
+        excluded_household_ids = None
+        if args.exclude_scenario_manifest:
+            excluded_household_ids = load_excluded_household_ids(
+                args.exclude_scenario_manifest
+            )
+
+        scenarios = generate_scenarios(
+            n=args.num_scenarios,
+            seed=args.seed,
+            excluded_household_ids=excluded_household_ids,
+            country=args.country,
+        )
         scenarios = _slice_scenarios(scenarios, args.scenario_start, args.scenario_end)
         models = _parse_models(args.models)
-        programs = _parse_programs(args.programs)
+        programs = _parse_programs(args.programs, get_programs(args.country))
         df = run_repeated_no_tools_eval(
             scenarios,
             repeats=args.repeats,
             output_dir=args.output_dir,
             models=models,
             programs=programs,
+            include_explanations=args.include_explanations,
+            single_output=args.single_output,
         )
         print(f"Repeated no-tools predictions saved to {args.output_dir}")
         print(f"Total rows: {len(df)}")

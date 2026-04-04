@@ -22,10 +22,13 @@
     "typescript": "~5.9.3"
   },
   "dependencies": {
+    "@icons-pack/react-simple-icons": "^13.13.0",
+    "@lobehub/icons": "^5.2.0",
     "@policyengine/design-system": "^0.4.0",
     "motion": "^12.34.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "recharts": "^3.7.0"
+    "recharts": "^3.7.0",
+    "simple-icons": "^16.14.0"
   }
 }

@@ -526,11 +526,29 @@ def _clean_json_number(value):
     return float(value)
 
 
+def _clean_json_text(value):
+    if pd.isna(value):
+        return None
+    return str(value)
+
+
 def _scenario_feature_frame(scenarios: pd.DataFrame) -> pd.DataFrame:
     """Build scenario-level feature slices for failure-mode analysis."""
+    def _numeric_value(value):
+        if isinstance(value, bool):
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if np.isnan(numeric):
+            return None
+        return numeric
+
     rows = []
     for _, row in scenarios.iterrows():
         scenario_id = row["scenario_id"]
+        country = row.get("country", "us")
         state = row.get("state")
         filing_status = row.get("filing_status")
         num_children = int(row.get("num_children", 0))
@@ -545,7 +563,8 @@ def _scenario_feature_frame(scenarios: pd.DataFrame) -> pd.DataFrame:
             "low_income": int(total_income <= 30_000),
             "high_income": int(total_income >= 100_000),
             "no_income_tax_state": int(
-                state in {"AK", "FL", "NV", "SD", "TN", "TX", "WA", "WY", "NH"}
+                country == "us"
+                and state in {"AK", "FL", "NV", "SD", "TN", "TX", "WA", "WY", "NH"}
             ),
             "elderly_adult": 0,
             "any_disabled": 0,
@@ -569,33 +588,50 @@ def _scenario_feature_frame(scenarios: pd.DataFrame) -> pd.DataFrame:
 
             for person in people:
                 inputs = person.get("inputs", {})
-                any_disabled = any_disabled or bool(inputs.get("is_disabled"))
+                any_disabled = any_disabled or bool(
+                    inputs.get("is_disabled") or inputs.get("is_disabled_for_benefits")
+                )
                 retirement_income += sum(
-                    float(inputs.get(key, 0.0) or 0.0)
+                    _numeric_value(inputs.get(key)) or 0.0
                     for key in (
                         "social_security_retirement",
                         "taxable_ira_distributions",
                         "taxable_private_pension_income",
+                        "state_pension_reported",
+                        "private_pension_income",
                     )
                 )
                 capital_income += sum(
-                    float(inputs.get(key, 0.0) or 0.0)
+                    _numeric_value(inputs.get(key)) or 0.0
                     for key in (
                         "taxable_interest_income",
                         "qualified_dividend_income",
                         "short_term_capital_gains",
                         "long_term_capital_gains",
+                        "savings_interest_income",
+                        "dividend_income",
+                        "capital_gains_before_response",
+                        "property_income",
                     )
                 )
                 for key, value in inputs.items():
                     if key in {
                         "weekly_hours_worked",
+                        "hours_worked",
                         "is_disabled",
+                        "is_disabled_for_benefits",
                         "is_blind",
                         "is_full_time_college_student",
+                        "is_student",
+                        "gender",
+                        "marital_status",
+                        "pip_dl_category",
+                        "pip_m_category",
                     }:
                         continue
-                    non_wage_income += float(value or 0.0)
+                    numeric_value = _numeric_value(value)
+                    if numeric_value is not None:
+                        non_wage_income += numeric_value
 
             feature_row.update(
                 {
@@ -741,21 +777,26 @@ def build_dashboard_payload(
     metrics = analysis["metrics"].copy()
 
     scenario_rows = scenarios.sort_values("scenario_id").to_dict("records")
-    scenario_payload = {
-        row["scenario_id"]: {
+    payload_country = (
+        str(scenarios["country"].dropna().iloc[0]).lower()
+        if "country" in scenarios.columns and not scenarios["country"].dropna().empty
+        else "us"
+    )
+    scenario_payload = {}
+    for row in scenario_rows:
+        item = {
+            "country": str(row.get("country", payload_country)).lower(),
             "state": row["state"],
-            "filingStatus": row["filing_status"],
+            "filingStatus": _clean_json_text(row.get("filing_status")),
             "numAdults": int(row["num_adults"]),
             "numChildren": int(row["num_children"]),
             "totalIncome": float(row["total_income"]),
-            **(
-                {"promptByVariable": scenario_prompts[row["scenario_id"]]}
-                if scenario_prompts and row["scenario_id"] in scenario_prompts
-                else {}
-            ),
         }
-        for row in scenario_rows
-    }
+        if scenario_prompts and row["scenario_id"] in scenario_prompts:
+            first_prompt = next(iter(scenario_prompts[row["scenario_id"]].values()), None)
+            if first_prompt is not None:
+                item["prompt"] = first_prompt
+        scenario_payload[row["scenario_id"]] = item
 
     model_stats = []
     for _, row in analysis["model_summary"].sort_values(
@@ -914,31 +955,110 @@ def build_dashboard_payload(
             item["within10pct"] = float(row["within_10pct"] * 100)
         heatmap.append(item)
 
-    scatter = []
-    for _, row in merged.sort_values(["model", "scenario_id", "variable"]).iterrows():
-        scatter.append(
-            {
-                "model": row["model"],
-                "condition": "no_tools",
-                "scenario": row["scenario_id"],
-                "variable": row["variable"],
-                "prediction": float(row["prediction"]),
-                "groundTruth": float(row["value"]),
-                "error": float(row["error"]),
-            }
-        )
+    scenario_predictions: dict[str, dict[str, dict[str, dict[str, float | str]]]] = {}
+    for _, row in merged.sort_values(["scenario_id", "variable", "model"]).iterrows():
+        scenario_data = scenario_predictions.setdefault(row["scenario_id"], {})
+        variable_data = scenario_data.setdefault(row["variable"], {})
+        prediction_item: dict[str, float | str] = {
+            "prediction": float(row["prediction"]),
+            "groundTruth": float(row["value"]),
+            "error": float(row["error"]),
+        }
+        explanation = row.get("explanation")
+        if isinstance(explanation, str) and explanation.strip():
+            prediction_item["explanation"] = explanation.strip()
+        variable_data[row["model"]] = prediction_item
 
     return {
+        "country": payload_country,
         "scenarios": scenario_payload,
         "modelStats": model_stats,
         "programStats": program_stats,
         "heatmap": heatmap,
-        "scatter": scatter,
+        "scenarioPredictions": scenario_predictions,
         "failureModes": build_failure_modes_payload(
             ground_truth,
             predictions,
             scenarios,
         ),
+    }
+
+
+COUNTRY_LABELS = {
+    "us": "United States",
+    "uk": "United Kingdom",
+}
+
+
+def build_global_dashboard_payload(country_payloads: dict[str, dict]) -> dict:
+    """Build a shared global leaderboard from multiple country payloads."""
+    no_tools_models_by_country: dict[str, dict[str, dict]] = {}
+    for country, payload in country_payloads.items():
+        no_tools_models_by_country[country] = {
+            row["model"]: row
+            for row in payload.get("modelStats", [])
+            if row.get("condition") == "no_tools"
+        }
+
+    common_models: set[str] = set()
+    for country_models in no_tools_models_by_country.values():
+        if not common_models:
+            common_models = set(country_models)
+        else:
+            common_models &= set(country_models)
+
+    def _mean(values: list[float | int | None]) -> float | None:
+        filtered = [float(value) for value in values if value is not None]
+        if not filtered:
+            return None
+        return float(np.mean(filtered))
+
+    model_stats = []
+    for model in sorted(common_models):
+        rows = {
+            country: country_models[model]
+            for country, country_models in no_tools_models_by_country.items()
+        }
+        item = {
+            "model": model,
+            "condition": "no_tools",
+            "score": _mean([row.get("score") for row in rows.values()]),
+            "exact": _mean([row.get("exact") for row in rows.values()]),
+            "within1pct": _mean([row.get("within1pct") for row in rows.values()]),
+            "within5pct": _mean([row.get("within5pct") for row in rows.values()]),
+            "within10pct": _mean([row.get("within10pct") for row in rows.values()]),
+            "coverage": _mean([row.get("coverage") for row in rows.values()]),
+            "n": int(sum(int(row.get("n", 0)) for row in rows.values())),
+            "nParsed": int(sum(int(row.get("nParsed", 0)) for row in rows.values())),
+            "countryScores": {
+                country: float(row["score"])
+                for country, row in rows.items()
+                if row.get("score") is not None
+            },
+        }
+        accuracy = _mean([row.get("accuracy") for row in rows.values()])
+        if accuracy is not None:
+            item["accuracy"] = accuracy
+        model_stats.append(item)
+
+    model_stats.sort(key=lambda row: row["score"], reverse=True)
+
+    country_summaries = []
+    for country, payload in country_payloads.items():
+        country_summaries.append(
+            {
+                "key": country,
+                "label": COUNTRY_LABELS.get(country, country.upper()),
+                "households": len(payload.get("scenarios", {})),
+                "models": len(no_tools_models_by_country[country]),
+                "programs": len(payload.get("programStats", [])),
+            }
+        )
+
+    return {
+        "modelStats": model_stats,
+        "countrySummaries": country_summaries,
+        "sharedModelCount": len(common_models),
     }
 
 

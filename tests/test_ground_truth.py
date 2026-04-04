@@ -1,5 +1,8 @@
 """Tests for ground truth calculations."""
 
+import sys
+from types import ModuleType, SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -166,3 +169,89 @@ class TestGroundTruthScalarExtraction:
             )
             == 2250.0
         )
+
+
+def test_calculate_ground_truth_uk_aggregates_native_entities(monkeypatch):
+    class FakeVariable:
+        def __init__(self, entity_key: str):
+            self.entity = SimpleNamespace(key=entity_key)
+
+    class FakeSimulation:
+        def __init__(self, dataset):
+            self.tax_benefit_system = SimpleNamespace(
+                variables={
+                    "income_tax": FakeVariable("person"),
+                    "child_benefit": FakeVariable("benunit"),
+                    "housing_costs": FakeVariable("household"),
+                }
+            )
+
+        def calculate(self, variable, year, map_to, unweighted=True):
+            lookup = {
+                ("person_household_id", "person"): np.array([101, 101, 202]),
+                ("person_benunit_id", "person"): np.array([101, 101, 202]),
+                ("benunit_id", "benunit"): np.array([101, 202]),
+                ("household_id", "household"): np.array([101, 202]),
+                ("income_tax", "person"): np.array([100.0, 25.0, 80.0]),
+                ("child_benefit", "benunit"): np.array([40.0, 10.0]),
+                ("housing_costs", "household"): np.array([700.0, 300.0]),
+            }
+            return lookup[(variable, map_to)]
+
+    class FakeDataset:
+        def __init__(self, file_path):
+            self.file_path = file_path
+
+    fake_policyengine_uk = ModuleType("policyengine_uk")
+    fake_policyengine_uk.Microsimulation = FakeSimulation
+    fake_policyengine_uk_data = ModuleType("policyengine_uk.data")
+    fake_policyengine_uk_data.UKSingleYearDataset = FakeDataset
+
+    monkeypatch.setitem(sys.modules, "policyengine_uk", fake_policyengine_uk)
+    monkeypatch.setitem(sys.modules, "policyengine_uk.data", fake_policyengine_uk_data)
+    monkeypatch.setattr(
+        ground_truth,
+        "get_uk_dataset_path",
+        lambda: "/tmp/fake_enhanced_cps_uk.h5",
+    )
+
+    scenarios = [
+        Scenario(
+            id="uk_1",
+            country="uk",
+            state="WEST_MIDLANDS",
+            filing_status=None,
+            adults=[Person(name="adult1", age=40, employment_income=0.0)],
+            metadata={"household_id": 101},
+        ),
+        Scenario(
+            id="uk_2",
+            country="uk",
+            state="LONDON",
+            filing_status=None,
+            adults=[Person(name="adult1", age=35, employment_income=0.0)],
+            metadata={"household_id": 202},
+        ),
+    ]
+
+    result = calculate_ground_truth(
+        scenarios,
+        programs=["income_tax", "child_benefit", "housing_costs"],
+        year=2025,
+    ).sort_values(["scenario_id", "variable"])
+
+    expected = pd.DataFrame(
+        [
+            {"scenario_id": "uk_1", "variable": "child_benefit", "value": 40.0},
+            {"scenario_id": "uk_1", "variable": "housing_costs", "value": 700.0},
+            {"scenario_id": "uk_1", "variable": "income_tax", "value": 125.0},
+            {"scenario_id": "uk_2", "variable": "child_benefit", "value": 10.0},
+            {"scenario_id": "uk_2", "variable": "housing_costs", "value": 300.0},
+            {"scenario_id": "uk_2", "variable": "income_tax", "value": 80.0},
+        ]
+    ).sort_values(["scenario_id", "variable"])
+
+    pd.testing.assert_frame_equal(
+        result.reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )

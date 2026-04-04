@@ -1,12 +1,19 @@
 import { useMemo } from "react";
-import type { BenchData, ModelStat } from "../types";
+import type {
+  BenchData,
+  GlobalBenchData,
+  ModelStat,
+  ViewKey,
+} from "../types";
+import { VIEW_SHORT_LABELS } from "../types";
 import {
-  MODEL_COLORS,
   MODEL_LABELS,
-  UI_COLORS,
+  MODEL_ORDER,
+  getProviderForModel,
   getPerformanceSurfaceColor,
   getPerformanceTextColor,
 } from "../modelMeta";
+import ProviderMark from "./ProviderMark";
 
 function Badge({
   children,
@@ -22,7 +29,9 @@ function Badge({
     success: "text-success bg-success-soft border-success/15",
   };
   return (
-    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium tracking-wide uppercase border ${styles[variant]}`}>
+    <span
+      className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium tracking-wide uppercase border ${styles[variant]}`}
+    >
       {children}
     </span>
   );
@@ -50,7 +59,53 @@ function fmtRunStability(
   return `${meanLabel} +/- ${std.toFixed(1)} over ${runCount} runs`;
 }
 
-export default function ModelLeaderboard({ data }: { data: BenchData }) {
+function GlobalCountryScores({ model }: { model: ModelStat }) {
+  if (!model.countryScores) return null;
+  const entries = Object.entries(model.countryScores);
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {entries.map(([country, score]) => (
+        <span
+          key={country}
+          className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-1 text-[10px] font-medium tracking-wide uppercase text-text-secondary"
+        >
+          <span>{VIEW_SHORT_LABELS[country as keyof typeof VIEW_SHORT_LABELS]}</span>
+          <span className="font-[family-name:var(--font-mono)] text-text">
+            {score.toFixed(1)}%
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+type PendingModel = {
+  model: string;
+  note: string;
+};
+
+const PENDING_MODELS: Record<ViewKey, PendingModel[]> = {
+  global: [
+    { model: "grok-4.20", note: "UK run in progress; US full run pending" },
+  ],
+  us: [
+    { model: "grok-4.20", note: "US full run pending" },
+  ],
+  uk: [
+    { model: "grok-4.20", note: "Run in progress" },
+  ],
+};
+
+export default function ModelLeaderboard({
+  data,
+  selectedView,
+}: {
+  data: BenchData | GlobalBenchData;
+  selectedView: ViewKey;
+}) {
+  const isGlobal = selectedView === "global";
   const noTools = useMemo<ModelStat[]>(
     () =>
       data.modelStats
@@ -58,6 +113,17 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
         .sort((a, b) => b.score - a.score),
     [data]
   );
+  const pendingModels = useMemo<PendingModel[]>(() => {
+    const present = new Set(noTools.map((model) => model.model));
+    const configured = PENDING_MODELS[selectedView].filter(
+      (model) => !present.has(model.model)
+    );
+    return [...configured].sort((a, b) => {
+      const aIndex = MODEL_ORDER.indexOf(a.model as (typeof MODEL_ORDER)[number]);
+      const bIndex = MODEL_ORDER.indexOf(b.model as (typeof MODEL_ORDER)[number]);
+      return aIndex - bIndex;
+    });
+  }, [noTools, selectedView]);
   const leadModel = noTools[0];
   const leadStabilityLabel = fmtRunStability(
     leadModel?.scoreRunMean,
@@ -72,24 +138,64 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
         className="font-[family-name:var(--font-display)] text-4xl md:text-5xl text-text tracking-tight animate-fade-up"
         style={{ animationDelay: "80ms" }}
       >
-        Model rankings
+        {isGlobal ? "Global rankings" : "Model rankings"}
       </h2>
       <p
         className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Models ranked by a bounded benchmark score. Dollar outputs average exact,
-        within-1%, within-5%, and within-10% hit rates; household booleans use
-        exact accuracy.
+        {isGlobal
+          ? "Global scores are equal-weight averages of each model’s US and UK benchmark scores. Only models with both country runs are included."
+          : "The headline score averages exact, within-1%, within-5%, and within-10% hits for dollar outputs, plus exact accuracy on household booleans."}
+        {pendingModels.length > 0 && (
+          <>
+            {" "}
+            Pending rows below mark models that are actively being added.
+          </>
+        )}
       </p>
 
-      <div className="mt-10 space-y-3">
-        {/* Header */}
-        <div className="grid grid-cols-12 gap-3 px-4 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+      <div
+        className="mt-6 animate-fade-up rounded-2xl border border-border bg-card px-4 py-3"
+        style={{
+          animationDelay: "220ms",
+          borderColor: getPerformanceTextColor(leadModel?.score ?? 0),
+          backgroundColor: getPerformanceSurfaceColor(leadModel?.score ?? 0),
+        }}
+      >
+        <p className="text-sm leading-relaxed text-text-secondary">
+          <span className="text-primary font-medium">Current leader:</span>{" "}
+          {MODEL_LABELS[leadModel?.model ?? ""] || leadModel?.model} at{" "}
+          <span className="font-[family-name:var(--font-mono)] text-text">
+            {leadModel?.score.toFixed(1)}%
+          </span>
+          {!isGlobal && leadStabilityLabel && (
+            <>
+              {" "}
+              with repeated-run stability of{" "}
+              <span className="font-[family-name:var(--font-mono)] text-text">
+                {leadStabilityLabel}
+              </span>
+            </>
+          )}
+          .
+        </p>
+      </div>
+
+      <div className="mt-8 space-y-3">
+        <div
+          className={`hidden gap-3 px-4 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium md:grid ${
+            isGlobal ? "md:grid-cols-12" : "md:grid-cols-12"
+          }`}
+        >
           <div className="col-span-1">#</div>
-          <div className="col-span-5">Model</div>
-          <div className="col-span-3 text-right">Score</div>
-          <div className="col-span-3 text-right">MAE</div>
+          <div className={isGlobal ? "col-span-5" : "col-span-5"}>Model</div>
+          <div className="col-span-3 text-right">
+            {isGlobal ? "Global score" : "Score"}
+          </div>
+          <div className="col-span-3 text-right">
+            {isGlobal ? "Country scores" : "MAE"}
+          </div>
         </div>
 
         {noTools.map((m, i) => {
@@ -101,71 +207,153 @@ export default function ModelLeaderboard({ data }: { data: BenchData }) {
           return (
             <div
               key={m.model}
-              className="card card-hover grid grid-cols-12 gap-3 items-center px-4 py-4 animate-fade-up"
+              className="card card-hover px-4 py-4 animate-fade-up"
               style={{ animationDelay: `${240 + i * 80}ms` }}
             >
-              {/* Rank */}
+              <div className="md:hidden">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-text-muted font-[family-name:var(--font-mono)] text-sm">
+                        {i + 1}
+                      </span>
+                      <ProviderMark
+                        provider={getProviderForModel(m.model)}
+                        size={14}
+                        className="flex-shrink-0"
+                      />
+                      <span className="truncate text-sm font-medium text-text">
+                        {MODEL_LABELS[m.model] || m.model}
+                      </span>
+                    </div>
+                    {!isGlobal && stabilityLabel && (
+                      <div className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted">
+                        {stabilityLabel}
+                      </div>
+                    )}
+                  </div>
+
+                  <Badge variant={accColor(m.score)}>{m.score.toFixed(1)}%</Badge>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+                  <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
+                    {isGlobal ? "Country scores" : "Avg abs error"}
+                  </div>
+                  {isGlobal ? (
+                    <GlobalCountryScores model={m} />
+                  ) : (
+                    <div className="font-[family-name:var(--font-mono)] text-sm text-info">
+                      ${Math.round(m.mae ?? 0).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="hidden items-center gap-3 md:grid md:grid-cols-12">
+                <div className="col-span-1">
+                  <span className="text-text-muted font-[family-name:var(--font-mono)] text-sm">
+                    {i + 1}
+                  </span>
+                </div>
+
+                <div className="col-span-5 flex items-center gap-2.5">
+                  <ProviderMark
+                    provider={getProviderForModel(m.model)}
+                    size={14}
+                    className="flex-shrink-0"
+                  />
+                  <span className="text-text font-medium text-sm">
+                    {MODEL_LABELS[m.model] || m.model}
+                  </span>
+                </div>
+
+                <div className="col-span-3 text-right">
+                  <Badge variant={accColor(m.score)}>
+                    {m.score.toFixed(1)}%
+                  </Badge>
+                  {!isGlobal && stabilityLabel && (
+                    <div className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1">
+                      {stabilityLabel}
+                    </div>
+                  )}
+                </div>
+
+                <div className="col-span-3 text-right">
+                  {isGlobal ? (
+                    <GlobalCountryScores model={m} />
+                  ) : (
+                    <div className="font-[family-name:var(--font-mono)] text-sm text-info">
+                      ${Math.round(m.mae ?? 0).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {pendingModels.map((m, i) => (
+          <div
+            key={`pending-${m.model}`}
+            className="rounded-2xl border border-dashed border-border bg-card/50 px-4 py-4 animate-fade-up opacity-80"
+            style={{ animationDelay: `${240 + (noTools.length + i) * 80}ms` }}
+          >
+            <div className="md:hidden">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-text-muted font-[family-name:var(--font-mono)] text-sm">
+                      -
+                    </span>
+                    <ProviderMark
+                      provider={getProviderForModel(m.model)}
+                      size={14}
+                      className="flex-shrink-0"
+                    />
+                    <span className="truncate text-sm font-medium text-text">
+                      {MODEL_LABELS[m.model] || m.model}
+                    </span>
+                  </div>
+                  <div className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted">
+                    {m.note}
+                  </div>
+                </div>
+
+                <Badge variant="warning">Pending</Badge>
+              </div>
+            </div>
+
+            <div className="hidden items-center gap-3 md:grid md:grid-cols-12">
               <div className="col-span-1">
                 <span className="text-text-muted font-[family-name:var(--font-mono)] text-sm">
-                  {i + 1}
+                  -
                 </span>
               </div>
 
-              {/* Model name */}
               <div className="col-span-5 flex items-center gap-2.5">
-                <span
-                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: MODEL_COLORS[m.model] || UI_COLORS.inactive }}
+                <ProviderMark
+                  provider={getProviderForModel(m.model)}
+                  size={14}
+                  className="flex-shrink-0"
                 />
                 <span className="text-text font-medium text-sm">
                   {MODEL_LABELS[m.model] || m.model}
                 </span>
               </div>
 
-              {/* No-tools accuracy */}
               <div className="col-span-3 text-right">
-                <Badge variant={accColor(m.score)}>
-                  {m.score.toFixed(1)}%
-                </Badge>
-                {stabilityLabel && (
-                  <div className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1">
-                    {stabilityLabel}
-                  </div>
-                )}
+                <Badge variant="warning">Pending</Badge>
               </div>
 
-              {/* No-tools MAE */}
-              <div className="col-span-3 text-right font-[family-name:var(--font-mono)] text-sm text-info">
-                ${Math.round(m.mae).toLocaleString()}
+              <div className="col-span-3 text-right">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                  {m.note}
+                </div>
               </div>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Summary callout */}
-      <div className="mt-8 card px-5 py-4 animate-fade-up" style={{ animationDelay: "600ms", borderColor: getPerformanceTextColor(leadModel?.score ?? 0), backgroundColor: getPerformanceSurfaceColor(leadModel?.score ?? 0) }}>
-        <p className="text-text-secondary text-sm leading-relaxed">
-          <span className="text-primary font-medium">Key finding:</span> The best
-          no-tools model
-          ({MODEL_LABELS[leadModel?.model ?? ""] || leadModel?.model}) achieves{" "}
-          <span className="text-text font-[family-name:var(--font-mono)]">
-            {leadModel?.score.toFixed(1)}%
-          </span>{" "}
-          {leadStabilityLabel && (
-            <>
-              and across repeated runs averages{" "}
-              <span className="text-text font-[family-name:var(--font-mono)]">
-                {leadStabilityLabel}
-              </span>{" "}
-            </>
-          )}
-          on the bounded benchmark score, with an average absolute error of{" "}
-          <span className="text-text font-[family-name:var(--font-mono)]">
-            ${Math.round(leadModel?.mae || 0).toLocaleString()}
-          </span>
-          .
-        </p>
+          </div>
+        ))}
       </div>
     </div>
   );

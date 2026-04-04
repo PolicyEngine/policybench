@@ -3,9 +3,12 @@
 @import "./theme.css";
 
 :root {
-  --f-display: var(--font-ui), var(--pe-font-family-primary);
-  --f-body: var(--font-ui), var(--pe-font-family-primary);
-  --f-mono: var(--font-mono), var(--pe-font-family-mono);
+  --font-display: var(--pe-font-family-primary);
+  --font-body: var(--pe-font-family-primary);
+  --font-mono: var(--pe-font-family-mono);
+  --f-display: var(--font-display);
+  --f-body: var(--font-body);
+  --f-mono: var(--font-mono);
 }
 
 html {
@@ -103,6 +106,16 @@ a {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-primary-strong);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--f-display);
+  letter-spacing: -0.03em;
 }
 
 .card {

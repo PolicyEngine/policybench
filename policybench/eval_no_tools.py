@@ -12,7 +12,7 @@ from litellm import completion, completion_cost, responses
 
 from policybench.config import MODELS, PROGRAMS
 from policybench.prompts import (
-    VARIABLE_DESCRIPTIONS,
+    get_variable_description,
     make_no_tools_batch_repair_prompt,
     make_no_tools_batch_prompt,
     make_no_tools_prompt,
@@ -22,13 +22,19 @@ from policybench.scenarios import Scenario
 MAX_RETRIES = 2
 RETRY_BASE_DELAY = 2
 REQUEST_TIMEOUT_SECONDS = 20
+GPT54_PRO_REQUEST_TIMEOUT_SECONDS = 300
+GEMINI_PRO_REQUEST_TIMEOUT_SECONDS = 60
+XAI_REASONING_REQUEST_TIMEOUT_SECONDS = 60
+XAI_GROK_420_REASONING_REQUEST_TIMEOUT_SECONDS = 120
 CHECKPOINT_EVERY_ROWS = 25
 MAX_REPAIR_ROUNDS = 2
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
+EXPLANATION_MAX_COMPLETION_TOKENS = 1024
 GEMINI_JSON_MAX_COMPLETION_TOKENS = 512
 GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS = 2048
 ANSWER_FUNCTION_NAME = "submit_answers"
+CLAUDE_EXPLANATION_CHUNK_SIZE = 3
 NON_RETRYABLE_ERRORS = (
     litellm.AuthenticationError,
     litellm.BadRequestError,
@@ -129,16 +135,51 @@ def _parse_standalone_number(text: str) -> float | None:
     return float(cleaned.replace(",", "").replace("$", ""))
 
 
-def _completion_controls(model_id: str) -> dict:
+def _required_explanation_chunk_size(model_id: str, include_explanations: bool) -> int | None:
+    if include_explanations and model_id.startswith("claude-"):
+        return CLAUDE_EXPLANATION_CHUNK_SIZE
+    return None
+
+
+def _chunk_variables(variables: list[str], chunk_size: int) -> list[list[str]]:
+    return [variables[i : i + chunk_size] for i in range(0, len(variables), chunk_size)]
+
+
+def _sum_optional_field(results: list[dict], field: str) -> float | int | None:
+    values = [result.get(field) for result in results if result.get(field) is not None]
+    if not values:
+        return None
+    return sum(values)
+
+
+def _completion_controls(model_id: str, include_explanations: bool = False) -> dict:
     if model_id.startswith("gemini/"):
         if model_id == "gemini/gemini-3.1-pro-preview":
             return {"max_completion_tokens": GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS}
         return {"max_completion_tokens": GEMINI_JSON_MAX_COMPLETION_TOKENS}
+    if model_id.startswith("xai/"):
+        if include_explanations:
+            return {"max_tokens": EXPLANATION_MAX_COMPLETION_TOKENS}
+        return {"max_tokens": EXTENDED_MAX_COMPLETION_TOKENS}
     if model_id.startswith("gpt-5"):
+        if include_explanations:
+            return {"max_completion_tokens": EXPLANATION_MAX_COMPLETION_TOKENS}
         return {"max_completion_tokens": EXTENDED_MAX_COMPLETION_TOKENS}
     if model_id.startswith("claude-"):
         return {"max_completion_tokens": EXTENDED_MAX_COMPLETION_TOKENS}
     return {"max_completion_tokens": DEFAULT_MAX_COMPLETION_TOKENS}
+
+
+def _request_timeout_seconds(model_id: str) -> int:
+    if model_id == "gpt-5.4-pro":
+        return GPT54_PRO_REQUEST_TIMEOUT_SECONDS
+    if model_id == "gemini/gemini-3.1-pro-preview":
+        return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
+    if model_id == "xai/grok-4.20-reasoning":
+        return XAI_GROK_420_REASONING_REQUEST_TIMEOUT_SECONDS
+    if model_id.startswith("xai/") and "reasoning" in model_id and "non-reasoning" not in model_id:
+        return XAI_REASONING_REQUEST_TIMEOUT_SECONDS
+    return REQUEST_TIMEOUT_SECONDS
 
 
 def _answer_contract_for_model(model_id: str) -> str:
@@ -156,22 +197,32 @@ def _chat_completion_request_kwargs(
     variables: list[str],
     model_id: str,
     repair: bool = False,
+    include_explanations: bool = False,
 ) -> tuple[list[dict], dict]:
     answer_contract = _answer_contract_for_model(model_id)
     prompt_builder = (
         make_no_tools_batch_repair_prompt if repair else make_no_tools_batch_prompt
     )
-    prompt = prompt_builder(scenario, variables, answer_contract=answer_contract)
+    prompt = prompt_builder(
+        scenario,
+        variables,
+        answer_contract=answer_contract,
+        include_explanations=include_explanations,
+    )
     messages = [{"role": "user", "content": prompt}]
     request_kwargs = {
         "model": model_id,
         "messages": messages,
         "caching": True,
-        "timeout": REQUEST_TIMEOUT_SECONDS,
-        **_completion_controls(model_id),
+        "timeout": _request_timeout_seconds(model_id),
+        **_completion_controls(model_id, include_explanations=include_explanations),
     }
     if answer_contract == "tool":
-        tool = _build_answer_tool(variables)
+        tool = _build_answer_tool(
+            variables,
+            country=scenario.country,
+            include_explanations=include_explanations,
+        )
         request_kwargs.update(
             {
                 "tools": [tool],
@@ -191,22 +242,37 @@ def _responses_request_kwargs(
     variables: list[str],
     model_id: str,
     repair: bool = False,
+    include_explanations: bool = False,
 ) -> tuple[list[dict], dict]:
     answer_contract = _answer_contract_for_model(model_id)
     prompt_builder = (
         make_no_tools_batch_repair_prompt if repair else make_no_tools_batch_prompt
     )
-    prompt = prompt_builder(scenario, variables, answer_contract=answer_contract)
+    prompt = prompt_builder(
+        scenario,
+        variables,
+        answer_contract=answer_contract,
+        include_explanations=include_explanations,
+    )
     request_kwargs = {
         "model": model_id,
         "input": prompt,
-        "timeout": REQUEST_TIMEOUT_SECONDS,
-        "max_output_tokens": EXTENDED_MAX_COMPLETION_TOKENS,
+        "timeout": _request_timeout_seconds(model_id),
+        "max_output_tokens": _completion_controls(
+            model_id,
+            include_explanations=include_explanations,
+        )["max_completion_tokens"],
     }
     if answer_contract == "tool":
         request_kwargs.update(
             {
-                "tools": [_responses_tool_schema(variables)],
+                "tools": [
+                    _responses_tool_schema(
+                        variables,
+                        country=scenario.country,
+                        include_explanations=include_explanations,
+                    )
+                ],
                 "tool_choice": {
                     "type": "function",
                     "name": ANSWER_FUNCTION_NAME,
@@ -216,7 +282,48 @@ def _responses_request_kwargs(
     return [{"role": "user", "content": prompt}], request_kwargs
 
 
-def _build_answer_tool(variables: list[str]) -> dict:
+def _build_answer_tool(
+    variables: list[str],
+    country: str = "us",
+    include_explanations: bool = False,
+) -> dict:
+    answers_schema = {
+        "type": "object",
+        "properties": {
+            variable: {
+                "type": "number",
+                "description": get_variable_description(variable, country=country),
+            }
+            for variable in variables
+        },
+        "required": list(variables),
+        "additionalProperties": False,
+    }
+    parameters = answers_schema
+    if include_explanations:
+        parameters = {
+            "type": "object",
+            "properties": {
+                "answers": answers_schema,
+                "explanations": {
+                    "type": "object",
+                    "properties": {
+                        variable: {
+                            "type": "string",
+                            "description": (
+                                "Brief explanation for the estimated "
+                                f"{variable} value"
+                            ),
+                        }
+                        for variable in variables
+                    },
+                    "required": list(variables),
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["answers", "explanations"],
+            "additionalProperties": False,
+        }
     return {
         "type": "function",
         "function": {
@@ -225,24 +332,21 @@ def _build_answer_tool(variables: list[str]) -> dict:
                 "Submit all requested numeric answers for the benchmark. "
                 "Every requested key is required, including keys whose value is 0."
             ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    variable: {
-                        "type": "number",
-                        "description": VARIABLE_DESCRIPTIONS.get(variable, variable),
-                    }
-                    for variable in variables
-                },
-                "required": list(variables),
-                "additionalProperties": False,
-            },
+            "parameters": parameters,
         },
     }
 
 
-def _responses_tool_schema(variables: list[str]) -> dict:
-    function_schema = _build_answer_tool(variables)["function"]
+def _responses_tool_schema(
+    variables: list[str],
+    country: str = "us",
+    include_explanations: bool = False,
+) -> dict:
+    function_schema = _build_answer_tool(
+        variables,
+        country=country,
+        include_explanations=include_explanations,
+    )["function"]
     return {
         "type": "function",
         "name": function_schema["name"],
@@ -379,6 +483,39 @@ def _coerce_prediction_value(value) -> float | None:
     return None
 
 
+def _extract_named_object_text(text: str, key: str) -> str | None:
+    match = re.search(rf'["\']{re.escape(key)}["\']\s*:\s*\{{', text)
+    if match is None:
+        return None
+
+    start = match.end() - 1
+    depth = 0
+    in_string = False
+    escaped = False
+
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : index + 1]
+
+    return None
+
+
 def _extract_predictions_from_payload(
     payload,
     variables: list[str],
@@ -387,7 +524,14 @@ def _extract_predictions_from_payload(
         try:
             payload = json.loads(payload)
         except Exception:
-            payload = None
+            answers_text = _extract_named_object_text(payload, "answers")
+            if answers_text is not None:
+                try:
+                    payload = {"answers": json.loads(answers_text)}
+                except Exception:
+                    payload = None
+            else:
+                payload = None
 
     if isinstance(payload, dict) and isinstance(payload.get("answers"), dict):
         payload = payload["answers"]
@@ -402,6 +546,57 @@ def _extract_predictions_from_payload(
         return predictions
 
     return predictions
+
+
+def _extract_explanations_from_payload(
+    payload,
+    variables: list[str],
+) -> dict[str, str | None]:
+    raw_text = payload if isinstance(payload, str) else None
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except Exception:
+            payload = None
+
+    explanations = {variable: None for variable in variables}
+    if not isinstance(payload, dict):
+        if raw_text:
+            explanation_match = re.search(r'["\']explanations["\']\s*:\s*\{', raw_text)
+            explanation_text = raw_text[explanation_match.end() :] if explanation_match else raw_text
+            for variable in variables:
+                match = re.search(
+                    rf'["\']{re.escape(variable)}["\']\s*:\s*"((?:\\.|[^"\\])*)"',
+                    explanation_text,
+                )
+                if match is None:
+                    continue
+                cleaned = bytes(match.group(1), "utf-8").decode("unicode_escape").strip()
+                explanations[variable] = cleaned or None
+        return explanations
+
+    explanation_payload = payload.get("explanations")
+    if not isinstance(explanation_payload, dict):
+        return explanations
+
+    for variable in variables:
+        value = explanation_payload.get(variable)
+        if isinstance(value, str):
+            cleaned = value.strip()
+            explanations[variable] = cleaned or None
+    return explanations
+
+
+def _missing_explanations(
+    explanations: dict[str, str | None],
+    variables: list[str],
+) -> list[str]:
+    return [
+        variable
+        for variable in variables
+        if not isinstance(explanations.get(variable), str)
+        or not explanations.get(variable, "").strip()
+    ]
 
 
 def _extract_predictions_from_text(
@@ -597,12 +792,38 @@ def extract_predictions(
     return _extract_predictions_from_text(content, variables)
 
 
+def extract_explanations(
+    content: str | None,
+    variables: list[str],
+    tool_calls=None,
+    function_call=None,
+) -> dict[str, str | None]:
+    """Extract optional per-variable explanations from structured output."""
+    for tool_call in tool_calls or []:
+        function = _get_tool_call_function(tool_call)
+        if _get_function_name(function) != ANSWER_FUNCTION_NAME:
+            continue
+        arguments = _get_function_arguments(function)
+        explanations = _extract_explanations_from_payload(arguments, variables)
+        if any(value is not None for value in explanations.values()):
+            return explanations
+
+    if _get_function_name(function_call) == ANSWER_FUNCTION_NAME:
+        arguments = _get_function_arguments(function_call)
+        explanations = _extract_explanations_from_payload(arguments, variables)
+        if any(value is not None for value in explanations.values()):
+            return explanations
+
+    return _extract_explanations_from_payload(content, variables)
+
+
 def _request_predictions_once(
     scenario: Scenario,
     variables: list[str],
     model_id: str,
     *,
     repair: bool = False,
+    include_explanations: bool = False,
 ) -> dict:
     if _uses_responses_api(model_id):
         messages, request_kwargs = _responses_request_kwargs(
@@ -610,6 +831,7 @@ def _request_predictions_once(
             variables=variables,
             model_id=model_id,
             repair=repair,
+            include_explanations=include_explanations,
         )
         request_fn = responses
     else:
@@ -618,6 +840,7 @@ def _request_predictions_once(
             variables=variables,
             model_id=model_id,
             repair=repair,
+            include_explanations=include_explanations,
         )
         request_fn = completion
 
@@ -645,8 +868,15 @@ def _request_predictions_once(
                 tool_calls=tool_calls,
                 function_call=function_call,
             )
+            explanations = extract_explanations(
+                content=content,
+                variables=variables,
+                tool_calls=tool_calls,
+                function_call=function_call,
+            )
             return {
                 "predictions": predictions,
+                "explanations": explanations,
                 "raw_response": raw_response,
                 "elapsed_seconds": elapsed_seconds,
                 **_extract_usage_metadata(
@@ -670,46 +900,144 @@ def run_single_no_tools(
     scenario: Scenario,
     variable: str | Iterable[str],
     model_id: str,
+    include_explanations: bool = False,
+    _allow_chunking: bool = True,
 ) -> dict:
     """Run a single scenario for one or more variables without tools."""
     variables = _normalize_variables(variable)
+    chunk_size = _required_explanation_chunk_size(model_id, include_explanations)
+    if _allow_chunking and chunk_size and len(variables) > chunk_size:
+        chunk_results = []
+        predictions = {}
+        explanations = {}
+        errors = []
+        for chunk in _chunk_variables(variables, chunk_size):
+            chunk_result = run_single_no_tools(
+                scenario,
+                chunk,
+                model_id,
+                include_explanations=include_explanations,
+                _allow_chunking=False,
+            )
+            chunk_results.append(chunk_result)
+            predictions.update(chunk_result["predictions"])
+            explanations.update(
+                {
+                    variable: value
+                    for variable, value in chunk_result.get("explanations", {}).items()
+                    if value is not None
+                }
+            )
+            if chunk_result.get("error"):
+                errors.append(chunk_result["error"])
+
+        cost_rows = [
+            result for result in chunk_results if result.get("total_cost_usd") is not None
+        ]
+        raw_response = json.dumps(
+            {
+                "chunked_responses": [
+                    {
+                        "variables": chunk,
+                        "raw_response": result.get("raw_response"),
+                    }
+                    for chunk, result in zip(
+                        _chunk_variables(variables, chunk_size), chunk_results, strict=True
+                    )
+                ]
+            }
+        )
+        return {
+            "predictions": predictions,
+            "explanations": explanations,
+            "prediction": predictions[variables[0]] if len(variables) == 1 else None,
+            "error": "; ".join(errors) if errors else None,
+            "raw_response": raw_response,
+            "elapsed_seconds": _sum_optional_field(chunk_results, "elapsed_seconds"),
+            "prompt_tokens": _sum_optional_field(chunk_results, "prompt_tokens"),
+            "completion_tokens": _sum_optional_field(chunk_results, "completion_tokens"),
+            "total_tokens": _sum_optional_field(chunk_results, "total_tokens"),
+            "reasoning_tokens": _sum_optional_field(chunk_results, "reasoning_tokens"),
+            "cached_prompt_tokens": _sum_optional_field(
+                chunk_results, "cached_prompt_tokens"
+            ),
+            "provider_reported_cost_usd": _sum_optional_field(
+                chunk_results, "provider_reported_cost_usd"
+            ),
+            "reconstructed_cost_usd": _sum_optional_field(
+                chunk_results, "reconstructed_cost_usd"
+            ),
+            "total_cost_usd": _sum_optional_field(chunk_results, "total_cost_usd"),
+            "cost_is_estimated": (
+                all(bool(result.get("cost_is_estimated")) for result in cost_rows)
+                if cost_rows
+                else None
+            ),
+            "estimated_cost_usd": _sum_optional_field(chunk_results, "estimated_cost_usd"),
+        }
+
     request_results = []
     initial_result = _request_predictions_once(
         scenario,
         variables,
         model_id,
         repair=False,
+        include_explanations=include_explanations,
     )
     request_results.append(initial_result)
     predictions = dict(initial_result["predictions"])
+    explanations = dict(initial_result.get("explanations", {}))
 
     missing = _missing_variables(predictions)
+    missing_explanations = (
+        _missing_explanations(explanations, variables) if include_explanations else []
+    )
     repair_errors = []
     for _ in range(MAX_REPAIR_ROUNDS):
-        if not missing:
+        repair_targets = sorted(set(missing) | set(missing_explanations))
+        if not repair_targets:
             break
         try:
             repair_result = _request_predictions_once(
                 scenario,
-                missing,
+                repair_targets,
                 model_id,
                 repair=True,
+                include_explanations=include_explanations,
             )
         except Exception as error:
             repair_errors.append(_format_error(error))
             break
         request_results.append(repair_result)
         predictions = _merge_predictions(predictions, repair_result["predictions"])
+        explanations.update(
+            {
+                variable: value
+                for variable, value in repair_result.get("explanations", {}).items()
+                if value is not None
+            }
+        )
         missing = _missing_variables(predictions)
+        missing_explanations = (
+            _missing_explanations(explanations, variables)
+            if include_explanations
+            else []
+        )
 
     if missing:
         repair_errors.append(
             "Missing predictions after repair: " + ", ".join(sorted(missing))
         )
+    if include_explanations and missing_explanations:
+        repair_errors.append(
+            "Missing explanations after repair: "
+            + ", ".join(sorted(missing_explanations))
+        )
 
     aggregated = _aggregate_request_results(request_results)
     return {
         "predictions": predictions,
+        "explanations": explanations,
         "prediction": predictions[variables[0]] if len(variables) == 1 else None,
         "error": "; ".join(repair_errors) if repair_errors else None,
         **aggregated,
@@ -719,6 +1047,7 @@ def run_single_no_tools(
 def _load_existing_rows(
     output_path: str | None,
     programs: list[str],
+    include_explanations: bool = False,
 ) -> tuple[list[dict], set[tuple[str, str]]]:
     if not output_path:
         return [], set()
@@ -744,7 +1073,17 @@ def _load_existing_rows(
         has_all_predictions = (
             "prediction" not in group.columns or group["prediction"].notna().all()
         )
-        if has_all_programs and has_no_errors and has_all_predictions:
+        has_all_explanations = (
+            not include_explanations
+            or "explanation" not in group.columns
+            or group["explanation"].fillna("").str.strip().ne("").all()
+        )
+        if (
+            has_all_programs
+            and has_no_errors
+            and has_all_predictions
+            and has_all_explanations
+        ):
             completed_keys.add((key[0], key[1]))
             keep_mask.loc[group.index] = True
 
@@ -753,12 +1092,46 @@ def _load_existing_rows(
     return rows, completed_keys
 
 
+def _load_existing_single_output_rows(
+    output_path: str | None,
+    include_explanations: bool = False,
+) -> tuple[list[dict], set[tuple[str, str, str]]]:
+    if not output_path or not Path(output_path).exists():
+        return [], set()
+
+    existing = pd.read_csv(output_path)
+    required_columns = {"model", "scenario_id", "variable", "prediction"}
+    if not required_columns.issubset(existing.columns):
+        return [], set()
+
+    error_mask = (
+        existing["error"].fillna("").astype(str).str.strip().ne("")
+        if "error" in existing.columns
+        else pd.Series(False, index=existing.index)
+    )
+    prediction_mask = existing["prediction"].notna()
+    explanation_mask = (
+        existing["explanation"].fillna("").astype(str).str.strip().ne("")
+        if include_explanations and "explanation" in existing.columns
+        else pd.Series(True, index=existing.index)
+    )
+
+    keep_mask = ~error_mask & prediction_mask & explanation_mask
+    retained = existing.loc[keep_mask].copy()
+    completed_keys = {
+        (str(row.model), str(row.scenario_id), str(row.variable))
+        for row in retained.itertuples()
+    }
+    return retained.to_dict("records"), completed_keys
+
+
 def run_no_tools_eval(
     scenarios: list[Scenario],
     models: dict[str, str] | None = None,
     programs: list[str] | None = None,
     output_path: str | None = None,
     run_id: str | None = None,
+    include_explanations: bool = False,
 ) -> pd.DataFrame:
     """Run the AI-alone evaluation across all models.
 
@@ -774,7 +1147,11 @@ def run_no_tools_eval(
     if programs is None:
         programs = PROGRAMS
 
-    all_rows, completed = _load_existing_rows(output_path, programs)
+    all_rows, completed = _load_existing_rows(
+        output_path,
+        programs,
+        include_explanations=include_explanations,
+    )
     total = len(models) * len(scenarios)
     done = len(completed)
 
@@ -785,7 +1162,12 @@ def run_no_tools_eval(
             if key in completed:
                 continue
             try:
-                result = run_single_no_tools(scenario, programs, model_id)
+                result = run_single_no_tools(
+                    scenario,
+                    programs,
+                    model_id,
+                    include_explanations=include_explanations,
+                )
                 error = result.get("error")
             except Exception as e:
                 error = _format_error(e)
@@ -801,6 +1183,7 @@ def run_no_tools_eval(
                     break
                 result = {
                     "predictions": {variable: None for variable in programs},
+                    "explanations": {variable: None for variable in programs},
                     "raw_response": None,
                     "error": error,
                     "elapsed_seconds": None,
@@ -833,6 +1216,7 @@ def run_no_tools_eval(
             estimated_cost_usd = result.get("estimated_cost_usd")
             for variable in programs:
                 prediction = result["predictions"].get(variable)
+                explanation = result.get("explanations", {}).get(variable)
                 all_rows.append(
                     {
                         **({"run_id": run_id} if run_id is not None else {}),
@@ -841,6 +1225,7 @@ def run_no_tools_eval(
                         "scenario_id": scenario.id,
                         "variable": variable,
                         "prediction": prediction,
+                        "explanation": explanation,
                         "raw_response": result["raw_response"],
                         "error": error,
                         "elapsed_seconds": (
@@ -912,12 +1297,138 @@ def run_no_tools_eval(
     return df
 
 
+def run_no_tools_single_output_eval(
+    scenarios: list[Scenario],
+    models: dict[str, str] | None = None,
+    programs: list[str] | None = None,
+    output_path: str | None = None,
+    run_id: str | None = None,
+    include_explanations: bool = False,
+) -> pd.DataFrame:
+    """Run AI-alone evaluation one output at a time.
+
+    This is intended for diagnostic sidecars where each response should bind a
+    numeric answer and explanation to a single requested variable.
+    """
+    if models is None:
+        models = MODELS
+    if programs is None:
+        programs = PROGRAMS
+
+    all_rows, completed = _load_existing_single_output_rows(
+        output_path,
+        include_explanations=include_explanations,
+    )
+    total = len(models) * len(scenarios) * len(programs)
+    done = len(completed)
+
+    for model_name, model_id in models.items():
+        model_fatal = False
+        for scenario in scenarios:
+            for variable in programs:
+                key = (model_name, scenario.id, variable)
+                if key in completed:
+                    continue
+                try:
+                    result = run_single_no_tools(
+                        scenario,
+                        variable,
+                        model_id,
+                        include_explanations=include_explanations,
+                    )
+                    error = result.get("error")
+                except Exception as e:
+                    error = _format_error(e)
+                    print(f"  ERROR [{model_name}] {scenario.id} {variable}: {error}")
+                    if isinstance(e, MODEL_FATAL_ERRORS):
+                        model_fatal = True
+                        print(
+                            f"  Stopping {model_name} due to fatal error; "
+                            "unattempted rows will be retried on resume."
+                        )
+                        if output_path:
+                            pd.DataFrame(all_rows).to_csv(output_path, index=False)
+                        break
+                    result = {
+                        "predictions": {variable: None},
+                        "explanations": {variable: None},
+                        "raw_response": None,
+                        "error": error,
+                        "elapsed_seconds": None,
+                        "prompt_tokens": None,
+                        "completion_tokens": None,
+                        "total_tokens": None,
+                        "reasoning_tokens": None,
+                        "cached_prompt_tokens": None,
+                        "provider_reported_cost_usd": None,
+                        "reconstructed_cost_usd": None,
+                        "total_cost_usd": None,
+                        "cost_is_estimated": None,
+                        "estimated_cost_usd": None,
+                    }
+
+                call_id = ":".join(
+                    [
+                        part
+                        for part in [run_id, model_name, scenario.id, variable]
+                        if part is not None
+                    ]
+                )
+                all_rows.append(
+                    {
+                        **({"run_id": run_id} if run_id is not None else {}),
+                        "call_id": call_id,
+                        "model": model_name,
+                        "scenario_id": scenario.id,
+                        "variable": variable,
+                        "prediction": result["predictions"].get(variable),
+                        "explanation": result.get("explanations", {}).get(variable),
+                        "raw_response": result["raw_response"],
+                        "error": error,
+                        "elapsed_seconds": result.get("elapsed_seconds"),
+                        "prompt_tokens": result.get("prompt_tokens"),
+                        "completion_tokens": result.get("completion_tokens"),
+                        "total_tokens": result.get("total_tokens"),
+                        "reasoning_tokens": result.get("reasoning_tokens"),
+                        "cached_prompt_tokens": result.get("cached_prompt_tokens"),
+                        "provider_reported_cost_usd": result.get(
+                            "provider_reported_cost_usd"
+                        ),
+                        "reconstructed_cost_usd": result.get(
+                            "reconstructed_cost_usd"
+                        ),
+                        "total_cost_usd": result.get("total_cost_usd"),
+                        "cost_is_estimated": result.get("cost_is_estimated"),
+                        "estimated_cost_usd": result.get("estimated_cost_usd"),
+                    }
+                )
+
+                completed.add(key)
+                done += 1
+                if done % CHECKPOINT_EVERY_ROWS == 0:
+                    print(f"  Progress: {done}/{total} ({done * 100 // total}%)")
+                    if output_path:
+                        pd.DataFrame(all_rows).to_csv(output_path, index=False)
+
+            if model_fatal:
+                break
+        if model_fatal:
+            continue
+
+    df = pd.DataFrame(all_rows)
+    if output_path:
+        df.to_csv(output_path, index=False)
+    return df
+
+
 def run_repeated_no_tools_eval(
     scenarios: list[Scenario],
     repeats: int,
     output_dir: str,
     models: dict[str, str] | None = None,
     programs: list[str] | None = None,
+    include_explanations: bool = False,
+    single_output: bool = False,
 ) -> pd.DataFrame:
     """Run repeated AI-alone evaluations, saving one artifact per run."""
     output_path = Path(output_dir)
@@ -928,12 +1439,14 @@ def run_repeated_no_tools_eval(
         run_id = f"run_{run_index:03d}"
         run_output_path = output_path / f"{run_id}.csv"
         print(f"=== Starting {run_id} ===")
-        frame = run_no_tools_eval(
+        runner = run_no_tools_single_output_eval if single_output else run_no_tools_eval
+        frame = runner(
             scenarios,
             models=models,
             programs=programs,
             output_path=str(run_output_path),
             run_id=run_id,
+            include_explanations=include_explanations,
         )
         if "run_id" not in frame.columns:
             frame = frame.copy()

@@ -513,6 +513,7 @@ class TestSummaries:
                 "scenario_id": ["s1", "s1", "s2", "s2"],
                 "variable": ["income_tax", "is_medicaid_eligible"] * 2,
                 "prediction": [110.0, 1.0, 210.0, 0.0],
+                "explanation": ["brief note", None, None, None],
             }
         )
         scenarios_df = pd.DataFrame(
@@ -535,19 +536,26 @@ class TestSummaries:
         )
 
         assert set(payload) == {
+            "country",
             "failureModes",
             "scenarios",
             "modelStats",
             "programStats",
             "heatmap",
-            "scatter",
+            "scenarioPredictions",
         }
+        assert payload["country"] == "us"
+        assert payload["scenarios"]["s1"]["country"] == "us"
         assert payload["scenarios"]["s1"]["filingStatus"] == "single"
         assert payload["modelStats"][0]["condition"] == "no_tools"
         assert "score" in payload["modelStats"][0]
         assert "within10pctRunMean" not in payload["modelStats"][0]
         assert payload["heatmap"][0]["condition"] == "no_tools"
-        assert payload["scatter"][0]["condition"] == "no_tools"
+        assert payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]["prediction"] == 110.0
+        assert (
+            payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]["explanation"]
+            == "brief note"
+        )
 
     def test_analyze_no_tools_merges_run_stability(self):
         ground_truth_df = pd.DataFrame(
@@ -629,7 +637,7 @@ class TestSummaries:
             scenario_prompts=prompt_map,
         )
 
-        assert payload["scenarios"]["s1"]["promptByVariable"]["income_tax"]["tool"] == "tool prompt"
+        assert payload["scenarios"]["s1"]["prompt"]["tool"] == "tool prompt"
         assert "failureModes" in payload
         assert "programs" in payload["failureModes"]
         assert "households" in payload["failureModes"]

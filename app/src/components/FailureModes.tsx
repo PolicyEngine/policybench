@@ -28,7 +28,13 @@ function StatLine({
   );
 }
 
-function ProgramCard({ program }: { program: ProgramFailure }) {
+function ProgramCard({
+  program,
+  country,
+}: {
+  program: ProgramFailure;
+  country: BenchData["country"];
+}) {
   return (
     <div className="card px-5 py-5">
       <div className="flex items-start justify-between gap-3">
@@ -37,7 +43,7 @@ function ProgramCard({ program }: { program: ProgramFailure }) {
             {program.isBinary ? "Household boolean" : "Dollar target"}
           </div>
           <div className="mt-1 text-text text-base font-medium">
-            {getVariableLabel(program.variable)}
+            {getVariableLabel(program.variable, country)}
           </div>
         </div>
         <div className="rounded-full border border-border bg-surface px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
@@ -83,6 +89,7 @@ function HouseholdChip({ household }: { household: HouseholdFailure }) {
 }
 
 export default function FailureModes({ data }: { data: BenchData }) {
+  const country = data.country;
   const failureModes: FailureModesPayload = data.failureModes;
   const hardestPrograms = [...failureModes.programs].slice(0, 10);
   const hardestHouseholds = [...failureModes.households].slice(0, 7);
@@ -131,7 +138,7 @@ export default function FailureModes({ data }: { data: BenchData }) {
             className="animate-fade-up"
             style={{ animationDelay: `${300 + index * 40}ms` }}
           >
-            <ProgramCard program={program} />
+            <ProgramCard program={program} country={country} />
           </div>
         ))}
       </div>

@@ -5,7 +5,10 @@ export const MODEL_ORDER = [
   "claude-opus-4.6",
   "claude-sonnet-4.6",
   "claude-haiku-4.5",
+  "grok-4.20",
+  "grok-4.1-fast",
   "gpt-5.4",
+  "gpt-5.4-pro",
   "gpt-5.4-mini",
   "gpt-5.4-nano",
   "gemini-3.1-pro-preview",
@@ -18,7 +21,10 @@ export const MODEL_LABELS: Record<string, string> = {
   "claude-opus-4.6": "Claude Opus 4.6",
   "claude-haiku-4.5": "Claude Haiku 4.5",
   "claude-sonnet-4.6": "Claude Sonnet 4.6",
+  "grok-4.20": "Grok 4.20",
+  "grok-4.1-fast": "Grok 4.1 Fast",
   "gpt-5.4": "GPT-5.4",
+  "gpt-5.4-pro": "GPT-5.4 Pro",
   "gpt-5.4-mini": "GPT-5.4 mini",
   "gpt-5.4-nano": "GPT-5.4 nano",
   "gemini-3.1-pro-preview": "Gemini 3.1 Pro Preview",
@@ -26,12 +32,32 @@ export const MODEL_LABELS: Record<string, string> = {
   "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash-Lite Preview",
 };
 
+export type ProviderKey = "anthropic" | "google" | "openai" | "xai";
+
+export const PROVIDER_LABELS: Record<ProviderKey, string> = {
+  anthropic: "Anthropic",
+  google: "Google",
+  openai: "OpenAI",
+  xai: "xAI",
+};
+
+export function getProviderForModel(model: string): ProviderKey | null {
+  if (model.startsWith("claude-")) return "anthropic";
+  if (model.startsWith("gemini-")) return "google";
+  if (model.startsWith("gpt-")) return "openai";
+  if (model.startsWith("grok-")) return "xai";
+  return null;
+}
+
 export const MODEL_COLORS: Record<string, string> = {
   "claude-opus": chartColors.primary,
   "claude-opus-4.6": chartColors.primary,
   "claude-haiku-4.5": colors.primary[300],
   "claude-sonnet-4.6": colors.primary[400],
+  "grok-4.20": colors.gray[800],
+  "grok-4.1-fast": colors.gray[700],
   "gpt-5.4": colors.secondary[700],
+  "gpt-5.4-pro": colors.secondary[900],
   "gpt-5.4-mini": colors.secondary[500],
   "gpt-5.4-nano": colors.secondary[300],
   "gemini-3.1-pro-preview": colors.warning,

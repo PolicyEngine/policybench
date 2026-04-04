@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-04-04T19:01:53.168181+00:00",
+  "benchmark_name": "PolicyBench",
+  "leaderboard_policy": {
+    "paper_exports_are_frozen_snapshots": true,
+    "live_site_may_change_after_export": true,
+    "reference_outputs_term": "PolicyEngine reference outputs"
+  },
+  "sources": {
+    "us_analysis_dir": "/Users/maxghenis/PolicyEngine/policybench/results/full_batch_20260329_1000/analysis",
+    "uk_analysis_dir": "/Users/maxghenis/PolicyEngine/policybench/results/uk_full_batch_20260329_1000/analysis",
+    "global_payload": "/Users/maxghenis/PolicyEngine/policybench/app/src/data.json"
+  },
+  "countries": {
+    "us": {
+      "run_id": "full_batch_20260329_1000",
+      "top_model": {
+        "model": "gemini-3.1-pro-preview",
+        "score": 73.35,
+        "parsed_n": 12974,
+        "total_n": 12974
+      },
+      "models": 11
+    },
+    "uk": {
+      "run_id": "uk_full_batch_20260329_1000",
+      "top_model": {
+        "model": "grok-4.20",
+        "score": 82.97,
+        "parsed_n": 6000,
+        "total_n": 6000
+      },
+      "models": 11
+    }
+  },
+  "global": {
+    "shared_models": 11,
+    "top_model": {
+      "model": "gemini-3.1-pro-preview",
+      "condition": "no_tools",
+      "n": 18974,
+      "nParsed": 18974,
+      "countryScores": {
+        "us": 73.35440110991213,
+        "uk": 82.62916666666666
+      },
+      "score": 77.9917838882894,
+      "exact": 71.14326088073582,
+      "within1pct": 73.42692179230255,
+      "within5pct": 81.94857407121935,
+      "within10pct": 85.44837880889986,
+      "coverage": 100.0,
+      "accuracy": 94.13827655310621
+    }
+  },
+  "notes": [
+    "Paper tables are frozen from the run directories above.",
+    "PolicyEngine outputs are benchmark reference outputs, not administrative ground truth.",
+    "Diagnostic runs are excluded from leaderboard scoring."
+  ]
+}

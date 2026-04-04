@@ -3,8 +3,23 @@ export type PromptVariant = {
   json?: string;
 };
 
-export const VARIABLE_LABELS: Record<string, string> = {
+export type CountryCode = "us" | "uk";
+export type ViewKey = CountryCode | "global";
+
+export const VIEW_LABELS: Record<ViewKey, string> = {
+  global: "Global",
+  us: "United States",
+  uk: "United Kingdom",
+};
+
+export const VIEW_SHORT_LABELS: Record<CountryCode, string> = {
+  us: "US",
+  uk: "UK",
+};
+
+const US_VARIABLE_LABELS: Record<string, string> = {
   adjusted_gross_income: "Federal adjusted gross income",
+  income_tax: "Federal income tax",
   income_tax_before_refundable_credits: "Federal tax before refundable credits",
   income_tax_refundable_credits: "Federal refundable credits",
   eitc: "EITC",
@@ -20,7 +35,19 @@ export const VARIABLE_LABELS: Record<string, string> = {
   household_state_income_tax: "State income tax",
 };
 
-export const VARIABLE_CATEGORIES: Record<string, string> = {
+const UK_VARIABLE_LABELS: Record<string, string> = {
+  income_tax: "Income Tax",
+  national_insurance: "National Insurance",
+  child_benefit: "Child Benefit",
+  universal_credit: "Universal Credit",
+  pension_credit: "Pension Credit",
+  pip: "Personal Independence Payment",
+  housing_benefit: "Housing Benefit",
+  carers_allowance: "Carer's Allowance",
+  attendance_allowance: "Attendance Allowance",
+};
+
+const US_VARIABLE_CATEGORIES: Record<string, string> = {
   adjusted_gross_income: "Federal tax",
   income_tax_before_refundable_credits: "Federal tax",
   income_tax_refundable_credits: "Credits",
@@ -36,21 +63,53 @@ export const VARIABLE_CATEGORIES: Record<string, string> = {
   household_state_income_tax: "State tax",
 };
 
-export function getVariableLabel(variable: string): string {
-  return VARIABLE_LABELS[variable] ?? variable.replace(/_/g, " ");
+const UK_VARIABLE_CATEGORIES: Record<string, string> = {
+  income_tax: "Tax",
+  national_insurance: "Tax",
+  child_benefit: "Benefits",
+  universal_credit: "Benefits",
+  pension_credit: "Benefits",
+  pip: "Benefits",
+  housing_benefit: "Benefits",
+  carers_allowance: "Benefits",
+  attendance_allowance: "Benefits",
+};
+
+export function getVariableLabel(
+  variable: string,
+  country: CountryCode = "us"
+): string {
+  const labelMap = country === "uk" ? UK_VARIABLE_LABELS : US_VARIABLE_LABELS;
+  return labelMap[variable] ?? variable.replace(/_/g, " ");
 }
 
-export function isBinaryVariable(variable: string): boolean {
+export function getVariableCategory(
+  variable: string,
+  country: CountryCode = "us"
+): string {
+  const categoryMap =
+    country === "uk" ? UK_VARIABLE_CATEGORIES : US_VARIABLE_CATEGORIES;
+  return categoryMap[variable] ?? "Other";
+}
+
+export function isBinaryVariable(
+  variable: string,
+  country: CountryCode = "us"
+): boolean {
+  if (country === "uk") {
+    return false;
+  }
   return variable === "free_school_meals" || variable === "is_medicaid_eligible";
 }
 
 export type BenchScenario = {
+  country: CountryCode;
   state: string;
-  filingStatus: string;
+  filingStatus?: string | null;
   numAdults: number;
   numChildren: number;
   totalIncome: number;
-  promptByVariable?: Record<string, PromptVariant>;
+  prompt?: PromptVariant;
 };
 
 export type ModelStat = {
@@ -60,11 +119,11 @@ export type ModelStat = {
   exact?: number;
   within1pct?: number;
   within5pct?: number;
-  mae: number;
-  within10pct: number;
+  mae?: number | null;
+  within10pct?: number;
   n: number;
   nParsed: number;
-  coverage: number;
+  coverage?: number;
   mape?: number;
   accuracy?: number;
   runCount?: number;
@@ -78,6 +137,7 @@ export type ModelStat = {
   within10pctRunMax?: number;
   maeRunMean?: number;
   maeRunStd?: number;
+  countryScores?: Partial<Record<CountryCode, number>>;
 };
 
 export type ProgramStat = {
@@ -111,20 +171,11 @@ export type HeatmapEntry = {
   within10pct?: number;
 };
 
-export type ScatterEntry = {
-  model: string;
-  condition: string;
-  scenario: string;
-  variable: string;
-  prediction: number;
-  groundTruth: number;
-  error: number;
-};
-
 export type ScenarioPrediction = {
   prediction: number;
   error: number;
   groundTruth: number;
+  explanation?: string;
 };
 
 export type ScenarioPredictionsByVariable = Record<
@@ -157,10 +208,30 @@ export type FailureModesPayload = {
 };
 
 export type BenchData = {
+  country: CountryCode;
   scenarios: Record<string, BenchScenario>;
   modelStats: ModelStat[];
   programStats: ProgramStat[];
   heatmap: HeatmapEntry[];
-  scatter: ScatterEntry[];
+  scenarioPredictions: Record<string, ScenarioPredictionsByVariable>;
   failureModes: FailureModesPayload;
+};
+
+export type CountrySummary = {
+  key: CountryCode;
+  label: string;
+  households: number;
+  models: number;
+  programs: number;
+};
+
+export type GlobalBenchData = {
+  modelStats: ModelStat[];
+  countrySummaries: CountrySummary[];
+  sharedModelCount: number;
+};
+
+export type DashboardBundle = {
+  countries: Record<CountryCode, BenchData>;
+  global: GlobalBenchData;
 };

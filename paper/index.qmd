@@ -1,0 +1,273 @@
+---
+title: "PolicyBench"
+subtitle: "Benchmarking tax-and-benefit reasoning in frontier language models"
+author:
+  - name: "PolicyEngine"
+bibliography: references.bib
+jupyter: policybench-paper
+format:
+  html:
+    toc: true
+    toc-depth: 3
+  pdf:
+    toc: true
+    number-sections: true
+---
+
+```{python}
+#| echo: false
+import json
+from pathlib import Path
+
+import pandas as pd
+
+ROOT = Path.cwd().resolve()
+if not (ROOT / "results").exists():
+    ROOT = ROOT.parent
+EXPORT_DIR = ROOT / "results" / "paper_exports"
+
+us_model = pd.read_csv(EXPORT_DIR / "us_summary_by_model.csv")
+uk_model = pd.read_csv(EXPORT_DIR / "uk_summary_by_model.csv")
+global_model = pd.read_csv(EXPORT_DIR / "global_summary_by_model.csv")
+us_var = pd.read_csv(EXPORT_DIR / "us_summary_by_variable.csv")
+uk_var = pd.read_csv(EXPORT_DIR / "uk_summary_by_variable.csv")
+snapshot = json.loads((EXPORT_DIR / "benchmark_snapshot.json").read_text())
+
+
+def model_table(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
+    cols = [
+        "model",
+        "mean_score",
+        "mean_exact",
+        "mean_within_10pct",
+        "parsed_n",
+        "total_n",
+    ]
+    subset = frame[cols].head(top_n).copy()
+    subset.columns = ["Model", "Score", "Exact", "Within 10%", "Parsed", "Total"]
+    for col in ["Score", "Exact", "Within 10%"]:
+        subset[col] = (subset[col] * 100).round(1)
+    return subset
+
+
+def variable_hardest(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
+    cols = ["variable", "mean_score", "mean_exact", "mean_within_10pct"]
+    subset = (
+        frame[cols]
+        .sort_values("mean_score")
+        .head(top_n)
+        .copy()
+    )
+    subset.columns = ["Variable", "Score", "Exact", "Within 10%"]
+    for col in ["Score", "Exact", "Within 10%"]:
+        subset[col] = (subset[col] * 100).round(1)
+    return subset
+
+
+def fmt_score(value: float) -> str:
+    return f"{value:.1f}"
+
+
+def paper_date(iso_timestamp: str) -> str:
+    return iso_timestamp[:10]
+
+
+def ranked_phrase(items: list[str]) -> str:
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def parsed_ratio(frame: pd.DataFrame, model_name: str) -> str:
+    row = frame.loc[frame["model"] == model_name].iloc[0]
+    return f"{int(row['parsed_n']):,} of {int(row['total_n']):,}"
+
+
+us_top = model_table(us_model)
+uk_top = model_table(uk_model)
+global_top = global_model[
+    ["model", "score", "exact", "within10pct", "nParsed", "n"]
+].copy()
+global_top.columns = ["Model", "Score", "Exact", "Within 10%", "Parsed", "Total"]
+for col in ["Score", "Exact", "Within 10%"]:
+    global_top[col] = global_top[col].round(1)
+global_top = global_top.head(10)
+
+us_hardest = variable_hardest(us_var)
+uk_hardest = variable_hardest(uk_var)
+
+us_snapshot = snapshot["countries"]["us"]
+uk_snapshot = snapshot["countries"]["uk"]
+global_snapshot = snapshot["global"]
+snapshot_date = paper_date(snapshot["generated_at_utc"])
+
+us_ranked = us_model.sort_values("mean_score", ascending=False).reset_index(drop=True)
+uk_ranked = uk_model.sort_values("mean_score", ascending=False).reset_index(drop=True)
+global_ranked = global_model.sort_values("score", ascending=False).reset_index(drop=True)
+
+us_top_three = [
+    f"{row.model} ({fmt_score(row.mean_score * 100)})"
+    for row in us_ranked.head(3).itertuples()
+]
+uk_top_three = [
+    f"{row.model} ({fmt_score(row.mean_score * 100)})"
+    for row in uk_ranked.head(3).itertuples()
+]
+global_top_three = [
+    f"{row.model} ({fmt_score(row.score)})"
+    for row in global_ranked.head(3).itertuples()
+]
+
+abstract_snapshot_summary = (
+    f"In the frozen snapshot used for this manuscript ({snapshot_date}), "
+    f"the top US model is {us_snapshot['top_model']['model']} at "
+    f"{fmt_score(us_snapshot['top_model']['score'])}, the top UK model is "
+    f"{uk_snapshot['top_model']['model']} at "
+    f"{fmt_score(uk_snapshot['top_model']['score'])}, and the top shared "
+    f"global model is {global_snapshot['top_model']['model']} at "
+    f"{fmt_score(global_snapshot['top_model']['score'])}."
+)
+us_top_three_summary = ranked_phrase(us_top_three)
+uk_top_three_summary = ranked_phrase(uk_top_three)
+global_top_three_summary = ranked_phrase(global_top_three)
+opus_uk_parse = parsed_ratio(uk_model, "claude-opus-4.6")
+conclusion_snapshot_summary = (
+    f"In the frozen manuscript snapshot, {us_snapshot['top_model']['model']} "
+    f"is the top-scoring US model and {uk_snapshot['top_model']['model']} is "
+    f"the top-scoring UK model."
+)
+```
+
+## Abstract
+
+PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses nationally calibrated household scenarios, and scores outputs with a bounded `0-100` metric. `{python} abstract_snapshot_summary` In both countries, the lowest-scoring outputs are tax-base variables rather than benefits or credits. The live benchmark is available at <https://policybench.org>.
+
+## Introduction
+
+Household tax-and-benefit estimation sits between arithmetic and policy discussion. Each case has numeric labels, but generating those labels requires filing status, household composition, income concepts, program thresholds, and jurisdiction-specific rules. PolicyBench measures whether models can map household records to those outputs.
+
+Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers [@cobbe2021training; @hendrycks2021math], while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.
+
+This matters for public-facing calculators, analyst workflows, and tax-preparation or screening systems. The benchmark is intended to separate verbal policy fluency from household-level quantitative prediction.
+
+## Related work
+
+The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem [@holzenberger2021sara]. LegalBench broadens this view and includes tax-oriented numeric tasks such as `sara_numeric` [@guha2023legalbench]. RuleArena evaluates rule-guided reasoning in regulation-style settings [@kim2024rulearena], and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs [@taxcalcbench2025]. Shanahan et al. report a similar split on the VITA test: models do better on tax knowledge questions than on open-ended calculation tasks [@shanahan2025vita].
+
+PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks [@cobbe2021training; @hendrycks2021math]. That norm is less natural for continuous-valued policy outputs, where being within 1 percent is closer than being off by an order of magnitude. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead [@zhou2025tempanswerqa]. PolicyBench follows that direction by combining exactness with near-miss thresholds rather than collapsing everything into exact match alone.
+
+Finance-domain benchmarks provide another relevant precedent. FinQA and TAT-QA both show that realistic quantitative reasoning often requires combining structured numbers with domain knowledge rather than solving stylized school-math problems [@chen2021finqa; @zhu2021tatqa]. PolicyBench differs in that its reference outputs are generated by executable tax-benefit microsimulation rather than annotated document questions, but the underlying motivation is similar: domain-specific quantitative reasoning deserves dedicated evaluation.
+
+Finally, PolicyBench depends on two infrastructure literatures that are not themselves LLM benchmarks. One is structured-output reliability, since the benchmark relies on multi-output JSON responses and parse coverage rather than free-form prose [@shorten2024structuredrag]. The other is tax-benefit microsimulation, where systems such as EUROMOD provide the methodological precedent for evaluating policy rules over household microdata [@sutherland2023euromod]. The UK side of PolicyBench also builds on PolicyEngine's recent work on survey-backed calibration and imputation [@policyengineukdata2026]. There is also operational work on applying and evaluating AI systems in public-benefits settings, including caseworker-assist and SNAP-focused evaluations [@nava2026caseworker; @nava2025benefits; @propel2025snap]. We are not aware of a public cross-model benchmark over household-level benefit outputs.
+
+## Benchmark design
+
+PolicyBench asks models to predict all benchmark outputs for a household in a single structured response. One response per household reduces repeated prompt cost and keeps the task at the household-return level rather than turning it into a sequence of unrelated one-output calls.
+
+The benchmark uses a bounded `0-100` score. For amount variables, the score averages four hit rates:
+
+1. exact
+2. within 1%
+3. within 5%
+4. within 10%
+
+For binary outputs, the score is exact accuracy. This keeps `100` as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related diagnostics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized [@zhou2025tempanswerqa].
+
+The benchmark distinguishes between **benchmark runs** and **diagnostic runs**. Benchmark runs are the canonical leaderboard artifacts. Diagnostic runs use smaller sidecar samples and may request optional explanations. Those explanation runs are used for qualitative analysis and are not part of the headline ranking.
+
+PolicyBench also has an earlier archived tool-assisted pilot. That condition used a single untuned function-calling contract rather than a multi-step agent setup. The only tool was `calculate_policy(household, variable, year)`, where `household` was a standard PolicyEngine-US household JSON object and the archived scenarios supplied only basic fields needed for those tests: person ages, employment income, and household state. The prompt was a short instruction to calculate one output, use the tool with the given variable name and year, and return the numeric result from the tool. The archived US run covers `4,200` predictions (`100` households x `14` outputs x `3` models: Claude Opus, Claude Sonnet, and GPT-5.2), and all `4,200` predictions match the simulator reference values exactly. We do not mix that condition into the current leaderboard because it measures whether the model can route the request to the simulator and use the returned value, not whether it can estimate the output without tools.
+
+## Data and scenario construction
+
+### United States
+
+The US benchmark is built from Enhanced CPS-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit structure while retaining variation in filing status, household composition, and income sources. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives.
+
+The current US release evaluates 13 outputs spanning federal tax, credits, benefits, and state-tax quantities. These include federal adjusted gross income, tax before refundable credits, EITC, CTC, SNAP, SSI, and multiple state-tax outputs.
+
+### United Kingdom
+
+The UK benchmark is built from a calibrated public transfer dataset scored through PolicyEngine UK. The current public build starts from a public export of benchmark-compatible households from PolicyEngine US Enhanced CPS, maps those records into UK-facing inputs, and recalibrates them to selected UK targets. This creates a public UK benchmark path without publishing restricted household microdata. The current UK release evaluates six outputs: income tax, national insurance, child benefit, universal credit, pension credit, and personal independence payment.
+
+The UK data path is more synthetic than the enhanced FRS pipeline, so the benchmark should not be read as a substitute for native UK microdata work. It supports the current public cross-country benchmark, but it is not equivalent to an enhanced-FRS-based benchmark [@sutherland2023euromod; @policyengineukdata2026].
+
+## Results
+
+### United States leaderboard
+
+The US leaderboard for the frozen manuscript snapshot is shown in @tbl-us-top. The top three models in that snapshot are `{python} us_top_three_summary`.
+
+```{python}
+#| label: tbl-us-top
+#| tbl-cap: "Top US benchmark models in the current release."
+us_top
+```
+
+### United Kingdom leaderboard
+
+The UK leaderboard for the frozen manuscript snapshot is shown in @tbl-uk-top. The top three models in that snapshot are `{python} uk_top_three_summary`.
+
+```{python}
+#| label: tbl-uk-top
+#| tbl-cap: "Top UK benchmark models in the current release."
+uk_top
+```
+
+### Global shared-model leaderboard
+
+The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are `{python} global_top_three_summary`. The global table summarizes cross-country performance; the country tables identify the outputs driving the differences.
+
+```{python}
+#| label: tbl-global-top
+#| tbl-cap: "Global shared-model leaderboard across US and UK runs."
+global_top
+```
+
+### Hardest benchmark targets
+
+The lowest-scoring US variables are tax-base and state-tax quantities rather than benefits. As shown in @tbl-us-hardest, household state income tax scores `31.5`, state AGI scores `32.9`, federal income tax before refundable credits scores `33.2`, and adjusted gross income scores `37.1`. By comparison, EITC scores `86.3`, SSI scores `93.1`, and free school meals scores `94.1`.
+
+```{python}
+#| label: tbl-us-hardest
+#| tbl-cap: "Hardest US variables by bounded score."
+us_hardest
+```
+
+The same pattern appears in the UK run. Income tax scores `32.2` and national insurance scores `51.9`. Child benefit scores `77.3`, universal credit scores `77.6`, PIP scores `84.0`, and pension credit scores `88.4`.
+
+```{python}
+#| label: tbl-uk-hardest
+#| tbl-cap: "Hardest UK variables by bounded score."
+uk_hardest
+```
+
+## Failure modes
+
+The benchmark surfaces a few recurring failure patterns.
+
+First, models miss positive tax quantities more often than zero cases. In the US, the four lowest-scoring variables are household state income tax, state AGI, federal income tax before refundable credits, and adjusted gross income. These outputs require the model to choose the right income concepts and exclusions before applying any final subtraction.
+
+Second, the UK benchmark shows the same split between benefits and tax. Income tax and national insurance score below the four benefit outputs in the frozen manuscript snapshot. This suggests that the models handle broad program thresholds more reliably than detailed tax-liability calculations.
+
+Third, structured-output reliability still affects the ranking. Some provider-specific gaps reflect tool or JSON contract reliability in addition to policy reasoning quality. For example, Claude Opus 4.6 parses `{python} opus_uk_parse` UK rows in the frozen manuscript snapshot. PolicyBench therefore tracks coverage and parse rates alongside accuracy [@shorten2024structuredrag].
+
+## Limitations
+
+PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:
+
+- cost reporting is still reconstructed from provider token usage rather than invoice truth
+- model rankings can reflect output-contract reliability as well as policy reasoning
+- the public UK calibrated dataset is not equivalent to enhanced FRS quality
+- benchmark success should not be interpreted as policy-advice readiness
+
+The current paper is therefore an evaluation of model performance under a specific structured-output benchmark, not a general certification of tax or benefit competence.
+
+## Conclusion
+
+PolicyBench shows a consistent pattern across both countries. Benefit outputs score above tax-base outputs, while the lowest-scoring variables are adjusted gross income, state-tax quantities, income tax, and national insurance. `{python} conclusion_snapshot_summary`
+
+Next steps are to expand diagnostics, extend country coverage, and tighten the data and scoring pipelines so that the leaderboard is driven less by output-format reliability and more by policy reasoning.

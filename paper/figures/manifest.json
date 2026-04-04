@@ -1,0 +1,94 @@
+{
+  "exports": {
+    "us_summary_by_model": {
+      "path": "results/paper_exports/us_summary_by_model.csv",
+      "rows": 11,
+      "columns": [
+        "model",
+        "mean_score",
+        "mean_exact",
+        "mean_within_1pct",
+        "mean_within_5pct",
+        "mean_mae",
+        "mean_mape",
+        "mean_within_10pct",
+        "mean_accuracy",
+        "mean_coverage",
+        "total_n",
+        "parsed_n"
+      ]
+    },
+    "uk_summary_by_model": {
+      "path": "results/paper_exports/uk_summary_by_model.csv",
+      "rows": 11,
+      "columns": [
+        "model",
+        "mean_score",
+        "mean_exact",
+        "mean_within_1pct",
+        "mean_within_5pct",
+        "mean_mae",
+        "mean_mape",
+        "mean_within_10pct",
+        "mean_accuracy",
+        "mean_coverage",
+        "total_n",
+        "parsed_n"
+      ]
+    },
+    "global_summary_by_model": {
+      "path": "results/paper_exports/global_summary_by_model.csv",
+      "rows": 11,
+      "columns": [
+        "model",
+        "condition",
+        "n",
+        "nParsed",
+        "countryScores",
+        "score",
+        "exact",
+        "within1pct",
+        "within5pct",
+        "within10pct",
+        "coverage",
+        "accuracy"
+      ]
+    },
+    "us_summary_by_variable": {
+      "path": "results/paper_exports/us_summary_by_variable.csv",
+      "rows": 13,
+      "columns": [
+        "variable",
+        "mean_score",
+        "mean_exact",
+        "mean_within_1pct",
+        "mean_within_5pct",
+        "mean_mae",
+        "mean_mape",
+        "mean_within_10pct",
+        "mean_accuracy",
+        "mean_coverage",
+        "total_n",
+        "parsed_n"
+      ]
+    },
+    "uk_summary_by_variable": {
+      "path": "results/paper_exports/uk_summary_by_variable.csv",
+      "rows": 6,
+      "columns": [
+        "variable",
+        "mean_score",
+        "mean_exact",
+        "mean_within_1pct",
+        "mean_within_5pct",
+        "mean_mae",
+        "mean_mape",
+        "mean_within_10pct",
+        "mean_accuracy",
+        "mean_coverage",
+        "total_n",
+        "parsed_n"
+      ]
+    }
+  }
+}

@@ -1,13 +1,16 @@
 """Tests for scenario generation."""
 
+import json
 import pandas as pd
 import pytest
 
 from policybench.scenarios import (
     SUPPORTED_FILING_STATUSES,
     generate_scenarios,
+    load_excluded_household_ids,
     scenario_manifest,
     scenarios_from_cps_frame,
+    scenarios_from_uk_frames,
 )
 
 
@@ -271,6 +274,128 @@ def sample_person_frame():
     )
 
 
+@pytest.fixture
+def sample_uk_frames():
+    person_df = pd.DataFrame(
+        [
+            {
+                "person_id": 1,
+                "person_household_id": 1001,
+                "person_benunit_id": 2001,
+                "age": 42,
+                "gender": "FEMALE",
+                "marital_status": "MARRIED",
+                "employment_income": 42_000.0,
+                "self_employment_income": 0.0,
+                "savings_interest_income": 120.0,
+                "dividend_income": 50.0,
+                "private_pension_income": 0.0,
+                "state_pension_reported": 0.0,
+                "capital_gains_before_response": 0.0,
+                "property_income": 0.0,
+                "miscellaneous_income": 0.0,
+                "employment_expenses": 150.0,
+                "private_pension_contributions": 600.0,
+                "gift_aid": 75.0,
+                "blind_persons_allowance": 0.0,
+                "is_disabled_for_benefits": False,
+                "pip_dl_category": "NONE",
+                "pip_m_category": "NONE",
+                "hours_worked": 37.5,
+                "is_disabled": False,
+                "is_student": False,
+            },
+            {
+                "person_id": 2,
+                "person_household_id": 1001,
+                "person_benunit_id": 2001,
+                "age": 12,
+                "gender": "MALE",
+                "marital_status": "SINGLE",
+                "employment_income": 0.0,
+                "self_employment_income": 0.0,
+                "savings_interest_income": 0.0,
+                "dividend_income": 0.0,
+                "private_pension_income": 0.0,
+                "state_pension_reported": 0.0,
+                "capital_gains_before_response": 0.0,
+                "property_income": 0.0,
+                "miscellaneous_income": 0.0,
+                "employment_expenses": 0.0,
+                "private_pension_contributions": 0.0,
+                "gift_aid": 0.0,
+                "blind_persons_allowance": 0.0,
+                "is_disabled_for_benefits": False,
+                "pip_dl_category": "NONE",
+                "pip_m_category": "NONE",
+                "hours_worked": 0.0,
+                "is_disabled": False,
+                "is_student": True,
+            },
+            {
+                "person_id": 3,
+                "person_household_id": 1002,
+                "person_benunit_id": 2002,
+                "age": 72,
+                "gender": "MALE",
+                "marital_status": "SINGLE",
+                "employment_income": 0.0,
+                "self_employment_income": 0.0,
+                "savings_interest_income": 40.0,
+                "dividend_income": 0.0,
+                "private_pension_income": 8_500.0,
+                "state_pension_reported": 11_000.0,
+                "capital_gains_before_response": 0.0,
+                "property_income": 0.0,
+                "miscellaneous_income": 0.0,
+                "employment_expenses": 0.0,
+                "private_pension_contributions": 0.0,
+                "gift_aid": 0.0,
+                "blind_persons_allowance": 0.0,
+                "is_disabled_for_benefits": True,
+                "pip_dl_category": "STANDARD",
+                "pip_m_category": "NONE",
+                "hours_worked": 0.0,
+                "is_disabled": True,
+                "is_student": False,
+            },
+        ]
+    )
+    household_df = pd.DataFrame(
+        [
+            {
+                "household_id": 1001,
+                "household_weight": 2.5,
+                "region": "LONDON",
+                "tenure_type": "RENT_PRIVATELY",
+                "council_tax": 1_800.0,
+                "rent": 14_400.0,
+                "mortgage_interest_repayment": 0.0,
+                "mortgage_capital_repayment": 0.0,
+                "savings": 2_500.0,
+                "household_wealth": 22_000.0,
+                "num_vehicles": 1.0,
+                "council_tax_band": "C",
+            },
+            {
+                "household_id": 1002,
+                "household_weight": 1.5,
+                "region": "WALES",
+                "tenure_type": "OWNED_OUTRIGHT",
+                "council_tax": 1_200.0,
+                "rent": 0.0,
+                "mortgage_interest_repayment": 0.0,
+                "mortgage_capital_repayment": 0.0,
+                "savings": 6_000.0,
+                "household_wealth": 95_000.0,
+                "num_vehicles": 0.0,
+                "council_tax_band": "B",
+            },
+        ]
+    )
+    return person_df, household_df
+
+
 def test_generate_scenarios_count(sample_person_frame):
     """Generates the requested number of scenarios."""
     scenarios = scenarios_from_cps_frame(sample_person_frame, n=3, seed=42)
@@ -480,6 +605,56 @@ def test_generate_scenarios_uses_loader(monkeypatch, sample_person_frame):
     assert all(scenario.source_dataset == "enhanced_cps_2024" for scenario in scenarios)
 
 
+def test_generate_uk_scenarios_uses_loader(monkeypatch, sample_uk_frames):
+    person_df, household_df = sample_uk_frames
+
+    def fake_loader():
+        return person_df, household_df, 2025
+
+    monkeypatch.setattr("policybench.scenarios.load_uk_enhanced_cps_frames", fake_loader)
+    scenarios = generate_scenarios(n=2, seed=0, country="uk")
+
+    assert len(scenarios) == 2
+    assert all(scenario.country == "uk" for scenario in scenarios)
+    assert all(scenario.filing_status is None for scenario in scenarios)
+    assert all(scenario.metadata["dataset_year"] == 2025 for scenario in scenarios)
+    assert all(scenario.source_dataset == "enhanced_cps_uk_2025" for scenario in scenarios)
+
+
+def test_scenarios_from_cps_frame_can_exclude_households(sample_person_frame):
+    """Sampling can exclude already-used benchmark households."""
+    scenarios = scenarios_from_cps_frame(
+        sample_person_frame,
+        n=2,
+        seed=0,
+        excluded_household_ids={102},
+    )
+
+    assert len(scenarios) == 2
+    household_ids = {scenario.metadata["household_id"] for scenario in scenarios}
+    assert 102 not in household_ids
+    assert len(household_ids) == 2
+
+
+def test_load_excluded_household_ids_from_manifest_json(tmp_path):
+    """Manifest helper should recover household ids from serialized scenarios."""
+    manifest_path = tmp_path / "scenarios.csv"
+    pd.DataFrame(
+        [
+            {
+                "scenario_id": "scenario_000",
+                "scenario_json": json.dumps({"metadata": {"household_id": 101}}),
+            },
+            {
+                "scenario_id": "scenario_001",
+                "scenario_json": json.dumps({"metadata": {"household_id": 205}}),
+            },
+        ]
+    ).to_csv(manifest_path, index=False)
+
+    assert load_excluded_household_ids(manifest_path) == {101, 205}
+
+
 def test_scenario_manifest_exports_summary_fields(sample_person_frame):
     """Scenario manifest should expose the dashboard summary fields."""
     scenarios = scenarios_from_cps_frame(sample_person_frame, n=2, seed=0)
@@ -487,6 +662,7 @@ def test_scenario_manifest_exports_summary_fields(sample_person_frame):
 
     assert set(manifest.columns) == {
         "scenario_id",
+        "country",
         "state",
         "filing_status",
         "num_adults",
@@ -497,3 +673,19 @@ def test_scenario_manifest_exports_summary_fields(sample_person_frame):
     }
     assert len(manifest) == 2
     assert manifest["scenario_id"].str.startswith("scenario_").all()
+
+
+def test_scenarios_from_uk_frames_include_region_and_household_inputs(sample_uk_frames):
+    person_df, household_df = sample_uk_frames
+    scenarios = scenarios_from_uk_frames(person_df, household_df, n=2, seed=0)
+
+    assert len(scenarios) == 2
+    london = next(s for s in scenarios if s.state == "LONDON")
+    assert london.country == "uk"
+    assert london.filing_status is None
+    assert london.household_inputs["rent"] == 14_400.0
+    assert london.household_inputs["tenure_type"] == "RENT_PRIVATELY"
+    assert "council_tax_band" not in london.household_inputs
+    assert "council_tax" not in london.household_inputs
+    assert "benunit_id" not in london.household_inputs
+    assert london.children[0].inputs["is_student"] is True

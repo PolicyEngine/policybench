@@ -3,13 +3,14 @@
 from dataclasses import dataclass, field
 from functools import lru_cache
 import json
+import os
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-from policyengine_us import Microsimulation
 
-from policybench.config import NUM_SCENARIOS, SEED, TAX_YEAR
+from policybench.config import DEFAULT_COUNTRY, NUM_SCENARIOS, SEED, TAX_YEAR
 
 SUPPORTED_FILING_STATUSES = {
     "SINGLE": "single",
@@ -174,6 +175,63 @@ OPTIONAL_CPS_DEFAULTS = {
     "is_tax_unit_spouse": False,
 }
 
+UK_PERSON_ID_COLUMNS = {
+    "person_id",
+    "person_household_id",
+    "person_benunit_id",
+}
+
+UK_HOUSEHOLD_ID_COLUMNS = {
+    "household_id",
+    "household_weight",
+}
+
+UK_EXCLUDED_PERSON_INPUTS = {
+    *UK_PERSON_ID_COLUMNS,
+    "person_id",
+}
+
+UK_EXCLUDED_HOUSEHOLD_INPUTS = {
+    *UK_HOUSEHOLD_ID_COLUMNS,
+    "alcohol_and_tobacco_consumption",
+    "clothing_and_footwear_consumption",
+    "communication_consumption",
+    "council_tax",
+    "council_tax_band",
+    "diesel_spending",
+    "education_consumption",
+    "food_and_non_alcoholic_beverages_consumption",
+    "full_rate_vat_expenditure_rate",
+    "health_consumption",
+    "household_furnishings_consumption",
+    "housing_water_and_electricity_consumption",
+    "miscellaneous_consumption",
+    "num_vehicles",
+    "petrol_spending",
+    "recreation_consumption",
+    "region",
+    "restaurants_and_hotels_consumption",
+    "transport_consumption",
+}
+
+UK_NON_PROMPTABLE_SENTINELS = {
+    "",
+    "NONE",
+}
+
+UK_DATASET_CANDIDATES = (
+    Path(__file__).resolve().parents[2]
+    / "policyengine-uk-data-transfer-pr"
+    / "policyengine_uk_data"
+    / "storage"
+    / "enhanced_cps_2025.h5",
+    Path(__file__).resolve().parents[2]
+    / "policyengine-uk-data"
+    / "policyengine_uk_data"
+    / "storage"
+    / "enhanced_cps_2025.h5",
+)
+
 
 @dataclass(frozen=True)
 class InputVariableSpec:
@@ -202,6 +260,8 @@ def _is_promptable_input_variable(name: str, variable) -> bool:
 @lru_cache(maxsize=1)
 def get_promptable_input_specs() -> tuple[InputVariableSpec, ...]:
     """Discover promptable raw inputs from the default PE-US variable registry."""
+    from policyengine_us import Microsimulation
+
     sim = Microsimulation()
     specs: dict[str, InputVariableSpec] = {}
 
@@ -252,13 +312,14 @@ class Scenario:
 
     id: str
     state: str
-    filing_status: str
+    filing_status: str | None
     adults: list[Person]
     children: list[Person] = field(default_factory=list)
     tax_unit_inputs: dict[str, Any] = field(default_factory=dict)
     spm_unit_inputs: dict[str, Any] = field(default_factory=dict)
     household_inputs: dict[str, Any] = field(default_factory=dict)
     year: int = TAX_YEAR
+    country: str = DEFAULT_COUNTRY
     source_dataset: str = "enhanced_cps"
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -279,6 +340,8 @@ class Scenario:
 
     def to_pe_household(self) -> dict:
         """Convert to PolicyEngine-US household JSON format."""
+        if self.country != "us":
+            raise ValueError("to_pe_household is only supported for US scenarios.")
         people = {}
         adult_names = []
         child_names = []
@@ -366,6 +429,7 @@ def scenario_to_dict(scenario: Scenario) -> dict[str, Any]:
     """Serialize a Scenario to a JSON-safe dict."""
     return {
         "id": scenario.id,
+        "country": scenario.country,
         "state": scenario.state,
         "filing_status": scenario.filing_status,
         "adults": [person_to_dict(person) for person in scenario.adults],
@@ -383,8 +447,11 @@ def scenario_from_dict(data: dict[str, Any]) -> Scenario:
     """Reconstruct a Scenario from a serialized dict."""
     return Scenario(
         id=str(data["id"]),
+        country=str(data.get("country", DEFAULT_COUNTRY)),
         state=str(data["state"]),
-        filing_status=str(data["filing_status"]),
+        filing_status=(
+            None if data.get("filing_status") is None else str(data["filing_status"])
+        ),
         adults=[person_from_dict(person) for person in data.get("adults", [])],
         children=[person_from_dict(person) for person in data.get("children", [])],
         tax_unit_inputs=dict(data.get("tax_unit_inputs", {})),
@@ -398,6 +465,8 @@ def scenario_from_dict(data: dict[str, Any]) -> Scenario:
 
 def load_enhanced_cps_person_frame() -> tuple[pd.DataFrame, int]:
     """Load a person-level frame from the default Enhanced CPS microsimulation."""
+    from policyengine_us import Microsimulation
+
     sim = Microsimulation()
     dataset_year = sim.default_input_period
     input_specs = get_promptable_input_specs()
@@ -426,6 +495,66 @@ def load_enhanced_cps_person_frame() -> tuple[pd.DataFrame, int]:
     return pd.DataFrame(values), dataset_year
 
 
+def get_uk_dataset_path() -> Path:
+    """Locate the local calibrated UK Enhanced CPS artifact."""
+    configured = os.environ.get("POLICYBENCH_UK_DATASET_PATH")
+    if configured:
+        path = Path(configured).expanduser()
+        if path.exists():
+            return path
+
+    for candidate in UK_DATASET_CANDIDATES:
+        if candidate.exists():
+            return candidate
+
+    searched = "\n".join(f"- {candidate}" for candidate in UK_DATASET_CANDIDATES)
+    raise FileNotFoundError(
+        "Could not find a local UK enhanced CPS dataset. Set "
+        "POLICYBENCH_UK_DATASET_PATH or place the artifact in one of:\n"
+        f"{searched}"
+    )
+
+
+def load_uk_enhanced_cps_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
+    """Load person and household frames from the local UK enhanced CPS artifact."""
+    from policyengine_uk.data import UKSingleYearDataset
+
+    os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
+    dataset = UKSingleYearDataset(file_path=str(get_uk_dataset_path()))
+    values = dataset.load()
+
+    person_length = len(values["person_id"])
+    household_length = len(values["household_id"])
+
+    person_values = {
+        key: value for key, value in values.items() if len(value) == person_length
+    }
+    household_values = {
+        key: value for key, value in values.items() if len(value) == household_length
+    }
+
+    person_df = pd.DataFrame(person_values)
+    household_df = pd.DataFrame(household_values)
+
+    person_df["person_id"] = pd.to_numeric(person_df["person_id"], errors="coerce").astype(int)
+    person_df["person_household_id"] = pd.to_numeric(
+        person_df["person_household_id"], errors="coerce"
+    ).astype(int)
+    person_df["person_benunit_id"] = pd.to_numeric(
+        person_df["person_benunit_id"], errors="coerce"
+    ).astype(int)
+    person_df["age"] = pd.to_numeric(person_df["age"], errors="coerce").fillna(0).astype(int)
+
+    household_df["household_id"] = pd.to_numeric(
+        household_df["household_id"], errors="coerce"
+    ).astype(int)
+    household_df["household_weight"] = pd.to_numeric(
+        household_df["household_weight"], errors="coerce"
+    ).fillna(0.0)
+
+    return person_df, household_df, int(dataset.time_period)
+
+
 def scenario_manifest(scenarios: list[Scenario]) -> pd.DataFrame:
     """Build a compact scenario manifest for downstream exports."""
     rows = []
@@ -433,6 +562,7 @@ def scenario_manifest(scenarios: list[Scenario]) -> pd.DataFrame:
         rows.append(
             {
                 "scenario_id": scenario.id,
+                "country": scenario.country,
                 "state": scenario.state,
                 "filing_status": scenario.filing_status,
                 "num_adults": len(scenario.adults),
@@ -575,6 +705,31 @@ def _sample_household_ids(
     return [int(household_id) for household_id in sampled]
 
 
+def load_excluded_household_ids(manifest_path: str | Path) -> set[int]:
+    """Extract sampled household ids from a scenario manifest CSV."""
+    manifest = pd.read_csv(manifest_path)
+    if "household_id" in manifest.columns:
+        return {
+            int(household_id)
+            for household_id in pd.to_numeric(
+                manifest["household_id"], errors="coerce"
+            ).dropna()
+        }
+
+    if "scenario_json" not in manifest.columns:
+        raise ValueError(
+            "Scenario manifest must include either a household_id or scenario_json column."
+        )
+
+    household_ids: set[int] = set()
+    for scenario_json in manifest["scenario_json"].dropna():
+        scenario = json.loads(str(scenario_json))
+        household_id = scenario.get("metadata", {}).get("household_id")
+        if household_id is not None:
+            household_ids.add(int(household_id))
+    return household_ids
+
+
 def _extract_entity_inputs(
     row: pd.Series,
     entity: str,
@@ -611,10 +766,15 @@ def scenarios_from_cps_frame(
     seed: int = SEED,
     year: int = TAX_YEAR,
     dataset_year: int | None = None,
+    excluded_household_ids: set[int] | None = None,
 ) -> list[Scenario]:
     """Sample benchmark scenarios from a person-level Enhanced CPS frame."""
     df = _prepare_cps_frame(person_df)
     eligible_households = _eligible_households(df)
+    if excluded_household_ids:
+        eligible_households = eligible_households[
+            ~eligible_households["household_id"].isin(excluded_household_ids)
+        ].copy()
     sampled_household_ids = _sample_household_ids(eligible_households, n=n, seed=seed)
 
     scenarios = []
@@ -671,13 +831,165 @@ def scenarios_from_cps_frame(
     return scenarios
 
 
-def generate_scenarios(n: int = NUM_SCENARIOS, seed: int = SEED) -> list[Scenario]:
-    """Generate benchmark scenarios from sampled Enhanced CPS households."""
-    person_df, dataset_year = load_enhanced_cps_person_frame()
-    return scenarios_from_cps_frame(
-        person_df,
-        n=n,
-        seed=seed,
-        year=TAX_YEAR,
-        dataset_year=dataset_year,
+def _uk_promptable_value(value: Any) -> Any | None:
+    if pd.isna(value):
+        return None
+    if isinstance(value, (np.bool_, bool)):
+        return True if bool(value) else None
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned in UK_NON_PROMPTABLE_SENTINELS:
+            return None
+        return cleaned
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return value
+    if abs(numeric) <= 1e-6:
+        return None
+    return numeric
+
+
+def _extract_uk_person_inputs(row: pd.Series) -> dict[str, Any]:
+    inputs: dict[str, Any] = {}
+    for field, value in row.items():
+        if (
+            field in UK_EXCLUDED_PERSON_INPUTS
+            or field.endswith("_id")
+            or field in {"age", "employment_income", "gender", "marital_status"}
+        ):
+            continue
+        promptable = _uk_promptable_value(value)
+        if promptable is not None:
+            inputs[field] = promptable
+    return inputs
+
+
+def _extract_uk_household_inputs(row: pd.Series) -> dict[str, Any]:
+    inputs: dict[str, Any] = {}
+    for field, value in row.items():
+        if field in UK_EXCLUDED_HOUSEHOLD_INPUTS or field.endswith("_id"):
+            continue
+        promptable = _uk_promptable_value(value)
+        if promptable is not None:
+            inputs[field] = promptable
+    return inputs
+
+
+def _build_uk_person(row: pd.Series, label: str) -> Person:
+    employment_income = pd.to_numeric(row["employment_income"], errors="coerce")
+    if pd.isna(employment_income):
+        employment_income = 0.0
+    return Person(
+        name=label,
+        age=int(row["age"]),
+        employment_income=float(employment_income),
+        inputs=_extract_uk_person_inputs(row),
     )
+
+
+def scenarios_from_uk_frames(
+    person_df: pd.DataFrame,
+    household_df: pd.DataFrame,
+    n: int = NUM_SCENARIOS,
+    seed: int = SEED,
+    year: int = TAX_YEAR,
+    dataset_year: int | None = None,
+    excluded_household_ids: set[int] | None = None,
+) -> list[Scenario]:
+    """Sample benchmark scenarios from the local UK enhanced CPS dataset."""
+    eligible_households = household_df.copy()
+    if excluded_household_ids:
+        eligible_households = eligible_households[
+            ~eligible_households["household_id"].isin(excluded_household_ids)
+        ].copy()
+
+    sampled_household_ids = _sample_household_ids(eligible_households, n=n, seed=seed)
+    household_lookup = household_df.set_index("household_id")
+
+    scenarios = []
+    for index, household_id in enumerate(sampled_household_ids):
+        household_row = household_lookup.loc[int(household_id)]
+        household_people = person_df[
+            person_df["person_household_id"] == int(household_id)
+        ].copy()
+        household_people = household_people.sort_values(
+            by=["age", "person_id"],
+            ascending=[False, True],
+        )
+
+        adults = []
+        children = []
+        adult_count = 0
+        child_count = 0
+        for _, row in household_people.iterrows():
+            if int(row["age"]) >= 18:
+                adult_count += 1
+                adults.append(_build_uk_person(row, f"adult{adult_count}"))
+            else:
+                child_count += 1
+                children.append(_build_uk_person(row, f"child{child_count}"))
+
+        metadata = {"household_id": int(household_id)}
+        benunit_ids = sorted(
+            {
+                int(benunit_id)
+                for benunit_id in household_people["person_benunit_id"].dropna().astype(int)
+            }
+        )
+        if benunit_ids:
+            metadata["benunit_ids"] = benunit_ids
+        if dataset_year is not None:
+            metadata["dataset_year"] = int(dataset_year)
+
+        scenarios.append(
+            Scenario(
+                id=f"scenario_{index:03d}",
+                country="uk",
+                state=str(household_row["region"]),
+                filing_status=None,
+                adults=adults,
+                children=children,
+                household_inputs=_extract_uk_household_inputs(household_row),
+                year=year,
+                source_dataset=(
+                    f"enhanced_cps_uk_{int(dataset_year)}"
+                    if dataset_year is not None
+                    else "enhanced_cps_uk"
+                ),
+                metadata=metadata,
+            )
+        )
+
+    return scenarios
+
+
+def generate_scenarios(
+    n: int = NUM_SCENARIOS,
+    seed: int = SEED,
+    excluded_household_ids: set[int] | None = None,
+    country: str = DEFAULT_COUNTRY,
+) -> list[Scenario]:
+    """Generate benchmark scenarios for a country."""
+    if country == "us":
+        person_df, dataset_year = load_enhanced_cps_person_frame()
+        return scenarios_from_cps_frame(
+            person_df,
+            n=n,
+            seed=seed,
+            year=TAX_YEAR,
+            dataset_year=dataset_year,
+            excluded_household_ids=excluded_household_ids,
+        )
+    if country == "uk":
+        person_df, household_df, dataset_year = load_uk_enhanced_cps_frames()
+        return scenarios_from_uk_frames(
+            person_df,
+            household_df,
+            n=n,
+            seed=seed,
+            year=TAX_YEAR,
+            dataset_year=dataset_year,
+            excluded_household_ids=excluded_household_ids,
+        )
+    raise ValueError(f"Unsupported country '{country}'")
