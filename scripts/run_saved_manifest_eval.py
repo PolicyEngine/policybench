@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.config import MODELS, get_programs
 import policybench.eval_no_tools as eval_no_tools
+from policybench.config import MODELS, get_programs
 from policybench.scenarios import scenario_from_dict
 
 
@@ -31,7 +31,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--single-output",
         action="store_true",
-        help="Evaluate one requested variable per model call instead of one batch per household",
+        help=(
+            "Evaluate one requested variable per model call "
+            "instead of one batch per household"
+        ),
     )
     return parser.parse_args()
 
@@ -50,7 +53,9 @@ def main() -> None:
         raise ValueError(f"{manifest_path} is missing required column 'scenario_json'")
 
     sliced = manifest.iloc[args.scenario_start : args.scenario_end]
-    scenarios = [scenario_from_dict(json.loads(text)) for text in sliced["scenario_json"]]
+    scenarios = [
+        scenario_from_dict(json.loads(text)) for text in sliced["scenario_json"]
+    ]
 
     print(
         f"Running {args.model} on {len(scenarios)} scenarios "

@@ -9,10 +9,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.config import UK_PROGRAMS, US_PROGRAMS
 import policybench.eval_no_tools as eval_no_tools
+from policybench.config import UK_PROGRAMS, US_PROGRAMS
 from policybench.scenarios import scenario_from_dict
-
 
 DEFAULTS = {
     "us": {
@@ -55,7 +54,9 @@ def main() -> None:
 
     frame = pd.read_csv(manifest)
     sliced = frame.iloc[args.scenario_start : args.scenario_end]
-    scenarios = [scenario_from_dict(json.loads(text)) for text in sliced["scenario_json"]]
+    scenarios = [
+        scenario_from_dict(json.loads(text)) for text in sliced["scenario_json"]
+    ]
 
     # This helper is only used for backfills, so frequent checkpoints are useful.
     eval_no_tools.CHECKPOINT_EVERY_ROWS = 1

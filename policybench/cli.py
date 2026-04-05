@@ -24,7 +24,9 @@ def _parse_models(selected: list[str] | None) -> dict[str, str]:
     return {name: MODELS[name] for name in selected}
 
 
-def _parse_programs(selected: list[str] | None, allowed: list[str] | None = None) -> list[str]:
+def _parse_programs(
+    selected: list[str] | None, allowed: list[str] | None = None
+) -> list[str]:
     allowed_programs = PROGRAMS if allowed is None else allowed
     if not selected:
         return allowed_programs
@@ -123,7 +125,10 @@ def main():
     nt_parser.add_argument(
         "--single-output",
         action="store_true",
-        help="Evaluate one configured output per request instead of one batch per household",
+        help=(
+            "Evaluate one configured output per request "
+            "instead of one batch per household"
+        ),
     )
     nt_parser.add_argument(
         "--exclude-scenario-manifest",
@@ -188,7 +193,10 @@ def main():
     ntr_parser.add_argument(
         "--single-output",
         action="store_true",
-        help="Evaluate one configured output per request instead of one batch per household",
+        help=(
+            "Evaluate one configured output per request "
+            "instead of one batch per household"
+        ),
     )
     ntr_parser.add_argument(
         "--exclude-scenario-manifest",
@@ -198,7 +206,9 @@ def main():
 
     # Analyze
     analyze_parser = subparsers.add_parser("analyze", help="Analyze AI-alone results")
-    analyze_parser.add_argument("-g", "--ground-truth", default="results/ground_truth.csv")
+    analyze_parser.add_argument(
+        "-g", "--ground-truth", default="results/ground_truth.csv"
+    )
     analyze_parser.add_argument(
         "-p", "--predictions", default="results/no_tools/predictions.csv"
     )
@@ -267,7 +277,10 @@ def main():
             run_no_tools_eval,
             run_no_tools_single_output_eval,
         )
-        from policybench.scenarios import generate_scenarios, load_excluded_household_ids
+        from policybench.scenarios import (
+            generate_scenarios,
+            load_excluded_household_ids,
+        )
 
         excluded_household_ids = None
         if args.exclude_scenario_manifest:
@@ -285,7 +298,9 @@ def main():
         models = _parse_models(args.models)
         programs = _parse_programs(args.programs, get_programs(args.country))
         _ensure_parent_dir(args.output)
-        runner = run_no_tools_single_output_eval if args.single_output else run_no_tools_eval
+        runner = (
+            run_no_tools_single_output_eval if args.single_output else run_no_tools_eval
+        )
         df = runner(
             scenarios,
             models=models,
@@ -298,7 +313,10 @@ def main():
 
     elif args.command == "eval-no-tools-repeated":
         from policybench.eval_no_tools import run_repeated_no_tools_eval
-        from policybench.scenarios import generate_scenarios, load_excluded_household_ids
+        from policybench.scenarios import (
+            generate_scenarios,
+            load_excluded_household_ids,
+        )
 
         excluded_household_ids = None
         if args.exclude_scenario_manifest:
@@ -333,8 +351,8 @@ def main():
         from policybench.analysis import (
             analyze_no_tools,
             build_scenario_prompt_map,
-            export_dashboard_data,
             export_analysis,
+            export_dashboard_data,
         )
         from policybench.eval_no_tools import load_repeated_predictions
 

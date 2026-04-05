@@ -8,7 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PAPER_DIR = ROOT / "paper"
 PUBLIC_PAPER_DIR = ROOT / "app" / "public" / "paper"
@@ -164,7 +163,8 @@ def ensure_web_index(destination: Path) -> None:
     <main>
       <section class="card">
         <div class="actions">
-          <p>Browser paper view. Download the PDF if the embed is slow on your device.</p>
+          <p>Browser paper view. Download the PDF if the embed
+is slow on your device.</p>
           <div class="links">
             <a href="/paper/policybench.pdf">Download PDF</a>
             <a href="/paper">Paper landing</a>

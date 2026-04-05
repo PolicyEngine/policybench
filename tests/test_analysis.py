@@ -1,6 +1,7 @@
 """Tests for metrics and analysis."""
 
 import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -8,12 +9,12 @@ import pytest
 from policybench.analysis import (
     accuracy,
     analyze_no_tools,
-    build_scenario_prompt_map,
     build_dashboard_payload,
+    build_scenario_prompt_map,
     compute_metrics,
     exact_amount_match,
-    export_dashboard_data,
     export_analysis,
+    export_dashboard_data,
     mean_absolute_error,
     mean_absolute_percentage_error,
     render_markdown_report,
@@ -551,7 +552,10 @@ class TestSummaries:
         assert "score" in payload["modelStats"][0]
         assert "within10pctRunMean" not in payload["modelStats"][0]
         assert payload["heatmap"][0]["condition"] == "no_tools"
-        assert payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]["prediction"] == 110.0
+        assert (
+            payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]["prediction"]
+            == 110.0
+        )
         assert (
             payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]["explanation"]
             == "brief note"

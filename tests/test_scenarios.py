@@ -1,6 +1,7 @@
 """Tests for scenario generation."""
 
 import json
+
 import pandas as pd
 import pytest
 
@@ -525,7 +526,9 @@ def test_pe_household_format(simple_single_scenario):
 
     housing = household["households"]["household"]
     assert "state_code" in housing
-    assert household["people"]["adult1"]["takes_up_medicaid_if_eligible"]["2025"] is True
+    assert (
+        household["people"]["adult1"]["takes_up_medicaid_if_eligible"]["2025"] is True
+    )
     assert household["people"]["adult1"]["takes_up_ssi_if_eligible"]["2025"] is True
 
 
@@ -560,14 +563,19 @@ def test_pe_household_includes_cross_entity_inputs():
 
     household = scenario.to_pe_household()
     assert household["people"]["adult1"]["real_estate_taxes"]["2025"] == 4_200.0
-    assert household["tax_units"]["tax_unit"]["health_savings_account_ald"]["2025"] == 900.0
     assert (
-        household["spm_units"]["spm_unit"][
-            "spm_unit_pre_subsidy_childcare_expenses"
-        ]["2025"]
+        household["tax_units"]["tax_unit"]["health_savings_account_ald"]["2025"]
+        == 900.0
+    )
+    assert (
+        household["spm_units"]["spm_unit"]["spm_unit_pre_subsidy_childcare_expenses"][
+            "2025"
+        ]
         == 1_200.0
     )
-    assert household["spm_units"]["spm_unit"]["takes_up_snap_if_eligible"]["2025"] is True
+    assert (
+        household["spm_units"]["spm_unit"]["takes_up_snap_if_eligible"]["2025"] is True
+    )
     assert household["households"]["household"]["auto_loan_interest"]["2025"] == 250.0
 
 
@@ -597,7 +605,9 @@ def test_generate_scenarios_uses_loader(monkeypatch, sample_person_frame):
     def fake_loader():
         return sample_person_frame, 2024
 
-    monkeypatch.setattr("policybench.scenarios.load_enhanced_cps_person_frame", fake_loader)
+    monkeypatch.setattr(
+        "policybench.scenarios.load_enhanced_cps_person_frame", fake_loader
+    )
     scenarios = generate_scenarios(n=3, seed=0)
 
     assert len(scenarios) == 3
@@ -611,14 +621,18 @@ def test_generate_uk_scenarios_uses_loader(monkeypatch, sample_uk_frames):
     def fake_loader():
         return person_df, household_df, 2025
 
-    monkeypatch.setattr("policybench.scenarios.load_uk_enhanced_cps_frames", fake_loader)
+    monkeypatch.setattr(
+        "policybench.scenarios.load_uk_enhanced_cps_frames", fake_loader
+    )
     scenarios = generate_scenarios(n=2, seed=0, country="uk")
 
     assert len(scenarios) == 2
     assert all(scenario.country == "uk" for scenario in scenarios)
     assert all(scenario.filing_status is None for scenario in scenarios)
     assert all(scenario.metadata["dataset_year"] == 2025 for scenario in scenarios)
-    assert all(scenario.source_dataset == "enhanced_cps_uk_2025" for scenario in scenarios)
+    assert all(
+        scenario.source_dataset == "enhanced_cps_uk_2025" for scenario in scenarios
+    )
 
 
 def test_scenarios_from_cps_frame_can_exclude_households(sample_person_frame):

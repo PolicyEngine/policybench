@@ -143,7 +143,9 @@ def _aggregate_uk_variable_to_households(
         ).astype(int)
         values = pd.DataFrame(
             {
-                "value": sim.calculate(variable, period, map_to="benunit", unweighted=True),
+                "value": sim.calculate(
+                    variable, period, map_to="benunit", unweighted=True
+                ),
                 "household_id": benunit_households.reindex(benunit_ids).to_numpy(),
             }
         )
@@ -175,7 +177,9 @@ def calculate_ground_truth(
 
     country = scenarios[0].country or DEFAULT_COUNTRY
     if any(scenario.country != country for scenario in scenarios):
-        raise ValueError("All scenarios in one ground-truth batch must share a country.")
+        raise ValueError(
+            "All scenarios in one ground-truth batch must share a country."
+        )
 
     if programs is None:
         programs = get_programs(country) if country != DEFAULT_COUNTRY else PROGRAMS

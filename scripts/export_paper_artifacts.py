@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
-
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPORT_DIR = ROOT / "results" / "paper_exports"
@@ -76,7 +75,8 @@ def build_snapshot_metadata() -> dict:
         },
         "notes": [
             "Paper tables are frozen from the run directories above.",
-            "PolicyEngine outputs are benchmark reference outputs, not administrative ground truth.",
+            "PolicyEngine outputs are benchmark reference "
+            "outputs, not administrative ground truth.",
             "Diagnostic runs are excluded from leaderboard scoring.",
         ],
     }
@@ -87,11 +87,15 @@ def main() -> None:
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
     export_csv(US_ANALYSIS_DIR / "summary_by_model.csv", "us_summary_by_model.csv")
-    export_csv(US_ANALYSIS_DIR / "summary_by_variable.csv", "us_summary_by_variable.csv")
+    export_csv(
+        US_ANALYSIS_DIR / "summary_by_variable.csv", "us_summary_by_variable.csv"
+    )
     export_csv(US_ANALYSIS_DIR / "usage_summary.csv", "us_usage_summary.csv")
 
     export_csv(UK_ANALYSIS_DIR / "summary_by_model.csv", "uk_summary_by_model.csv")
-    export_csv(UK_ANALYSIS_DIR / "summary_by_variable.csv", "uk_summary_by_variable.csv")
+    export_csv(
+        UK_ANALYSIS_DIR / "summary_by_variable.csv", "uk_summary_by_variable.csv"
+    )
     export_csv(UK_ANALYSIS_DIR / "usage_summary.csv", "uk_usage_summary.csv")
 
     global_source = ROOT / "app" / "src" / "data.json"

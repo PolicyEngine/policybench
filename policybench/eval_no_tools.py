@@ -1,21 +1,20 @@
 """AI-alone evaluation using LiteLLM (no tools provided)."""
 
 import json
-from pathlib import Path
 import re
 import time
+from pathlib import Path
 from typing import Iterable
 
-import pandas as pd
 import litellm
+import pandas as pd
 from litellm import completion, completion_cost, responses
 
 from policybench.config import MODELS, PROGRAMS
 from policybench.prompts import (
     get_variable_description,
-    make_no_tools_batch_repair_prompt,
     make_no_tools_batch_prompt,
-    make_no_tools_prompt,
+    make_no_tools_batch_repair_prompt,
 )
 from policybench.scenarios import Scenario
 
@@ -54,9 +53,7 @@ MODEL_FATAL_ERRORS = (
     litellm.UnsupportedParamsError,
     litellm.UnprocessableEntityError,
 )
-STANDALONE_NUMBER_RE = re.compile(
-    r"^\$?-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$"
-)
+STANDALONE_NUMBER_RE = re.compile(r"^\$?-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$")
 ANSWER_JSON_RE = re.compile(
     r'["\']answer["\']\s*:\s*["\']?(-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)',
     re.IGNORECASE,
@@ -79,7 +76,9 @@ def _get_usage_value(obj, key: str):
     return getattr(obj, key, None)
 
 
-def _extract_usage_metadata(response, model_id: str, messages: list[dict], content: str) -> dict:
+def _extract_usage_metadata(
+    response, model_id: str, messages: list[dict], content: str
+) -> dict:
     usage = getattr(response, "usage", None)
     prompt_tokens_details = _get_usage_value(usage, "prompt_tokens_details")
     if prompt_tokens_details is None:
@@ -89,7 +88,9 @@ def _extract_usage_metadata(response, model_id: str, messages: list[dict], conte
         completion_tokens_details = _get_usage_value(usage, "output_tokens_details")
     reasoning_tokens = _get_usage_value(usage, "reasoning_tokens")
     if reasoning_tokens is None:
-        reasoning_tokens = _get_usage_value(completion_tokens_details, "reasoning_tokens")
+        reasoning_tokens = _get_usage_value(
+            completion_tokens_details, "reasoning_tokens"
+        )
 
     provider_reported_cost_usd = _get_usage_value(usage, "cost")
     reconstructed_cost_usd = None
@@ -117,7 +118,9 @@ def _extract_usage_metadata(response, model_id: str, messages: list[dict], conte
         or _get_usage_value(usage, "output_tokens"),
         "total_tokens": _get_usage_value(usage, "total_tokens"),
         "reasoning_tokens": reasoning_tokens,
-        "cached_prompt_tokens": _get_usage_value(prompt_tokens_details, "cached_tokens"),
+        "cached_prompt_tokens": _get_usage_value(
+            prompt_tokens_details, "cached_tokens"
+        ),
         "provider_reported_cost_usd": provider_reported_cost_usd,
         "reconstructed_cost_usd": reconstructed_cost_usd,
         "total_cost_usd": total_cost_usd,
@@ -135,7 +138,9 @@ def _parse_standalone_number(text: str) -> float | None:
     return float(cleaned.replace(",", "").replace("$", ""))
 
 
-def _required_explanation_chunk_size(model_id: str, include_explanations: bool) -> int | None:
+def _required_explanation_chunk_size(
+    model_id: str, include_explanations: bool
+) -> int | None:
     if include_explanations and model_id.startswith("claude-"):
         return CLAUDE_EXPLANATION_CHUNK_SIZE
     return None
@@ -177,7 +182,11 @@ def _request_timeout_seconds(model_id: str) -> int:
         return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
     if model_id == "xai/grok-4.20-reasoning":
         return XAI_GROK_420_REASONING_REQUEST_TIMEOUT_SECONDS
-    if model_id.startswith("xai/") and "reasoning" in model_id and "non-reasoning" not in model_id:
+    if (
+        model_id.startswith("xai/")
+        and "reasoning" in model_id
+        and "non-reasoning" not in model_id
+    ):
         return XAI_REASONING_REQUEST_TIMEOUT_SECONDS
     return REQUEST_TIMEOUT_SECONDS
 
@@ -311,8 +320,7 @@ def _build_answer_tool(
                         variable: {
                             "type": "string",
                             "description": (
-                                "Brief explanation for the estimated "
-                                f"{variable} value"
+                                f"Brief explanation for the estimated {variable} value"
                             ),
                         }
                         for variable in variables
@@ -563,7 +571,9 @@ def _extract_explanations_from_payload(
     if not isinstance(payload, dict):
         if raw_text:
             explanation_match = re.search(r'["\']explanations["\']\s*:\s*\{', raw_text)
-            explanation_text = raw_text[explanation_match.end() :] if explanation_match else raw_text
+            explanation_text = (
+                raw_text[explanation_match.end() :] if explanation_match else raw_text
+            )
             for variable in variables:
                 match = re.search(
                     rf'["\']{re.escape(variable)}["\']\s*:\s*"((?:\\.|[^"\\])*)"',
@@ -571,7 +581,9 @@ def _extract_explanations_from_payload(
                 )
                 if match is None:
                     continue
-                cleaned = bytes(match.group(1), "utf-8").decode("unicode_escape").strip()
+                cleaned = (
+                    bytes(match.group(1), "utf-8").decode("unicode_escape").strip()
+                )
                 explanations[variable] = cleaned or None
         return explanations
 
@@ -668,7 +680,9 @@ def _serialize_function_call(function_call) -> dict | None:
     }
 
 
-def _serialize_response_payload(content, tool_calls=None, function_call=None) -> str | None:
+def _serialize_response_payload(
+    content, tool_calls=None, function_call=None
+) -> str | None:
     payload = {}
     if content is not None:
         payload["content"] = content
@@ -932,7 +946,9 @@ def run_single_no_tools(
                 errors.append(chunk_result["error"])
 
         cost_rows = [
-            result for result in chunk_results if result.get("total_cost_usd") is not None
+            result
+            for result in chunk_results
+            if result.get("total_cost_usd") is not None
         ]
         raw_response = json.dumps(
             {
@@ -942,7 +958,9 @@ def run_single_no_tools(
                         "raw_response": result.get("raw_response"),
                     }
                     for chunk, result in zip(
-                        _chunk_variables(variables, chunk_size), chunk_results, strict=True
+                        _chunk_variables(variables, chunk_size),
+                        chunk_results,
+                        strict=True,
                     )
                 ]
             }
@@ -955,7 +973,9 @@ def run_single_no_tools(
             "raw_response": raw_response,
             "elapsed_seconds": _sum_optional_field(chunk_results, "elapsed_seconds"),
             "prompt_tokens": _sum_optional_field(chunk_results, "prompt_tokens"),
-            "completion_tokens": _sum_optional_field(chunk_results, "completion_tokens"),
+            "completion_tokens": _sum_optional_field(
+                chunk_results, "completion_tokens"
+            ),
             "total_tokens": _sum_optional_field(chunk_results, "total_tokens"),
             "reasoning_tokens": _sum_optional_field(chunk_results, "reasoning_tokens"),
             "cached_prompt_tokens": _sum_optional_field(
@@ -973,7 +993,9 @@ def run_single_no_tools(
                 if cost_rows
                 else None
             ),
-            "estimated_cost_usd": _sum_optional_field(chunk_results, "estimated_cost_usd"),
+            "estimated_cost_usd": _sum_optional_field(
+                chunk_results, "estimated_cost_usd"
+            ),
         }
 
     request_results = []
@@ -1394,9 +1416,7 @@ def run_no_tools_single_output_eval(
                         "provider_reported_cost_usd": result.get(
                             "provider_reported_cost_usd"
                         ),
-                        "reconstructed_cost_usd": result.get(
-                            "reconstructed_cost_usd"
-                        ),
+                        "reconstructed_cost_usd": result.get("reconstructed_cost_usd"),
                         "total_cost_usd": result.get("total_cost_usd"),
                         "cost_is_estimated": result.get("cost_is_estimated"),
                         "estimated_cost_usd": result.get("estimated_cost_usd"),

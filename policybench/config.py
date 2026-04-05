@@ -80,4 +80,6 @@ def get_programs(country: str) -> list[str]:
         return COUNTRY_PROGRAMS[country]
     except KeyError as exc:
         valid = ", ".join(sorted(COUNTRY_PROGRAMS))
-        raise ValueError(f"Unsupported country '{country}'. Valid choices: {valid}") from exc
+        raise ValueError(
+            f"Unsupported country '{country}'. Valid choices: {valid}"
+        ) from exc

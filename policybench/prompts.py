@@ -32,8 +32,7 @@ US_VARIABLE_DESCRIPTIONS = {
         "(1 if yes, 0 if no; reduced-price meals do not count as 1)"
     ),
     "is_medicaid_eligible": (
-        "whether anyone in the household is eligible for Medicaid "
-        "(1 if yes, 0 if no)"
+        "whether anyone in the household is eligible for Medicaid (1 if yes, 0 if no)"
     ),
     "state_agi": "state adjusted gross income (state AGI)",
     "state_income_tax_before_refundable_credits": (
@@ -141,9 +140,7 @@ INPUT_LABEL_OVERRIDES = {
     "tip_income": "tip income",
     "traditional_401k_contributions": "traditional 401(k) contributions",
     "traditional_ira_contributions": "traditional IRA contributions",
-    "unadjusted_basis_qualified_property": (
-        "unadjusted basis of qualified property"
-    ),
+    "unadjusted_basis_qualified_property": ("unadjusted basis of qualified property"),
     "unrecaptured_section_1250_gain": "unrecaptured section 1250 gain",
     "unreimbursed_business_employee_expenses": (
         "unreimbursed employee business expenses"
@@ -254,7 +251,9 @@ def describe_person(person: Person, country: str = "us") -> str:
 
     if person.name.startswith("adult") or abs(person.employment_income) > 1e-6:
         lines.append(
-            f"- employment income: {_currency_symbol(country)}{person.employment_income:,.0f}"
+            f"- employment income: "
+            f"{_currency_symbol(country)}"
+            f"{person.employment_income:,.0f}"
         )
 
     for field, value in sorted(person.inputs.items()):
@@ -263,7 +262,9 @@ def describe_person(person: Person, country: str = "us") -> str:
     return "\n".join(lines)
 
 
-def _describe_entity_inputs(title: str, inputs: dict[str, object], country: str = "us") -> str:
+def _describe_entity_inputs(
+    title: str, inputs: dict[str, object], country: str = "us"
+) -> str:
     if not inputs:
         return ""
     lines = [f"{title}:"]
@@ -356,35 +357,64 @@ def make_no_tools_batch_prompt(
         requested_keys = ", ".join(f'"{variable}": 1234.5' for variable in variables)
         if include_explanations:
             answer_instructions = (
-                "Return a single JSON object with an `answers` object and a required "
+                "Return a single JSON object with an "
+                "`answers` object and a required "
                 "`explanations` object. "
-                f'Use the exact variable names as keys inside `answers`, for example {{"answers": {{{requested_keys}}}, "explanations": {{"{variables[0]}": "short note"}}}}. '
-                "Include every requested key exactly once in `answers`, even if the value is 0. "
-                "Include every requested key exactly once in `explanations`. "
-                "Keep each explanation to one short sentence of at most 12 words. "
-                "Each explanation must be non-empty and specific to that variable. "
-                "Put only numeric values in `answers`, with no dollar signs, commas, or explanatory text in the values. "
-                "Do not rely on plain text outside the JSON object for the final answers. "
+                "Use the exact variable names as keys "
+                "inside `answers`, for example "
+                f'{{"answers": {{{requested_keys}}}, '
+                f'"explanations": {{"{variables[0]}": '
+                '"short note"}}}}. '
+                "Include every requested key exactly once "
+                "in `answers`, even if the value is 0. "
+                "Include every requested key exactly "
+                "once in `explanations`. "
+                "Keep each explanation to one short "
+                "sentence of at most 12 words. "
+                "Each explanation must be non-empty "
+                "and specific to that variable. "
+                "Put only numeric values in `answers`, "
+                "with no dollar signs, commas, or "
+                "explanatory text in the values. "
+                "Do not rely on plain text outside "
+                "the JSON object for the final answers. "
             )
         else:
             answer_instructions = (
-                "Return a single JSON object containing every requested quantity. "
-                f'Use the exact variable names as keys, for example {{{requested_keys}}}. '
-                "Include every requested key exactly once, even if the value is 0. "
-                "Put only numeric values in the JSON object, with no dollar signs, "
-                "commas, or explanatory text in the values. "
-                "Do not rely on plain text outside the JSON object for the final answers. "
+                "Return a single JSON object containing "
+                "every requested quantity. "
+                "Use the exact variable names as keys, "
+                f"for example {{{requested_keys}}}. "
+                "Include every requested key exactly "
+                "once, even if the value is 0. "
+                "Put only numeric values in the JSON "
+                "object, with no dollar signs, "
+                "commas, or explanatory text in "
+                "the values. "
+                "Do not rely on plain text outside "
+                "the JSON object for the final "
+                "answers. "
             )
     else:
         if include_explanations:
             answer_instructions = (
-                "Use the `submit_answers` function exactly once. "
-                "Return an `answers` object with every requested quantity and a required "
-                "`explanations` object with brief notes keyed by the same variable names. "
-                "Keep each explanation to one short sentence of at most 12 words. "
-                "Include every requested key exactly once in `explanations`, and do not leave any explanation blank. "
-                "Use the exact variable names as keys inside `answers` and put only numeric values there. "
-                "Include every requested key exactly once in `answers`, even if the value is 0. "
+                "Use the `submit_answers` function "
+                "exactly once. "
+                "Return an `answers` object with every "
+                "requested quantity and a required "
+                "`explanations` object with brief notes "
+                "keyed by the same variable names. "
+                "Keep each explanation to one short "
+                "sentence of at most 12 words. "
+                "Include every requested key exactly "
+                "once in `explanations`, and do not "
+                "leave any explanation blank. "
+                "Use the exact variable names as keys "
+                "inside `answers` and put only numeric "
+                "values there. "
+                "Include every requested key exactly "
+                "once in `answers`, even if the "
+                "value is 0. "
                 "Do not rely on plain text for the final answers. "
             )
         else:
@@ -424,46 +454,82 @@ def make_no_tools_batch_repair_prompt(
         requested_keys = ", ".join(f'"{variable}": 1234.5' for variable in variables)
         if include_explanations:
             answer_instructions = (
-                "A prior response omitted required answers and/or explanations. Return a single JSON object "
-                "with an `answers` object containing the listed quantities below "
-                "and a required `explanations` object keyed by those same variables. "
-                f'Use the exact variable names as keys inside `answers`, for example {{"answers": {{{requested_keys}}}}}. '
-                "Include every listed key exactly once in `answers`, even if the value is 0. "
-                "Include every listed key exactly once in `explanations`. "
-                "Keep each explanation to one short sentence of at most 12 words. "
-                "Each explanation must be non-empty and specific to that variable. "
-                "Do not include any keys that are not listed below. "
-                "Put only numeric values in `answers`, with no dollar signs, commas, or explanatory text in the values. "
-                "Do not rely on plain text outside the JSON object for the final answers. "
+                "A prior response omitted required "
+                "answers and/or explanations. "
+                "Return a single JSON object "
+                "with an `answers` object containing "
+                "the listed quantities below "
+                "and a required `explanations` object "
+                "keyed by those same variables. "
+                "Use the exact variable names as keys "
+                "inside `answers`, for example "
+                f'{{"answers": {{{requested_keys}}}}}. '
+                "Include every listed key exactly once "
+                "in `answers`, even if the value is 0. "
+                "Include every listed key exactly "
+                "once in `explanations`. "
+                "Keep each explanation to one short "
+                "sentence of at most 12 words. "
+                "Each explanation must be non-empty "
+                "and specific to that variable. "
+                "Do not include any keys that are "
+                "not listed below. "
+                "Put only numeric values in `answers`, "
+                "with no dollar signs, commas, or "
+                "explanatory text in the values. "
+                "Do not rely on plain text outside "
+                "the JSON object for the final "
+                "answers. "
             )
         else:
             answer_instructions = (
-                "A prior response omitted required keys. Return a single JSON object "
-                "containing only the missing quantities listed below. "
-                f'Use the exact variable names as keys, for example {{{requested_keys}}}. '
+                "A prior response omitted required "
+                "keys. Return a single JSON object "
+                "containing only the missing quantities "
+                "listed below. "
+                "Use the exact variable names as keys, "
+                f"for example {{{requested_keys}}}. "
                 "Include every listed key exactly once, even if the value is 0. "
                 "Do not include any keys that are not listed below. "
-                "Put only numeric values in the JSON object, with no dollar signs, "
-                "commas, or explanatory text in the values. "
-                "Do not rely on plain text outside the JSON object for the final answers. "
+                "Put only numeric values in the JSON "
+                "object, with no dollar signs, "
+                "commas, or explanatory text in "
+                "the values. "
+                "Do not rely on plain text outside "
+                "the JSON object for the final "
+                "answers. "
             )
     else:
         if include_explanations:
             answer_instructions = (
-                "A prior response omitted required answers and/or explanations. Use the `submit_answers` "
-                "function exactly once to return an `answers` object containing the listed quantities below, "
-                "and a required `explanations` object keyed by those same variables. "
-                "Keep each explanation to one short sentence of at most 12 words. "
-                "Include every listed key exactly once in `explanations`, and do not leave any explanation blank. "
-                "Use the exact variable names as keys inside `answers` and put only numeric values there. "
-                "Include every listed key exactly once in `answers`, even if the value is 0. "
+                "A prior response omitted required "
+                "answers and/or explanations. "
+                "Use the `submit_answers` function "
+                "exactly once to return an `answers` "
+                "object containing the listed "
+                "quantities below, and a required "
+                "`explanations` object keyed by those "
+                "same variables. "
+                "Keep each explanation to one short "
+                "sentence of at most 12 words. "
+                "Include every listed key exactly once "
+                "in `explanations`, and do not leave "
+                "any explanation blank. "
+                "Use the exact variable names as keys "
+                "inside `answers` and put only numeric "
+                "values there. "
+                "Include every listed key exactly once "
+                "in `answers`, even if the value "
+                "is 0. "
                 "Do not include any keys that are not listed below. "
                 "Do not rely on plain text for the final answers. "
             )
         else:
             answer_instructions = (
-                "A prior response omitted required keys. Use the `submit_answers` "
-                "function exactly once to return only the missing quantities listed below. "
+                "A prior response omitted required "
+                "keys. Use the `submit_answers` "
+                "function exactly once to return only "
+                "the missing quantities listed below. "
                 "Use the exact variable names as keys and put only numeric values in "
                 "the arguments. "
                 "Include every listed key exactly once, even if the value is 0. "

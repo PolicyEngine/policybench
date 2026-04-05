@@ -1,9 +1,9 @@
 """Household scenario generation for PolicyBench."""
 
-from dataclasses import dataclass, field
-from functools import lru_cache
 import json
 import os
+from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -351,10 +351,10 @@ class Scenario:
                 "age": self._yearize(person.age),
                 "employment_income": self._yearize(person.employment_income),
             }
-            for field, value in person.inputs.items():
-                person_data[field] = self._yearize(value)
-            for field, value in DEFAULT_TAKEUP_INPUTS["person"].items():
-                person_data.setdefault(field, self._yearize(value))
+            for key, value in person.inputs.items():
+                person_data[key] = self._yearize(value)
+            for key, value in DEFAULT_TAKEUP_INPUTS["person"].items():
+                person_data.setdefault(key, self._yearize(value))
             people[person.name] = person_data
             adult_names.append(person.name)
 
@@ -363,10 +363,10 @@ class Scenario:
                 "age": self._yearize(person.age),
                 "employment_income": self._yearize(person.employment_income),
             }
-            for field, value in person.inputs.items():
-                person_data[field] = self._yearize(value)
-            for field, value in DEFAULT_TAKEUP_INPUTS["person"].items():
-                person_data.setdefault(field, self._yearize(value))
+            for key, value in person.inputs.items():
+                person_data[key] = self._yearize(value)
+            for key, value in DEFAULT_TAKEUP_INPUTS["person"].items():
+                person_data.setdefault(key, self._yearize(value))
             people[person.name] = person_data
             child_names.append(person.name)
 
@@ -376,25 +376,25 @@ class Scenario:
             "members": all_names,
             "filing_status": self._yearize(PE_FILING_STATUSES[self.filing_status]),
         }
-        for field, value in self.tax_unit_inputs.items():
-            tax_unit_data[field] = self._yearize(value)
-        for field, value in DEFAULT_TAKEUP_INPUTS["tax_unit"].items():
-            tax_unit_data.setdefault(field, self._yearize(value))
+        for key, value in self.tax_unit_inputs.items():
+            tax_unit_data[key] = self._yearize(value)
+        for key, value in DEFAULT_TAKEUP_INPUTS["tax_unit"].items():
+            tax_unit_data.setdefault(key, self._yearize(value))
 
         spm_unit_data = {"members": all_names}
-        for field, value in self.spm_unit_inputs.items():
-            spm_unit_data[field] = self._yearize(value)
-        for field, value in DEFAULT_TAKEUP_INPUTS["spm_unit"].items():
-            spm_unit_data.setdefault(field, self._yearize(value))
+        for key, value in self.spm_unit_inputs.items():
+            spm_unit_data[key] = self._yearize(value)
+        for key, value in DEFAULT_TAKEUP_INPUTS["spm_unit"].items():
+            spm_unit_data.setdefault(key, self._yearize(value))
 
         household_data = {
             "members": all_names,
             "state_code": self._yearize(self.state),
         }
-        for field, value in self.household_inputs.items():
-            household_data[field] = self._yearize(value)
-        for field, value in DEFAULT_TAKEUP_INPUTS["household"].items():
-            household_data.setdefault(field, self._yearize(value))
+        for key, value in self.household_inputs.items():
+            household_data[key] = self._yearize(value)
+        for key, value in DEFAULT_TAKEUP_INPUTS["household"].items():
+            household_data.setdefault(key, self._yearize(value))
 
         return {
             "people": people,
@@ -536,14 +536,18 @@ def load_uk_enhanced_cps_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
     person_df = pd.DataFrame(person_values)
     household_df = pd.DataFrame(household_values)
 
-    person_df["person_id"] = pd.to_numeric(person_df["person_id"], errors="coerce").astype(int)
+    person_df["person_id"] = pd.to_numeric(
+        person_df["person_id"], errors="coerce"
+    ).astype(int)
     person_df["person_household_id"] = pd.to_numeric(
         person_df["person_household_id"], errors="coerce"
     ).astype(int)
     person_df["person_benunit_id"] = pd.to_numeric(
         person_df["person_benunit_id"], errors="coerce"
     ).astype(int)
-    person_df["age"] = pd.to_numeric(person_df["age"], errors="coerce").fillna(0).astype(int)
+    person_df["age"] = (
+        pd.to_numeric(person_df["age"], errors="coerce").fillna(0).astype(int)
+    )
 
     household_df["household_id"] = pd.to_numeric(
         household_df["household_id"], errors="coerce"
@@ -609,11 +613,7 @@ def _prepare_cps_frame(person_df: pd.DataFrame) -> pd.DataFrame:
         "age",
         "household_weight",
         "employment_income",
-        *(
-            spec.output_name
-            for spec in input_specs
-            if spec.value_type == "float"
-        ),
+        *(spec.output_name for spec in input_specs if spec.value_type == "float"),
     }
     for column in numeric_columns:
         df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0.0)
@@ -621,22 +621,30 @@ def _prepare_cps_frame(person_df: pd.DataFrame) -> pd.DataFrame:
     boolean_columns = {
         "is_tax_unit_head",
         "is_tax_unit_spouse",
-        *(
-            spec.output_name
-            for spec in input_specs
-            if spec.value_type == "bool"
-        ),
+        *(spec.output_name for spec in input_specs if spec.value_type == "bool"),
     }
     for column in boolean_columns:
         df[column] = df[column].fillna(False).astype(bool)
 
-    for column in ("person_id", "household_id", "tax_unit_id", "spm_unit_id", "family_id"):
+    for column in (
+        "person_id",
+        "household_id",
+        "tax_unit_id",
+        "spm_unit_id",
+        "family_id",
+    ):
         df[column] = pd.to_numeric(df[column], errors="coerce")
 
     df = df.dropna(
         subset=["person_id", "household_id", "tax_unit_id", "spm_unit_id", "family_id"]
     ).copy()
-    for column in ("person_id", "household_id", "tax_unit_id", "spm_unit_id", "family_id"):
+    for column in (
+        "person_id",
+        "household_id",
+        "tax_unit_id",
+        "spm_unit_id",
+        "family_id",
+    ):
         df[column] = df[column].astype(int)
 
     df["state_code"] = df["state_code"].astype(str)
@@ -667,11 +675,10 @@ def _eligible_households(person_df: pd.DataFrame) -> pd.DataFrame:
     ]
 
     exact_adult_counts = (
-        ((summary["filing_status"] == "JOINT") & (summary["adults"] == 2))
-        | (
-            summary["filing_status"].isin(["SINGLE", "HEAD_OF_HOUSEHOLD"])
-            & (summary["adults"] == 1)
-        )
+        (summary["filing_status"] == "JOINT") & (summary["adults"] == 2)
+    ) | (
+        summary["filing_status"].isin(["SINGLE", "HEAD_OF_HOUSEHOLD"])
+        & (summary["adults"] == 1)
     )
     summary = summary[exact_adult_counts]
     return summary
@@ -718,7 +725,8 @@ def load_excluded_household_ids(manifest_path: str | Path) -> set[int]:
 
     if "scenario_json" not in manifest.columns:
         raise ValueError(
-            "Scenario manifest must include either a household_id or scenario_json column."
+            "Scenario manifest must include either a "
+            "household_id or scenario_json column."
         )
 
     household_ids: set[int] = set()
@@ -852,27 +860,27 @@ def _uk_promptable_value(value: Any) -> Any | None:
 
 def _extract_uk_person_inputs(row: pd.Series) -> dict[str, Any]:
     inputs: dict[str, Any] = {}
-    for field, value in row.items():
+    for col, value in row.items():
         if (
-            field in UK_EXCLUDED_PERSON_INPUTS
-            or field.endswith("_id")
-            or field in {"age", "employment_income", "gender", "marital_status"}
+            col in UK_EXCLUDED_PERSON_INPUTS
+            or col.endswith("_id")
+            or col in {"age", "employment_income", "gender", "marital_status"}
         ):
             continue
         promptable = _uk_promptable_value(value)
         if promptable is not None:
-            inputs[field] = promptable
+            inputs[col] = promptable
     return inputs
 
 
 def _extract_uk_household_inputs(row: pd.Series) -> dict[str, Any]:
     inputs: dict[str, Any] = {}
-    for field, value in row.items():
-        if field in UK_EXCLUDED_HOUSEHOLD_INPUTS or field.endswith("_id"):
+    for col, value in row.items():
+        if col in UK_EXCLUDED_HOUSEHOLD_INPUTS or col.endswith("_id"):
             continue
         promptable = _uk_promptable_value(value)
         if promptable is not None:
-            inputs[field] = promptable
+            inputs[col] = promptable
     return inputs
 
 
@@ -934,7 +942,9 @@ def scenarios_from_uk_frames(
         benunit_ids = sorted(
             {
                 int(benunit_id)
-                for benunit_id in household_people["person_benunit_id"].dropna().astype(int)
+                for benunit_id in household_people["person_benunit_id"]
+                .dropna()
+                .astype(int)
             }
         )
         if benunit_ids:

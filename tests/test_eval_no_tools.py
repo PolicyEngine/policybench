@@ -10,8 +10,8 @@ import pytest
 from policybench.config import COUNTRY_PROGRAMS
 from policybench.eval_no_tools import (
     _build_answer_tool,
-    extract_number,
     extract_explanations,
+    extract_number,
     extract_prediction,
     extract_predictions,
     load_repeated_predictions,
@@ -121,9 +121,7 @@ class TestExtractNumber:
 
     def test_json_answer_with_explanation_after(self):
         assert (
-            extract_number(
-                '{"answer": 3500}\nThe household has no refundable credits.'
-            )
+            extract_number('{"answer": 3500}\nThe household has no refundable credits.')
             == 3500.0
         )
 
@@ -132,9 +130,7 @@ class TestExtractNumber:
 
     def test_multiline_response_with_numeric_final_line(self):
         assert (
-            extract_number(
-                "I estimate the federal income tax is modest.\n\n3500"
-            )
+            extract_number("I estimate the federal income tax is modest.\n\n3500")
             == 3500.0
         )
 
@@ -204,7 +200,9 @@ class TestExtractPrediction:
         )
         assert predictions == {"income_tax": 4923.0, "eitc": 0.0}
 
-    def test_extract_predictions_salvages_complete_answers_from_truncated_explanations(self):
+    def test_extract_predictions_salvages_complete_answers_from_truncated_explanations(
+        self,
+    ):
         predictions = extract_predictions(
             content=(
                 '{"answers":{"income_tax":4923,"eitc":0},'
@@ -217,7 +215,12 @@ class TestExtractPrediction:
 
     def test_extract_explanations_returns_mapping(self):
         explanations = extract_explanations(
-            content='{"answers": {"income_tax": 4923, "eitc": 0}, "explanations": {"income_tax": "Taxable income is moderate."}}',
+            content=(
+                '{"answers": {"income_tax": 4923, '
+                '"eitc": 0}, "explanations": '
+                '{"income_tax": '
+                '"Taxable income is moderate."}}'
+            ),
             variables=["income_tax", "eitc"],
             tool_calls=None,
         )
@@ -303,7 +306,10 @@ def test_no_tools_batch_prompt_requires_explanations_in_diagnostic_mode(mini_sce
     assert "`answers` object" in prompt
     assert "`explanations` object" in prompt
     assert "required" in prompt.lower()
-    assert "do not leave any explanation blank" in prompt.lower() or "non-empty" in prompt.lower()
+    assert (
+        "do not leave any explanation blank" in prompt.lower()
+        or "non-empty" in prompt.lower()
+    )
 
 
 def test_answer_tool_requires_explanations_in_diagnostic_mode():
@@ -346,9 +352,7 @@ def test_income_tax_prompt_clarifies_negative_after_refundable_credits(mini_scen
 
 def test_precredit_tax_prompt_distinguishes_it_from_final_tax(mini_scenario):
     """Pre-credit tax prompt should explicitly exclude refundable credits."""
-    prompt = make_no_tools_prompt(
-        mini_scenario, "income_tax_before_refundable_credits"
-    )
+    prompt = make_no_tools_prompt(mini_scenario, "income_tax_before_refundable_credits")
     prompt_lower = prompt.lower()
     assert "federal income tax" in prompt_lower
     assert "before refundable credits" in prompt_lower
@@ -371,7 +375,8 @@ def test_agi_prompt_is_explicitly_federal(mini_scenario):
 
 
 def test_free_school_meals_prompt_clarifies_household_boolean(mini_scenario):
-    """School meals prompt should ask for household free-meal eligibility, not dollars."""
+    """School meals prompt should ask for household
+    free-meal eligibility, not dollars."""
     prompt = make_no_tools_prompt(mini_scenario, "free_school_meals")
     prompt_lower = prompt.lower()
     assert "household qualifies for free school meals" in prompt_lower
@@ -486,7 +491,9 @@ def test_run_single_no_tools_uses_default_completion_budget_for_claude(
 
     response = MagicMock()
     response.choices = [MagicMock(message=message)]
-    response.usage = litellm.Usage(prompt_tokens=12, completion_tokens=3, total_tokens=15)
+    response.usage = litellm.Usage(
+        prompt_tokens=12, completion_tokens=3, total_tokens=15
+    )
     mock_completion.return_value = response
 
     run_single_no_tools(mini_scenario, "income_tax", "claude-opus-4-6")
@@ -559,7 +566,9 @@ def test_run_single_no_tools_repairs_partial_batch_response(
     assert result["total_tokens"] == 21
     assert mock_completion.call_count == 2
     repair_prompt = mock_completion.call_args_list[1].kwargs["messages"][0]["content"]
-    assert "provide only the following listed policy quantities" in repair_prompt.lower()
+    assert (
+        "provide only the following listed policy quantities" in repair_prompt.lower()
+    )
     assert "- eitc:" in repair_prompt
     assert "- income_tax_before_refundable_credits:" not in repair_prompt
     assert '"responses"' in result["raw_response"]
@@ -587,7 +596,16 @@ def test_run_single_no_tools_repairs_missing_explanations(
         SimpleNamespace(
             function=SimpleNamespace(
                 name="submit_answers",
-                arguments='{"answers":{"income_tax_before_refundable_credits":3500,"eitc":1200},"explanations":{"income_tax_before_refundable_credits":"Tax after allowances.","eitc":"Credit from low earnings."}}',
+                arguments=(
+                    '{"answers":'
+                    '{"income_tax_before_refundable_credits"'
+                    ':3500,"eitc":1200},'
+                    '"explanations":'
+                    '{"income_tax_before_refundable_credits"'
+                    ':"Tax after allowances.",'
+                    '"eitc":'
+                    '"Credit from low earnings."}}'
+                ),
             )
         )
     ]
@@ -634,13 +652,20 @@ def test_run_single_no_tools_chunks_claude_explanation_batches(
     variables = COUNTRY_PROGRAMS["us"]
     chunk_payloads = [
         {
-            "answers": {variable: float(index + 1) for index, variable in enumerate(chunk)},
+            "answers": {
+                variable: float(index + 1) for index, variable in enumerate(chunk)
+            },
             "explanations": {
-                variable: f"Explanation for {variable}."
-                for variable in chunk
+                variable: f"Explanation for {variable}." for variable in chunk
             },
         }
-        for chunk in [variables[:3], variables[3:6], variables[6:9], variables[9:12], variables[12:13]]
+        for chunk in [
+            variables[:3],
+            variables[3:6],
+            variables[6:9],
+            variables[9:12],
+            variables[12:13],
+        ]
     ]
 
     responses = []
@@ -704,7 +729,9 @@ def test_run_single_no_tools_marks_missing_predictions_after_repair(
 
     response = MagicMock()
     response.choices = [MagicMock(message=message)]
-    response.usage = litellm.Usage(prompt_tokens=12, completion_tokens=3, total_tokens=15)
+    response.usage = litellm.Usage(
+        prompt_tokens=12, completion_tokens=3, total_tokens=15
+    )
     mock_completion.side_effect = [response, response, response]
 
     result = run_single_no_tools(
@@ -720,16 +747,16 @@ def test_run_single_no_tools_marks_missing_predictions_after_repair(
 
 
 @patch("policybench.eval_no_tools.responses")
-def test_run_single_no_tools_falls_back_to_text_content(
-    mock_responses, mini_scenario
-):
+def test_run_single_no_tools_falls_back_to_text_content(mock_responses, mini_scenario):
     """Responses API text output should still parse when no function call is present."""
     response = SimpleNamespace(
         output_text='{"income_tax": 777}',
         output=[
             SimpleNamespace(
                 type="message",
-                content=[SimpleNamespace(type="output_text", text='{"income_tax": 777}')],
+                content=[
+                    SimpleNamespace(type="output_text", text='{"income_tax": 777}')
+                ],
             )
         ],
         usage=SimpleNamespace(input_tokens=12, output_tokens=3, total_tokens=15),
@@ -744,9 +771,7 @@ def test_run_single_no_tools_falls_back_to_text_content(
 
 
 @patch("policybench.eval_no_tools.responses")
-def test_run_single_no_tools_supports_multiple_variables(
-    mock_responses, mini_scenario
-):
+def test_run_single_no_tools_supports_multiple_variables(mock_responses, mini_scenario):
     """Batch path should parse a full mapping from one Responses API tool call."""
     response = SimpleNamespace(
         output_text="",
@@ -786,7 +811,9 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
 
     response = MagicMock()
     response.choices = [MagicMock(message=message)]
-    response.usage = litellm.Usage(prompt_tokens=12, completion_tokens=3, total_tokens=15)
+    response.usage = litellm.Usage(
+        prompt_tokens=12, completion_tokens=3, total_tokens=15
+    )
     mock_completion.return_value = response
 
     result = run_single_no_tools(
@@ -797,7 +824,9 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
 
     assert result["prediction"] == 3500.0
     assert result["predictions"]["income_tax"] == 3500.0
-    assert mock_completion.call_args.kwargs["response_format"] == {"type": "json_object"}
+    assert mock_completion.call_args.kwargs["response_format"] == {
+        "type": "json_object"
+    }
     assert mock_completion.call_args.kwargs["max_completion_tokens"] == 2048
     assert mock_completion.call_args.kwargs["timeout"] == 60
     assert "tools" not in mock_completion.call_args.kwargs
@@ -821,16 +850,23 @@ def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario)
 
     response = MagicMock()
     response.choices = [MagicMock(message=message)]
-    response.usage = litellm.Usage(prompt_tokens=12, completion_tokens=3, total_tokens=15)
+    response.usage = litellm.Usage(
+        prompt_tokens=12, completion_tokens=3, total_tokens=15
+    )
     mock_completion.return_value = response
 
-    result = run_single_no_tools(mini_scenario, "income_tax", "xai/grok-4-1-fast-non-reasoning")
+    result = run_single_no_tools(
+        mini_scenario, "income_tax", "xai/grok-4-1-fast-non-reasoning"
+    )
 
     assert result["prediction"] == 1234.0
     assert result["predictions"]["income_tax"] == 1234.0
     assert mock_completion.call_args.kwargs["max_tokens"] == 256
     assert "max_completion_tokens" not in mock_completion.call_args.kwargs
-    assert mock_completion.call_args.kwargs["tools"][0]["function"]["name"] == "submit_answers"
+    assert (
+        mock_completion.call_args.kwargs["tools"][0]["function"]["name"]
+        == "submit_answers"
+    )
 
 
 @patch("policybench.eval_no_tools.completion_cost", return_value=0.00456)
@@ -1151,6 +1187,7 @@ def test_run_repeated_no_tools_eval_writes_one_file_per_run(
     tmp_path,
 ):
     """Repeated evaluation should create separate artifacts and preserve run ids."""
+
     def fake_run(*args, **kwargs):
         pd = pytest.importorskip("pandas")
         frame = pd.DataFrame(
