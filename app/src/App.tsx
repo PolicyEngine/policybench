@@ -1,11 +1,9 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import rawData from "./data.json";
 import { DIAGNOSTICS_BY_COUNTRY } from "./diagnostics";
-import Hero, { ViewSelector } from "./components/Hero";
+import Hero from "./components/Hero";
 import FailureModes from "./components/FailureModes";
 import Methodology from "./components/Methodology";
 import ModelLeaderboard from "./components/ModelLeaderboard";
@@ -103,56 +101,9 @@ export default function App() {
         onSelectView={handleSelectView}
         dashboard={dashboard}
         data={data}
+        navItems={navItems}
+        activeNav={activeNav}
       />
-
-      <nav className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 sm:px-6">
-          <Link
-            href="/"
-            className="shrink-0 py-2.5 flex items-center gap-2 transition-colors hover:opacity-80"
-          >
-            <img
-              src="/assets/policyengine-mark.svg"
-              alt="PolicyEngine"
-              className="h-5 w-5 opacity-80"
-            />
-            <span className="font-[family-name:var(--font-display)] text-base tracking-tight text-text">
-              PolicyBench
-            </span>
-          </Link>
-          <div className="h-4 w-px bg-border shrink-0" />
-          <div className="min-w-0 flex-1 overflow-x-auto">
-            <div className="flex min-w-max gap-0.5">
-              {navItems.map((item) => (
-                <a
-                  key={item.id}
-                  href={`#${item.id}`}
-                  className={`px-2.5 py-2.5 text-[11px] font-medium tracking-wider uppercase transition-colors border-b-2 sm:px-3.5 ${
-                    activeNav === item.id
-                      ? "border-primary text-primary"
-                      : "border-transparent text-text-secondary hover:text-text"
-                  }`}
-                >
-                  {item.label}
-                </a>
-              ))}
-            </div>
-          </div>
-          <ViewSelector
-            selectedView={selectedView}
-            onSelect={handleSelectView}
-            pillClassName="rounded-full text-[10px] px-2.5 py-1 font-medium transition-colors"
-          />
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Link
-              href="/paper"
-              className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary transition-colors hover:border-primary/40 hover:text-primary"
-            >
-              Paper
-            </Link>
-          </div>
-        </div>
-      </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6">
         <section id="models" className="pt-12 pb-16 sm:pt-16 sm:pb-20">
