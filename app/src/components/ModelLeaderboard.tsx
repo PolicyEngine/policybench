@@ -10,8 +10,6 @@ import {
   MODEL_LABELS,
   MODEL_ORDER,
   getProviderForModel,
-  getPerformanceSurfaceColor,
-  getPerformanceTextColor,
 } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
 
@@ -124,12 +122,6 @@ export default function ModelLeaderboard({
       return aIndex - bIndex;
     });
   }, [noTools, selectedView]);
-  const leadModel = noTools[0];
-  const leadStabilityLabel = fmtRunStability(
-    leadModel?.scoreRunMean,
-    leadModel?.scoreRunStd,
-    leadModel?.runCount
-  );
 
   return (
     <div>
@@ -154,33 +146,6 @@ export default function ModelLeaderboard({
           </>
         )}
       </p>
-
-      <div
-        className="mt-6 animate-fade-up rounded-2xl border border-border bg-card px-4 py-3"
-        style={{
-          animationDelay: "220ms",
-          borderColor: getPerformanceTextColor(leadModel?.score ?? 0),
-          backgroundColor: getPerformanceSurfaceColor(leadModel?.score ?? 0),
-        }}
-      >
-        <p className="text-sm leading-relaxed text-text-secondary">
-          <span className="text-primary font-medium">Current leader:</span>{" "}
-          {MODEL_LABELS[leadModel?.model ?? ""] || leadModel?.model} at{" "}
-          <span className="font-[family-name:var(--font-mono)] text-text">
-            {leadModel?.score.toFixed(1)}%
-          </span>
-          {!isGlobal && leadStabilityLabel && (
-            <>
-              {" "}
-              with repeated-run stability of{" "}
-              <span className="font-[family-name:var(--font-mono)] text-text">
-                {leadStabilityLabel}
-              </span>
-            </>
-          )}
-          .
-        </p>
-      </div>
 
       <div className="mt-8 space-y-3">
         <div
