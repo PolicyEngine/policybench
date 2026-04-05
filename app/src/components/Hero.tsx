@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MODEL_LABELS } from "../modelMeta";
 import type {
   BenchData,
@@ -45,6 +45,33 @@ function ViewSelector({
 
 type NavItem = { id: string; label: string };
 
+/** Returns 0 at top, 1 when fully collapsed. Smooth continuous value. */
+function getScrollProgress(threshold: number) {
+  if (typeof window === "undefined") return 0;
+  return Math.min(1, Math.max(0, window.scrollY / threshold));
+}
+
+function useScrollProgress(threshold = 80) {
+  const [progress, setProgress] = useState(() => getScrollProgress(threshold));
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    const onScroll = () => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        setProgress(getScrollProgress(threshold));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [threshold]);
+
+  return progress;
+}
+
 export default function Hero({
   selectedView,
   onSelectView,
@@ -60,14 +87,8 @@ export default function Hero({
   navItems: readonly NavItem[];
   activeNav: string;
 }) {
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 60);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const progress = useScrollProgress(80);
+  const scrolled = progress > 0.5;
 
   const isGlobal = selectedView === "global";
   const benchData = isGlobal ? null : (data as BenchData);
@@ -96,64 +117,76 @@ export default function Hero({
         { value: `${benchData!.programStats.length}`, label: "Outputs" },
       ];
 
+  // Continuous interpolation helpers
+  const lerp = (a: number, b: number) => a + (b - a) * progress;
+  const expandedPadTop = lerp(40, 8); // pt-10 → py-2
+  const expandedPadBot = lerp(16, 8);
+  const titleSize = lerp(36, 16); // text-4xl → text-base
+  const taglineOpacity = 1 - progress;
+  const expandOpacity = 1 - Math.min(1, progress * 2); // fade out faster
+  const expandHeight = `${(1 - progress) * 140}px`;
+  const navOpacity = Math.max(0, (progress - 0.3) / 0.7); // fade in after 30%
+  const bgOpacity = progress;
+
   return (
-    <header
-      className={`sticky top-0 z-40 transition-[background-color,border-color] duration-300 ${
-        scrolled
-          ? "bg-bg/90 backdrop-blur-md border-b border-border"
-          : "bg-transparent border-b border-transparent"
-      }`}
-    >
-      {/* Gradient glow — fades out when scrolled */}
+    <header className="sticky top-0 z-40">
+      {/* Background — fades in */}
       <div
-        className={`absolute inset-x-0 top-0 h-[280px] bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--color-primary)_13%,transparent),transparent_58%)] pointer-events-none transition-opacity duration-300 ${
-          scrolled ? "opacity-0" : "opacity-100"
-        }`}
+        className="absolute inset-0 border-b backdrop-blur-md"
+        style={{
+          opacity: bgOpacity,
+          backgroundColor: `color-mix(in srgb, var(--color-bg) ${Math.round(bgOpacity * 90)}%, transparent)`,
+          borderColor: `color-mix(in srgb, var(--color-border) ${Math.round(bgOpacity * 100)}%, transparent)`,
+        }}
+      />
+
+      {/* Gradient glow — fades out */}
+      <div
+        className="absolute inset-x-0 top-0 h-[280px] bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--color-primary)_13%,transparent),transparent_58%)] pointer-events-none"
+        style={{ opacity: 1 - progress }}
       />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
-        {/* Top row: brand + view selector — always visible */}
+        {/* Top row: brand + nav + view selector */}
         <div
-          className={`flex items-center gap-3 transition-[padding] duration-300 ${
-            scrolled ? "py-2" : "pt-8 pb-4 sm:pt-10 sm:pb-4"
-          }`}
+          className="flex items-center gap-3"
+          style={{
+            paddingTop: `${expandedPadTop}px`,
+            paddingBottom: `${expandedPadBot}px`,
+          }}
         >
           <Link
             href="/"
-            className="shrink-0 flex items-center gap-2.5 transition-colors hover:opacity-80"
+            className="shrink-0 flex items-center gap-2 hover:opacity-80"
           >
             <span
-              className={`font-[family-name:var(--font-display)] tracking-tight text-text transition-[font-size] duration-300 ${
-                scrolled ? "text-base" : "text-3xl sm:text-4xl"
-              }`}
+              className="font-[family-name:var(--font-display)] tracking-tight text-text leading-none"
+              style={{ fontSize: `${titleSize}px` }}
             >
               PolicyBench
             </span>
-            {/* "a PolicyEngine project" tagline — visible when expanded */}
+            {/* "by [PE logo]" tagline */}
             <span
-              className={`flex items-center gap-1.5 transition-all duration-300 overflow-hidden ${
-                scrolled
-                  ? "opacity-0 max-w-0"
-                  : "opacity-60 max-w-[200px]"
-              }`}
+              className="flex items-center gap-1.5 overflow-hidden"
+              style={{ opacity: taglineOpacity * 0.6, maxWidth: taglineOpacity > 0.05 ? "160px" : "0px" }}
             >
-              <span className="text-text-muted text-sm whitespace-nowrap">a</span>
+              <span className="text-text-muted text-sm whitespace-nowrap">by</span>
               <img
                 src="/assets/policyengine-logo.svg"
                 alt="PolicyEngine"
                 className="h-3.5 w-auto shrink-0"
               />
-              <span className="text-text-muted text-sm whitespace-nowrap">project</span>
             </span>
           </Link>
 
-          {/* Nav tabs — slide in when scrolled */}
+          {/* Nav tabs — fade in as you scroll */}
           <div
-            className={`flex items-center gap-0 transition-all duration-300 overflow-hidden ${
-              scrolled
-                ? "opacity-100 max-w-[600px] ml-1"
-                : "opacity-0 max-w-0 ml-0"
-            }`}
+            className="flex items-center overflow-hidden"
+            style={{
+              opacity: navOpacity,
+              maxWidth: navOpacity > 0.05 ? "600px" : "0px",
+              marginLeft: navOpacity > 0.05 ? "4px" : "0px",
+            }}
           >
             <div className="h-4 w-px bg-border shrink-0 mx-2" />
             <div className="flex min-w-max gap-0.5">
@@ -161,7 +194,7 @@ export default function Hero({
                 <a
                   key={item.id}
                   href={`#${item.id}`}
-                  className={`px-2.5 py-2 text-[11px] font-medium tracking-wider uppercase transition-colors border-b-2 sm:px-3 ${
+                  className={`px-2.5 py-2 text-[11px] font-medium tracking-wider uppercase border-b-2 sm:px-3 ${
                     activeNav === item.id
                       ? "border-primary text-primary"
                       : "border-transparent text-text-secondary hover:text-text"
@@ -181,26 +214,31 @@ export default function Hero({
             compact={scrolled}
           />
 
-          {/* Paper link — only when scrolled */}
+          {/* Paper link — fades in with nav */}
           <div
-            className={`transition-all duration-300 overflow-hidden ${
-              scrolled ? "opacity-100 max-w-[80px]" : "opacity-0 max-w-0"
-            }`}
+            className="overflow-hidden"
+            style={{
+              opacity: navOpacity,
+              maxWidth: navOpacity > 0.05 ? "80px" : "0px",
+            }}
           >
             <Link
               href="/paper"
-              className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary transition-colors hover:border-primary/40 hover:text-primary whitespace-nowrap"
+              className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary hover:border-primary/40 hover:text-primary whitespace-nowrap"
             >
               Paper
             </Link>
           </div>
         </div>
 
-        {/* Expanded content: subtitle + stats — collapses on scroll */}
+        {/* Expanded content: subtitle + stats */}
         <div
-          className={`overflow-hidden transition-all duration-300 ease-out ${
-            scrolled ? "max-h-0 opacity-0 pb-0" : "max-h-40 opacity-100 pb-6 sm:pb-8"
-          }`}
+          className="overflow-hidden"
+          style={{
+            maxHeight: expandHeight,
+            opacity: expandOpacity,
+            paddingBottom: expandOpacity > 0.05 ? `${lerp(32, 0)}px` : "0px",
+          }}
         >
           <p className="text-text-secondary text-sm sm:text-base max-w-xl leading-relaxed">
             {subtitle}{" "}
@@ -240,10 +278,11 @@ export default function Hero({
         </div>
       </div>
 
-      {/* Bottom border gradient — only when not scrolled */}
-      {!scrolled && (
-        <div className="h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent" />
-      )}
+      {/* Bottom border gradient — fades out */}
+      <div
+        className="h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent"
+        style={{ opacity: 1 - progress }}
+      />
     </header>
   );
 }
