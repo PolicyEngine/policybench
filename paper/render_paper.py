@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PAPER_DIR = ROOT / "paper"
 PUBLIC_PAPER_DIR = ROOT / "app" / "public" / "paper"
 PUBLIC_WEB_DIR = PUBLIC_PAPER_DIR / "web"
+EXPORT_DIR = ROOT / "results" / "paper_exports"
 DESIGN_SYSTEM_TOKENS = (
     ROOT
     / "app"
@@ -22,6 +23,16 @@ DESIGN_SYSTEM_TOKENS = (
     / "dist"
     / "tokens.css"
 )
+
+
+def find_executable(name: str, fallbacks: list[Path]) -> str | None:
+    path = shutil.which(name)
+    if path is not None:
+        return path
+    for candidate in fallbacks:
+        if candidate.exists():
+            return str(candidate)
+    return None
 
 
 def copy_if_exists(source: Path, destination: Path) -> None:
@@ -170,22 +181,45 @@ def ensure_web_index(destination: Path) -> None:
 
 
 def main() -> None:
-    quarto = shutil.which("quarto")
+    quarto = find_executable(
+        "quarto",
+        [
+            Path.home() / "quarto" / "bin" / "quarto",
+            Path("/opt/homebrew/bin/quarto"),
+            Path("/usr/local/bin/quarto"),
+        ],
+    )
     if quarto is None:
         raise SystemExit(
             "Quarto is not installed. Install it first, then rerun "
             "`./.venv/bin/python paper/render_paper.py`."
         )
 
-    subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "export_paper_artifacts.py")],
-        check=True,
-        cwd=ROOT,
-    )
+    env = dict(os.environ)
+    tex_bin = Path("/Library/TeX/texbin")
+    if tex_bin.exists():
+        env["PATH"] = f"{tex_bin}:{env.get('PATH', '')}"
+    env["QUARTO_PYTHON"] = sys.executable
+
+    if not (EXPORT_DIR / "benchmark_snapshot.json").exists():
+        raise SystemExit(
+            "Missing frozen paper exports in results/paper_exports. "
+            "Regenerate them before rendering."
+        )
+    if (ROOT / "results" / "full_batch_20260329_1000" / "analysis").exists() and (
+        ROOT / "results" / "uk_full_batch_20260329_1000" / "analysis"
+    ).exists():
+        subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "export_paper_artifacts.py")],
+            check=True,
+            cwd=ROOT,
+            env=env,
+        )
     subprocess.run(
         [sys.executable, str(PAPER_DIR / "generate_figures.py")],
         check=True,
         cwd=ROOT,
+        env=env,
     )
     if not DESIGN_SYSTEM_TOKENS.exists():
         raise SystemExit(
@@ -193,8 +227,6 @@ def main() -> None:
             f"{DESIGN_SYSTEM_TOKENS}. Run `bun install` in app first."
         )
     copy_if_exists(DESIGN_SYSTEM_TOKENS, PAPER_DIR / "pe-tokens.css")
-    env = dict(os.environ)
-    env["QUARTO_PYTHON"] = sys.executable
 
     html_out_dir = PAPER_DIR / "out" / "web"
     pdf_out_dir = PAPER_DIR / "out" / "pdf"

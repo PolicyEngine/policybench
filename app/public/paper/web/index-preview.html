@@ -228,7 +228,7 @@
   <li><a href="#global-shared-model-leaderboard" id="toc-global-shared-model-leaderboard">Global shared-model leaderboard</a></li>
   <li><a href="#hardest-benchmark-targets" id="toc-hardest-benchmark-targets">Hardest benchmark targets</a></li>
   </ul>
-</nav>  <div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [1]:</pre></div><div id="e763ad6e" class="cell" data-execution_count="1">
+</nav>  <div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [1]:</pre></div><div id="71290ede" class="cell" data-execution_count="1">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> json</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -354,7 +354,7 @@
 <span id="cb1-123"><a href="#cb1-123" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"the top-scoring UK model."</span></span>
 <span id="cb1-124"><a href="#cb1-124" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div></div>
-<div id="dacf0bb3" class="cell markdown">
+<div id="84d4f5c9" class="cell markdown">
 <h2 id="abstract" class="anchored">Abstract</h2>
 <p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses nationally calibrated household scenarios, and scores outputs with a bounded <code>0-100</code> metric. In the frozen snapshot used for this manuscript (2026-04-04), the top US model is gemini-3.1-pro-preview at 73.3, the top UK model is grok-4.20 at 83.0, and the top shared global model is gemini-3.1-pro-preview at 78.0. In both countries, the lowest-scoring outputs are tax-base variables rather than benefits or credits. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
 <h2 id="introduction" class="anchored">Introduction</h2>
@@ -480,7 +480,7 @@ Table&nbsp;1: Top US benchmark models in the current release.
 </figure>
 </div></div></div>
 </div></div>
-<div id="05960b7e" class="cell markdown">
+<div id="8e4ec884" class="cell markdown">
 <h3 id="united-kingdom-leaderboard" class="anchored">United Kingdom leaderboard</h3>
 <p>The UK leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-uk-top" class="quarto-xref">Table&nbsp;2</a>. The top three models in that snapshot are grok-4.20 (83.0), gemini-3.1-pro-preview (82.6), and gemini-3-flash-preview (71.6).</p>
 </div>
@@ -575,7 +575,7 @@ Table&nbsp;2: Top UK benchmark models in the current release.
 </figure>
 </div></div></div>
 </div></div>
-<div id="39070efb" class="cell markdown">
+<div id="eb427cfd" class="cell markdown">
 <h3 id="global-shared-model-leaderboard" class="anchored">Global shared-model leaderboard</h3>
 <p>The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are gemini-3.1-pro-preview (78.0), grok-4.20 (77.3), and gemini-3-flash-preview (70.6). The global table summarizes cross-country performance; the country tables identify the outputs driving the differences.</p>
 </div>
@@ -715,7 +715,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 </figure>
 </div></div></div>
 </div></div>
-<div id="fdd6cd3d" class="cell markdown">
+<div id="276498ae" class="cell markdown">
 <h3 id="hardest-benchmark-targets" class="anchored">Hardest benchmark targets</h3>
 <p>The lowest-scoring US variables are tax-base and state-tax quantities rather than benefits. As shown in <a href="#tbl-us-hardest" class="quarto-xref">Table&nbsp;4</a>, household state income tax scores <code>31.5</code>, state AGI scores <code>32.9</code>, federal income tax before refundable credits scores <code>33.2</code>, and adjusted gross income scores <code>37.1</code>. By comparison, EITC scores <code>86.3</code>, SSI scores <code>93.1</code>, and free school meals scores <code>94.1</code>.</p>
 </div>
@@ -798,7 +798,7 @@ Table&nbsp;4: Hardest US variables by bounded score.
 </figure>
 </div></div></div>
 </div></div>
-<div id="e4124ae8" class="cell markdown">
+<div id="2ce6a37f" class="cell markdown">
 <p>The same pattern appears in the UK run. Income tax scores <code>32.2</code> and national insurance scores <code>51.9</code>. Child benefit scores <code>77.3</code>, universal credit scores <code>77.6</code>, PIP scores <code>84.0</code>, and pension credit scores <code>88.4</code>.</p>
 </div>
 <div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [6]:</pre></div><div class="cell" data-execution_count="6">
@@ -880,7 +880,7 @@ Table&nbsp;5: Hardest UK variables by bounded score.
 </figure>
 </div></div></div>
 </div></div>
-<div id="6f5ffc70" class="cell markdown">
+<div id="15859a64" class="cell markdown">
 <h2 id="failure-modes" class="anchored">Failure modes</h2>
 <p>The benchmark surfaces a few recurring failure patterns.</p>
 <p>First, models miss positive tax quantities more often than zero cases. In the US, the four lowest-scoring variables are household state income tax, state AGI, federal income tax before refundable credits, and adjusted gross income. These outputs require the model to choose the right income concepts and exclusions before applying any final subtraction.</p>
