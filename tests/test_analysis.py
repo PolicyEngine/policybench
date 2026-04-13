@@ -15,15 +15,24 @@ from policybench.analysis import (
     exact_amount_match,
     export_analysis,
     export_dashboard_data,
+    household_equal_impact_scores,
+    household_impact_summary_by_model,
     mean_absolute_error,
     mean_absolute_percentage_error,
     render_markdown_report,
     run_stability_by_model,
+    score_single_prediction,
     summarize_runs_by_model,
     summary_by_model,
     summary_by_variable,
     usage_summary_by_model,
     within_tolerance,
+)
+from policybench.config import (
+    UK_HEADLINE_PROGRAMS_V2,
+    US_HEADLINE_PROGRAMS_V2,
+    US_SUPPLEMENTARY_PROGRAMS_V2,
+    get_programs,
 )
 
 
@@ -90,6 +99,13 @@ class TestBasicMetrics:
         y_true = np.array([100.0, 200.0, 300.0])
         y_pred = np.array([100.5, 202.0, 299.5])
         assert exact_amount_match(y_true, y_pred) == pytest.approx(2 / 3)
+
+    def test_score_single_prediction_uses_bounded_amount_score(self):
+        assert score_single_prediction("income_tax", 100.0, 100.5) == pytest.approx(1.0)
+        assert score_single_prediction("income_tax", 100.0, 104.0) == pytest.approx(
+            0.5
+        )
+        assert score_single_prediction("income_tax", 100.0, None) == 0.0
 
 
 class TestComputeMetrics:
@@ -178,6 +194,58 @@ class TestComputeMetrics:
         assert row["within_10pct"] == 0.5
         assert row["score"] == 0.5
 
+    def test_compute_metrics_counts_missing_rows_in_denominator(self):
+        ground_truth_df = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s2"],
+                "variable": ["income_tax", "income_tax"],
+                "value": [100.0, 100.0],
+            }
+        )
+        predictions_df = pd.DataFrame(
+            {
+                "model": ["model_a"],
+                "scenario_id": ["s1"],
+                "variable": ["income_tax"],
+                "prediction": [100.0],
+            }
+        )
+
+        metrics = compute_metrics(ground_truth_df, predictions_df)
+        row = metrics.iloc[0]
+
+        assert row["n"] == 2
+        assert row["n_parsed"] == 1
+        assert row["coverage"] == 0.5
+        assert row["exact"] == 0.5
+        assert row["score"] == 0.5
+
+    def test_compute_metrics_keeps_zero_coverage_variable_rows(self):
+        ground_truth_df = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1"],
+                "variable": ["income_tax", "eitc"],
+                "value": [100.0, 50.0],
+            }
+        )
+        predictions_df = pd.DataFrame(
+            {
+                "model": ["model_a"],
+                "scenario_id": ["s1"],
+                "variable": ["income_tax"],
+                "prediction": [100.0],
+            }
+        )
+
+        metrics = compute_metrics(ground_truth_df, predictions_df).sort_values("variable")
+        assert metrics["variable"].tolist() == ["eitc", "income_tax"]
+
+        eitc_row = metrics[metrics["variable"] == "eitc"].iloc[0]
+        assert eitc_row["n"] == 1
+        assert eitc_row["n_parsed"] == 0
+        assert eitc_row["coverage"] == 0.0
+        assert eitc_row["score"] == 0.0
+
     def test_compute_metrics_score_averages_thresholds(self):
         ground_truth_df = pd.DataFrame(
             {
@@ -242,6 +310,70 @@ class TestSummaries:
         assert abs(it["mean_score"].iloc[0] - 0.475) < 1e-10
         assert abs(it["mean_mae"].iloc[0] - 750.0) < 1e-10
 
+    def test_household_equal_impact_scores_keep_households_equally_weighted(self):
+        ground_truth_df = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1", "s2", "s2"],
+                "variable": ["income_tax", "snap", "income_tax", "snap"],
+                "value": [100.0, 0.0, 10_000.0, 0.0],
+            }
+        )
+        predictions_df = pd.DataFrame(
+            {
+                "model": ["model_a"] * 4,
+                "scenario_id": ["s1", "s1", "s2", "s2"],
+                "variable": ["income_tax", "snap", "income_tax", "snap"],
+                "prediction": [100.0, 50.0, 0.0, 0.0],
+            }
+        )
+
+        household_scores = household_equal_impact_scores(
+            ground_truth_df,
+            predictions_df,
+            floor_share=0.3,
+        ).sort_values("scenario_id")
+
+        assert household_scores["impact_score"].tolist() == pytest.approx([0.85, 0.15])
+
+        summary = household_impact_summary_by_model(
+            ground_truth_df,
+            predictions_df,
+            floor_share=0.3,
+        )
+        row = summary.iloc[0]
+        assert row["mean_impact_score"] == pytest.approx(0.5)
+        assert row["mean_household_coverage"] == pytest.approx(1.0)
+        assert row["households"] == 2
+
+    def test_household_equal_impact_scores_use_uniform_weights_when_all_zero(self):
+        ground_truth_df = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1"],
+                "variable": ["snap", "ssi"],
+                "value": [0.0, 0.0],
+            }
+        )
+        predictions_df = pd.DataFrame(
+            {
+                "model": ["model_a", "model_a"],
+                "scenario_id": ["s1", "s1"],
+                "variable": ["snap", "ssi"],
+                "prediction": [0.0, 10.0],
+            }
+        )
+
+        household_scores = household_equal_impact_scores(
+            ground_truth_df,
+            predictions_df,
+            floor_share=0.3,
+        )
+        assert household_scores.iloc[0]["impact_score"] == pytest.approx(0.5)
+
+    def test_get_programs_supports_v2_sets(self):
+        assert get_programs("us", "v2_headline") == US_HEADLINE_PROGRAMS_V2
+        assert get_programs("uk", "v2_headline") == UK_HEADLINE_PROGRAMS_V2
+        assert get_programs("us", "v2_supplementary") == US_SUPPLEMENTARY_PROGRAMS_V2
+
     def test_analyze_no_tools_returns_expected_tables(self):
         ground_truth_df = pd.DataFrame(
             {
@@ -262,6 +394,7 @@ class TestSummaries:
         assert set(analysis) == {
             "metrics",
             "model_summary",
+            "impact_summary",
             "variable_summary",
             "usage_summary",
             "run_model_summary",
@@ -269,6 +402,7 @@ class TestSummaries:
         }
         assert len(analysis["metrics"]) == 1
         assert len(analysis["model_summary"]) == 1
+        assert len(analysis["impact_summary"]) == 1
         assert len(analysis["variable_summary"]) == 1
         assert len(analysis["usage_summary"]) == 1
         assert analysis["run_model_summary"].empty
@@ -343,6 +477,7 @@ class TestSummaries:
         analysis = {
             "metrics": metrics_df,
             "model_summary": summary_by_model(metrics_df),
+            "impact_summary": pd.DataFrame(),
             "variable_summary": summary_by_variable(metrics_df),
             "usage_summary": pd.DataFrame(
                 {
@@ -373,6 +508,8 @@ class TestSummaries:
         assert "cost_rows_estimated" in report
         assert "## Summary by model" in report
         assert "## Summary by variable" in report
+        assert "mean_binary_accuracy" in report
+        assert "mean_accuracy" in report
 
     def test_render_markdown_report_includes_run_stability(self, metrics_df):
         analysis = {
@@ -386,6 +523,7 @@ class TestSummaries:
                 mae_run_mean=[400.0, 900.0],
                 mae_run_std=[20.0, 30.0],
             ),
+            "impact_summary": pd.DataFrame(),
             "variable_summary": summary_by_variable(metrics_df),
             "usage_summary": pd.DataFrame(),
             "run_model_summary": pd.DataFrame(
@@ -430,6 +568,7 @@ class TestSummaries:
         analysis = {
             "metrics": metrics_df,
             "model_summary": summary_by_model(metrics_df),
+            "impact_summary": pd.DataFrame(),
             "variable_summary": summary_by_variable(metrics_df),
             "usage_summary": pd.DataFrame(
                 {
@@ -488,6 +627,7 @@ class TestSummaries:
         assert set(exported) == {
             "metrics",
             "model_summary",
+            "impact_summary",
             "variable_summary",
             "usage_summary",
             "report",
@@ -496,6 +636,7 @@ class TestSummaries:
         }
         assert exported["metrics"].exists()
         assert exported["model_summary"].exists()
+        assert exported["impact_summary"].exists()
         assert exported["variable_summary"].exists()
         assert exported["usage_summary"].exists()
         assert exported["report"].exists()

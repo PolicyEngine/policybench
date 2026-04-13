@@ -14,16 +14,18 @@ Benchmark scenarios are sampled from real households in the Enhanced CPS and the
 
 1. **AI alone**: Models estimate tax/benefit values using only their training knowledge
 
-## Models tested
+## Benchmark scope
 
-- Claude Opus 4.6
-- Claude Sonnet 4.6
-- GPT-5.4
-- Gemini 3.1 Pro Preview
+The default benchmark registry in code tracks the current published no-tools
+leaderboard. Frozen paper claims are tied to
+`results/paper_exports/benchmark_snapshot.json`, not to whatever models happen
+to be configured or probed locally later.
 
 ## Programs evaluated
 
-Federal tax, EITC, CTC, SNAP, SSI, Medicaid eligibility, and a fuller state-tax slice including state AGI, state taxable income, state tax before refundable credits, state refundable credits, and final state income tax.
+The current public release covers selected federal taxes, credits, means-tested
+benefits, household eligibility labels, and state-tax outputs in the US, plus
+selected tax and transfer outputs in the UK.
 
 ## Quick start
 
@@ -35,22 +37,22 @@ pytest  # Run tests (mocked, no API calls)
 ## Benchmark run
 
 ```bash
-# Generate ground truth for 100 sampled CPS households
+# Generate reference outputs for 100 sampled CPS households
 policybench ground-truth -n 100 --seed 42
 
 # Run AI-alone evaluations on the same sampled households
 policybench eval-no-tools -n 100 --seed 42
 
-# Analyze results and export production artifacts
-policybench analyze --output-dir results/analysis
+# Analyze local results and export local artifacts
+policybench analyze --output-dir results/local/analysis
 ```
 
 ## Repeated runs
 
 ```bash
 # Optional: run the same benchmark multiple times on the same sampled households
-policybench eval-no-tools-repeated -n 100 --seed 42 --repeats 3 -o results/no_tools/runs
+policybench eval-no-tools-repeated -n 100 --seed 42 --repeats 3 -o results/local/no_tools/runs
 
 # Analyze the canonical point estimate plus across-run stability
-policybench analyze --runs-dir results/no_tools/runs --output-dir results/analysis
+policybench analyze --runs-dir results/local/no_tools/runs --output-dir results/local/analysis
 ```

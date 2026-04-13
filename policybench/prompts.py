@@ -28,7 +28,8 @@ US_VARIABLE_DESCRIPTIONS = {
     "snap": "annual SNAP (food stamps) benefit amount",
     "ssi": "annual Supplemental Security Income (SSI) amount",
     "free_school_meals": (
-        "whether the household qualifies for free school meals "
+        "the benchmark household free-school-meal eligibility label "
+        "derived from PolicyEngine school-meal support "
         "(1 if yes, 0 if no; reduced-price meals do not count as 1)"
     ),
     "is_medicaid_eligible": (

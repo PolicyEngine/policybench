@@ -11,15 +11,15 @@ Run the benchmark and analysis workflow:
 ```bash
 policybench ground-truth -n 100 --seed 42
 policybench eval-no-tools -n 100 --seed 42
-policybench analyze --output-dir results/analysis
+policybench analyze --output-dir results/local/analysis
 ```
 
-The `analyze` command writes four canonical artifacts:
+The `analyze` command writes four local artifacts:
 
-1. `results/analysis/metrics.csv`
-2. `results/analysis/summary_by_model.csv`
-3. `results/analysis/summary_by_variable.csv`
-4. `results/analysis/report.md`
+1. `results/local/analysis/metrics.csv`
+2. `results/local/analysis/summary_by_model.csv`
+3. `results/local/analysis/summary_by_variable.csv`
+4. `results/local/analysis/report.md`
 
 ## What to read
 
@@ -33,11 +33,11 @@ Three patterns matter most when reading these outputs:
 
 1. The benchmark is intentionally about unaided capability. Strong results here mean a model can perform household-level policy arithmetic from parametric knowledge alone.
 2. Aggregate variables such as market income are much easier than variables involving eligibility thresholds, phase-ins, phase-outs, and cross-program interactions.
-3. Within-10% accuracy is usually the most interpretable headline metric because the benchmark mixes zero-heavy benefit variables, large dollar-valued taxes, and rates.
+3. Within-10% accuracy is the main headline metric for amount variables, while binary household labels are read through classification accuracy.
 
 ## Reproducibility
 
-Ground truth and predictions should always be generated from the same sampled scenarios by using the same `--seed` and `-n/--num-scenarios` values. The exported analysis artifacts are deterministic functions of those two input files:
+Reference outputs and predictions should always be generated from the same sampled scenarios by using the same `--seed` and `-n/--num-scenarios` values. The exported analysis artifacts are deterministic functions of those two input files:
 
-- `results/ground_truth.csv`
-- `results/no_tools/predictions.csv`
+- `results/local/ground_truth.csv`
+- `results/local/no_tools/predictions.csv`

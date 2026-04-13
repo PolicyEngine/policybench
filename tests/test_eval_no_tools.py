@@ -379,7 +379,8 @@ def test_free_school_meals_prompt_clarifies_household_boolean(mini_scenario):
     free-meal eligibility, not dollars."""
     prompt = make_no_tools_prompt(mini_scenario, "free_school_meals")
     prompt_lower = prompt.lower()
-    assert "household qualifies for free school meals" in prompt_lower
+    assert "benchmark household free-school-meal eligibility label" in prompt_lower
+    assert "derived from policyengine school-meal support" in prompt_lower
     assert "reduced-price meals do not count as 1" in prompt_lower
 
 

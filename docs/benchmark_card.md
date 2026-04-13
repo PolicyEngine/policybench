@@ -53,6 +53,9 @@ PolicyBench has two evaluation modes.
 
 Diagnostic runs should not be mixed into leaderboard claims.
 
+CLI default outputs under `results/local/` are scratch artifacts, not canonical
+leaderboard snapshots.
+
 ## Snapshot policy
 
 The live site can change after new runs are added.

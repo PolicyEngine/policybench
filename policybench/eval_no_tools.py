@@ -21,7 +21,6 @@ from policybench.scenarios import Scenario
 MAX_RETRIES = 2
 RETRY_BASE_DELAY = 2
 REQUEST_TIMEOUT_SECONDS = 20
-GPT54_PRO_REQUEST_TIMEOUT_SECONDS = 300
 GEMINI_PRO_REQUEST_TIMEOUT_SECONDS = 60
 XAI_REASONING_REQUEST_TIMEOUT_SECONDS = 60
 XAI_GROK_420_REASONING_REQUEST_TIMEOUT_SECONDS = 120
@@ -176,8 +175,6 @@ def _completion_controls(model_id: str, include_explanations: bool = False) -> d
 
 
 def _request_timeout_seconds(model_id: str) -> int:
-    if model_id == "gpt-5.4-pro":
-        return GPT54_PRO_REQUEST_TIMEOUT_SECONDS
     if model_id == "gemini/gemini-3.1-pro-preview":
         return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
     if model_id == "xai/grok-4.20-reasoning":

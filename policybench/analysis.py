@@ -6,7 +6,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from policybench.config import BINARY_PROGRAMS, RATE_PROGRAMS
+from policybench.config import (
+    BINARY_PROGRAMS,
+    HOUSEHOLD_IMPACT_SCORE_FLOOR,
+    RATE_PROGRAMS,
+)
 from policybench.prompts import make_no_tools_batch_prompt
 from policybench.scenarios import scenario_from_dict
 
@@ -103,6 +107,189 @@ def _std_or_nan(series: pd.Series) -> float:
     return float(values.std(ddof=1))
 
 
+def score_single_prediction(
+    variable: str,
+    y_true: float,
+    y_pred: float | None,
+) -> float:
+    """Score one prediction on the same 0-1 bounded scale used in aggregates."""
+    if y_pred is None or pd.isna(y_pred):
+        return 0.0
+
+    y_true_arr = np.array([y_true], dtype=float)
+    y_pred_arr = np.array([y_pred], dtype=float)
+
+    if variable in BINARY_PROGRAMS:
+        return accuracy(y_true_arr, y_pred_arr)
+
+    if variable in RATE_PROGRAMS:
+        exact = exact_amount_match(
+            y_true_arr,
+            y_pred_arr,
+            absolute_tolerance=1e-4,
+        )
+    else:
+        exact = exact_amount_match(
+            y_true_arr,
+            y_pred_arr,
+            absolute_tolerance=1.0,
+        )
+
+    within_1pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.01)
+    within_5pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.05)
+    within_10pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.10)
+    return float(np.mean([exact, within_1pct, within_5pct, within_10pct]))
+
+
+def household_equal_impact_scores(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+    floor_share: float = HOUSEHOLD_IMPACT_SCORE_FLOOR,
+) -> pd.DataFrame:
+    """Score models by equal household weight and within-household dollar impact.
+
+    Each household contributes equally to the final metric. Within a household,
+    each program gets a blended weight:
+
+    - `floor_share / K` equal-weight floor
+    - `(1 - floor_share)` times its absolute reference-value share
+
+    This keeps small or zero-value components from disappearing while still
+    giving more weight to larger budget components within a household.
+    """
+    if floor_share < 0 or floor_share > 1:
+        raise ValueError("floor_share must be between 0 and 1.")
+
+    if ground_truth.empty or predictions.empty or "model" not in predictions.columns:
+        return pd.DataFrame(
+            columns=[
+                "model",
+                "scenario_id",
+                "impact_score",
+                "equal_weight_score",
+                "coverage",
+                "parsed_variables",
+                "total_variables",
+                "floor_share",
+            ]
+        )
+
+    models = pd.DataFrame({"model": sorted(predictions["model"].dropna().unique())})
+    if models.empty:
+        return pd.DataFrame(
+            columns=[
+                "model",
+                "scenario_id",
+                "impact_score",
+                "equal_weight_score",
+                "coverage",
+                "parsed_variables",
+                "total_variables",
+                "floor_share",
+            ]
+        )
+
+    expected = ground_truth.assign(_join_key=1).merge(
+        models.assign(_join_key=1),
+        on="_join_key",
+    )
+    expected = expected.drop(columns="_join_key")
+
+    merged = expected.merge(
+        predictions[["model", "scenario_id", "variable", "prediction"]],
+        on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+
+    base_weights = ground_truth.copy()
+    base_weights["abs_value"] = base_weights["value"].abs()
+    base_weights["total_variables"] = base_weights.groupby("scenario_id")[
+        "variable"
+    ].transform("size")
+    base_weights["abs_total"] = base_weights.groupby("scenario_id")["abs_value"].transform(
+        "sum"
+    )
+    base_weights["weight"] = np.where(
+        base_weights["abs_total"] > 0,
+        floor_share / base_weights["total_variables"]
+        + (1 - floor_share) * base_weights["abs_value"] / base_weights["abs_total"],
+        1 / base_weights["total_variables"],
+    )
+
+    merged = merged.merge(
+        base_weights[["scenario_id", "variable", "weight", "total_variables"]],
+        on=["scenario_id", "variable"],
+        how="left",
+    )
+
+    merged["row_score"] = [
+        score_single_prediction(variable, y_true, y_pred)
+        for variable, y_true, y_pred in zip(
+            merged["variable"],
+            merged["value"],
+            merged["prediction"],
+        )
+    ]
+    merged["weighted_row_score"] = merged["row_score"] * merged["weight"]
+
+    household_scores = (
+        merged.groupby(["model", "scenario_id"])
+        .agg(
+            impact_score=("weighted_row_score", "sum"),
+            equal_weight_score=("row_score", "mean"),
+            parsed_variables=("prediction", lambda s: int(s.notna().sum())),
+            total_variables=("total_variables", "first"),
+        )
+        .reset_index()
+    )
+    household_scores["coverage"] = (
+        household_scores["parsed_variables"] / household_scores["total_variables"]
+    )
+    household_scores["floor_share"] = floor_share
+    return household_scores
+
+
+def household_impact_summary_by_model(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+    floor_share: float = HOUSEHOLD_IMPACT_SCORE_FLOOR,
+) -> pd.DataFrame:
+    """Aggregate household-equal impact scores by model."""
+    household_scores = household_equal_impact_scores(
+        ground_truth,
+        predictions,
+        floor_share=floor_share,
+    )
+    if household_scores.empty:
+        return pd.DataFrame(
+            columns=[
+                "model",
+                "mean_impact_score",
+                "mean_household_score",
+                "mean_household_coverage",
+                "households",
+                "total_variables",
+                "parsed_variables",
+                "floor_share",
+            ]
+        )
+
+    return (
+        household_scores.groupby("model")
+        .agg(
+            mean_impact_score=("impact_score", "mean"),
+            mean_household_score=("equal_weight_score", "mean"),
+            mean_household_coverage=("coverage", "mean"),
+            households=("scenario_id", "nunique"),
+            total_variables=("total_variables", "sum"),
+            parsed_variables=("parsed_variables", "sum"),
+            floor_share=("floor_share", "first"),
+        )
+        .reset_index()
+        .sort_values("mean_impact_score", ascending=False)
+    )
+
+
 def run_stability_by_model(run_model_summary: pd.DataFrame) -> pd.DataFrame:
     """Aggregate repeated-run stability metrics by model."""
     if run_model_summary.empty:
@@ -131,6 +318,27 @@ def run_stability_by_model(run_model_summary: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def _expected_prediction_grid(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+) -> pd.DataFrame:
+    """Build the full expected model × scenario × variable grid."""
+    if (
+        ground_truth.empty
+        or predictions.empty
+        or "model" not in predictions.columns
+        or predictions["model"].dropna().empty
+    ):
+        return pd.DataFrame(columns=["model", "scenario_id", "variable", "value"])
+
+    models = pd.DataFrame({"model": sorted(predictions["model"].dropna().unique())})
+    expected = ground_truth.assign(_join_key=1).merge(
+        models.assign(_join_key=1),
+        on="_join_key",
+    )
+    return expected.drop(columns="_join_key")
+
+
 def compute_metrics(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
@@ -144,11 +352,13 @@ def compute_metrics(
     Returns:
         DataFrame with bounded hit-rate scores plus diagnostic error metrics
     """
-    merged = predictions.merge(
-        ground_truth,
-        on=["scenario_id", "variable"],
-        how="inner",
+    merged = _expected_prediction_grid(ground_truth, predictions).merge(
+        predictions[["model", "scenario_id", "variable", "prediction"]],
+        on=["model", "scenario_id", "variable"],
+        how="left",
     )
+    if merged.empty:
+        return pd.DataFrame()
 
     rows = []
     for (model, variable), group in merged.groupby(["model", "variable"]):
@@ -345,6 +555,7 @@ def analyze_no_tools(
     """Build the standard no-tools analysis tables."""
     metrics = compute_metrics(ground_truth, predictions)
     model_summary = summary_by_model(metrics)
+    impact_summary = household_impact_summary_by_model(ground_truth, predictions)
     run_model_summary = summarize_runs_by_model(ground_truth, repeated_predictions)
     run_stability = run_stability_by_model(run_model_summary)
     if not run_stability.empty:
@@ -358,6 +569,7 @@ def analyze_no_tools(
     return {
         "metrics": metrics,
         "model_summary": model_summary,
+        "impact_summary": impact_summary,
         "variable_summary": variable_summary,
         "usage_summary": usage_summary,
         "run_model_summary": run_model_summary,
@@ -380,6 +592,7 @@ def _format_seconds(value: float) -> str:
 def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
     """Render a compact markdown report from analysis tables."""
     model_summary = analysis["model_summary"]
+    impact_summary = analysis.get("impact_summary", pd.DataFrame())
     variable_summary = analysis["variable_summary"]
     usage_summary = analysis.get("usage_summary", pd.DataFrame())
     run_stability = analysis.get("run_stability", pd.DataFrame())
@@ -501,8 +714,8 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
             "",
             "| model | mean_score | mean_exact "
             "| mean_within_1pct | mean_within_5pct "
-            "| mean_within_10pct | mean_mae | total_n |",
-            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+            "| mean_within_10pct | mean_binary_accuracy | mean_mae | total_n |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
     for _, row in model_summary.iterrows():
@@ -514,6 +727,7 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
             f"{_format_metric(row['mean_within_1pct'])} | "
             f"{_format_metric(row['mean_within_5pct'])} | "
             f"{_format_metric(row['mean_within_10pct'])} | "
+            f"{_format_metric(row['mean_accuracy'])} | "
             f"{_format_metric(row['mean_mae'])} | "
             f"{int(row['total_n'])} |"
         )
@@ -521,23 +735,68 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
     lines.extend(
         [
             "",
+        ]
+    )
+
+    if not impact_summary.empty:
+        lines.extend(
+            [
+                "## Household-equal impact score",
+                "",
+                "Households receive equal weight. Within each household, "
+                "programs get a blend of equal weighting and weighting by "
+                "absolute contribution to household net income.",
+                "",
+                "| model | mean_impact_score | mean_household_score "
+                "| mean_household_coverage | households |",
+                "| --- | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        for _, row in impact_summary.iterrows():
+            lines.append(
+                "| "
+                f"{row['model']} | "
+                f"{_format_metric(row['mean_impact_score'])} | "
+                f"{_format_metric(row['mean_household_score'])} | "
+                f"{_format_metric(row['mean_household_coverage'])} | "
+                f"{int(row['households'])} |"
+            )
+
+        lines.extend(
+            [
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
             "## Summary by variable",
             "",
-            "| variable | mean_score | mean_exact "
+            "Amount variables use the tolerance columns. "
+            "Household-boolean variables use `mean_accuracy` as the headline metric.",
+            "",
+            "| variable | metric_type | mean_score | mean_exact "
             "| mean_within_1pct | mean_within_5pct "
-            "| mean_within_10pct | mean_mae | total_n |",
-            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+            "| mean_within_10pct | mean_accuracy | mean_mae | total_n |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
     for _, row in variable_summary.iterrows():
+        metric_type = (
+            "binary_accuracy"
+            if row["variable"] in BINARY_PROGRAMS
+            else "amount_tolerance"
+        )
         lines.append(
             "| "
             f"{row['variable']} | "
+            f"{metric_type} | "
             f"{_format_metric(row['mean_score'])} | "
             f"{_format_metric(row['mean_exact'])} | "
             f"{_format_metric(row['mean_within_1pct'])} | "
             f"{_format_metric(row['mean_within_5pct'])} | "
             f"{_format_metric(row['mean_within_10pct'])} | "
+            f"{_format_metric(row['mean_accuracy'])} | "
             f"{_format_metric(row['mean_mae'])} | "
             f"{int(row['total_n'])} |"
         )
@@ -1162,12 +1421,17 @@ def export_analysis(
 
     metrics_path = output_path / "metrics.csv"
     model_summary_path = output_path / "summary_by_model.csv"
+    impact_summary_path = output_path / "impact_summary_by_model.csv"
     variable_summary_path = output_path / "summary_by_variable.csv"
     usage_summary_path = output_path / "usage_summary.csv"
     report_path = output_path / "report.md"
 
     analysis["metrics"].to_csv(metrics_path, index=False)
     analysis["model_summary"].to_csv(model_summary_path, index=False)
+    analysis.get("impact_summary", pd.DataFrame()).to_csv(
+        impact_summary_path,
+        index=False,
+    )
     analysis["variable_summary"].to_csv(variable_summary_path, index=False)
     analysis["usage_summary"].to_csv(usage_summary_path, index=False)
     report_path.write_text(render_markdown_report(analysis), encoding="utf-8")
@@ -1175,6 +1439,7 @@ def export_analysis(
     exported = {
         "metrics": metrics_path,
         "model_summary": model_summary_path,
+        "impact_summary": impact_summary_path,
         "variable_summary": variable_summary_path,
         "usage_summary": usage_summary_path,
         "report": report_path,

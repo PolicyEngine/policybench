@@ -8,7 +8,9 @@ import pandas as pd
 from policybench.config import DEFAULT_COUNTRY, PROGRAMS, TAX_YEAR, get_programs
 from policybench.scenarios import Scenario, get_uk_dataset_path
 
-HOUSEHOLD_BOOLEAN_VARIABLES = {
+# These benchmark variables are household-level boolean labels derived from
+# PolicyEngine outputs that are naturally person-level or dollar-valued.
+DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES = {
     "free_school_meals",
     "is_medicaid_eligible",
 }
@@ -17,7 +19,7 @@ HOUSEHOLD_BOOLEAN_VARIABLES = {
 def _extract_scalar_value(result, variable: str) -> float:
     """Convert a PolicyEngine result array into the benchmark scalar."""
     value = float(result.sum())
-    if variable in HOUSEHOLD_BOOLEAN_VARIABLES:
+    if variable in DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES:
         return float(value > 0)
     return value
 

@@ -170,12 +170,12 @@ export default function Methodology({
 
   const householdsLabel =
     country === "uk" ? "Enhanced CPS households" : "Enhanced CPS households";
-  const groundTruthSource =
+  const referenceOutputSource =
     country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
   const benchmarkDescription =
     country === "uk"
-      ? "This app shows the current no-tools UK benchmark on a fixed test set, with ground truth computed by PolicyEngine-UK for tax year 2025."
-      : "This app shows the current no-tools US benchmark on a fixed test set, with ground truth computed by PolicyEngine-US for tax year 2025.";
+      ? "This app shows the current no-tools UK benchmark on a fixed test set, with reference outputs computed by PolicyEngine-UK for tax year 2025."
+      : "This app shows the current no-tools US benchmark on a fixed test set, with reference outputs computed by PolicyEngine-US for tax year 2025.";
 
   return (
     <div>
@@ -235,7 +235,7 @@ export default function Methodology({
           set is restricted to households with a single tax unit, a single SPM
           unit, and a single family. Ages, children, income sources, and
           other nonzero promptable inputs are carried through into both the
-          prompt and the {groundTruthSource} input.
+          prompt and the {referenceOutputSource} input.
         </SectionCard>
 
         <SectionCard title="Ground Truth">

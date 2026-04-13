@@ -1,6 +1,14 @@
 # LiteLLM disk cache
 .policybench_cache/
 
+# Local scratch benchmark outputs. Frozen snapshots and batch exports live
+# elsewhere under results/ and can still be committed intentionally.
+results/local/
+results/analysis/
+results/no_tools/
+results/ground_truth.csv
+results/scenarios.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

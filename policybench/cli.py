@@ -56,7 +56,7 @@ def main():
     gt_parser = subparsers.add_parser(
         "ground-truth", help="Generate ground truth from PolicyEngine-US"
     )
-    gt_parser.add_argument("-o", "--output", default="results/ground_truth.csv")
+    gt_parser.add_argument("-o", "--output", default="results/local/ground_truth.csv")
     gt_parser.add_argument("-n", "--num-scenarios", type=int, default=100)
     gt_parser.add_argument("--seed", type=int, default=42)
     gt_parser.add_argument(
@@ -67,8 +67,8 @@ def main():
     )
     gt_parser.add_argument(
         "--scenario-manifest-output",
-        default="results/scenarios.csv",
-        help="CSV file for exported scenario metadata",
+        default="results/local/scenarios.csv",
+        help="CSV file for exported scenario metadata (local scratch path)",
     )
     gt_parser.add_argument(
         "--program",
@@ -84,7 +84,11 @@ def main():
 
     # Eval no tools
     nt_parser = subparsers.add_parser("eval-no-tools", help="Run AI-alone evaluation")
-    nt_parser.add_argument("-o", "--output", default="results/no_tools/predictions.csv")
+    nt_parser.add_argument(
+        "-o",
+        "--output",
+        default="results/local/no_tools/predictions.csv",
+    )
     nt_parser.add_argument("-n", "--num-scenarios", type=int, default=100)
     nt_parser.add_argument("--seed", type=int, default=42)
     nt_parser.add_argument(
@@ -144,7 +148,7 @@ def main():
     ntr_parser.add_argument(
         "-o",
         "--output-dir",
-        default="results/no_tools/runs",
+        default="results/local/no_tools/runs",
         help="Directory for per-run prediction CSVs",
     )
     ntr_parser.add_argument("-n", "--num-scenarios", type=int, default=100)
@@ -207,22 +211,22 @@ def main():
     # Analyze
     analyze_parser = subparsers.add_parser("analyze", help="Analyze AI-alone results")
     analyze_parser.add_argument(
-        "-g", "--ground-truth", default="results/ground_truth.csv"
+        "-g", "--ground-truth", default="results/local/ground_truth.csv"
     )
     analyze_parser.add_argument(
-        "-p", "--predictions", default="results/no_tools/predictions.csv"
+        "-p", "--predictions", default="results/local/no_tools/predictions.csv"
     )
     analyze_parser.add_argument(
         "-s",
         "--scenario-manifest",
-        default="results/scenarios.csv",
+        default="results/local/scenarios.csv",
         help="CSV file with scenario metadata for dashboard export",
     )
     analyze_parser.add_argument(
         "-o",
         "--output-dir",
-        default="results/analysis",
-        help="Directory for exported analysis artifacts",
+        default="results/local/analysis",
+        help="Directory for exported local analysis artifacts",
     )
     analyze_parser.add_argument(
         "--app-data-output",
