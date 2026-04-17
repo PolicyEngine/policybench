@@ -144,19 +144,19 @@ class TestExtractNumber:
     def test_json_answer_object(self):
         assert extract_number('{"answer": 3500}') == 3500.0
 
-    def test_json_answer_with_explanation_after(self):
+    def test_none_for_json_answer_with_extra_text(self):
         assert (
             extract_number('{"answer": 3500}\nThe household has no refundable credits.')
-            == 3500.0
+            is None
         )
 
-    def test_truncated_json_answer_prefix(self):
-        assert extract_number('{"answer": 4923') == 4923.0
+    def test_none_for_truncated_json_answer_prefix(self):
+        assert extract_number('{"answer": 4923') is None
 
-    def test_multiline_response_with_numeric_final_line(self):
+    def test_none_for_multiline_response_with_numeric_final_line(self):
         assert (
             extract_number("I estimate the federal income tax is modest.\n\n3500")
-            == 3500.0
+            is None
         )
 
     def test_none_for_explanatory_sentence(self):
@@ -225,7 +225,7 @@ class TestExtractPrediction:
         )
         assert predictions == {"income_tax": 4923.0, "eitc": 0.0}
 
-    def test_extract_predictions_salvages_complete_answers_from_truncated_explanations(
+    def test_extract_predictions_rejects_truncated_payload(
         self,
     ):
         predictions = extract_predictions(
@@ -236,7 +236,7 @@ class TestExtractPrediction:
             variables=["income_tax", "eitc"],
             tool_calls=None,
         )
-        assert predictions == {"income_tax": 4923.0, "eitc": 0.0}
+        assert predictions == {"income_tax": None, "eitc": None}
 
     def test_extract_explanations_returns_mapping(self):
         explanations = extract_explanations(
@@ -254,7 +254,7 @@ class TestExtractPrediction:
             "eitc": None,
         }
 
-    def test_extract_explanations_salvages_complete_prefix_from_truncated_payload(self):
+    def test_extract_explanations_rejects_truncated_payload(self):
         explanations = extract_explanations(
             content=(
                 '{"answers":{"income_tax":4923,"eitc":0},"explanations":{'
@@ -265,9 +265,20 @@ class TestExtractPrediction:
             tool_calls=None,
         )
         assert explanations == {
-            "income_tax": "Moderate taxable income.",
+            "income_tax": None,
             "eitc": None,
         }
+
+    def test_extract_predictions_does_not_scrape_stray_numbers_from_prose(self):
+        predictions = extract_predictions(
+            content=(
+                "For free school meals, household income must be at or below "
+                "130% of the federal poverty level."
+            ),
+            variables=["free_school_meals"],
+            tool_calls=None,
+        )
+        assert predictions == {"free_school_meals": None}
 
 
 def test_no_tools_prompt_contains_household_info(mini_scenario):

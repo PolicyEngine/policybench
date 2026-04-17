@@ -55,10 +55,6 @@ MODEL_FATAL_ERRORS = (
     litellm.UnprocessableEntityError,
 )
 STANDALONE_NUMBER_RE = re.compile(r"^\$?-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$")
-ANSWER_JSON_RE = re.compile(
-    r'["\']answer["\']\s*:\s*["\']?(-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)',
-    re.IGNORECASE,
-)
 
 
 def _format_error(error: Exception) -> str:
@@ -463,23 +459,23 @@ def _aggregate_request_results(results: list[dict]) -> dict:
 
 
 def extract_number(text: str) -> float | None:
-    """Extract a numeric value from the answer contract or numeric-only fallback."""
+    """Extract a numeric value from a valid answer payload."""
     if not text:
         return None
-    answer_match = ANSWER_JSON_RE.search(text)
-    if answer_match is not None:
-        json_value = _parse_standalone_number(answer_match.group(1))
-        if json_value is not None:
-            return json_value
 
     full_match = _parse_standalone_number(text)
     if full_match is not None:
         return full_match
 
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if not lines:
+    try:
+        payload = json.loads(text)
+    except Exception:
         return None
-    return _parse_standalone_number(lines[-1])
+
+    if isinstance(payload, dict) and "answer" in payload:
+        return _coerce_prediction_value(payload.get("answer"))
+
+    return None
 
 
 def _coerce_prediction_value(value) -> float | None:
@@ -487,39 +483,6 @@ def _coerce_prediction_value(value) -> float | None:
         return float(value)
     if isinstance(value, str):
         return extract_number(value)
-    return None
-
-
-def _extract_named_object_text(text: str, key: str) -> str | None:
-    match = re.search(rf'["\']{re.escape(key)}["\']\s*:\s*\{{', text)
-    if match is None:
-        return None
-
-    start = match.end() - 1
-    depth = 0
-    in_string = False
-    escaped = False
-
-    for index in range(start, len(text)):
-        char = text[index]
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-
-        if char == '"':
-            in_string = True
-        elif char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return text[start : index + 1]
-
     return None
 
 
@@ -531,14 +494,7 @@ def _extract_predictions_from_payload(
         try:
             payload = json.loads(payload)
         except Exception:
-            answers_text = _extract_named_object_text(payload, "answers")
-            if answers_text is not None:
-                try:
-                    payload = {"answers": json.loads(answers_text)}
-                except Exception:
-                    payload = None
-            else:
-                payload = None
+            payload = None
 
     if isinstance(payload, dict) and isinstance(payload.get("answers"), dict):
         payload = payload["answers"]
@@ -559,7 +515,6 @@ def _extract_explanations_from_payload(
     payload,
     variables: list[str],
 ) -> dict[str, str | None]:
-    raw_text = payload if isinstance(payload, str) else None
     if isinstance(payload, str):
         try:
             payload = json.loads(payload)
@@ -568,22 +523,6 @@ def _extract_explanations_from_payload(
 
     explanations = {variable: None for variable in variables}
     if not isinstance(payload, dict):
-        if raw_text:
-            explanation_match = re.search(r'["\']explanations["\']\s*:\s*\{', raw_text)
-            explanation_text = (
-                raw_text[explanation_match.end() :] if explanation_match else raw_text
-            )
-            for variable in variables:
-                match = re.search(
-                    rf'["\']{re.escape(variable)}["\']\s*:\s*"((?:\\.|[^"\\])*)"',
-                    explanation_text,
-                )
-                if match is None:
-                    continue
-                cleaned = (
-                    bytes(match.group(1), "utf-8").decode("unicode_escape").strip()
-                )
-                explanations[variable] = cleaned or None
         return explanations
 
     explanation_payload = payload.get("explanations")
@@ -608,31 +547,6 @@ def _missing_explanations(
         if not isinstance(explanations.get(variable), str)
         or not explanations.get(variable, "").strip()
     ]
-
-
-def _extract_predictions_from_text(
-    text: str | None,
-    variables: list[str],
-) -> dict[str, float | None]:
-    predictions = {variable: None for variable in variables}
-    if not text:
-        return predictions
-
-    parsed = _extract_predictions_from_payload(text, variables)
-    if any(value is not None for value in parsed.values()):
-        return parsed
-
-    for variable in variables:
-        match = re.search(
-            rf'["\']{re.escape(variable)}["\']\s*:\s*["\']?(-?(?:\d{{1,3}}(?:,\d{{3}})+|\d+)(?:\.\d+)?)',
-            text,
-            re.IGNORECASE,
-        )
-        if match is not None:
-            predictions[variable] = _parse_standalone_number(match.group(1))
-    if len(variables) == 1 and predictions[variables[0]] is None:
-        predictions[variables[0]] = extract_number(text)
-    return predictions
 
 
 def _get_tool_call_function(tool_call):
@@ -753,7 +667,7 @@ def extract_prediction(
     tool_calls=None,
     function_call=None,
 ) -> float | None:
-    """Extract a numeric prediction from structured tool output or text fallback."""
+    """Extract a numeric prediction from structured tool output or valid JSON."""
     for tool_call in tool_calls or []:
         function = _get_tool_call_function(tool_call)
         if _get_function_name(function) != ANSWER_FUNCTION_NAME:
@@ -786,7 +700,7 @@ def extract_predictions(
     tool_calls=None,
     function_call=None,
 ) -> dict[str, float | None]:
-    """Extract a mapping of variable -> prediction from tool output or JSON/text."""
+    """Extract a mapping of variable -> prediction from tool output or valid JSON."""
     for tool_call in tool_calls or []:
         function = _get_tool_call_function(tool_call)
         if _get_function_name(function) != ANSWER_FUNCTION_NAME:
@@ -802,7 +716,7 @@ def extract_predictions(
         if any(value is not None for value in predictions.values()):
             return predictions
 
-    return _extract_predictions_from_text(content, variables)
+    return _extract_predictions_from_payload(content, variables)
 
 
 def extract_explanations(
