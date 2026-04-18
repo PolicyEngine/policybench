@@ -1067,9 +1067,7 @@ def _build_resume_metadata(
         "run_id": run_id,
         "include_explanations": include_explanations,
         "scenario_count": len(scenarios),
-        "scenario_hash": hashlib.sha256(
-            scenario_signature.encode("utf-8")
-        ).hexdigest(),
+        "scenario_hash": hashlib.sha256(scenario_signature.encode("utf-8")).hexdigest(),
         "programs": sorted(programs),
         "models": {name: models[name] for name in sorted(models)},
     }

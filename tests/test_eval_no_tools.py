@@ -9,9 +9,9 @@ import pytest
 
 from policybench.config import COUNTRY_PROGRAMS
 from policybench.eval_no_tools import (
+    _build_answer_tool,
     _build_resume_metadata,
     _write_resume_metadata,
-    _build_answer_tool,
     extract_explanations,
     extract_number,
     extract_prediction,
@@ -1227,7 +1227,9 @@ def test_run_no_tools_eval_rejects_mismatched_resume_metadata(
         )
     )
 
-    with pytest.raises(ValueError, match="does not match the requested benchmark settings"):
+    with pytest.raises(
+        ValueError, match="does not match the requested benchmark settings"
+    ):
         run_no_tools_eval(
             [mini_scenario],
             models={"gpt-5.4": "gpt-5.4"},

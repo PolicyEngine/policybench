@@ -146,7 +146,10 @@ def main():
     nt_parser.add_argument(
         "--regenerate-scenarios",
         action="store_true",
-        help="Ignore the saved manifest and resample households from the current source dataset",
+        help=(
+            "Ignore the saved manifest and resample households from the "
+            "current source dataset"
+        ),
     )
     nt_parser.add_argument(
         "--model",
@@ -218,7 +221,10 @@ def main():
     ntr_parser.add_argument(
         "--regenerate-scenarios",
         action="store_true",
-        help="Ignore the saved manifest and resample households from the current source dataset",
+        help=(
+            "Ignore the saved manifest and resample households from the "
+            "current source dataset"
+        ),
     )
     ntr_parser.add_argument(
         "--repeats",

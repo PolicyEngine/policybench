@@ -206,9 +206,9 @@ def household_equal_impact_scores(
     base_weights["total_variables"] = base_weights.groupby("scenario_id")[
         "variable"
     ].transform("size")
-    base_weights["abs_total"] = base_weights.groupby("scenario_id")["abs_value"].transform(
-        "sum"
-    )
+    base_weights["abs_total"] = base_weights.groupby("scenario_id")[
+        "abs_value"
+    ].transform("sum")
     base_weights["weight"] = np.where(
         base_weights["abs_total"] > 0,
         floor_share / base_weights["total_variables"]

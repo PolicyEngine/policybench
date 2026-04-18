@@ -698,8 +698,12 @@ def test_load_scenarios_from_manifest_round_trips(sample_person_frame, tmp_path)
 
     loaded = load_scenarios_from_manifest(manifest_path)
 
-    assert [scenario.id for scenario in loaded] == [scenario.id for scenario in scenarios]
-    assert [scenario.state for scenario in loaded] == [scenario.state for scenario in scenarios]
+    assert [scenario.id for scenario in loaded] == [
+        scenario.id for scenario in scenarios
+    ]
+    assert [scenario.state for scenario in loaded] == [
+        scenario.state for scenario in scenarios
+    ]
     assert [scenario.filing_status for scenario in loaded] == [
         scenario.filing_status for scenario in scenarios
     ]

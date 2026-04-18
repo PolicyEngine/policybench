@@ -102,9 +102,7 @@ class TestBasicMetrics:
 
     def test_score_single_prediction_uses_bounded_amount_score(self):
         assert score_single_prediction("income_tax", 100.0, 100.5) == pytest.approx(1.0)
-        assert score_single_prediction("income_tax", 100.0, 104.0) == pytest.approx(
-            0.5
-        )
+        assert score_single_prediction("income_tax", 100.0, 104.0) == pytest.approx(0.5)
         assert score_single_prediction("income_tax", 100.0, None) == 0.0
 
 
@@ -237,7 +235,9 @@ class TestComputeMetrics:
             }
         )
 
-        metrics = compute_metrics(ground_truth_df, predictions_df).sort_values("variable")
+        metrics = compute_metrics(ground_truth_df, predictions_df).sort_values(
+            "variable"
+        )
         assert metrics["variable"].tolist() == ["eitc", "income_tax"]
 
         eitc_row = metrics[metrics["variable"] == "eitc"].iloc[0]
