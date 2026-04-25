@@ -13,6 +13,7 @@ from policybench.config import (
 )
 from policybench.prompts import make_no_tools_batch_prompt
 from policybench.scenarios import scenario_from_dict
+from policybench.spec import metric_type_for_output, net_income_sign_for_output
 
 
 def mean_absolute_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -119,10 +120,11 @@ def score_single_prediction(
     y_true_arr = np.array([y_true], dtype=float)
     y_pred_arr = np.array([y_pred], dtype=float)
 
-    if variable in BINARY_PROGRAMS:
+    metric_type = metric_type_for_output(variable)
+    if metric_type == "binary" or variable in BINARY_PROGRAMS:
         return accuracy(y_true_arr, y_pred_arr)
 
-    if variable in RATE_PROGRAMS:
+    if metric_type == "rate" or variable in RATE_PROGRAMS:
         exact = exact_amount_match(
             y_true_arr,
             y_pred_arr,
@@ -202,7 +204,12 @@ def household_equal_impact_scores(
     )
 
     base_weights = ground_truth.copy()
-    base_weights["abs_value"] = base_weights["value"].abs()
+    base_weights["net_income_sign"] = base_weights["variable"].map(
+        net_income_sign_for_output
+    )
+    base_weights["abs_value"] = (
+        base_weights["value"] * base_weights["net_income_sign"]
+    ).abs()
     base_weights["total_variables"] = base_weights.groupby("scenario_id")[
         "variable"
     ].transform("size")
@@ -378,7 +385,10 @@ def compute_metrics(
         if parsed_n == 0:
             row["mae"] = float("nan")
             row["mape"] = float("nan")
-            if variable in BINARY_PROGRAMS:
+            if (
+                metric_type_for_output(variable) == "binary"
+                or variable in BINARY_PROGRAMS
+            ):
                 row["accuracy"] = 0.0
             else:
                 row["accuracy"] = float("nan")
@@ -393,7 +403,8 @@ def compute_metrics(
         y_true = scored["value"].values
         y_pred = scored["prediction"].values
 
-        if variable in BINARY_PROGRAMS:
+        metric_type = metric_type_for_output(variable)
+        if metric_type == "binary" or variable in BINARY_PROGRAMS:
             accuracy_score = accuracy(y_true, y_pred) * coverage
             row["mae"] = mean_absolute_error(y_true, y_pred)
             row["mape"] = float("nan")
@@ -403,7 +414,7 @@ def compute_metrics(
             row["within_5pct"] = accuracy_score
             row["within_10pct"] = accuracy_score
             row["score"] = accuracy_score
-        elif variable in RATE_PROGRAMS:
+        elif metric_type == "rate" or variable in RATE_PROGRAMS:
             exact = (
                 exact_amount_match(y_true, y_pred, absolute_tolerance=1e-4) * coverage
             )
@@ -782,9 +793,10 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
         ]
     )
     for _, row in variable_summary.iterrows():
+        row_metric_type = metric_type_for_output(row["variable"])
         metric_type = (
             "binary_accuracy"
-            if row["variable"] in BINARY_PROGRAMS
+            if row_metric_type == "binary" or row["variable"] in BINARY_PROGRAMS
             else "amount_tolerance"
         )
         lines.append(
@@ -935,7 +947,10 @@ def _scenario_feature_frame(scenarios: pd.DataFrame) -> pd.DataFrame:
 
 
 def _row_is_correct(row: pd.Series) -> bool:
-    if row["variable"] in BINARY_PROGRAMS:
+    if (
+        metric_type_for_output(row["variable"]) == "binary"
+        or row["variable"] in BINARY_PROGRAMS
+    ):
         return bool(round(row["prediction"]) == round(row["value"]))
     if row["value"] == 0:
         return bool(abs(row["prediction"]) <= 1.0)
@@ -971,9 +986,13 @@ def build_failure_modes_payload(
 
     program_slices = []
     for variable, group in merged.groupby("variable"):
+        is_binary = (
+            metric_type_for_output(variable) == "binary"
+            or variable in BINARY_PROGRAMS
+        )
         item: dict[str, float | int | str | bool | None] = {
             "variable": variable,
-            "isBinary": variable in BINARY_PROGRAMS,
+            "isBinary": is_binary,
             "overallCorrectPct": float(group["correct"].mean() * 100),
             "withChildrenPct": float(
                 group.loc[group["has_children"] == 1, "correct"].mean() * 100
@@ -996,7 +1015,7 @@ def build_failure_modes_payload(
             if (group["high_income"] == 1).any()
             else None,
         }
-        if variable in BINARY_PROGRAMS:
+        if is_binary:
             positive = group[group["value"] > 0]
             negative = group[group["value"] == 0]
             item["positiveCasePct"] = (

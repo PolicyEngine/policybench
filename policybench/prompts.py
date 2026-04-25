@@ -4,6 +4,7 @@ from policybench.scenarios import (
     Person,
     Scenario,
 )
+from policybench.spec import find_output_spec
 
 # Variable descriptions for natural language prompts
 US_VARIABLE_DESCRIPTIONS = {
@@ -208,6 +209,9 @@ def _currency_symbol(country: str) -> str:
 
 def get_variable_description(variable: str, country: str = "us") -> str:
     """Return the prompt description for a benchmark output."""
+    output = find_output_spec(variable, country=country)
+    if output is not None:
+        return output.prompt
     if country == "uk":
         return UK_VARIABLE_DESCRIPTIONS.get(variable, variable)
     return US_VARIABLE_DESCRIPTIONS.get(variable, variable)

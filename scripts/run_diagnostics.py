@@ -12,7 +12,7 @@ from policybench.analysis import (
     export_analysis,
     export_dashboard_data,
 )
-from policybench.config import MODELS, get_programs
+from policybench.config import DEFAULT_PROGRAM_SET, MODELS, get_programs
 from policybench.eval_no_tools import run_no_tools_single_output_eval
 from policybench.ground_truth import calculate_ground_truth
 from policybench.scenarios import (
@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--country", choices=["us", "uk"], required=True)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--program-set", default=DEFAULT_PROGRAM_SET)
     parser.add_argument("-n", "--num-scenarios", type=int, default=20)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
@@ -62,7 +63,7 @@ def main() -> None:
     for manifest_path in args.exclude_scenario_manifest:
         excluded_household_ids |= load_excluded_household_ids(manifest_path)
 
-    programs = get_programs(args.country)
+    programs = get_programs(args.country, args.program_set)
     scenarios = generate_scenarios(
         n=args.num_scenarios,
         seed=args.seed,

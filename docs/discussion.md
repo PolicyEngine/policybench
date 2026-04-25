@@ -6,7 +6,7 @@ title: Discussion
 
 ## Where models fail
 
-The AI-alone results reveal systematic patterns in model errors that reflect the underlying structure of US tax and benefit programs.
+The AI-alone results reveal systematic patterns in model errors that reflect the underlying structure of tax and benefit programs.
 
 **Means-tested benefits are hardest.** Programs like SNAP and SSI involve multi-step eligibility determinations: gross income tests, net income tests, asset limits, categorical eligibility provisions, and benefit reduction rates that differ by household size and state. Models must not only know these rules but execute them in the correct order, applying the right thresholds for the specific household configuration. Even models that can recite SNAP eligibility rules struggle to correctly determine whether a family of four in California with $25,000 in income qualifies, and if so, for how much.
 
@@ -38,7 +38,7 @@ These results suggest a clear architecture for AI systems that provide policy an
 
 Several limitations qualify these findings:
 
-**Scope of programs.** PolicyBench evaluates 13 variables covering major federal and state tax-and-benefit programs, including state AGI, state pre-credit tax, state refundable credits, and final state income tax. The US system still includes hundreds of additional provisions (housing subsidies, healthcare premium tax credits, education credits, retirement savings incentives, and more). We currently prefer AGI and pre-credit tax over final net federal income tax because those targets are cleaner and less semantically ambiguous in a no-tools benchmark. Model performance may differ on programs not included in this benchmark.
+**Scope of outputs.** PolicyBench evaluates selected tax and benefit outputs, not the full tax-benefit system. The rebuilt headline scope focuses on direct household-budget components; intermediate tax bases, credit components, and eligibility labels are retained as supplementary diagnostics. Model performance may differ on outputs not included in the benchmark.
 
 **Household complexity.** Sampling from the Enhanced CPS improves realism substantially, but the benchmark still uses a filtered subset of households so that cases remain promptable and interpretable. More complex multi-tax-unit households, itemized-deduction-heavy filers, and unusual household structures remain underrepresented.
 
@@ -52,7 +52,7 @@ Several limitations qualify these findings:
 
 Several extensions of PolicyBench are planned or in progress:
 
-**International coverage.** PolicyEngine supports the UK, Canadian, and other tax-benefit systems. Extending PolicyBench to multiple countries would test whether models' computational limitations are specific to US policy complexity or are more general.
+**Additional country tracks.** PolicyEngine supports Canadian and other tax-benefit systems. Extending PolicyBench beyond the current US and UK tracks would test whether models' computational limitations are specific to these systems or are more general.
 
 **Specialized policy models.** PolicyBench provides a natural evaluation framework for testing whether future domain-adapted policy models improve unaided performance on tax and benefit calculation, not just general-language reasoning.
 

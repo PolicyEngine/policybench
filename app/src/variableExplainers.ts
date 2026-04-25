@@ -172,7 +172,11 @@ const UK_EXPLAINERS: Record<string, VariableExplainer> = {
 };
 
 const EXPLAINERS: Record<CountryCode, Record<string, VariableExplainer>> = {
-  us: US_EXPLAINERS,
+  us: {
+    ...US_EXPLAINERS,
+    household_free_school_meal_eligible: US_EXPLAINERS.free_school_meals,
+    household_medicaid_eligible: US_EXPLAINERS.is_medicaid_eligible,
+  },
   uk: UK_EXPLAINERS,
 };
 

@@ -4,7 +4,13 @@ import argparse
 import sys
 from pathlib import Path
 
-from policybench.config import COUNTRY_PROGRAMS, MODELS, PROGRAMS, get_programs
+from policybench.config import (
+    COUNTRY_PROGRAMS,
+    DEFAULT_PROGRAM_SET,
+    MODELS,
+    PROGRAMS,
+    get_programs,
+)
 
 
 def _ensure_parent_dir(output_path: str) -> None:
@@ -95,7 +101,7 @@ def main():
 
     # Ground truth
     gt_parser = subparsers.add_parser(
-        "ground-truth", help="Generate ground truth from PolicyEngine-US"
+        "ground-truth", help="Generate PolicyEngine reference outputs"
     )
     gt_parser.add_argument("-o", "--output", default="results/local/ground_truth.csv")
     gt_parser.add_argument("-n", "--num-scenarios", type=int, default=100)
@@ -116,6 +122,14 @@ def main():
         action="append",
         dest="programs",
         help="Restrict ground-truth generation to one or more configured program names",
+    )
+    gt_parser.add_argument(
+        "--program-set",
+        default=DEFAULT_PROGRAM_SET,
+        help=(
+            "Benchmark output set to use. Defaults to v2_headline; "
+            "pass v1 to reproduce the legacy public snapshot."
+        ),
     )
     gt_parser.add_argument(
         "--exclude-scenario-manifest",
@@ -174,6 +188,14 @@ def main():
         action="append",
         dest="programs",
         help="Restrict evaluation to one or more configured program names",
+    )
+    nt_parser.add_argument(
+        "--program-set",
+        default=DEFAULT_PROGRAM_SET,
+        help=(
+            "Benchmark output set to use. Defaults to v2_headline; "
+            "pass v1 to reproduce the legacy public snapshot."
+        ),
     )
     nt_parser.add_argument(
         "--include-explanations",
@@ -257,6 +279,14 @@ def main():
         help="Restrict evaluation to one or more configured program names",
     )
     ntr_parser.add_argument(
+        "--program-set",
+        default=DEFAULT_PROGRAM_SET,
+        help=(
+            "Benchmark output set to use. Defaults to v2_headline; "
+            "pass v1 to reproduce the legacy public snapshot."
+        ),
+    )
+    ntr_parser.add_argument(
         "--include-explanations",
         action="store_true",
         help="Require per-program explanations alongside numeric answers",
@@ -334,7 +364,10 @@ def main():
             excluded_household_ids=excluded_household_ids,
             country=args.country,
         )
-        programs = _parse_programs(args.programs, get_programs(args.country))
+        programs = _parse_programs(
+            args.programs,
+            get_programs(args.country, args.program_set),
+        )
         df = calculate_ground_truth(scenarios, programs=programs)
         _ensure_parent_dir(args.output)
         df.to_csv(args.output, index=False)
@@ -352,7 +385,10 @@ def main():
         scenarios = _load_eval_scenarios(args)
         scenarios = _slice_scenarios(scenarios, args.scenario_start, args.scenario_end)
         models = _parse_models(args.models)
-        programs = _parse_programs(args.programs, get_programs(args.country))
+        programs = _parse_programs(
+            args.programs,
+            get_programs(args.country, args.program_set),
+        )
         _ensure_parent_dir(args.output)
         runner = (
             run_no_tools_single_output_eval if args.single_output else run_no_tools_eval
@@ -376,7 +412,10 @@ def main():
         scenarios = _load_eval_scenarios(args)
         scenarios = _slice_scenarios(scenarios, args.scenario_start, args.scenario_end)
         models = _parse_models(args.models)
-        programs = _parse_programs(args.programs, get_programs(args.country))
+        programs = _parse_programs(
+            args.programs,
+            get_programs(args.country, args.program_set),
+        )
         try:
             df = run_repeated_no_tools_eval(
                 scenarios,

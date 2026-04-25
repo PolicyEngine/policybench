@@ -6,6 +6,7 @@
 results/local/
 results/analysis/
 results/no_tools/
+results/**/rerun_*/
 results/ground_truth.csv
 results/scenarios.csv
 

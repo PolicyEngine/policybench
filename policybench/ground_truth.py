@@ -1,25 +1,46 @@
-"""Ground truth calculations using PolicyEngine-US."""
+"""Reference-output calculations using PolicyEngine."""
 
 import os
 from typing import Any
 
 import pandas as pd
 
-from policybench.config import DEFAULT_COUNTRY, PROGRAMS, TAX_YEAR, get_programs
+from policybench.config import DEFAULT_COUNTRY, TAX_YEAR, get_programs
 from policybench.scenarios import Scenario, get_uk_dataset_path
+from policybench.spec import find_output_spec
 
 # These benchmark variables are household-level boolean labels derived from
 # PolicyEngine outputs that are naturally person-level or dollar-valued.
 DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES = {
     "free_school_meals",
+    "household_free_school_meal_eligible",
     "is_medicaid_eligible",
+    "household_medicaid_eligible",
 }
 
 
-def _extract_scalar_value(result, variable: str) -> float:
+def _pe_variable_for_output(variable: str, country: str) -> str:
+    output = find_output_spec(variable, country=country)
+    return output.pe_variable if output is not None else variable
+
+
+def _aggregation_for_output(variable: str, country: str) -> str:
+    output = find_output_spec(variable, country=country)
+    if output is not None:
+        return output.aggregation
+    if variable in DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES:
+        return "any_positive"
+    return "sum"
+
+
+def _extract_scalar_value(
+    result,
+    variable: str,
+    country: str = DEFAULT_COUNTRY,
+) -> float:
     """Convert a PolicyEngine result array into the benchmark scalar."""
     value = float(result.sum())
-    if variable in DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES:
+    if _aggregation_for_output(variable, country) == "any_positive":
         return float(value > 0)
     return value
 
@@ -39,7 +60,12 @@ def calculate_single(
     from policyengine_us import Simulation
 
     sim = Simulation(situation=household)
-    return _extract_scalar_value(sim.calculate(variable, year), variable)
+    pe_variable = _pe_variable_for_output(variable, scenario.country)
+    return _extract_scalar_value(
+        sim.calculate(pe_variable, year),
+        variable,
+        scenario.country,
+    )
 
 
 def _calculate_ground_truth_us(
@@ -53,7 +79,12 @@ def _calculate_ground_truth_us(
     for scenario in scenarios:
         sim = Simulation(situation=scenario.to_pe_household())
         for variable in programs:
-            value = _extract_scalar_value(sim.calculate(variable, year), variable)
+            pe_variable = _pe_variable_for_output(variable, "us")
+            value = _extract_scalar_value(
+                sim.calculate(pe_variable, year),
+                variable,
+                "us",
+            )
             rows.append(
                 {
                     "scenario_id": scenario.id,
@@ -102,10 +133,11 @@ def _calculate_ground_truth_uk(
         scenario.id: int(scenario.metadata["household_id"]) for scenario in scenarios
     }
     for variable in programs:
-        entity_key = sim.tax_benefit_system.variables[variable].entity.key
+        pe_variable = _pe_variable_for_output(variable, "uk")
+        entity_key = sim.tax_benefit_system.variables[pe_variable].entity.key
         values = _aggregate_uk_variable_to_households(
             sim=sim,
-            variable=variable,
+            variable=pe_variable,
             period=period,
             entity_key=entity_key,
             person_household_ids=person_household_ids,
@@ -184,7 +216,7 @@ def calculate_ground_truth(
         )
 
     if programs is None:
-        programs = get_programs(country) if country != DEFAULT_COUNTRY else PROGRAMS
+        programs = get_programs(country)
 
     if country == "us":
         return _calculate_ground_truth_us(scenarios, programs, year)

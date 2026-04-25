@@ -169,13 +169,13 @@ export default function Methodology({
   );
 
   const householdsLabel =
-    country === "uk" ? "Enhanced CPS households" : "Enhanced CPS households";
+    country === "uk" ? "UK transfer households" : "Enhanced CPS households";
   const referenceOutputSource =
     country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
   const benchmarkDescription =
     country === "uk"
-      ? "This app shows the current no-tools UK benchmark on a fixed test set, with reference outputs computed by PolicyEngine-UK for tax year 2025."
-      : "This app shows the current no-tools US benchmark on a fixed test set, with reference outputs computed by PolicyEngine-US for tax year 2025.";
+      ? "This app shows the current no-tools UK benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for tax year 2025."
+      : "This app shows the current no-tools US benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2025.";
 
   return (
     <div>
@@ -230,18 +230,15 @@ export default function Methodology({
         </SectionCard>
 
         <SectionCard title="Households">
-          The benchmark samples real households from the Enhanced CPS with a
-          fixed seed. To keep cases realistic and interpretable, the current
-          set is restricted to households with a single tax unit, a single SPM
-          unit, and a single family. Ages, children, income sources, and
-          other nonzero promptable inputs are carried through into both the
-          prompt and the {referenceOutputSource} input.
+          {country === "uk"
+            ? "The UK benchmark samples households from the public UK calibrated transfer dataset with a fixed seed. That dataset maps benchmark-compatible US Enhanced CPS records into UK-facing inputs and recalibrates weights to selected UK targets. Nonzero promptable inputs are carried through into both the prompt and the PolicyEngine-UK input."
+            : `The US benchmark samples households from the Enhanced CPS with a fixed seed. The current set is restricted to households with a single tax unit, a single SPM unit, and a single family. Ages, children, income sources, and other nonzero promptable inputs are carried through into both the prompt and the ${referenceOutputSource} input.`}
         </SectionCard>
 
-        <SectionCard title="Ground Truth">
+        <SectionCard title="Reference outputs">
           {country === "uk"
-            ? "PolicyEngine-UK computes the authoritative label for every household-variable pair in tax year 2025. The current scope covers Income Tax, National Insurance, Child Benefit, Universal Credit, Pension Credit, and Personal Independence Payment."
-            : "PolicyEngine-US computes the authoritative label for every household-variable pair in tax year 2025. The current scope covers federal adjusted gross income, federal pre-credit income tax, refundable federal tax credits, SNAP, SSI, household-level Medicaid eligibility, household-level free school meals eligibility, state AGI, state pre-credit income tax, state refundable credits, and final state income tax."}
+            ? "PolicyEngine-UK computes the PolicyEngine reference output for every household-variable pair in tax year 2025. The displayed variables define the benchmark scope for this snapshot."
+            : "PolicyEngine-US computes the PolicyEngine reference output for every household-variable pair in tax year 2025. The displayed variables define the benchmark scope for this snapshot."}
         </SectionCard>
 
         <SectionCard title="Scoring">

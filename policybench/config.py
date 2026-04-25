@@ -1,5 +1,12 @@
 """Configuration constants for PolicyBench."""
 
+from policybench.spec import (
+    DEFAULT_PROGRAM_SET,
+    binary_output_ids,
+    get_output_ids,
+    rate_output_ids,
+)
+
 # Tax year for all evaluations
 TAX_YEAR = 2025
 
@@ -25,68 +32,19 @@ MODELS = {
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
 }
 
-# PolicyEngine-US variables to evaluate
-US_PROGRAMS = [
-    # Federal tax
-    "adjusted_gross_income",
-    "income_tax_before_refundable_credits",
-    # Credits
-    "eitc",
-    "ctc",
-    "income_tax_refundable_credits",
-    # Benefits
-    "snap",
-    "ssi",
-    "free_school_meals",
-    "is_medicaid_eligible",
-    # State tax
-    "state_agi",
-    "state_income_tax_before_refundable_credits",
-    "state_refundable_credits",
-    "household_state_income_tax",
-]
+# Legacy public benchmark outputs. These are loaded from
+# `benchmark_specs.json`; keep the names for backward compatibility with tests,
+# scripts, and existing result artifacts.
+US_PROGRAMS = get_output_ids("us", "v1")
+UK_PROGRAMS = get_output_ids("uk", "v1")
 
-# PolicyEngine-UK variables to evaluate
-UK_PROGRAMS = [
-    "income_tax",
-    "national_insurance",
-    "child_benefit",
-    "universal_credit",
-    "pension_credit",
-    "pip",
-]
-
-# Proposed v2 headline sets. These drop intermediate tax-base quantities from
-# the main ranking and focus on disjoint household-budget components.
-US_HEADLINE_PROGRAMS_V2 = [
-    "employee_payroll_tax",
-    "self_employment_tax",
-    "income_tax_before_refundable_credits",
-    "household_state_income_tax",
-    "eitc",
-    "ctc",
-    "snap",
-    "ssi",
-]
-
-UK_HEADLINE_PROGRAMS_V2 = [
-    "income_tax",
-    "national_insurance",
-    "council_tax_less_benefit",
-    "child_benefit",
-    "universal_credit",
-    "pension_credit",
-    "pip",
-]
-
-# Supplementary outputs that remain useful diagnostically but do not fit the
-# proposed headline cash-component benchmark.
-US_SUPPLEMENTARY_PROGRAMS_V2 = [
-    "free_school_meals",
-    "is_medicaid_eligible",
-]
-
-UK_SUPPLEMENTARY_PROGRAMS_V2: list[str] = []
+# Rebuilt v2 output sets. The headline set contains household-budget
+# components; intermediate bases and household eligibility labels are
+# supplementary diagnostics.
+US_HEADLINE_PROGRAMS_V2 = get_output_ids("us", "v2_headline")
+UK_HEADLINE_PROGRAMS_V2 = get_output_ids("uk", "v2_headline")
+US_SUPPLEMENTARY_PROGRAMS_V2 = get_output_ids("us", "v2_supplementary")
+UK_SUPPLEMENTARY_PROGRAMS_V2 = []
 
 COUNTRY_PROGRAMS = {
     "us": US_PROGRAMS,
@@ -105,14 +63,14 @@ PROGRAM_SETS = {
     },
 }
 
-# Backward-compatible default
-PROGRAMS = US_PROGRAMS
+# Default rebuilt benchmark outputs for new runs.
+PROGRAMS = US_HEADLINE_PROGRAMS_V2
 
-# Binary (eligibility) variables — evaluated with accuracy, not MAE
-BINARY_PROGRAMS = ["is_medicaid_eligible", "free_school_meals"]
+# Binary (eligibility) variables -- evaluated with accuracy, not MAE
+BINARY_PROGRAMS = binary_output_ids()
 
-# Rate variables — evaluated with absolute error, not percentage
-RATE_PROGRAMS = []
+# Rate variables -- evaluated with absolute error, not percentage
+RATE_PROGRAMS = rate_output_ids()
 
 # Proposed impact-score floor. Each household gets equal overall weight, while
 # programs within a household receive a blend of equal weighting and weighting
@@ -123,11 +81,11 @@ HOUSEHOLD_IMPACT_SCORE_FLOOR = 0.3
 NUM_SCENARIOS = 100
 
 
-def get_programs(country: str, program_set: str = "v1") -> list[str]:
+def get_programs(country: str, program_set: str = DEFAULT_PROGRAM_SET) -> list[str]:
     """Return the configured benchmark outputs for a country and program set."""
     try:
-        return PROGRAM_SETS[program_set][country]
-    except KeyError as exc:
+        return get_output_ids(country, program_set)
+    except ValueError as exc:
         valid_countries = ", ".join(sorted(COUNTRY_PROGRAMS))
         valid_sets = ", ".join(sorted(PROGRAM_SETS))
         raise ValueError(

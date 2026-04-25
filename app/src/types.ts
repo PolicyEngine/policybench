@@ -20,6 +20,8 @@ export const VIEW_SHORT_LABELS: Record<CountryCode, string> = {
 const US_VARIABLE_LABELS: Record<string, string> = {
   adjusted_gross_income: "Federal adjusted gross income",
   income_tax: "Federal income tax",
+  employee_payroll_tax: "Employee payroll tax",
+  self_employment_tax: "Self-employment tax",
   income_tax_before_refundable_credits: "Federal tax before refundable credits",
   income_tax_refundable_credits: "Federal refundable credits",
   eitc: "EITC",
@@ -27,7 +29,9 @@ const US_VARIABLE_LABELS: Record<string, string> = {
   snap: "SNAP",
   ssi: "SSI",
   free_school_meals: "Free school meals eligibility",
+  household_free_school_meal_eligible: "Free school meals eligibility",
   is_medicaid_eligible: "Any Medicaid eligibility",
+  household_medicaid_eligible: "Any Medicaid eligibility",
   state_agi: "State adjusted gross income",
   state_income_tax_before_refundable_credits:
     "State tax before refundable credits",
@@ -38,6 +42,7 @@ const US_VARIABLE_LABELS: Record<string, string> = {
 const UK_VARIABLE_LABELS: Record<string, string> = {
   income_tax: "Income Tax",
   national_insurance: "National Insurance",
+  council_tax_less_benefit: "Council Tax less support",
   child_benefit: "Child Benefit",
   universal_credit: "Universal Credit",
   pension_credit: "Pension Credit",
@@ -49,6 +54,9 @@ const UK_VARIABLE_LABELS: Record<string, string> = {
 
 const US_VARIABLE_CATEGORIES: Record<string, string> = {
   adjusted_gross_income: "Federal tax",
+  income_tax: "Federal tax",
+  employee_payroll_tax: "Federal tax",
+  self_employment_tax: "Federal tax",
   income_tax_before_refundable_credits: "Federal tax",
   income_tax_refundable_credits: "Credits",
   eitc: "Credits",
@@ -56,7 +64,9 @@ const US_VARIABLE_CATEGORIES: Record<string, string> = {
   snap: "Benefits",
   ssi: "Benefits",
   free_school_meals: "Benefits",
+  household_free_school_meal_eligible: "Benefits",
   is_medicaid_eligible: "Benefits",
+  household_medicaid_eligible: "Benefits",
   state_agi: "State tax",
   state_income_tax_before_refundable_credits: "State tax",
   state_refundable_credits: "State tax",
@@ -66,6 +76,7 @@ const US_VARIABLE_CATEGORIES: Record<string, string> = {
 const UK_VARIABLE_CATEGORIES: Record<string, string> = {
   income_tax: "Tax",
   national_insurance: "Tax",
+  council_tax_less_benefit: "Tax",
   child_benefit: "Benefits",
   universal_credit: "Benefits",
   pension_credit: "Benefits",
@@ -99,7 +110,12 @@ export function isBinaryVariable(
   if (country === "uk") {
     return false;
   }
-  return variable === "free_school_meals" || variable === "is_medicaid_eligible";
+  return (
+    variable === "free_school_meals" ||
+    variable === "household_free_school_meal_eligible" ||
+    variable === "is_medicaid_eligible" ||
+    variable === "household_medicaid_eligible"
+  );
 }
 
 export type BenchScenario = {

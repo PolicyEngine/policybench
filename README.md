@@ -8,7 +8,9 @@ and benefit outputs without tools.
 For benchmark scope, snapshot policy, and terminology, see the
 [benchmark card](docs/benchmark_card.md).
 
-Benchmark scenarios are sampled from real households in the Enhanced CPS and then evaluated under 2025 policy rules with PolicyEngine-US. That gives the benchmark more realistic joint distributions of age, income, filing status, and family composition than independent synthetic sampling.
+US benchmark scenarios are sampled from Enhanced CPS households and evaluated
+under 2025 policy rules with PolicyEngine-US. The public UK path uses a
+UK-calibrated transfer dataset and PolicyEngine-UK reference outputs.
 
 ## Condition
 
@@ -16,10 +18,14 @@ Benchmark scenarios are sampled from real households in the Enhanced CPS and the
 
 ## Benchmark scope
 
-The default benchmark registry in code tracks the current published no-tools
-leaderboard. Frozen paper claims are tied to
-`results/paper_exports/benchmark_snapshot.json`, not to whatever models happen
-to be configured or probed locally later.
+Benchmark outputs are defined in `policybench/benchmark_specs.json`. New CLI
+runs default to `v2_headline`, which focuses the main ranking on household-budget
+components and moves intermediate tax bases and household eligibility labels to
+supplementary diagnostics. The legacy `v1` spec is kept only to reproduce the
+current public snapshot and frozen paper exports.
+
+Frozen paper claims are tied to `results/paper_exports/benchmark_snapshot.json`,
+not to whatever models happen to be configured or probed locally later.
 
 ## Programs evaluated
 
@@ -37,11 +43,15 @@ pytest  # Run tests (mocked, no API calls)
 ## Benchmark run
 
 ```bash
-# Generate reference outputs for 100 sampled CPS households
+# Generate reference outputs for 100 sampled households using v2_headline
 policybench ground-truth -n 100 --seed 42
 
 # Run AI-alone evaluations on the exported scenario manifest
 policybench eval-no-tools -n 100 --seed 42
+
+# Reproduce the legacy public output scope explicitly
+policybench ground-truth -n 100 --seed 42 --program-set v1
+policybench eval-no-tools -n 100 --seed 42 --program-set v1
 
 # Analyze local results and export local artifacts
 policybench analyze --output-dir results/local/analysis

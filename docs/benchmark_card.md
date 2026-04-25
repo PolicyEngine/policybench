@@ -56,6 +56,33 @@ Diagnostic runs should not be mixed into leaderboard claims.
 CLI default outputs under `results/local/` are scratch artifacts, not canonical
 leaderboard snapshots.
 
+## Output specification
+
+Benchmark scope is defined in `policybench/benchmark_specs.json`. New CLI runs
+default to `v2_headline`; `v1` must be selected explicitly when reproducing the
+current public snapshot.
+
+`v1`
+- legacy public scope used by the current frozen site and paper exports
+- includes tax bases, tax liabilities, credits, benefits, and household boolean
+  labels in one headline score
+
+`v2_headline`
+- rebuilt headline scope for new runs
+- includes household-budget components only
+- excludes AGI-like intermediate tax bases from the main ranking
+- excludes household eligibility labels from the main ranking
+
+`v2_supplementary`
+- diagnostic outputs that are useful but not part of the rebuilt headline
+  ranking
+- includes intermediate tax-base outputs, credit components, and household
+  eligibility labels
+
+Each output spec records the benchmark id, PolicyEngine variable, prompt text,
+metric type, aggregation rule, role, output set, and sign in household net
+income.
+
 ## Snapshot policy
 
 The live site can change after new runs are added.
@@ -104,5 +131,6 @@ Every public writeup should state:
 
 - the frozen run directories used
 - the scored outputs included
+- the benchmark spec and output set used
 - whether the claim refers to the live site or a frozen paper snapshot
 - whether UK results come from the public transfer dataset or a later artifact

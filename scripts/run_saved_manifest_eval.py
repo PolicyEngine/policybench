@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 
 import policybench.eval_no_tools as eval_no_tools
-from policybench.config import MODELS, get_programs
+from policybench.config import DEFAULT_PROGRAM_SET, MODELS, get_programs
 from policybench.scenarios import scenario_from_dict
 
 
@@ -24,6 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True)
     parser.add_argument("--country", choices=["us", "uk"], required=True)
     parser.add_argument("--model", required=True)
+    parser.add_argument("--program-set", default=DEFAULT_PROGRAM_SET)
     parser.add_argument("--scenario-start", type=int, default=0)
     parser.add_argument("--scenario-end", type=int)
     parser.add_argument("--include-explanations", action="store_true")
@@ -75,7 +76,7 @@ def main() -> None:
     runner(
         scenarios,
         models={args.model: MODELS[args.model]},
-        programs=get_programs(args.country),
+        programs=get_programs(args.country, args.program_set),
         output_path=str(output_path),
         include_explanations=args.include_explanations,
     )

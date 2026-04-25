@@ -152,6 +152,22 @@ class TestGroundTruthScalarExtraction:
             == 1.0
         )
 
+    def test_rebuilt_household_boolean_ids_map_to_policyengine_outputs(self):
+        assert (
+            ground_truth._extract_scalar_value(
+                np.array([250.0]),
+                "household_free_school_meal_eligible",
+            )
+            == 1.0
+        )
+        assert (
+            ground_truth._pe_variable_for_output(
+                "household_medicaid_eligible",
+                "us",
+            )
+            == "is_medicaid_eligible"
+        )
+
     def test_household_boolean_variables_keep_zero_as_zero(self):
         assert (
             ground_truth._extract_scalar_value(

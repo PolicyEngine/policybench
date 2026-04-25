@@ -1,0 +1,485 @@
+{
+  "default_spec": "v2",
+  "specs": {
+    "v1": {
+      "description": "Legacy public benchmark scope used by the current published snapshot.",
+      "countries": {
+        "us": [
+          {
+            "id": "adjusted_gross_income",
+            "pe_variable": "adjusted_gross_income",
+            "label": "Federal adjusted gross income",
+            "prompt": "federal adjusted gross income (AGI), after above-the-line deductions but before standard or itemized deductions and exemptions",
+            "metric_type": "amount",
+            "role": "intermediate",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 0
+          },
+          {
+            "id": "income_tax_before_refundable_credits",
+            "pe_variable": "income_tax_before_refundable_credits",
+            "label": "Federal tax before refundable credits",
+            "prompt": "federal income tax before refundable credits are applied (do not subtract refundable credits)",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "eitc",
+            "pe_variable": "eitc",
+            "label": "EITC",
+            "prompt": "Earned Income Tax Credit amount",
+            "metric_type": "amount",
+            "role": "credit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "ctc",
+            "pe_variable": "ctc",
+            "label": "CTC",
+            "prompt": "Child Tax Credit amount",
+            "metric_type": "amount",
+            "role": "credit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "income_tax_refundable_credits",
+            "pe_variable": "income_tax_refundable_credits",
+            "label": "Federal refundable credits",
+            "prompt": "total refundable federal tax credits only (not pre-credit tax liability and not non-refundable credits)",
+            "metric_type": "amount",
+            "role": "credit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "snap",
+            "pe_variable": "snap",
+            "label": "SNAP",
+            "prompt": "annual SNAP (food stamps) benefit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "ssi",
+            "pe_variable": "ssi",
+            "label": "SSI",
+            "prompt": "annual Supplemental Security Income (SSI) amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "free_school_meals",
+            "pe_variable": "free_school_meals",
+            "label": "Free school meals eligibility",
+            "prompt": "the benchmark household free-school-meal eligibility label derived from PolicyEngine school-meal support (1 if yes, 0 if no; reduced-price meals do not count as 1)",
+            "metric_type": "binary",
+            "role": "eligibility",
+            "output_set": "headline",
+            "aggregation": "any_positive",
+            "net_income_sign": 0
+          },
+          {
+            "id": "is_medicaid_eligible",
+            "pe_variable": "is_medicaid_eligible",
+            "label": "Any Medicaid eligibility",
+            "prompt": "whether anyone in the household is eligible for Medicaid (1 if yes, 0 if no)",
+            "metric_type": "binary",
+            "role": "eligibility",
+            "output_set": "headline",
+            "aggregation": "any_positive",
+            "net_income_sign": 0
+          },
+          {
+            "id": "state_agi",
+            "pe_variable": "state_agi",
+            "label": "State adjusted gross income",
+            "prompt": "state adjusted gross income (state AGI)",
+            "metric_type": "amount",
+            "role": "intermediate",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 0
+          },
+          {
+            "id": "state_income_tax_before_refundable_credits",
+            "pe_variable": "state_income_tax_before_refundable_credits",
+            "label": "State tax before refundable credits",
+            "prompt": "state income tax before refundable credits are applied (do not subtract state refundable credits)",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "state_refundable_credits",
+            "pe_variable": "state_refundable_credits",
+            "label": "State refundable credits",
+            "prompt": "total refundable state tax credits only",
+            "metric_type": "amount",
+            "role": "credit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "household_state_income_tax",
+            "pe_variable": "household_state_income_tax",
+            "label": "State income tax",
+            "prompt": "state income tax liability",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          }
+        ],
+        "uk": [
+          {
+            "id": "income_tax",
+            "pe_variable": "income_tax",
+            "label": "Income Tax",
+            "prompt": "annual UK Income Tax liability",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "national_insurance",
+            "pe_variable": "national_insurance",
+            "label": "National Insurance",
+            "prompt": "annual UK National Insurance contributions",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "child_benefit",
+            "pe_variable": "child_benefit",
+            "label": "Child Benefit",
+            "prompt": "annual Child Benefit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "universal_credit",
+            "pe_variable": "universal_credit",
+            "label": "Universal Credit",
+            "prompt": "annual Universal Credit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "pension_credit",
+            "pe_variable": "pension_credit",
+            "label": "Pension Credit",
+            "prompt": "annual Pension Credit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "pip",
+            "pe_variable": "pip",
+            "label": "Personal Independence Payment",
+            "prompt": "annual Personal Independence Payment (PIP) amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          }
+        ]
+      }
+    },
+    "v2": {
+      "description": "Rebuilt benchmark scope centered on household budget components, with intermediate bases and eligibility labels moved to supplementary diagnostics.",
+      "countries": {
+        "us": [
+          {
+            "id": "income_tax",
+            "pe_variable": "income_tax",
+            "label": "Federal income tax",
+            "prompt": "net federal income tax liability after refundable credits (this can be negative if refundable credits exceed pre-credit tax liability)",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "employee_payroll_tax",
+            "pe_variable": "employee_payroll_tax",
+            "label": "Employee payroll tax",
+            "prompt": "annual employee-side payroll tax liability",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "self_employment_tax",
+            "pe_variable": "self_employment_tax",
+            "label": "Self-employment tax",
+            "prompt": "annual self-employment tax liability",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "household_state_income_tax",
+            "pe_variable": "household_state_income_tax",
+            "label": "State income tax",
+            "prompt": "state income tax liability",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "snap",
+            "pe_variable": "snap",
+            "label": "SNAP",
+            "prompt": "annual SNAP (food stamps) benefit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "ssi",
+            "pe_variable": "ssi",
+            "label": "SSI",
+            "prompt": "annual Supplemental Security Income (SSI) amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "adjusted_gross_income",
+            "pe_variable": "adjusted_gross_income",
+            "label": "Federal adjusted gross income",
+            "prompt": "federal adjusted gross income (AGI), after above-the-line deductions but before standard or itemized deductions and exemptions",
+            "metric_type": "amount",
+            "role": "intermediate",
+            "output_set": "supplementary",
+            "aggregation": "sum",
+            "net_income_sign": 0
+          },
+          {
+            "id": "income_tax_before_refundable_credits",
+            "pe_variable": "income_tax_before_refundable_credits",
+            "label": "Federal tax before refundable credits",
+            "prompt": "federal income tax before refundable credits are applied (do not subtract refundable credits)",
+            "metric_type": "amount",
+            "role": "intermediate",
+            "output_set": "supplementary",
+            "aggregation": "sum",
+            "net_income_sign": 0
+          },
+          {
+            "id": "eitc",
+            "pe_variable": "eitc",
+            "label": "EITC",
+            "prompt": "Earned Income Tax Credit amount",
+            "metric_type": "amount",
+            "role": "credit",
+            "output_set": "supplementary",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "ctc",
+            "pe_variable": "ctc",
+            "label": "CTC",
+            "prompt": "Child Tax Credit amount",
+            "metric_type": "amount",
+            "role": "credit",
+            "output_set": "supplementary",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "income_tax_refundable_credits",
+            "pe_variable": "income_tax_refundable_credits",
+            "label": "Federal refundable credits",
+            "prompt": "total refundable federal tax credits only (not pre-credit tax liability and not non-refundable credits)",
+            "metric_type": "amount",
+            "role": "credit",
+            "output_set": "supplementary",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "state_agi",
+            "pe_variable": "state_agi",
+            "label": "State adjusted gross income",
+            "prompt": "state adjusted gross income (state AGI)",
+            "metric_type": "amount",
+            "role": "intermediate",
+            "output_set": "supplementary",
+            "aggregation": "sum",
+            "net_income_sign": 0
+          },
+          {
+            "id": "state_income_tax_before_refundable_credits",
+            "pe_variable": "state_income_tax_before_refundable_credits",
+            "label": "State tax before refundable credits",
+            "prompt": "state income tax before refundable credits are applied (do not subtract state refundable credits)",
+            "metric_type": "amount",
+            "role": "intermediate",
+            "output_set": "supplementary",
+            "aggregation": "sum",
+            "net_income_sign": 0
+          },
+          {
+            "id": "state_refundable_credits",
+            "pe_variable": "state_refundable_credits",
+            "label": "State refundable credits",
+            "prompt": "total refundable state tax credits only",
+            "metric_type": "amount",
+            "role": "credit",
+            "output_set": "supplementary",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "household_free_school_meal_eligible",
+            "pe_variable": "free_school_meals",
+            "label": "Household free school meal eligibility",
+            "prompt": "the benchmark household free-school-meal eligibility label derived from PolicyEngine school-meal support (1 if yes, 0 if no; reduced-price meals do not count as 1)",
+            "metric_type": "binary",
+            "role": "eligibility",
+            "output_set": "supplementary",
+            "aggregation": "any_positive",
+            "net_income_sign": 0
+          },
+          {
+            "id": "household_medicaid_eligible",
+            "pe_variable": "is_medicaid_eligible",
+            "label": "Household Medicaid eligibility",
+            "prompt": "whether anyone in the household is eligible for Medicaid (1 if yes, 0 if no)",
+            "metric_type": "binary",
+            "role": "eligibility",
+            "output_set": "supplementary",
+            "aggregation": "any_positive",
+            "net_income_sign": 0
+          }
+        ],
+        "uk": [
+          {
+            "id": "income_tax",
+            "pe_variable": "income_tax",
+            "label": "Income Tax",
+            "prompt": "annual UK Income Tax liability",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "national_insurance",
+            "pe_variable": "national_insurance",
+            "label": "National Insurance",
+            "prompt": "annual UK National Insurance contributions",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "council_tax_less_benefit",
+            "pe_variable": "council_tax_less_benefit",
+            "label": "Council Tax less support",
+            "prompt": "annual Council Tax liability net of Council Tax support",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
+            "id": "child_benefit",
+            "pe_variable": "child_benefit",
+            "label": "Child Benefit",
+            "prompt": "annual Child Benefit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "universal_credit",
+            "pe_variable": "universal_credit",
+            "label": "Universal Credit",
+            "prompt": "annual Universal Credit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "pension_credit",
+            "pe_variable": "pension_credit",
+            "label": "Pension Credit",
+            "prompt": "annual Pension Credit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "pip",
+            "pe_variable": "pip",
+            "label": "Personal Independence Payment",
+            "prompt": "annual Personal Independence Payment (PIP) amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          }
+        ]
+      }
+    }
+  }
+}

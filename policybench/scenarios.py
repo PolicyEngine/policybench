@@ -496,7 +496,7 @@ def load_enhanced_cps_person_frame() -> tuple[pd.DataFrame, int]:
 
 
 def get_uk_dataset_path() -> Path:
-    """Locate the local calibrated UK Enhanced CPS artifact."""
+    """Locate the local public UK calibrated transfer dataset artifact."""
     configured = os.environ.get("POLICYBENCH_UK_DATASET_PATH")
     if configured:
         path = Path(configured).expanduser()
@@ -509,14 +509,14 @@ def get_uk_dataset_path() -> Path:
 
     searched = "\n".join(f"- {candidate}" for candidate in UK_DATASET_CANDIDATES)
     raise FileNotFoundError(
-        "Could not find a local UK enhanced CPS dataset. Set "
+        "Could not find a local UK calibrated transfer dataset. Set "
         "POLICYBENCH_UK_DATASET_PATH or place the artifact in one of:\n"
         f"{searched}"
     )
 
 
 def load_uk_enhanced_cps_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
-    """Load person and household frames from the local UK enhanced CPS artifact."""
+    """Load person and household frames from the local UK transfer artifact."""
     from policyengine_uk.data import UKSingleYearDataset
 
     os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
@@ -717,7 +717,7 @@ def _sample_household_ids(
     if len(eligible_households) < n:
         raise ValueError(
             f"Requested {n} scenarios, but only {len(eligible_households)} eligible "
-            "Enhanced CPS households were available."
+            "source households were available."
         )
 
     rng = np.random.default_rng(seed)
@@ -930,7 +930,7 @@ def scenarios_from_uk_frames(
     dataset_year: int | None = None,
     excluded_household_ids: set[int] | None = None,
 ) -> list[Scenario]:
-    """Sample benchmark scenarios from the local UK enhanced CPS dataset."""
+    """Sample benchmark scenarios from the local UK transfer dataset."""
     eligible_households = household_df.copy()
     if excluded_household_ids:
         eligible_households = eligible_households[

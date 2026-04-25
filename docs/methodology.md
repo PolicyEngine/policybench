@@ -28,53 +28,64 @@ contract.
 
 ## Programs evaluated
 
-We evaluate 13 PolicyEngine-US variables spanning federal taxes, tax credits, means-tested benefits, and state taxes:
+Benchmark outputs are specified in `policybench/benchmark_specs.json`. The
+published `v1` snapshot is retained for reproducibility. New runs default to
+`v2_headline`, which focuses the ranking on household-budget components and
+moves intermediate tax bases and eligibility labels to supplementary
+diagnostics.
+
+The rebuilt US headline scope evaluates direct household-budget components:
 
 | Variable | Description | Category |
 |:---------|:-----------|:---------|
-| `adjusted_gross_income` | Federal adjusted gross income (AGI) | Federal tax |
-| `income_tax_before_refundable_credits` | Federal income tax before refundable credits | Federal tax |
-| `eitc` | Earned Income Tax Credit | Credits |
-| `ctc` | Child Tax Credit | Credits |
-| `income_tax_refundable_credits` | Total refundable federal tax credits | Credits |
+| `income_tax` | Federal income tax after refundable credits | Federal tax |
+| `employee_payroll_tax` | Employee-side payroll tax | Payroll tax |
+| `self_employment_tax` | Self-employment tax | Payroll tax |
+| `household_state_income_tax` | State income tax liability | State tax |
 | `snap` | SNAP (food stamps) annual benefit | Benefits |
 | `ssi` | Supplemental Security Income | Benefits |
-| `free_school_meals` | Derived household free school meal eligibility label | Benefits |
-| `is_medicaid_eligible` | Whether anyone in the household is Medicaid-eligible | Benefits |
-| `state_agi` | State adjusted gross income | State tax |
-| `state_income_tax_before_refundable_credits` | State income tax before refundable credits | State tax |
-| `state_refundable_credits` | State refundable credits | State tax |
-| `household_state_income_tax` | State income tax liability | State tax |
 
-These variables were chosen to span the major components of the US tax-and-benefit system and to test different types of computational challenges. AGI and pre-credit tax require models to combine wage and non-wage income sources and track how filing status and deductions shape tax bases. Tax credits involve phase-in and phase-out schedules that depend on earned income, number of children, and filing status. Means-tested benefits (SNAP, SSI) involve income and categorical eligibility tests, benefit reduction rates, and state-specific maximum allotments.
+The rebuilt UK headline scope evaluates:
 
-Binary variables are evaluated as household booleans. `free_school_meals` is a
-derived household eligibility label: it is 1 if the benchmark household
-qualifies for free school meals (not reduced-price meals), and 0 otherwise.
-`is_medicaid_eligible` is 1 if anyone in the household is eligible for
-Medicaid. These are scored with classification accuracy rather than dollar
+| Variable | Description | Category |
+|:---------|:-----------|:---------|
+| `income_tax` | Income Tax liability | Tax |
+| `national_insurance` | National Insurance contributions | Tax |
+| `council_tax_less_benefit` | Council Tax net of Council Tax support | Tax |
+| `child_benefit` | Child Benefit amount | Benefits |
+| `universal_credit` | Universal Credit amount | Benefits |
+| `pension_credit` | Pension Credit amount | Benefits |
+| `pip` | Personal Independence Payment amount | Benefits |
+
+Intermediate tax bases, credit components, and household eligibility labels are
+kept in supplementary diagnostic sets. For example, the US supplementary set
+includes AGI, pre-credit tax, EITC, CTC, refundable credits, and explicit
+derived household labels for free school meals and Medicaid eligibility. Binary
+diagnostic labels are scored with classification accuracy rather than dollar
 error metrics.
 
 ## Household scenarios
 
-We generate 100 household scenarios by sampling real households from the Enhanced CPS with a fixed random seed for reproducibility. To keep the benchmark household descriptions faithful and tractable, we restrict the sampled cases to households with a single tax unit, a single SPM unit, and a single family, then carry through their observed filing status, ages, employment patterns, and selected non-wage income sources. This preserves realistic joint distributions while avoiding synthetic combinations that never occur in the data.
+US scenarios are sampled from Enhanced CPS households with a fixed random seed
+for reproducibility. To keep household descriptions faithful and tractable, we
+restrict sampled cases to households with a single tax unit, a single SPM unit,
+and a single family, then carry through observed filing status, ages, employment
+patterns, and selected non-wage income sources. The public UK path samples from
+the UK-calibrated transfer dataset.
 
 Each scenario is converted to a PolicyEngine-US household JSON object specifying people, tax units, SPM units, families, and households. Filing status is encoded directly in the tax unit payload so that the benchmark label matches the described case.
 
 ## Reference-output computation
 
-Reference output values are computed using PolicyEngine-US, an open-source
-microsimulation model that encodes federal and state tax law, benefit program
-rules, and their interactions for all 50 US states and DC. For each of the 100
-scenarios and 13 variables, we run a PolicyEngine simulation for tax year 2025
-and record the computed value. This produces 1,300 reference-output data
-points.
+Reference output values are computed using PolicyEngine-US and PolicyEngine-UK.
+For each sampled scenario and selected output, we run a PolicyEngine simulation
+for tax year 2025 and record the computed value.
 
-PolicyEngine-US is the benchmark reference source. Its calculations implement
-the statutory rules and have been validated against official tax calculators,
-benefit program documentation, and expert review. Any discrepancy between a
-model's output and the PolicyEngine value is treated as a model error relative
-to the benchmark reference output.
+PolicyEngine is the benchmark reference source. Its calculations implement
+policy rules and are maintained as open-source microsimulation models. Any
+discrepancy between a model's output and the PolicyEngine value is treated as a
+model error relative to the benchmark reference output, not as a claim about
+administrative ground truth.
 
 ## Evaluation metrics
 
@@ -92,4 +103,4 @@ $$\text{MAPE} = \frac{1}{|S|}\sum_{i \in S}\left|\frac{\hat{y}_i - y_i}{y_i}\rig
 
 $$\text{Acc}_{10\%} = \frac{1}{n}\sum_{i=1}^{n}\mathbf{1}\left[\frac{|\hat{y}_i - y_i|}{|y_i|} \leq 0.10\right]$$
 
-For household-boolean variables (`is_medicaid_eligible`, `free_school_meals`), we report classification accuracy.
+For household-boolean diagnostic variables, we report classification accuracy.
