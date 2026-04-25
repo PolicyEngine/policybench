@@ -14,8 +14,16 @@ from policybench.spec import find_output_spec
 DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES = {
     "free_school_meals",
     "household_free_school_meal_eligible",
+    "household_reduced_price_school_meal_eligible",
     "is_medicaid_eligible",
     "household_medicaid_eligible",
+    "household_chip_eligible",
+    "household_medicare_eligible",
+    "any_medicaid_eligible",
+    "any_chip_eligible",
+    "any_medicare_eligible",
+    "free_school_meals_eligible",
+    "reduced_price_school_meals_eligible",
 }
 
 
@@ -33,6 +41,18 @@ def _aggregation_for_output(variable: str, country: str) -> str:
     return "sum"
 
 
+def _impact_weight_variable_for_output(variable: str, country: str) -> str | None:
+    output = find_output_spec(variable, country=country)
+    return output.impact_weight_variable if output is not None else None
+
+
+def _impact_weight_aggregation_for_output(variable: str, country: str) -> str:
+    output = find_output_spec(variable, country=country)
+    if output is None or output.impact_weight_aggregation is None:
+        return _aggregation_for_output(variable, country)
+    return output.impact_weight_aggregation
+
+
 def _extract_scalar_value(
     result,
     variable: str,
@@ -43,6 +63,35 @@ def _extract_scalar_value(
     if _aggregation_for_output(variable, country) == "any_positive":
         return float(value > 0)
     return value
+
+
+def _extract_scalar_with_aggregation(result, aggregation: str) -> float:
+    value = float(result.sum())
+    if aggregation == "any_positive":
+        return float(value > 0)
+    return value
+
+
+def _extract_impact_weight(
+    value_result,
+    weight_result,
+    variable: str,
+    country: str = DEFAULT_COUNTRY,
+) -> float:
+    """Convert an auxiliary PolicyEngine result into an impact-score weight."""
+    output = find_output_spec(variable, country=country)
+    if output is not None and output.metric_type == "binary":
+        try:
+            if len(value_result) == len(weight_result):
+                weight_result = weight_result * (value_result > 0)
+        except TypeError:
+            pass
+
+    weight = _extract_scalar_with_aggregation(
+        weight_result,
+        _impact_weight_aggregation_for_output(variable, country),
+    )
+    return abs(weight)
 
 
 def calculate_single(
@@ -80,16 +129,23 @@ def _calculate_ground_truth_us(
         sim = Simulation(situation=scenario.to_pe_household())
         for variable in programs:
             pe_variable = _pe_variable_for_output(variable, "us")
-            value = _extract_scalar_value(
-                sim.calculate(pe_variable, year),
-                variable,
-                "us",
-            )
+            value_result = sim.calculate(pe_variable, year)
+            value = _extract_scalar_value(value_result, variable, "us")
+            impact_weight = None
+            impact_weight_variable = _impact_weight_variable_for_output(variable, "us")
+            if impact_weight_variable is not None:
+                impact_weight = _extract_impact_weight(
+                    value_result,
+                    sim.calculate(impact_weight_variable, year),
+                    variable,
+                    "us",
+                )
             rows.append(
                 {
                     "scenario_id": scenario.id,
                     "variable": variable,
                     "value": value,
+                    "impact_weight": impact_weight,
                 }
             )
     return pd.DataFrame(rows)
@@ -150,6 +206,7 @@ def _calculate_ground_truth_uk(
                     "scenario_id": scenario.id,
                     "variable": variable,
                     "value": float(values.loc[scenario_household_ids[scenario.id]]),
+                    "impact_weight": None,
                 }
             )
     return pd.DataFrame(rows)
@@ -207,7 +264,9 @@ def calculate_ground_truth(
     Returns a DataFrame with columns: scenario_id, variable, value
     """
     if not scenarios:
-        return pd.DataFrame(columns=["scenario_id", "variable", "value"])
+        return pd.DataFrame(
+            columns=["scenario_id", "variable", "value", "impact_weight"]
+        )
 
     country = scenarios[0].country or DEFAULT_COUNTRY
     if any(scenario.country != country for scenario in scenarios):

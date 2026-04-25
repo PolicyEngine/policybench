@@ -220,7 +220,7 @@
       }
     },
     "v2": {
-      "description": "Rebuilt benchmark scope centered on household budget components, with intermediate bases and eligibility labels moved to supplementary diagnostics.",
+      "description": "Rebuilt benchmark scope centered on non-overlapping household net-income components, with coverage booleans weighted by PolicyEngine value proxies and intermediate tax bases moved to diagnostics.",
       "countries": {
         "us": [
           {
@@ -268,6 +268,17 @@
             "net_income_sign": -1
           },
           {
+            "id": "local_income_tax",
+            "pe_variable": "local_income_tax",
+            "label": "Local income tax",
+            "prompt": "annual local income tax liability",
+            "metric_type": "amount",
+            "role": "tax",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
             "id": "snap",
             "pe_variable": "snap",
             "label": "SNAP",
@@ -288,6 +299,104 @@
             "output_set": "headline",
             "aggregation": "sum",
             "net_income_sign": 1
+          },
+          {
+            "id": "tanf",
+            "pe_variable": "tanf",
+            "label": "TANF",
+            "prompt": "annual Temporary Assistance for Needy Families (TANF) benefit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "wic",
+            "pe_variable": "wic",
+            "label": "WIC",
+            "prompt": "annual Special Supplemental Nutrition Program for Women, Infants, and Children (WIC) benefit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "housing_assistance",
+            "pe_variable": "housing_assistance",
+            "label": "Housing assistance",
+            "prompt": "annual housing assistance benefit amount",
+            "metric_type": "amount",
+            "role": "benefit",
+            "output_set": "headline",
+            "aggregation": "sum",
+            "net_income_sign": 1
+          },
+          {
+            "id": "any_medicaid_eligible",
+            "pe_variable": "is_medicaid_eligible",
+            "label": "Any Medicaid eligibility",
+            "prompt": "whether anyone in the household is eligible for Medicaid (1 if yes, 0 if no)",
+            "metric_type": "binary",
+            "role": "coverage",
+            "output_set": "headline",
+            "aggregation": "any_positive",
+            "net_income_sign": 1,
+            "impact_weight_variable": "medicaid",
+            "impact_weight_aggregation": "sum"
+          },
+          {
+            "id": "any_chip_eligible",
+            "pe_variable": "is_chip_eligible",
+            "label": "Any CHIP eligibility",
+            "prompt": "whether anyone in the household is eligible for CHIP (1 if yes, 0 if no)",
+            "metric_type": "binary",
+            "role": "coverage",
+            "output_set": "headline",
+            "aggregation": "any_positive",
+            "net_income_sign": 1,
+            "impact_weight_variable": "chip",
+            "impact_weight_aggregation": "sum"
+          },
+          {
+            "id": "any_medicare_eligible",
+            "pe_variable": "is_medicare_eligible",
+            "label": "Any Medicare eligibility",
+            "prompt": "whether anyone in the household is eligible for Medicare (1 if yes, 0 if no)",
+            "metric_type": "binary",
+            "role": "coverage",
+            "output_set": "headline",
+            "aggregation": "any_positive",
+            "net_income_sign": 1,
+            "impact_weight_variable": "medicare_cost",
+            "impact_weight_aggregation": "sum"
+          },
+          {
+            "id": "free_school_meals_eligible",
+            "pe_variable": "free_school_meals",
+            "label": "Free school meals eligibility",
+            "prompt": "whether the household qualifies for free school meals (1 if yes, 0 if no; reduced-price meals do not count as 1)",
+            "metric_type": "binary",
+            "role": "coverage",
+            "output_set": "headline",
+            "aggregation": "any_positive",
+            "net_income_sign": 1,
+            "impact_weight_variable": "free_school_meals",
+            "impact_weight_aggregation": "sum"
+          },
+          {
+            "id": "reduced_price_school_meals_eligible",
+            "pe_variable": "reduced_price_school_meals",
+            "label": "Reduced-price school meals eligibility",
+            "prompt": "whether the household qualifies for reduced-price school meals (1 if yes, 0 if no; free meals do not count as 1)",
+            "metric_type": "binary",
+            "role": "coverage",
+            "output_set": "headline",
+            "aggregation": "any_positive",
+            "net_income_sign": 1,
+            "impact_weight_variable": "reduced_price_school_meals",
+            "impact_weight_aggregation": "sum"
           },
           {
             "id": "adjusted_gross_income",
@@ -389,10 +498,43 @@
             "net_income_sign": 0
           },
           {
+            "id": "household_reduced_price_school_meal_eligible",
+            "pe_variable": "reduced_price_school_meals",
+            "label": "Household reduced-price school meal eligibility",
+            "prompt": "whether the benchmark household qualifies for reduced-price school meals (1 if yes, 0 if no; free meals do not count as 1)",
+            "metric_type": "binary",
+            "role": "eligibility",
+            "output_set": "supplementary",
+            "aggregation": "any_positive",
+            "net_income_sign": 0
+          },
+          {
             "id": "household_medicaid_eligible",
             "pe_variable": "is_medicaid_eligible",
             "label": "Household Medicaid eligibility",
             "prompt": "whether anyone in the household is eligible for Medicaid (1 if yes, 0 if no)",
+            "metric_type": "binary",
+            "role": "eligibility",
+            "output_set": "supplementary",
+            "aggregation": "any_positive",
+            "net_income_sign": 0
+          },
+          {
+            "id": "household_chip_eligible",
+            "pe_variable": "is_chip_eligible",
+            "label": "Household CHIP eligibility",
+            "prompt": "whether anyone in the household is eligible for CHIP (1 if yes, 0 if no)",
+            "metric_type": "binary",
+            "role": "eligibility",
+            "output_set": "supplementary",
+            "aggregation": "any_positive",
+            "net_income_sign": 0
+          },
+          {
+            "id": "household_medicare_eligible",
+            "pe_variable": "is_medicare_eligible",
+            "label": "Household Medicare eligibility",
+            "prompt": "whether anyone in the household is eligible for Medicare (1 if yes, 0 if no)",
             "metric_type": "binary",
             "role": "eligibility",
             "output_set": "supplementary",

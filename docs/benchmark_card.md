@@ -69,9 +69,11 @@ current public snapshot.
 
 `v2_headline`
 - rebuilt headline scope for new runs
-- includes household-budget components only
+- includes signed household net-income components that are directly interpretable
+  as taxes, benefits, or coverage eligibility
 - excludes AGI-like intermediate tax bases from the main ranking
-- excludes household eligibility labels from the main ranking
+- scores coverage eligibility as binary outputs while weighting them with
+  PolicyEngine dollar-value proxies
 
 `v2_supplementary`
 - diagnostic outputs that are useful but not part of the rebuilt headline

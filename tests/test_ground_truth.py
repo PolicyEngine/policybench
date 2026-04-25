@@ -119,7 +119,12 @@ class TestGroundTruth:
             programs=["adjusted_gross_income", "eitc"],
         )
         assert isinstance(df, pd.DataFrame)
-        assert set(df.columns) == {"scenario_id", "variable", "value"}
+        assert set(df.columns) == {
+            "scenario_id",
+            "variable",
+            "value",
+            "impact_weight",
+        }
         assert len(df) == 2  # 1 scenario × 2 programs
         assert df["scenario_id"].iloc[0] == "gt_single_50k"
 
@@ -162,10 +167,20 @@ class TestGroundTruthScalarExtraction:
         )
         assert (
             ground_truth._pe_variable_for_output(
-                "household_medicaid_eligible",
+                "any_medicaid_eligible",
                 "us",
             )
             == "is_medicaid_eligible"
+        )
+
+    def test_binary_impact_weight_filters_to_eligible_people(self):
+        assert (
+            ground_truth._extract_impact_weight(
+                np.array([1.0, 0.0, 1.0]),
+                np.array([100.0, 500.0, 25.0]),
+                "any_medicaid_eligible",
+            )
+            == 125.0
         )
 
     def test_household_boolean_variables_keep_zero_as_zero(self):
@@ -268,6 +283,6 @@ def test_calculate_ground_truth_uk_aggregates_native_entities(monkeypatch):
     ).sort_values(["scenario_id", "variable"])
 
     pd.testing.assert_frame_equal(
-        result.reset_index(drop=True),
+        result.drop(columns="impact_weight").reset_index(drop=True),
         expected.reset_index(drop=True),
     )

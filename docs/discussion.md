@@ -38,7 +38,7 @@ These results suggest a clear architecture for AI systems that provide policy an
 
 Several limitations qualify these findings:
 
-**Scope of outputs.** PolicyBench evaluates selected tax and benefit outputs, not the full tax-benefit system. The rebuilt headline scope focuses on direct household-budget components; intermediate tax bases, credit components, and eligibility labels are retained as supplementary diagnostics. Model performance may differ on outputs not included in the benchmark.
+**Scope of outputs.** PolicyBench evaluates selected tax and benefit outputs, not the full tax-benefit system. The rebuilt headline scope focuses on signed household net-income components and selected coverage booleans weighted by PolicyEngine value proxies. Intermediate tax bases and credit components are retained as supplementary diagnostics. Model performance may differ on outputs not included in the benchmark.
 
 **Household complexity.** Sampling from the Enhanced CPS improves realism substantially, but the benchmark still uses a filtered subset of households so that cases remain promptable and interpretable. More complex multi-tax-unit households, itemized-deduction-heavy filers, and unusual household structures remain underrepresented.
 

@@ -7,26 +7,45 @@ from policybench.spec import (
     find_output_spec,
     get_benchmark_spec,
     get_output_specs,
+    impact_weight_variable_for_output,
     metric_type_for_output,
     net_income_sign_for_output,
     parse_program_set,
 )
 
+US_V2_HEADLINE = [
+    "income_tax",
+    "employee_payroll_tax",
+    "self_employment_tax",
+    "household_state_income_tax",
+    "local_income_tax",
+    "snap",
+    "ssi",
+    "tanf",
+    "wic",
+    "housing_assistance",
+    "any_medicaid_eligible",
+    "any_chip_eligible",
+    "any_medicare_eligible",
+    "free_school_meals_eligible",
+    "reduced_price_school_meals_eligible",
+]
 
-def test_v2_headline_uses_budget_components():
+
+def test_v2_headline_uses_net_income_components_and_coverage_bools():
     outputs = get_output_specs("us", "v2_headline")
 
-    assert [output.id for output in outputs] == [
-        "income_tax",
-        "employee_payroll_tax",
-        "self_employment_tax",
-        "household_state_income_tax",
-        "snap",
-        "ssi",
-    ]
-    assert all(output.metric_type == "amount" for output in outputs)
-    assert all(output.net_income_sign != 0 for output in outputs)
+    assert [output.id for output in outputs] == US_V2_HEADLINE
+    assert {output.metric_type for output in outputs} == {"amount", "binary"}
     assert "adjusted_gross_income" not in [output.id for output in outputs]
+    assert (
+        impact_weight_variable_for_output("any_medicaid_eligible")
+        == "medicaid"
+    )
+    assert (
+        impact_weight_variable_for_output("free_school_meals_eligible")
+        == "free_school_meals"
+    )
 
 
 def test_v2_supplementary_keeps_derived_eligibility_labels_explicit():
@@ -42,6 +61,7 @@ def test_v2_supplementary_keeps_derived_eligibility_labels_explicit():
     assert "benchmark household" in school_meals.prompt
     assert medicaid.pe_variable == "is_medicaid_eligible"
     assert medicaid.metric_type == "binary"
+    assert by_id["household_chip_eligible"].pe_variable == "is_chip_eligible"
 
 
 def test_program_set_parser_supports_legacy_and_rebuilt_sets():
@@ -49,14 +69,7 @@ def test_program_set_parser_supports_legacy_and_rebuilt_sets():
     assert parse_program_set("v1") == ("v1", "headline")
     assert parse_program_set("v2_headline") == ("v2", "headline")
     assert parse_program_set("v2_supplementary") == ("v2", "supplementary")
-    assert get_programs("us") == [
-        "income_tax",
-        "employee_payroll_tax",
-        "self_employment_tax",
-        "household_state_income_tax",
-        "snap",
-        "ssi",
-    ]
+    assert get_programs("us") == US_V2_HEADLINE
     assert get_programs("uk", "v2_headline") == [
         "income_tax",
         "national_insurance",

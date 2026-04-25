@@ -30,11 +30,13 @@ contract.
 
 Benchmark outputs are specified in `policybench/benchmark_specs.json`. The
 published `v1` snapshot is retained for reproducibility. New runs default to
-`v2_headline`, which focuses the ranking on household-budget components and
-moves intermediate tax bases and eligibility labels to supplementary
-diagnostics.
+`v2_headline`, which focuses the ranking on signed components of household net
+income. Intermediate tax bases move to supplementary diagnostics. Coverage
+eligibility outputs are scored as booleans and weighted by PolicyEngine
+dollar-value proxies in the household-equal impact score.
 
-The rebuilt US headline scope evaluates direct household-budget components:
+The rebuilt US headline scope evaluates direct net-income components and
+coverage booleans:
 
 | Variable | Description | Category |
 |:---------|:-----------|:---------|
@@ -42,8 +44,17 @@ The rebuilt US headline scope evaluates direct household-budget components:
 | `employee_payroll_tax` | Employee-side payroll tax | Payroll tax |
 | `self_employment_tax` | Self-employment tax | Payroll tax |
 | `household_state_income_tax` | State income tax liability | State tax |
+| `local_income_tax` | Local income tax liability | Local tax |
 | `snap` | SNAP (food stamps) annual benefit | Benefits |
 | `ssi` | Supplemental Security Income | Benefits |
+| `tanf` | TANF benefit amount | Benefits |
+| `wic` | WIC benefit amount | Benefits |
+| `housing_assistance` | Housing assistance amount | Benefits |
+| `any_medicaid_eligible` | Any household member eligible for Medicaid | Coverage |
+| `any_chip_eligible` | Any household member eligible for CHIP | Coverage |
+| `any_medicare_eligible` | Any household member eligible for Medicare | Coverage |
+| `free_school_meals_eligible` | Household qualifies for free school meals | Coverage |
+| `reduced_price_school_meals_eligible` | Household qualifies for reduced-price school meals | Coverage |
 
 The rebuilt UK headline scope evaluates:
 
@@ -57,12 +68,10 @@ The rebuilt UK headline scope evaluates:
 | `pension_credit` | Pension Credit amount | Benefits |
 | `pip` | Personal Independence Payment amount | Benefits |
 
-Intermediate tax bases, credit components, and household eligibility labels are
-kept in supplementary diagnostic sets. For example, the US supplementary set
-includes AGI, pre-credit tax, EITC, CTC, refundable credits, and explicit
-derived household labels for free school meals and Medicaid eligibility. Binary
-diagnostic labels are scored with classification accuracy rather than dollar
-error metrics.
+Intermediate tax bases and credit components are kept in supplementary
+diagnostic sets. For example, the US supplementary set includes AGI, pre-credit
+tax, EITC, CTC, and refundable credits. Binary coverage outputs are scored with
+classification accuracy rather than dollar error metrics.
 
 ## Household scenarios
 

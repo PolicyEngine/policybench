@@ -31,6 +31,8 @@ class OutputSpec:
     output_set: str
     aggregation: str
     net_income_sign: int
+    impact_weight_variable: str | None = None
+    impact_weight_aggregation: str | None = None
 
     @property
     def is_binary(self) -> bool:
@@ -94,6 +96,16 @@ def _parse_output(country: str, data: dict[str, Any]) -> OutputSpec:
         output_set=str(data["output_set"]),
         aggregation=str(data["aggregation"]),
         net_income_sign=int(data["net_income_sign"]),
+        impact_weight_variable=(
+            None
+            if data.get("impact_weight_variable") is None
+            else str(data["impact_weight_variable"])
+        ),
+        impact_weight_aggregation=(
+            None
+            if data.get("impact_weight_aggregation") is None
+            else str(data["impact_weight_aggregation"])
+        ),
     )
 
 
@@ -222,6 +234,12 @@ def net_income_sign_for_output(output_id: str) -> int:
     """Return the output's sign in household net income."""
     output = find_output_spec(output_id)
     return output.net_income_sign if output else 1
+
+
+def impact_weight_variable_for_output(output_id: str) -> str | None:
+    """Return the PolicyEngine variable used to weight this output, if any."""
+    output = find_output_spec(output_id)
+    return output.impact_weight_variable if output else None
 
 
 def binary_output_ids() -> list[str]:

@@ -22,16 +22,30 @@ const US_VARIABLE_LABELS: Record<string, string> = {
   income_tax: "Federal income tax",
   employee_payroll_tax: "Employee payroll tax",
   self_employment_tax: "Self-employment tax",
+  local_income_tax: "Local income tax",
   income_tax_before_refundable_credits: "Federal tax before refundable credits",
   income_tax_refundable_credits: "Federal refundable credits",
   eitc: "EITC",
   ctc: "CTC",
   snap: "SNAP",
   ssi: "SSI",
+  tanf: "TANF",
+  wic: "WIC",
+  housing_assistance: "Housing assistance",
   free_school_meals: "Free school meals eligibility",
+  free_school_meals_eligible: "Free school meals eligibility",
   household_free_school_meal_eligible: "Free school meals eligibility",
+  reduced_price_school_meals_eligible:
+    "Reduced-price school meals eligibility",
+  household_reduced_price_school_meal_eligible:
+    "Reduced-price school meals eligibility",
   is_medicaid_eligible: "Any Medicaid eligibility",
+  any_medicaid_eligible: "Any Medicaid eligibility",
   household_medicaid_eligible: "Any Medicaid eligibility",
+  any_chip_eligible: "Any CHIP eligibility",
+  household_chip_eligible: "Any CHIP eligibility",
+  any_medicare_eligible: "Any Medicare eligibility",
+  household_medicare_eligible: "Any Medicare eligibility",
   state_agi: "State adjusted gross income",
   state_income_tax_before_refundable_credits:
     "State tax before refundable credits",
@@ -57,16 +71,28 @@ const US_VARIABLE_CATEGORIES: Record<string, string> = {
   income_tax: "Federal tax",
   employee_payroll_tax: "Federal tax",
   self_employment_tax: "Federal tax",
+  local_income_tax: "Local tax",
   income_tax_before_refundable_credits: "Federal tax",
   income_tax_refundable_credits: "Credits",
   eitc: "Credits",
   ctc: "Credits",
   snap: "Benefits",
   ssi: "Benefits",
+  tanf: "Benefits",
+  wic: "Benefits",
+  housing_assistance: "Benefits",
   free_school_meals: "Benefits",
+  free_school_meals_eligible: "Coverage",
   household_free_school_meal_eligible: "Benefits",
+  reduced_price_school_meals_eligible: "Coverage",
+  household_reduced_price_school_meal_eligible: "Benefits",
   is_medicaid_eligible: "Benefits",
+  any_medicaid_eligible: "Coverage",
   household_medicaid_eligible: "Benefits",
+  any_chip_eligible: "Coverage",
+  household_chip_eligible: "Benefits",
+  any_medicare_eligible: "Coverage",
+  household_medicare_eligible: "Benefits",
   state_agi: "State tax",
   state_income_tax_before_refundable_credits: "State tax",
   state_refundable_credits: "State tax",
@@ -112,9 +138,17 @@ export function isBinaryVariable(
   }
   return (
     variable === "free_school_meals" ||
+    variable === "free_school_meals_eligible" ||
     variable === "household_free_school_meal_eligible" ||
+    variable === "reduced_price_school_meals_eligible" ||
+    variable === "household_reduced_price_school_meal_eligible" ||
     variable === "is_medicaid_eligible" ||
-    variable === "household_medicaid_eligible"
+    variable === "any_medicaid_eligible" ||
+    variable === "household_medicaid_eligible" ||
+    variable === "any_chip_eligible" ||
+    variable === "household_chip_eligible" ||
+    variable === "any_medicare_eligible" ||
+    variable === "household_medicare_eligible"
   );
 }
 

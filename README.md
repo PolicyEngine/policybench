@@ -19,19 +19,21 @@ UK-calibrated transfer dataset and PolicyEngine-UK reference outputs.
 ## Benchmark scope
 
 Benchmark outputs are defined in `policybench/benchmark_specs.json`. New CLI
-runs default to `v2_headline`, which focuses the main ranking on household-budget
-components and moves intermediate tax bases and household eligibility labels to
-supplementary diagnostics. The legacy `v1` spec is kept only to reproduce the
-current public snapshot and frozen paper exports.
+runs default to `v2_headline`, which focuses the main ranking on signed
+components of household net income. Intermediate tax bases move to supplementary
+diagnostics. Coverage booleans such as Medicaid, CHIP, Medicare, and school
+meal eligibility are scored as binary outputs and weighted using PolicyEngine
+value proxies. The legacy `v1` spec is kept only to reproduce the current public
+snapshot and frozen paper exports.
 
 Frozen paper claims are tied to `results/paper_exports/benchmark_snapshot.json`,
 not to whatever models happen to be configured or probed locally later.
 
 ## Programs evaluated
 
-The current public release covers selected federal taxes, credits, means-tested
-benefits, household eligibility labels, and state-tax outputs in the US, plus
-selected tax and transfer outputs in the UK.
+The current public release covers selected federal taxes, credits, benefits,
+coverage labels, and state-tax outputs in the US, plus selected tax and
+transfer outputs in the UK.
 
 ## Quick start
 

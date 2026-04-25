@@ -207,9 +207,17 @@ def household_equal_impact_scores(
     base_weights["net_income_sign"] = base_weights["variable"].map(
         net_income_sign_for_output
     )
-    base_weights["abs_value"] = (
+    default_abs_value = (
         base_weights["value"] * base_weights["net_income_sign"]
     ).abs()
+    if "impact_weight" in base_weights.columns:
+        explicit_weight = pd.to_numeric(
+            base_weights["impact_weight"],
+            errors="coerce",
+        ).abs()
+        base_weights["abs_value"] = explicit_weight.fillna(default_abs_value)
+    else:
+        base_weights["abs_value"] = default_abs_value
     base_weights["total_variables"] = base_weights.groupby("scenario_id")[
         "variable"
     ].transform("size")

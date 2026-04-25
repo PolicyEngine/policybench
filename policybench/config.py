@@ -38,9 +38,9 @@ MODELS = {
 US_PROGRAMS = get_output_ids("us", "v1")
 UK_PROGRAMS = get_output_ids("uk", "v1")
 
-# Rebuilt v2 output sets. The headline set contains household-budget
-# components; intermediate bases and household eligibility labels are
-# supplementary diagnostics.
+# Rebuilt v2 output sets. The headline set contains signed household
+# net-income components plus coverage booleans with explicit impact weights;
+# intermediate bases remain supplementary diagnostics.
 US_HEADLINE_PROGRAMS_V2 = get_output_ids("us", "v2_headline")
 UK_HEADLINE_PROGRAMS_V2 = get_output_ids("uk", "v2_headline")
 US_SUPPLEMENTARY_PROGRAMS_V2 = get_output_ids("us", "v2_supplementary")
