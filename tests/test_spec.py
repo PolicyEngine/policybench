@@ -3,7 +3,9 @@
 import pytest
 
 from policybench.config import get_programs
+from policybench.scenarios import Person, Scenario
 from policybench.spec import (
+    expand_programs_for_scenario,
     find_output_spec,
     get_benchmark_spec,
     get_output_specs,
@@ -15,7 +17,7 @@ from policybench.spec import (
 
 US_V2_HEADLINE = [
     "income_tax",
-    "employee_payroll_tax",
+    "payroll_tax",
     "self_employment_tax",
     "household_state_income_tax",
     "local_income_tax",
@@ -23,10 +25,11 @@ US_V2_HEADLINE = [
     "ssi",
     "tanf",
     "wic",
-    "housing_assistance",
-    "any_medicaid_eligible",
-    "any_chip_eligible",
-    "any_medicare_eligible",
+    "person_medicaid_eligible",
+    "person_chip_eligible",
+    "person_medicare_eligible",
+    "person_head_start_eligible",
+    "person_early_head_start_eligible",
     "free_school_meals_eligible",
     "reduced_price_school_meals_eligible",
 ]
@@ -38,9 +41,15 @@ def test_v2_headline_uses_net_income_components_and_coverage_bools():
     assert [output.id for output in outputs] == US_V2_HEADLINE
     assert {output.metric_type for output in outputs} == {"amount", "binary"}
     assert "adjusted_gross_income" not in [output.id for output in outputs]
+    assert impact_weight_variable_for_output("person_medicaid_eligible") == "medicaid"
+    assert impact_weight_variable_for_output("adult1_medicaid_eligible") == "medicaid"
     assert (
-        impact_weight_variable_for_output("any_medicaid_eligible")
-        == "medicaid"
+        impact_weight_variable_for_output("child1_head_start_eligible")
+        == "head_start"
+    )
+    assert (
+        impact_weight_variable_for_output("child1_early_head_start_eligible")
+        == "early_head_start"
     )
     assert (
         impact_weight_variable_for_output("free_school_meals_eligible")
@@ -53,15 +62,57 @@ def test_v2_supplementary_keeps_derived_eligibility_labels_explicit():
     by_id = {output.id: output for output in outputs}
 
     school_meals = by_id["household_free_school_meal_eligible"]
-    medicaid = by_id["household_medicaid_eligible"]
+    social_security_tax = by_id["person_employee_social_security_tax"]
+    additional_medicare_tax = by_id["household_additional_medicare_tax"]
 
     assert school_meals.pe_variable == "free_school_meals"
     assert school_meals.metric_type == "binary"
     assert school_meals.aggregation == "any_positive"
     assert "benchmark household" in school_meals.prompt
-    assert medicaid.pe_variable == "is_medicaid_eligible"
-    assert medicaid.metric_type == "binary"
-    assert by_id["household_chip_eligible"].pe_variable == "is_chip_eligible"
+    assert social_security_tax.pe_variable == "employee_social_security_tax"
+    assert social_security_tax.aggregation == "person"
+    assert social_security_tax.metric_type == "amount"
+    assert additional_medicare_tax.pe_variable == "additional_medicare_tax"
+    assert additional_medicare_tax.aggregation == "sum"
+
+
+def test_person_payroll_diagnostics_expand_per_household_member():
+    scenario = Scenario(
+        id="mini",
+        state="CA",
+        filing_status="head_of_household",
+        adults=[Person(name="adult1", age=35, employment_income=50_000)],
+        children=[Person(name="child1", age=8, employment_income=0)],
+        year=2025,
+    )
+
+    assert expand_programs_for_scenario(
+        ["person_employee_social_security_tax", "household_additional_medicare_tax"],
+        scenario,
+    ) == [
+        "adult1_employee_social_security_tax",
+        "child1_employee_social_security_tax",
+        "household_additional_medicare_tax",
+    ]
+
+
+def test_head_start_eligibility_expands_only_for_children():
+    scenario = Scenario(
+        id="mini",
+        state="CA",
+        filing_status="head_of_household",
+        adults=[Person(name="adult1", age=35, employment_income=50_000)],
+        children=[Person(name="child1", age=4, employment_income=0)],
+        year=2025,
+    )
+
+    assert expand_programs_for_scenario(
+        ["person_head_start_eligible", "person_early_head_start_eligible"],
+        scenario,
+    ) == [
+        "child1_head_start_eligible",
+        "child1_early_head_start_eligible",
+    ]
 
 
 def test_program_set_parser_supports_legacy_and_rebuilt_sets():
@@ -73,7 +124,6 @@ def test_program_set_parser_supports_legacy_and_rebuilt_sets():
     assert get_programs("uk", "v2_headline") == [
         "income_tax",
         "national_insurance",
-        "council_tax_less_benefit",
         "child_benefit",
         "universal_credit",
         "pension_credit",

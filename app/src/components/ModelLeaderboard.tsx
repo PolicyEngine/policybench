@@ -138,7 +138,7 @@ export default function ModelLeaderboard({
       >
         {isGlobal
           ? "Global scores are equal-weight averages of each model’s US and UK benchmark scores. Only models with both country runs are included."
-          : "The headline score averages exact, within-1%, within-5%, and within-10% hits for dollar outputs, plus exact accuracy on household booleans."}
+          : "The headline score averages exact, within-1%, within-5%, and within-10% hits for dollar outputs, plus exact accuracy on binary coverage flags."}
         {pendingModels.length > 0 && (
           <>
             {" "}

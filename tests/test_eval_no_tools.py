@@ -290,6 +290,8 @@ def test_no_tools_prompt_contains_household_info(mini_scenario):
     assert "state: ca" in prompt_lower
     assert "employment income: $50,000" in prompt
     assert "tax year: 2025" in prompt_lower
+    assert "treat any unlisted numeric input as 0" in prompt_lower
+    assert "unlisted boolean or status input as false" in prompt_lower
 
 
 def test_no_tools_prompt_supports_uk_households(uk_scenario):
@@ -968,6 +970,29 @@ def test_run_no_tools_eval_skips_remaining_model_after_fatal_error(
 
 
 @patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_stops_after_insufficient_quota(
+    mock_run_single_no_tools,
+    mini_scenario,
+):
+    """Quota exhaustion should stop instead of filling rows with API errors."""
+    quota_error = litellm.RateLimitError(
+        message="insufficient_quota: check billing details",
+        llm_provider="openai",
+        model="gpt-5.4-nano",
+    )
+    mock_run_single_no_tools.side_effect = quota_error
+
+    df = run_no_tools_eval(
+        [mini_scenario],
+        models={"gpt-5.4-nano": "gpt-5.4-nano"},
+        programs=["income_tax", "eitc"],
+    )
+
+    assert df.empty
+    mock_run_single_no_tools.assert_called_once()
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
 def test_run_no_tools_eval_resumes_from_existing_output(
     mock_run_single_no_tools,
     mini_scenario,
@@ -1155,6 +1180,7 @@ def test_run_no_tools_eval_writes_resume_metadata(
     assert metadata["scenario_count"] == 1
     assert metadata["programs"] == ["income_tax"]
     assert metadata["models"] == {"gpt-5.4": "gpt-5.4"}
+    assert metadata["policyengine_bundles"]["us"]["model_package"] == "policyengine-us"
 
 
 @patch("policybench.eval_no_tools.run_single_no_tools")
@@ -1223,6 +1249,7 @@ def test_run_no_tools_eval_rejects_mismatched_resume_metadata(
                 "scenario_hash": "different",
                 "programs": ["income_tax"],
                 "models": {"gpt-5.4": "gpt-5.4"},
+                "policyengine_bundles": {"us": {"model_version": "different"}},
             }
         )
     )

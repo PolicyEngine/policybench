@@ -8,7 +8,7 @@ title: "PolicyBench: Can AI models calculate tax and benefit outcomes?"
 
 ## Abstract
 
-Large language models have absorbed information about tax codes, benefit programs, and policy rules, yet translating this knowledge into quantitative household outputs remains difficult. PolicyBench is a public no-tool benchmark for selected household-level tax and benefit outputs in the US and UK. We test frontier models on sampled household scenarios evaluated under 2025 policy rules and scored against PolicyEngine reference outputs.
+Large language models have absorbed information about tax codes, benefit programs, and policy rules, yet translating this knowledge into quantitative household outputs remains difficult. PolicyBench is a public no-tool benchmark for selected person- and household-facing tax and benefit outputs in the US and UK. We test frontier models on sampled household scenarios evaluated under 2025 policy rules and scored against PolicyEngine reference outputs.
 
 The benchmark focuses on a single condition: AI alone, where models must rely on their parametric knowledge to estimate policy outcomes from a household description. US scenarios are sampled from Enhanced CPS households. The public UK path uses a UK-calibrated transfer dataset. PolicyEngine generates the benchmark reference outputs for each described case.
 

@@ -75,7 +75,7 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
       >
         Bounded score by program and model (AI alone, without tools). Dollar
         targets average exact, within-1%, within-5%, and within-10% hit rates;
-        household booleans use exact accuracy.
+        binary coverage flags use exact accuracy.
       </p>
 
       <div

@@ -1,0 +1,40 @@
+{
+  "country": "uk",
+  "generated_at_utc": "2026-04-26T03:16:40.472135+00:00",
+  "metadata_version": 1,
+  "num_scenarios": 10,
+  "output": "results/diagnostics_v2_20260425_smoke/uk/ground_truth.csv",
+  "policyengine_bundles": {
+    "uk": {
+      "bundle_id": "uk-4.0.0",
+      "certified_by": "policyengine.py bundled manifest",
+      "certified_data_artifact_sha256": null,
+      "certified_data_build_id": "policyengine-uk-data-1.40.4",
+      "compatibility_basis": "exact_build_model_version",
+      "country_id": "uk",
+      "data_build_fingerprint": null,
+      "data_build_model_git_sha": null,
+      "data_build_model_version": "2.88.0",
+      "data_package": "policyengine-uk-data",
+      "data_version": "1.40.4",
+      "default_dataset": "enhanced_frs_2023_24",
+      "default_dataset_uri": "hf://policyengine/policyengine-uk-data-private/enhanced_frs_2023_24.h5@1.40.4",
+      "model_package": "policyengine-uk",
+      "model_version": "2.88.0",
+      "policyengine_version": "4.0.0"
+    }
+  },
+  "program_set": "v2_headline",
+  "programs": [
+    "child_benefit",
+    "income_tax",
+    "national_insurance",
+    "pension_credit",
+    "pip",
+    "universal_credit"
+  ],
+  "scenario_manifest_output": "results/diagnostics_v2_20260425_smoke/uk/scenarios.csv",
+  "seed": 42,
+  "source_dataset_path": "/Users/maxghenis/PolicyEngine/policyengine-uk-data-transfer-pr/policyengine_uk_data/storage/enhanced_cps_2025.h5",
+  "task": "ground_truth"
+}

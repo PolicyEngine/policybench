@@ -8,7 +8,7 @@ title: Introduction
 
 Artificial intelligence is increasingly invoked as a tool for public policy analysis. Large language models (LLMs) can summarize legislation, explain eligibility rules, and draft policy memos with impressive fluency. Policymakers, journalists, and researchers have begun using these models to answer questions about how tax and benefit systems affect specific households --- questions like "How much would this family receive in SNAP benefits?" or "What is the marginal tax rate for a single parent earning $40,000 in California?"
 
-These questions have precise outputs under a specified tax-benefit model. The US tax code and benefit programs define formulas, phase-out schedules, income thresholds, and interaction effects that together determine a household's tax liability, credit amounts, and benefit eligibility. Estimating these outputs requires not just knowledge of individual program rules but the ability to execute multi-step calculations that account for interactions across programs, state-specific provisions, and household-specific circumstances.
+These questions have reference outputs under a specified tax-benefit model. The US tax code and benefit programs define formulas, phase-out schedules, income thresholds, and interaction effects that together determine a household's tax liability, credit amounts, and benefit eligibility. Estimating these outputs requires knowledge of individual program rules and the ability to execute multi-step calculations that account for interactions across programs, state-specific provisions, and household-specific circumstances.
 
 LLMs are trained on tax law, IRS publications, benefit program documentation, and policy analyses. They can often describe the rules governing a program in considerable detail. But describing rules and computing outcomes from those rules are fundamentally different tasks. The question motivating this paper is whether frontier AI models can bridge that gap --- whether their parametric knowledge of policy rules translates into accurate quantitative outputs for specific household scenarios.
 
@@ -26,7 +26,7 @@ Benchmarking AI models on quantitative reasoning tasks is a well-established are
 
 Benchmarks for tax and benefit computation remain limited. TaxBench evaluated LLMs on tax preparation questions but focused on qualitative understanding of tax rules rather than numerical computation for specific households. PolicyBench focuses on household-level tax liabilities, credit amounts, and benefit levels for selected scenarios across multiple programs.
 
-PolicyBench is a public no-tool benchmark for selected household-level tax and benefit outputs. It isolates the computational challenge: given a fully specified household and a specific policy variable, how close can a model get to PolicyEngine reference outputs without external computation?
+PolicyBench is a public no-tool benchmark for selected person- and household-facing tax and benefit outputs. It measures a combined task: given a fully specified household and a specific policy variable, how close can a model get to PolicyEngine reference outputs without external computation, while following a structured response contract?
 
 ## This paper's contributions
 

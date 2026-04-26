@@ -12,12 +12,14 @@ import pandas as pd
 from litellm import completion, completion_cost, responses
 
 from policybench.config import MODELS, PROGRAMS
+from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.prompts import (
     get_variable_description,
     make_no_tools_batch_prompt,
     make_no_tools_batch_repair_prompt,
 )
 from policybench.scenarios import Scenario, scenario_to_dict
+from policybench.spec import expand_programs_for_scenario
 
 MAX_RETRIES = 2
 RETRY_BASE_DELAY = 2
@@ -61,8 +63,22 @@ def _format_error(error: Exception) -> str:
     return f"{type(error).__name__}: {str(error).replace(chr(10), ' ')[:500]}"
 
 
+def _is_insufficient_quota_error(error: Exception) -> bool:
+    return "insufficient_quota" in str(error)
+
+
+def _is_fatal_error_text(error: str | None) -> bool:
+    return bool(error and "insufficient_quota" in error)
+
+
 def _should_retry(error: Exception) -> bool:
+    if _is_insufficient_quota_error(error):
+        return False
     return not isinstance(error, NON_RETRYABLE_ERRORS)
+
+
+def _is_model_fatal_error(error: Exception) -> bool:
+    return isinstance(error, MODEL_FATAL_ERRORS) or _is_insufficient_quota_error(error)
 
 
 def _get_usage_value(obj, key: str):
@@ -981,6 +997,7 @@ def run_single_no_tools(
 
 def _load_existing_rows(
     output_path: str | None,
+    scenarios: list[Scenario],
     programs: list[str],
     include_explanations: bool = False,
 ) -> tuple[list[dict], set[tuple[str, str]]]:
@@ -1001,9 +1018,16 @@ def _load_existing_rows(
     group_columns = ["model", "scenario_id"]
     completed_keys: set[tuple[str, str]] = set()
     keep_mask = pd.Series(False, index=existing.index)
+    expected_programs = {
+        scenario.id: set(expand_programs_for_scenario(programs, scenario))
+        for scenario in scenarios
+    }
 
     for key, group in existing.groupby(group_columns):
-        has_all_programs = set(group["variable"]) >= set(programs)
+        has_all_programs = set(group["variable"]) >= expected_programs.get(
+            key[1],
+            set(programs),
+        )
         has_no_errors = "error" not in group.columns or group["error"].isna().all()
         has_all_predictions = (
             "prediction" not in group.columns or group["prediction"].notna().all()
@@ -1061,6 +1085,10 @@ def _build_resume_metadata(
         separators=(",", ":"),
         sort_keys=True,
     )
+    countries = {
+        (scenario.country or "us").lower()
+        for scenario in scenarios
+    }
     return {
         "metadata_version": RESUME_METADATA_VERSION,
         "task": task,
@@ -1070,6 +1098,7 @@ def _build_resume_metadata(
         "scenario_hash": hashlib.sha256(scenario_signature.encode("utf-8")).hexdigest(),
         "programs": sorted(programs),
         "models": {name: models[name] for name in sorted(models)},
+        "policyengine_bundles": policyengine_bundles_for_countries(countries),
     }
 
 
@@ -1111,6 +1140,7 @@ def _validate_resume_metadata(output_path: str | None, expected: dict) -> None:
         "scenario_hash",
         "programs",
         "models",
+        "policyengine_bundles",
     ):
         if existing.get(key) != expected.get(key):
             mismatches.append(key)
@@ -1201,6 +1231,7 @@ def run_no_tools_eval(
     _validate_resume_metadata(output_path, resume_metadata)
     all_rows, completed = _load_existing_rows(
         output_path,
+        scenarios,
         programs,
         include_explanations=include_explanations,
     )
@@ -1213,18 +1244,21 @@ def run_no_tools_eval(
             key = (model_name, scenario.id)
             if key in completed:
                 continue
+            scenario_programs = expand_programs_for_scenario(programs, scenario)
             try:
                 result = run_single_no_tools(
                     scenario,
-                    programs,
+                    scenario_programs,
                     model_id,
                     include_explanations=include_explanations,
                 )
                 error = result.get("error")
+                if _is_fatal_error_text(error):
+                    model_fatal = True
             except Exception as e:
                 error = _format_error(e)
                 print(f"  ERROR [{model_name}] {scenario.id}: {error}")
-                if isinstance(e, MODEL_FATAL_ERRORS):
+                if _is_model_fatal_error(e):
                     model_fatal = True
                     print(
                         f"  Stopping {model_name} due to fatal error; "
@@ -1234,8 +1268,8 @@ def run_no_tools_eval(
                         _save_checkpoint(output_path, all_rows, resume_metadata)
                     break
                 result = {
-                    "predictions": {variable: None for variable in programs},
-                    "explanations": {variable: None for variable in programs},
+                    "predictions": {variable: None for variable in scenario_programs},
+                    "explanations": {variable: None for variable in scenario_programs},
                     "raw_response": None,
                     "error": error,
                     "elapsed_seconds": None,
@@ -1251,7 +1285,7 @@ def run_no_tools_eval(
                     "estimated_cost_usd": None,
                 }
 
-            batch_size = len(programs)
+            batch_size = len(scenario_programs)
             call_id = ":".join(
                 [part for part in [run_id, model_name, scenario.id] if part is not None]
             )
@@ -1266,7 +1300,7 @@ def run_no_tools_eval(
             total_cost_usd = result.get("total_cost_usd")
             cost_is_estimated = result.get("cost_is_estimated")
             estimated_cost_usd = result.get("estimated_cost_usd")
-            for variable in programs:
+            for variable in scenario_programs:
                 prediction = result["predictions"].get(variable)
                 explanation = result.get("explanations", {}).get(variable)
                 all_rows.append(
@@ -1380,13 +1414,20 @@ def run_no_tools_single_output_eval(
         output_path,
         include_explanations=include_explanations,
     )
-    total = len(models) * len(scenarios) * len(programs)
+    scenario_programs_by_id = {
+        scenario.id: expand_programs_for_scenario(programs, scenario)
+        for scenario in scenarios
+    }
+    total = len(models) * sum(
+        len(scenario_programs)
+        for scenario_programs in scenario_programs_by_id.values()
+    )
     done = len(completed)
 
     for model_name, model_id in models.items():
         model_fatal = False
         for scenario in scenarios:
-            for variable in programs:
+            for variable in scenario_programs_by_id[scenario.id]:
                 key = (model_name, scenario.id, variable)
                 if key in completed:
                     continue
@@ -1398,10 +1439,12 @@ def run_no_tools_single_output_eval(
                         include_explanations=include_explanations,
                     )
                     error = result.get("error")
+                    if _is_fatal_error_text(error):
+                        model_fatal = True
                 except Exception as e:
                     error = _format_error(e)
                     print(f"  ERROR [{model_name}] {scenario.id} {variable}: {error}")
-                    if isinstance(e, MODEL_FATAL_ERRORS):
+                    if _is_model_fatal_error(e):
                         model_fatal = True
                         print(
                             f"  Stopping {model_name} due to fatal error; "

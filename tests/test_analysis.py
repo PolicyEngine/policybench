@@ -732,6 +732,7 @@ class TestSummaries:
         assert set(payload) == {
             "country",
             "failureModes",
+            "policyengineBundles",
             "scenarios",
             "modelStats",
             "programStats",

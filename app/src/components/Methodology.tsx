@@ -190,8 +190,9 @@ export default function Methodology({
         className="text-text-secondary mt-3 max-w-3xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        PolicyBench measures one thing: how well frontier models can estimate
-        household-level tax and benefit outputs from the prompt alone.{" "}
+        PolicyBench measures a no-tools task: how well frontier models can
+        estimate person- and household-level tax and benefit outputs from the
+        prompt alone while following a structured response contract.{" "}
         {benchmarkDescription}
       </p>
 
@@ -246,7 +247,7 @@ export default function Methodology({
           dollar-valued outputs, that score averages exact-dollar hit rate,
           within-1%, within-5%, and within-10% hit rates.
           {country === "us"
-            ? " Household booleans like Medicaid and free school meals use exact accuracy."
+            ? " Binary coverage flags like person-level Medicaid eligibility and school meal eligibility use exact accuracy."
             : ""}
           {" "}Coverage still tracks how often a model produced a parseable numeric
           answer, and mean absolute error remains as a diagnostic. The

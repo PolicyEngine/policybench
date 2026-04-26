@@ -1,0 +1,7 @@
+variable,mean_score,mean_exact,mean_within_1pct,mean_within_5pct,mean_mae,mean_mape,mean_within_10pct,mean_accuracy,mean_coverage,total_n,parsed_n
+child_benefit,0.75,0.7,0.7,0.8,54.15990722656252,0.1294508539041766,0.8,,1.0,10,10
+income_tax,0.175,0.0,0.1,0.3,1323.678801269531,0.2595734122949768,0.3,,1.0,10,10
+national_insurance,0.1,0.1,0.1,0.1,734.9563776855468,0.33723945850105685,0.1,,1.0,10,10
+pension_credit,0.9,0.9,0.9,0.9,1296.82353515625,1.0,0.9,,1.0,10,10
+pip,0.95,0.9,0.9,1.0,5.976015625000036,0.011148949752988151,1.0,,1.0,10,10
+universal_credit,0.9,0.9,0.9,0.9,55.766015625,1.0,0.9,,1.0,10,10

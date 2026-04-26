@@ -1,0 +1,2 @@
+model,mean_impact_score,mean_household_score,mean_household_coverage,households,total_variables,parsed_variables,floor_share
+gpt-5.4,0.2843968430160029,0.6291666666666667,1.0,10,60,60,0.3

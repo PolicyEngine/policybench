@@ -1,7 +1,9 @@
 """CLI entry point for PolicyBench."""
 
 import argparse
+import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from policybench.config import (
@@ -15,6 +17,13 @@ from policybench.config import (
 
 def _ensure_parent_dir(output_path: str) -> None:
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+
+def _write_metadata(output_path: str, metadata: dict) -> None:
+    Path(f"{output_path}.meta.json").write_text(
+        json.dumps(metadata, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
 
 
 def _parse_models(selected: list[str] | None) -> dict[str, str]:
@@ -346,8 +355,10 @@ def main():
 
     if args.command == "ground-truth":
         from policybench.ground_truth import calculate_ground_truth
+        from policybench.policyengine_runtime import runtime_metadata_for_country
         from policybench.scenarios import (
             generate_scenarios,
+            get_uk_dataset_path,
             load_excluded_household_ids,
             scenario_manifest,
         )
@@ -373,6 +384,31 @@ def main():
         df.to_csv(args.output, index=False)
         _ensure_parent_dir(args.scenario_manifest_output)
         scenario_manifest(scenarios).to_csv(args.scenario_manifest_output, index=False)
+        source_dataset_path = get_uk_dataset_path() if args.country == "uk" else None
+        metadata = {
+            "metadata_version": 1,
+            "task": "ground_truth",
+            "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+            "country": args.country,
+            "num_scenarios": args.num_scenarios,
+            "seed": args.seed,
+            "program_set": args.program_set,
+            "programs": sorted(programs),
+            "output": args.output,
+            "scenario_manifest_output": args.scenario_manifest_output,
+            **runtime_metadata_for_country(
+                args.country,
+                source_dataset_path=source_dataset_path,
+            ),
+        }
+        _write_metadata(args.output, metadata)
+        _write_metadata(
+            args.scenario_manifest_output,
+            {
+                **metadata,
+                "task": "scenario_manifest",
+            },
+        )
         print(f"Ground truth saved to {args.output}")
         print(f"Scenario manifest saved to {args.scenario_manifest_output}")
 

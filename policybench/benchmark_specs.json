@@ -220,7 +220,7 @@
       }
     },
     "v2": {
-      "description": "Rebuilt benchmark scope centered on non-overlapping household net-income components, with coverage booleans weighted by PolicyEngine value proxies and intermediate tax bases moved to diagnostics.",
+      "description": "Rebuilt benchmark scope centered on non-overlapping household net-income components, with coverage flags weighted by PolicyEngine value proxies and intermediate tax bases moved to diagnostics.",
       "countries": {
         "us": [
           {
@@ -235,10 +235,10 @@
             "net_income_sign": -1
           },
           {
-            "id": "employee_payroll_tax",
-            "pe_variable": "employee_payroll_tax",
-            "label": "Employee payroll tax",
-            "prompt": "annual employee-side payroll tax liability",
+            "id": "payroll_tax",
+            "pe_variable": "spm_unit_payroll_tax",
+            "label": "Payroll tax",
+            "prompt": "annual household employee-side federal payroll tax liability; in PolicyEngine-US this sums employee Social Security tax, employee Medicare tax, and Additional Medicare Tax across the household. Exclude employer payroll taxes, FUTA, state payroll taxes, local payroll taxes, and unemployment-insurance taxes",
             "metric_type": "amount",
             "role": "tax",
             "output_set": "headline",
@@ -271,7 +271,7 @@
             "id": "local_income_tax",
             "pe_variable": "local_income_tax",
             "label": "Local income tax",
-            "prompt": "annual local income tax liability",
+            "prompt": "annual local income tax liability included in PolicyEngine-US, currently NYC income tax where applicable",
             "metric_type": "amount",
             "role": "tax",
             "output_set": "headline",
@@ -323,54 +323,69 @@
             "net_income_sign": 1
           },
           {
-            "id": "housing_assistance",
-            "pe_variable": "housing_assistance",
-            "label": "Housing assistance",
-            "prompt": "annual housing assistance benefit amount",
-            "metric_type": "amount",
-            "role": "benefit",
-            "output_set": "headline",
-            "aggregation": "sum",
-            "net_income_sign": 1
-          },
-          {
-            "id": "any_medicaid_eligible",
+            "id": "person_medicaid_eligible",
             "pe_variable": "is_medicaid_eligible",
-            "label": "Any Medicaid eligibility",
-            "prompt": "whether anyone in the household is eligible for Medicaid (1 if yes, 0 if no)",
+            "label": "Person-level Medicaid eligibility",
+            "prompt": "whether each person in the household is eligible for Medicaid (1 if yes, 0 if no)",
             "metric_type": "binary",
             "role": "coverage",
             "output_set": "headline",
-            "aggregation": "any_positive",
+            "aggregation": "person",
             "net_income_sign": 1,
             "impact_weight_variable": "medicaid",
-            "impact_weight_aggregation": "sum"
+            "impact_weight_aggregation": "person"
           },
           {
-            "id": "any_chip_eligible",
+            "id": "person_chip_eligible",
             "pe_variable": "is_chip_eligible",
-            "label": "Any CHIP eligibility",
-            "prompt": "whether anyone in the household is eligible for CHIP (1 if yes, 0 if no)",
+            "label": "Person-level CHIP eligibility",
+            "prompt": "whether each person in the household is eligible for CHIP (1 if yes, 0 if no)",
             "metric_type": "binary",
             "role": "coverage",
             "output_set": "headline",
-            "aggregation": "any_positive",
+            "aggregation": "person",
             "net_income_sign": 1,
             "impact_weight_variable": "chip",
-            "impact_weight_aggregation": "sum"
+            "impact_weight_aggregation": "person"
           },
           {
-            "id": "any_medicare_eligible",
+            "id": "person_medicare_eligible",
             "pe_variable": "is_medicare_eligible",
-            "label": "Any Medicare eligibility",
-            "prompt": "whether anyone in the household is eligible for Medicare (1 if yes, 0 if no)",
+            "label": "Person-level Medicare eligibility",
+            "prompt": "whether each person in the household is eligible for Medicare (1 if yes, 0 if no)",
             "metric_type": "binary",
             "role": "coverage",
             "output_set": "headline",
-            "aggregation": "any_positive",
+            "aggregation": "person",
             "net_income_sign": 1,
             "impact_weight_variable": "medicare_cost",
-            "impact_weight_aggregation": "sum"
+            "impact_weight_aggregation": "person"
+          },
+          {
+            "id": "person_head_start_eligible",
+            "pe_variable": "is_head_start_eligible",
+            "label": "Person-level Head Start eligibility",
+            "prompt": "whether each person in the household is eligible for Head Start (1 if yes, 0 if no)",
+            "metric_type": "binary",
+            "role": "coverage",
+            "output_set": "headline",
+            "aggregation": "person",
+            "net_income_sign": 1,
+            "impact_weight_variable": "head_start",
+            "impact_weight_aggregation": "person"
+          },
+          {
+            "id": "person_early_head_start_eligible",
+            "pe_variable": "is_early_head_start_eligible",
+            "label": "Person-level Early Head Start eligibility",
+            "prompt": "whether each person in the household is eligible for Early Head Start (1 if yes, 0 if no)",
+            "metric_type": "binary",
+            "role": "coverage",
+            "output_set": "headline",
+            "aggregation": "person",
+            "net_income_sign": 1,
+            "impact_weight_variable": "early_head_start",
+            "impact_weight_aggregation": "person"
           },
           {
             "id": "free_school_meals_eligible",
@@ -487,6 +502,39 @@
             "net_income_sign": 1
           },
           {
+            "id": "person_employee_social_security_tax",
+            "pe_variable": "employee_social_security_tax",
+            "label": "Person-level employee Social Security tax",
+            "prompt": "annual employee Social Security tax for each person in the household",
+            "metric_type": "amount",
+            "role": "diagnostic",
+            "output_set": "supplementary",
+            "aggregation": "person",
+            "net_income_sign": -1
+          },
+          {
+            "id": "person_employee_medicare_tax",
+            "pe_variable": "employee_medicare_tax",
+            "label": "Person-level employee Medicare tax",
+            "prompt": "annual employee Medicare tax for each person in the household, excluding Additional Medicare Tax",
+            "metric_type": "amount",
+            "role": "diagnostic",
+            "output_set": "supplementary",
+            "aggregation": "person",
+            "net_income_sign": -1
+          },
+          {
+            "id": "household_additional_medicare_tax",
+            "pe_variable": "additional_medicare_tax",
+            "label": "Household Additional Medicare Tax",
+            "prompt": "annual household Additional Medicare Tax liability",
+            "metric_type": "amount",
+            "role": "diagnostic",
+            "output_set": "supplementary",
+            "aggregation": "sum",
+            "net_income_sign": -1
+          },
+          {
             "id": "household_free_school_meal_eligible",
             "pe_variable": "free_school_meals",
             "label": "Household free school meal eligibility",
@@ -502,39 +550,6 @@
             "pe_variable": "reduced_price_school_meals",
             "label": "Household reduced-price school meal eligibility",
             "prompt": "whether the benchmark household qualifies for reduced-price school meals (1 if yes, 0 if no; free meals do not count as 1)",
-            "metric_type": "binary",
-            "role": "eligibility",
-            "output_set": "supplementary",
-            "aggregation": "any_positive",
-            "net_income_sign": 0
-          },
-          {
-            "id": "household_medicaid_eligible",
-            "pe_variable": "is_medicaid_eligible",
-            "label": "Household Medicaid eligibility",
-            "prompt": "whether anyone in the household is eligible for Medicaid (1 if yes, 0 if no)",
-            "metric_type": "binary",
-            "role": "eligibility",
-            "output_set": "supplementary",
-            "aggregation": "any_positive",
-            "net_income_sign": 0
-          },
-          {
-            "id": "household_chip_eligible",
-            "pe_variable": "is_chip_eligible",
-            "label": "Household CHIP eligibility",
-            "prompt": "whether anyone in the household is eligible for CHIP (1 if yes, 0 if no)",
-            "metric_type": "binary",
-            "role": "eligibility",
-            "output_set": "supplementary",
-            "aggregation": "any_positive",
-            "net_income_sign": 0
-          },
-          {
-            "id": "household_medicare_eligible",
-            "pe_variable": "is_medicare_eligible",
-            "label": "Household Medicare eligibility",
-            "prompt": "whether anyone in the household is eligible for Medicare (1 if yes, 0 if no)",
             "metric_type": "binary",
             "role": "eligibility",
             "output_set": "supplementary",
@@ -559,17 +574,6 @@
             "pe_variable": "national_insurance",
             "label": "National Insurance",
             "prompt": "annual UK National Insurance contributions",
-            "metric_type": "amount",
-            "role": "tax",
-            "output_set": "headline",
-            "aggregation": "sum",
-            "net_income_sign": -1
-          },
-          {
-            "id": "council_tax_less_benefit",
-            "pe_variable": "council_tax_less_benefit",
-            "label": "Council Tax less support",
-            "prompt": "annual Council Tax liability net of Council Tax support",
             "metric_type": "amount",
             "role": "tax",
             "output_set": "headline",

@@ -26,7 +26,7 @@ That distinction matters because the failure modes in the AI-alone condition are
 
 These results suggest a clear architecture for AI systems that provide policy analysis:
 
-1. **Computation should be delegated to validated tools.** LLMs should not be trusted to perform tax and benefit calculations from memory, regardless of their general capability. Microsimulation engines like PolicyEngine exist precisely to handle this complexity and have been validated against statutory rules.
+1. **Computation should be delegated to maintained tools.** LLMs should not be trusted to perform tax and benefit calculations from memory, regardless of their general capability. Microsimulation engines like PolicyEngine exist to handle this complexity and encode statutory rules in auditable software.
 
 2. **Models add value as interfaces, not calculators.** The appropriate role for an LLM in policy analysis is to translate natural language questions into structured API calls, interpret results for non-technical users, and synthesize findings across multiple scenarios. These are tasks where models excel.
 
@@ -38,9 +38,9 @@ These results suggest a clear architecture for AI systems that provide policy an
 
 Several limitations qualify these findings:
 
-**Scope of outputs.** PolicyBench evaluates selected tax and benefit outputs, not the full tax-benefit system. The rebuilt headline scope focuses on signed household net-income components and selected coverage booleans weighted by PolicyEngine value proxies. Intermediate tax bases and credit components are retained as supplementary diagnostics. Model performance may differ on outputs not included in the benchmark.
+**Scope of outputs.** PolicyBench evaluates selected tax and benefit outputs, not the full tax-benefit system. The rebuilt headline scope focuses on person- or household-facing net-income components and selected coverage flags weighted by PolicyEngine value proxies. PolicyEngine variables may be native to lower-level entities, but headline outputs are either expanded to the people shown in the prompt or aggregated to the household before scoring. Intermediate tax bases and credit components are retained as supplementary diagnostics. Model performance may differ on outputs not included in the benchmark.
 
-**Household complexity.** Sampling from the Enhanced CPS improves realism substantially, but the benchmark still uses a filtered subset of households so that cases remain promptable and interpretable. More complex multi-tax-unit households, itemized-deduction-heavy filers, and unusual household structures remain underrepresented.
+**Household complexity.** Sampling from the Enhanced CPS preserves observed household structure, but the benchmark still uses a filtered subset of households so that cases remain promptable and interpretable. More complex multi-tax-unit households, itemized-deduction-heavy filers, and unusual household structures remain underrepresented.
 
 **Single tax year.** All evaluations use tax year 2025. Model performance may differ for historical years (where training data is more abundant) or future years (where models must extrapolate from known rules).
 

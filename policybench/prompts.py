@@ -4,7 +4,14 @@ from policybench.scenarios import (
     Person,
     Scenario,
 )
-from policybench.spec import find_output_spec
+from policybench.spec import find_output_spec, parse_person_output
+
+TASK_PREFACE = (
+    "PolicyBench task: estimate the requested tax and benefit outputs using "
+    "only the household facts below. Treat any unlisted numeric input as 0 "
+    "and any unlisted boolean or status input as false. Do not infer unlisted "
+    "income, expenses, assets, benefit receipt, rent, or health coverage.\n\n"
+)
 
 # Variable descriptions for natural language prompts
 US_VARIABLE_DESCRIPTIONS = {
@@ -207,8 +214,22 @@ def _currency_symbol(country: str) -> str:
     return "£" if country == "uk" else "$"
 
 
+def _person_label_from_name(person_name: str) -> str:
+    if person_name.startswith("adult"):
+        return person_name.replace("adult", "Adult ")
+    if person_name.startswith("child"):
+        return person_name.replace("child", "Child ")
+    return person_name.replace("_", " ").title()
+
+
 def get_variable_description(variable: str, country: str = "us") -> str:
     """Return the prompt description for a benchmark output."""
+    parsed_person_output = parse_person_output(variable)
+    if parsed_person_output is not None:
+        person_name, _, template = parsed_person_output
+        return str(template["prompt"]).format(
+            person_label=_person_label_from_name(person_name)
+        )
     output = find_output_spec(variable, country=country)
     if output is not None:
         return output.prompt
@@ -240,11 +261,7 @@ def _format_input_line(field: str, value, country: str = "us") -> str:
 
 
 def _person_heading(person: Person) -> str:
-    if person.name.startswith("adult"):
-        return person.name.replace("adult", "Adult ")
-    if person.name.startswith("child"):
-        return person.name.replace("child", "Child ")
-    return person.name.replace("_", " ").title()
+    return _person_label_from_name(person.name)
 
 
 def describe_person(person: Person, country: str = "us") -> str:
@@ -337,6 +354,7 @@ def make_no_tools_prompt(
         )
 
     return (
+        f"{TASK_PREFACE}"
         f"{description}\n\n"
         f"What is the {var_desc} for this household? "
         f"{answer_instructions}"
@@ -433,6 +451,7 @@ def make_no_tools_batch_prompt(
             )
 
     return (
+        f"{TASK_PREFACE}"
         f"{description}\n\n"
         "Provide the following policy quantities for this household:\n"
         f"{requested_variables}\n\n"
@@ -543,6 +562,7 @@ def make_no_tools_batch_repair_prompt(
             )
 
     return (
+        f"{TASK_PREFACE}"
         f"{description}\n\n"
         "Provide only the following listed policy quantities for this household:\n"
         f"{requested_variables}\n\n"

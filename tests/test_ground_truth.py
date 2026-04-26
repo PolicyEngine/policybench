@@ -1,7 +1,6 @@
 """Tests for ground truth calculations."""
 
-import sys
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -229,17 +228,11 @@ def test_calculate_ground_truth_uk_aggregates_native_entities(monkeypatch):
             }
             return lookup[(variable, map_to)]
 
-    class FakeDataset:
-        def __init__(self, file_path):
-            self.file_path = file_path
-
-    fake_policyengine_uk = ModuleType("policyengine_uk")
-    fake_policyengine_uk.Microsimulation = FakeSimulation
-    fake_policyengine_uk_data = ModuleType("policyengine_uk.data")
-    fake_policyengine_uk_data.UKSingleYearDataset = FakeDataset
-
-    monkeypatch.setitem(sys.modules, "policyengine_uk", fake_policyengine_uk)
-    monkeypatch.setitem(sys.modules, "policyengine_uk.data", fake_policyengine_uk_data)
+    monkeypatch.setattr(
+        ground_truth,
+        "make_uk_transfer_microsimulation",
+        lambda dataset_path: FakeSimulation(dataset_path),
+    )
     monkeypatch.setattr(
         ground_truth,
         "get_uk_dataset_path",

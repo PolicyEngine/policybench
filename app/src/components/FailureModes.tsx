@@ -126,7 +126,7 @@ export default function FailureModes({ data }: { data: BenchData }) {
           dollar-valued programs so positive cases stay interpretable.
           <span className="text-text"> Positive-amount cases</span> is the
           harder and more informative number for benefits and refundable
-          credits. For household booleans, the cards compare positive and
+          credits. For binary coverage flags, the cards compare positive and
           negative class accuracy.
         </p>
       </div>

@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "PolicyBench, by PolicyEngine",
   description:
-    "Benchmarking no-tools household-level policy calculation across frontier models.",
+    "Benchmarking no-tools policy calculation across frontier models.",
 };
 
 export default function RootLayout({

@@ -6,11 +6,19 @@ from typing import Any
 import pandas as pd
 
 from policybench.config import DEFAULT_COUNTRY, TAX_YEAR, get_programs
+from policybench.policyengine_runtime import (
+    get_us_situation_simulation_class,
+    make_uk_transfer_microsimulation,
+)
 from policybench.scenarios import Scenario, get_uk_dataset_path
-from policybench.spec import find_output_spec
+from policybench.spec import (
+    expand_programs_for_scenario,
+    find_output_spec,
+    parse_person_output,
+)
 
-# These benchmark variables are household-level boolean labels derived from
-# PolicyEngine outputs that are naturally person-level or dollar-valued.
+# These benchmark variables are binary labels derived from PolicyEngine outputs
+# that are naturally person-level or dollar-valued.
 DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES = {
     "free_school_meals",
     "household_free_school_meal_eligible",
@@ -26,13 +34,29 @@ DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES = {
     "reduced_price_school_meals_eligible",
 }
 
+LEGACY_ANY_ELIGIBILITY_OUTPUTS = {
+    "any_medicaid_eligible": ("is_medicaid_eligible", "medicaid"),
+    "any_chip_eligible": ("is_chip_eligible", "chip"),
+    "any_medicare_eligible": ("is_medicare_eligible", "medicare_cost"),
+    "household_medicaid_eligible": ("is_medicaid_eligible", "medicaid"),
+    "household_chip_eligible": ("is_chip_eligible", "chip"),
+    "household_medicare_eligible": ("is_medicare_eligible", "medicare_cost"),
+}
+
 
 def _pe_variable_for_output(variable: str, country: str) -> str:
+    parsed_person_output = parse_person_output(variable)
+    if parsed_person_output is not None:
+        return parsed_person_output[2]["pe_variable"]
+    if variable in LEGACY_ANY_ELIGIBILITY_OUTPUTS:
+        return LEGACY_ANY_ELIGIBILITY_OUTPUTS[variable][0]
     output = find_output_spec(variable, country=country)
     return output.pe_variable if output is not None else variable
 
 
 def _aggregation_for_output(variable: str, country: str) -> str:
+    if parse_person_output(variable) is not None:
+        return "person"
     output = find_output_spec(variable, country=country)
     if output is not None:
         return output.aggregation
@@ -42,13 +66,20 @@ def _aggregation_for_output(variable: str, country: str) -> str:
 
 
 def _impact_weight_variable_for_output(variable: str, country: str) -> str | None:
+    parsed_person_output = parse_person_output(variable)
+    if parsed_person_output is not None:
+        return parsed_person_output[2].get("impact_weight_variable")
+    if variable in LEGACY_ANY_ELIGIBILITY_OUTPUTS:
+        return LEGACY_ANY_ELIGIBILITY_OUTPUTS[variable][1]
     output = find_output_spec(variable, country=country)
     return output.impact_weight_variable if output is not None else None
 
 
 def _impact_weight_aggregation_for_output(variable: str, country: str) -> str:
     output = find_output_spec(variable, country=country)
-    if output is None or output.impact_weight_aggregation is None:
+    if output is None:
+        return "sum"
+    if output.impact_weight_aggregation is None:
         return _aggregation_for_output(variable, country)
     return output.impact_weight_aggregation
 
@@ -63,6 +94,32 @@ def _extract_scalar_value(
     if _aggregation_for_output(variable, country) == "any_positive":
         return float(value > 0)
     return value
+
+
+def _person_index_for_output(scenario: Scenario, variable: str) -> int | None:
+    parsed_person_output = parse_person_output(variable)
+    if parsed_person_output is None:
+        return None
+    person_name = parsed_person_output[0]
+    for index, person in enumerate(scenario.all_people):
+        if person.name == person_name:
+            return index
+    raise ValueError(
+        f"Output '{variable}' refers to {person_name}, but that person is not "
+        f"present in scenario '{scenario.id}'."
+    )
+
+
+def _extract_person_value(result, scenario: Scenario, variable: str) -> float:
+    person_index = _person_index_for_output(scenario, variable)
+    if person_index is None:
+        return _extract_scalar_value(result, variable, scenario.country)
+    if len(result) <= person_index:
+        raise ValueError(
+            f"PolicyEngine returned {len(result)} values for '{variable}', "
+            f"but scenario '{scenario.id}' needs person index {person_index}."
+        )
+    return float(result[person_index])
 
 
 def _extract_scalar_with_aggregation(result, aggregation: str) -> float:
@@ -80,7 +137,11 @@ def _extract_impact_weight(
 ) -> float:
     """Convert an auxiliary PolicyEngine result into an impact-score weight."""
     output = find_output_spec(variable, country=country)
-    if output is not None and output.metric_type == "binary":
+    if (
+        output is not None
+        and output.metric_type == "binary"
+        or _aggregation_for_output(variable, country) == "any_positive"
+    ):
         try:
             if len(value_result) == len(weight_result):
                 weight_result = weight_result * (value_result > 0)
@@ -92,6 +153,30 @@ def _extract_impact_weight(
         _impact_weight_aggregation_for_output(variable, country),
     )
     return abs(weight)
+
+
+def _extract_person_impact_weight(
+    value_result,
+    weight_result,
+    scenario: Scenario,
+    variable: str,
+) -> float:
+    person_index = _person_index_for_output(scenario, variable)
+    if person_index is None:
+        return _extract_impact_weight(
+            value_result,
+            weight_result,
+            variable,
+            scenario.country,
+        )
+    if len(value_result) <= person_index or len(weight_result) <= person_index:
+        raise ValueError(
+            f"PolicyEngine returned too few values for '{variable}' in "
+            f"scenario '{scenario.id}'."
+        )
+    if float(value_result[person_index]) <= 0:
+        return 0.0
+    return abs(float(weight_result[person_index]))
 
 
 def calculate_single(
@@ -106,14 +191,13 @@ def calculate_single(
         ].iloc[0]
 
     household = scenario.to_pe_household()
-    from policyengine_us import Simulation
-
+    Simulation = get_us_situation_simulation_class()
     sim = Simulation(situation=household)
     pe_variable = _pe_variable_for_output(variable, scenario.country)
-    return _extract_scalar_value(
+    return _extract_person_value(
         sim.calculate(pe_variable, year),
+        scenario,
         variable,
-        scenario.country,
     )
 
 
@@ -122,23 +206,22 @@ def _calculate_ground_truth_us(
     programs: list[str],
     year: int,
 ) -> pd.DataFrame:
-    from policyengine_us import Simulation
-
+    Simulation = get_us_situation_simulation_class()
     rows = []
     for scenario in scenarios:
         sim = Simulation(situation=scenario.to_pe_household())
-        for variable in programs:
+        for variable in expand_programs_for_scenario(programs, scenario):
             pe_variable = _pe_variable_for_output(variable, "us")
             value_result = sim.calculate(pe_variable, year)
-            value = _extract_scalar_value(value_result, variable, "us")
+            value = _extract_person_value(value_result, scenario, variable)
             impact_weight = None
             impact_weight_variable = _impact_weight_variable_for_output(variable, "us")
             if impact_weight_variable is not None:
-                impact_weight = _extract_impact_weight(
+                impact_weight = _extract_person_impact_weight(
                     value_result,
                     sim.calculate(impact_weight_variable, year),
+                    scenario,
                     variable,
-                    "us",
                 )
             rows.append(
                 {
@@ -156,12 +239,8 @@ def _calculate_ground_truth_uk(
     programs: list[str],
     year: int,
 ) -> pd.DataFrame:
-    from policyengine_uk import Microsimulation as UKMicrosimulation
-    from policyengine_uk.data import UKSingleYearDataset
-
     os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
-    dataset = UKSingleYearDataset(file_path=str(get_uk_dataset_path()))
-    sim = UKMicrosimulation(dataset=dataset)
+    sim = make_uk_transfer_microsimulation(get_uk_dataset_path())
     period = str(year)
 
     person_household_ids = pd.Series(
@@ -188,7 +267,14 @@ def _calculate_ground_truth_uk(
     scenario_household_ids = {
         scenario.id: int(scenario.metadata["household_id"]) for scenario in scenarios
     }
-    for variable in programs:
+    variables = sorted(
+        {
+            variable
+            for scenario in scenarios
+            for variable in expand_programs_for_scenario(programs, scenario)
+        }
+    )
+    for variable in variables:
         pe_variable = _pe_variable_for_output(variable, "uk")
         entity_key = sim.tax_benefit_system.variables[pe_variable].entity.key
         values = _aggregate_uk_variable_to_households(

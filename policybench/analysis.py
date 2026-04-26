@@ -11,9 +11,15 @@ from policybench.config import (
     HOUSEHOLD_IMPACT_SCORE_FLOOR,
     RATE_PROGRAMS,
 )
+from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.prompts import make_no_tools_batch_prompt
 from policybench.scenarios import scenario_from_dict
-from policybench.spec import metric_type_for_output, net_income_sign_for_output
+from policybench.spec import (
+    expand_programs_for_scenario,
+    metric_type_for_output,
+    net_income_sign_for_output,
+    output_group_id,
+)
 
 
 def mean_absolute_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -374,9 +380,10 @@ def compute_metrics(
     )
     if merged.empty:
         return pd.DataFrame()
+    merged["output_group"] = merged["variable"].map(output_group_id)
 
     rows = []
-    for (model, variable), group in merged.groupby(["model", "variable"]):
+    for (model, variable), group in merged.groupby(["model", "output_group"]):
         scored = group.dropna(subset=["prediction"])
         total_n = len(group)
         parsed_n = len(scored)
@@ -792,7 +799,7 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
             "## Summary by variable",
             "",
             "Amount variables use the tolerance columns. "
-            "Household-boolean variables use `mean_accuracy` as the headline metric.",
+            "Binary coverage flags use `mean_accuracy` as the headline metric.",
             "",
             "| variable | metric_type | mean_score | mean_exact "
             "| mean_within_1pct | mean_within_5pct "
@@ -978,6 +985,7 @@ def build_failure_modes_payload(
         how="inner",
     ).dropna(subset=["prediction"])
     merged = merged.merge(features, on="scenario_id", how="left")
+    merged["output_group"] = merged["variable"].map(output_group_id)
     merged["correct"] = merged.apply(_row_is_correct, axis=1)
     merged["positive_truth"] = merged["value"] > 0
     merged["zero_truth"] = merged["value"] == 0
@@ -993,7 +1001,7 @@ def build_failure_modes_payload(
     )
 
     program_slices = []
-    for variable, group in merged.groupby("variable"):
+    for variable, group in merged.groupby("output_group"):
         is_binary = (
             metric_type_for_output(variable) == "binary"
             or variable in BINARY_PROGRAMS
@@ -1294,6 +1302,7 @@ def build_dashboard_payload(
 
     return {
         "country": payload_country,
+        "policyengineBundles": policyengine_bundles_for_countries({payload_country}),
         "scenarios": scenario_payload,
         "modelStats": model_stats,
         "programStats": program_stats,
@@ -1382,6 +1391,11 @@ def build_global_dashboard_payload(country_payloads: dict[str, dict]) -> dict:
         "modelStats": model_stats,
         "countrySummaries": country_summaries,
         "sharedModelCount": len(common_models),
+        "policyengineBundles": {
+            country: payload.get("policyengineBundles", {}).get(country)
+            for country, payload in country_payloads.items()
+            if payload.get("policyengineBundles", {}).get(country) is not None
+        },
     }
 
 
@@ -1418,14 +1432,15 @@ def build_scenario_prompt_map(
     prompt_map: dict[str, dict[str, dict[str, str]]] = {}
     for _, row in scenarios.dropna(subset=["scenario_json"]).iterrows():
         scenario = scenario_from_dict(json.loads(row["scenario_json"]))
+        scenario_variables = expand_programs_for_scenario(variables, scenario)
         tool_prompt = make_no_tools_batch_prompt(
             scenario,
-            variables,
+            scenario_variables,
             answer_contract="tool",
         )
         json_prompt = make_no_tools_batch_prompt(
             scenario,
-            variables,
+            scenario_variables,
             answer_contract="json",
         )
         prompt_map[row["scenario_id"]] = {
@@ -1433,7 +1448,7 @@ def build_scenario_prompt_map(
                 "tool": tool_prompt,
                 "json": json_prompt,
             }
-            for variable in variables
+            for variable in scenario_variables
         }
     return prompt_map
 

@@ -260,9 +260,9 @@ def _is_promptable_input_variable(name: str, variable) -> bool:
 @lru_cache(maxsize=1)
 def get_promptable_input_specs() -> tuple[InputVariableSpec, ...]:
     """Discover promptable raw inputs from the default PE-US variable registry."""
-    from policyengine_us import Microsimulation
+    from policybench.policyengine_runtime import make_us_microsimulation
 
-    sim = Microsimulation()
+    sim = make_us_microsimulation()
     specs: dict[str, InputVariableSpec] = {}
 
     for source_name, variable in sim.tax_benefit_system.variables.items():
@@ -465,9 +465,9 @@ def scenario_from_dict(data: dict[str, Any]) -> Scenario:
 
 def load_enhanced_cps_person_frame() -> tuple[pd.DataFrame, int]:
     """Load a person-level frame from the default Enhanced CPS microsimulation."""
-    from policyengine_us import Microsimulation
+    from policybench.policyengine_runtime import make_us_microsimulation
 
-    sim = Microsimulation()
+    sim = make_us_microsimulation()
     dataset_year = sim.default_input_period
     input_specs = get_promptable_input_specs()
 
@@ -517,9 +517,10 @@ def get_uk_dataset_path() -> Path:
 
 def load_uk_enhanced_cps_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
     """Load person and household frames from the local UK transfer artifact."""
-    from policyengine_uk.data import UKSingleYearDataset
+    from policybench.policyengine_runtime import get_uk_single_year_dataset_class
 
     os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
+    UKSingleYearDataset = get_uk_single_year_dataset_class()
     dataset = UKSingleYearDataset(file_path=str(get_uk_dataset_path()))
     values = dataset.load()
 

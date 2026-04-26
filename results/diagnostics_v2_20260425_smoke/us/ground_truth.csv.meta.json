@@ -1,0 +1,49 @@
+{
+  "country": "us",
+  "generated_at_utc": "2026-04-26T03:17:07.197925+00:00",
+  "metadata_version": 1,
+  "num_scenarios": 10,
+  "output": "results/diagnostics_v2_20260425_smoke/us/ground_truth.csv",
+  "policyengine_bundles": {
+    "us": {
+      "bundle_id": "us-4.0.0",
+      "certified_by": "policyengine.py bundled manifest",
+      "certified_data_artifact_sha256": "18cdc668d05311c32ae37364abcea89b0221c27154559667e951c7b19f5b5cbd",
+      "certified_data_build_id": "policyengine-us-data-1.73.0",
+      "compatibility_basis": "matching_data_build_fingerprint",
+      "country_id": "us",
+      "data_build_fingerprint": null,
+      "data_build_model_git_sha": null,
+      "data_build_model_version": "1.647.0",
+      "data_package": "policyengine-us-data",
+      "data_version": "1.73.0",
+      "default_dataset": "enhanced_cps_2024",
+      "default_dataset_uri": "hf://policyengine/policyengine-us-data/enhanced_cps_2024.h5@1.73.0",
+      "model_package": "policyengine-us",
+      "model_version": "1.653.3",
+      "policyengine_version": "4.0.0"
+    }
+  },
+  "program_set": "v2_headline",
+  "programs": [
+    "free_school_meals_eligible",
+    "household_state_income_tax",
+    "income_tax",
+    "local_income_tax",
+    "payroll_tax",
+    "person_chip_eligible",
+    "person_early_head_start_eligible",
+    "person_head_start_eligible",
+    "person_medicaid_eligible",
+    "person_medicare_eligible",
+    "reduced_price_school_meals_eligible",
+    "self_employment_tax",
+    "snap",
+    "ssi",
+    "tanf",
+    "wic"
+  ],
+  "scenario_manifest_output": "results/diagnostics_v2_20260425_smoke/us/scenarios.csv",
+  "seed": 42,
+  "task": "ground_truth"
+}

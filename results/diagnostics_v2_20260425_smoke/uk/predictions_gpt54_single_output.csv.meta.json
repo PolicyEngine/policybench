@@ -1,0 +1,39 @@
+{
+  "include_explanations": true,
+  "metadata_version": 1,
+  "models": {
+    "gpt-5.4": "gpt-5.4"
+  },
+  "policyengine_bundles": {
+    "uk": {
+      "bundle_id": "uk-4.0.0",
+      "certified_by": "policyengine.py bundled manifest",
+      "certified_data_artifact_sha256": null,
+      "certified_data_build_id": "policyengine-uk-data-1.40.4",
+      "compatibility_basis": "exact_build_model_version",
+      "country_id": "uk",
+      "data_build_fingerprint": null,
+      "data_build_model_git_sha": null,
+      "data_build_model_version": "2.88.0",
+      "data_package": "policyengine-uk-data",
+      "data_version": "1.40.4",
+      "default_dataset": "enhanced_frs_2023_24",
+      "default_dataset_uri": "hf://policyengine/policyengine-uk-data-private/enhanced_frs_2023_24.h5@1.40.4",
+      "model_package": "policyengine-uk",
+      "model_version": "2.88.0",
+      "policyengine_version": "4.0.0"
+    }
+  },
+  "programs": [
+    "child_benefit",
+    "income_tax",
+    "national_insurance",
+    "pension_credit",
+    "pip",
+    "universal_credit"
+  ],
+  "run_id": null,
+  "scenario_count": 10,
+  "scenario_hash": "6459e86688748ca75c25151393b7cb799ed465870d22197c0208083d49178832",
+  "task": "eval_no_tools_single_output"
+}

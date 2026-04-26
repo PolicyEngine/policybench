@@ -12,10 +12,9 @@ authors = [{name = "PolicyEngine", email = "hello@policyengine.org"}]
 requires-python = ">=3.10"
 dependencies = [
     "litellm[caching]>=1.30",
-    "policyengine-us>=1.0",
+    "policyengine[us,uk]>=4.3.1,<5",
     "pandas>=2.0",
     "numpy>=1.24",
-    "policyengine-uk>=1.0",
 ]
 
 [project.optional-dependencies]

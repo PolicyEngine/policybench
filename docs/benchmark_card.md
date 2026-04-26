@@ -8,8 +8,8 @@ This document fixes the intended interpretation of PolicyBench.
 
 ## What PolicyBench is
 
-PolicyBench is a public no-tool benchmark for selected household-level tax and
-benefit outputs from structured household facts.
+PolicyBench is a public no-tool benchmark for selected person- and
+household-facing tax and benefit outputs from structured household facts.
 
 The canonical task is:
 
@@ -69,9 +69,11 @@ current public snapshot.
 
 `v2_headline`
 - rebuilt headline scope for new runs
-- includes signed household net-income components that are directly interpretable
+- includes person- or household-facing outputs that are directly interpretable
   as taxes, benefits, or coverage eligibility
 - excludes AGI-like intermediate tax bases from the main ranking
+- expands person-native coverage outputs to the people shown in the prompt and
+  aggregates other lower-entity outputs to the household before scoring
 - scores coverage eligibility as binary outputs while weighting them with
   PolicyEngine dollar-value proxies
 
@@ -80,6 +82,9 @@ current public snapshot.
   ranking
 - includes intermediate tax-base outputs, credit components, and household
   eligibility labels
+- includes payroll decomposition diagnostics: person-level employee Social
+  Security tax, person-level employee Medicare tax, and household Additional
+  Medicare Tax
 
 Each output spec records the benchmark id, PolicyEngine variable, prompt text,
 metric type, aggregation rule, role, output set, and sign in household net
