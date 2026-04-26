@@ -219,6 +219,11 @@ UK_NON_PROMPTABLE_SENTINELS = {
     "NONE",
 }
 
+UK_EMPLOYMENT_INCOME_COLUMNS = (
+    "employment_income",
+    "employment_income_before_lsr",
+)
+
 UK_DATASET_CANDIDATES = (
     Path(__file__).resolve().parents[2]
     / "policyengine-uk-data-transfer-pr"
@@ -890,7 +895,13 @@ def _extract_uk_person_inputs(row: pd.Series) -> dict[str, Any]:
         if (
             col in UK_EXCLUDED_PERSON_INPUTS
             or col.endswith("_id")
-            or col in {"age", "employment_income", "gender", "marital_status"}
+            or col
+            in {
+                "age",
+                *UK_EMPLOYMENT_INCOME_COLUMNS,
+                "gender",
+                "marital_status",
+            }
         ):
             continue
         promptable = _uk_promptable_value(value)
@@ -911,13 +922,18 @@ def _extract_uk_household_inputs(row: pd.Series) -> dict[str, Any]:
 
 
 def _build_uk_person(row: pd.Series, label: str) -> Person:
-    employment_income = pd.to_numeric(row["employment_income"], errors="coerce")
-    if pd.isna(employment_income):
-        employment_income = 0.0
+    employment_income = 0.0
+    for column in UK_EMPLOYMENT_INCOME_COLUMNS:
+        if column not in row:
+            continue
+        value = pd.to_numeric(row[column], errors="coerce")
+        if not pd.isna(value):
+            employment_income = float(value)
+            break
     return Person(
         name=label,
         age=int(row["age"]),
-        employment_income=float(employment_income),
+        employment_income=employment_income,
         inputs=_extract_uk_person_inputs(row),
     )
 

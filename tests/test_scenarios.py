@@ -726,3 +726,16 @@ def test_scenarios_from_uk_frames_include_region_and_household_inputs(sample_uk_
     assert "council_tax" not in london.household_inputs
     assert "benunit_id" not in london.household_inputs
     assert london.children[0].inputs["is_student"] is True
+
+
+def test_scenarios_from_uk_frames_use_employment_income_leaf(sample_uk_frames):
+    person_df, household_df = sample_uk_frames
+    person_df = person_df.rename(
+        columns={"employment_income": "employment_income_before_lsr"}
+    )
+
+    scenarios = scenarios_from_uk_frames(person_df, household_df, n=2, seed=0)
+
+    london = next(s for s in scenarios if s.state == "LONDON")
+    assert london.adults[0].employment_income == 42_000.0
+    assert "employment_income_before_lsr" not in london.adults[0].inputs
