@@ -303,6 +303,7 @@ class InputVariableSpec:
     source_name: str
     entity: str
     value_type: str
+    default_value: Any = None
 
 
 def _is_promptable_input_variable(name: str, variable) -> bool:
@@ -357,6 +358,7 @@ def get_promptable_input_specs() -> tuple[InputVariableSpec, ...]:
             source_name=source_name,
             entity=variable.entity.key,
             value_type=value_type,
+            default_value=getattr(variable, "default_value", None),
         )
 
     return tuple(
@@ -858,6 +860,11 @@ def _extract_entity_inputs(
             continue
 
         value = float(row[spec.output_name])
+        if (
+            spec.default_value is not None
+            and abs(value - float(spec.default_value)) <= 1e-6
+        ):
+            continue
         if abs(value) > 1e-6:
             inputs[spec.output_name] = value
 

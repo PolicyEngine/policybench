@@ -564,7 +564,9 @@ def test_aggregate_net_worth_input_is_not_preserved():
                     "age": 35,
                     "employment_income": 50_000.0,
                     "bank_account_assets": 500.0,
+                    "employer_quarterly_payroll_expense_override": -1.0,
                     "net_worth": 250_000.0,
+                    "selected_marketplace_plan_benchmark_ratio": 1.0,
                     "is_tax_unit_head": True,
                 }
             ]
@@ -574,6 +576,10 @@ def test_aggregate_net_worth_input_is_not_preserved():
     )[0]
 
     assert scenario.adults[0].inputs["bank_account_assets"] == 500.0
+    assert (
+        "employer_quarterly_payroll_expense_override" not in scenario.adults[0].inputs
+    )
+    assert "selected_marketplace_plan_benchmark_ratio" not in scenario.tax_unit_inputs
     assert "net_worth" not in scenario.household_inputs
 
 

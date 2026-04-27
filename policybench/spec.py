@@ -21,7 +21,10 @@ PERSON_OUTPUTS = {
         "suffix": "medicaid_eligible",
         "pe_variable": "is_medicaid_eligible",
         "label": "Medicaid eligibility",
-        "prompt": "whether {person_label} is eligible for Medicaid (1 if yes, 0 if no)",
+        "prompt": (
+            "whether {person_label} is eligible for Medicaid under PolicyEngine "
+            "rules, not whether they are currently enrolled (1 if yes, 0 if no)"
+        ),
         "metric_type": "binary",
         "net_income_sign": "1",
         "impact_weight_variable": "medicaid",
@@ -30,7 +33,10 @@ PERSON_OUTPUTS = {
         "suffix": "chip_eligible",
         "pe_variable": "is_chip_eligible",
         "label": "CHIP eligibility",
-        "prompt": "whether {person_label} is eligible for CHIP (1 if yes, 0 if no)",
+        "prompt": (
+            "whether {person_label} is eligible for CHIP under PolicyEngine rules, "
+            "not whether they are currently enrolled (1 if yes, 0 if no)"
+        ),
         "metric_type": "binary",
         "net_income_sign": "1",
         "impact_weight_variable": "chip",
@@ -50,7 +56,7 @@ PERSON_OUTPUTS = {
         "label": "Head Start eligibility",
         "prompt": (
             "whether {person_label} is eligible for Head Start "
-            "(1 if yes, 0 if no)"
+            "for preschool-age children, not Early Head Start (1 if yes, 0 if no)"
         ),
         "metric_type": "binary",
         "net_income_sign": "1",
@@ -62,8 +68,8 @@ PERSON_OUTPUTS = {
         "pe_variable": "is_early_head_start_eligible",
         "label": "Early Head Start eligibility",
         "prompt": (
-            "whether {person_label} is eligible for Early Head Start "
-            "(1 if yes, 0 if no)"
+            "whether {person_label} is eligible for Early Head Start as a child "
+            "under this benchmark output (1 if yes, 0 if no)"
         ),
         "metric_type": "binary",
         "net_income_sign": "1",

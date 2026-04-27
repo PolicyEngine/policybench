@@ -8,9 +8,12 @@ from policybench.spec import find_output_spec, parse_person_output
 
 TASK_PREFACE = (
     "PolicyBench task: estimate the requested tax and benefit outputs using "
-    "only the household facts below. Treat any unlisted numeric input as 0 "
-    "and any unlisted boolean or status input as false. Do not infer unlisted "
-    "income, expenses, assets, benefit receipt, rent, or health coverage.\n\n"
+    "only the household facts below and the benchmark assumptions stated here. "
+    "Treat any unlisted numeric input as 0 and any other unlisted household fact, "
+    "boolean, or status input as false. Assume tax filing and program take-up "
+    "according to PolicyEngine benchmark defaults when eligibility or liability "
+    "depends on filing or take-up. Do not infer unlisted income, expenses, "
+    "assets, benefit receipt, rent, or health coverage.\n\n"
 )
 
 # Variable descriptions for natural language prompts
@@ -53,13 +56,20 @@ US_VARIABLE_DESCRIPTIONS = {
 }
 
 UK_VARIABLE_DESCRIPTIONS = {
-    "income_tax": "annual UK Income Tax liability",
-    "national_insurance": "annual UK National Insurance contributions",
-    "child_benefit": "annual Child Benefit amount",
-    "universal_credit": "annual Universal Credit amount",
-    "pension_credit": "annual Pension Credit amount",
+    "income_tax": (
+        "household total annual UK Income Tax liability, excluding Capital Gains Tax"
+    ),
+    "national_insurance": (
+        "household total annual UK National Insurance contributions, excluding "
+        "employer National Insurance"
+    ),
+    "child_benefit": (
+        "household total annual Child Benefit amount, including qualifying young people"
+    ),
+    "universal_credit": "household total annual Universal Credit amount",
+    "pension_credit": "household total annual Pension Credit amount",
     "housing_benefit": "annual Housing Benefit amount",
-    "pip": "annual Personal Independence Payment (PIP) amount",
+    "pip": "household total annual Personal Independence Payment (PIP) amount",
     "carers_allowance": "annual Carer's Allowance amount",
     "attendance_allowance": "annual Attendance Allowance amount",
     "council_tax": "annual Council Tax liability",
@@ -186,7 +196,9 @@ INPUT_LABEL_OVERRIDES = {
     "petrol_spending": "petrol spending",
     "pip": "Personal Independence Payment",
     "pip_dl_category": "PIP daily living award",
+    "pip_dl_reported": "reported PIP daily living amount",
     "pip_m_category": "PIP mobility award",
+    "pip_m_reported": "reported PIP mobility amount",
     "private_pension_contributions": "private pension contributions",
     "private_pension_income": "private pension income",
     "property_income": "property income",
@@ -199,6 +211,10 @@ INPUT_LABEL_OVERRIDES = {
     "state_pension_reported": "state pension income",
     "tenure_type": "tenure",
     "transport_consumption": "transport spending",
+    "selected_marketplace_plan_benchmark_ratio": (
+        "selected marketplace plan to benchmark plan premium ratio"
+    ),
+    "weeks_unemployed": "weeks unemployed",
 }
 
 
@@ -207,7 +223,13 @@ NON_MONETARY_NUMERIC_FIELDS = {
     "hours_worked_last_week",
     "hours_worked",
     "num_vehicles",
+    "weeks_unemployed",
 }
+
+RATE_OR_RATIO_FIELD_SUFFIXES = (
+    "_rate",
+    "_ratio",
+)
 
 
 def _currency_symbol(country: str) -> str:
@@ -257,6 +279,8 @@ def _format_input_line(field: str, value, country: str = "us") -> str:
         return f"- {label}: {value.replace('_', ' ').title()}"
     if field in NON_MONETARY_NUMERIC_FIELDS:
         return f"- {label}: {float(value):,.0f}"
+    if field.endswith(RATE_OR_RATIO_FIELD_SUFFIXES):
+        return f"- {label}: {float(value):,.4g}"
     return f"- {label}: {_currency_symbol(country)}{float(value):,.0f}"
 
 
@@ -306,6 +330,10 @@ def describe_household(scenario: Scenario) -> str:
 
     if scenario.filing_status:
         lines.insert(2, f"- filing status: {scenario.filing_status}")
+    if scenario.country == "uk":
+        benunit_ids = scenario.metadata.get("benunit_ids") or []
+        if benunit_ids:
+            lines.insert(-1, f"- benefit units in household: {len(benunit_ids)}")
 
     for adult in scenario.adults:
         lines.extend([describe_person(adult, country=scenario.country), ""])

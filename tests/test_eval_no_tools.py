@@ -295,7 +295,8 @@ def test_no_tools_prompt_contains_household_info(mini_scenario):
     assert "employment income: $50,000" in prompt
     assert "tax year: 2025" in prompt_lower
     assert "treat any unlisted numeric input as 0" in prompt_lower
-    assert "unlisted boolean or status input as false" in prompt_lower
+    assert "unlisted household fact, boolean, or status input as false" in prompt_lower
+    assert "program take-up" in prompt_lower
 
 
 def test_no_tools_prompt_supports_uk_households(uk_scenario):
