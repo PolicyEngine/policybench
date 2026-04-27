@@ -145,10 +145,6 @@ INPUT_NAME_ALIASES = {
     "long_term_capital_gains_before_response": "long_term_capital_gains",
 }
 
-INVALID_NUMERIC_INPUT_SENTINELS = {
-    "self_employment_income_last_year": {-1.0},
-}
-
 DEFAULT_TAKEUP_INPUTS = {
     "person": {
         "takes_up_medicaid_if_eligible": True,
@@ -313,11 +309,7 @@ class InputVariableSpec:
 def _is_promptable_input_variable(name: str, variable) -> bool:
     if variable.entity.key not in ALLOWED_INPUT_ENTITIES:
         return False
-    if name in EXCLUDED_INPUT_VARIABLES:
-        return False
-    if name.startswith(EXCLUDED_INPUT_PREFIXES):
-        return False
-    if name.endswith(EXCLUDED_INPUT_SUFFIXES):
+    if is_excluded_prompt_input_name(name):
         return False
 
     if getattr(variable, "formula", None) is not None:
@@ -334,6 +326,19 @@ def _is_promptable_input_variable(name: str, variable) -> bool:
 
     value_type = getattr(variable.value_type, "__name__", str(variable.value_type))
     return value_type in {"float", "bool"}
+
+
+def is_prior_year_input_name(name: str) -> bool:
+    return name.startswith("last_year_") or "_last_year" in name
+
+
+def is_excluded_prompt_input_name(name: str) -> bool:
+    return (
+        name in EXCLUDED_INPUT_VARIABLES
+        or is_prior_year_input_name(name)
+        or name.startswith(EXCLUDED_INPUT_PREFIXES)
+        or name.endswith(EXCLUDED_INPUT_SUFFIXES)
+    )
 
 
 def _is_geographic_defined_for(defined_for: Any) -> bool:
@@ -868,9 +873,6 @@ def _extract_entity_inputs(
             continue
 
         value = float(row[spec.output_name])
-        invalid_sentinels = INVALID_NUMERIC_INPUT_SENTINELS.get(spec.output_name, set())
-        if value in invalid_sentinels:
-            continue
         if (
             spec.default_value is not None
             and abs(value - float(spec.default_value)) <= 1e-6

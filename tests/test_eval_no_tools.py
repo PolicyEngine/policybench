@@ -385,6 +385,25 @@ def test_no_tools_prompt_includes_nonzero_raw_inputs_across_entities(rich_scenar
     assert "auto loan interest: $300" in prompt_lower
 
 
+def test_no_tools_prompt_omits_prior_year_inputs(rich_scenario):
+    """Prior-year inputs are outside the current-year tax-benefit prompt scope."""
+    rich_scenario.adults[0].inputs["employment_income_last_year"] = 49_000.0
+    rich_scenario.adults[0].inputs["self_employment_income_last_year"] = 2_000.0
+    rich_scenario.tax_unit_inputs["some_last_year_tax_unit_input"] = 1.0
+    rich_scenario.spm_unit_inputs["last_year_spm_unit_input"] = 1.0
+    rich_scenario.household_inputs["household_last_year_input"] = 1.0
+    rich_scenario.household_inputs["net_worth"] = 250_000.0
+
+    prompt = make_no_tools_prompt(rich_scenario, "ctc")
+    prompt_lower = prompt.lower()
+
+    assert "last year" not in prompt_lower
+    assert "last-year" not in prompt_lower
+    assert "employment income last year" not in prompt_lower
+    assert "self-employment income last year" not in prompt_lower
+    assert "net worth" not in prompt_lower
+
+
 def test_income_tax_prompt_clarifies_negative_after_refundable_credits(mini_scenario):
     """Income tax prompt should make the target semantics explicit."""
     prompt = make_no_tools_prompt(mini_scenario, "income_tax")

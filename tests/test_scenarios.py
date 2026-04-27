@@ -506,6 +506,7 @@ def test_promptable_inputs_are_pure_leaf_variables():
 
     assert "medicare_enrolled" not in source_names
     assert "net_worth" not in source_names
+    assert all("_last_year" not in source_name for source_name in source_names)
     assert "was_calworks_recipient" in source_names
     for spec in specs:
         variable = sim.tax_benefit_system.variables[spec.source_name]
@@ -565,9 +566,10 @@ def test_aggregate_net_worth_input_is_not_preserved():
                     "employment_income": 50_000.0,
                     "bank_account_assets": 500.0,
                     "employer_quarterly_payroll_expense_override": -1.0,
+                    "employment_income_last_year": 48_000.0,
                     "net_worth": 250_000.0,
                     "selected_marketplace_plan_benchmark_ratio": 1.0,
-                    "self_employment_income_last_year": -1.0,
+                    "self_employment_income_last_year": 2_000.0,
                     "is_tax_unit_head": True,
                 }
             ]
@@ -581,6 +583,7 @@ def test_aggregate_net_worth_input_is_not_preserved():
         "employer_quarterly_payroll_expense_override" not in scenario.adults[0].inputs
     )
     assert "selected_marketplace_plan_benchmark_ratio" not in scenario.tax_unit_inputs
+    assert "employment_income_last_year" not in scenario.adults[0].inputs
     assert "self_employment_income_last_year" not in scenario.adults[0].inputs
     assert "net_worth" not in scenario.household_inputs
 

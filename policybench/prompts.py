@@ -3,6 +3,7 @@
 from policybench.scenarios import (
     Person,
     Scenario,
+    is_excluded_prompt_input_name,
 )
 from policybench.spec import find_output_spec, parse_person_output
 
@@ -303,6 +304,8 @@ def describe_person(person: Person, country: str = "us") -> str:
         )
 
     for field, value in sorted(person.inputs.items()):
+        if is_excluded_prompt_input_name(field):
+            continue
         lines.append(_format_input_line(field, value, country=country))
 
     return "\n".join(lines)
@@ -315,7 +318,11 @@ def _describe_entity_inputs(
         return ""
     lines = [f"{title}:"]
     for field, value in sorted(inputs.items()):
+        if is_excluded_prompt_input_name(field):
+            continue
         lines.append(_format_input_line(field, value, country=country))
+    if len(lines) == 1:
+        return ""
     return "\n".join(lines)
 
 
