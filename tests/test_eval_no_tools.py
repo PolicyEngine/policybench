@@ -388,8 +388,15 @@ def test_no_tools_prompt_includes_nonzero_raw_inputs_across_entities(rich_scenar
 def test_no_tools_prompt_omits_prior_year_inputs(rich_scenario):
     """Prior-year inputs are outside the current-year tax-benefit prompt scope."""
     rich_scenario.adults[0].inputs["employment_income_last_year"] = 49_000.0
+    rich_scenario.adults[0].inputs["employer_quarterly_payroll_expense_override"] = -1
+    rich_scenario.adults[0].inputs["has_medicaid_health_coverage_at_interview"] = True
+    rich_scenario.adults[0].inputs["hours_worked_last_week"] = 40.0
+    rich_scenario.adults[0].inputs["is_wic_at_nutritional_risk"] = True
+    rich_scenario.adults[0].inputs["medicare_enrolled"] = True
     rich_scenario.adults[0].inputs["self_employment_income_last_year"] = 2_000.0
+    rich_scenario.adults[0].inputs["va_ccsp_is_full_day"] = True
     rich_scenario.tax_unit_inputs["some_last_year_tax_unit_input"] = 1.0
+    rich_scenario.tax_unit_inputs["selected_marketplace_plan_benchmark_ratio"] = 1.0
     rich_scenario.spm_unit_inputs["last_year_spm_unit_input"] = 1.0
     rich_scenario.household_inputs["household_last_year_input"] = 1.0
     rich_scenario.household_inputs["net_worth"] = 250_000.0
@@ -399,8 +406,15 @@ def test_no_tools_prompt_omits_prior_year_inputs(rich_scenario):
 
     assert "last year" not in prompt_lower
     assert "last-year" not in prompt_lower
+    assert "employer quarterly payroll expense override" not in prompt_lower
     assert "employment income last year" not in prompt_lower
+    assert "has medicaid health coverage at interview" not in prompt_lower
+    assert "hours worked last week" not in prompt_lower
+    assert "is enrolled in medicare" not in prompt_lower
+    assert "is wic at nutritional risk" not in prompt_lower
     assert "self-employment income last year" not in prompt_lower
+    assert "selected marketplace plan" not in prompt_lower
+    assert "va ccsp is full day" not in prompt_lower
     assert "net worth" not in prompt_lower
 
 

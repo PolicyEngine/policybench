@@ -506,6 +506,13 @@ def test_promptable_inputs_are_pure_leaf_variables():
 
     assert "medicare_enrolled" not in source_names
     assert "net_worth" not in source_names
+    assert "employer_quarterly_payroll_expense_override" not in source_names
+    assert "employer_state_unemployment_tax_rate_override" not in source_names
+    assert "has_medicaid_health_coverage_at_interview" not in source_names
+    assert "hours_worked_last_week" not in source_names
+    assert "is_wic_at_nutritional_risk" not in source_names
+    assert "selected_marketplace_plan_benchmark_ratio" not in source_names
+    assert "va_ccsp_is_full_day" not in source_names
     assert all("_last_year" not in source_name for source_name in source_names)
     assert "was_calworks_recipient" in source_names
     for spec in specs:
@@ -536,6 +543,7 @@ def test_conditional_inputs_are_not_preserved():
                     "age": 64,
                     "employment_income": 50_000.0,
                     "medicare_enrolled": True,
+                    "has_medicaid_health_coverage_at_interview": True,
                     "is_tax_unit_head": True,
                 }
             ]
@@ -545,6 +553,36 @@ def test_conditional_inputs_are_not_preserved():
     )[0]
 
     assert "medicare_enrolled" not in scenario.adults[0].inputs
+    assert "has_medicaid_health_coverage_at_interview" not in scenario.adults[0].inputs
+
+
+def test_missing_bool_inputs_are_not_preserved():
+    """Missing boolean source values should not become true prompt facts."""
+    scenario = scenarios_from_cps_frame(
+        pd.DataFrame(
+            [
+                {
+                    "person_id": 1,
+                    "household_id": 1,
+                    "tax_unit_id": 1,
+                    "spm_unit_id": 1,
+                    "family_id": 1,
+                    "marital_unit_id": 1,
+                    "household_weight": 1.0,
+                    "state_code": "PA",
+                    "filing_status": "SINGLE",
+                    "age": 35,
+                    "employment_income": 50_000.0,
+                    "has_esi": pd.NA,
+                    "is_tax_unit_head": True,
+                }
+            ]
+        ),
+        n=1,
+        seed=0,
+    )[0]
+
+    assert "has_esi" not in scenario.adults[0].inputs
 
 
 def test_aggregate_net_worth_input_is_not_preserved():
@@ -566,10 +604,14 @@ def test_aggregate_net_worth_input_is_not_preserved():
                     "employment_income": 50_000.0,
                     "bank_account_assets": 500.0,
                     "employer_quarterly_payroll_expense_override": -1.0,
+                    "employer_state_unemployment_tax_rate_override": -1.0,
                     "employment_income_last_year": 48_000.0,
+                    "hours_worked_last_week": 40.0,
+                    "is_wic_at_nutritional_risk": True,
                     "net_worth": 250_000.0,
                     "selected_marketplace_plan_benchmark_ratio": 1.0,
                     "self_employment_income_last_year": 2_000.0,
+                    "va_ccsp_is_full_day": True,
                     "is_tax_unit_head": True,
                 }
             ]
@@ -582,9 +624,16 @@ def test_aggregate_net_worth_input_is_not_preserved():
     assert (
         "employer_quarterly_payroll_expense_override" not in scenario.adults[0].inputs
     )
+    assert (
+        "employer_state_unemployment_tax_rate_override"
+        not in scenario.adults[0].inputs
+    )
+    assert "hours_worked_last_week" not in scenario.adults[0].inputs
+    assert "is_wic_at_nutritional_risk" not in scenario.adults[0].inputs
     assert "selected_marketplace_plan_benchmark_ratio" not in scenario.tax_unit_inputs
     assert "employment_income_last_year" not in scenario.adults[0].inputs
     assert "self_employment_income_last_year" not in scenario.adults[0].inputs
+    assert "va_ccsp_is_full_day" not in scenario.adults[0].inputs
     assert "net_worth" not in scenario.household_inputs
 
 

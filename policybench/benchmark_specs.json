@@ -315,7 +315,7 @@
             "id": "wic",
             "pe_variable": "wic",
             "label": "WIC",
-            "prompt": "annual Special Supplemental Nutrition Program for Women, Infants, and Children (WIC) benefit amount; nutritional risk alone is not sufficient without a WIC-eligible category",
+            "prompt": "annual Special Supplemental Nutrition Program for Women, Infants, and Children (WIC) benefit amount; use the PolicyEngine benchmark assumption that otherwise categorically eligible applicants meet the WIC nutritional-risk requirement",
             "metric_type": "amount",
             "role": "benefit",
             "output_set": "headline",

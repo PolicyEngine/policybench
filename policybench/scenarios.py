@@ -90,10 +90,18 @@ EXCLUDED_INPUT_VARIABLES = {
     "county_fips",
     "family_id",
     "filing_status",
+    "employer_quarterly_payroll_expense_override",
+    "employer_state_unemployment_tax_rate_override",
     "has_itin",
+    "has_marketplace_health_coverage_at_interview",
+    "has_medicaid_health_coverage_at_interview",
+    "has_non_marketplace_direct_purchase_health_coverage_at_interview",
+    "has_tricare_health_coverage_at_interview",
+    "has_va_health_coverage_at_interview",
     "household_count",
     "household_id",
     "household_weight",
+    "hours_worked_last_week",
     "id_receives_aged_or_disabled_credit",
     "is_computer_scientist",
     "is_executive_administrative_professional",
@@ -103,9 +111,11 @@ EXCLUDED_INPUT_VARIABLES = {
     "is_household_head",
     "is_related_to_head_or_spouse",
     "is_tafdc_related_to_head_or_spouse",
+    "is_wic_at_nutritional_risk",
     "is_tax_unit_head",
     "is_tax_unit_spouse",
     "la_receives_blind_exemption",
+    "medicare_enrolled",
     "net_worth",
     "person_count",
     "person_family_id",
@@ -115,6 +125,7 @@ EXCLUDED_INPUT_VARIABLES = {
     "person_spm_unit_id",
     "person_tax_unit_id",
     "previous_year_income_available",
+    "selected_marketplace_plan_benchmark_ratio",
     "spm_unit_id",
     "spm_unit_capped_work_childcare_expenses",
     "spm_unit_spm_threshold",
@@ -122,6 +133,7 @@ EXCLUDED_INPUT_VARIABLES = {
     "state_fips",
     "tax_unit_count",
     "tax_unit_id",
+    "va_ccsp_is_full_day",
     "wy_power_shelter_qualified",
 }
 
@@ -865,6 +877,9 @@ def _extract_entity_inputs(
     inputs: dict[str, Any] = {}
     for spec in get_promptable_input_specs():
         if spec.entity != entity or spec.output_name == "employment_income":
+            continue
+
+        if pd.isna(row[spec.output_name]):
             continue
 
         if spec.value_type == "bool":
