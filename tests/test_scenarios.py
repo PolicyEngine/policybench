@@ -719,7 +719,7 @@ def test_pe_household_with_children(family_scenario):
 
 
 def test_generate_scenarios_uses_loader(monkeypatch, sample_person_frame):
-    """Top-level generation should delegate to the Enhanced CPS loader."""
+    """Top-level US generation should delegate to the Enhanced CPS loader."""
 
     def fake_loader():
         return sample_person_frame, 2024
@@ -740,9 +740,7 @@ def test_generate_uk_scenarios_uses_loader(monkeypatch, sample_uk_frames):
     def fake_loader():
         return person_df, household_df, 2025
 
-    monkeypatch.setattr(
-        "policybench.scenarios.load_uk_enhanced_cps_frames", fake_loader
-    )
+    monkeypatch.setattr("policybench.scenarios.load_uk_transfer_frames", fake_loader)
     scenarios = generate_scenarios(n=2, seed=0, country="uk")
 
     assert len(scenarios) == 2
@@ -750,7 +748,8 @@ def test_generate_uk_scenarios_uses_loader(monkeypatch, sample_uk_frames):
     assert all(scenario.filing_status is None for scenario in scenarios)
     assert all(scenario.metadata["dataset_year"] == 2025 for scenario in scenarios)
     assert all(
-        scenario.source_dataset == "enhanced_cps_uk_2025" for scenario in scenarios
+        scenario.source_dataset == "uk_calibrated_transfer_2025"
+        for scenario in scenarios
     )
 
 

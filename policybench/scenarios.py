@@ -596,7 +596,7 @@ def get_uk_dataset_path() -> Path:
     )
 
 
-def load_uk_enhanced_cps_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
+def load_uk_transfer_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
     """Load person and household frames from the local UK transfer artifact."""
     from policybench.policyengine_runtime import get_uk_single_year_dataset_class
 
@@ -639,6 +639,10 @@ def load_uk_enhanced_cps_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
     ).fillna(0.0)
 
     return person_df, household_df, int(dataset.time_period)
+
+
+# Backward-compatible alias for older local scripts.
+load_uk_enhanced_cps_frames = load_uk_transfer_frames
 
 
 def scenario_manifest(scenarios: list[Scenario]) -> pd.DataFrame:
@@ -1086,9 +1090,9 @@ def scenarios_from_uk_frames(
                 household_inputs=_extract_uk_household_inputs(household_row),
                 year=year,
                 source_dataset=(
-                    f"enhanced_cps_uk_{int(dataset_year)}"
+                    f"uk_calibrated_transfer_{int(dataset_year)}"
                     if dataset_year is not None
-                    else "enhanced_cps_uk"
+                    else "uk_calibrated_transfer"
                 ),
                 metadata=metadata,
             )
@@ -1115,7 +1119,7 @@ def generate_scenarios(
             excluded_household_ids=excluded_household_ids,
         )
     if country == "uk":
-        person_df, household_df, dataset_year = load_uk_enhanced_cps_frames()
+        person_df, household_df, dataset_year = load_uk_transfer_frames()
         return scenarios_from_uk_frames(
             person_df,
             household_df,
