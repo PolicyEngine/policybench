@@ -145,6 +145,10 @@ INPUT_NAME_ALIASES = {
     "long_term_capital_gains_before_response": "long_term_capital_gains",
 }
 
+INVALID_NUMERIC_INPUT_SENTINELS = {
+    "self_employment_income_last_year": {-1.0},
+}
+
 DEFAULT_TAKEUP_INPUTS = {
     "person": {
         "takes_up_medicaid_if_eligible": True,
@@ -864,6 +868,9 @@ def _extract_entity_inputs(
             continue
 
         value = float(row[spec.output_name])
+        invalid_sentinels = INVALID_NUMERIC_INPUT_SENTINELS.get(spec.output_name, set())
+        if value in invalid_sentinels:
+            continue
         if (
             spec.default_value is not None
             and abs(value - float(spec.default_value)) <= 1e-6

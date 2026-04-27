@@ -567,6 +567,7 @@ def test_aggregate_net_worth_input_is_not_preserved():
                     "employer_quarterly_payroll_expense_override": -1.0,
                     "net_worth": 250_000.0,
                     "selected_marketplace_plan_benchmark_ratio": 1.0,
+                    "self_employment_income_last_year": -1.0,
                     "is_tax_unit_head": True,
                 }
             ]
@@ -580,6 +581,7 @@ def test_aggregate_net_worth_input_is_not_preserved():
         "employer_quarterly_payroll_expense_override" not in scenario.adults[0].inputs
     )
     assert "selected_marketplace_plan_benchmark_ratio" not in scenario.tax_unit_inputs
+    assert "self_employment_income_last_year" not in scenario.adults[0].inputs
     assert "net_worth" not in scenario.household_inputs
 
 
