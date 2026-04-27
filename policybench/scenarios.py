@@ -26,6 +26,62 @@ PE_FILING_STATUSES = {
 
 ALLOWED_INPUT_ENTITIES = {"person", "tax_unit", "spm_unit", "household"}
 
+US_STATE_CODES = {
+    "AL",
+    "AK",
+    "AZ",
+    "AR",
+    "CA",
+    "CO",
+    "CT",
+    "DE",
+    "DC",
+    "FL",
+    "GA",
+    "HI",
+    "ID",
+    "IL",
+    "IN",
+    "IA",
+    "KS",
+    "KY",
+    "LA",
+    "ME",
+    "MD",
+    "MA",
+    "MI",
+    "MN",
+    "MS",
+    "MO",
+    "MT",
+    "NE",
+    "NV",
+    "NH",
+    "NJ",
+    "NM",
+    "NY",
+    "NC",
+    "ND",
+    "OH",
+    "OK",
+    "OR",
+    "PA",
+    "RI",
+    "SC",
+    "SD",
+    "TN",
+    "TX",
+    "UT",
+    "VT",
+    "VA",
+    "WA",
+    "WV",
+    "WI",
+    "WY",
+}
+
+GEOGRAPHIC_DEFINED_FOR_PREFIXES = ("in_",)
+
 EXCLUDED_INPUT_VARIABLES = {
     "age",
     "business_is_qualified",
@@ -258,8 +314,25 @@ def _is_promptable_input_variable(name: str, variable) -> bool:
     if name.endswith(EXCLUDED_INPUT_SUFFIXES):
         return False
 
+    if getattr(variable, "formula", None) is not None:
+        return False
+    if getattr(variable, "formulas", None):
+        return False
+    defined_for = getattr(variable, "defined_for", None)
+    if defined_for is not None and not _is_geographic_defined_for(defined_for):
+        return False
+    if getattr(variable, "adds", None):
+        return False
+    if getattr(variable, "subtracts", None):
+        return False
+
     value_type = getattr(variable.value_type, "__name__", str(variable.value_type))
     return value_type in {"float", "bool"}
+
+
+def _is_geographic_defined_for(defined_for: Any) -> bool:
+    value = str(defined_for)
+    return value in US_STATE_CODES or value.startswith(GEOGRAPHIC_DEFINED_FOR_PREFIXES)
 
 
 @lru_cache(maxsize=1)

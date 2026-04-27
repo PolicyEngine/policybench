@@ -7,7 +7,9 @@ import pytest
 
 from policybench.scenarios import (
     SUPPORTED_FILING_STATUSES,
+    _is_geographic_defined_for,
     generate_scenarios,
+    get_promptable_input_specs,
     load_excluded_household_ids,
     load_scenarios_from_manifest,
     scenario_manifest,
@@ -492,6 +494,84 @@ def test_richer_cps_inputs_are_preserved(sample_person_frame):
     assert hoh.spm_unit_inputs["spm_unit_pre_subsidy_childcare_expenses"] == 2_400.0
     assert hoh.household_inputs["auto_loan_interest"] == 300.0
     assert hoh.household_inputs["auto_loan_balance"] == 5_000.0
+
+
+def test_promptable_inputs_are_pure_leaf_variables():
+    """Prompts should not expose conditional or formula-defined PE variables."""
+    from policybench.policyengine_runtime import make_us_microsimulation
+
+    sim = make_us_microsimulation()
+    specs = get_promptable_input_specs()
+    source_names = {spec.source_name for spec in specs}
+
+    assert "medicare_enrolled" not in source_names
+    assert "was_calworks_recipient" in source_names
+    for spec in specs:
+        variable = sim.tax_benefit_system.variables[spec.source_name]
+        assert getattr(variable, "formula", None) is None
+        assert not getattr(variable, "formulas", None)
+        defined_for = getattr(variable, "defined_for", None)
+        assert defined_for is None or _is_geographic_defined_for(defined_for)
+        assert not getattr(variable, "adds", None)
+        assert not getattr(variable, "subtracts", None)
+
+
+def test_conditional_inputs_are_not_preserved():
+    """Conditional leaf inputs should not appear in scenario facts."""
+    scenario = scenarios_from_cps_frame(
+        pd.DataFrame(
+            [
+                {
+                    "person_id": 1,
+                    "household_id": 1,
+                    "tax_unit_id": 1,
+                    "spm_unit_id": 1,
+                    "family_id": 1,
+                    "marital_unit_id": 1,
+                    "household_weight": 1.0,
+                    "state_code": "PA",
+                    "filing_status": "SINGLE",
+                    "age": 64,
+                    "employment_income": 50_000.0,
+                    "medicare_enrolled": True,
+                    "is_tax_unit_head": True,
+                }
+            ]
+        ),
+        n=1,
+        seed=0,
+    )[0]
+
+    assert "medicare_enrolled" not in scenario.adults[0].inputs
+
+
+def test_geographic_leaf_inputs_are_preserved():
+    """State-gated leaf inputs should remain available as scenario facts."""
+    scenario = scenarios_from_cps_frame(
+        pd.DataFrame(
+            [
+                {
+                    "person_id": 1,
+                    "household_id": 1,
+                    "tax_unit_id": 1,
+                    "spm_unit_id": 1,
+                    "family_id": 1,
+                    "marital_unit_id": 1,
+                    "household_weight": 1.0,
+                    "state_code": "CA",
+                    "filing_status": "SINGLE",
+                    "age": 35,
+                    "employment_income": 50_000.0,
+                    "was_calworks_recipient": True,
+                    "is_tax_unit_head": True,
+                }
+            ]
+        ),
+        n=1,
+        seed=0,
+    )[0]
+
+    assert scenario.spm_unit_inputs["was_calworks_recipient"] is True
 
 
 def test_children_and_adults_split_by_age(sample_person_frame):
