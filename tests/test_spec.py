@@ -115,9 +115,9 @@ def test_head_start_eligibility_expands_only_for_children():
     ]
 
 
-def test_program_set_parser_supports_legacy_and_rebuilt_sets():
+def test_program_set_parser_supports_current_sets():
     assert parse_program_set(None) == ("v2", "headline")
-    assert parse_program_set("v1") == ("v1", "headline")
+    assert parse_program_set("v2") == ("v2", "headline")
     assert parse_program_set("v2_headline") == ("v2", "headline")
     assert parse_program_set("v2_supplementary") == ("v2", "supplementary")
     assert get_programs("us") == US_V2_HEADLINE
@@ -132,7 +132,7 @@ def test_program_set_parser_supports_legacy_and_rebuilt_sets():
 
 
 def test_metric_and_impact_metadata_are_spec_driven():
-    assert metric_type_for_output("household_medicaid_eligible") == "binary"
+    assert metric_type_for_output("adult1_medicaid_eligible") == "binary"
     assert net_income_sign_for_output("income_tax") == -1
     assert net_income_sign_for_output("snap") == 1
     assert net_income_sign_for_output("adjusted_gross_income") == 0

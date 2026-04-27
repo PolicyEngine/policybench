@@ -20,27 +20,10 @@ from policybench.spec import (
 # These benchmark variables are binary labels derived from PolicyEngine outputs
 # that are naturally person-level or dollar-valued.
 DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES = {
-    "free_school_meals",
     "household_free_school_meal_eligible",
     "household_reduced_price_school_meal_eligible",
-    "is_medicaid_eligible",
-    "household_medicaid_eligible",
-    "household_chip_eligible",
-    "household_medicare_eligible",
-    "any_medicaid_eligible",
-    "any_chip_eligible",
-    "any_medicare_eligible",
     "free_school_meals_eligible",
     "reduced_price_school_meals_eligible",
-}
-
-LEGACY_ANY_ELIGIBILITY_OUTPUTS = {
-    "any_medicaid_eligible": ("is_medicaid_eligible", "medicaid"),
-    "any_chip_eligible": ("is_chip_eligible", "chip"),
-    "any_medicare_eligible": ("is_medicare_eligible", "medicare_cost"),
-    "household_medicaid_eligible": ("is_medicaid_eligible", "medicaid"),
-    "household_chip_eligible": ("is_chip_eligible", "chip"),
-    "household_medicare_eligible": ("is_medicare_eligible", "medicare_cost"),
 }
 
 
@@ -48,8 +31,6 @@ def _pe_variable_for_output(variable: str, country: str) -> str:
     parsed_person_output = parse_person_output(variable)
     if parsed_person_output is not None:
         return parsed_person_output[2]["pe_variable"]
-    if variable in LEGACY_ANY_ELIGIBILITY_OUTPUTS:
-        return LEGACY_ANY_ELIGIBILITY_OUTPUTS[variable][0]
     output = find_output_spec(variable, country=country)
     return output.pe_variable if output is not None else variable
 
@@ -69,8 +50,6 @@ def _impact_weight_variable_for_output(variable: str, country: str) -> str | Non
     parsed_person_output = parse_person_output(variable)
     if parsed_person_output is not None:
         return parsed_person_output[2].get("impact_weight_variable")
-    if variable in LEGACY_ANY_ELIGIBILITY_OUTPUTS:
-        return LEGACY_ANY_ELIGIBILITY_OUTPUTS[variable][1]
     output = find_output_spec(variable, country=country)
     return output.impact_weight_variable if output is not None else None
 

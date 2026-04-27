@@ -1,7 +1,7 @@
 {
   "exports": {
     "us_summary_by_model": {
-      "path": "results/paper_exports/us_summary_by_model.csv",
+      "path": "results/temporary_legacy_v1_results/paper_exports/us_summary_by_model.csv",
       "rows": 11,
       "columns": [
         "model",
@@ -19,7 +19,7 @@
       ]
     },
     "uk_summary_by_model": {
-      "path": "results/paper_exports/uk_summary_by_model.csv",
+      "path": "results/temporary_legacy_v1_results/paper_exports/uk_summary_by_model.csv",
       "rows": 11,
       "columns": [
         "model",
@@ -37,7 +37,7 @@
       ]
     },
     "global_summary_by_model": {
-      "path": "results/paper_exports/global_summary_by_model.csv",
+      "path": "results/temporary_legacy_v1_results/paper_exports/global_summary_by_model.csv",
       "rows": 11,
       "columns": [
         "model",
@@ -55,7 +55,7 @@
       ]
     },
     "us_summary_by_variable": {
-      "path": "results/paper_exports/us_summary_by_variable.csv",
+      "path": "results/temporary_legacy_v1_results/paper_exports/us_summary_by_variable.csv",
       "rows": 13,
       "columns": [
         "variable",
@@ -73,7 +73,7 @@
       ]
     },
     "uk_summary_by_variable": {
-      "path": "results/paper_exports/uk_summary_by_variable.csv",
+      "path": "results/temporary_legacy_v1_results/paper_exports/uk_summary_by_variable.csv",
       "rows": 6,
       "columns": [
         "variable",

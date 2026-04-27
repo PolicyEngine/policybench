@@ -135,10 +135,7 @@ def main():
     gt_parser.add_argument(
         "--program-set",
         default=DEFAULT_PROGRAM_SET,
-        help=(
-            "Benchmark output set to use. Defaults to v2_headline; "
-            "pass v1 to reproduce the legacy public snapshot."
-        ),
+        help="Benchmark output set to use. Defaults to v2_headline.",
     )
     gt_parser.add_argument(
         "--exclude-scenario-manifest",
@@ -201,10 +198,7 @@ def main():
     nt_parser.add_argument(
         "--program-set",
         default=DEFAULT_PROGRAM_SET,
-        help=(
-            "Benchmark output set to use. Defaults to v2_headline; "
-            "pass v1 to reproduce the legacy public snapshot."
-        ),
+        help="Benchmark output set to use. Defaults to v2_headline.",
     )
     nt_parser.add_argument(
         "--include-explanations",
@@ -290,10 +284,7 @@ def main():
     ntr_parser.add_argument(
         "--program-set",
         default=DEFAULT_PROGRAM_SET,
-        help=(
-            "Benchmark output set to use. Defaults to v2_headline; "
-            "pass v1 to reproduce the legacy public snapshot."
-        ),
+        help="Benchmark output set to use. Defaults to v2_headline.",
     )
     ntr_parser.add_argument(
         "--include-explanations",

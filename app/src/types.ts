@@ -31,23 +31,15 @@ const US_VARIABLE_LABELS: Record<string, string> = {
   ssi: "SSI",
   tanf: "TANF",
   wic: "WIC",
-  free_school_meals: "Free school meals eligibility",
   free_school_meals_eligible: "Free school meals eligibility",
   household_free_school_meal_eligible: "Free school meals eligibility",
   reduced_price_school_meals_eligible:
     "Reduced-price school meals eligibility",
   household_reduced_price_school_meal_eligible:
     "Reduced-price school meals eligibility",
-  is_medicaid_eligible: "Medicaid eligibility",
   person_medicaid_eligible: "Person-level Medicaid eligibility",
-  any_medicaid_eligible: "Any Medicaid eligibility",
-  household_medicaid_eligible: "Any Medicaid eligibility",
   person_chip_eligible: "Person-level CHIP eligibility",
-  any_chip_eligible: "Any CHIP eligibility",
-  household_chip_eligible: "Any CHIP eligibility",
   person_medicare_eligible: "Person-level Medicare eligibility",
-  any_medicare_eligible: "Any Medicare eligibility",
-  household_medicare_eligible: "Any Medicare eligibility",
   person_head_start_eligible: "Person-level Head Start eligibility",
   person_early_head_start_eligible: "Person-level Early Head Start eligibility",
   person_employee_social_security_tax: "Person-level employee Social Security tax",
@@ -86,21 +78,13 @@ const US_VARIABLE_CATEGORIES: Record<string, string> = {
   ssi: "Benefits",
   tanf: "Benefits",
   wic: "Benefits",
-  free_school_meals: "Benefits",
   free_school_meals_eligible: "Coverage",
   household_free_school_meal_eligible: "Benefits",
   reduced_price_school_meals_eligible: "Coverage",
   household_reduced_price_school_meal_eligible: "Benefits",
-  is_medicaid_eligible: "Benefits",
   person_medicaid_eligible: "Coverage",
-  any_medicaid_eligible: "Coverage",
-  household_medicaid_eligible: "Benefits",
   person_chip_eligible: "Coverage",
-  any_chip_eligible: "Coverage",
-  household_chip_eligible: "Benefits",
   person_medicare_eligible: "Coverage",
-  any_medicare_eligible: "Coverage",
-  household_medicare_eligible: "Benefits",
   person_head_start_eligible: "Coverage",
   person_early_head_start_eligible: "Coverage",
   person_employee_social_security_tax: "Federal tax",
@@ -206,24 +190,16 @@ export function isBinaryVariable(
     return false;
   }
   return (
-    variable === "free_school_meals" ||
     variable === "free_school_meals_eligible" ||
     variable === "household_free_school_meal_eligible" ||
     variable === "reduced_price_school_meals_eligible" ||
     variable === "household_reduced_price_school_meal_eligible" ||
-    variable === "is_medicaid_eligible" ||
     variable === "person_medicaid_eligible" ||
     variable === "person_chip_eligible" ||
     variable === "person_medicare_eligible" ||
     variable === "person_head_start_eligible" ||
     variable === "person_early_head_start_eligible" ||
-    parsePersonEligibilityVariable(variable) !== null ||
-    variable === "any_medicaid_eligible" ||
-    variable === "household_medicaid_eligible" ||
-    variable === "any_chip_eligible" ||
-    variable === "household_chip_eligible" ||
-    variable === "any_medicare_eligible" ||
-    variable === "household_medicare_eligible"
+    parsePersonEligibilityVariable(variable) !== null
   );
 }
 

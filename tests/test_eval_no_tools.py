@@ -213,7 +213,7 @@ class TestExtractPrediction:
             == 3500.0
         )
 
-    def test_legacy_function_call_is_supported(self):
+    def test_function_call_field_is_supported(self):
         function_call = {"name": "submit_answers", "arguments": '{"answer": 0.25}'}
 
         assert extract_prediction(content=None, function_call=function_call) == 0.25
@@ -279,10 +279,10 @@ class TestExtractPrediction:
                 "For free school meals, household income must be at or below "
                 "130% of the federal poverty level."
             ),
-            variables=["free_school_meals"],
+            variables=["free_school_meals_eligible"],
             tool_calls=None,
         )
-        assert predictions == {"free_school_meals": None}
+        assert predictions == {"free_school_meals_eligible": None}
 
 
 def test_no_tools_prompt_contains_household_info(mini_scenario):
@@ -466,18 +466,18 @@ def test_agi_prompt_is_explicitly_federal(mini_scenario):
 def test_free_school_meals_prompt_clarifies_household_boolean(mini_scenario):
     """School meals prompt should ask for household
     free-meal eligibility, not dollars."""
-    prompt = make_no_tools_prompt(mini_scenario, "free_school_meals")
+    prompt = make_no_tools_prompt(mini_scenario, "free_school_meals_eligible")
     prompt_lower = prompt.lower()
-    assert "benchmark household free-school-meal eligibility label" in prompt_lower
-    assert "derived from policyengine school-meal support" in prompt_lower
+    assert "positive annual free school meal support" in prompt_lower
     assert "reduced-price meals do not count as 1" in prompt_lower
 
 
 def test_medicaid_prompt_clarifies_anyone_in_household(mini_scenario):
-    """Medicaid prompt should ask whether any household member is eligible."""
-    prompt = make_no_tools_prompt(mini_scenario, "is_medicaid_eligible")
+    """Medicaid prompt should ask for person-level eligibility."""
+    prompt = make_no_tools_prompt(mini_scenario, "adult1_medicaid_eligible")
     prompt_lower = prompt.lower()
-    assert "anyone in the household" in prompt_lower
+    assert "adult 1 is eligible for medicaid" in prompt_lower
+    assert "not whether they are currently enrolled" in prompt_lower
     assert "(1 if yes, 0 if no)" in prompt_lower
 
 
@@ -740,6 +740,7 @@ def test_run_single_no_tools_chunks_claude_explanation_batches(
     mock_completion, mini_scenario
 ):
     variables = COUNTRY_PROGRAMS["us"]
+    chunks = [variables[i : i + 3] for i in range(0, len(variables), 3)]
     chunk_payloads = [
         {
             "answers": {
@@ -749,13 +750,7 @@ def test_run_single_no_tools_chunks_claude_explanation_batches(
                 variable: f"Explanation for {variable}." for variable in chunk
             },
         }
-        for chunk in [
-            variables[:3],
-            variables[3:6],
-            variables[6:9],
-            variables[9:12],
-            variables[12:13],
-        ]
+        for chunk in chunks
     ]
 
     responses = []
@@ -794,9 +789,9 @@ def test_run_single_no_tools_chunks_claude_explanation_batches(
     assert len(result["predictions"]) == len(variables)
     assert len(result["explanations"]) == len(variables)
     assert all(result["explanations"][variable] for variable in variables)
-    assert result["prompt_tokens"] == 50
-    assert result["completion_tokens"] == 25
-    assert mock_completion.call_count == 5
+    assert result["prompt_tokens"] == 10 * len(chunks)
+    assert result["completion_tokens"] == 5 * len(chunks)
+    assert mock_completion.call_count == len(chunks)
     assert '"chunked_responses"' in result["raw_response"]
 
 

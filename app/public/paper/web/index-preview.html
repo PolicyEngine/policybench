@@ -237,7 +237,7 @@
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>ROOT <span class="op">=</span> Path.cwd().resolve()</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> (ROOT <span class="op">/</span> <span class="st">"results"</span>).exists():</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    ROOT <span class="op">=</span> ROOT.parent</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>EXPORT_DIR <span class="op">=</span> ROOT <span class="op">/</span> <span class="st">"results"</span> <span class="op">/</span> <span class="st">"paper_exports"</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>EXPORT_DIR <span class="op">=</span> ROOT <span class="op">/</span> <span class="st">"results"</span> <span class="op">/</span> <span class="st">"temporary_legacy_v1_results"</span> <span class="op">/</span> <span class="st">"paper_exports"</span></span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>us_model <span class="op">=</span> pd.read_csv(EXPORT_DIR <span class="op">/</span> <span class="st">"us_summary_by_model.csv"</span>)</span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>uk_model <span class="op">=</span> pd.read_csv(EXPORT_DIR <span class="op">/</span> <span class="st">"uk_summary_by_model.csv"</span>)</span>

@@ -56,19 +56,17 @@ Diagnostic runs should not be mixed into leaderboard claims.
 CLI default outputs under `results/local/` are scratch artifacts, not canonical
 leaderboard snapshots.
 
+Old public-snapshot result files, where temporarily retained, are kept only
+under `results/temporary_legacy_v1_results/`.
+
 ## Output specification
 
 Benchmark scope is defined in `policybench/benchmark_specs.json`. New CLI runs
-default to `v2_headline`; `v1` must be selected explicitly when reproducing the
-current public snapshot.
-
-`v1`
-- legacy public scope used by the current frozen site and paper exports
-- includes tax bases, tax liabilities, credits, benefits, and household boolean
-  labels in one headline score
+default to `v2_headline`. The active codebase does not carry legacy benchmark
+specifications.
 
 `v2_headline`
-- rebuilt headline scope for new runs
+- headline scope for current runs
 - includes person- or household-facing outputs that are directly interpretable
   as taxes, benefits, or coverage eligibility
 - excludes AGI-like intermediate tax bases from the main ranking
@@ -94,9 +92,10 @@ income.
 
 The live site can change after new runs are added.
 
-Paper tables and manuscript claims should be tied to a frozen export snapshot in:
+Paper tables and manuscript claims should be tied to a frozen export snapshot.
+Old public-snapshot exports are temporarily retained in:
 
-- [benchmark_snapshot.json](/Users/maxghenis/PolicyEngine/policybench/results/paper_exports/benchmark_snapshot.json)
+- [benchmark_snapshot.json](/Users/maxghenis/PolicyEngine/policybench/results/temporary_legacy_v1_results/paper_exports/benchmark_snapshot.json)
 
 That file records:
 

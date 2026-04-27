@@ -70,7 +70,7 @@ const US_EXPLAINERS: Record<string, VariableExplainer> = {
       "There are also false positives in the other direction when models shortcut from low income to SSI entitlement.",
     ],
   },
-  free_school_meals: {
+  free_school_meals_eligible: {
     summary:
       "The main error is false negatives from simple income-threshold rules.",
     bullets: [
@@ -78,7 +78,7 @@ const US_EXPLAINERS: Record<string, VariableExplainer> = {
       "This binary target is otherwise easier than the dollar outputs, so a small number of false negatives carry most of the signal.",
     ],
   },
-  is_medicaid_eligible: {
+  person_medicaid_eligible: {
     summary:
       "Models often overuse Medicare enrollment or visible assets as disqualifiers and miss non-wage eligibility pathways.",
     bullets: [
@@ -174,17 +174,14 @@ const UK_EXPLAINERS: Record<string, VariableExplainer> = {
 const EXPLAINERS: Record<CountryCode, Record<string, VariableExplainer>> = {
   us: {
     ...US_EXPLAINERS,
-    free_school_meals_eligible: US_EXPLAINERS.free_school_meals,
-    household_free_school_meal_eligible: US_EXPLAINERS.free_school_meals,
-    reduced_price_school_meals_eligible: US_EXPLAINERS.free_school_meals,
+    household_free_school_meal_eligible:
+      US_EXPLAINERS.free_school_meals_eligible,
+    reduced_price_school_meals_eligible:
+      US_EXPLAINERS.free_school_meals_eligible,
     household_reduced_price_school_meal_eligible:
-      US_EXPLAINERS.free_school_meals,
-    any_medicaid_eligible: US_EXPLAINERS.is_medicaid_eligible,
-    household_medicaid_eligible: US_EXPLAINERS.is_medicaid_eligible,
-    any_chip_eligible: US_EXPLAINERS.is_medicaid_eligible,
-    household_chip_eligible: US_EXPLAINERS.is_medicaid_eligible,
-    any_medicare_eligible: US_EXPLAINERS.is_medicaid_eligible,
-    household_medicare_eligible: US_EXPLAINERS.is_medicaid_eligible,
+      US_EXPLAINERS.free_school_meals_eligible,
+    person_chip_eligible: US_EXPLAINERS.person_medicaid_eligible,
+    person_medicare_eligible: US_EXPLAINERS.person_medicaid_eligible,
   },
   uk: UK_EXPLAINERS,
 };

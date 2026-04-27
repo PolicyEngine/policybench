@@ -2,7 +2,8 @@
 
 PolicyBench is a no-tools benchmark. Ad hoc local outputs should live under
 `results/local/` after a benchmark run. Published leaderboard claims should
-instead point to frozen batch directories or `results/paper_exports/`.
+instead point to dated batch directories. Old public-snapshot exports, where
+temporarily retained, live under `results/temporary_legacy_v1_results/`.
 
 ## Run
 

@@ -29,9 +29,9 @@ from policybench.analysis import (
     within_tolerance,
 )
 from policybench.config import (
-    UK_HEADLINE_PROGRAMS_V2,
-    US_HEADLINE_PROGRAMS_V2,
-    US_SUPPLEMENTARY_PROGRAMS_V2,
+    UK_HEADLINE_PROGRAMS,
+    US_HEADLINE_PROGRAMS,
+    US_SUPPLEMENTARY_PROGRAMS,
     get_programs,
 )
 
@@ -399,7 +399,7 @@ class TestSummaries:
         ground_truth_df = pd.DataFrame(
             {
                 "scenario_id": ["s1", "s1"],
-                "variable": ["income_tax", "any_medicaid_eligible"],
+                "variable": ["income_tax", "adult1_medicaid_eligible"],
                 "value": [100.0, 1.0],
                 "impact_weight": [None, 900.0],
             }
@@ -408,7 +408,7 @@ class TestSummaries:
             {
                 "model": ["model_a", "model_a"],
                 "scenario_id": ["s1", "s1"],
-                "variable": ["income_tax", "any_medicaid_eligible"],
+                "variable": ["income_tax", "adult1_medicaid_eligible"],
                 "prediction": [100.0, 0.0],
             }
         )
@@ -422,9 +422,9 @@ class TestSummaries:
         assert household_scores.iloc[0]["impact_score"] == pytest.approx(0.1)
 
     def test_get_programs_supports_v2_sets(self):
-        assert get_programs("us", "v2_headline") == US_HEADLINE_PROGRAMS_V2
-        assert get_programs("uk", "v2_headline") == UK_HEADLINE_PROGRAMS_V2
-        assert get_programs("us", "v2_supplementary") == US_SUPPLEMENTARY_PROGRAMS_V2
+        assert get_programs("us", "v2_headline") == US_HEADLINE_PROGRAMS
+        assert get_programs("uk", "v2_headline") == UK_HEADLINE_PROGRAMS
+        assert get_programs("us", "v2_supplementary") == US_SUPPLEMENTARY_PROGRAMS
 
     def test_analyze_no_tools_returns_expected_tables(self):
         ground_truth_df = pd.DataFrame(
@@ -697,7 +697,7 @@ class TestSummaries:
         ground_truth_df = pd.DataFrame(
             {
                 "scenario_id": ["s1", "s1", "s2", "s2"],
-                "variable": ["income_tax", "is_medicaid_eligible"] * 2,
+                "variable": ["income_tax", "adult1_medicaid_eligible"] * 2,
                 "value": [100.0, 1.0, 200.0, 0.0],
             }
         )
@@ -705,7 +705,7 @@ class TestSummaries:
             {
                 "model": ["model_a"] * 4,
                 "scenario_id": ["s1", "s1", "s2", "s2"],
-                "variable": ["income_tax", "is_medicaid_eligible"] * 2,
+                "variable": ["income_tax", "adult1_medicaid_eligible"] * 2,
                 "prediction": [110.0, 1.0, 210.0, 0.0],
                 "explanation": ["brief note", None, None, None],
             }

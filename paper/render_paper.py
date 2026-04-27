@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PAPER_DIR = ROOT / "paper"
 PUBLIC_PAPER_DIR = ROOT / "app" / "public" / "paper"
 PUBLIC_WEB_DIR = PUBLIC_PAPER_DIR / "web"
-EXPORT_DIR = ROOT / "results" / "paper_exports"
+EXPORT_DIR = ROOT / "results" / "temporary_legacy_v1_results" / "paper_exports"
 DESIGN_SYSTEM_TOKENS = (
     ROOT
     / "app"
@@ -203,17 +203,8 @@ def main() -> None:
 
     if not (EXPORT_DIR / "benchmark_snapshot.json").exists():
         raise SystemExit(
-            "Missing frozen paper exports in results/paper_exports. "
-            "Regenerate them before rendering."
-        )
-    if (ROOT / "results" / "full_batch_20260329_1000" / "analysis").exists() and (
-        ROOT / "results" / "uk_full_batch_20260329_1000" / "analysis"
-    ).exists():
-        subprocess.run(
-            [sys.executable, str(ROOT / "scripts" / "export_paper_artifacts.py")],
-            check=True,
-            cwd=ROOT,
-            env=env,
+            "Missing frozen paper exports in "
+            "results/temporary_legacy_v1_results/paper_exports."
         )
     subprocess.run(
         [sys.executable, str(PAPER_DIR / "generate_figures.py")],

@@ -103,16 +103,6 @@ PERSON_ELIGIBILITY_OUTPUTS = {
     if output["metric_type"] == "binary"
 }
 
-LEGACY_ANY_ELIGIBILITY_OUTPUTS = {
-    "any_medicaid_eligible": "medicaid",
-    "any_chip_eligible": "chip",
-    "any_medicare_eligible": "medicare_cost",
-    "household_medicaid_eligible": "medicaid",
-    "household_chip_eligible": "chip",
-    "household_medicare_eligible": "medicare_cost",
-}
-
-
 @dataclass(frozen=True)
 class OutputSpec:
     """One benchmark output and its PolicyEngine mapping."""
@@ -420,8 +410,6 @@ def metric_type_for_output(output_id: str) -> str:
         return parsed[2]["metric_type"]
     if output_id in PERSON_OUTPUTS:
         return PERSON_OUTPUTS[output_id]["metric_type"]
-    if output_id in LEGACY_ANY_ELIGIBILITY_OUTPUTS:
-        return "binary"
     output = find_output_spec(output_id)
     return output.metric_type if output else "amount"
 
@@ -433,8 +421,6 @@ def net_income_sign_for_output(output_id: str) -> int:
         return int(parsed[2]["net_income_sign"])
     if output_id in PERSON_OUTPUTS:
         return int(PERSON_OUTPUTS[output_id]["net_income_sign"])
-    if output_id in LEGACY_ANY_ELIGIBILITY_OUTPUTS:
-        return 1
     output = find_output_spec(output_id)
     return output.net_income_sign if output else 1
 
@@ -446,8 +432,6 @@ def impact_weight_variable_for_output(output_id: str) -> str | None:
         return parsed[2].get("impact_weight_variable")
     if output_id in PERSON_OUTPUTS:
         return PERSON_OUTPUTS[output_id].get("impact_weight_variable")
-    if output_id in LEGACY_ANY_ELIGIBILITY_OUTPUTS:
-        return LEGACY_ANY_ELIGIBILITY_OUTPUTS[output_id]
     output = find_output_spec(output_id)
     return output.impact_weight_variable if output else None
 
@@ -461,7 +445,6 @@ def binary_output_ids() -> list[str]:
             if output.metric_type == "binary"
         }
         | set(PERSON_ELIGIBILITY_OUTPUTS)
-        | set(LEGACY_ANY_ELIGIBILITY_OUTPUTS)
     )
 
 

@@ -142,16 +142,29 @@ class TestGroundTruthScalarExtraction:
         assert (
             ground_truth._extract_scalar_value(
                 np.array([1116.0]),
-                "free_school_meals",
+                "free_school_meals_eligible",
             )
             == 1.0
         )
 
-    def test_medicaid_person_level_counts_become_household_boolean(self):
+    def test_person_level_eligibility_extracts_person_value(self):
+        scenario = Scenario(
+            id="mini",
+            state="CA",
+            filing_status="head_of_household",
+            adults=[
+                Person(name="adult1", age=30, employment_income=0.0),
+                Person(name="adult2", age=30, employment_income=0.0),
+            ],
+            children=[Person(name="child1", age=3, employment_income=0.0)],
+            year=2025,
+        )
+
         assert (
-            ground_truth._extract_scalar_value(
+            ground_truth._extract_person_value(
                 np.array([1.0, 0.0, 1.0]),
-                "is_medicaid_eligible",
+                scenario,
+                "child1_medicaid_eligible",
             )
             == 1.0
         )
@@ -166,27 +179,40 @@ class TestGroundTruthScalarExtraction:
         )
         assert (
             ground_truth._pe_variable_for_output(
-                "any_medicaid_eligible",
+                "free_school_meals_eligible",
                 "us",
             )
-            == "is_medicaid_eligible"
+            == "free_school_meals"
         )
 
-    def test_binary_impact_weight_filters_to_eligible_people(self):
+    def test_person_impact_weight_uses_selected_person(self):
+        scenario = Scenario(
+            id="mini",
+            state="CA",
+            filing_status="head_of_household",
+            adults=[
+                Person(name="adult1", age=30, employment_income=0.0),
+                Person(name="adult2", age=30, employment_income=0.0),
+            ],
+            children=[Person(name="child1", age=3, employment_income=0.0)],
+            year=2025,
+        )
+
         assert (
-            ground_truth._extract_impact_weight(
+            ground_truth._extract_person_impact_weight(
                 np.array([1.0, 0.0, 1.0]),
                 np.array([100.0, 500.0, 25.0]),
-                "any_medicaid_eligible",
+                scenario,
+                "child1_medicaid_eligible",
             )
-            == 125.0
+            == 25.0
         )
 
     def test_household_boolean_variables_keep_zero_as_zero(self):
         assert (
             ground_truth._extract_scalar_value(
                 np.array([0.0, 0.0]),
-                "is_medicaid_eligible",
+                "free_school_meals_eligible",
             )
             == 0.0
         )

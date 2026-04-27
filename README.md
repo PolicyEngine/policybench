@@ -25,12 +25,12 @@ tax bases move to supplementary diagnostics. PolicyEngine variables may be
 native to lower-level entities, but v2 headline outputs are either expanded to
 people shown in the prompt or aggregated to the household before scoring.
 Coverage outputs are binary flags and are weighted using PolicyEngine value
-proxies. The legacy `v1` spec is kept only to reproduce the current public
-snapshot and frozen paper exports. Payroll component diagnostics live in
-`v2_supplementary`, not in the headline ranking.
+proxies. Payroll component diagnostics live in `v2_supplementary`, not in the
+headline ranking.
 
-Frozen paper claims are tied to `results/paper_exports/benchmark_snapshot.json`,
-not to whatever models happen to be configured or probed locally later.
+Old public-snapshot result files, where retained, live under
+`results/temporary_legacy_v1_results/` and are not supported by active
+benchmark code.
 
 ## Programs evaluated
 
@@ -53,10 +53,6 @@ policybench ground-truth -n 100 --seed 42
 
 # Run AI-alone evaluations on the exported scenario manifest
 policybench eval-no-tools -n 100 --seed 42
-
-# Reproduce the legacy public output scope explicitly
-policybench ground-truth -n 100 --seed 42 --program-set v1
-policybench eval-no-tools -n 100 --seed 42 --program-set v1
 
 # Analyze local results and export local artifacts
 policybench analyze --output-dir results/local/analysis

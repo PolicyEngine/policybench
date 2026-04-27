@@ -20,8 +20,9 @@ The benchmark is intentionally scoped to direct no-tools capability. It is desig
 
 The default benchmark model registry tracks the currently published no-tools
 leaderboard. Frozen paper claims should be read from
-`results/paper_exports/benchmark_snapshot.json`, which records the exact run
-directories and shared model set used for manuscript claims.
+`results/temporary_legacy_v1_results/paper_exports/benchmark_snapshot.json`,
+which records the exact run directories and shared model set used for
+manuscript claims.
 
 Models are prompted to return only numeric outputs under a structured response
 contract.
@@ -29,14 +30,14 @@ contract.
 ## Programs evaluated
 
 Benchmark outputs are specified in `policybench/benchmark_specs.json`. The
-published `v1` snapshot is retained for reproducibility. New runs default to
-`v2_headline`, which focuses the ranking on person- or household-facing outputs
-that contribute to household net income. PolicyEngine variables may be native
-to lower-level entities; the benchmark contract either expands them to the
-people shown in the prompt or aggregates them to the household before scoring.
-Intermediate tax bases move to supplementary diagnostics. Coverage eligibility
-outputs are booleans and are weighted by PolicyEngine dollar-value proxies in
-the household-equal impact score.
+active benchmark defaults to `v2_headline`, which focuses the ranking on
+person- or household-facing outputs that contribute to household net income.
+PolicyEngine variables may be native to lower-level entities; the benchmark
+contract either expands them to the people shown in the prompt or aggregates
+them to the household before scoring. Intermediate tax bases move to
+supplementary diagnostics. Coverage eligibility outputs are booleans and are
+weighted by PolicyEngine dollar-value proxies in the household-equal impact
+score.
 
 The rebuilt US headline scope evaluates direct net-income components and
 coverage flags:

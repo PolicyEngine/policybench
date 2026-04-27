@@ -24,7 +24,7 @@ import pandas as pd
 ROOT = Path.cwd().resolve()
 if not (ROOT / "results").exists():
     ROOT = ROOT.parent
-EXPORT_DIR = ROOT / "results" / "paper_exports"
+EXPORT_DIR = ROOT / "results" / "temporary_legacy_v1_results" / "paper_exports"
 
 us_model = pd.read_csv(EXPORT_DIR / "us_summary_by_model.csv")
 uk_model = pd.read_csv(EXPORT_DIR / "uk_summary_by_model.csv")
