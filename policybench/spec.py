@@ -294,6 +294,15 @@ def find_output_spec(
     spec_id: str | None = None,
 ) -> OutputSpec | None:
     """Find an output spec by benchmark id."""
+    if spec_id is None:
+        default_match = find_output_spec(
+            output_id,
+            country=country,
+            spec_id=DEFAULT_SPEC_ID,
+        )
+        if default_match is not None:
+            return default_match
+
     matches = [
         output
         for output in iter_output_specs(spec_id)

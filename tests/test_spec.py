@@ -138,6 +138,13 @@ def test_metric_and_impact_metadata_are_spec_driven():
     assert net_income_sign_for_output("adjusted_gross_income") == 0
 
 
+def test_find_output_spec_prefers_default_spec_for_overlapping_outputs():
+    output = find_output_spec("child_benefit", country="uk")
+
+    assert output is not None
+    assert "do not require stated benefit receipt" in output.prompt
+
+
 def test_unknown_spec_errors_are_clear():
     with pytest.raises(ValueError, match="Unknown benchmark spec"):
         get_benchmark_spec("missing")

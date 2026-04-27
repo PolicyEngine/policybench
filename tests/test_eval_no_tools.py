@@ -304,11 +304,24 @@ def test_no_tools_prompt_supports_uk_households(uk_scenario):
     prompt_lower = prompt.lower()
     assert "region: london" in prompt_lower
     assert "filing status" not in prompt_lower
-    assert "annual uk income tax liability" in prompt_lower
+    assert "household total annual uk income tax liability" in prompt_lower
+    assert "excluding capital gains tax" in prompt_lower
     assert "tenure: rent privately" in prompt_lower
     assert "£42,000" in prompt
     assert "£14,400" in prompt
     assert "currency amount" in prompt_lower
+
+
+def test_uk_output_prompts_define_target_quantities(uk_scenario):
+    prompt = make_no_tools_batch_prompt(
+        uk_scenario,
+        ["national_insurance", "child_benefit", "universal_credit"],
+    )
+    prompt_lower = prompt.lower()
+
+    assert "excluding employer national insurance" in prompt_lower
+    assert "for qualifying children and young people" in prompt_lower
+    assert "do not require stated benefit receipt" in prompt_lower
 
 
 def test_no_tools_prompt_asks_for_numeric(mini_scenario):
