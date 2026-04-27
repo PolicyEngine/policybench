@@ -505,6 +505,7 @@ def test_promptable_inputs_are_pure_leaf_variables():
     source_names = {spec.source_name for spec in specs}
 
     assert "medicare_enrolled" not in source_names
+    assert "net_worth" not in source_names
     assert "was_calworks_recipient" in source_names
     for spec in specs:
         variable = sim.tax_benefit_system.variables[spec.source_name]
@@ -543,6 +544,37 @@ def test_conditional_inputs_are_not_preserved():
     )[0]
 
     assert "medicare_enrolled" not in scenario.adults[0].inputs
+
+
+def test_aggregate_net_worth_input_is_not_preserved():
+    """Aggregate net worth should not be mixed with partial balance-sheet facts."""
+    scenario = scenarios_from_cps_frame(
+        pd.DataFrame(
+            [
+                {
+                    "person_id": 1,
+                    "household_id": 1,
+                    "tax_unit_id": 1,
+                    "spm_unit_id": 1,
+                    "family_id": 1,
+                    "marital_unit_id": 1,
+                    "household_weight": 1.0,
+                    "state_code": "PA",
+                    "filing_status": "SINGLE",
+                    "age": 35,
+                    "employment_income": 50_000.0,
+                    "bank_account_assets": 500.0,
+                    "net_worth": 250_000.0,
+                    "is_tax_unit_head": True,
+                }
+            ]
+        ),
+        n=1,
+        seed=0,
+    )[0]
+
+    assert scenario.adults[0].inputs["bank_account_assets"] == 500.0
+    assert "net_worth" not in scenario.household_inputs
 
 
 def test_geographic_leaf_inputs_are_preserved():

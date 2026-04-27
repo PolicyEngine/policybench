@@ -106,6 +106,7 @@ EXCLUDED_INPUT_VARIABLES = {
     "is_tax_unit_head",
     "is_tax_unit_spouse",
     "la_receives_blind_exemption",
+    "net_worth",
     "person_count",
     "person_family_id",
     "person_household_id",
