@@ -39,6 +39,10 @@ EXTENDED_MAX_COMPLETION_TOKENS = 256
 EXPLANATION_MAX_COMPLETION_TOKENS = 1024
 GEMINI_JSON_MAX_COMPLETION_TOKENS = 512
 GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS = 2048
+MAX_COMPLETION_TOKENS_CAP = 4096
+ANSWER_TOKENS_PER_VARIABLE = 48
+EXPLANATION_TOKENS_PER_VARIABLE = 96
+ANSWER_COMPLETION_BUFFER_TOKENS = 96
 ANSWER_FUNCTION_NAME = "submit_answers"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 3
 
@@ -181,22 +185,67 @@ def _sum_optional_field(results: list[dict], field: str) -> float | int | None:
     return sum(values)
 
 
-def _completion_controls(model_id: str, include_explanations: bool = False) -> dict:
+def _completion_token_budget(
+    base_tokens: int,
+    variables: list[str] | None,
+    include_explanations: bool,
+) -> int:
+    variable_count = len(variables or [])
+    per_variable = (
+        EXPLANATION_TOKENS_PER_VARIABLE
+        if include_explanations
+        else ANSWER_TOKENS_PER_VARIABLE
+    )
+    dynamic_tokens = ANSWER_COMPLETION_BUFFER_TOKENS + per_variable * variable_count
+    return min(max(base_tokens, dynamic_tokens), MAX_COMPLETION_TOKENS_CAP)
+
+
+def _completion_controls(
+    model_id: str,
+    include_explanations: bool = False,
+    variables: list[str] | None = None,
+) -> dict:
     if model_id.startswith("gemini/"):
         if model_id == "gemini/gemini-3.1-pro-preview":
-            return {"max_completion_tokens": GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS}
-        return {"max_completion_tokens": GEMINI_JSON_MAX_COMPLETION_TOKENS}
+            base_tokens = GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS
+        else:
+            base_tokens = GEMINI_JSON_MAX_COMPLETION_TOKENS
+        return {
+            "max_completion_tokens": _completion_token_budget(
+                base_tokens, variables, include_explanations
+            )
+        }
     if model_id.startswith("xai/"):
         if include_explanations:
-            return {"max_tokens": EXPLANATION_MAX_COMPLETION_TOKENS}
-        return {"max_tokens": EXTENDED_MAX_COMPLETION_TOKENS}
+            base_tokens = EXPLANATION_MAX_COMPLETION_TOKENS
+        else:
+            base_tokens = EXTENDED_MAX_COMPLETION_TOKENS
+        return {
+            "max_tokens": _completion_token_budget(
+                base_tokens, variables, include_explanations
+            )
+        }
     if model_id.startswith("gpt-5"):
         if include_explanations:
-            return {"max_completion_tokens": EXPLANATION_MAX_COMPLETION_TOKENS}
-        return {"max_completion_tokens": EXTENDED_MAX_COMPLETION_TOKENS}
+            base_tokens = EXPLANATION_MAX_COMPLETION_TOKENS
+        else:
+            base_tokens = EXTENDED_MAX_COMPLETION_TOKENS
+        return {
+            "max_completion_tokens": _completion_token_budget(
+                base_tokens, variables, include_explanations
+            )
+        }
     if model_id.startswith("claude-"):
-        return {"max_completion_tokens": EXTENDED_MAX_COMPLETION_TOKENS}
-    return {"max_completion_tokens": DEFAULT_MAX_COMPLETION_TOKENS}
+        return {
+            "max_completion_tokens": _completion_token_budget(
+                EXTENDED_MAX_COMPLETION_TOKENS, variables, include_explanations
+            )
+        }
+    return {
+        "max_completion_tokens": _completion_token_budget(
+            DEFAULT_MAX_COMPLETION_TOKENS, variables, include_explanations
+        )
+    }
 
 
 def _request_timeout_seconds(model_id: str) -> int:
@@ -290,7 +339,11 @@ def _chat_completion_request_kwargs(
         "messages": messages,
         "caching": True,
         "timeout": _request_timeout_seconds(model_id),
-        **_completion_controls(model_id, include_explanations=include_explanations),
+        **_completion_controls(
+            model_id,
+            include_explanations=include_explanations,
+            variables=variables,
+        ),
     }
     if answer_contract == "tool":
         tool = _build_answer_tool(
@@ -336,6 +389,7 @@ def _responses_request_kwargs(
         "max_output_tokens": _completion_controls(
             model_id,
             include_explanations=include_explanations,
+            variables=variables,
         )["max_completion_tokens"],
     }
     if answer_contract == "tool":

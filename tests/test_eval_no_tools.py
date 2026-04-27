@@ -13,6 +13,7 @@ from policybench.eval_no_tools import (
     RequestWallTimeoutError,
     _build_answer_tool,
     _build_resume_metadata,
+    _completion_controls,
     _request_wall_timeout_seconds,
     _run_request_with_wall_timeout,
     _write_resume_metadata,
@@ -958,6 +959,30 @@ def test_request_wall_timeout_exceeds_provider_timeout():
     """Local wall timeouts should give providers a small grace period."""
     assert _request_wall_timeout_seconds({"timeout": 20}) == 50
     assert _request_wall_timeout_seconds({"timeout": 120}) == 180
+
+
+def test_completion_budget_scales_with_output_count():
+    """Large households can expand to many person-level outputs."""
+    variables = [f"output_{index}" for index in range(32)]
+
+    assert (
+        _completion_controls("gpt-5.4", variables=["income_tax"])[
+            "max_completion_tokens"
+        ]
+        == 256
+    )
+    assert (
+        _completion_controls("gpt-5.4", variables=variables)[
+            "max_completion_tokens"
+        ]
+        > 256
+    )
+    assert (
+        _completion_controls("xai/grok-4-1-fast-non-reasoning", variables=variables)[
+            "max_tokens"
+        ]
+        > 256
+    )
 
 
 def test_request_wall_timeout_interrupts_hung_request(monkeypatch):
