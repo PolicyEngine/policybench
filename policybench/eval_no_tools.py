@@ -3,6 +3,8 @@
 import hashlib
 import json
 import re
+import signal
+import threading
 import time
 from pathlib import Path
 from typing import Iterable
@@ -27,6 +29,8 @@ REQUEST_TIMEOUT_SECONDS = 20
 GEMINI_PRO_REQUEST_TIMEOUT_SECONDS = 60
 XAI_REASONING_REQUEST_TIMEOUT_SECONDS = 60
 XAI_GROK_420_REASONING_REQUEST_TIMEOUT_SECONDS = 120
+REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
+REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
 MAX_REPAIR_ROUNDS = 2
 RESUME_METADATA_VERSION = 1
@@ -37,7 +41,14 @@ GEMINI_JSON_MAX_COMPLETION_TOKENS = 512
 GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS = 2048
 ANSWER_FUNCTION_NAME = "submit_answers"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 3
+
+
+class RequestWallTimeoutError(TimeoutError):
+    """Raised when a provider request exceeds PolicyBench's local wall timeout."""
+
+
 NON_RETRYABLE_ERRORS = (
+    RequestWallTimeoutError,
     litellm.AuthenticationError,
     litellm.BadRequestError,
     litellm.ContextWindowExceededError,
@@ -200,6 +211,50 @@ def _request_timeout_seconds(model_id: str) -> int:
     ):
         return XAI_REASONING_REQUEST_TIMEOUT_SECONDS
     return REQUEST_TIMEOUT_SECONDS
+
+
+def _request_wall_timeout_seconds(request_kwargs: dict) -> float:
+    """Return a local hard timeout slightly above the provider timeout."""
+    provider_timeout = request_kwargs.get("timeout") or REQUEST_TIMEOUT_SECONDS
+    provider_timeout = float(provider_timeout)
+    return max(
+        provider_timeout + REQUEST_WALL_TIMEOUT_GRACE_SECONDS,
+        provider_timeout * REQUEST_WALL_TIMEOUT_MULTIPLIER,
+    )
+
+
+def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
+    """Run one LiteLLM request with a process-local wall-clock timeout.
+
+    Some provider clients can outlive the configured request timeout. The CLI
+    runs requests on the main thread, so SIGALRM gives the runner a last-resort
+    escape hatch while preserving normal behavior in non-main-thread contexts.
+    """
+    if (
+        threading.current_thread() is not threading.main_thread()
+        or not hasattr(signal, "SIGALRM")
+        or not hasattr(signal, "setitimer")
+    ):
+        return request_fn(**request_kwargs)
+
+    wall_timeout_seconds = _request_wall_timeout_seconds(request_kwargs)
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    previous_timer = signal.getitimer(signal.ITIMER_REAL)
+
+    def _raise_timeout(_signum, _frame):
+        raise RequestWallTimeoutError(
+            f"Provider request exceeded {wall_timeout_seconds}s wall-clock timeout"
+        )
+
+    signal.signal(signal.SIGALRM, _raise_timeout)
+    signal.setitimer(signal.ITIMER_REAL, wall_timeout_seconds)
+    try:
+        return request_fn(**request_kwargs)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_timer[0] > 0:
+            signal.setitimer(signal.ITIMER_REAL, *previous_timer)
 
 
 def _answer_contract_for_model(model_id: str) -> str:
@@ -790,7 +845,7 @@ def _request_predictions_once(
     for attempt in range(MAX_RETRIES):
         try:
             started_at = time.perf_counter()
-            response = request_fn(**request_kwargs)
+            response = _run_request_with_wall_timeout(request_fn, request_kwargs)
             elapsed_seconds = time.perf_counter() - started_at
             if _uses_responses_api(model_id):
                 content, tool_calls = _responses_content_and_tool_calls(response)

@@ -1,6 +1,7 @@
 """Tests for AI-alone evaluation (mocked LiteLLM calls)."""
 
 import json
+import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -9,8 +10,11 @@ import pytest
 
 from policybench.config import COUNTRY_PROGRAMS
 from policybench.eval_no_tools import (
+    RequestWallTimeoutError,
     _build_answer_tool,
     _build_resume_metadata,
+    _request_wall_timeout_seconds,
+    _run_request_with_wall_timeout,
     _write_resume_metadata,
     extract_explanations,
     extract_number,
@@ -906,6 +910,26 @@ def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario)
         mock_completion.call_args.kwargs["tools"][0]["function"]["name"]
         == "submit_answers"
     )
+
+
+def test_request_wall_timeout_exceeds_provider_timeout():
+    """Local wall timeouts should give providers a small grace period."""
+    assert _request_wall_timeout_seconds({"timeout": 20}) == 50
+    assert _request_wall_timeout_seconds({"timeout": 120}) == 180
+
+
+def test_request_wall_timeout_interrupts_hung_request(monkeypatch):
+    """The local timeout should prevent a provider request from hanging the run."""
+    monkeypatch.setattr(
+        "policybench.eval_no_tools.REQUEST_WALL_TIMEOUT_GRACE_SECONDS", 0
+    )
+    monkeypatch.setattr("policybench.eval_no_tools.REQUEST_WALL_TIMEOUT_MULTIPLIER", 1)
+
+    def slow_request(**_kwargs):
+        time.sleep(1)
+
+    with pytest.raises(RequestWallTimeoutError):
+        _run_request_with_wall_timeout(slow_request, {"timeout": 0.05})
 
 
 @patch("policybench.eval_no_tools.completion_cost", return_value=0.00456)
