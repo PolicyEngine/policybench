@@ -7,6 +7,7 @@ import pytest
 
 from policybench.scenarios import (
     SUPPORTED_FILING_STATUSES,
+    _eligible_uk_households,
     _is_geographic_defined_for,
     generate_scenarios,
     get_promptable_input_specs,
@@ -294,6 +295,7 @@ def sample_uk_frames():
                 "savings_interest_income": 120.0,
                 "dividend_income": 50.0,
                 "private_pension_income": 0.0,
+                "state_pension": 0.0,
                 "state_pension_reported": 0.0,
                 "capital_gains_before_response": 0.0,
                 "property_income": 0.0,
@@ -321,6 +323,7 @@ def sample_uk_frames():
                 "savings_interest_income": 0.0,
                 "dividend_income": 0.0,
                 "private_pension_income": 0.0,
+                "state_pension": 0.0,
                 "state_pension_reported": 0.0,
                 "capital_gains_before_response": 0.0,
                 "property_income": 0.0,
@@ -348,6 +351,7 @@ def sample_uk_frames():
                 "savings_interest_income": 40.0,
                 "dividend_income": 0.0,
                 "private_pension_income": 8_500.0,
+                "state_pension": 12_000.0,
                 "state_pension_reported": 11_000.0,
                 "capital_gains_before_response": 0.0,
                 "property_income": 0.0,
@@ -358,7 +362,9 @@ def sample_uk_frames():
                 "blind_persons_allowance": 0.0,
                 "is_disabled_for_benefits": True,
                 "pip_dl_category": "STANDARD",
+                "pip_dl_reported": 5_740.80,
                 "pip_m_category": "NONE",
+                "pip_m_reported": 0.0,
                 "hours_worked": 0.0,
                 "is_disabled": True,
                 "is_student": False,
@@ -439,7 +445,7 @@ def test_scenario_structure(sample_person_frame):
         assert scenario.filing_status in SUPPORTED_FILING_STATUSES.values()
         assert len(scenario.adults) >= 1
         assert scenario.num_children >= 0
-        assert scenario.year == 2025
+        assert scenario.year == 2026
         assert scenario.source_dataset == "enhanced_cps"
 
 
@@ -448,7 +454,6 @@ def test_invalid_households_are_filtered(sample_person_frame):
     scenarios = scenarios_from_cps_frame(sample_person_frame, n=4, seed=0)
     household_ids = {scenario.metadata["household_id"] for scenario in scenarios}
     assert 104 not in household_ids
-    assert 103 not in household_ids
 
 
 def test_large_households_are_allowed_when_structure_is_clean(sample_person_frame):
@@ -461,20 +466,18 @@ def test_large_households_are_allowed_when_structure_is_clean(sample_person_fram
     assert scenario_106.num_children == 6
 
 
-def test_joint_filers_have_exactly_two_adults(sample_person_frame):
-    """Joint filers should map to exactly two adults in promptable scenarios."""
-    scenarios = scenarios_from_cps_frame(sample_person_frame, n=4, seed=0)
-    for scenario in scenarios:
-        if scenario.filing_status == "joint":
-            assert len(scenario.adults) == 2
+def test_adult_dependents_are_allowed_when_structure_is_clean(sample_person_frame):
+    """Single-tax-unit households can include adult dependents."""
+    scenarios = scenarios_from_cps_frame(sample_person_frame, n=5, seed=0)
+    scenario_103 = next(
+        scenario for scenario in scenarios if scenario.metadata["household_id"] == 103
+    )
 
-
-def test_single_and_hoh_filers_have_exactly_one_adult(sample_person_frame):
-    """Single and HoH scenarios should exclude extra unlabeled adults."""
-    scenarios = scenarios_from_cps_frame(sample_person_frame, n=4, seed=0)
-    for scenario in scenarios:
-        if scenario.filing_status in {"single", "head_of_household"}:
-            assert len(scenario.adults) == 1
+    assert [person.name for person in scenario_103.adults] == ["head", "dependent1"]
+    assert scenario_103.adults[0].inputs["is_tax_unit_head"] is True
+    assert scenario_103.adults[0].inputs["is_tax_unit_spouse"] is False
+    assert scenario_103.adults[1].inputs["is_tax_unit_head"] is False
+    assert scenario_103.adults[1].inputs["is_tax_unit_spouse"] is False
 
 
 def test_richer_cps_inputs_are_preserved(sample_person_frame):
@@ -509,10 +512,16 @@ def test_promptable_inputs_are_pure_leaf_variables():
     assert "employer_quarterly_payroll_expense_override" not in source_names
     assert "employer_state_unemployment_tax_rate_override" not in source_names
     assert "has_medicaid_health_coverage_at_interview" not in source_names
-    assert "hours_worked_last_week" not in source_names
+    assert "has_never_worked" not in source_names
+    assert "hourly_wage" in source_names
+    assert "hours_worked_last_week" in source_names
+    assert "is_paid_hourly" in source_names
+    assert "is_union_member_or_covered" not in source_names
     assert "is_wic_at_nutritional_risk" not in source_names
-    assert "selected_marketplace_plan_benchmark_ratio" not in source_names
+    assert "selected_marketplace_plan_benchmark_ratio" in source_names
     assert "va_ccsp_is_full_day" not in source_names
+    assert "weekly_hours_worked" not in source_names
+    assert "weekly_hours_worked_before_lsr" not in source_names
     assert all("_last_year" not in source_name for source_name in source_names)
     assert "was_calworks_recipient" in source_names
     for spec in specs:
@@ -606,12 +615,15 @@ def test_aggregate_net_worth_input_is_not_preserved():
                     "employer_quarterly_payroll_expense_override": -1.0,
                     "employer_state_unemployment_tax_rate_override": -1.0,
                     "employment_income_last_year": 48_000.0,
+                    "hourly_wage": 25.0,
                     "hours_worked_last_week": 40.0,
+                    "is_paid_hourly": True,
                     "is_wic_at_nutritional_risk": True,
                     "net_worth": 250_000.0,
-                    "selected_marketplace_plan_benchmark_ratio": 1.0,
+                    "selected_marketplace_plan_benchmark_ratio": 1.25,
                     "self_employment_income_last_year": 2_000.0,
                     "va_ccsp_is_full_day": True,
+                    "weekly_hours_worked": 40.0,
                     "is_tax_unit_head": True,
                 }
             ]
@@ -625,16 +637,86 @@ def test_aggregate_net_worth_input_is_not_preserved():
         "employer_quarterly_payroll_expense_override" not in scenario.adults[0].inputs
     )
     assert (
-        "employer_state_unemployment_tax_rate_override"
-        not in scenario.adults[0].inputs
+        "employer_state_unemployment_tax_rate_override" not in scenario.adults[0].inputs
     )
-    assert "hours_worked_last_week" not in scenario.adults[0].inputs
+    assert scenario.adults[0].inputs["hourly_wage"] == 25.0
+    assert scenario.adults[0].inputs["hours_worked_last_week"] == 40.0
+    assert scenario.adults[0].inputs["is_paid_hourly"] is True
     assert "is_wic_at_nutritional_risk" not in scenario.adults[0].inputs
-    assert "selected_marketplace_plan_benchmark_ratio" not in scenario.tax_unit_inputs
+    assert "weekly_hours_worked" not in scenario.adults[0].inputs
+    assert scenario.tax_unit_inputs["selected_marketplace_plan_benchmark_ratio"] == 1.25
     assert "employment_income_last_year" not in scenario.adults[0].inputs
     assert "self_employment_income_last_year" not in scenario.adults[0].inputs
     assert "va_ccsp_is_full_day" not in scenario.adults[0].inputs
     assert "net_worth" not in scenario.household_inputs
+
+
+def test_formula_overtime_premium_is_not_prompted_or_sent_to_policyengine():
+    scenario = scenarios_from_cps_frame(
+        pd.DataFrame(
+            [
+                {
+                    "person_id": 1,
+                    "household_id": 1,
+                    "tax_unit_id": 1,
+                    "spm_unit_id": 1,
+                    "family_id": 1,
+                    "marital_unit_id": 1,
+                    "household_weight": 1.0,
+                    "state_code": "PA",
+                    "filing_status": "SINGLE",
+                    "age": 35,
+                    "employment_income": 50_000.0,
+                    "fsla_overtime_premium": 3_000.0,
+                    "tip_income": 5_000.0,
+                    "is_tax_unit_head": True,
+                }
+            ]
+        ),
+        n=1,
+        seed=0,
+    )[0]
+
+    assert scenario.adults[0].inputs["tip_income"] == 5_000.0
+    assert scenario.total_income == 50_000.0
+
+    pe_household = scenario.to_pe_household()
+    head = pe_household["people"]["head"]
+    assert "tip_income" in head
+    assert "fsla_overtime_premium" not in head
+
+
+def test_formula_county_fields_are_not_prompted_or_sent_to_policyengine():
+    scenario = scenarios_from_cps_frame(
+        pd.DataFrame(
+            [
+                {
+                    "person_id": 1,
+                    "household_id": 1,
+                    "tax_unit_id": 1,
+                    "spm_unit_id": 1,
+                    "family_id": 1,
+                    "marital_unit_id": 1,
+                    "household_weight": 1.0,
+                    "state_code": "CA",
+                    "state_fips": 6,
+                    "county_fips": 37,
+                    "county_str": "LOS_ANGELES_COUNTY_CA",
+                    "filing_status": "SINGLE",
+                    "age": 35,
+                    "employment_income": 50_000.0,
+                    "is_tax_unit_head": True,
+                }
+            ]
+        ),
+        n=1,
+        seed=0,
+    )[0]
+
+    pe_household = scenario.to_pe_household()
+    household = pe_household["households"]["household"]
+    assert "county_fips" not in household
+    assert "county_str" not in household
 
 
 def test_geographic_leaf_inputs_are_preserved():
@@ -677,7 +759,7 @@ def test_children_and_adults_split_by_age(sample_person_frame):
 
 
 def test_pe_household_format(simple_single_scenario):
-    """PE household JSON has required structure, including filing status."""
+    """PE household JSON has required structure and lets PE infer filing status."""
     household = simple_single_scenario.to_pe_household()
 
     assert "people" in household
@@ -692,17 +774,17 @@ def test_pe_household_format(simple_single_scenario):
     assert "employment_income" in person
 
     tax_unit = household["tax_units"]["tax_unit"]
-    assert tax_unit["filing_status"]["2025"] == "SINGLE"
-    assert tax_unit["takes_up_eitc"]["2025"] is True
-    assert tax_unit["would_file_if_eligible_for_refundable_credit"]["2025"] is True
-    assert tax_unit["would_file_taxes_voluntarily"]["2025"] is True
+    assert "filing_status" not in tax_unit
+    assert tax_unit["takes_up_eitc"]["2026"] is True
+    assert tax_unit["would_file_if_eligible_for_refundable_credit"]["2026"] is True
+    assert tax_unit["would_file_taxes_voluntarily"]["2026"] is True
 
     housing = household["households"]["household"]
     assert "state_code" in housing
     assert (
-        household["people"]["adult1"]["takes_up_medicaid_if_eligible"]["2025"] is True
+        household["people"]["adult1"]["takes_up_medicaid_if_eligible"]["2026"] is True
     )
-    assert household["people"]["adult1"]["takes_up_ssi_if_eligible"]["2025"] is True
+    assert household["people"]["adult1"]["takes_up_ssi_if_eligible"]["2026"] is True
 
 
 def test_pe_household_includes_cross_entity_inputs():
@@ -735,21 +817,21 @@ def test_pe_household_includes_cross_entity_inputs():
     )[0]
 
     household = scenario.to_pe_household()
-    assert household["people"]["adult1"]["real_estate_taxes"]["2025"] == 4_200.0
+    assert household["people"]["head"]["real_estate_taxes"]["2026"] == 4_200.0
     assert (
-        household["tax_units"]["tax_unit"]["health_savings_account_ald"]["2025"]
+        household["tax_units"]["tax_unit"]["health_savings_account_ald"]["2026"]
         == 900.0
     )
     assert (
         household["spm_units"]["spm_unit"]["spm_unit_pre_subsidy_childcare_expenses"][
-            "2025"
+            "2026"
         ]
         == 1_200.0
     )
     assert (
-        household["spm_units"]["spm_unit"]["takes_up_snap_if_eligible"]["2025"] is True
+        household["spm_units"]["spm_unit"]["takes_up_snap_if_eligible"]["2026"] is True
     )
-    assert household["households"]["household"]["auto_loan_interest"]["2025"] == 250.0
+    assert household["households"]["household"]["auto_loan_interest"]["2026"] == 250.0
 
 
 def test_total_income_ignores_deductions_and_hours(sample_person_frame):
@@ -768,7 +850,7 @@ def test_pe_household_with_children(family_scenario):
     assert "adult2" in all_members
     assert "child1" in all_members
     assert "child2" in all_members
-    assert household["tax_units"]["tax_unit"]["filing_status"]["2025"] == "JOINT"
+    assert "filing_status" not in household["tax_units"]["tax_unit"]
     assert len(household["people"]) == 4
 
 
@@ -897,6 +979,64 @@ def test_scenarios_from_uk_frames_include_region_and_household_inputs(sample_uk_
     assert "council_tax" not in london.household_inputs
     assert "benunit_id" not in london.household_inputs
     assert london.children[0].inputs["is_student"] is True
+    pensioner = next(s for s in scenarios if s.state == "WALES")
+    assert pensioner.adults[0].inputs["state_pension"] == 12_000.0
+    assert "state_pension_reported" not in pensioner.adults[0].inputs
+    assert pensioner.adults[0].inputs["pip_dl_category"] == "STANDARD"
+    assert "pip_dl_reported" not in pensioner.adults[0].inputs
+    assert "pip_m_reported" not in pensioner.adults[0].inputs
+
+
+def test_scenarios_from_uk_frames_keeps_adult_qualifying_young_people_as_dependents(
+    sample_uk_frames,
+):
+    person_df, household_df = sample_uk_frames
+    qyp_people = person_df.iloc[[0, 1]].copy()
+    qyp_people["person_id"] = [20, 21]
+    qyp_people["person_household_id"] = 1003
+    qyp_people["person_benunit_id"] = 3001
+    qyp_people["age"] = [45, 18]
+    qyp_people["is_child_or_QYP"] = [False, True]
+    qyp_household = household_df.iloc[[0]].copy()
+    qyp_household["household_id"] = 1003
+    qyp_household["household_weight"] = 1_000.0
+
+    person_df = pd.concat([person_df, qyp_people], ignore_index=True)
+    household_df = pd.concat([household_df, qyp_household], ignore_index=True)
+    eligible = _eligible_uk_households(person_df, household_df)
+    scenarios = scenarios_from_uk_frames(
+        person_df,
+        household_df,
+        n=3,
+        seed=0,
+    )
+
+    assert set(eligible["household_id"]) == {1001, 1002, 1003}
+    qyp_scenario = next(s for s in scenarios if s.metadata["household_id"] == 1003)
+    assert [person.name for person in qyp_scenario.adults] == ["adult1"]
+    assert [person.name for person in qyp_scenario.children] == ["qyp1"]
+
+
+def test_scenarios_from_uk_frames_filter_to_one_benefit_unit(sample_uk_frames):
+    person_df, household_df = sample_uk_frames
+    extra_people = person_df.iloc[[0, 0]].copy()
+    extra_people["person_id"] = [10, 11]
+    extra_people["person_household_id"] = 1003
+    extra_people["person_benunit_id"] = [3001, 3002]
+    extra_people["age"] = [40, 38]
+    extra_household = household_df.iloc[[0]].copy()
+    extra_household["household_id"] = 1003
+    extra_household["household_weight"] = 1_000.0
+
+    scenarios = scenarios_from_uk_frames(
+        pd.concat([person_df, extra_people], ignore_index=True),
+        pd.concat([household_df, extra_household], ignore_index=True),
+        n=2,
+        seed=0,
+    )
+
+    household_ids = {scenario.metadata["household_id"] for scenario in scenarios}
+    assert household_ids == {1001, 1002}
 
 
 def test_scenarios_from_uk_frames_use_employment_income_leaf(sample_uk_frames):

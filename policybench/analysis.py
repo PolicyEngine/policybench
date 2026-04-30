@@ -371,7 +371,7 @@ def compute_metrics(
         predictions: DataFrame with columns [model, scenario_id, variable, prediction]
 
     Returns:
-        DataFrame with bounded hit-rate scores plus diagnostic error metrics
+        DataFrame with bounded hit-rate scores plus secondary error metrics
     """
     merged = _expected_prediction_grid(ground_truth, predictions).merge(
         predictions[["model", "scenario_id", "variable", "prediction"]],

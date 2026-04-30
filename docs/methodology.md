@@ -24,8 +24,9 @@ leaderboard. Frozen paper claims should be read from
 which records the exact run directories and shared model set used for
 manuscript claims.
 
-Models are prompted to return only numeric outputs under a structured response
-contract.
+Models are prompted to return numeric outputs plus one short non-empty
+explanation per output under a structured response contract. Scores use the
+numeric outputs; explanations are retained for audit and error analysis.
 
 ## Programs evaluated
 
@@ -35,24 +36,27 @@ person- or household-facing outputs that contribute to household net income.
 PolicyEngine variables may be native to lower-level entities; the benchmark
 contract either expands them to the people shown in the prompt or aggregates
 them to the household before scoring. Intermediate tax bases move to
-supplementary diagnostics. Coverage eligibility outputs are booleans and are
+supplementary outputs. Coverage eligibility outputs are booleans and are
 weighted by PolicyEngine dollar-value proxies in the household-equal impact
 score.
 
-The rebuilt US headline scope evaluates direct net-income components and
-coverage flags:
+The rebuilt US headline scope evaluates direct net-income components,
+health-related support, and coverage flags:
 
 | Variable | Description | Category |
 |:---------|:-----------|:---------|
-| `income_tax` | Federal income tax after refundable credits | Federal tax |
+| `federal_income_tax_before_refundable_credits` | Federal income tax after nonrefundable credits and before refundable credits | Federal tax |
+| `federal_refundable_credits` | Federal refundable income tax credits | Federal tax |
 | `payroll_tax` | Payroll tax on wages | Payroll tax |
 | `self_employment_tax` | Self-employment tax | Payroll tax |
-| `household_state_income_tax` | State income tax liability | State tax |
+| `state_income_tax_before_refundable_credits` | State income tax before refundable credits | State tax |
+| `state_refundable_credits` | State refundable income tax credits | State tax |
 | `local_income_tax` | Local income tax liability | Local tax |
 | `snap` | SNAP (food stamps) annual benefit | Benefits |
 | `ssi` | Supplemental Security Income | Benefits |
 | `tanf` | TANF benefit amount | Benefits |
-| `wic` | WIC benefit amount | Benefits |
+| `premium_tax_credit` | ACA Marketplace premium assistance | Health |
+| `person_wic_eligible` | Expanded to one WIC eligibility flag per person in the household | Coverage |
 | `person_medicaid_eligible` | Expanded to one Medicaid eligibility flag per person in the household | Coverage |
 | `person_chip_eligible` | Expanded to one CHIP eligibility flag per person in the household | Coverage |
 | `person_medicare_eligible` | Expanded to one Medicare eligibility flag per person in the household | Coverage |
@@ -72,29 +76,43 @@ The rebuilt UK headline scope evaluates:
 | `pension_credit` | Pension Credit amount | Benefits |
 | `pip` | Personal Independence Payment amount | Benefits |
 
-Intermediate tax bases, credit components, and payroll-tax decompositions are
-kept in supplementary diagnostic sets. For example, the US supplementary set
-includes AGI, pre-credit tax, EITC, CTC, refundable credits, person-level
+Intermediate tax bases and payroll-tax decompositions are kept in supplementary
+output sets. For example, the US supplementary set includes AGI, person-level
 employee Social Security and Medicare tax, and household Additional Medicare
-Tax. Binary coverage outputs are scored with classification accuracy rather
-than dollar error metrics.
+Tax. The US headline federal tax decomposition is intentionally compact: final
+federal income tax excluding ACA PTC should equal tax before refundable credits
+minus federal refundable credits. ACA Premium Tax Credit is kept as a separate
+health-related output because it depends on Marketplace premium assistance
+rather than only income-tax credit sequencing. Binary coverage outputs are
+scored with classification accuracy rather than dollar error metrics.
 
 ## Household scenarios
 
 US scenarios are sampled from Enhanced CPS households with a fixed random seed
 for reproducibility. To keep household descriptions faithful and tractable, we
-restrict sampled cases to households with a single tax unit, a single SPM unit,
-and a single family, then carry through observed filing status, ages, employment
-patterns, and selected non-wage income sources. The public UK path samples from
-the UK-calibrated transfer dataset.
+restrict sampled cases to households with a single federal tax unit, a single
+family, and a single benefit-calculation unit. Adult dependents remain in scope
+when they satisfy those restrictions. We carry through ages, household roles,
+employment patterns, and selected non-wage income sources, but do not provide
+filing status in the prompt.
 
-Each scenario is converted to a PolicyEngine-US household JSON object specifying people, tax units, SPM units, families, and households. Filing status is encoded directly in the tax unit payload so that the benchmark label matches the described case.
+The public UK path samples from the UK-calibrated transfer dataset. The current
+UK benchmark keeps households with one benefit unit and one or two adults. The
+prompt states that all listed people are in the same UK benefit unit; if two
+adults are listed, they are the couple in that benefit unit. This keeps
+Universal Credit, Pension Credit, Child Benefit, Income Tax, and National
+Insurance prompts aligned with the household structure used by PolicyEngine-UK.
+
+Each scenario is converted to a PolicyEngine-US household JSON object
+specifying people, tax units, SPM units, families, and households. Tax-unit role
+flags are included in the PolicyEngine input so the reference calculation can
+infer filing status from the same household structure described to the model.
 
 ## Reference-output computation
 
 Reference output values are computed using PolicyEngine-US and PolicyEngine-UK.
 For each sampled scenario and selected output, we run a PolicyEngine simulation
-for tax year 2025 and record the computed value.
+for tax year 2026 and record the computed value.
 
 PolicyEngine is the benchmark reference source. Its calculations implement
 policy rules and are maintained as open-source microsimulation models. Any
@@ -118,4 +136,4 @@ $$\text{MAPE} = \frac{1}{|S|}\sum_{i \in S}\left|\frac{\hat{y}_i - y_i}{y_i}\rig
 
 $$\text{Acc}_{10\%} = \frac{1}{n}\sum_{i=1}^{n}\mathbf{1}\left[\frac{|\hat{y}_i - y_i|}{|y_i|} \leq 0.10\right]$$
 
-For household-boolean diagnostic variables, we report classification accuracy.
+For binary variables, we report classification accuracy.

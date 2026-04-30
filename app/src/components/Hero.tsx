@@ -13,13 +13,14 @@ import { VIEW_LABELS } from "../types";
 function ViewSelector({
   selectedView,
   onSelect,
+  views,
   compact,
 }: {
   selectedView: ViewKey;
   onSelect: (view: ViewKey) => void;
+  views: ViewKey[];
   compact?: boolean;
 }) {
-  const views: ViewKey[] = ["global", "us", "uk"];
   const pill = compact
     ? "rounded-full text-[10px] px-2.5 py-1 font-medium transition-colors"
     : "rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:px-4";
@@ -77,6 +78,7 @@ export default function Hero({
   onSelectView,
   dashboard,
   data,
+  availableViews,
   navItems,
   activeNav,
 }: {
@@ -84,6 +86,7 @@ export default function Hero({
   onSelectView: (view: ViewKey) => void;
   dashboard: DashboardBundle;
   data: BenchData | GlobalBenchData;
+  availableViews: ViewKey[];
   navItems: readonly NavItem[];
   activeNav: string;
 }) {
@@ -96,19 +99,22 @@ export default function Hero({
     .filter((m) => m.condition === "no_tools")
     .sort((a, b) => b.score - a.score);
   const leadModel = rankedNoTools[0];
-  const usHouseholds = Object.keys(dashboard.countries.us.scenarios).length;
-  const ukHouseholds = Object.keys(dashboard.countries.uk.scenarios).length;
+  const countryHouseholds = Object.values(dashboard.countries).map(
+    (country) => Object.keys(country?.scenarios ?? {}).length
+  );
+  const totalHouseholds = countryHouseholds.reduce((sum, count) => sum + count, 0);
+  const countryCount = countryHouseholds.length;
 
   const subtitle = isGlobal
-    ? `${(data as GlobalBenchData).sharedModelCount} frontier models across ${(usHouseholds + ukHouseholds).toLocaleString()} households in 2 countries.`
+    ? `${(data as GlobalBenchData).sharedModelCount} frontier models across ${totalHouseholds.toLocaleString()} households in ${countryCount} countries.`
     : `${rankedNoTools.length} models on ${Object.keys(benchData!.scenarios).length.toLocaleString()} households across ${benchData!.programStats.length} tax and benefit outputs.`;
 
   const stats = isGlobal
     ? [
         { value: `${leadModel?.score.toFixed(1) ?? "0.0"}%`, label: "Top score" },
-        { value: "2", label: "Countries" },
+        { value: `${countryCount}`, label: "Countries" },
         { value: `${(data as GlobalBenchData).sharedModelCount}`, label: "Models" },
-        { value: `${(usHouseholds + ukHouseholds).toLocaleString()}`, label: "Households" },
+        { value: `${totalHouseholds.toLocaleString()}`, label: "Households" },
       ]
     : [
         { value: `${leadModel?.score.toFixed(1) ?? "0.0"}%`, label: "Top score" },
@@ -211,6 +217,7 @@ export default function Hero({
           <ViewSelector
             selectedView={selectedView}
             onSelect={onSelectView}
+            views={availableViews}
             compact={scrolled}
           />
 

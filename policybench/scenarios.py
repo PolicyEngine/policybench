@@ -18,12 +18,6 @@ SUPPORTED_FILING_STATUSES = {
     "HEAD_OF_HOUSEHOLD": "head_of_household",
 }
 
-PE_FILING_STATUSES = {
-    "single": "SINGLE",
-    "joint": "JOINT",
-    "head_of_household": "HEAD_OF_HOUSEHOLD",
-}
-
 ALLOWED_INPUT_ENTITIES = {"person", "tax_unit", "spm_unit", "household"}
 
 US_STATE_CODES = {
@@ -93,24 +87,29 @@ EXCLUDED_INPUT_VARIABLES = {
     "employer_quarterly_payroll_expense_override",
     "employer_state_unemployment_tax_rate_override",
     "has_itin",
+    "has_marketplace_health_coverage",
     "has_marketplace_health_coverage_at_interview",
     "has_medicaid_health_coverage_at_interview",
+    "has_never_worked",
     "has_non_marketplace_direct_purchase_health_coverage_at_interview",
     "has_tricare_health_coverage_at_interview",
     "has_va_health_coverage_at_interview",
     "household_count",
     "household_id",
     "household_weight",
-    "hours_worked_last_week",
     "id_receives_aged_or_disabled_credit",
+    "four_year_college_student",
     "is_computer_scientist",
     "is_executive_administrative_professional",
     "is_farmer_fisher",
     "is_female",
+    "is_eligible_for_american_opportunity_credit",
+    "is_full_time_college_student",
+    "is_part_time_college_student",
     "is_hispanic",
     "is_household_head",
-    "is_related_to_head_or_spouse",
     "is_tafdc_related_to_head_or_spouse",
+    "is_union_member_or_covered",
     "is_wic_at_nutritional_risk",
     "is_tax_unit_head",
     "is_tax_unit_spouse",
@@ -125,7 +124,7 @@ EXCLUDED_INPUT_VARIABLES = {
     "person_spm_unit_id",
     "person_tax_unit_id",
     "previous_year_income_available",
-    "selected_marketplace_plan_benchmark_ratio",
+    "qualified_tuition_expenses",
     "spm_unit_id",
     "spm_unit_capped_work_childcare_expenses",
     "spm_unit_spm_threshold",
@@ -133,7 +132,11 @@ EXCLUDED_INPUT_VARIABLES = {
     "state_fips",
     "tax_unit_count",
     "tax_unit_id",
+    "technical_institution_student",
+    "tuition_and_fees",
     "va_ccsp_is_full_day",
+    "weekly_hours_worked",
+    "weekly_hours_worked_before_lsr",
     "wy_power_shelter_qualified",
 }
 
@@ -150,10 +153,13 @@ EXCLUDED_INPUT_SUFFIXES = (
     "_would_be_qualified",
 )
 
+PROMPTABLE_REPORTED_INPUTS = {
+    "employee_pension_contributions_reported",
+}
+
 INPUT_NAME_ALIASES = {
     "employment_income_before_lsr": "employment_income",
     "self_employment_income_before_lsr": "self_employment_income",
-    "weekly_hours_worked_before_lsr": "weekly_hours_worked",
     "long_term_capital_gains_before_response": "long_term_capital_gains",
 }
 
@@ -205,7 +211,6 @@ MONETARY_INCOME_FIELDS = {
     "taxable_ira_distributions",
     "taxable_private_pension_income",
     "taxable_sep_distributions",
-    "tip_income",
     "unemployment_compensation",
     "veterans_benefits",
     "workers_compensation",
@@ -258,6 +263,7 @@ UK_HOUSEHOLD_ID_COLUMNS = {
 UK_EXCLUDED_PERSON_INPUTS = {
     *UK_PERSON_ID_COLUMNS,
     "person_id",
+    "is_child_or_QYP",
 }
 
 UK_EXCLUDED_HOUSEHOLD_INPUTS = {
@@ -274,6 +280,7 @@ UK_EXCLUDED_HOUSEHOLD_INPUTS = {
     "health_consumption",
     "household_furnishings_consumption",
     "housing_water_and_electricity_consumption",
+    "main_residence_value",
     "miscellaneous_consumption",
     "num_vehicles",
     "petrol_spending",
@@ -345,11 +352,14 @@ def is_prior_year_input_name(name: str) -> bool:
 
 
 def is_excluded_prompt_input_name(name: str) -> bool:
+    excluded_by_suffix = name.endswith(EXCLUDED_INPUT_SUFFIXES) and (
+        name not in PROMPTABLE_REPORTED_INPUTS
+    )
     return (
         name in EXCLUDED_INPUT_VARIABLES
         or is_prior_year_input_name(name)
         or name.startswith(EXCLUDED_INPUT_PREFIXES)
-        or name.endswith(EXCLUDED_INPUT_SUFFIXES)
+        or excluded_by_suffix
     )
 
 
@@ -476,7 +486,6 @@ class Scenario:
 
         tax_unit_data = {
             "members": all_names,
-            "filing_status": self._yearize(PE_FILING_STATUSES[self.filing_status]),
         }
         for key, value in self.tax_unit_inputs.items():
             tax_unit_data[key] = self._yearize(value)
@@ -619,11 +628,15 @@ def get_uk_dataset_path() -> Path:
 
 def load_uk_transfer_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
     """Load person and household frames from the local UK transfer artifact."""
-    from policybench.policyengine_runtime import get_uk_single_year_dataset_class
+    from policybench.policyengine_runtime import (
+        get_uk_single_year_dataset_class,
+        make_uk_transfer_microsimulation,
+    )
 
     os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
+    dataset_path = get_uk_dataset_path()
     UKSingleYearDataset = get_uk_single_year_dataset_class()
-    dataset = UKSingleYearDataset(file_path=str(get_uk_dataset_path()))
+    dataset = UKSingleYearDataset(file_path=str(dataset_path))
     values = dataset.load()
 
     person_length = len(values["person_id"])
@@ -651,6 +664,31 @@ def load_uk_transfer_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
     person_df["age"] = (
         pd.to_numeric(person_df["age"], errors="coerce").fillna(0).astype(int)
     )
+
+    sim = make_uk_transfer_microsimulation(dataset_path)
+    period = str(TAX_YEAR)
+    for variable in (
+        "state_pension",
+        "is_child_or_QYP",
+        "pip_dl_category",
+        "pip_m_category",
+    ):
+        if variable not in sim.tax_benefit_system.variables:
+            continue
+        calculated = np.asarray(
+            sim.calculate(
+                variable,
+                period,
+                map_to="person",
+                unweighted=True,
+            )
+        )
+        if len(calculated) != len(person_df):
+            raise ValueError(
+                f"Calculated UK person variable '{variable}' returned "
+                f"{len(calculated)} values for {len(person_df)} people."
+            )
+        person_df[variable] = calculated
 
     household_df["household_id"] = pd.to_numeric(
         household_df["household_id"], errors="coerce"
@@ -732,7 +770,11 @@ def _prepare_cps_frame(person_df: pd.DataFrame) -> pd.DataFrame:
     }
     missing_defaults.update(
         {
-            spec.output_name: False if spec.value_type == "bool" else 0.0
+            spec.output_name: (
+                spec.default_value
+                if spec.default_value is not None
+                else (False if spec.value_type == "bool" else 0.0)
+            )
             for spec in input_specs
             if spec.output_name not in df.columns
         }
@@ -803,16 +845,9 @@ def _eligible_households(person_df: pd.DataFrame) -> pd.DataFrame:
         (summary["tax_units"] == 1)
         & (summary["spm_units"] == 1)
         & (summary["families"] == 1)
+        & (summary["adults"] >= 1)
         & (summary["filing_status"].isin(SUPPORTED_FILING_STATUSES))
     ]
-
-    exact_adult_counts = (
-        (summary["filing_status"] == "JOINT") & (summary["adults"] == 2)
-    ) | (
-        summary["filing_status"].isin(["SINGLE", "HEAD_OF_HOUSEHOLD"])
-        & (summary["adults"] == 1)
-    )
-    summary = summary[exact_adult_counts]
     return summary
 
 
@@ -883,8 +918,12 @@ def _extract_entity_inputs(
             continue
 
         if spec.value_type == "bool":
-            if bool(row[spec.output_name]):
-                inputs[spec.output_name] = True
+            value = bool(row[spec.output_name])
+            default = (
+                bool(spec.default_value) if spec.default_value is not None else False
+            )
+            if value != default:
+                inputs[spec.output_name] = value
             continue
 
         value = float(row[spec.output_name])
@@ -897,6 +936,67 @@ def _extract_entity_inputs(
             inputs[spec.output_name] = value
 
     return inputs
+
+
+def _build_person_with_tax_unit_role(row: pd.Series, label: str) -> Person:
+    person = _build_person(row, label)
+    person.inputs["is_tax_unit_head"] = bool(row["is_tax_unit_head"])
+    person.inputs["is_tax_unit_spouse"] = bool(row["is_tax_unit_spouse"])
+    return person
+
+
+def _person_role_label(
+    row: pd.Series,
+    *,
+    dependent_count: int,
+    child_count: int,
+) -> str:
+    if bool(row["is_tax_unit_head"]):
+        return "head"
+    if bool(row["is_tax_unit_spouse"]):
+        return "spouse"
+    if bool(row["is_adult"]):
+        return f"dependent{dependent_count}"
+    return f"child{child_count}"
+
+
+def _build_people_from_household(
+    household: pd.DataFrame,
+) -> tuple[list[Person], list[Person]]:
+    adults: list[Person] = []
+    children: list[Person] = []
+    dependent_count = 0
+    child_count = 0
+
+    for _, row in household.iterrows():
+        if bool(row["is_tax_unit_head"]) or bool(row["is_tax_unit_spouse"]):
+            label = _person_role_label(
+                row,
+                dependent_count=dependent_count,
+                child_count=child_count,
+            )
+        elif bool(row["is_adult"]):
+            dependent_count += 1
+            label = _person_role_label(
+                row,
+                dependent_count=dependent_count,
+                child_count=child_count,
+            )
+        else:
+            child_count += 1
+            label = _person_role_label(
+                row,
+                dependent_count=dependent_count,
+                child_count=child_count,
+            )
+
+        person = _build_person_with_tax_unit_role(row, label)
+        if bool(row["is_adult"]):
+            adults.append(person)
+        else:
+            children.append(person)
+
+    return adults, children
 
 
 def _build_person(row: pd.Series, label: str) -> Person:
@@ -933,18 +1033,7 @@ def scenarios_from_cps_frame(
             ascending=[False, False, False, True],
         )
 
-        adults = []
-        children = []
-        adult_count = 0
-        child_count = 0
-
-        for _, row in household.iterrows():
-            if row["is_adult"]:
-                adult_count += 1
-                adults.append(_build_person(row, f"adult{adult_count}"))
-            else:
-                child_count += 1
-                children.append(_build_person(row, f"child{child_count}"))
+        adults, children = _build_people_from_household(household)
 
         filing_status = SUPPORTED_FILING_STATUSES[household["filing_status"].iloc[0]]
         metadata = {
@@ -959,7 +1048,6 @@ def scenarios_from_cps_frame(
             if dataset_year is not None
             else "enhanced_cps"
         )
-
         scenarios.append(
             Scenario(
                 id=f"scenario_{i:03d}",
@@ -1004,6 +1092,7 @@ def _extract_uk_person_inputs(row: pd.Series) -> dict[str, Any]:
         if (
             col in UK_EXCLUDED_PERSON_INPUTS
             or col.endswith("_id")
+            or is_excluded_prompt_input_name(col)
             or col
             in {
                 "age",
@@ -1047,6 +1136,50 @@ def _build_uk_person(row: pd.Series, label: str) -> Person:
     )
 
 
+def _eligible_uk_households(
+    person_df: pd.DataFrame,
+    household_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Return UK households with promptable one-benefit-unit structure."""
+    people = person_df.copy()
+    people["person_household_id"] = pd.to_numeric(
+        people["person_household_id"], errors="coerce"
+    )
+    people["person_benunit_id"] = pd.to_numeric(
+        people["person_benunit_id"], errors="coerce"
+    )
+    people["age"] = pd.to_numeric(people["age"], errors="coerce")
+    people = people.dropna(
+        subset=["person_household_id", "person_benunit_id", "age"]
+    ).copy()
+    people["is_adult"] = people["age"] >= 18
+    people["is_child_or_qyp"] = (
+        people["is_child_or_QYP"].fillna(False).astype(bool)
+        if "is_child_or_QYP" in people.columns
+        else ~people["is_adult"]
+    )
+    people["is_prompt_adult"] = people["is_adult"] & ~people["is_child_or_qyp"]
+
+    summary = (
+        people.groupby("person_household_id")
+        .agg(
+            benefit_units=("person_benunit_id", "nunique"),
+            adults=("is_prompt_adult", "sum"),
+        )
+        .reset_index()
+        .rename(columns={"person_household_id": "household_id"})
+    )
+    eligible_ids = set(
+        summary.loc[
+            (summary["benefit_units"] == 1)
+            & (summary["adults"] >= 1)
+            & (summary["adults"] <= 2),
+            "household_id",
+        ].astype(int)
+    )
+    return household_df[household_df["household_id"].isin(eligible_ids)].copy()
+
+
 def scenarios_from_uk_frames(
     person_df: pd.DataFrame,
     household_df: pd.DataFrame,
@@ -1057,7 +1190,7 @@ def scenarios_from_uk_frames(
     excluded_household_ids: set[int] | None = None,
 ) -> list[Scenario]:
     """Sample benchmark scenarios from the local UK transfer dataset."""
-    eligible_households = household_df.copy()
+    eligible_households = _eligible_uk_households(person_df, household_df)
     if excluded_household_ids:
         eligible_households = eligible_households[
             ~eligible_households["household_id"].isin(excluded_household_ids)
@@ -1081,10 +1214,15 @@ def scenarios_from_uk_frames(
         children = []
         adult_count = 0
         child_count = 0
+        qyp_count = 0
         for _, row in household_people.iterrows():
-            if int(row["age"]) >= 18:
+            is_child_or_qyp = bool(row.get("is_child_or_QYP", False))
+            if int(row["age"]) >= 18 and not is_child_or_qyp:
                 adult_count += 1
                 adults.append(_build_uk_person(row, f"adult{adult_count}"))
+            elif int(row["age"]) >= 16 and is_child_or_qyp:
+                qyp_count += 1
+                children.append(_build_uk_person(row, f"qyp{qyp_count}"))
             else:
                 child_count += 1
                 children.append(_build_uk_person(row, f"child{child_count}"))

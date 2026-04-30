@@ -18,7 +18,7 @@ def single_50k():
         state="CA",
         filing_status="single",
         adults=[Person(name="adult1", age=35, employment_income=50_000.0)],
-        year=2025,
+        year=2026,
     )
 
 
@@ -33,7 +33,7 @@ def family_low_income():
             Person(name="child1", age=8, employment_income=0.0),
             Person(name="child2", age=3, employment_income=0.0),
         ],
-        year=2025,
+        year=2026,
     )
 
 
@@ -45,7 +45,7 @@ def single_parent_single():
         filing_status="single",
         adults=[Person(name="adult1", age=30, employment_income=50_000.0)],
         children=[Person(name="child1", age=8, employment_income=0.0)],
-        year=2025,
+        year=2026,
     )
 
 
@@ -57,7 +57,7 @@ def single_parent_hoh():
         filing_status="head_of_household",
         adults=[Person(name="adult1", age=30, employment_income=50_000.0)],
         children=[Person(name="child1", age=8, employment_income=0.0)],
-        year=2025,
+        year=2026,
     )
 
 
@@ -79,29 +79,48 @@ class TestGroundTruth:
         """A $15k HoH with 2 kids should receive EITC."""
         eitc = calculate_single(family_low_income, "eitc")
         assert eitc > 0
-        # 2025 EITC for 2 kids at $15k should be substantial
+        # 2026 EITC for 2 kids at $15k should be substantial
         assert eitc > 2_000
+
+    def test_income_tax_reconciles_from_compact_tax_components(
+        self,
+        single_parent_hoh,
+    ):
+        """Federal income tax should reconcile from two tax-front pieces."""
+        tax_before_refundable = calculate_single(
+            single_parent_hoh,
+            "federal_income_tax_before_refundable_credits",
+        )
+        refundable_credits = calculate_single(
+            single_parent_hoh,
+            "federal_refundable_credits",
+        )
+        income_tax = calculate_single(single_parent_hoh, "income_tax")
+
+        assert refundable_credits == pytest.approx(tax_before_refundable - income_tax)
+        assert income_tax == pytest.approx(tax_before_refundable - refundable_credits)
+        assert refundable_credits >= 0
 
     def test_snap_positive_for_low_income(self, family_low_income):
         """A $15k family with kids should receive SNAP benefits."""
         snap = calculate_single(family_low_income, "snap")
         assert snap > 0
 
-    def test_filing_status_affects_ground_truth(
+    def test_household_structure_drives_filing_status_ground_truth(
         self,
-        single_parent_single,
+        single_50k,
         single_parent_hoh,
     ):
-        """Single and HoH versions of the same household should not collapse."""
+        """PE should infer HoH from a single adult with a child."""
         single_tax = calculate_single(
-            single_parent_single,
-            "income_tax_before_refundable_credits",
+            single_50k,
+            "federal_income_tax_before_refundable_credits",
         )
         hoh_tax = calculate_single(
             single_parent_hoh,
-            "income_tax_before_refundable_credits",
+            "federal_income_tax_before_refundable_credits",
         )
-        assert single_tax != hoh_tax
+        assert hoh_tax < single_tax
 
     def test_household_net_income_reasonable(self, single_50k):
         """Net income should be close to market income minus taxes."""
@@ -115,7 +134,11 @@ class TestGroundTruth:
         """calculate_ground_truth returns proper DataFrame structure."""
         df = calculate_ground_truth(
             [single_50k],
-            programs=["adjusted_gross_income", "eitc"],
+            programs=[
+                "adjusted_gross_income",
+                "federal_refundable_credits",
+                "premium_tax_credit",
+            ],
         )
         assert isinstance(df, pd.DataFrame)
         assert set(df.columns) == {
@@ -124,7 +147,7 @@ class TestGroundTruth:
             "value",
             "impact_weight",
         }
-        assert len(df) == 2  # 1 scenario × 2 programs
+        assert len(df) == 3  # 1 scenario × 3 programs
         assert df["scenario_id"].iloc[0] == "gt_single_50k"
 
     def test_ground_truth_multiple_scenarios(self, single_50k, family_low_income):
@@ -157,7 +180,7 @@ class TestGroundTruthScalarExtraction:
                 Person(name="adult2", age=30, employment_income=0.0),
             ],
             children=[Person(name="child1", age=3, employment_income=0.0)],
-            year=2025,
+            year=2026,
         )
 
         assert (
@@ -195,7 +218,7 @@ class TestGroundTruthScalarExtraction:
                 Person(name="adult2", age=30, employment_income=0.0),
             ],
             children=[Person(name="child1", age=3, employment_income=0.0)],
-            year=2025,
+            year=2026,
         )
 
         assert (
@@ -287,7 +310,7 @@ def test_calculate_ground_truth_uk_aggregates_native_entities(monkeypatch):
     result = calculate_ground_truth(
         scenarios,
         programs=["income_tax", "child_benefit", "housing_costs"],
-        year=2025,
+        year=2026,
     ).sort_values(["scenario_id", "variable"])
 
     expected = pd.DataFrame(

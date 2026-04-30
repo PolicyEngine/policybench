@@ -175,13 +175,13 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
 
       <div className="mt-10">
         <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-          What the diagnostics show
+          What the error reads show
         </div>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-text-secondary">
           These expanders summarize recurring miss patterns from direct reads of
-          the diagnostic rows, paired with the benchmark scores above. They are
-          intentionally narrower than the leaderboard summaries: the goal is to
-          say what the diagnostic evidence supports, not more.
+          model answers and explanations, paired with the benchmark scores
+          above. They are intentionally narrower than the leaderboard summaries:
+          the goal is to say what the evidence supports, not more.
         </p>
 
         <div className="mt-5 space-y-3">

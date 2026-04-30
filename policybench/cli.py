@@ -201,9 +201,12 @@ def main():
         help="Benchmark output set to use. Defaults to v2_headline.",
     )
     nt_parser.add_argument(
-        "--include-explanations",
+        "--no-explanations",
         action="store_true",
-        help="Require per-program explanations alongside numeric answers",
+        help=(
+            "Ablation only: request numeric answers without the standard "
+            "per-output explanations"
+        ),
     )
     nt_parser.add_argument(
         "--single-output",
@@ -287,9 +290,12 @@ def main():
         help="Benchmark output set to use. Defaults to v2_headline.",
     )
     ntr_parser.add_argument(
-        "--include-explanations",
+        "--no-explanations",
         action="store_true",
-        help="Require per-program explanations alongside numeric answers",
+        help=(
+            "Ablation only: request numeric answers without the standard "
+            "per-output explanations"
+        ),
     )
     ntr_parser.add_argument(
         "--single-output",
@@ -303,6 +309,81 @@ def main():
         "--exclude-scenario-manifest",
         default=None,
         help="Existing scenario manifest whose sampled households should be excluded",
+    )
+
+    # Chunked eval no tools
+    chunked_parser = subparsers.add_parser(
+        "eval-no-tools-chunked",
+        help="Run resumable chunked AI-alone evaluation against a saved manifest",
+    )
+    chunked_parser.add_argument(
+        "-s",
+        "--scenario-manifest",
+        default="results/local/scenarios.csv",
+        help="CSV file with serialized scenarios exported by `ground-truth`",
+    )
+    chunked_parser.add_argument(
+        "-o",
+        "--output-dir",
+        default="results/local/no_tools_chunked",
+        help="Directory for chunks and merged per-model prediction CSVs",
+    )
+    chunked_parser.add_argument(
+        "--country",
+        choices=sorted(COUNTRY_PROGRAMS),
+        required=True,
+        help="Benchmark country to evaluate",
+    )
+    chunked_parser.add_argument(
+        "--model",
+        action="append",
+        dest="models",
+        help="Restrict evaluation to one or more configured model names",
+    )
+    chunked_parser.add_argument(
+        "--program-set",
+        default=DEFAULT_PROGRAM_SET,
+        help="Benchmark output set to use. Defaults to v2_headline.",
+    )
+    chunked_parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=50,
+        help="Number of scenarios per chunk",
+    )
+    chunked_parser.add_argument(
+        "--parallel",
+        type=int,
+        default=4,
+        help="Concurrent chunks per model",
+    )
+    chunked_parser.add_argument(
+        "--model-parallel",
+        type=int,
+        default=1,
+        help="Concurrent models to evaluate",
+    )
+    chunked_parser.add_argument(
+        "--chunk-attempts",
+        type=int,
+        default=1,
+        help="Attempts per model/scenario chunk before failing",
+    )
+    chunked_parser.add_argument(
+        "--no-explanations",
+        action="store_true",
+        help=(
+            "Ablation only: request numeric answers without the standard "
+            "per-output explanations"
+        ),
+    )
+    chunked_parser.add_argument(
+        "--single-output",
+        action="store_true",
+        help=(
+            "Evaluate one configured output per request "
+            "instead of one batch per household"
+        ),
     )
 
     # Analyze
@@ -339,7 +420,11 @@ def main():
     args = parser.parse_args()
 
     # Enable disk cache for all LLM calls
-    if args.command in {"eval-no-tools", "eval-no-tools-repeated"}:
+    if args.command in {
+        "eval-no-tools",
+        "eval-no-tools-repeated",
+        "eval-no-tools-chunked",
+    }:
         from policybench.cache import enable_cache
 
         enable_cache()
@@ -426,7 +511,7 @@ def main():
                 models=models,
                 programs=programs,
                 output_path=args.output,
-                include_explanations=args.include_explanations,
+                include_explanations=not args.no_explanations,
             )
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
@@ -450,13 +535,34 @@ def main():
                 output_dir=args.output_dir,
                 models=models,
                 programs=programs,
-                include_explanations=args.include_explanations,
+                include_explanations=not args.no_explanations,
                 single_output=args.single_output,
             )
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
         print(f"Repeated no-tools predictions saved to {args.output_dir}")
         print(f"Total rows: {len(df)}")
+
+    elif args.command == "eval-no-tools-chunked":
+        from policybench.chunked_eval import run_chunked_eval
+
+        try:
+            output = run_chunked_eval(
+                scenario_manifest=args.scenario_manifest,
+                output_dir=args.output_dir,
+                country=args.country,
+                models=list(_parse_models(args.models)),
+                program_set=args.program_set,
+                chunk_size=args.chunk_size,
+                parallel=args.parallel,
+                model_parallel=args.model_parallel,
+                chunk_attempts=args.chunk_attempts,
+                include_explanations=not args.no_explanations,
+                single_output=args.single_output,
+            )
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            raise SystemExit(str(exc)) from exc
+        print(f"Chunked no-tools predictions saved to {output}")
 
     elif args.command == "analyze":
         import pandas as pd

@@ -38,11 +38,11 @@ These results suggest a clear architecture for AI systems that provide policy an
 
 Several limitations qualify these findings:
 
-**Scope of outputs.** PolicyBench evaluates selected tax and benefit outputs, not the full tax-benefit system. The rebuilt headline scope focuses on person- or household-facing net-income components and selected coverage flags weighted by PolicyEngine value proxies. PolicyEngine variables may be native to lower-level entities, but headline outputs are either expanded to the people shown in the prompt or aggregated to the household before scoring. Intermediate tax bases and credit components are retained as supplementary diagnostics. Model performance may differ on outputs not included in the benchmark.
+**Scope of outputs.** PolicyBench evaluates selected tax and benefit outputs, not the full tax-benefit system. The rebuilt headline scope focuses on person- or household-facing net-income components and selected coverage flags weighted by PolicyEngine value proxies. PolicyEngine variables may be native to lower-level entities, but headline outputs are either expanded to the people shown in the prompt or aggregated to the household before scoring. The US federal income-tax output is represented by tax before credits and applied credits; net federal income tax can be derived from those two outputs. Intermediate tax bases are retained as supplementary outputs. Model performance may differ on outputs not included in the benchmark.
 
 **Household complexity.** Sampling from the Enhanced CPS preserves observed household structure, but the benchmark still uses a filtered subset of households so that cases remain promptable and interpretable. More complex multi-tax-unit households, itemized-deduction-heavy filers, and unusual household structures remain underrepresented.
 
-**Single tax year.** All evaluations use tax year 2025. Model performance may differ for historical years (where training data is more abundant) or future years (where models must extrapolate from known rules).
+**Single tax year.** All evaluations use tax year 2026. Model performance may differ for historical years (where training data is more abundant) or future years (where models must extrapolate from known rules).
 
 **Prompt sensitivity.** We use a single prompt template per condition. Model performance may be sensitive to prompt phrasing, particularly in the AI-alone condition where chain-of-thought prompting or structured reasoning might improve accuracy.
 

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import re
 import signal
 import threading
@@ -17,18 +18,36 @@ from policybench.config import MODELS, PROGRAMS
 from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.prompts import (
     get_variable_description,
+    make_explanation_repair_prompt,
     make_no_tools_batch_prompt,
     make_no_tools_batch_repair_prompt,
 )
 from policybench.scenarios import Scenario, scenario_to_dict
 from policybench.spec import expand_programs_for_scenario
 
+
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 MAX_RETRIES = 2
 RETRY_BASE_DELAY = 2
-REQUEST_TIMEOUT_SECONDS = 20
-GEMINI_PRO_REQUEST_TIMEOUT_SECONDS = 60
-XAI_REASONING_REQUEST_TIMEOUT_SECONDS = 60
-XAI_GROK_420_REASONING_REQUEST_TIMEOUT_SECONDS = 120
+REQUEST_TIMEOUT_SECONDS = _env_int("POLICYBENCH_REQUEST_TIMEOUT_SECONDS", 20)
+GEMINI_PRO_REQUEST_TIMEOUT_SECONDS = _env_int(
+    "POLICYBENCH_GEMINI_PRO_REQUEST_TIMEOUT_SECONDS", 60
+)
+XAI_REASONING_REQUEST_TIMEOUT_SECONDS = _env_int(
+    "POLICYBENCH_XAI_REASONING_REQUEST_TIMEOUT_SECONDS", 60
+)
+XAI_GROK_420_REASONING_REQUEST_TIMEOUT_SECONDS = _env_int(
+    "POLICYBENCH_XAI_GROK_420_REASONING_REQUEST_TIMEOUT_SECONDS", 120
+)
 REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
@@ -44,7 +63,9 @@ ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
 ANSWER_FUNCTION_NAME = "submit_answers"
+EXPLANATION_FUNCTION_NAME = "submit_explanations"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 3
+CLAUDE_SONNET_EXPLANATION_CHUNK_SIZE = 1
 
 
 class RequestWallTimeoutError(TimeoutError):
@@ -170,6 +191,10 @@ def _required_explanation_chunk_size(
     model_id: str, include_explanations: bool
 ) -> int | None:
     if include_explanations and model_id.startswith("claude-"):
+        if "sonnet" in model_id:
+            return CLAUDE_SONNET_EXPLANATION_CHUNK_SIZE
+        return CLAUDE_EXPLANATION_CHUNK_SIZE
+    if include_explanations and model_id == "gpt-5.5":
         return CLAUDE_EXPLANATION_CHUNK_SIZE
     return None
 
@@ -202,7 +227,7 @@ def _completion_token_budget(
 
 def _completion_controls(
     model_id: str,
-    include_explanations: bool = False,
+    include_explanations: bool = True,
     variables: list[str] | None = None,
 ) -> dict:
     if model_id.startswith("gemini/"):
@@ -227,7 +252,11 @@ def _completion_controls(
         }
     if model_id.startswith("gpt-5"):
         if include_explanations:
-            base_tokens = EXPLANATION_MAX_COMPLETION_TOKENS
+            base_tokens = (
+                MAX_COMPLETION_TOKENS_CAP
+                if model_id == "gpt-5.5"
+                else EXPLANATION_MAX_COMPLETION_TOKENS
+            )
         else:
             base_tokens = EXTENDED_MAX_COMPLETION_TOKENS
         return {
@@ -236,9 +265,13 @@ def _completion_controls(
             )
         }
     if model_id.startswith("claude-"):
+        if include_explanations:
+            base_tokens = EXPLANATION_MAX_COMPLETION_TOKENS
+        else:
+            base_tokens = EXTENDED_MAX_COMPLETION_TOKENS
         return {
             "max_completion_tokens": _completion_token_budget(
-                EXTENDED_MAX_COMPLETION_TOKENS, variables, include_explanations
+                base_tokens, variables, include_explanations
             )
         }
     return {
@@ -250,6 +283,8 @@ def _completion_controls(
 
 def _request_timeout_seconds(model_id: str) -> int:
     if model_id == "gemini/gemini-3.1-pro-preview":
+        return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
+    if model_id == "gpt-5.5":
         return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
     if model_id == "xai/grok-4.20-reasoning":
         return XAI_GROK_420_REASONING_REQUEST_TIMEOUT_SECONDS
@@ -307,7 +342,7 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
 
 
 def _answer_contract_for_model(model_id: str) -> str:
-    if model_id.startswith("gemini/"):
+    if model_id.startswith("deepseek/") or model_id.startswith("gemini/"):
         return "json"
     return "tool"
 
@@ -321,7 +356,7 @@ def _chat_completion_request_kwargs(
     variables: list[str],
     model_id: str,
     repair: bool = False,
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> tuple[list[dict], dict]:
     answer_contract = _answer_contract_for_model(model_id)
     prompt_builder = (
@@ -370,7 +405,7 @@ def _responses_request_kwargs(
     variables: list[str],
     model_id: str,
     repair: bool = False,
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> tuple[list[dict], dict]:
     answer_contract = _answer_contract_for_model(model_id)
     prompt_builder = (
@@ -408,13 +443,15 @@ def _responses_request_kwargs(
                 },
             }
         )
+    if model_id == "gpt-5.5":
+        request_kwargs["reasoning"] = {"effort": "low"}
     return [{"role": "user", "content": prompt}], request_kwargs
 
 
 def _build_answer_tool(
     variables: list[str],
     country: str = "us",
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> dict:
     answers_schema = {
         "type": "object",
@@ -465,10 +502,54 @@ def _build_answer_tool(
     }
 
 
+def _build_explanation_tool(
+    variables: list[str],
+    country: str = "us",
+) -> dict:
+    parameters = {
+        "type": "object",
+        "properties": {
+            variable: {
+                "type": "string",
+                "description": (
+                    f"Brief explanation for the estimated {variable} value: "
+                    f"{get_variable_description(variable, country=country)}"
+                ),
+            }
+            for variable in variables
+        },
+        "required": list(variables),
+        "additionalProperties": False,
+    }
+    return {
+        "type": "function",
+        "function": {
+            "name": EXPLANATION_FUNCTION_NAME,
+            "description": (
+                "Submit explanations for already-returned numeric benchmark answers."
+            ),
+            "parameters": parameters,
+        },
+    }
+
+
+def _responses_explanation_tool_schema(
+    variables: list[str],
+    country: str = "us",
+) -> dict:
+    function_schema = _build_explanation_tool(variables, country=country)["function"]
+    return {
+        "type": "function",
+        "name": function_schema["name"],
+        "description": function_schema["description"],
+        "parameters": function_schema["parameters"],
+    }
+
+
 def _responses_tool_schema(
     variables: list[str],
     country: str = "us",
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> dict:
     function_schema = _build_answer_tool(
         variables,
@@ -869,13 +950,140 @@ def extract_explanations(
     return _extract_explanations_from_payload(content, variables)
 
 
+def _extract_explanation_repair_payload(payload, variables: list[str]) -> dict:
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            return {variable: None for variable in variables}
+    if not isinstance(payload, dict):
+        return {variable: None for variable in variables}
+    return {
+        variable: (
+            value.strip()
+            if isinstance((value := payload.get(variable)), str) and value.strip()
+            else None
+        )
+        for variable in variables
+    }
+
+
+def _extract_repaired_explanations(
+    content: str | None,
+    variables: list[str],
+    tool_calls=None,
+    function_call=None,
+) -> dict:
+    for tool_call in tool_calls or []:
+        function = _get_tool_call_function(tool_call)
+        if _get_function_name(function) != EXPLANATION_FUNCTION_NAME:
+            continue
+        explanations = _extract_explanation_repair_payload(
+            _get_function_arguments(function), variables
+        )
+        if any(value is not None for value in explanations.values()):
+            return explanations
+
+    if _get_function_name(function_call) == EXPLANATION_FUNCTION_NAME:
+        explanations = _extract_explanation_repair_payload(
+            _get_function_arguments(function_call), variables
+        )
+        if any(value is not None for value in explanations.values()):
+            return explanations
+
+    return _extract_explanation_repair_payload(content, variables)
+
+
+def _request_explanations_once(
+    scenario: Scenario,
+    variables: list[str],
+    answers: dict[str, float],
+    model_id: str,
+) -> dict:
+    prompt = make_explanation_repair_prompt(scenario, variables, answers)
+    if _uses_responses_api(model_id):
+        messages = [{"role": "user", "content": prompt}]
+        request_kwargs = {
+            "model": model_id,
+            "input": prompt,
+            "timeout": _request_timeout_seconds(model_id),
+            "max_output_tokens": _completion_controls(
+                model_id,
+                include_explanations=True,
+                variables=variables,
+            )["max_completion_tokens"],
+            "tools": [
+                _responses_explanation_tool_schema(
+                    variables,
+                    country=scenario.country,
+                )
+            ],
+            "tool_choice": {
+                "type": "function",
+                "name": EXPLANATION_FUNCTION_NAME,
+            },
+        }
+        if model_id == "gpt-5.5":
+            request_kwargs["reasoning"] = {"effort": "low"}
+        request_fn = responses
+    else:
+        messages = [{"role": "user", "content": prompt}]
+        request_kwargs = {
+            "model": model_id,
+            "messages": messages,
+            "caching": True,
+            "timeout": _request_timeout_seconds(model_id),
+            **_completion_controls(
+                model_id,
+                include_explanations=True,
+                variables=variables,
+            ),
+            "tools": [_build_explanation_tool(variables, country=scenario.country)],
+            "tool_choice": {
+                "type": "function",
+                "function": {"name": EXPLANATION_FUNCTION_NAME},
+            },
+        }
+        request_fn = completion
+
+    started_at = time.perf_counter()
+    response = _run_request_with_wall_timeout(request_fn, request_kwargs)
+    elapsed_seconds = time.perf_counter() - started_at
+    if _uses_responses_api(model_id):
+        content, tool_calls = _responses_content_and_tool_calls(response)
+        function_call = None
+    else:
+        message = response.choices[0].message
+        content = getattr(message, "content", None)
+        tool_calls = getattr(message, "tool_calls", None)
+        function_call = getattr(message, "function_call", None)
+    raw_response = _serialize_response_payload(
+        content=content,
+        tool_calls=tool_calls,
+        function_call=function_call,
+    )
+    explanations = _extract_repaired_explanations(
+        content,
+        variables,
+        tool_calls=tool_calls,
+        function_call=function_call,
+    )
+    usage = _extract_usage_metadata(response, model_id, messages, content or "")
+    return {
+        "explanations": explanations,
+        "raw_response": raw_response,
+        "elapsed_seconds": elapsed_seconds,
+        **usage,
+    }
+
+
 def _request_predictions_once(
     scenario: Scenario,
     variables: list[str],
     model_id: str,
     *,
     repair: bool = False,
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> dict:
     if _uses_responses_api(model_id):
         messages, request_kwargs = _responses_request_kwargs(
@@ -952,7 +1160,7 @@ def run_single_no_tools(
     scenario: Scenario,
     variable: str | Iterable[str],
     model_id: str,
-    include_explanations: bool = False,
+    include_explanations: bool = True,
     _allow_chunking: bool = True,
 ) -> dict:
     """Run a single scenario for one or more variables without tools."""
@@ -1084,6 +1292,34 @@ def run_single_no_tools(
             else []
         )
 
+    if include_explanations and not missing and missing_explanations:
+        explanation_answers = {
+            variable: predictions[variable]
+            for variable in missing_explanations
+            if predictions.get(variable) is not None
+        }
+        if explanation_answers:
+            try:
+                explanation_result = _request_explanations_once(
+                    scenario,
+                    list(explanation_answers),
+                    explanation_answers,
+                    model_id,
+                )
+                request_results.append(explanation_result)
+                explanations.update(
+                    {
+                        variable: value
+                        for variable, value in explanation_result.get(
+                            "explanations", {}
+                        ).items()
+                        if value is not None
+                    }
+                )
+                missing_explanations = _missing_explanations(explanations, variables)
+            except Exception as error:
+                repair_errors.append(_format_error(error))
+
     if missing:
         repair_errors.append(
             "Missing predictions after repair: " + ", ".join(sorted(missing))
@@ -1108,7 +1344,7 @@ def _load_existing_rows(
     output_path: str | None,
     scenarios: list[Scenario],
     programs: list[str],
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> tuple[list[dict], set[tuple[str, str]]]:
     if not output_path:
         return [], set()
@@ -1118,9 +1354,6 @@ def _load_existing_rows(
         return [], set()
 
     existing = pd.read_csv(path)
-    if existing.empty:
-        return [], set()
-
     if existing.empty:
         return [], set()
 
@@ -1141,10 +1374,9 @@ def _load_existing_rows(
         has_all_predictions = (
             "prediction" not in group.columns or group["prediction"].notna().all()
         )
-        has_all_explanations = (
-            not include_explanations
-            or "explanation" not in group.columns
-            or group["explanation"].fillna("").str.strip().ne("").all()
+        has_all_explanations = not include_explanations or (
+            "explanation" in group.columns
+            and group["explanation"].fillna("").str.strip().ne("").all()
         )
         if (
             has_all_programs
@@ -1194,10 +1426,7 @@ def _build_resume_metadata(
         separators=(",", ":"),
         sort_keys=True,
     )
-    countries = {
-        (scenario.country or "us").lower()
-        for scenario in scenarios
-    }
+    countries = {(scenario.country or "us").lower() for scenario in scenarios}
     return {
         "metadata_version": RESUME_METADATA_VERSION,
         "task": task,
@@ -1276,7 +1505,7 @@ def _save_checkpoint(
 
 def _load_existing_single_output_rows(
     output_path: str | None,
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> tuple[list[dict], set[tuple[str, str, str]]]:
     if not output_path or not Path(output_path).exists():
         return [], set()
@@ -1292,11 +1521,14 @@ def _load_existing_single_output_rows(
         else pd.Series(False, index=existing.index)
     )
     prediction_mask = existing["prediction"].notna()
-    explanation_mask = (
-        existing["explanation"].fillna("").astype(str).str.strip().ne("")
-        if include_explanations and "explanation" in existing.columns
-        else pd.Series(True, index=existing.index)
-    )
+    if include_explanations:
+        explanation_mask = (
+            existing["explanation"].fillna("").astype(str).str.strip().ne("")
+            if "explanation" in existing.columns
+            else pd.Series(False, index=existing.index)
+        )
+    else:
+        explanation_mask = pd.Series(True, index=existing.index)
 
     keep_mask = ~error_mask & prediction_mask & explanation_mask
     retained = existing.loc[keep_mask].copy()
@@ -1313,15 +1545,15 @@ def run_no_tools_eval(
     programs: list[str] | None = None,
     output_path: str | None = None,
     run_id: str | None = None,
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> pd.DataFrame:
     """Run the AI-alone evaluation across all models.
 
     If output_path is provided, saves incrementally every 100 rows.
 
     Returns DataFrame with columns:
-        model, scenario_id, variable, prediction, raw_response, error,
-        elapsed_seconds, prompt_tokens, completion_tokens, total_tokens,
+        model, scenario_id, variable, prediction, explanation, raw_response,
+        error, elapsed_seconds, prompt_tokens, completion_tokens, total_tokens,
         reasoning_tokens, cached_prompt_tokens, estimated_cost_usd
     """
     if models is None:
@@ -1498,13 +1730,9 @@ def run_no_tools_single_output_eval(
     programs: list[str] | None = None,
     output_path: str | None = None,
     run_id: str | None = None,
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> pd.DataFrame:
-    """Run AI-alone evaluation one output at a time.
-
-    This is intended for diagnostic sidecars where each response should bind a
-    numeric answer and explanation to a single requested variable.
-    """
+    """Run AI-alone evaluation one output at a time."""
     if models is None:
         models = MODELS
     if programs is None:
@@ -1528,8 +1756,7 @@ def run_no_tools_single_output_eval(
         for scenario in scenarios
     }
     total = len(models) * sum(
-        len(scenario_programs)
-        for scenario_programs in scenario_programs_by_id.values()
+        len(scenario_programs) for scenario_programs in scenario_programs_by_id.values()
     )
     done = len(completed)
 
@@ -1638,7 +1865,7 @@ def run_repeated_no_tools_eval(
     output_dir: str,
     models: dict[str, str] | None = None,
     programs: list[str] | None = None,
-    include_explanations: bool = False,
+    include_explanations: bool = True,
     single_output: bool = False,
 ) -> pd.DataFrame:
     """Run repeated AI-alone evaluations, saving one artifact per run."""

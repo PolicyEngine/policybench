@@ -37,21 +37,23 @@ PolicyBench is not:
 PolicyEngine outputs are benchmark reference outputs produced by
 microsimulation, not administrative truth.
 
-## Canonical benchmark vs diagnostics
+## Canonical response contract
 
-PolicyBench has two evaluation modes.
+PolicyBench has one canonical evaluation mode.
 
 `Benchmark runs`
 - canonical leaderboard artifacts
 - one structured response per household
-- no explanations required
+- numeric answers for every requested output
+- one required non-empty explanation for each output
 
-`Diagnostic runs`
-- smaller sidecar samples
-- used for qualitative analysis
-- not part of leaderboard scoring
+The headline score uses the numeric answers only. Explanations are retained for
+auditing, scenario exploration, and qualitative error analysis; they should not
+be described as faithful reasoning traces.
 
-Diagnostic runs should not be mixed into leaderboard claims.
+Numeric-only runs are allowed only as ablations for measuring prompt-contract
+effects. They should be labeled as ablations and should not be mixed into
+leaderboard claims.
 
 CLI default outputs under `results/local/` are scratch artifacts, not canonical
 leaderboard snapshots.
@@ -68,7 +70,7 @@ specifications.
 `v2_headline`
 - headline scope for current runs
 - includes person- or household-facing outputs that are directly interpretable
-  as taxes, benefits, or coverage eligibility
+  as taxes, benefits, health-related support, or coverage eligibility
 - excludes AGI-like intermediate tax bases from the main ranking
 - expands person-native coverage outputs to the people shown in the prompt and
   aggregates other lower-entity outputs to the household before scoring
@@ -76,11 +78,10 @@ specifications.
   PolicyEngine dollar-value proxies
 
 `v2_supplementary`
-- diagnostic outputs that are useful but not part of the rebuilt headline
+- supplementary outputs that are useful but not part of the rebuilt headline
   ranking
-- includes intermediate tax-base outputs, credit components, and household
-  eligibility labels
-- includes payroll decomposition diagnostics: person-level employee Social
+- includes intermediate tax-base outputs and household eligibility labels
+- includes payroll decomposition outputs: person-level employee Social
   Security tax, person-level employee Medicare tax, and household Additional
   Medicare Tax
 

@@ -8,13 +8,18 @@ from policybench.scenarios import (
 from policybench.spec import find_output_spec, parse_person_output
 
 TASK_PREFACE = (
-    "PolicyBench task: estimate the requested tax and benefit outputs using "
-    "only the household facts below and the benchmark assumptions stated here. "
-    "Treat any unlisted numeric input as 0 and any other unlisted household fact, "
-    "boolean, or status input as false. Assume tax filing and program take-up "
-    "according to PolicyEngine benchmark defaults when eligibility or liability "
-    "depends on filing or take-up. Do not infer unlisted income, expenses, "
-    "assets, benefit receipt, rent, or health coverage.\n\n"
+    "Estimate the requested tax and benefit outputs using only the household "
+    "facts below. All listed people live together and are in one household "
+    "group for tax and benefit calculations. All listed facts describe the "
+    "full tax-benefit year. Treat demographic, work, student, disability, housing, "
+    "health coverage, and household-composition facts as constant throughout "
+    "the tax-benefit year, with no within-year income volatility or status changes. "
+    "Wage and salary amounts are annual totals, including any overtime pay; "
+    "hourly wage is a straight-time rate when listed. "
+    "Treat any unlisted numeric input as 0 and any other unlisted household "
+    "fact, boolean, or status input as false. Assume tax filing and program "
+    "take-up when required. Do not infer unlisted income, expenses, assets, "
+    "benefit receipt, rent, or health coverage.\n\n"
 )
 
 # Variable descriptions for natural language prompts
@@ -25,17 +30,18 @@ US_VARIABLE_DESCRIPTIONS = {
     ),
     "income_tax": (
         "net federal income tax liability after refundable credits "
-        "(this can be negative if refundable credits exceed pre-credit tax liability)"
+        "excluding the ACA Premium Tax Credit (this can be negative if "
+        "refundable credits exceed pre-credit tax liability)"
     ),
-    "income_tax_before_refundable_credits": (
-        "federal income tax before refundable credits are applied "
-        "(do not subtract refundable credits)"
+    "income_tax_before_credits": (
+        "federal income tax before any income tax credits are applied, including "
+        "Net Investment Income Tax and other federal income-tax additions included "
+        "in final federal income tax"
     ),
-    "eitc": "Earned Income Tax Credit amount",
-    "ctc": "Child Tax Credit amount",
-    "income_tax_refundable_credits": (
-        "total refundable federal tax credits only "
-        "(not pre-credit tax liability and not non-refundable credits)"
+    "income_tax_applied_credits": (
+        "total federal income tax credits applied against federal income tax, "
+        "including nonrefundable credits actually used and refundable credits included "
+        "in federal income tax; exclude the ACA Premium Tax Credit"
     ),
     "snap": "annual SNAP (food stamps) benefit amount",
     "ssi": "annual Supplemental Security Income (SSI) amount",
@@ -55,6 +61,10 @@ UK_VARIABLE_DESCRIPTIONS = {
     "national_insurance": (
         "household total annual UK National Insurance contributions, excluding "
         "employer National Insurance"
+    ),
+    "capital_gains_tax": (
+        "household total annual UK Capital Gains Tax, computed separately from "
+        "Income Tax"
     ),
     "child_benefit": (
         "household total annual Child Benefit amount, including qualifying young people"
@@ -88,7 +98,8 @@ INPUT_LABEL_OVERRIDES = {
     "domestic_production_ald": "domestic production deduction",
     "early_withdrawal_penalty": "early withdrawal penalty",
     "educator_expense": "educator expense",
-    "employment_income": "employment income",
+    "employment_income": "wages and salaries, including tips and commissions",
+    "employee_pension_contributions_reported": "employee pension contributions",
     "estate_income": "estate income",
     "excess_withheld_payroll_tax": "excess withheld payroll tax",
     "farm_income": "farm income",
@@ -97,13 +108,12 @@ INPUT_LABEL_OVERRIDES = {
     "general_business_credit": "general business credit",
     "has_esi": "has employer-sponsored insurance",
     "has_marketplace_health_coverage": "has Marketplace health coverage",
-    "has_never_worked": "has never worked",
     "health_insurance_premiums_without_medicare_part_b": (
         "health insurance premiums excluding Medicare Part B"
     ),
     "health_savings_account_ald": "health savings account deduction",
     "home_mortgage_interest": "home mortgage interest",
-    "hours_worked_last_week": "hours worked last week",
+    "hours_worked_last_week": "usual weekly hours worked",
     "is_blind": "is blind",
     "is_disabled": "is disabled",
     "is_full_time_college_student": "is a full-time college student",
@@ -149,7 +159,7 @@ INPUT_LABEL_OVERRIDES = {
     "taxable_ira_distributions": "taxable IRA distributions",
     "taxable_private_pension_income": "taxable private pension income",
     "taxable_sep_distributions": "taxable SEP distributions",
-    "tip_income": "tip income",
+    "tip_income": "tip income included in wages and salaries",
     "traditional_401k_contributions": "traditional 401(k) contributions",
     "traditional_ira_contributions": "traditional IRA contributions",
     "unadjusted_basis_qualified_property": ("unadjusted basis of qualified property"),
@@ -164,6 +174,7 @@ INPUT_LABEL_OVERRIDES = {
     "communication_consumption": "communication spending",
     "council_tax": "Council Tax",
     "council_tax_band": "Council Tax band",
+    "corporate_wealth": "corporate financial wealth",
     "dividend_income": "dividend income",
     "education_consumption": "education spending",
     "food_and_non_alcoholic_beverages_consumption": (
@@ -186,11 +197,12 @@ INPUT_LABEL_OVERRIDES = {
     "mortgage_interest_repayment": "mortgage interest repayment",
     "national_insurance": "National Insurance",
     "num_vehicles": "number of vehicles",
+    "other_residential_property_value": "other residential property value",
     "petrol_spending": "petrol spending",
     "pip": "Personal Independence Payment",
-    "pip_dl_category": "PIP daily living award",
+    "pip_dl_category": "PIP daily living component award",
     "pip_dl_reported": "reported PIP daily living amount",
-    "pip_m_category": "PIP mobility award",
+    "pip_m_category": "PIP mobility component award",
     "pip_m_reported": "reported PIP mobility amount",
     "private_pension_contributions": "private pension contributions",
     "private_pension_income": "private pension income",
@@ -201,12 +213,11 @@ INPUT_LABEL_OVERRIDES = {
     "restaurants_and_hotels_consumption": "restaurants and hotels spending",
     "savings": "savings",
     "savings_interest_income": "savings interest income",
-    "state_pension_reported": "state pension income",
+    "state_pension": "State Pension income",
+    "state_pension_reported": "reported State Pension income",
     "tenure_type": "tenure",
     "transport_consumption": "transport spending",
-    "selected_marketplace_plan_benchmark_ratio": (
-        "selected marketplace plan to benchmark plan premium ratio"
-    ),
+    "selected_marketplace_plan_benchmark_ratio": ("selected Marketplace plan premium"),
     "weeks_unemployed": "weeks unemployed",
 }
 
@@ -229,9 +240,18 @@ def _currency_symbol(country: str) -> str:
     return "£" if country == "uk" else "$"
 
 
-def _person_label_from_name(person_name: str) -> str:
+def _person_label_from_name(person_name: str, country: str = "us") -> str:
+    if country == "us":
+        if person_name in {"head", "adult1"}:
+            return "Head"
+        if person_name in {"spouse", "adult2"}:
+            return "Spouse"
+        if person_name.startswith("dependent"):
+            return person_name.replace("dependent", "Dependent ")
     if person_name.startswith("adult"):
         return person_name.replace("adult", "Adult ")
+    if person_name.startswith("qyp"):
+        return person_name.replace("qyp", "Qualifying young person ")
     if person_name.startswith("child"):
         return person_name.replace("child", "Child ")
     return person_name.replace("_", " ").title()
@@ -243,7 +263,7 @@ def get_variable_description(variable: str, country: str = "us") -> str:
     if parsed_person_output is not None:
         person_name, _, template = parsed_person_output
         return str(template["prompt"]).format(
-            person_label=_person_label_from_name(person_name)
+            person_label=_person_label_from_name(person_name, country=country)
         )
     output = find_output_spec(variable, country=country)
     if output is not None:
@@ -264,12 +284,36 @@ def _humanize_input_label(field: str) -> str:
     return field.replace("_", " ")
 
 
+def _format_marketplace_plan_ratio(value: float) -> str:
+    percentage = value * 100
+    if abs(percentage - 100) <= 0.5:
+        return (
+            "- selected Marketplace plan: a benchmark Silver plan, or a plan "
+            "with about the same pre-subsidy premium"
+        )
+    if percentage < 100:
+        return (
+            "- selected Marketplace plan: a lower-premium plan costing about "
+            f"{percentage:,.0f}% as much as the local benchmark Silver plan "
+            "before subsidies"
+        )
+    return (
+        "- selected Marketplace plan: a higher-premium plan costing about "
+        f"{percentage:,.0f}% as much as the local benchmark Silver plan "
+        "before subsidies"
+    )
+
+
 def _format_input_line(field: str, value, country: str = "us") -> str:
     label = _humanize_input_label(field)
     if isinstance(value, bool):
-        return f"- {label}"
+        if value:
+            return f"- {label}"
+        return f"- {label}: no"
     if isinstance(value, str):
         return f"- {label}: {value.replace('_', ' ').title()}"
+    if field == "selected_marketplace_plan_benchmark_ratio":
+        return _format_marketplace_plan_ratio(float(value))
     if field in NON_MONETARY_NUMERIC_FIELDS:
         return f"- {label}: {float(value):,.0f}"
     if field.endswith(RATE_OR_RATIO_FIELD_SUFFIXES):
@@ -277,20 +321,21 @@ def _format_input_line(field: str, value, country: str = "us") -> str:
     return f"- {label}: {_currency_symbol(country)}{float(value):,.0f}"
 
 
-def _person_heading(person: Person) -> str:
-    return _person_label_from_name(person.name)
+def _person_heading(person: Person, country: str = "us") -> str:
+    return _person_label_from_name(person.name, country=country)
 
 
 def describe_person(person: Person, country: str = "us") -> str:
     """Create a structured description of a person."""
     lines = [
-        f"{_person_heading(person)}:",
+        f"{_person_heading(person, country=country)}:",
         f"- age: {person.age}",
     ]
 
     if person.name.startswith("adult") or abs(person.employment_income) > 1e-6:
+        employment_label = _humanize_input_label("employment_income")
         lines.append(
-            f"- employment income: "
+            f"- {employment_label}: "
             f"{_currency_symbol(country)}"
             f"{person.employment_income:,.0f}"
         )
@@ -320,33 +365,52 @@ def _describe_entity_inputs(
 
 def describe_household(scenario: Scenario) -> str:
     """Create a structured description of a household."""
+    period_label = (
+        f"UK fiscal year: {scenario.year}-{str(scenario.year + 1)[-2:]}"
+        if scenario.country == "uk"
+        else f"tax year: {scenario.year}"
+    )
     lines = [
         "Household:",
         f"- {'region' if scenario.country == 'uk' else 'state'}: {scenario.state}",
-        f"- tax year: {scenario.year}",
+        f"- {period_label}",
         "",
     ]
 
-    if scenario.filing_status:
-        lines.insert(2, f"- filing status: {scenario.filing_status}")
     if scenario.country == "uk":
         benunit_ids = scenario.metadata.get("benunit_ids") or []
-        if benunit_ids:
-            lines.insert(-1, f"- benefit units in household: {len(benunit_ids)}")
-
+        benunit_count = len(benunit_ids) if benunit_ids else 1
+        lines.insert(-1, f"- benefit units in household: {benunit_count}")
+        if benunit_count == 1:
+            lines.extend(
+                [
+                    "Household structure:",
+                    "- all listed people live together in one UK benefit unit",
+                    "- if two adults are listed, Adult 1 and Adult 2 are a couple",
+                    (
+                        "- children and qualifying young people are dependents, "
+                        "not partners"
+                    ),
+                    "- requested outputs are household totals",
+                    "",
+                ]
+            )
     for adult in scenario.adults:
         lines.extend([describe_person(adult, country=scenario.country), ""])
 
     if scenario.children:
         for child in scenario.children:
             lines.extend([describe_person(child, country=scenario.country), ""])
-    else:
-        lines.extend(["Children:", "- none", ""])
 
+    household_title = (
+        "Household assets and housing"
+        if scenario.country == "uk"
+        else "Household inputs"
+    )
     for title, inputs in (
         ("Tax unit", scenario.tax_unit_inputs),
-        ("SPM unit", scenario.spm_unit_inputs),
-        ("Household inputs", scenario.household_inputs),
+        ("Benefit inputs", scenario.spm_unit_inputs),
+        (household_title, scenario.household_inputs),
     ):
         block = _describe_entity_inputs(title, inputs, country=scenario.country)
         if block:
@@ -394,7 +458,7 @@ def make_no_tools_batch_prompt(
     scenario: Scenario,
     variables: list[str],
     answer_contract: str = "tool",
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> str:
     """Create a prompt that requests all benchmark outputs in one response."""
     description = describe_household(scenario)
@@ -406,23 +470,23 @@ def make_no_tools_batch_prompt(
     if answer_contract == "json":
         requested_keys = ", ".join(f'"{variable}": 1234.5' for variable in variables)
         if include_explanations:
+            example = (
+                f'{{"answers": {{{requested_keys}}}, '
+                f'"explanations": {{"{variables[0]}": "short note"}}}}'
+            )
             answer_instructions = (
                 "Return a single JSON object with an "
                 "`answers` object and a required "
                 "`explanations` object. "
                 "Use the exact variable names as keys "
                 "inside `answers`, for example "
-                f'{{"answers": {{{requested_keys}}}, '
-                f'"explanations": {{"{variables[0]}": '
-                '"short note"}}}}. '
+                f"{example}. "
                 "Include every requested key exactly once "
                 "in `answers`, even if the value is 0. "
                 "Include every requested key exactly "
                 "once in `explanations`. "
-                "Keep each explanation to one short "
-                "sentence of at most 12 words. "
-                "Each explanation must be non-empty "
-                "and specific to that variable. "
+                "Each explanation must be non-empty, "
+                "specific to that variable, and concise. "
                 "Put only numeric values in `answers`, "
                 "with no dollar signs, commas, or "
                 "explanatory text in the values. "
@@ -452,10 +516,8 @@ def make_no_tools_batch_prompt(
                 "exactly once. "
                 "Return an `answers` object with every "
                 "requested quantity and a required "
-                "`explanations` object with brief notes "
+                "`explanations` object with concise notes "
                 "keyed by the same variable names. "
-                "Keep each explanation to one short "
-                "sentence of at most 12 words. "
                 "Include every requested key exactly "
                 "once in `explanations`, and do not "
                 "leave any explanation blank. "
@@ -492,7 +554,7 @@ def make_no_tools_batch_repair_prompt(
     scenario: Scenario,
     variables: list[str],
     answer_contract: str = "tool",
-    include_explanations: bool = False,
+    include_explanations: bool = True,
 ) -> str:
     """Create a repair prompt for only the missing benchmark outputs."""
     description = describe_household(scenario)
@@ -504,6 +566,10 @@ def make_no_tools_batch_repair_prompt(
     if answer_contract == "json":
         requested_keys = ", ".join(f'"{variable}": 1234.5' for variable in variables)
         if include_explanations:
+            example = (
+                f'{{"answers": {{{requested_keys}}}, '
+                f'"explanations": {{"{variables[0]}": "short note"}}}}'
+            )
             answer_instructions = (
                 "A prior response omitted required "
                 "answers and/or explanations. "
@@ -514,15 +580,13 @@ def make_no_tools_batch_repair_prompt(
                 "keyed by those same variables. "
                 "Use the exact variable names as keys "
                 "inside `answers`, for example "
-                f'{{"answers": {{{requested_keys}}}}}. '
+                f"{example}. "
                 "Include every listed key exactly once "
                 "in `answers`, even if the value is 0. "
                 "Include every listed key exactly "
                 "once in `explanations`. "
-                "Keep each explanation to one short "
-                "sentence of at most 12 words. "
-                "Each explanation must be non-empty "
-                "and specific to that variable. "
+                "Each explanation must be non-empty, "
+                "specific to that variable, and concise. "
                 "Do not include any keys that are "
                 "not listed below. "
                 "Put only numeric values in `answers`, "
@@ -561,8 +625,6 @@ def make_no_tools_batch_repair_prompt(
                 "quantities below, and a required "
                 "`explanations` object keyed by those "
                 "same variables. "
-                "Keep each explanation to one short "
-                "sentence of at most 12 words. "
                 "Include every listed key exactly once "
                 "in `explanations`, and do not leave "
                 "any explanation blank. "
@@ -596,4 +658,35 @@ def make_no_tools_batch_repair_prompt(
         f"{answer_instructions}"
         "If an answer is a currency amount, give the annual amount. "
         "If an answer is a rate, give a decimal (e.g. 0.25 for 25%)."
+    )
+
+
+def make_explanation_repair_prompt(
+    scenario: Scenario,
+    variables: list[str],
+    answers: dict[str, float],
+) -> str:
+    """Create a prompt for missing explanations only."""
+    description = describe_household(scenario)
+    requested_variables = "\n".join(
+        f"- {variable}: {get_variable_description(variable, country=scenario.country)}"
+        for variable in variables
+    )
+    returned_answers = "\n".join(
+        f"- {variable}: {answers[variable]}" for variable in variables
+    )
+
+    return (
+        f"{TASK_PREFACE}"
+        f"{description}\n\n"
+        "A prior response returned numeric answers but omitted explanations for "
+        "the following policy quantities:\n"
+        f"{requested_variables}\n\n"
+        "Use these already-returned numeric answers as context; do not recalculate "
+        "or return numeric answers in this repair response:\n"
+        f"{returned_answers}\n\n"
+        "Use the `submit_explanations` function exactly once. Return only a "
+        "single object keyed by the listed variable names. Include every listed "
+        "key exactly once, and make every explanation non-empty, specific to "
+        "that variable, and concise."
     )

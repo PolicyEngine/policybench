@@ -20,16 +20,18 @@ export const VIEW_SHORT_LABELS: Record<CountryCode, string> = {
 const US_VARIABLE_LABELS: Record<string, string> = {
   adjusted_gross_income: "Federal adjusted gross income",
   income_tax: "Federal income tax",
+  federal_income_tax_before_refundable_credits:
+    "Federal tax before refundable credits",
+  federal_refundable_credits: "Federal refundable credits",
   payroll_tax: "Payroll tax",
   self_employment_tax: "Self-employment tax",
   local_income_tax: "Local income tax",
-  income_tax_before_refundable_credits: "Federal tax before refundable credits",
-  income_tax_refundable_credits: "Federal refundable credits",
-  eitc: "EITC",
-  ctc: "CTC",
+  income_tax_before_credits: "Federal tax before credits",
+  income_tax_applied_credits: "Federal income tax credits",
   snap: "SNAP",
   ssi: "SSI",
   tanf: "TANF",
+  premium_tax_credit: "ACA Premium Tax Credit",
   wic: "WIC",
   free_school_meals_eligible: "Free school meals eligibility",
   household_free_school_meal_eligible: "Free school meals eligibility",
@@ -67,16 +69,17 @@ const UK_VARIABLE_LABELS: Record<string, string> = {
 const US_VARIABLE_CATEGORIES: Record<string, string> = {
   adjusted_gross_income: "Federal tax",
   income_tax: "Federal tax",
+  federal_income_tax_before_refundable_credits: "Federal tax",
+  federal_refundable_credits: "Federal tax",
   payroll_tax: "Federal tax",
   self_employment_tax: "Federal tax",
   local_income_tax: "Local tax",
-  income_tax_before_refundable_credits: "Federal tax",
-  income_tax_refundable_credits: "Credits",
-  eitc: "Credits",
-  ctc: "Credits",
+  income_tax_before_credits: "Federal tax",
+  income_tax_applied_credits: "Federal tax",
   snap: "Benefits",
   ssi: "Benefits",
   tanf: "Benefits",
+  premium_tax_credit: "Health",
   wic: "Benefits",
   free_school_meals_eligible: "Coverage",
   household_free_school_meal_eligible: "Benefits",
@@ -143,15 +146,13 @@ function parsePersonEligibilityVariable(variable: string):
   | { personLabel: string; program: string }
   | null {
   const match = variable.match(
-    /^(adult\d+|child\d+)_(medicaid|chip|medicare|head_start|early_head_start)_eligible$/
+    /^(head|spouse|adult\d+|child\d+|dependent\d+)_(medicaid|chip|medicare|head_start|early_head_start)_eligible$/
   );
   if (!match) {
     return null;
   }
   const [, person, program] = match;
-  const personLabel = person
-    .replace("adult", "Adult ")
-    .replace("child", "Child ");
+  const personLabel = getPersonDisplayLabel(person);
   const programLabel =
     program === "chip"
       ? "CHIP"
@@ -166,20 +167,31 @@ function parsePersonPayrollVariable(variable: string):
   | { personLabel: string; component: string }
   | null {
   const match = variable.match(
-    /^(adult\d+|child\d+)_(employee_social_security_tax|employee_medicare_tax)$/
+    /^(head|spouse|adult\d+|child\d+|dependent\d+)_(employee_social_security_tax|employee_medicare_tax)$/
   );
   if (!match) {
     return null;
   }
   const [, person, component] = match;
-  const personLabel = person
-    .replace("adult", "Adult ")
-    .replace("child", "Child ");
+  const personLabel = getPersonDisplayLabel(person);
   const componentLabel =
     component === "employee_social_security_tax"
       ? "employee Social Security tax"
       : "employee Medicare tax";
   return { personLabel, component: componentLabel };
+}
+
+function getPersonDisplayLabel(person: string): string {
+  if (person === "head" || person === "adult1") {
+    return "Head";
+  }
+  if (person === "spouse" || person === "adult2") {
+    return "Spouse";
+  }
+  return person
+    .replace("adult", "Adult ")
+    .replace("child", "Child ")
+    .replace("dependent", "Dependent ");
 }
 
 export function isBinaryVariable(
@@ -354,6 +366,6 @@ export type GlobalBenchData = {
 };
 
 export type DashboardBundle = {
-  countries: Record<CountryCode, BenchData>;
-  global: GlobalBenchData;
+  countries: Partial<Record<CountryCode, BenchData>>;
+  global?: GlobalBenchData;
 };

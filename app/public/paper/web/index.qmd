@@ -107,7 +107,9 @@ snapshot_date = paper_date(snapshot["generated_at_utc"])
 
 us_ranked = us_model.sort_values("mean_score", ascending=False).reset_index(drop=True)
 uk_ranked = uk_model.sort_values("mean_score", ascending=False).reset_index(drop=True)
-global_ranked = global_model.sort_values("score", ascending=False).reset_index(drop=True)
+global_ranked = global_model.sort_values("score", ascending=False).reset_index(
+    drop=True
+)
 
 us_top_three = [
     f"{row.model} ({fmt_score(row.mean_score * 100)})"
@@ -175,9 +177,9 @@ The benchmark uses a bounded `0-100` score. For amount variables, the score aver
 3. within 5%
 4. within 10%
 
-For binary outputs, the score is exact accuracy. This keeps `100` as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related diagnostics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized [@zhou2025tempanswerqa].
+For binary outputs, the score is exact accuracy. This keeps `100` as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related error metrics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized [@zhou2025tempanswerqa].
 
-The benchmark distinguishes between **benchmark runs** and **diagnostic runs**. Benchmark runs are the canonical leaderboard artifacts. Diagnostic runs use smaller sidecar samples and may request optional explanations. Those explanation runs are used for qualitative analysis and are not part of the headline ranking.
+The benchmark requires each model response to include numeric answers and one short explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning. Numeric-only runs are treated as prompt-contract ablations, not as the canonical leaderboard task.
 
 PolicyBench also has an earlier archived tool-assisted pilot. That condition used a single untuned function-calling contract rather than a multi-step agent setup. The only tool was `calculate_policy(household, variable, year)`, where `household` was a standard PolicyEngine-US household JSON object and the archived scenarios supplied only basic fields needed for those tests: person ages, employment income, and household state. The prompt was a short instruction to calculate one output, use the tool with the given variable name and year, and return the numeric result from the tool. The archived US run covers `4,200` predictions (`100` households x `14` outputs x `3` models: Claude Opus, Claude Sonnet, and GPT-5.2), and all `4,200` predictions match the simulator reference values exactly. We do not mix that condition into the current leaderboard because it measures whether the model can route the request to the simulator and use the returned value, not whether it can estimate the output without tools.
 
@@ -270,4 +272,4 @@ The current paper is therefore an evaluation of model performance under a specif
 
 PolicyBench shows a consistent pattern across both countries. Benefit outputs score above tax-base outputs, while the lowest-scoring variables are adjusted gross income, state-tax quantities, income tax, and national insurance. `{python} conclusion_snapshot_summary`
 
-Next steps are to expand diagnostics, extend country coverage, and tighten the data and scoring pipelines so that the leaderboard is driven less by output-format reliability and more by policy reasoning.
+Next steps are to expand country coverage and tighten the data and scoring pipelines so that the leaderboard is driven less by output-format reliability and more by policy calculation quality.

@@ -10,7 +10,7 @@ from policybench.spec import (
 )
 
 # Tax year for all evaluations
-TAX_YEAR = 2025
+TAX_YEAR = 2026
 
 # Random seed for reproducible scenario generation
 SEED = 42
@@ -21,14 +21,16 @@ DEFAULT_COUNTRY = "us"
 # Canonical default benchmark models. This list should track the published
 # no-tools leaderboard rather than every model ever probed in the repo.
 MODELS = {
-    "claude-opus-4.6": "claude-opus-4-6",
+    "claude-opus-4.7": "claude-opus-4-7",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
     "grok-4.20": "xai/grok-4.20-reasoning",
     "grok-4.1-fast": "xai/grok-4-1-fast-non-reasoning",
-    "gpt-5.4": "gpt-5.4",
+    "gpt-5.5": "gpt-5.5",
     "gpt-5.4-mini": "gpt-5.4-mini",
     "gpt-5.4-nano": "gpt-5.4-nano",
+    "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
+    "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
@@ -36,7 +38,7 @@ MODELS = {
 
 # Current output sets. The headline set contains signed household
 # net-income components plus coverage booleans with explicit impact weights;
-# intermediate bases remain supplementary diagnostics.
+# intermediate bases remain supplementary outputs.
 US_HEADLINE_PROGRAMS = get_output_ids("us", "v2_headline")
 UK_HEADLINE_PROGRAMS = get_output_ids("uk", "v2_headline")
 US_SUPPLEMENTARY_PROGRAMS = get_output_ids("us", "v2_supplementary")

@@ -854,7 +854,7 @@ class TestSummaries:
                 }
             ],
             "children": [],
-            "year": 2025,
+            "year": 2026,
             "source_dataset": "enhanced_cps_2024",
             "metadata": {"household_id": 1},
         }

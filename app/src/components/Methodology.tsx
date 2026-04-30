@@ -69,6 +69,7 @@ export default function Methodology({
       (sum, country) => sum + country.households,
       0
     );
+    const countryCount = globalData.countrySummaries.length;
 
     return (
       <div>
@@ -85,15 +86,18 @@ export default function Methodology({
         >
           The global leaderboard is a shared-model aggregate, not a separate
           benchmark. Each model’s global score is the equal-weight average of
-          its country-level PolicyBench scores for the United States and United
-          Kingdom.
+          its country-level PolicyBench scores across the included countries.
         </p>
 
         <div
           className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-10 animate-fade-up"
           style={{ animationDelay: "240ms" }}
         >
-          <StatCard value="2" label="Country benchmarks" accent="primary" />
+          <StatCard
+            value={`${countryCount}`}
+            label="Country benchmarks"
+            accent="primary"
+          />
           <StatCard
             value={`${globalData.sharedModelCount}`}
             label="Shared models"
@@ -104,7 +108,7 @@ export default function Methodology({
             label="Total households"
             accent="info"
           />
-          <StatCard value="2025" label="Tax year" accent="primary" />
+          <StatCard value="2026" label="Tax year" accent="primary" />
         </div>
 
         <div className="grid lg:grid-cols-2 gap-4 mt-8">
@@ -174,8 +178,8 @@ export default function Methodology({
     country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
   const benchmarkDescription =
     country === "uk"
-      ? "This app shows the current no-tools UK benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for tax year 2025."
-      : "This app shows the current no-tools US benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2025.";
+      ? "This app shows the current no-tools UK benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for tax year 2026."
+      : "This app shows the current no-tools US benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2026.";
 
   return (
     <div>
@@ -225,21 +229,22 @@ export default function Methodology({
       <div className="grid lg:grid-cols-2 gap-4 mt-8">
         <SectionCard title="Task">
           Each model sees the same household description and must return all
-          scored outputs in one response, with no tool use. The exact
-          provider-specific prompts are visible in the scenario explorer, so
-          you can inspect the contract instead of inferring it.
+          scored outputs plus a short explanation for each output in one
+          response, with no tool use. The exact provider-specific prompts are
+          visible in the scenario explorer, so you can inspect the contract
+          instead of inferring it.
         </SectionCard>
 
         <SectionCard title="Households">
           {country === "uk"
-            ? "The UK benchmark samples households from the public UK calibrated transfer dataset with a fixed seed. That dataset maps benchmark-compatible US Enhanced CPS records into UK-facing inputs and recalibrates weights to selected UK targets. Nonzero promptable inputs are carried through into both the prompt and the PolicyEngine-UK input."
-            : `The US benchmark samples households from the Enhanced CPS with a fixed seed. The current set is restricted to households with a single tax unit, a single SPM unit, and a single family. Ages, children, income sources, and other nonzero promptable inputs are carried through into both the prompt and the ${referenceOutputSource} input.`}
+            ? "The UK benchmark samples one-benefit-unit households from the public UK calibrated transfer dataset with a fixed seed. That dataset maps benchmark-compatible US Enhanced CPS records into UK-facing inputs and recalibrates weights to selected UK targets. The prompt states the shared UK benefit-unit structure; nonzero promptable inputs are carried through into both the prompt and the PolicyEngine-UK input."
+            : `The US benchmark samples households from the Enhanced CPS with a fixed seed. The current set is restricted to households with a single federal tax unit, a single family, and a single benefit-calculation unit. Adult dependents remain in scope when they satisfy those restrictions. Ages, roles, income sources, and other nonzero promptable inputs are carried through into both the prompt and the ${referenceOutputSource} input; filing status is inferred from household structure.`}
         </SectionCard>
 
         <SectionCard title="Reference outputs">
           {country === "uk"
-            ? "PolicyEngine-UK computes the PolicyEngine reference output for every household-variable pair in tax year 2025. The displayed variables define the benchmark scope for this snapshot."
-            : "PolicyEngine-US computes the PolicyEngine reference output for every household-variable pair in tax year 2025. The displayed variables define the benchmark scope for this snapshot."}
+            ? "PolicyEngine-UK computes the PolicyEngine reference output for every household-variable pair in tax year 2026. The displayed variables define the benchmark scope for this snapshot."
+            : "PolicyEngine-US computes the PolicyEngine reference output for every household-variable pair in tax year 2026. The displayed variables define the benchmark scope for this snapshot."}
         </SectionCard>
 
         <SectionCard title="Scoring">
@@ -250,7 +255,7 @@ export default function Methodology({
             ? " Binary coverage flags like person-level Medicaid eligibility and school meal eligibility use exact accuracy."
             : ""}
           {" "}Coverage still tracks how often a model produced a parseable numeric
-          answer, and mean absolute error remains as a diagnostic. The
+          answer, and mean absolute error remains a secondary error metric. The
           leaderboard is a point estimate on this fixed test set
           {hasRepeatedRuns
             ? "; when repeated runs are loaded, the app also shows run-to-run stability."
@@ -274,7 +279,7 @@ export default function Methodology({
             </div>
           </div>
           <div className="text-text-muted text-xs">
-            Fixed test set, no tools, tax year 2025
+            Fixed test set, no tools, tax year 2026
           </div>
         </div>
 

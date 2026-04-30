@@ -50,6 +50,15 @@ PERSON_OUTPUTS = {
         "net_income_sign": "1",
         "impact_weight_variable": "medicare_cost",
     },
+    "person_wic_eligible": {
+        "suffix": "wic_eligible",
+        "pe_variable": "is_wic_eligible",
+        "label": "WIC eligibility",
+        "prompt": "whether {person_label} is eligible for WIC (1 if yes, 0 if no)",
+        "metric_type": "binary",
+        "net_income_sign": "1",
+        "impact_weight_variable": "wic",
+    },
     "person_head_start_eligible": {
         "suffix": "head_start_eligible",
         "pe_variable": "is_head_start_eligible",
@@ -102,6 +111,7 @@ PERSON_ELIGIBILITY_OUTPUTS = {
     for output_id, output in PERSON_OUTPUTS.items()
     if output["metric_type"] == "binary"
 }
+
 
 @dataclass(frozen=True)
 class OutputSpec:
@@ -238,8 +248,7 @@ def parse_program_set(program_set: str | None) -> tuple[str, str]:
         )
         valid.extend(f"{spec_id}_{output_set}" for output_set in output_sets)
     raise ValueError(
-        f"Unknown program set '{program_set}'. Valid program sets: "
-        f"{', '.join(valid)}."
+        f"Unknown program set '{program_set}'. Valid program sets: {', '.join(valid)}."
     )
 
 
@@ -319,7 +328,7 @@ def parse_person_output(
     """Parse a concrete person-level output id.
 
     Returns `(person_name, template_id, template)` for ids such as
-    `adult1_medicaid_eligible` or `adult1_employee_medicare_tax`.
+    `head_medicaid_eligible` or `child1_employee_medicare_tax`.
     """
     templates = sorted(
         PERSON_OUTPUTS.items(),
@@ -331,7 +340,9 @@ def parse_person_output(
         marker = f"_{suffix}"
         if output_id.endswith(marker):
             person_name = output_id[: -len(marker)]
-            if person_name.startswith(("adult", "child")):
+            if person_name in {"head", "spouse"} or person_name.startswith(
+                ("adult", "child", "dependent")
+            ):
                 return person_name, template_id, template
     return None
 
@@ -439,11 +450,7 @@ def impact_weight_variable_for_output(output_id: str) -> str | None:
 def binary_output_ids() -> list[str]:
     """Return all binary output ids across specs."""
     return sorted(
-        {
-            output.id
-            for output in iter_output_specs()
-            if output.metric_type == "binary"
-        }
+        {output.id for output in iter_output_specs() if output.metric_type == "binary"}
         | set(PERSON_ELIGIBILITY_OUTPUTS)
     )
 
@@ -451,9 +458,5 @@ def binary_output_ids() -> list[str]:
 def rate_output_ids() -> list[str]:
     """Return all rate output ids across specs."""
     return sorted(
-        {
-            output.id
-            for output in iter_output_specs()
-            if output.metric_type == "rate"
-        }
+        {output.id for output in iter_output_specs() if output.metric_type == "rate"}
     )

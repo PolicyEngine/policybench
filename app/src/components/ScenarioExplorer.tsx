@@ -30,115 +30,35 @@ function pickRandomScenario(
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-function pickBestDiagnosticScenario(
-  scenarioIds: string[],
-  scenarioPredictions: BenchData["scenarioPredictions"],
-): string | null {
-  if (!scenarioIds.length) return null;
-
-  const scored = scenarioIds.map((scenarioId) => {
-    const variables = scenarioPredictions[scenarioId] ?? {};
-    let totalExplanationCount = 0;
-    let bestVariableExplanationCount = 0;
-
-    for (const modelMap of Object.values(variables)) {
-      const explanationCount = Object.values(modelMap).filter(
-        (entry) => !!entry.explanation,
-      ).length;
-      totalExplanationCount += explanationCount;
-      bestVariableExplanationCount = Math.max(
-        bestVariableExplanationCount,
-        explanationCount,
-      );
-    }
-
-    return {
-      scenarioId,
-      totalExplanationCount,
-      bestVariableExplanationCount,
-    };
-  });
-
-  scored.sort((a, b) => {
-    if (b.bestVariableExplanationCount !== a.bestVariableExplanationCount) {
-      return b.bestVariableExplanationCount - a.bestVariableExplanationCount;
-    }
-    if (b.totalExplanationCount !== a.totalExplanationCount) {
-      return b.totalExplanationCount - a.totalExplanationCount;
-    }
-    return a.scenarioId.localeCompare(b.scenarioId);
-  });
-
-  return scored[0]?.scenarioId ?? null;
-}
-
-type ScenarioDatasetMode = "benchmark" | "diagnostic";
-
 export default function ScenarioExplorer({
   data,
-  diagnosticsData,
 }: {
   data: BenchData;
-  diagnosticsData?: BenchData | null;
 }) {
   const country = data.country;
-  const [datasetMode, setDatasetMode] =
-    useState<ScenarioDatasetMode>("benchmark");
   const [promptFormat, setPromptFormat] = useState<"tool" | "json">("tool");
 
-  const benchmarkScenarioIds = useMemo(
+  const scenarioIds = useMemo(
     () => Object.keys(data.scenarios).sort(),
     [data],
   );
-  const diagnosticScenarioIds = useMemo(
-    () => (diagnosticsData ? Object.keys(diagnosticsData.scenarios).sort() : []),
-    [diagnosticsData],
+
+  const [selectedScenario, setSelectedScenario] = useState<string | null>(() =>
+    pickRandomScenario(scenarioIds),
   );
-
-  const diagnosticDefaultScenario = useMemo(
-    () =>
-      diagnosticsData
-        ? pickBestDiagnosticScenario(
-            diagnosticScenarioIds,
-            diagnosticsData.scenarioPredictions,
-          )
-        : null,
-    [diagnosticScenarioIds, diagnosticsData],
-  );
-
-  const [selectedBenchmarkScenario, setSelectedBenchmarkScenario] = useState<
-    string | null
-  >(() => pickRandomScenario(benchmarkScenarioIds));
-  const [selectedDiagnosticScenario, setSelectedDiagnosticScenario] =
-    useState<string | null>(() => diagnosticDefaultScenario);
-
-  const activeData =
-    datasetMode === "diagnostic" && diagnosticsData ? diagnosticsData : data;
-  const scenarioIds =
-    datasetMode === "diagnostic" && diagnosticsData
-      ? diagnosticScenarioIds
-      : benchmarkScenarioIds;
-  const selectedScenarioId =
-    datasetMode === "diagnostic" && diagnosticsData
-      ? selectedDiagnosticScenario
-      : selectedBenchmarkScenario;
 
   const resolvedScenarioId =
-    selectedScenarioId && activeData.scenarios[selectedScenarioId]
-      ? selectedScenarioId
-      : datasetMode === "diagnostic" && diagnosticsData
-        ? diagnosticDefaultScenario ?? scenarioIds[0] ?? null
-        : scenarioIds[0] ?? null;
-  const scenario = resolvedScenarioId
-    ? activeData.scenarios[resolvedScenarioId]
-    : null;
+    selectedScenario && data.scenarios[selectedScenario]
+      ? selectedScenario
+      : scenarioIds[0] ?? null;
+  const scenario = resolvedScenarioId ? data.scenarios[resolvedScenarioId] : null;
 
   const predictions = useMemo(
     () =>
       resolvedScenarioId
-        ? (activeData.scenarioPredictions[resolvedScenarioId] ?? {})
+        ? (data.scenarioPredictions[resolvedScenarioId] ?? {})
         : {},
-    [activeData, resolvedScenarioId],
+    [data, resolvedScenarioId],
   );
 
   const variables = useMemo(() => Object.keys(predictions).sort(), [predictions]);
@@ -153,7 +73,7 @@ export default function ScenarioExplorer({
 
   if (!scenario || !resolvedScenarioId) return null;
 
-  const activePrompt = datasetMode === "benchmark" ? scenario.prompt : null;
+  const activePrompt = scenario.prompt;
   const geographyLabel = country === "uk" ? "Region" : "State";
   const hasFilingStatus = !!scenario.filingStatus;
   const currencySymbol = country === "uk" ? "£" : "$";
@@ -168,17 +88,9 @@ export default function ScenarioExplorer({
     0,
   );
 
-  const handleScenarioChange = (scenarioId: string) => {
-    if (datasetMode === "diagnostic" && diagnosticsData) {
-      setSelectedDiagnosticScenario(scenarioId);
-      return;
-    }
-    setSelectedBenchmarkScenario(scenarioId);
-  };
-
   const handleShuffle = () => {
     const nextScenario = pickRandomScenario(scenarioIds, resolvedScenarioId);
-    if (nextScenario) handleScenarioChange(nextScenario);
+    if (nextScenario) setSelectedScenario(nextScenario);
   };
 
   return (
@@ -194,54 +106,23 @@ export default function ScenarioExplorer({
         className="text-text-secondary mt-3 max-w-2xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Switch between benchmark households and the diagnostic slice. Diagnostic
-        households show explanation tooltips on model outputs where the model
-        returned one.
+        Inspect benchmark households, the exact prompt, model outputs, and the
+        one-sentence explanations returned with each response.
       </p>
 
       <div className="mt-8 flex flex-wrap items-end gap-4">
-        {diagnosticsData && (
-          <div className="min-w-[14rem]">
-            <label className="block text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium mb-1.5">
-              Explorer mode
-            </label>
-            <div className="flex rounded-full border border-border bg-surface p-1">
-              {[
-                ["benchmark", "Benchmark"],
-                ["diagnostic", "Diagnostics"],
-              ].map(([mode, label]) => {
-                const isActive = datasetMode === mode;
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setDatasetMode(mode as ScenarioDatasetMode)}
-                    className={`flex-1 rounded-full px-3 py-1.5 text-xs transition-colors ${
-                      isActive
-                        ? "bg-primary-soft text-primary"
-                        : "text-text-secondary hover:text-text"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         <div className="min-w-0 flex-1">
           <label className="block text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium mb-1.5">
-            {datasetMode === "diagnostic" ? "Diagnostic household" : "Household"}
+            Household
           </label>
           <div className="flex items-center gap-2">
             <select
               value={resolvedScenarioId}
-              onChange={(e) => handleScenarioChange(e.target.value)}
+              onChange={(e) => setSelectedScenario(e.target.value)}
               className="min-w-0 flex-1 bg-surface border border-border text-text text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-primary/50 font-[family-name:var(--font-mono)]"
             >
               {scenarioIds.map((id) => {
-                const s = activeData.scenarios[id];
+                const s = data.scenarios[id];
                 return (
                   <option key={id} value={id}>
                     {id.replace("scenario_", "#")} &mdash; {s.state}
@@ -310,18 +191,18 @@ export default function ScenarioExplorer({
         ))}
       </div>
 
-      {datasetMode === "diagnostic" && (
+      {totalPredictionRows > 0 && (
         <div
           className="card px-5 py-4 mt-4 animate-fade-up"
           style={{ animationDelay: "260ms" }}
         >
           <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-            Diagnostic coverage
+            Explanation coverage
           </div>
           <p className="mt-2 text-sm text-text-secondary leading-relaxed">
             {explanationRows} of {totalPredictionRows} model-output rows for
-            this household include explanation text. Hover the small markers
-            next to predictions to read them.
+            this household include explanation text. Hover the why markers next
+            to predictions to read them.
           </p>
         </div>
       )}

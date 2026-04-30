@@ -8,9 +8,9 @@ export type VariableExplainer = {
 const US_EXPLAINERS: Record<string, VariableExplainer> = {
   adjusted_gross_income: {
     summary:
-      "Diagnostics show the largest AGI misses in mixed-income and retirement-heavy households, not ordinary wage cases.",
+      "Error reads show the largest AGI misses in mixed-income and retirement-heavy households, not ordinary wage cases.",
     bullets: [
-      "On the diagnostic slice, large partnership, dividend, and capital-gain households drive the biggest errors. In Colorado scenario_042, some models miss AGI by millions.",
+      "Large partnership, dividend, and capital-gain households drive the biggest errors. In Colorado scenario_042, some models miss AGI by millions.",
       "Several models also treat visible cashflow as AGI when the tax treatment is different. In scenarios_016 and _058, models effectively count disability-related income that should not flow into AGI.",
     ],
   },
@@ -22,36 +22,44 @@ const US_EXPLAINERS: Record<string, VariableExplainer> = {
       "The hardest rows are usually the same ones that break AGI and credit components, so net tax errors often come from the wrong intermediate values rather than one bad final subtraction.",
     ],
   },
-  income_tax_before_refundable_credits: {
+  federal_income_tax_before_refundable_credits: {
     summary:
-      "Models often return gross tax before all credits or net tax after too many credits instead of the requested pre-refundable amount.",
+      "This target isolates federal income tax after nonrefundable credits but before refundable credits.",
     bullets: [
-      "In scenarios_006 and _068, Grok explicitly subtracts child credits even though the target is tax before refundable credits.",
-      "Mixed-income outliers also dominate the largest misses. In scenario_042, some models understate pre-credit tax by more than $1 million.",
+      "It subtracts nonrefundable credits actually used, such as CDCC and the nonrefundable part of CTC when applicable.",
+      "It leaves EITC and refundable credit portions, such as refundable CTC, for the refundable-credits output.",
     ],
   },
-  income_tax_refundable_credits: {
+  federal_refundable_credits: {
     summary:
-      "The recurring failure is bundling EITC and refundable CTC into one rough total or zeroing the refund out entirely.",
+      "This target captures the refundable federal credit side of the income-tax calculation.",
     bullets: [
-      "In scenario_035, Grok predicts $13,126 when truth is $1,421, which is consistent with collapsing multiple credit ideas into one amount.",
-      "In scenario_060, some models return $0 when truth is $10,377, so the error is not just sizing but also whether any refundable credit exists.",
+      "It includes EITC and refundable portions of credits such as refundable CTC when applicable.",
+      "It excludes the ACA Premium Tax Credit, which is outside the benchmark federal income-tax target.",
     ],
   },
-  eitc: {
+  premium_tax_credit: {
     summary:
-      "EITC errors usually jump between a schedule maximum and zero rather than landing near the correct point on the schedule.",
+      "This target captures ACA Marketplace premium assistance as a health-related resource, separate from federal income-tax credits.",
     bullets: [
-      "In scenario_035, Grok predicts near-max EITC even though truth is $45.",
-      "In scenarios_060 and _074, some models return $0 on clearly positive EITC cases.",
+      "It depends on Marketplace eligibility, disqualifying health coverage such as affordable employer coverage, ACA MAGI, and the local second-lowest-cost silver plan premium.",
+      "Marketplace plan facts are phrased as selected-plan information a household might know, while the local benchmark premium usually still has to be estimated.",
     ],
   },
-  ctc: {
+  income_tax_before_credits: {
     summary:
-      "The common mistakes are flat per-child guesses and dropping the refundable piece.",
+      "Models often get ordinary wage cases close but miss the income base in mixed-income households.",
     bullets: [
-      "In scenario_030, several models still return $8,000 even though truth is $0.",
-      "In scenario_047, Grok returns $0 on truth $6,600 and explains the case as if only the non-refundable piece mattered.",
+      "The intended target is federal income tax before any tax credits, including Net Investment Income Tax and other federal income-tax additions included in final federal income tax.",
+      "Mixed-income outliers dominate the largest misses because models choose the wrong taxable income base before credits are applied.",
+    ],
+  },
+  income_tax_applied_credits: {
+    summary:
+      "The applied-credit target asks for one compact credit total rather than separate EITC, CTC, and other credit lines.",
+    bullets: [
+      "It includes nonrefundable credits actually used plus refundable credits included in federal income tax.",
+      "It excludes the ACA Premium Tax Credit because the benchmark federal income tax output excludes that credit.",
     ],
   },
   snap: {
@@ -125,7 +133,7 @@ const UK_EXPLAINERS: Record<string, VariableExplainer> = {
     summary:
       "UK Income Tax misses cluster in mixed-income and relief-heavy cases rather than plain salary cases.",
     bullets: [
-      "Capital gains, dividends, property income, Gift Aid, and pension contributions raise error rates in the diagnostics. In scenario_027, GPT-5.4 appears to fold gains into ordinary tax and overshoots from £15,752 to £300,553.",
+      "Capital gains, dividends, property income, Gift Aid, and pension contributions raise error rates. In scenario_027, GPT-5.4 appears to fold gains into ordinary tax and overshoots from £15,752 to £300,553.",
       "Some weaker models also pool household income when the target is person-level tax aggregated to the household. In scenario_016, they miss a working child with earnings.",
     ],
   },

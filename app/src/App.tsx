@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import rawData from "./data.json";
-import { DIAGNOSTICS_BY_COUNTRY } from "./diagnostics";
 import Hero from "./components/Hero";
 import FailureModes from "./components/FailureModes";
 import Methodology from "./components/Methodology";
 import ModelLeaderboard from "./components/ModelLeaderboard";
 import ProgramHeatmap from "./components/ProgramHeatmap";
 import ScenarioExplorer from "./components/ScenarioExplorer";
-import type { BenchData, DashboardBundle, ViewKey } from "./types";
+import type { BenchData, CountryCode, DashboardBundle, ViewKey } from "./types";
 import { VIEW_LABELS } from "./types";
 
 const dashboard = rawData as DashboardBundle;
@@ -29,14 +28,29 @@ const GLOBAL_NAV_ITEMS = [
   { id: "methodology", label: "Method" },
 ] as const;
 
+const COUNTRY_ORDER: CountryCode[] = ["us", "uk"];
+
+function getAvailableViews(dashboard: DashboardBundle): ViewKey[] {
+  const countryViews = COUNTRY_ORDER.filter((country) => dashboard.countries[country]);
+  if (dashboard.global?.modelStats.length && countryViews.length > 1) {
+    return ["global", ...countryViews];
+  }
+  return countryViews;
+}
+
 export default function App() {
-  const [selectedView, setSelectedView] = useState<ViewKey>("global");
+  const availableViews = useMemo(() => getAvailableViews(dashboard), []);
+  const defaultView = availableViews.includes("uk")
+    ? "uk"
+    : (availableViews[0] ?? "global");
+  const [selectedView, setSelectedView] = useState<ViewKey>(defaultView);
   const [activeNav, setActiveNav] = useState<string>("models");
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   const isGlobal = selectedView === "global";
-  const data = isGlobal ? dashboard.global : dashboard.countries[selectedView];
-  const diagnosticsData = isGlobal ? null : DIAGNOSTICS_BY_COUNTRY[selectedView];
+  const data = isGlobal
+    ? dashboard.global!
+    : dashboard.countries[selectedView as CountryCode]!;
   const navItems = isGlobal ? GLOBAL_NAV_ITEMS : COUNTRY_NAV_ITEMS;
   const handleSelectView = (view: ViewKey) => {
     setSelectedView(view);
@@ -76,10 +90,12 @@ export default function App() {
 
   const footerCopy = useMemo(() => {
     if (isGlobal) {
-      const totalHouseholds =
-        Object.keys(dashboard.countries.us.scenarios).length +
-        Object.keys(dashboard.countries.uk.scenarios).length;
-      return `PolicyBench v2 — global leaderboard across ${dashboard.global.sharedModelCount} shared frontier models, 2 country benchmarks, and ${totalHouseholds.toLocaleString()} households.`;
+      const totalHouseholds = Object.values(dashboard.countries).reduce(
+        (sum, country) => sum + Object.keys(country?.scenarios ?? {}).length,
+        0
+      );
+      const countryCount = Object.keys(dashboard.countries).length;
+      return `PolicyBench v2 — global leaderboard across ${dashboard.global?.sharedModelCount ?? 0} shared frontier models, ${countryCount} country benchmarks, and ${totalHouseholds.toLocaleString()} households.`;
     }
 
     const countryData = data as BenchData;
@@ -101,6 +117,7 @@ export default function App() {
         onSelectView={handleSelectView}
         dashboard={dashboard}
         data={data}
+        availableViews={availableViews}
         navItems={navItems}
         activeNav={activeNav}
       />
@@ -117,7 +134,6 @@ export default function App() {
               <ScenarioExplorer
                 key={(data as BenchData).country}
                 data={data as BenchData}
-                diagnosticsData={diagnosticsData}
               />
             </section>
 

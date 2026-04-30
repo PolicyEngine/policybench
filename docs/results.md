@@ -34,7 +34,7 @@ The `analyze` command writes four local artifacts:
 Three patterns matter most when reading these outputs:
 
 1. The benchmark is intentionally about unaided capability. Strong results here mean a model can estimate selected household-level policy outputs from parametric knowledge alone.
-2. The rebuilt headline scope focuses on signed household net-income components; intermediate tax bases are supplementary diagnostics.
+2. The rebuilt headline scope focuses on signed household net-income components; intermediate tax bases are supplementary outputs.
 3. Amount variables are scored with exact and tolerance hit rates. Coverage variables are scored as booleans and weighted by PolicyEngine value proxies in the household-equal impact score.
 
 ## Reproducibility

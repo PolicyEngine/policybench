@@ -14,7 +14,7 @@ def simple_single_scenario():
         filing_status="single",
         adults=[Person(name="adult1", age=35, employment_income=50_000.0)],
         children=[],
-        year=2025,
+        year=2026,
     )
 
 
@@ -33,7 +33,7 @@ def family_scenario():
             Person(name="child1", age=10, employment_income=0.0),
             Person(name="child2", age=5, employment_income=0.0),
         ],
-        year=2025,
+        year=2026,
     )
 
 
@@ -49,7 +49,7 @@ def low_income_scenario():
             Person(name="child1", age=8, employment_income=0.0),
             Person(name="child2", age=3, employment_income=0.0),
         ],
-        year=2025,
+        year=2026,
     )
 
 

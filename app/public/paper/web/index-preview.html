@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
     <meta charset="utf-8">
-    <meta name="generator" content="quarto-1.7.23">
+    <meta name="generator" content="quarto-1.9.36">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -9,6 +9,9 @@
 
     <title>PolicyBench</title>
     <style>
+      /* Default styles provided by pandoc.
+      ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+      */
       code{white-space: pre-wrap;}
       span.smallcaps{font-variant: small-caps;}
       div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -60,7 +63,6 @@
       div.csl-bib-body { }
       div.csl-entry {
         clear: both;
-        margin-bottom: 0em;
       }
       .hanging-indent div.csl-entry {
         margin-left:2em;
@@ -128,7 +130,7 @@
       }      
     </style>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js" integrity="sha512-bLT0Qm9VnAYZDflyKcBaQ2gg0hSYNQrJ8RilYldYQ1FxQYoCLtUjuuRuZo+fjqhx/qtq/1itJ0C2ejDxltZVFg==" crossorigin="anonymous"></script><script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script>
     window.document.addEventListener("DOMContentLoaded", function () {
 
       var header = window.document.querySelector("#quarto-embed-header");
@@ -176,9 +178,9 @@
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="site_libs/quarto-html/light-border.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-html-759c0ece14ff2c0bb30ede3498dcac91.min.css" rel="stylesheet" append-hash="true" data-mode="light">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-226bd0f977fa82dfae4534cac220d79a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-     <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" integrity="sha512-c3Nl8+7g4LMSTdrm621y7kf9v3SDPnhxLNhcjFJbKECVnmZHTdo+IRO05sNLTH/D3vA6u1X32ehoLC7WFVdheg==" crossorigin="anonymous"></script>
+<link href="site_libs/quarto-html/quarto-html-640605f58ae58ee79329c070719e555b.min.css" rel="stylesheet" append-hash="true" data-mode="light">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+     <script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
 
 <script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>  
         <link rel="stylesheet" href="pe-tokens.css">
@@ -228,8 +230,8 @@
   <li><a href="#global-shared-model-leaderboard" id="toc-global-shared-model-leaderboard">Global shared-model leaderboard</a></li>
   <li><a href="#hardest-benchmark-targets" id="toc-hardest-benchmark-targets">Hardest benchmark targets</a></li>
   </ul>
-</nav>  <div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [1]:</pre></div><div id="71290ede" class="cell" data-execution_count="1">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> json</span>
+</nav>  <div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [1]:</pre></div><div id="8507764c" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> json</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
@@ -320,41 +322,43 @@
 <span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a>us_ranked <span class="op">=</span> us_model.sort_values(<span class="st">"mean_score"</span>, ascending<span class="op">=</span><span class="va">False</span>).reset_index(drop<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a>uk_ranked <span class="op">=</span> uk_model.sort_values(<span class="st">"mean_score"</span>, ascending<span class="op">=</span><span class="va">False</span>).reset_index(drop<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a>global_ranked <span class="op">=</span> global_model.sort_values(<span class="st">"score"</span>, ascending<span class="op">=</span><span class="va">False</span>).reset_index(drop<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a>us_top_three <span class="op">=</span> [</span>
-<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>row<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>fmt_score(row.mean_score <span class="op">*</span> <span class="dv">100</span>)<span class="sc">}</span><span class="ss">)"</span></span>
-<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> row <span class="kw">in</span> us_ranked.head(<span class="dv">3</span>).itertuples()</span>
-<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb1-98"><a href="#cb1-98" aria-hidden="true" tabindex="-1"></a>uk_top_three <span class="op">=</span> [</span>
-<span id="cb1-99"><a href="#cb1-99" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>row<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>fmt_score(row.mean_score <span class="op">*</span> <span class="dv">100</span>)<span class="sc">}</span><span class="ss">)"</span></span>
-<span id="cb1-100"><a href="#cb1-100" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> row <span class="kw">in</span> uk_ranked.head(<span class="dv">3</span>).itertuples()</span>
-<span id="cb1-101"><a href="#cb1-101" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb1-102"><a href="#cb1-102" aria-hidden="true" tabindex="-1"></a>global_top_three <span class="op">=</span> [</span>
-<span id="cb1-103"><a href="#cb1-103" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>row<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>fmt_score(row.score)<span class="sc">}</span><span class="ss">)"</span></span>
-<span id="cb1-104"><a href="#cb1-104" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> row <span class="kw">in</span> global_ranked.head(<span class="dv">3</span>).itertuples()</span>
-<span id="cb1-105"><a href="#cb1-105" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb1-106"><a href="#cb1-106" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-107"><a href="#cb1-107" aria-hidden="true" tabindex="-1"></a>abstract_snapshot_summary <span class="op">=</span> (</span>
-<span id="cb1-108"><a href="#cb1-108" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"In the frozen snapshot used for this manuscript (</span><span class="sc">{</span>snapshot_date<span class="sc">}</span><span class="ss">), "</span></span>
-<span id="cb1-109"><a href="#cb1-109" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"the top US model is </span><span class="sc">{</span>us_snapshot[<span class="st">'top_model'</span>][<span class="st">'model'</span>]<span class="sc">}</span><span class="ss"> at "</span></span>
-<span id="cb1-110"><a href="#cb1-110" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>fmt_score(us_snapshot[<span class="st">'top_model'</span>][<span class="st">'score'</span>])<span class="sc">}</span><span class="ss">, the top UK model is "</span></span>
-<span id="cb1-111"><a href="#cb1-111" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>uk_snapshot[<span class="st">'top_model'</span>][<span class="st">'model'</span>]<span class="sc">}</span><span class="ss"> at "</span></span>
-<span id="cb1-112"><a href="#cb1-112" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>fmt_score(uk_snapshot[<span class="st">'top_model'</span>][<span class="st">'score'</span>])<span class="sc">}</span><span class="ss">, and the top shared "</span></span>
-<span id="cb1-113"><a href="#cb1-113" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"global model is </span><span class="sc">{</span>global_snapshot[<span class="st">'top_model'</span>][<span class="st">'model'</span>]<span class="sc">}</span><span class="ss"> at "</span></span>
-<span id="cb1-114"><a href="#cb1-114" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>fmt_score(global_snapshot[<span class="st">'top_model'</span>][<span class="st">'score'</span>])<span class="sc">}</span><span class="ss">."</span></span>
-<span id="cb1-115"><a href="#cb1-115" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-116"><a href="#cb1-116" aria-hidden="true" tabindex="-1"></a>us_top_three_summary <span class="op">=</span> ranked_phrase(us_top_three)</span>
-<span id="cb1-117"><a href="#cb1-117" aria-hidden="true" tabindex="-1"></a>uk_top_three_summary <span class="op">=</span> ranked_phrase(uk_top_three)</span>
-<span id="cb1-118"><a href="#cb1-118" aria-hidden="true" tabindex="-1"></a>global_top_three_summary <span class="op">=</span> ranked_phrase(global_top_three)</span>
-<span id="cb1-119"><a href="#cb1-119" aria-hidden="true" tabindex="-1"></a>opus_uk_parse <span class="op">=</span> parsed_ratio(uk_model, <span class="st">"claude-opus-4.6"</span>)</span>
-<span id="cb1-120"><a href="#cb1-120" aria-hidden="true" tabindex="-1"></a>conclusion_snapshot_summary <span class="op">=</span> (</span>
-<span id="cb1-121"><a href="#cb1-121" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"In the frozen manuscript snapshot, </span><span class="sc">{</span>us_snapshot[<span class="st">'top_model'</span>][<span class="st">'model'</span>]<span class="sc">}</span><span class="ss"> "</span></span>
-<span id="cb1-122"><a href="#cb1-122" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"is the top-scoring US model and </span><span class="sc">{</span>uk_snapshot[<span class="st">'top_model'</span>][<span class="st">'model'</span>]<span class="sc">}</span><span class="ss"> is "</span></span>
-<span id="cb1-123"><a href="#cb1-123" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"the top-scoring UK model."</span></span>
-<span id="cb1-124"><a href="#cb1-124" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a>global_ranked <span class="op">=</span> global_model.sort_values(<span class="st">"score"</span>, ascending<span class="op">=</span><span class="va">False</span>).reset_index(</span>
+<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a>    drop<span class="op">=</span><span class="va">True</span></span>
+<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a>us_top_three <span class="op">=</span> [</span>
+<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>row<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>fmt_score(row.mean_score <span class="op">*</span> <span class="dv">100</span>)<span class="sc">}</span><span class="ss">)"</span></span>
+<span id="cb1-98"><a href="#cb1-98" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> row <span class="kw">in</span> us_ranked.head(<span class="dv">3</span>).itertuples()</span>
+<span id="cb1-99"><a href="#cb1-99" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb1-100"><a href="#cb1-100" aria-hidden="true" tabindex="-1"></a>uk_top_three <span class="op">=</span> [</span>
+<span id="cb1-101"><a href="#cb1-101" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>row<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>fmt_score(row.mean_score <span class="op">*</span> <span class="dv">100</span>)<span class="sc">}</span><span class="ss">)"</span></span>
+<span id="cb1-102"><a href="#cb1-102" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> row <span class="kw">in</span> uk_ranked.head(<span class="dv">3</span>).itertuples()</span>
+<span id="cb1-103"><a href="#cb1-103" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb1-104"><a href="#cb1-104" aria-hidden="true" tabindex="-1"></a>global_top_three <span class="op">=</span> [</span>
+<span id="cb1-105"><a href="#cb1-105" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>row<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>fmt_score(row.score)<span class="sc">}</span><span class="ss">)"</span></span>
+<span id="cb1-106"><a href="#cb1-106" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> row <span class="kw">in</span> global_ranked.head(<span class="dv">3</span>).itertuples()</span>
+<span id="cb1-107"><a href="#cb1-107" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb1-108"><a href="#cb1-108" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-109"><a href="#cb1-109" aria-hidden="true" tabindex="-1"></a>abstract_snapshot_summary <span class="op">=</span> (</span>
+<span id="cb1-110"><a href="#cb1-110" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"In the frozen snapshot used for this manuscript (</span><span class="sc">{</span>snapshot_date<span class="sc">}</span><span class="ss">), "</span></span>
+<span id="cb1-111"><a href="#cb1-111" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"the top US model is </span><span class="sc">{</span>us_snapshot[<span class="st">'top_model'</span>][<span class="st">'model'</span>]<span class="sc">}</span><span class="ss"> at "</span></span>
+<span id="cb1-112"><a href="#cb1-112" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>fmt_score(us_snapshot[<span class="st">'top_model'</span>][<span class="st">'score'</span>])<span class="sc">}</span><span class="ss">, the top UK model is "</span></span>
+<span id="cb1-113"><a href="#cb1-113" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>uk_snapshot[<span class="st">'top_model'</span>][<span class="st">'model'</span>]<span class="sc">}</span><span class="ss"> at "</span></span>
+<span id="cb1-114"><a href="#cb1-114" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>fmt_score(uk_snapshot[<span class="st">'top_model'</span>][<span class="st">'score'</span>])<span class="sc">}</span><span class="ss">, and the top shared "</span></span>
+<span id="cb1-115"><a href="#cb1-115" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"global model is </span><span class="sc">{</span>global_snapshot[<span class="st">'top_model'</span>][<span class="st">'model'</span>]<span class="sc">}</span><span class="ss"> at "</span></span>
+<span id="cb1-116"><a href="#cb1-116" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span>fmt_score(global_snapshot[<span class="st">'top_model'</span>][<span class="st">'score'</span>])<span class="sc">}</span><span class="ss">."</span></span>
+<span id="cb1-117"><a href="#cb1-117" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-118"><a href="#cb1-118" aria-hidden="true" tabindex="-1"></a>us_top_three_summary <span class="op">=</span> ranked_phrase(us_top_three)</span>
+<span id="cb1-119"><a href="#cb1-119" aria-hidden="true" tabindex="-1"></a>uk_top_three_summary <span class="op">=</span> ranked_phrase(uk_top_three)</span>
+<span id="cb1-120"><a href="#cb1-120" aria-hidden="true" tabindex="-1"></a>global_top_three_summary <span class="op">=</span> ranked_phrase(global_top_three)</span>
+<span id="cb1-121"><a href="#cb1-121" aria-hidden="true" tabindex="-1"></a>opus_uk_parse <span class="op">=</span> parsed_ratio(uk_model, <span class="st">"claude-opus-4.6"</span>)</span>
+<span id="cb1-122"><a href="#cb1-122" aria-hidden="true" tabindex="-1"></a>conclusion_snapshot_summary <span class="op">=</span> (</span>
+<span id="cb1-123"><a href="#cb1-123" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"In the frozen manuscript snapshot, </span><span class="sc">{</span>us_snapshot[<span class="st">'top_model'</span>][<span class="st">'model'</span>]<span class="sc">}</span><span class="ss"> "</span></span>
+<span id="cb1-124"><a href="#cb1-124" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"is the top-scoring US model and </span><span class="sc">{</span>uk_snapshot[<span class="st">'top_model'</span>][<span class="st">'model'</span>]<span class="sc">}</span><span class="ss"> is "</span></span>
+<span id="cb1-125"><a href="#cb1-125" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"the top-scoring UK model."</span></span>
+<span id="cb1-126"><a href="#cb1-126" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div></div>
-<div id="84d4f5c9" class="cell markdown">
+<div id="b5066578" class="cell markdown">
 <h2 id="abstract" class="anchored">Abstract</h2>
 <p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses nationally calibrated household scenarios, and scores outputs with a bounded <code>0-100</code> metric. In the frozen snapshot used for this manuscript (2026-04-04), the top US model is gemini-3.1-pro-preview at 73.3, the top UK model is grok-4.20 at 83.0, and the top shared global model is gemini-3.1-pro-preview at 78.0. In both countries, the lowest-scoring outputs are tax-base variables rather than benefits or credits. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
 <h2 id="introduction" class="anchored">Introduction</h2>
@@ -362,9 +366,9 @@
 <p>Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>, while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.</p>
 <p>This matters for public-facing calculators, analyst workflows, and tax-preparation or screening systems. The benchmark is intended to separate verbal policy fluency from household-level quantitative prediction.</p>
 <h2 id="related-work" class="anchored">Related work</h2>
-<p>The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem <span class="citation" data-cites="holzenberger2021sara">(Holzenberger et al. 2021)</span>. LegalBench broadens this view and includes tax-oriented numeric tasks such as <code>sara_numeric</code> <span class="citation" data-cites="guha2023legalbench">(Guha et al. 2023)</span>. RuleArena evaluates rule-guided reasoning in regulation-style settings <span class="citation" data-cites="kim2024rulearena">(Kim et al. 2024)</span>, and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs <span class="citation" data-cites="taxcalcbench2025">(Mahesh et al. 2025)</span>. Shanahan et al.&nbsp;report a similar split on the VITA test: models do better on tax knowledge questions than on open-ended calculation tasks <span class="citation" data-cites="shanahan2025vita">(Shanahan et al. 2025)</span>.</p>
-<p>PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>. That norm is less natural for continuous-valued policy outputs, where being within 1 percent is closer than being off by an order of magnitude. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead <span class="citation" data-cites="zhou2025tempanswerqa">(Zhou et al. 2025)</span>. PolicyBench follows that direction by combining exactness with near-miss thresholds rather than collapsing everything into exact match alone.</p>
-<p>Finance-domain benchmarks provide another relevant precedent. FinQA and TAT-QA both show that realistic quantitative reasoning often requires combining structured numbers with domain knowledge rather than solving stylized school-math problems <span class="citation" data-cites="chen2021finqa zhu2021tatqa">(Chen et al. 2021; Zhu et al. 2021)</span>. PolicyBench differs in that its reference outputs are generated by executable tax-benefit microsimulation rather than annotated document questions, but the underlying motivation is similar: domain-specific quantitative reasoning deserves dedicated evaluation.</p>
+<p>The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem <span class="citation" data-cites="holzenberger2021sara">(Holzenberger et al. 2021)</span>. LegalBench broadens this view and includes tax-oriented numeric tasks such as <code>sara_numeric</code> <span class="citation" data-cites="guha2023legalbench">(<span class="nocase">Guha et al.</span> 2023)</span>. RuleArena evaluates rule-guided reasoning in regulation-style settings <span class="citation" data-cites="kim2024rulearena">(<span class="nocase">Kim et al.</span> 2024)</span>, and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs <span class="citation" data-cites="taxcalcbench2025">(Mahesh et al. 2025)</span>. Shanahan et al.&nbsp;report a similar split on the VITA test: models do better on tax knowledge questions than on open-ended calculation tasks <span class="citation" data-cites="shanahan2025vita">(Shanahan et al. 2025)</span>.</p>
+<p>PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>. That norm is less natural for continuous-valued policy outputs, where being within 1 percent is closer than being off by an order of magnitude. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead <span class="citation" data-cites="zhou2025tempanswerqa">(<span class="nocase">Zhou et al.</span> 2025)</span>. PolicyBench follows that direction by combining exactness with near-miss thresholds rather than collapsing everything into exact match alone.</p>
+<p>Finance-domain benchmarks provide another relevant precedent. FinQA and TAT-QA both show that realistic quantitative reasoning often requires combining structured numbers with domain knowledge rather than solving stylized school-math problems <span class="citation" data-cites="chen2021finqa zhu2021tatqa">(<span class="nocase">Chen et al.</span> 2021; <span class="nocase">Zhu et al.</span> 2021)</span>. PolicyBench differs in that its reference outputs are generated by executable tax-benefit microsimulation rather than annotated document questions, but the underlying motivation is similar: domain-specific quantitative reasoning deserves dedicated evaluation.</p>
 <p>Finally, PolicyBench depends on two infrastructure literatures that are not themselves LLM benchmarks. One is structured-output reliability, since the benchmark relies on multi-output JSON responses and parse coverage rather than free-form prose <span class="citation" data-cites="shorten2024structuredrag">(Shorten et al. 2024)</span>. The other is tax-benefit microsimulation, where systems such as EUROMOD provide the methodological precedent for evaluating policy rules over household microdata <span class="citation" data-cites="sutherland2023euromod">(Sutherland et al. 2023)</span>. The UK side of PolicyBench also builds on PolicyEngine’s recent work on survey-backed calibration and imputation <span class="citation" data-cites="policyengineukdata2026">(Woodruff and Ghenis 2026)</span>. There is also operational work on applying and evaluating AI systems in public-benefits settings, including caseworker-assist and SNAP-focused evaluations <span class="citation" data-cites="nava2026caseworker nava2025benefits propel2025snap">(Nava Labs 2026, 2025; ZenML LLMOps Database 2025)</span>. We are not aware of a public cross-model benchmark over household-level benefit outputs.</p>
 <h2 id="benchmark-design" class="anchored">Benchmark design</h2>
 <p>PolicyBench asks models to predict all benchmark outputs for a household in a single structured response. One response per household reduces repeated prompt cost and keeps the task at the household-return level rather than turning it into a sequence of unrelated one-output calls.</p>
@@ -375,8 +379,8 @@
 <li>within 5%</li>
 <li>within 10%</li>
 </ol>
-<p>For binary outputs, the score is exact accuracy. This keeps <code>100</code> as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related diagnostics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized <span class="citation" data-cites="zhou2025tempanswerqa">(Zhou et al. 2025)</span>.</p>
-<p>The benchmark distinguishes between <strong>benchmark runs</strong> and <strong>diagnostic runs</strong>. Benchmark runs are the canonical leaderboard artifacts. Diagnostic runs use smaller sidecar samples and may request optional explanations. Those explanation runs are used for qualitative analysis and are not part of the headline ranking.</p>
+<p>For binary outputs, the score is exact accuracy. This keeps <code>100</code> as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related error metrics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized <span class="citation" data-cites="zhou2025tempanswerqa">(<span class="nocase">Zhou et al.</span> 2025)</span>.</p>
+<p>The benchmark requires each model response to include numeric answers and one short explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning. Numeric-only runs are treated as prompt-contract ablations, not as the canonical leaderboard task.</p>
 <p>PolicyBench also has an earlier archived tool-assisted pilot. That condition used a single untuned function-calling contract rather than a multi-step agent setup. The only tool was <code>calculate_policy(household, variable, year)</code>, where <code>household</code> was a standard PolicyEngine-US household JSON object and the archived scenarios supplied only basic fields needed for those tests: person ages, employment income, and household state. The prompt was a short instruction to calculate one output, use the tool with the given variable name and year, and return the numeric result from the tool. The archived US run covers <code>4,200</code> predictions (<code>100</code> households x <code>14</code> outputs x <code>3</code> models: Claude Opus, Claude Sonnet, and GPT-5.2), and all <code>4,200</code> predictions match the simulator reference values exactly. We do not mix that condition into the current leaderboard because it measures whether the model can route the request to the simulator and use the returned value, not whether it can estimate the output without tools.</p>
 <h2 id="data-and-scenario-construction" class="anchored">Data and scenario construction</h2>
 <h3 id="united-states" class="anchored">United States</h3>
@@ -390,8 +394,8 @@
 <p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;1</a>. The top three models in that snapshot are gemini-3.1-pro-preview (73.4), grok-4.20 (71.7), and gemini-3-flash-preview (69.5).</p>
 </div>
 <div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [2]:</pre></div><div class="cell" data-execution_count="2">
-
-<div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [2]:</pre></div><div><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>us_top</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div><div id="tbl-us-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>us_top</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [2]:</pre></div><div id="tbl-us-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="2">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-us-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Table&nbsp;1: Top US benchmark models in the current release.
@@ -413,7 +417,7 @@ Table&nbsp;1: Top US benchmark models in the current release.
     }
 </style>
 
-<table class="dataframe do-not-create-environment cell caption-top" data-quarto-postprocess="true" data-border="1">
+<table class="dataframe cell caption-top" data-border="1">
 <thead>
 <tr class="header" style="text-align: right;">
 <th data-quarto-table-cell-role="th"></th>
@@ -427,7 +431,7 @@ Table&nbsp;1: Top US benchmark models in the current release.
 </thead>
 <tbody>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">0</td>
+<th data-quarto-table-cell-role="th">0</th>
 <td>gemini-3.1-pro-preview</td>
 <td>73.4</td>
 <td>67.6</td>
@@ -436,7 +440,7 @@ Table&nbsp;1: Top US benchmark models in the current release.
 <td>12974</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">1</td>
+<th data-quarto-table-cell-role="th">1</th>
 <td>grok-4.20</td>
 <td>71.7</td>
 <td>66.3</td>
@@ -445,7 +449,7 @@ Table&nbsp;1: Top US benchmark models in the current release.
 <td>13000</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">2</td>
+<th data-quarto-table-cell-role="th">2</th>
 <td>gemini-3-flash-preview</td>
 <td>69.5</td>
 <td>64.5</td>
@@ -454,7 +458,7 @@ Table&nbsp;1: Top US benchmark models in the current release.
 <td>13000</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">3</td>
+<th data-quarto-table-cell-role="th">3</th>
 <td>gpt-5.4</td>
 <td>67.2</td>
 <td>62.7</td>
@@ -463,7 +467,7 @@ Table&nbsp;1: Top US benchmark models in the current release.
 <td>13000</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">4</td>
+<th data-quarto-table-cell-role="th">4</th>
 <td>claude-opus-4.6</td>
 <td>66.2</td>
 <td>61.4</td>
@@ -478,15 +482,15 @@ Table&nbsp;1: Top US benchmark models in the current release.
 </div>
 </div>
 </figure>
-</div></div></div>
 </div></div>
-<div id="8e4ec884" class="cell markdown">
+</div></div>
+<div id="ea00e367" class="cell markdown">
 <h3 id="united-kingdom-leaderboard" class="anchored">United Kingdom leaderboard</h3>
 <p>The UK leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-uk-top" class="quarto-xref">Table&nbsp;2</a>. The top three models in that snapshot are grok-4.20 (83.0), gemini-3.1-pro-preview (82.6), and gemini-3-flash-preview (71.6).</p>
 </div>
 <div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [3]:</pre></div><div class="cell" data-execution_count="3">
-
-<div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [3]:</pre></div><div><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>uk_top</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div><div id="tbl-uk-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>uk_top</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [3]:</pre></div><div id="tbl-uk-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="3">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-uk-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Table&nbsp;2: Top UK benchmark models in the current release.
@@ -508,7 +512,7 @@ Table&nbsp;2: Top UK benchmark models in the current release.
     }
 </style>
 
-<table class="dataframe do-not-create-environment cell caption-top" data-quarto-postprocess="true" data-border="1">
+<table class="dataframe cell caption-top" data-border="1">
 <thead>
 <tr class="header" style="text-align: right;">
 <th data-quarto-table-cell-role="th"></th>
@@ -522,7 +526,7 @@ Table&nbsp;2: Top UK benchmark models in the current release.
 </thead>
 <tbody>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">0</td>
+<th data-quarto-table-cell-role="th">0</th>
 <td>grok-4.20</td>
 <td>83.0</td>
 <td>76.0</td>
@@ -531,7 +535,7 @@ Table&nbsp;2: Top UK benchmark models in the current release.
 <td>6000</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">1</td>
+<th data-quarto-table-cell-role="th">1</th>
 <td>gemini-3.1-pro-preview</td>
 <td>82.6</td>
 <td>74.7</td>
@@ -540,7 +544,7 @@ Table&nbsp;2: Top UK benchmark models in the current release.
 <td>6000</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">2</td>
+<th data-quarto-table-cell-role="th">2</th>
 <td>gemini-3-flash-preview</td>
 <td>71.6</td>
 <td>64.4</td>
@@ -549,7 +553,7 @@ Table&nbsp;2: Top UK benchmark models in the current release.
 <td>6000</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">3</td>
+<th data-quarto-table-cell-role="th">3</th>
 <td>gpt-5.4</td>
 <td>68.9</td>
 <td>62.7</td>
@@ -558,7 +562,7 @@ Table&nbsp;2: Top UK benchmark models in the current release.
 <td>6000</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">4</td>
+<th data-quarto-table-cell-role="th">4</th>
 <td>gemini-3.1-flash-lite-preview</td>
 <td>68.7</td>
 <td>62.9</td>
@@ -573,15 +577,15 @@ Table&nbsp;2: Top UK benchmark models in the current release.
 </div>
 </div>
 </figure>
-</div></div></div>
 </div></div>
-<div id="eb427cfd" class="cell markdown">
+</div></div>
+<div id="b3a81d61" class="cell markdown">
 <h3 id="global-shared-model-leaderboard" class="anchored">Global shared-model leaderboard</h3>
 <p>The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are gemini-3.1-pro-preview (78.0), grok-4.20 (77.3), and gemini-3-flash-preview (70.6). The global table summarizes cross-country performance; the country tables identify the outputs driving the differences.</p>
 </div>
 <div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [4]:</pre></div><div class="cell" data-execution_count="4">
-
-<div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [4]:</pre></div><div><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>global_top</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div><div id="tbl-global-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>global_top</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [4]:</pre></div><div id="tbl-global-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="4">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-global-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
@@ -603,7 +607,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
     }
 </style>
 
-<table class="dataframe do-not-create-environment cell caption-top" data-quarto-postprocess="true" data-border="1">
+<table class="dataframe cell caption-top" data-border="1">
 <thead>
 <tr class="header" style="text-align: right;">
 <th data-quarto-table-cell-role="th"></th>
@@ -617,7 +621,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 </thead>
 <tbody>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">0</td>
+<th data-quarto-table-cell-role="th">0</th>
 <td>gemini-3.1-pro-preview</td>
 <td>78.0</td>
 <td>71.1</td>
@@ -626,7 +630,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 <td>18974</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">1</td>
+<th data-quarto-table-cell-role="th">1</th>
 <td>grok-4.20</td>
 <td>77.3</td>
 <td>71.2</td>
@@ -635,7 +639,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 <td>19000</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">2</td>
+<th data-quarto-table-cell-role="th">2</th>
 <td>gemini-3-flash-preview</td>
 <td>70.6</td>
 <td>64.4</td>
@@ -644,7 +648,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 <td>19000</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">3</td>
+<th data-quarto-table-cell-role="th">3</th>
 <td>gpt-5.4</td>
 <td>68.0</td>
 <td>62.7</td>
@@ -653,7 +657,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 <td>19000</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">4</td>
+<th data-quarto-table-cell-role="th">4</th>
 <td>gemini-3.1-flash-lite-preview</td>
 <td>67.3</td>
 <td>62.2</td>
@@ -662,7 +666,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 <td>19000</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">5</td>
+<th data-quarto-table-cell-role="th">5</th>
 <td>claude-opus-4.6</td>
 <td>67.1</td>
 <td>61.7</td>
@@ -671,7 +675,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 <td>18558</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">6</td>
+<th data-quarto-table-cell-role="th">6</th>
 <td>claude-sonnet-4.6</td>
 <td>66.4</td>
 <td>61.9</td>
@@ -680,7 +684,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 <td>18974</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">7</td>
+<th data-quarto-table-cell-role="th">7</th>
 <td>gpt-5.4-mini</td>
 <td>64.5</td>
 <td>62.3</td>
@@ -689,7 +693,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 <td>19000</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">8</td>
+<th data-quarto-table-cell-role="th">8</th>
 <td>claude-haiku-4.5</td>
 <td>63.2</td>
 <td>60.9</td>
@@ -698,7 +702,7 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 <td>19000</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">9</td>
+<th data-quarto-table-cell-role="th">9</th>
 <td>gpt-5.4-nano</td>
 <td>61.8</td>
 <td>60.8</td>
@@ -713,15 +717,15 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 </div>
 </div>
 </figure>
-</div></div></div>
 </div></div>
-<div id="276498ae" class="cell markdown">
+</div></div>
+<div id="a5c6884b" class="cell markdown">
 <h3 id="hardest-benchmark-targets" class="anchored">Hardest benchmark targets</h3>
 <p>The lowest-scoring US variables are tax-base and state-tax quantities rather than benefits. As shown in <a href="#tbl-us-hardest" class="quarto-xref">Table&nbsp;4</a>, household state income tax scores <code>31.5</code>, state AGI scores <code>32.9</code>, federal income tax before refundable credits scores <code>33.2</code>, and adjusted gross income scores <code>37.1</code>. By comparison, EITC scores <code>86.3</code>, SSI scores <code>93.1</code>, and free school meals scores <code>94.1</code>.</p>
 </div>
 <div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [5]:</pre></div><div class="cell" data-execution_count="5">
-
-<div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [5]:</pre></div><div><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>us_hardest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div><div id="tbl-us-hardest" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>us_hardest</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [5]:</pre></div><div id="tbl-us-hardest" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="5">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-us-hardest-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Table&nbsp;4: Hardest US variables by bounded score.
@@ -743,7 +747,7 @@ Table&nbsp;4: Hardest US variables by bounded score.
     }
 </style>
 
-<table class="dataframe do-not-create-environment cell caption-top" data-quarto-postprocess="true" data-border="1">
+<table class="dataframe cell caption-top" data-border="1">
 <thead>
 <tr class="header" style="text-align: right;">
 <th data-quarto-table-cell-role="th"></th>
@@ -755,35 +759,35 @@ Table&nbsp;4: Hardest US variables by bounded score.
 </thead>
 <tbody>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">4</td>
+<th data-quarto-table-cell-role="th">4</th>
 <td>household_state_income_tax</td>
 <td>31.9</td>
 <td>28.2</td>
 <td>37.3</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">10</td>
+<th data-quarto-table-cell-role="th">10</th>
 <td>state_agi</td>
 <td>34.0</td>
 <td>20.6</td>
 <td>47.5</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">5</td>
+<th data-quarto-table-cell-role="th">5</th>
 <td>income_tax_before_refundable_credits</td>
 <td>34.0</td>
 <td>30.3</td>
 <td>39.9</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">0</td>
+<th data-quarto-table-cell-role="th">0</th>
 <td>adjusted_gross_income</td>
 <td>39.6</td>
 <td>21.3</td>
 <td>57.7</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">11</td>
+<th data-quarto-table-cell-role="th">11</th>
 <td>state_income_tax_before_refundable_credits</td>
 <td>40.4</td>
 <td>36.4</td>
@@ -796,14 +800,14 @@ Table&nbsp;4: Hardest US variables by bounded score.
 </div>
 </div>
 </figure>
-</div></div></div>
 </div></div>
-<div id="2ce6a37f" class="cell markdown">
+</div></div>
+<div id="067f458b" class="cell markdown">
 <p>The same pattern appears in the UK run. Income tax scores <code>32.2</code> and national insurance scores <code>51.9</code>. Child benefit scores <code>77.3</code>, universal credit scores <code>77.6</code>, PIP scores <code>84.0</code>, and pension credit scores <code>88.4</code>.</p>
 </div>
 <div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [6]:</pre></div><div class="cell" data-execution_count="6">
-
-<div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [6]:</pre></div><div><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>uk_hardest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div><div id="tbl-uk-hardest" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>uk_hardest</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-container column-page-left"><div class="cell-decorator"><pre>In [6]:</pre></div><div id="tbl-uk-hardest" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="6">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-uk-hardest-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Table&nbsp;5: Hardest UK variables by bounded score.
@@ -825,7 +829,7 @@ Table&nbsp;5: Hardest UK variables by bounded score.
     }
 </style>
 
-<table class="dataframe do-not-create-environment cell caption-top" data-quarto-postprocess="true" data-border="1">
+<table class="dataframe cell caption-top" data-border="1">
 <thead>
 <tr class="header" style="text-align: right;">
 <th data-quarto-table-cell-role="th"></th>
@@ -837,35 +841,35 @@ Table&nbsp;5: Hardest UK variables by bounded score.
 </thead>
 <tbody>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">1</td>
+<th data-quarto-table-cell-role="th">1</th>
 <td>income_tax</td>
 <td>34.8</td>
 <td>25.4</td>
 <td>45.8</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">2</td>
+<th data-quarto-table-cell-role="th">2</th>
 <td>national_insurance</td>
 <td>55.3</td>
 <td>50.6</td>
 <td>61.5</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">5</td>
+<th data-quarto-table-cell-role="th">5</th>
 <td>universal_credit</td>
 <td>77.7</td>
 <td>76.9</td>
 <td>78.8</td>
 </tr>
 <tr class="even">
-<td data-quarto-table-cell-role="th">0</td>
+<th data-quarto-table-cell-role="th">0</th>
 <td>child_benefit</td>
 <td>78.1</td>
 <td>70.7</td>
 <td>86.1</td>
 </tr>
 <tr class="odd">
-<td data-quarto-table-cell-role="th">4</td>
+<th data-quarto-table-cell-role="th">4</th>
 <td>pip</td>
 <td>84.9</td>
 <td>79.4</td>
@@ -878,9 +882,9 @@ Table&nbsp;5: Hardest UK variables by bounded score.
 </div>
 </div>
 </figure>
-</div></div></div>
 </div></div>
-<div id="15859a64" class="cell markdown">
+</div></div>
+<div id="fb8147fd" class="cell markdown">
 <h2 id="failure-modes" class="anchored">Failure modes</h2>
 <p>The benchmark surfaces a few recurring failure patterns.</p>
 <p>First, models miss positive tax quantities more often than zero cases. In the US, the four lowest-scoring variables are household state income tax, state AGI, federal income tax before refundable credits, and adjusted gross income. These outputs require the model to choose the right income concepts and exclusions before applying any final subtraction.</p>
@@ -897,56 +901,56 @@ Table&nbsp;5: Hardest UK variables by bounded score.
 <p>The current paper is therefore an evaluation of model performance under a specific structured-output benchmark, not a general certification of tax or benefit competence.</p>
 <h2 id="conclusion" class="anchored">Conclusion</h2>
 <p>PolicyBench shows a consistent pattern across both countries. Benefit outputs score above tax-base outputs, while the lowest-scoring variables are adjusted gross income, state-tax quantities, income tax, and national insurance. In the frozen manuscript snapshot, gemini-3.1-pro-preview is the top-scoring US model and grok-4.20 is the top-scoring UK model.</p>
-<p>Next steps are to expand diagnostics, extend country coverage, and tighten the data and scoring pipelines so that the leaderboard is driven less by output-format reliability and more by policy reasoning.</p>
+<p>Next steps are to expand country coverage and tighten the data and scoring pipelines so that the leaderboard is driven less by output-format reliability and more by policy calculation quality.</p>
 </div>
-<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" role="list">
+<div id="refs" class="references csl-bib-body hanging-indent" role="list">
 <div id="ref-chen2021finqa" class="csl-entry" role="listitem">
-Chen, Zhiyu, Wenhu Chen, Charese Smiley, Sameena Shah, Iana Borova, Derek Langdon, Reham Moussa, et al. 2021. <span>“FinQA: A Dataset of Numerical Reasoning over Financial Data.”</span> <em>arXiv Preprint arXiv:2109.00122</em>. <a href="https://arxiv.org/abs/2109.00122">https://arxiv.org/abs/2109.00122</a>.
+<span class="nocase">Chen, Zhiyu, Wenhu Chen, Charese Smiley, et al.</span> 2021. <span>“FinQA: A Dataset of Numerical Reasoning over Financial Data.”</span> <em>arXiv Preprint arXiv:2109.00122</em>. <a href="https://arxiv.org/abs/2109.00122">https://arxiv.org/abs/2109.00122</a>.
 </div>
 <div id="ref-cobbe2021training" class="csl-entry" role="listitem">
-Cobbe, Karl, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias Plappert, et al. 2021. <span>“Training Verifiers to Solve Math Word Problems.”</span> <em>arXiv Preprint arXiv:2110.14168</em>. <a href="https://arxiv.org/abs/2110.14168">https://arxiv.org/abs/2110.14168</a>.
+Cobbe, Karl, Vineet Kosaraju, Mohammad Bavarian, et al. 2021. <span>“Training Verifiers to Solve Math Word Problems.”</span> <em>arXiv Preprint arXiv:2110.14168</em>. <a href="https://arxiv.org/abs/2110.14168">https://arxiv.org/abs/2110.14168</a>.
 </div>
 <div id="ref-guha2023legalbench" class="csl-entry" role="listitem">
-Guha, Neel, Julian Nyarko, Daniel E. Ho, et al. 2023. <span>“LegalBench: A Collaboratively Built Benchmark for Measuring Legal Reasoning in Large Language Models.”</span> <em>arXiv Preprint arXiv:2308.11462</em>. <a href="https://arxiv.org/abs/2308.11462">https://arxiv.org/abs/2308.11462</a>.
+<span class="nocase">Guha, Neel, Julian Nyarko, Daniel E. Ho, et al.</span> 2023. <span>“LegalBench: A Collaboratively Built Benchmark for Measuring Legal Reasoning in Large Language Models.”</span> <em>arXiv Preprint arXiv:2308.11462</em>. <a href="https://arxiv.org/abs/2308.11462">https://arxiv.org/abs/2308.11462</a>.
 </div>
 <div id="ref-hendrycks2021math" class="csl-entry" role="listitem">
-Hendrycks, Dan, Collin Burns, Saurav Kadavath, Akul Arora, Steven Basart, Eric Tang, Dawn Song, and Jacob Steinhardt. 2021. <span>“Measuring Mathematical Problem Solving with the <span>MATH</span> Dataset.”</span> In <em>NeurIPS Datasets and Benchmarks Track</em>. <a href="https://arxiv.org/abs/2103.03874">https://arxiv.org/abs/2103.03874</a>.
+Hendrycks, Dan, Collin Burns, Saurav Kadavath, et al. 2021. <span>“Measuring Mathematical Problem Solving with the <span>MATH</span> Dataset.”</span> <em>NeurIPS Datasets and Benchmarks Track</em>. <a href="https://arxiv.org/abs/2103.03874">https://arxiv.org/abs/2103.03874</a>.
 </div>
 <div id="ref-holzenberger2021sara" class="csl-entry" role="listitem">
 Holzenberger, Nils, Benjamin Van Durme, Sarah Lawsky, and Kyle Richardson. 2021. <span>“Factoring Statutory Reasoning as Language Understanding Challenges.”</span> <em>arXiv Preprint arXiv:2105.07903</em>. <a href="https://arxiv.org/abs/2105.07903">https://arxiv.org/abs/2105.07903</a>.
 </div>
 <div id="ref-kim2024rulearena" class="csl-entry" role="listitem">
-Kim, Chan, Jiseung Kim, Jihyung Choi, Juho Lee, Seongyeon Ryu, Sangki Yoon, et al. 2024. <span>“RuleArena: A Benchmark for Rule-Guided Reasoning with <span>LLMs</span> in Real-World Scenarios.”</span> <em>arXiv Preprint arXiv:2412.08972</em>. <a href="https://arxiv.org/abs/2412.08972">https://arxiv.org/abs/2412.08972</a>.
+<span class="nocase">Kim, Chan, Jiseung Kim, Jihyung Choi, et al.</span> 2024. <span>“RuleArena: A Benchmark for Rule-Guided Reasoning with <span>LLMs</span> in Real-World Scenarios.”</span> <em>arXiv Preprint arXiv:2412.08972</em>. <a href="https://arxiv.org/abs/2412.08972">https://arxiv.org/abs/2412.08972</a>.
 </div>
 <div id="ref-taxcalcbench2025" class="csl-entry" role="listitem">
 Mahesh, Meenakshi, Elliott Ash, Elsen Tan, and Aman Madaan. 2025. <span>“TaxCalcBench: Evaluating Frontier Models on the Tax Calculation Task.”</span> <em>arXiv Preprint arXiv:2507.16126</em>. <a href="https://arxiv.org/abs/2507.16126">https://arxiv.org/abs/2507.16126</a>.
 </div>
 <div id="ref-nava2025benefits" class="csl-entry" role="listitem">
-Nava Labs. 2025. <span>“Experimenting with <span>AI</span>-Powered Tools in Public Benefits.”</span> Case study. <a href="https://www.navapbc.com/case-studies/ai-tools-public-benefits">https://www.navapbc.com/case-studies/ai-tools-public-benefits</a>.
+Nava Labs. 2025. <em>Experimenting with <span>AI</span>-Powered Tools in Public Benefits</em>. Case study. <a href="https://www.navapbc.com/case-studies/ai-tools-public-benefits">https://www.navapbc.com/case-studies/ai-tools-public-benefits</a>.
 </div>
 <div id="ref-nava2026caseworker" class="csl-entry" role="listitem">
-———. 2026. <span>“Evaluating a Gen<span>AI</span>-Powered Assistive Chatbot for Caseworkers.”</span> Case study. <a href="https://www.navapbc.com/case-studies/evaluating-ai-assistive-chatbot-caseworkers">https://www.navapbc.com/case-studies/evaluating-ai-assistive-chatbot-caseworkers</a>.
+Nava Labs. 2026. <em>Evaluating a Gen<span>AI</span>-Powered Assistive Chatbot for Caseworkers</em>. Case study. <a href="https://www.navapbc.com/case-studies/evaluating-ai-assistive-chatbot-caseworkers">https://www.navapbc.com/case-studies/evaluating-ai-assistive-chatbot-caseworkers</a>.
 </div>
 <div id="ref-shanahan2025vita" class="csl-entry" role="listitem">
-Shanahan, Catherine, Emma McCarthy, Yan Zhao, Wesley H. Holliday, Jenny Zhao, Janet Ainsworth, and Harry Surden. 2025. <span>“Performance of <span>LLMs</span> on <span>VITA</span> Test: Potential for <span>AI</span>-Assisted Tax Returns for Low Income Taxpayers.”</span> <em>Artificial Intelligence and Law</em>. <a href="https://doi.org/10.1007/s10506-025-09465-7">https://doi.org/10.1007/s10506-025-09465-7</a>.
+Shanahan, Catherine, Emma McCarthy, Yan Zhao, et al. 2025. <span>“Performance of <span>LLMs</span> on <span>VITA</span> Test: Potential for <span>AI</span>-Assisted Tax Returns for Low Income Taxpayers.”</span> <em>Artificial Intelligence and Law</em>, ahead of print. <a href="https://doi.org/10.1007/s10506-025-09465-7">https://doi.org/10.1007/s10506-025-09465-7</a>.
 </div>
 <div id="ref-shorten2024structuredrag" class="csl-entry" role="listitem">
-Shorten, Connor, Charles Pierse, Thomas Benjamin Smith, Erika Cardenas, Akanksha Sharma, John Trengrove, and Bob van Luijt. 2024. <span>“StructuredRAG: <span>JSON</span> Response Formatting with Large Language Models.”</span> <em>arXiv Preprint arXiv:2408.11061</em>. <a href="https://doi.org/10.48550/arXiv.2408.11061">https://doi.org/10.48550/arXiv.2408.11061</a>.
+Shorten, Connor, Charles Pierse, Thomas Benjamin Smith, et al. 2024. <span>“StructuredRAG: <span>JSON</span> Response Formatting with Large Language Models.”</span> <em>arXiv Preprint arXiv:2408.11061</em>, ahead of print. <a href="https://doi.org/10.48550/arXiv.2408.11061">https://doi.org/10.48550/arXiv.2408.11061</a>.
 </div>
 <div id="ref-sutherland2023euromod" class="csl-entry" role="listitem">
-Sutherland, Holly, Francesco Figari, Ruth Hancock, Manos Matsaganis, Alari Paulus, Iva Tasseva, Alessandra Tumino, and Paola De Agostini. 2023. <span>“<span>EUROMOD</span>: The European Union Tax-Benefit Microsimulation Model.”</span> <em>International Journal of Microsimulation</em>. <a href="https://microsimulation.pub/articles/00075">https://microsimulation.pub/articles/00075</a>.
+Sutherland, Holly, Francesco Figari, Ruth Hancock, et al. 2023. <span>“<span>EUROMOD</span>: The European Union Tax-Benefit Microsimulation Model.”</span> <em>International Journal of Microsimulation</em>. <a href="https://microsimulation.pub/articles/00075">https://microsimulation.pub/articles/00075</a>.
 </div>
 <div id="ref-policyengineukdata2026" class="csl-entry" role="listitem">
-Woodruff, Nikhil, and Max Ghenis. 2026. <span>“Improving the Accuracy of <span>UK</span> Tax-Benefit Microsimulation with Machine Learning.”</span> PolicyEngine technical paper. <a href="https://policyengine.org/uk_data_enhancement.pdf">https://policyengine.org/uk_data_enhancement.pdf</a>.
+Woodruff, Nikhil, and Max Ghenis. 2026. <em>Improving the Accuracy of <span>UK</span> Tax-Benefit Microsimulation with Machine Learning</em>. PolicyEngine technical paper. <a href="https://policyengine.org/uk_data_enhancement.pdf">https://policyengine.org/uk_data_enhancement.pdf</a>.
 </div>
 <div id="ref-propel2025snap" class="csl-entry" role="listitem">
-ZenML LLMOps Database. 2025. <span>“Building and Automating Comprehensive <span>LLM</span> Evaluation Framework for <span>SNAP</span> Benefits.”</span> Industry writeup. <a href="https://www.zenml.io/llmops-database/building-and-automating-comprehensive-llm-evaluation-framework-for-snap-benefits">https://www.zenml.io/llmops-database/building-and-automating-comprehensive-llm-evaluation-framework-for-snap-benefits</a>.
+ZenML LLMOps Database. 2025. <em>Building and Automating Comprehensive <span>LLM</span> Evaluation Framework for <span>SNAP</span> Benefits</em>. Industry writeup. <a href="https://www.zenml.io/llmops-database/building-and-automating-comprehensive-llm-evaluation-framework-for-snap-benefits">https://www.zenml.io/llmops-database/building-and-automating-comprehensive-llm-evaluation-framework-for-snap-benefits</a>.
 </div>
 <div id="ref-zhou2025tempanswerqa" class="csl-entry" role="listitem">
-Zhou, Xinyue et al. 2025. <span>“Time to Revisit Exact Match: Evaluating Temporal Question Answering with Numeric Error Metrics.”</span> <em>arXiv Preprint arXiv:2509.16720</em>. <a href="https://arxiv.org/abs/2509.16720">https://arxiv.org/abs/2509.16720</a>.
+<span class="nocase">Zhou, Xinyue et al.</span> 2025. <span>“Time to Revisit Exact Match: Evaluating Temporal Question Answering with Numeric Error Metrics.”</span> <em>arXiv Preprint arXiv:2509.16720</em>. <a href="https://arxiv.org/abs/2509.16720">https://arxiv.org/abs/2509.16720</a>.
 </div>
 <div id="ref-zhu2021tatqa" class="csl-entry" role="listitem">
-Zhu, Fengbin, Wenqiang Lei, Youcheng Huang, Chao Wang, Shujie Zhang, Hongjie Wang, Vincent Chen, et al. 2021. <span>“<span>TAT-QA</span>: A Question Answering Benchmark on a Hybrid of Tabular and Textual Content in Finance.”</span> <em>arXiv Preprint arXiv:2105.07624</em>. <a href="https://arxiv.org/abs/2105.07624">https://arxiv.org/abs/2105.07624</a>.
+<span class="nocase">Zhu, Fengbin, Wenqiang Lei, Youcheng Huang, et al.</span> 2021. <span>“<span>TAT-QA</span>: A Question Answering Benchmark on a Hybrid of Tabular and Textual Content in Finance.”</span> <em>arXiv Preprint arXiv:2105.07624</em>. <a href="https://arxiv.org/abs/2105.07624">https://arxiv.org/abs/2105.07624</a>.
 </div>
 </div>
      <script id="quarto-html-after-body" type="application/javascript">
@@ -1004,13 +1008,14 @@ Zhu, Fengbin, Wenqiang Lei, Youcheng Huang, Chao Wang, Shujie Zhang, Hongjie Wan
       e.clearSelection();
     }
     const getTextToCopy = function(trigger) {
-        const codeEl = trigger.previousElementSibling.cloneNode(true);
-        for (const childEl of codeEl.children) {
-          if (isCodeAnnotation(childEl)) {
-            childEl.remove();
-          }
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
         }
-        return codeEl.innerText;
+      }
+      return codeEl.innerText;
     }
     const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
       text: getTextToCopy

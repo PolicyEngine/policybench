@@ -9,7 +9,7 @@ For benchmark scope, snapshot policy, and terminology, see the
 [benchmark card](docs/benchmark_card.md).
 
 US benchmark scenarios are sampled from Enhanced CPS households and evaluated
-under 2025 policy rules with PolicyEngine-US. The public UK path uses a
+under 2026 policy rules with PolicyEngine-US. The public UK path uses a
 UK-calibrated transfer dataset and PolicyEngine-UK reference outputs.
 
 ## Condition
@@ -21,11 +21,11 @@ UK-calibrated transfer dataset and PolicyEngine-UK reference outputs.
 Benchmark outputs are defined in `policybench/benchmark_specs.json`. New CLI
 runs default to `v2_headline`, which focuses the main ranking on person- or
 household-facing outputs that contribute to household net income. Intermediate
-tax bases move to supplementary diagnostics. PolicyEngine variables may be
+tax bases move to supplementary outputs. PolicyEngine variables may be
 native to lower-level entities, but v2 headline outputs are either expanded to
 people shown in the prompt or aggregated to the household before scoring.
 Coverage outputs are binary flags and are weighted using PolicyEngine value
-proxies. Payroll component diagnostics live in `v2_supplementary`, not in the
+proxies. Payroll component outputs live in `v2_supplementary`, not in the
 headline ranking.
 
 Old public-snapshot result files, where retained, live under
@@ -35,8 +35,11 @@ benchmark code.
 ## Programs evaluated
 
 The current public release covers selected federal taxes, credits, benefits,
-coverage labels, and state-tax outputs in the US, plus selected tax and
-transfer outputs in the UK.
+health-related support, coverage labels, and state-tax outputs in the US, plus
+selected tax and transfer outputs in the UK. US federal income tax is scored as
+a compact decomposition: tax after nonrefundable credits and before refundable
+credits, plus refundable federal credits excluding the ACA Premium Tax Credit.
+The ACA Premium Tax Credit is scored separately as a health-related output.
 
 ## Quick start
 
@@ -51,8 +54,17 @@ pytest  # Run tests (mocked, no API calls)
 # Generate reference outputs for 100 sampled households using v2_headline
 policybench ground-truth -n 100 --seed 42
 
-# Run AI-alone evaluations on the exported scenario manifest
+# Run AI-alone evaluations on the exported scenario manifest.
+# The standard response contract includes numeric answers and explanations.
 policybench eval-no-tools -n 100 --seed 42
+
+# For larger runs, use resumable per-model chunks.
+policybench eval-no-tools-chunked \
+  --scenario-manifest results/local/scenarios.csv \
+  --output-dir results/local/no_tools_chunked \
+  --country us \
+  --chunk-size 10 \
+  --parallel 2
 
 # Analyze local results and export local artifacts
 policybench analyze --output-dir results/local/analysis
