@@ -107,7 +107,7 @@ export default function ScenarioExplorer({
         style={{ animationDelay: "160ms" }}
       >
         Inspect benchmark households, the exact prompt, model outputs, and the
-        one-sentence explanations returned with each response.
+        model-provided explanation notes returned with each response.
       </p>
 
       <div className="mt-8 flex flex-wrap items-end gap-4">
@@ -201,8 +201,9 @@ export default function ScenarioExplorer({
           </div>
           <p className="mt-2 text-sm text-text-secondary leading-relaxed">
             {explanationRows} of {totalPredictionRows} model-output rows for
-            this household include explanation text. Hover the why markers next
-            to predictions to read them.
+            this household include explanation text. These notes are returned
+            by the model and are not separately scored; hover the note markers
+            next to predictions to read them.
           </p>
         </div>
       )}
@@ -342,7 +343,7 @@ export default function ScenarioExplorer({
                           </div>
                           {pred.explanation && (
                             <ExplanationTooltip explanation={pred.explanation}>
-                              why
+                              note
                             </ExplanationTooltip>
                           )}
                         </div>

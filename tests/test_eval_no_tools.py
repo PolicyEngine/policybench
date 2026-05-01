@@ -437,6 +437,8 @@ def test_no_tools_batch_prompt_requires_explanations_by_default(mini_scenario):
         "do not leave any explanation blank" in prompt.lower()
         or "non-empty" in prompt.lower()
     )
+    assert "must support the numeric value" in prompt.lower()
+    assert "do not write that you will use one value" in prompt.lower()
     assert "12 words" not in prompt
 
 

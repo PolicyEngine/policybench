@@ -22,6 +22,13 @@ TASK_PREFACE = (
     "benefit receipt, rent, or health coverage.\n\n"
 )
 
+EXPLANATION_CONSISTENCY_INSTRUCTION = (
+    "Each explanation must support the numeric value submitted for the same "
+    "variable in `answers`. If an explanation mentions a final amount, that "
+    "amount must match the corresponding `answers` value. Do not write that "
+    "you will use one value while submitting a different value. "
+)
+
 # Variable descriptions for natural language prompts
 US_VARIABLE_DESCRIPTIONS = {
     "adjusted_gross_income": (
@@ -491,6 +498,7 @@ def make_no_tools_batch_prompt(
                 "once in `explanations`. "
                 "Each explanation must be non-empty, "
                 "specific to that variable, and concise. "
+                f"{EXPLANATION_CONSISTENCY_INSTRUCTION}"
                 "Put only numeric values in `answers`, "
                 "with no dollar signs, commas, or "
                 "explanatory text in the values. "
@@ -525,6 +533,7 @@ def make_no_tools_batch_prompt(
                 "Include every requested key exactly "
                 "once in `explanations`, and do not "
                 "leave any explanation blank. "
+                f"{EXPLANATION_CONSISTENCY_INSTRUCTION}"
                 "Use the exact variable names as keys "
                 "inside `answers` and put only numeric "
                 "values there. "
@@ -591,6 +600,7 @@ def make_no_tools_batch_repair_prompt(
                 "once in `explanations`. "
                 "Each explanation must be non-empty, "
                 "specific to that variable, and concise. "
+                f"{EXPLANATION_CONSISTENCY_INSTRUCTION}"
                 "Do not include any keys that are "
                 "not listed below. "
                 "Put only numeric values in `answers`, "
@@ -632,6 +642,7 @@ def make_no_tools_batch_repair_prompt(
                 "Include every listed key exactly once "
                 "in `explanations`, and do not leave "
                 "any explanation blank. "
+                f"{EXPLANATION_CONSISTENCY_INSTRUCTION}"
                 "Use the exact variable names as keys "
                 "inside `answers` and put only numeric "
                 "values there. "
@@ -692,5 +703,7 @@ def make_explanation_repair_prompt(
         "Use the `submit_explanations` function exactly once. Return only a "
         "single object keyed by the listed variable names. Include every listed "
         "key exactly once, and make every explanation non-empty, specific to "
-        "that variable, and concise."
+        "that variable, and concise. Each explanation must support the "
+        "already-returned numeric answer for the same variable; do not mention "
+        "a different final amount."
     )
