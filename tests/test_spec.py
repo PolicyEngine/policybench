@@ -182,6 +182,11 @@ def test_find_output_spec_prefers_default_spec_for_overlapping_outputs():
     output = find_output_spec("child_benefit", country="uk")
 
     assert output is not None
+    assert "gross Child Benefit" in output.prompt
+    assert "before the High Income Child Benefit Charge" in output.prompt
+    assert "do not apply an income test" in output.prompt
+    assert "do not subtract HICBC" in output.prompt
+    assert "even when HICBC would recover it through tax" in output.prompt
     assert "do not require stated benefit receipt" in output.prompt
 
 

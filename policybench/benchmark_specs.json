@@ -357,7 +357,7 @@
                         "id": "child_benefit",
                         "pe_variable": "child_benefit",
                         "label": "Child Benefit",
-                        "prompt": "household total annual Child Benefit amount for qualifying children and young people; assume eligible households take up the benefit and do not require stated benefit receipt",
+                        "prompt": "household total annual gross Child Benefit amount for qualifying children and young people before the High Income Child Benefit Charge; assume eligible households take up the benefit and do not require stated benefit receipt; do not apply an income test or tax-charge reduction to this output; do not subtract HICBC here because it is included in Income Tax, so report gross Child Benefit even when HICBC would recover it through tax",
                         "metric_type": "amount",
                         "role": "benefit",
                         "output_set": "headline",

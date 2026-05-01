@@ -67,7 +67,11 @@ UK_VARIABLE_DESCRIPTIONS = {
         "Income Tax"
     ),
     "child_benefit": (
-        "household total annual Child Benefit amount, including qualifying young people"
+        "household total annual gross Child Benefit amount before the High Income "
+        "Child Benefit Charge, including qualifying young people; do not apply "
+        "an income test or tax-charge reduction to this output; do not subtract "
+        "HICBC here because it is included in Income Tax, so report gross Child "
+        "Benefit even when HICBC would recover it through tax"
     ),
     "universal_credit": "household total annual Universal Credit amount",
     "pension_credit": "household total annual Pension Credit amount",

@@ -71,7 +71,7 @@ The rebuilt UK headline scope evaluates:
 |:---------|:-----------|:---------|
 | `income_tax` | Income Tax liability | Tax |
 | `national_insurance` | National Insurance contributions | Tax |
-| `child_benefit` | Child Benefit amount | Benefits |
+| `child_benefit` | Child Benefit amount before the High Income Child Benefit Charge | Benefits |
 | `universal_credit` | Universal Credit amount | Benefits |
 | `pension_credit` | Pension Credit amount | Benefits |
 | `pip` | Personal Independence Payment amount | Benefits |

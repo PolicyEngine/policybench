@@ -147,10 +147,10 @@ const UK_EXPLAINERS: Record<string, VariableExplainer> = {
   },
   child_benefit: {
     summary:
-      "The main error is netting the High Income Child Benefit Charge into the Child Benefit amount itself.",
+      "Child Benefit is scored before the High Income Child Benefit Charge; HICBC belongs in Income Tax.",
     bullets: [
-      "In scenarios_001, _023, and _080, some models return £0 because they treat HICBC as eliminating the benefit output.",
-      "Older-child edge cases also matter. In scenario_086, all five models return £0 when truth is still positive.",
+      "A common error is returning a net amount or £0 for high-income households after applying HICBC to the benefit output itself.",
+      "Older-child and qualifying-young-person cases remain separate edge cases because the child can qualify after age 16 when the prompt states that status.",
     ],
   },
   universal_credit: {

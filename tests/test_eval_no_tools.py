@@ -377,6 +377,11 @@ def test_uk_output_prompts_define_target_quantities(uk_scenario):
 
     assert "excluding employer national insurance" in prompt_lower
     assert "for qualifying children and young people" in prompt_lower
+    assert "gross child benefit" in prompt_lower
+    assert "before the high income child benefit charge" in prompt_lower
+    assert "do not apply an income test" in prompt_lower
+    assert "do not subtract hicbc" in prompt_lower
+    assert "even when hicbc would recover it through tax" in prompt_lower
     assert "do not require stated benefit receipt" in prompt_lower
 
 
@@ -1177,8 +1182,9 @@ def test_run_single_no_tools_supports_deepseek_json_contract(
     assert "tool_choice" not in mock_completion.call_args.kwargs
 
 
-def test_default_models_include_deepseek_frontier_and_budget():
-    """Keep DeepSeek's frontier and budget variants in the canonical suite."""
+def test_default_models_include_new_provider_variants():
+    """Keep newly added provider variants addressable by stable local names."""
+    assert MODELS["grok-4.3"] == "xai/grok-4.3"
     assert MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
     assert MODELS["deepseek-v4-flash"] == "deepseek/deepseek-v4-flash"
 
@@ -1241,6 +1247,13 @@ def test_sonnet_explanation_runs_use_single_output_chunks():
 def test_gpt_55_uses_longer_full_output_timeout():
     """GPT-5.5 needs the longer frontier-model timeout on full prompts."""
     assert _request_timeout_seconds("gpt-5.5") == 60
+
+
+def test_xai_models_use_longer_timeout():
+    """xAI models need more than the generic 20s request timeout."""
+    assert _request_timeout_seconds("xai/grok-4.3") == 420
+    assert _request_timeout_seconds("xai/grok-4.20") == 420
+    assert _request_timeout_seconds("xai/grok-4.1-fast") == 420
 
 
 def test_request_wall_timeout_interrupts_hung_request(monkeypatch):

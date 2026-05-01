@@ -24,6 +24,7 @@ MODELS = {
     "claude-opus-4.7": "claude-opus-4-7",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
+    "grok-4.3": "xai/grok-4.3",
     "grok-4.20": "xai/grok-4.20-reasoning",
     "grok-4.1-fast": "xai/grok-4-1-fast-non-reasoning",
     "gpt-5.5": "gpt-5.5",
