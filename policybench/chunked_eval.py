@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.config import DEFAULT_PROGRAM_SET, MODELS, get_programs
+from policybench.config import DEFAULT_PROGRAM_SET, RUNNABLE_MODELS, get_programs
 from policybench.scenarios import load_scenarios_from_manifest
 from policybench.spec import expand_programs_for_scenario
 
@@ -235,8 +235,8 @@ def run_model_chunks(
         raise ValueError("parallel must be positive.")
     if chunk_attempts <= 0:
         raise ValueError("chunk_attempts must be positive.")
-    if model not in MODELS:
-        valid = ", ".join(sorted(MODELS))
+    if model not in RUNNABLE_MODELS:
+        valid = ", ".join(sorted(RUNNABLE_MODELS))
         raise ValueError(f"Unknown model '{model}'. Valid models: {valid}.")
 
     manifest = Path(scenario_manifest)

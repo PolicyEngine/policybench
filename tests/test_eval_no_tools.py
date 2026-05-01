@@ -8,7 +8,12 @@ from unittest.mock import MagicMock, patch
 import litellm
 import pytest
 
-from policybench.config import COUNTRY_PROGRAMS, MODELS
+from policybench.config import (
+    COUNTRY_PROGRAMS,
+    EXPERIMENTAL_MODELS,
+    MODELS,
+    RUNNABLE_MODELS,
+)
 from policybench.eval_no_tools import (
     RequestWallTimeoutError,
     _build_answer_tool,
@@ -1106,6 +1111,44 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
 
 
 @patch("policybench.eval_no_tools.completion")
+def test_run_single_no_tools_supports_deepseek_json_contract(
+    mock_completion, mini_scenario
+):
+    """DeepSeek is manually runnable, but excluded from default benchmark runs."""
+    message = MagicMock()
+    message.content = (
+        '{"answers": {"income_tax": 2400}, '
+        '"explanations": {"income_tax": "Taxable wages exceed allowance."}}'
+    )
+    message.tool_calls = None
+    message.function_call = None
+
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(
+        prompt_tokens=12, completion_tokens=3, total_tokens=15
+    )
+    mock_completion.return_value = response
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        RUNNABLE_MODELS["deepseek-v4-pro"],
+    )
+
+    assert result["prediction"] == 2400.0
+    assert result["predictions"]["income_tax"] == 2400.0
+    assert result["explanations"]["income_tax"] == "Taxable wages exceed allowance."
+    assert mock_completion.call_args.kwargs["model"] == "deepseek/deepseek-v4-pro"
+    assert mock_completion.call_args.kwargs["max_completion_tokens"] >= 192
+    assert mock_completion.call_args.kwargs["response_format"] == {
+        "type": "json_object"
+    }
+    assert "tools" not in mock_completion.call_args.kwargs
+    assert "tool_choice" not in mock_completion.call_args.kwargs
+
+
+@patch("policybench.eval_no_tools.completion")
 def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario):
     """xAI models should use chat-completions function calling with max_tokens."""
     message = MagicMock()
@@ -1144,49 +1187,18 @@ def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario)
     )
 
 
-@patch("policybench.eval_no_tools.completion")
-def test_run_single_no_tools_supports_deepseek_json_contract(
-    mock_completion, mini_scenario
-):
-    """DeepSeek V4 models should use JSON because Pro rejects forced tools."""
-    message = MagicMock()
-    message.content = (
-        '{"answers": {"income_tax": 2400}, '
-        '"explanations": {"income_tax": "Taxable wages exceed allowance."}}'
-    )
-    message.tool_calls = None
-    message.function_call = None
-
-    response = MagicMock()
-    response.choices = [MagicMock(message=message)]
-    response.usage = litellm.Usage(
-        prompt_tokens=12, completion_tokens=3, total_tokens=15
-    )
-    mock_completion.return_value = response
-
-    result = run_single_no_tools(
-        mini_scenario,
-        "income_tax",
-        MODELS["deepseek-v4-pro"],
-    )
-
-    assert result["prediction"] == 2400.0
-    assert result["predictions"]["income_tax"] == 2400.0
-    assert result["explanations"]["income_tax"] == "Taxable wages exceed allowance."
-    assert mock_completion.call_args.kwargs["model"] == "deepseek/deepseek-v4-pro"
-    assert mock_completion.call_args.kwargs["max_completion_tokens"] >= 192
-    assert mock_completion.call_args.kwargs["response_format"] == {
-        "type": "json_object"
-    }
-    assert "tools" not in mock_completion.call_args.kwargs
-    assert "tool_choice" not in mock_completion.call_args.kwargs
-
-
 def test_default_models_include_new_provider_variants():
     """Keep newly added provider variants addressable by stable local names."""
     assert MODELS["grok-4.3"] == "xai/grok-4.3"
-    assert MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
-    assert MODELS["deepseek-v4-flash"] == "deepseek/deepseek-v4-flash"
+
+
+def test_deepseek_models_are_experimental_not_default():
+    """DeepSeek remains manually runnable, but not a public/default model."""
+    assert "deepseek-v4-pro" not in MODELS
+    assert "deepseek-v4-flash" not in MODELS
+    assert EXPERIMENTAL_MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
+    assert EXPERIMENTAL_MODELS["deepseek-v4-flash"] == "deepseek/deepseek-v4-flash"
+    assert RUNNABLE_MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
 
 
 def test_request_wall_timeout_exceeds_provider_timeout():

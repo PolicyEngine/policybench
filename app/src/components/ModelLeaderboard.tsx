@@ -87,18 +87,11 @@ type PendingModel = {
 const PENDING_MODELS: Record<ViewKey, PendingModel[]> = {
   global: [
     { model: "grok-4.20", note: "UK run in progress; US full run pending" },
-    { model: "deepseek-v4-pro", note: "US and UK runs pending" },
-    { model: "deepseek-v4-flash", note: "US and UK runs pending" },
   ],
   us: [
     { model: "grok-4.20", note: "US full run pending" },
-    { model: "deepseek-v4-pro", note: "Run pending" },
-    { model: "deepseek-v4-flash", note: "Run pending" },
   ],
-  uk: [
-    { model: "deepseek-v4-pro", note: "Run pending" },
-    { model: "deepseek-v4-flash", note: "Run pending" },
-  ],
+  uk: [],
 };
 
 export default function ModelLeaderboard({

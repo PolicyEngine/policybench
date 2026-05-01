@@ -30,11 +30,21 @@ MODELS = {
     "gpt-5.5": "gpt-5.5",
     "gpt-5.4-mini": "gpt-5.4-mini",
     "gpt-5.4-nano": "gpt-5.4-nano",
-    "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
-    "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
+}
+
+# Models that can be invoked manually for probes, but are excluded from default
+# runs and public leaderboard metadata until they are stable enough to finish.
+EXPERIMENTAL_MODELS = {
+    "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
+    "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
+}
+
+RUNNABLE_MODELS = {
+    **MODELS,
+    **EXPERIMENTAL_MODELS,
 }
 
 # Current output sets. The headline set contains signed household

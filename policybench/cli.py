@@ -11,6 +11,7 @@ from policybench.config import (
     DEFAULT_PROGRAM_SET,
     MODELS,
     PROGRAMS,
+    RUNNABLE_MODELS,
     get_programs,
 )
 
@@ -30,13 +31,13 @@ def _parse_models(selected: list[str] | None) -> dict[str, str]:
     if not selected:
         return MODELS
 
-    unknown = [name for name in selected if name not in MODELS]
+    unknown = [name for name in selected if name not in RUNNABLE_MODELS]
     if unknown:
         raise SystemExit(
             f"Unknown model(s): {', '.join(sorted(unknown))}. "
-            f"Valid choices: {', '.join(MODELS)}"
+            f"Valid choices: {', '.join(RUNNABLE_MODELS)}"
         )
-    return {name: MODELS[name] for name in selected}
+    return {name: RUNNABLE_MODELS[name] for name in selected}
 
 
 def _parse_programs(
