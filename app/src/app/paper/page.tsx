@@ -3,18 +3,9 @@ import Link from "next/link";
 
 const manuscriptPaths = {
   pdf: "/paper/policybench.pdf",
-  web: "/paper/web/index.html",
+  web: "/paper/web/index.html?v=20260501",
 };
 const ssrnUrl = process.env.NEXT_PUBLIC_POLICYBENCH_SSRN_URL;
-
-const paperSections = [
-  "Introduction and motivation",
-  "Benchmark design and scoring",
-  "US and UK data construction",
-  "Headline results",
-  "Failure modes",
-  "Limitations and next steps",
-];
 
 export default function PaperPage() {
   return (
@@ -62,14 +53,15 @@ export default function PaperPage() {
       </nav>
 
       <div id="paper-top" className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="eyebrow mb-3">Paper</div>
+        <div className="eyebrow mb-3">Manuscript</div>
         <h1 className="font-[family-name:var(--font-display)] text-4xl tracking-tight text-text sm:text-5xl">
-          PolicyBench paper
+          PolicyBench
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-text-secondary sm:text-lg">
-          This is the landing page for the citable PolicyBench preprint. The
-          manuscript is maintained in a single Quarto source tree and published
-          in both PDF and web formats.
+          Benchmarking no-tool tax-and-benefit estimation in frontier language
+          models. This page embeds the frozen 2026-05-01 manuscript snapshot:
+          a 100-household-per-country public preview scored against
+          PolicyEngine reference outputs.
         </p>
 
         <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm text-text-secondary">
@@ -82,17 +74,13 @@ export default function PaperPage() {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          {ssrnUrl ? (
+          {ssrnUrl && (
             <a
               href={ssrnUrl}
               className="rounded-full border border-border bg-card px-4 py-2 text-sm text-text transition-colors hover:border-primary hover:text-primary"
             >
               SSRN copy
             </a>
-          ) : (
-            <span className="rounded-full border border-border bg-card px-4 py-2 text-sm text-text-muted">
-              SSRN copy pending
-            </span>
           )}
           <a
             href={manuscriptPaths.web}
@@ -116,22 +104,13 @@ export default function PaperPage() {
 
         <section className="mt-8 overflow-hidden rounded-3xl border border-border bg-card">
           <div className="border-b border-border px-5 py-3 text-sm text-text-secondary">
-            Embedded web manuscript
+            Frozen manuscript snapshot
           </div>
           <iframe
             src={manuscriptPaths.web}
             title="PolicyBench paper"
             className="block h-[calc(100vh-16rem)] min-h-[720px] w-full border-0 bg-white"
           />
-        </section>
-
-        <section className="mt-8 rounded-3xl border border-border bg-card p-6">
-          <h2 className="text-xl font-medium text-text">Paper sections</h2>
-          <ul className="mt-4 space-y-2 text-sm text-text-secondary">
-            {paperSections.map((section) => (
-              <li key={section}>{section}</li>
-            ))}
-          </ul>
         </section>
       </div>
     </main>
