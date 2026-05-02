@@ -1,6 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 
+import SiteHeader from "../../components/SiteHeader";
+
+const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-01";
+
 const manuscriptPaths = {
   pdf: "/paper/policybench.pdf",
   web: "/paper/web/index.html?v=20260501",
@@ -8,63 +12,39 @@ const manuscriptPaths = {
 const ssrnUrl = process.env.NEXT_PUBLIC_POLICYBENCH_SSRN_URL;
 
 export default function PaperPage() {
+  const expanded = (
+    <>
+      <p className="max-w-2xl text-sm leading-relaxed text-text-secondary sm:text-base">
+        Benchmarking no-tool tax-and-benefit estimation in frontier language
+        models. This page embeds the frozen 2026-05-01 manuscript snapshot:
+        a 100-household-per-country public preview scored against
+        PolicyEngine reference outputs.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-text-secondary">
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary/70" />
+          {SNAPSHOT_DATE_LABEL}
+        </span>
+      </div>
+    </>
+  );
+
   return (
     <main className="min-h-screen bg-void">
-      <nav className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 sm:px-6">
-          <Link
-            href="/"
-            className="shrink-0 py-3 font-[family-name:var(--font-display)] text-lg tracking-tight text-text transition-colors hover:text-primary"
-          >
-            PolicyBench
-          </Link>
-          <div className="min-w-0 flex-1 overflow-x-auto">
-            <div className="flex min-w-max gap-1">
-              <a
-                href="#paper-top"
-                className="border-b-2 border-primary px-3 py-3 text-[11px] font-medium uppercase tracking-wider text-primary sm:px-4"
-              >
-                Paper
-              </a>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/"
-              className="rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary transition-colors hover:border-primary/40 hover:text-primary"
-            >
-              Benchmark
-            </Link>
-            <a
-              href="https://policyengine.org"
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary transition-colors hover:border-primary/40 hover:text-primary"
-              aria-label="By PolicyEngine"
-              title="By PolicyEngine"
-            >
-              <span>by</span>
-              <img
-                src="/assets/policyengine-logo.svg"
-                alt="PolicyEngine"
-                className="h-3 w-auto"
-              />
-            </a>
-          </div>
-        </div>
-      </nav>
+      <SiteHeader
+        actionLink={{
+          label: "Benchmark",
+          href: "/",
+          type: "internal",
+        }}
+        expandedContent={expanded}
+        alwaysExpanded
+      />
 
       <div id="paper-top" className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <div className="eyebrow mb-3">Manuscript</div>
-        <h1 className="font-[family-name:var(--font-display)] text-4xl tracking-tight text-text sm:text-5xl">
-          PolicyBench
-        </h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-text-secondary sm:text-lg">
-          Benchmarking no-tool tax-and-benefit estimation in frontier language
-          models. This page embeds the frozen 2026-05-01 manuscript snapshot:
-          a 100-household-per-country public preview scored against
-          PolicyEngine reference outputs.
-        </p>
 
-        <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm text-text-secondary">
+        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm text-text-secondary">
           <img
             src="/assets/policyengine-logo.svg"
             alt="PolicyEngine"
@@ -73,7 +53,7 @@ export default function PaperPage() {
           <span>Research paper by PolicyEngine</span>
         </div>
 
-        <div className="mt-8 flex flex-wrap gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           {ssrnUrl && (
             <a
               href={ssrnUrl}
