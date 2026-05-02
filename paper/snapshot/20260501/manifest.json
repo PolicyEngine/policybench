@@ -1,0 +1,41 @@
+{
+  "snapshot_date": "2026-05-01",
+  "policy_period": {
+    "us": "tax year 2026",
+    "uk": "fiscal year 2026-27"
+  },
+  "dashboard_export": {
+    "path": "app/src/data.json",
+    "sha256": "6b8f9f91337703c89d68d8fd8f34454551b80e18e39be7dbc41e29ed52af0732",
+    "description": "Committed dashboard export containing parsed model predictions, explanations, model summaries, program summaries, prompts, and PolicyEngine runtime bundle metadata."
+  },
+  "source_run_labels": {
+    "us": "us_100_stable_models_20260501_062249",
+    "uk": "uk_100_hicbc_fixed_20260501_083402"
+  },
+  "committed_snapshot_artifacts": {
+    "us_scenarios.csv": "46bc6b1ba56eb9441b9ecface7c1d0bbf5cb9c45d91e80bcef84e7e49ae21a55",
+    "us_reference_outputs.csv": "caa63a93941d0792943b1cfb47cc8d4d884b6ca768b6c1fbde7568f1122f6bcc",
+    "us_impact_summary_by_model.csv": "fb6f0adf689d4a8c01fdf1815e6e775c58ad1d5dfb326f6ccf27d51bad3be16c",
+    "uk_scenarios.csv": "cc072e32df04dc313ffe4bdd72d97c9bbbb0675a5b78e87ea0469ace359493a9",
+    "uk_reference_outputs.csv": "2e6569666750ad8c1527ec3ea4b6f274fe15c61fcd68afe072bd78442abe7043",
+    "uk_impact_summary_by_model.csv": "7373ae8dc7e68a36e191068df5810dc387df046fe580f3f55b4b1673ba30fdcc"
+  },
+  "uk_transfer_dataset": {
+    "artifact": "enhanced_cps_2025.h5 public UK calibrated transfer artifact",
+    "sha256": "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866",
+    "note": "The public paper describes this as a UK calibrated transfer dataset, not native UK survey microdata or enhanced FRS."
+  },
+  "scope": {
+    "households": {
+      "us": 100,
+      "uk": 100
+    },
+    "output_groups": {
+      "us": 19,
+      "uk": 7
+    },
+    "models": 12,
+    "condition": "No tools, no web access, one structured response per household with numeric answers and non-empty explanations."
+  }
+}

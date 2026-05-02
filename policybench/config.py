@@ -1,133 +1,89 @@
 """Configuration constants for PolicyBench."""
 
+from policybench.spec import (
+    DEFAULT_PROGRAM_SET,
+    available_spec_ids,
+    binary_output_ids,
+    get_output_ids,
+    rate_output_ids,
+)
+
 # Tax year for all evaluations
-TAX_YEAR = 2025
+TAX_YEAR = 2026
 
 # Random seed for reproducible scenario generation
 SEED = 42
 
-# Models to benchmark (latest from each provider as of Feb 2026)
+# Default benchmark country
+DEFAULT_COUNTRY = "us"
+
+# Canonical default benchmark models. This list should track the published
+# no-tools leaderboard rather than every model ever probed in the repo.
 MODELS = {
-    "claude-opus": "claude-opus-4-6",
-    "claude-sonnet-4.5": "claude-sonnet-4-5-20250929",
+    "claude-opus-4.7": "claude-opus-4-7",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
-    "gpt-5.2": "gpt-5.2",
-    "gemini-3-pro": "gemini/gemini-3-pro-preview",
+    "claude-haiku-4.5": "claude-haiku-4-5-20251001",
+    "grok-4.3": "xai/grok-4.3",
+    "grok-4.20": "xai/grok-4.20-reasoning",
+    "grok-4.1-fast": "xai/grok-4-1-fast-non-reasoning",
+    "gpt-5.5": "gpt-5.5",
+    "gpt-5.4-mini": "gpt-5.4-mini",
+    "gpt-5.4-nano": "gpt-5.4-nano",
+    "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
+    "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
 }
 
-# PolicyEngine-US variables to evaluate
-PROGRAMS = [
-    # Federal tax
-    "income_tax",
-    "income_tax_before_refundable_credits",
-    # Credits
-    "eitc",
-    "ctc",
-    "income_tax_refundable_credits",
-    # Benefits
-    "snap",
-    "ssi",
-    "free_school_meals",
-    "is_medicaid_eligible",
-    # State tax
-    "household_state_income_tax",
-    # Aggregates
-    "household_net_income",
-    "household_benefits",
-    "household_market_income",
-    # Rates
-    "marginal_tax_rate",
-]
+# Models that can be invoked manually for probes, but are excluded from default
+# runs and public leaderboard metadata until they are stable enough to finish.
+EXPERIMENTAL_MODELS = {
+    "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
+    "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
+}
 
-# Binary (eligibility) variables — evaluated with accuracy, not MAE
-BINARY_PROGRAMS = ["is_medicaid_eligible", "free_school_meals"]
+RUNNABLE_MODELS = {
+    **MODELS,
+    **EXPERIMENTAL_MODELS,
+}
 
-# Rate variables — evaluated with absolute error, not percentage
-RATE_PROGRAMS = ["marginal_tax_rate"]
+# Current output set. The benchmark contains signed household net-income
+# components plus coverage booleans with explicit impact weights.
+US_HEADLINE_PROGRAMS = get_output_ids("us", "headline")
+UK_HEADLINE_PROGRAMS = get_output_ids("uk", "headline")
 
-# States to include in scenarios
-STATES = [
-    "CA",
-    "TX",
-    "NY",
-    "FL",
-    "IL",
-    "PA",
-    "OH",
-    "GA",
-    "NC",
-    "WA",
-    "MA",
-    "CO",
-]
+COUNTRY_PROGRAMS = {
+    "us": US_HEADLINE_PROGRAMS,
+    "uk": UK_HEADLINE_PROGRAMS,
+}
 
-# Filing statuses
-FILING_STATUSES = ["single", "joint", "head_of_household"]
+# Default benchmark outputs for new runs.
+PROGRAMS = US_HEADLINE_PROGRAMS
 
-# Income levels to sample from (annual employment income)
-INCOME_LEVELS = [
-    0,
-    5_000,
-    10_000,
-    15_000,
-    20_000,
-    25_000,
-    30_000,
-    40_000,
-    50_000,
-    60_000,
-    75_000,
-    100_000,
-    125_000,
-    150_000,
-    200_000,
-    250_000,
-    300_000,
-    400_000,
-    500_000,
-]
+# Binary (eligibility) variables -- evaluated with accuracy, not MAE
+BINARY_PROGRAMS = binary_output_ids()
 
-# Number of children options
-NUM_CHILDREN_OPTIONS = [0, 1, 2, 3, 4]
+# Rate variables -- evaluated with absolute error, not percentage
+RATE_PROGRAMS = rate_output_ids()
+
+# Proposed impact-score floor. Each household gets equal overall weight, while
+# programs within a household receive a blend of equal weighting and weighting
+# by absolute contribution to household net income.
+HOUSEHOLD_IMPACT_SCORE_FLOOR = 0.3
 
 # Number of scenarios to generate
 NUM_SCENARIOS = 100
 
-# PolicyEngine tool definition for LiteLLM tool-calling
-PE_TOOL_DEFINITION = {
-    "type": "function",
-    "function": {
-        "name": "calculate_policy",
-        "description": (
-            "Calculate a US tax or benefit variable for a specific household "
-            "using PolicyEngine-US microsimulation. Returns the exact computed "
-            "value for the given household and variable."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "household": {
-                    "type": "object",
-                    "description": (
-                        "Household definition with 'people', 'tax_units', "
-                        "'spm_units', 'families', 'households' keys. "
-                        "Each person needs age, employment_income. "
-                        "Household needs state_code."
-                    ),
-                },
-                "variable": {
-                    "type": "string",
-                    "description": (
-                        "The PolicyEngine-US variable to calculate, e.g. "
-                        "'income_tax', 'snap', 'eitc'."
-                    ),
-                },
-                "year": {
-                    "type": "integer",
-                    "description": "Tax year for the calculation.",
-                },
-            },
-            "required": ["household", "variable", "year"],
-        },
-    },
-}
+
+def get_programs(country: str, program_set: str = DEFAULT_PROGRAM_SET) -> list[str]:
+    """Return the configured benchmark outputs for a country and program set."""
+    try:
+        return get_output_ids(country, program_set)
+    except ValueError as exc:
+        valid_countries = ", ".join(sorted(COUNTRY_PROGRAMS))
+        valid_sets = sorted({DEFAULT_PROGRAM_SET, *available_spec_ids()})
+        raise ValueError(
+            "Unsupported country/program_set "
+            f"('{country}', '{program_set}'). Valid countries: "
+            f"{valid_countries}. Valid program sets: "
+            f"{', '.join(sorted(set(valid_sets)))}."
+        ) from exc

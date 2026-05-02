@@ -1,71 +1,78 @@
-# PolicyBench: AI can't accurately calculate taxes and benefits — but tools fix that
+# PolicyBench Results
 
-> Can frontier AI models accurately calculate US tax and benefit outcomes?
+PolicyBench is a no-tools benchmark. Ad hoc local outputs should live under
+`results/local/` after a benchmark run. Published leaderboard claims should
+instead point to dated batch directories or to a committed dashboard export
+such as `app/src/data.json`.
 
-**TL;DR: No — but with PolicyEngine tools, they achieve 100% accuracy.**
+## Run
 
-## Setup
+```bash
+policybench reference-outputs -n 100 --seed 42
+policybench eval-no-tools -n 100 --seed 42
+policybench analyze --output-dir results/local/analysis
+```
 
-- **100 household scenarios** across 12 US states, varying income ($0–$500k), filing status, and family composition
-- **14 tax/benefit programs**: federal income tax, EITC, CTC, SNAP, SSI, Medicaid eligibility, state taxes, and more
-- **4 frontier models**: GPT-5.2, Claude Sonnet 4.5, Claude Sonnet 4.6, Claude Opus 4.6
-- **2 conditions**: AI alone (parametric knowledge only) vs. AI with PolicyEngine tools
-- **Ground truth**: PolicyEngine-US microsimulation (1,400 scenario-program pairs)
-- **Total predictions**: 9,800 (5,600 no-tools + 4,200 with-tools)
+The first command writes PolicyEngine reference outputs, not administrative
+truth. `policybench ground-truth` remains as a compatibility alias.
 
-## Headline results
+## Full runbook
 
-### Without tools (AI alone)
+Use a dated batch directory and keep model outputs per country and model so
+interrupted runs can resume independently.
 
-| Model | MAE | MAPE | Within 10% |
-|:------|----:|-----:|----------:|
-| Claude Sonnet 4.6 | $1,285 | 52% | 72.3% |
-| Claude Opus 4.6 | $1,257 | 85% | 70.8% |
-| GPT-5.2 | $2,578 | 78% | 62.1% |
-| Claude Sonnet 4.5 | $2,276 | 125% | 61.9% |
+```bash
+RUN_DIR=results/full_batch_20260501
 
-### With PolicyEngine tools
+policybench reference-outputs -n 1000 --seed 42 --country us --program-set headline \
+  -o "$RUN_DIR/us/reference_outputs.csv" \
+  --scenario-manifest-output "$RUN_DIR/us/scenarios.csv"
 
-| Model | MAE | MAPE | Within 10% |
-|:------|----:|-----:|----------:|
-| Claude Opus 4.6 | **$0** | **0%** | **100.0%** |
-| Claude Sonnet 4.5 | **$0** | **0%** | **100.0%** |
-| GPT-5.2 | **$0** | **0%** | **100.0%** |
+policybench reference-outputs -n 1000 --seed 42 --country uk --program-set headline \
+  -o "$RUN_DIR/uk/reference_outputs.csv" \
+  --scenario-manifest-output "$RUN_DIR/uk/scenarios.csv"
 
-### By program (AI alone, all models averaged)
+for country in us uk; do
+  for model in claude-opus-4.7 claude-sonnet-4.6 claude-haiku-4.5 \
+    grok-4.3 grok-4.20 grok-4.1-fast gpt-5.5 gpt-5.4-mini gpt-5.4-nano \
+    gemini-3.1-pro-preview gemini-3-flash-preview \
+    gemini-3.1-flash-lite-preview; do
+    policybench eval-no-tools-chunked \
+      --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
+      --output-dir "$RUN_DIR/$country/no_tools_chunked" \
+      --country "$country" \
+      --model "$model" \
+      --program-set headline \
+      --chunk-size 50 \
+      --parallel 4
+  done
+done
 
-| Program | MAE | MAPE | Within 10% |
-|:--------|----:|-----:|----------:|
-| Federal income tax | $4,234 | 54% | 41.0% |
-| Income tax before credits | $2,683 | 39% | 62.7% |
-| EITC | $727 | 298% | 75.3% |
-| CTC | $1,028 | 174% | 74.3% |
-| Refundable credits | $981 | 128% | 62.3% |
-| SNAP | $769 | 55% | 80.7% |
-| SSI | $436 | 100% | 95.7% |
-| State income tax | $938 | 76% | 59.7% |
-| Household net income | $10,586 | 14% | 66.0% |
-| Total benefits | $5,228 | 117% | 43.7% |
-| Market income | $0 | 0% | 100.0% |
-| Marginal tax rate | $347 | N/A | 18.0% |
+for country in us uk; do
+  mkdir -p "$RUN_DIR/$country/by_model"
+  cp "$RUN_DIR/$country/no_tools_chunked/by_model/"*.csv "$RUN_DIR/$country/by_model/"
+done
 
-## Key takeaways
+python scripts/export_full_run.py --run-dir "$RUN_DIR"
+```
 
-1. **Tools > models.** Every model with PolicyEngine (100% accuracy) vastly outperforms every model without it (62–72%). The choice of computational tool matters more than the choice of frontier model.
+For first-pass cost control, run the same commands with `-n 100` in a separate
+scratch directory before launching the 1,000-household batch.
 
-2. **AI alone is unreliable for policy calculations.** Even the best model (Claude Sonnet 4.6) averages $1,285 error per calculation and gets only 72% of answers within 10% of correct. The worst programs — income tax (41%), marginal tax rates (18%), and aggregate benefits (44%) — are precisely where accuracy matters most.
+## Artifacts
 
-3. **With tools, accuracy is perfect.** All three tested models achieve $0 MAE and 100% within-10% accuracy across all 4,200 with-tools predictions. The tool returns ground truth, and models faithfully report it.
-
-4. **Newer models are improving, but not enough.** Claude Sonnet 4.6 improved significantly over 4.5 (72% vs 62% within 10%), but still falls far short of the 100% achievable with tools. Model improvements can't substitute for computational tools.
-
-5. **Marginal tax rates are nearly impossible without tools.** Only 18% of AI-alone predictions are within 10% of the correct marginal rate. This makes AI-generated policy advice about work incentives unreliable without computational backing.
-
-6. **The benchmark validates PolicyEngine's value proposition.** Any AI system that needs to answer questions about US taxes and benefits should use PolicyEngine rather than relying on parametric knowledge.
+- `results/local/reference_outputs.csv`
+- `results/local/no_tools/predictions.csv`
+- `results/local/analysis/metrics.csv`
+- `results/local/analysis/summary_by_model.csv`
+- `results/local/analysis/summary_by_variable.csv`
+- `results/local/analysis/impact_summary_by_model.csv`
+- `results/local/analysis/usage_summary.csv`
+- `results/local/analysis/report.md`
 
 ## Methodology
 
-See the [full paper](docs/) and [benchmark code](policybench/) for complete methodology. Ground truth is computed via [PolicyEngine-US](https://github.com/PolicyEngine/policyengine-us). All API responses are cached for reproducibility.
+See the [full paper](docs/) and [benchmark code](policybench/) for complete methodology. Reference outputs are computed via [PolicyEngine-US](https://github.com/PolicyEngine/policyengine-us) and [PolicyEngine-UK](https://github.com/PolicyEngine/policyengine-uk); the public UK scenarios use PolicyBench's calibrated transfer dataset. LLM responses are cached for reproducibility.
 
 ---
-*[Cosilico](https://cosilico.ai) · [PolicyEngine](https://policyengine.org)*
+*[PolicyEngine](https://policyengine.org) · [PolicyBench](https://policybench.org)*

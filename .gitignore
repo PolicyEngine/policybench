@@ -1,6 +1,21 @@
 # LiteLLM disk cache
 .policybench_cache/
 
+# Local scratch benchmark outputs. Frozen snapshots and batch exports live
+# elsewhere under results/ and can still be committed intentionally.
+results/local/
+results/analysis/
+results/no_tools/
+results/**/rerun_*/
+results/reference_outputs.csv
+results/ground_truth.csv
+results/scenarios.csv
+
+# Paper render scratch outputs. The served paper artifacts live under
+# app/public/paper/ and frozen manuscript inputs live under paper/snapshot/.
+paper/out/
+paper/figures/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

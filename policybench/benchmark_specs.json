@@ -1,0 +1,316 @@
+{
+    "default_spec": "policybench",
+    "specs": {
+        "policybench": {
+            "description": "Benchmark scope centered on non-overlapping household net-income components, with coverage flags weighted by PolicyEngine value proxies.",
+            "countries": {
+                "us": [
+                    {
+                        "id": "federal_income_tax_before_refundable_credits",
+                        "pe_variable": "income_tax_before_refundable_credits",
+                        "label": "Federal tax before refundable credits",
+                        "prompt": "federal individual income tax after nonrefundable credits and before refundable credits. This subtracts nonrefundable credits actually used, including CDCC and the nonrefundable portion of CTC or other credits when applicable; it does not subtract EITC or refundable portions of credits such as refundable CTC",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "federal_refundable_credits",
+                        "pe_variable": "income_tax_refundable_credits",
+                        "label": "Federal refundable credits",
+                        "prompt": "total refundable federal income tax credits, including EITC and refundable portions of credits such as refundable CTC when applicable; exclude the ACA Premium Tax Credit",
+                        "metric_type": "amount",
+                        "role": "credit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "payroll_tax",
+                        "pe_variable": "spm_unit_payroll_tax",
+                        "label": "Payroll tax",
+                        "prompt": "annual household employee-side payroll tax: employee Social Security tax, employee Medicare tax, Additional Medicare Tax, and mandatory employee state payroll taxes. Exclude employer payroll taxes, FUTA, employer unemployment-insurance taxes, and self-employment tax",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "self_employment_tax",
+                        "pe_variable": "self_employment_tax",
+                        "label": "Self-employment tax",
+                        "prompt": "annual self-employment tax liability, excluding employee payroll taxes and Additional Medicare Tax",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "state_income_tax_before_refundable_credits",
+                        "pe_variable": "state_income_tax_before_refundable_credits",
+                        "label": "State tax before refundable credits",
+                        "prompt": "state individual income tax after nonrefundable credits and before refundable credits, excluding local income and payroll taxes",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "state_refundable_credits",
+                        "pe_variable": "state_refundable_credits",
+                        "label": "State refundable credits",
+                        "prompt": "total refundable state individual income tax credits",
+                        "metric_type": "amount",
+                        "role": "credit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "local_income_tax",
+                        "pe_variable": "local_income_tax",
+                        "label": "Local income tax",
+                        "prompt": "annual local income, wage, and earnings tax liability in the separate local-income-tax output: NYC income tax, Philadelphia wage tax, Kansas City earnings tax, and St. Louis earnings tax where applicable",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "snap",
+                        "pe_variable": "snap",
+                        "label": "SNAP",
+                        "prompt": "annual SNAP (food stamps) benefit amount",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "ssi",
+                        "pe_variable": "ssi",
+                        "label": "SSI",
+                        "prompt": "annual Supplemental Security Income (SSI) amount",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "tanf",
+                        "pe_variable": "tanf",
+                        "label": "TANF",
+                        "prompt": "annual Temporary Assistance for Needy Families (TANF) benefit amount",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "premium_tax_credit",
+                        "pe_variable": "premium_tax_credit",
+                        "label": "ACA Premium Tax Credit",
+                        "prompt": "annual ACA Premium Tax Credit amount for Marketplace health insurance premium assistance. Use any listed Marketplace plan information as what the household knows about the plan they selected. Estimate any needed local Marketplace benchmark premium from the household facts if it is not provided. If no selected Marketplace plan information is listed, assume the selected plan costs about the same as the local benchmark Silver plan. Return 0 if the household is ineligible or does not receive Marketplace premium assistance",
+                        "metric_type": "amount",
+                        "role": "health",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "person_wic_eligible",
+                        "pe_variable": "is_wic_eligible",
+                        "label": "Person-level WIC eligibility",
+                        "prompt": "whether each person in the household is eligible for WIC (1 if yes, 0 if no)",
+                        "metric_type": "binary",
+                        "role": "coverage",
+                        "output_set": "headline",
+                        "aggregation": "person",
+                        "net_income_sign": 1,
+                        "impact_weight_variable": "wic",
+                        "impact_weight_aggregation": "person"
+                    },
+                    {
+                        "id": "person_medicaid_eligible",
+                        "pe_variable": "is_medicaid_eligible",
+                        "label": "Person-level Medicaid eligibility",
+                        "prompt": "whether each person in the household is eligible for Medicaid under PolicyEngine rules, not whether they are currently enrolled (1 if yes, 0 if no)",
+                        "metric_type": "binary",
+                        "role": "coverage",
+                        "output_set": "headline",
+                        "aggregation": "person",
+                        "net_income_sign": 1,
+                        "impact_weight_variable": "medicaid",
+                        "impact_weight_aggregation": "person"
+                    },
+                    {
+                        "id": "person_chip_eligible",
+                        "pe_variable": "is_chip_eligible",
+                        "label": "Person-level CHIP eligibility",
+                        "prompt": "whether each person in the household is eligible for CHIP under PolicyEngine rules, not whether they are currently enrolled (1 if yes, 0 if no)",
+                        "metric_type": "binary",
+                        "role": "coverage",
+                        "output_set": "headline",
+                        "aggregation": "person",
+                        "net_income_sign": 1,
+                        "impact_weight_variable": "chip",
+                        "impact_weight_aggregation": "person"
+                    },
+                    {
+                        "id": "person_medicare_eligible",
+                        "pe_variable": "is_medicare_eligible",
+                        "label": "Person-level Medicare eligibility",
+                        "prompt": "whether each person in the household is eligible for Medicare (1 if yes, 0 if no)",
+                        "metric_type": "binary",
+                        "role": "coverage",
+                        "output_set": "headline",
+                        "aggregation": "person",
+                        "net_income_sign": 1,
+                        "impact_weight_variable": "medicare_cost",
+                        "impact_weight_aggregation": "person"
+                    },
+                    {
+                        "id": "person_head_start_eligible",
+                        "pe_variable": "is_head_start_eligible",
+                        "label": "Person-level Head Start eligibility",
+                        "prompt": "whether each person in the household is eligible for Head Start for preschool-age children, not Early Head Start (1 if yes, 0 if no)",
+                        "metric_type": "binary",
+                        "role": "coverage",
+                        "output_set": "headline",
+                        "aggregation": "person",
+                        "net_income_sign": 1,
+                        "impact_weight_variable": "head_start",
+                        "impact_weight_aggregation": "person"
+                    },
+                    {
+                        "id": "person_early_head_start_eligible",
+                        "pe_variable": "is_early_head_start_eligible",
+                        "label": "Person-level Early Head Start eligibility",
+                        "prompt": "whether each person in the household is eligible for Early Head Start as a child for this output (1 if yes, 0 if no)",
+                        "metric_type": "binary",
+                        "role": "coverage",
+                        "output_set": "headline",
+                        "aggregation": "person",
+                        "net_income_sign": 1,
+                        "impact_weight_variable": "early_head_start",
+                        "impact_weight_aggregation": "person"
+                    },
+                    {
+                        "id": "free_school_meals_eligible",
+                        "pe_variable": "free_school_meals",
+                        "label": "Free school meals eligibility",
+                        "prompt": "whether PolicyEngine returns positive annual free school meal support for the household (1 if yes, 0 if no; reduced-price meals do not count as 1)",
+                        "metric_type": "binary",
+                        "role": "coverage",
+                        "output_set": "headline",
+                        "aggregation": "any_positive",
+                        "net_income_sign": 1,
+                        "impact_weight_variable": "free_school_meals",
+                        "impact_weight_aggregation": "sum"
+                    },
+                    {
+                        "id": "reduced_price_school_meals_eligible",
+                        "pe_variable": "reduced_price_school_meals",
+                        "label": "Reduced-price school meals eligibility",
+                        "prompt": "whether PolicyEngine returns positive annual reduced-price school meal support for the household (1 if yes, 0 if no; free meals do not count as 1)",
+                        "metric_type": "binary",
+                        "role": "coverage",
+                        "output_set": "headline",
+                        "aggregation": "any_positive",
+                        "net_income_sign": 1,
+                        "impact_weight_variable": "reduced_price_school_meals",
+                        "impact_weight_aggregation": "sum"
+                    }
+                ],
+                "uk": [
+                    {
+                        "id": "income_tax",
+                        "pe_variable": "income_tax",
+                        "label": "Income Tax",
+                        "prompt": "household total annual UK Income Tax liability after allowances and reliefs, excluding Capital Gains Tax",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "national_insurance",
+                        "pe_variable": "national_insurance",
+                        "label": "National Insurance",
+                        "prompt": "household total annual UK National Insurance contributions, excluding employer National Insurance",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "capital_gains_tax",
+                        "pe_variable": "capital_gains_tax",
+                        "label": "Capital Gains Tax",
+                        "prompt": "household total annual UK Capital Gains Tax. Compute it separately from Income Tax. UK has no short-term versus long-term capital gains distinction; treat any listed capital gains as ordinary net chargeable gains before the annual exempt amount, excluding carried interest and special reliefs unless explicitly stated. Sum across household members",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "child_benefit",
+                        "pe_variable": "child_benefit",
+                        "label": "Child Benefit",
+                        "prompt": "household total annual gross Child Benefit amount for qualifying children and young people before the High Income Child Benefit Charge; assume eligible households take up the benefit and do not require stated benefit receipt; do not apply an income test or tax-charge reduction to this output; do not subtract HICBC here because it is included in Income Tax, so report gross Child Benefit even when HICBC would recover it through tax",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "universal_credit",
+                        "pe_variable": "universal_credit",
+                        "label": "Universal Credit",
+                        "prompt": "household total annual Universal Credit amount; assume eligible households take up the benefit and do not require stated benefit receipt",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "pension_credit",
+                        "pe_variable": "pension_credit",
+                        "label": "Pension Credit",
+                        "prompt": "annual Pension Credit amount",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "pip",
+                        "pe_variable": "pip",
+                        "label": "Personal Independence Payment",
+                        "prompt": "annual Personal Independence Payment (PIP) amount",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    }
+                ]
+            }
+        }
+    }
+}

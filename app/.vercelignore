@@ -1,0 +1,9 @@
+.git
+.gitignore
+.next
+dist
+node_modules
+output
+playwright-report
+coverage
+*.log

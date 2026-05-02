@@ -1,0 +1,704 @@
+---
+title: "PolicyBench"
+subtitle: "Benchmarking no-tool tax-and-benefit estimation in frontier language models"
+author:
+  - name: "PolicyEngine"
+bibliography: references.bib
+jupyter: policybench-paper
+format:
+  html:
+    toc: true
+    toc-depth: 3
+  pdf:
+    toc: true
+    number-sections: true
+---
+
+```{python}
+#| echo: false
+import json
+import hashlib
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from policybench.config import MODELS, SEED
+from policybench.analysis import score_single_prediction
+from policybench.spec import metric_type_for_output, parse_person_output
+
+pd.set_option("display.max_colwidth", None)
+
+ROOT = Path.cwd().resolve()
+if not (ROOT / "results").exists():
+    ROOT = ROOT.parent
+dashboard = json.loads((ROOT / "app" / "src" / "data.json").read_text())
+SNAPSHOT_DATE = "2026-05-01"
+SNAPSHOT_EXPORT = "app/src/data.json"
+US_RUN_LABEL = "us_100_stable_models_20260501_062249"
+UK_RUN_LABEL = "uk_100_hicbc_fixed_20260501_083402"
+IMPACT_SNAPSHOT_DIR = "paper/snapshot/20260501"
+UK_TRANSFER_ARTIFACT = "enhanced_cps_2025.h5 public UK calibrated transfer artifact"
+UK_TRANSFER_ARTIFACT_SHA256 = "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
+
+
+def file_hash_prefix(path: str) -> str:
+    return hashlib.sha256((ROOT / path).read_bytes()).hexdigest()[:12]
+
+
+def bundle_version(country: str, key: str) -> str:
+    bundle = dashboard["global"]["policyengineBundles"][country]
+    return str(bundle.get(key) or "not recorded")
+
+
+def country_payload(country: str) -> dict:
+    return dashboard["countries"][country]
+
+
+def model_frame(country: str) -> pd.DataFrame:
+    return pd.DataFrame(country_payload(country)["modelStats"]).sort_values(
+        "score",
+        ascending=False,
+    )
+
+
+def variable_frame(country: str) -> pd.DataFrame:
+    return pd.DataFrame(country_payload(country)["programStats"]).sort_values(
+        "score",
+    )
+
+
+def failure_frame(country: str) -> pd.DataFrame:
+    return pd.DataFrame(country_payload(country)["failureModes"]["programs"])
+
+
+def model_table(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
+    cols = [
+        "model",
+        "score",
+        "exact",
+        "within10pct",
+        "nParsed",
+        "n",
+    ]
+    subset = frame[cols].head(top_n).copy()
+    subset.columns = ["Model", "Score", "Exact", "Within 10%", "Parsed", "Total"]
+    for col in ["Score", "Exact", "Within 10%"]:
+        subset[col] = subset[col].round(1)
+    return subset
+
+
+def variable_hardest(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
+    cols = ["variable", "score", "exact", "within10pct"]
+    subset = (
+        frame[cols]
+        .sort_values("score")
+        .head(top_n)
+        .copy()
+    )
+    subset.columns = ["Variable", "Score", "Exact", "Within 10%"]
+    for col in ["Score", "Exact", "Within 10%"]:
+        subset[col] = subset[col].round(1)
+    return subset
+
+
+def positive_case_table(frame: pd.DataFrame, top_n: int = 8) -> pd.DataFrame:
+    cols = ["variable", "overallCorrectPct", "positiveCasePct", "zeroCasePct"]
+    subset = frame[cols].copy().head(top_n)
+    subset.columns = ["Variable", "All cases", "Positive cases", "Zero cases"]
+    for col in ["All cases", "Positive cases", "Zero cases"]:
+        subset[col] = subset[col].round(1)
+    return subset
+
+
+def flatten_predictions() -> pd.DataFrame:
+    rows = []
+    for country in ["us", "uk"]:
+        predictions = country_payload(country)["scenarioPredictions"]
+        for scenario_id, variables in predictions.items():
+            for variable, model_records in variables.items():
+                parsed = parse_person_output(variable)
+                output_group = parsed[1] if parsed else variable
+                metric_type = metric_type_for_output(variable)
+                for model, record in model_records.items():
+                    truth = record["groundTruth"]
+                    prediction = record["prediction"]
+                    rows.append(
+                        {
+                            "country": country,
+                            "scenario_id": scenario_id,
+                            "variable": variable,
+                            "output_group": output_group,
+                            "model": model,
+                            "truth": truth,
+                            "prediction": prediction,
+                            "metric_type": metric_type,
+                            "score": 100
+                            * score_single_prediction(
+                                variable,
+                                truth,
+                                prediction,
+                            ),
+                        }
+                    )
+    return pd.DataFrame(rows)
+
+
+def country_scores_from_rows(frame: pd.DataFrame) -> pd.DataFrame:
+    output_scores = (
+        frame.groupby(["country", "model", "output_group"])["score"]
+        .mean()
+        .reset_index()
+    )
+    return (
+        output_scores.groupby(["country", "model"])["score"]
+        .mean()
+        .reset_index()
+    )
+
+
+def global_scores(country_scores: pd.DataFrame) -> pd.DataFrame:
+    pivot = country_scores.pivot(index="model", columns="country", values="score")
+    if {"us", "uk"} <= set(pivot.columns):
+        pivot["score"] = pivot[["us", "uk"]].mean(axis=1)
+    else:
+        pivot["score"] = pivot.mean(axis=1)
+    return pivot[["score"]].reset_index().sort_values("score", ascending=False)
+
+
+def rank_cell(frame: pd.DataFrame, rank: int) -> str:
+    row = frame.reset_index(drop=True).iloc[rank - 1]
+    return f"{row.model} ({row.score:.1f})"
+
+
+def impact_scores() -> pd.DataFrame:
+    rows = []
+    for country in ["us", "uk"]:
+        path = ROOT / IMPACT_SNAPSHOT_DIR / f"{country}_impact_summary_by_model.csv"
+        frame = pd.read_csv(path)
+        frame = frame[["model", "mean_impact_score"]].copy()
+        frame["country"] = country
+        frame["score"] = frame["mean_impact_score"] * 100
+        rows.append(frame[["country", "model", "score"]])
+    return pd.concat(rows, ignore_index=True)
+
+
+def simple_baselines() -> pd.DataFrame:
+    prediction_rows = flatten_predictions()
+    baselines = []
+    for name, predictor in [
+        ("Always zero", lambda frame: np.zeros(len(frame))),
+        (
+            "Median reference by output",
+            lambda frame: frame.groupby(["country", "output_group"])[
+                "truth"
+            ].transform("median").to_numpy(),
+        ),
+    ]:
+        frame = prediction_rows.copy()
+        frame["model"] = name
+        frame["prediction"] = predictor(frame)
+        frame["score"] = 100 * frame.apply(
+            lambda row: score_single_prediction(
+                row["variable"],
+                row["truth"],
+                row["prediction"],
+            ),
+            axis=1,
+        )
+        country_scores = country_scores_from_rows(frame)
+        global_score = global_scores(country_scores)["score"].iloc[0]
+        us_score = country_scores.loc[country_scores["country"] == "us", "score"].iloc[
+            0
+        ]
+        uk_score = country_scores.loc[country_scores["country"] == "uk", "score"].iloc[
+            0
+        ]
+        baselines.append(
+            {
+                "Baseline": name,
+                "Global score": global_score,
+                "US score": us_score,
+                "UK score": uk_score,
+            }
+        )
+    frame = pd.DataFrame(baselines)
+    for column in ["Global score", "US score", "UK score"]:
+        frame[column] = frame[column].round(1)
+    return frame
+
+
+def sensitivity_rows() -> pd.DataFrame:
+    prediction_rows = flatten_predictions()
+    views = {
+        "Main global leaderboard": global_model[["model", "score"]].sort_values(
+            "score",
+            ascending=False,
+        ),
+        "Amount outputs only": global_scores(
+            country_scores_from_rows(
+                prediction_rows[prediction_rows["metric_type"] == "amount"]
+            )
+        ),
+        "Positive reference cases only": global_scores(
+            country_scores_from_rows(prediction_rows[prediction_rows["truth"] != 0])
+        ),
+        "Zero reference cases only": global_scores(
+            country_scores_from_rows(prediction_rows[prediction_rows["truth"] == 0])
+        ),
+        "US only": us_model[["model", "score"]].sort_values(
+            "score",
+            ascending=False,
+        ),
+        "UK only": uk_model[["model", "score"]].sort_values(
+            "score",
+            ascending=False,
+        ),
+        "US binary coverage only": country_scores_from_rows(
+            prediction_rows[
+                (prediction_rows["country"] == "us")
+                & (prediction_rows["metric_type"] == "binary")
+            ]
+        )[["model", "score"]].sort_values("score", ascending=False),
+        "Household-equal impact score": global_scores(impact_scores()),
+    }
+    rows = []
+    for view, frame in views.items():
+        rows.append(
+            {
+                "View": view,
+                "Rank 1": rank_cell(frame, 1),
+                "Rank 2": rank_cell(frame, 2),
+                "Rank 3": rank_cell(frame, 3),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def model_run_table(top_n: int = 12) -> pd.DataFrame:
+    rows = []
+    for model in global_model["model"].head(top_n):
+        us_row = us_model.loc[us_model["model"] == model].iloc[0]
+        uk_row = uk_model.loc[uk_model["model"] == model].iloc[0]
+        rows.append(
+            {
+                "Model": model,
+                "Provider ID": MODELS.get(model, "not in default registry"),
+                "US parsed": f"{int(us_row.nParsed):,}/{int(us_row.n):,}",
+                "UK parsed": f"{int(uk_row.nParsed):,}/{int(uk_row.n):,}",
+                "Structured output": "provider structured-output schema; no external tool",
+                "Decoding": "provider default; no model-specific prompt tuning",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def bootstrap_global_uncertainty(
+    n_boot: int = 1000,
+    top_n: int = 10,
+) -> pd.DataFrame:
+    prediction_rows = flatten_predictions()
+    scenario_ids = {
+        country: sorted(
+            prediction_rows.loc[prediction_rows["country"] == country, "scenario_id"]
+            .unique()
+            .tolist()
+        )
+        for country in ["us", "uk"]
+    }
+    country_frames = {
+        country: prediction_rows[prediction_rows["country"] == country]
+        for country in ["us", "uk"]
+    }
+    rng = np.random.default_rng(SEED)
+    boot_frames = []
+    for draw in range(n_boot):
+        sampled_frames = []
+        for country, ids in scenario_ids.items():
+            sampled_ids = rng.choice(ids, size=len(ids), replace=True)
+            sampled_frames.extend(
+                country_frames[country][
+                    country_frames[country]["scenario_id"] == scenario_id
+                ]
+                for scenario_id in sampled_ids
+            )
+        sampled = pd.concat(sampled_frames, ignore_index=True)
+        scores = global_scores(country_scores_from_rows(sampled)).reset_index(drop=True)
+        scores["rank"] = scores.index + 1
+        scores["draw"] = draw
+        boot_frames.append(scores)
+    boot = pd.concat(boot_frames, ignore_index=True)
+    point = global_model[["model", "score"]].head(top_n).copy()
+    rows = []
+    for row in point.itertuples():
+        samples = boot[boot["model"] == row.model]
+        rows.append(
+            {
+                "Model": row.model,
+                "Score": round(row.score, 1),
+                "95% bootstrap score interval": (
+                    f"{samples['score'].quantile(0.025):.1f}-"
+                    f"{samples['score'].quantile(0.975):.1f}"
+                ),
+                "Bootstrap rank range": (
+                    f"{int(samples['rank'].min())}-"
+                    f"{int(samples['rank'].max())}"
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def fmt_score(value: float) -> str:
+    return f"{value:.1f}"
+
+
+def ranked_phrase(items: list[str]) -> str:
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def parsed_ratio(frame: pd.DataFrame, model_name: str) -> str:
+    row = frame.loc[frame["model"] == model_name].iloc[0]
+    return f"{int(row['nParsed']):,} of {int(row['n']):,}"
+
+
+def top_model(frame: pd.DataFrame) -> pd.Series:
+    return frame.sort_values("score", ascending=False).iloc[0]
+
+
+us_model = model_frame("us")
+uk_model = model_frame("uk")
+global_model = pd.DataFrame(dashboard["global"]["modelStats"]).sort_values(
+    "score",
+    ascending=False,
+)
+us_var = variable_frame("us")
+uk_var = variable_frame("uk")
+us_failures = failure_frame("us")
+uk_failures = failure_frame("uk")
+
+
+us_top = model_table(us_model)
+uk_top = model_table(uk_model)
+global_top = model_table(global_model, top_n=10)
+
+us_hardest = variable_hardest(us_var)
+uk_hardest = variable_hardest(uk_var)
+us_positive_cases = positive_case_table(us_failures)
+uk_positive_cases = positive_case_table(uk_failures)
+sensitivity = sensitivity_rows()
+model_runs = model_run_table()
+bootstrap_uncertainty = bootstrap_global_uncertainty()
+baseline_summary = simple_baselines()
+snapshot_provenance = pd.DataFrame(
+    [
+        ["Snapshot date", SNAPSHOT_DATE],
+        ["Policy period", "US tax year 2026; UK fiscal year 2026-27"],
+        ["Frozen export", SNAPSHOT_EXPORT],
+        ["Frozen export SHA-256 prefix", file_hash_prefix(SNAPSHOT_EXPORT)],
+        ["Snapshot manifest", f"{IMPACT_SNAPSHOT_DIR}/manifest.json"],
+        ["US scenarios SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_scenarios.csv")],
+        ["US reference outputs SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_reference_outputs.csv")],
+        ["UK scenarios SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/uk_scenarios.csv")],
+        ["UK reference outputs SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/uk_reference_outputs.csv")],
+        ["Benchmark spec SHA-256 prefix", file_hash_prefix("policybench/benchmark_specs.json")],
+        ["Prompt template SHA-256 prefix", file_hash_prefix("policybench/prompts.py")],
+        ["Scoring code SHA-256 prefix", file_hash_prefix("policybench/analysis.py")],
+        ["US run label", US_RUN_LABEL],
+        ["UK run label", UK_RUN_LABEL],
+        ["Household sample seed", str(SEED)],
+        ["PolicyEngine-US", f"{bundle_version('us', 'model_package')} {bundle_version('us', 'model_version')}"],
+        ["PolicyEngine-UK", f"{bundle_version('uk', 'model_package')} {bundle_version('uk', 'model_version')}"],
+        ["US data bundle", f"{bundle_version('us', 'data_package')} {bundle_version('us', 'data_version')}"],
+        ["UK runtime bundle", f"{bundle_version('uk', 'data_package')} {bundle_version('uk', 'data_version')}"],
+        ["UK scenario source", UK_TRANSFER_ARTIFACT],
+        ["UK scenario-source SHA-256", UK_TRANSFER_ARTIFACT_SHA256],
+        ["Households", "100 US and 100 UK"],
+        ["Models", f"{len(global_model)} shared models"],
+        ["Output groups", "19 US and 7 UK"],
+        ["Condition", "No tools, no web access, one structured response per household"],
+        ["Response contract", "Numeric answer and non-empty explanation for every requested output"],
+    ],
+    columns=["Item", "Value"],
+)
+scope_rationale = pd.DataFrame(
+    [
+        ["Included", "Direct tax, credit, benefit, health-support, and coverage outputs that a household-facing model could plausibly be asked to estimate from household facts."],
+        ["Excluded", "Intermediate tax bases, payroll subcomponents, and outputs that mainly require unavailable history, restricted local market data, restricted program-administration data, or take-up assignment rather than rule calculation."],
+        ["ACA Premium Tax Credit", "Retained as a deliberate health-support output; when local benchmark premiums are not listed, the model must estimate them from the household facts."],
+        ["Binary coverage outputs", "Requested as 0/1 eligibility flags and scored as classification tasks; their dollar values are used only as impact-weight proxies, not as requested model outputs."],
+        ["WIC", "The benchmark asks for person-level WIC eligibility. It does not ask models to estimate a WIC dollar amount."],
+    ],
+    columns=["Scope decision", "Rationale"],
+)
+reference_audit = pd.DataFrame(
+    [
+        ["US federal credits", "Reviewed cases where explanations omitted EITC or refundable CTC; discrepancies reflected model credit-treatment errors, not identified PolicyEngine errors."],
+        ["US SNAP, SSI, and Medicaid", "Reviewed false-zero and false-positive explanations; common model failures used broad asset or income heuristics inconsistent with the supplied facts and the reference rules."],
+        ["US payroll and overtime", "Reviewed overtime-related cases during development; upstream data/model fixes and prompt clarifications were applied before the frozen snapshot."],
+        ["UK Child Benefit", "Reviewed HICBC-related misses; the benchmark now asks for gross Child Benefit before HICBC, with HICBC included in Income Tax."],
+        ["UK National Insurance", "Reviewed cases where models subtracted pension contributions or used wrong thresholds/rates; no reference-output defect was identified in the reviewed cases."],
+        ["UK UC, Pension Credit, and PIP", "Reviewed positive-case misses and false positives; explanations usually showed broad capital, age, or award-level heuristics rather than simulator-reference defects."],
+    ],
+    columns=["Discrepancy class", "Review outcome"],
+)
+
+us_ranked = us_model.reset_index(drop=True)
+uk_ranked = uk_model.reset_index(drop=True)
+global_ranked = global_model.reset_index(drop=True)
+
+us_top_three = [
+    f"{row.model} ({fmt_score(row.score)})"
+    for row in us_ranked.head(3).itertuples()
+]
+uk_top_three = [
+    f"{row.model} ({fmt_score(row.score)})"
+    for row in uk_ranked.head(3).itertuples()
+]
+global_top_three = [
+    f"{row.model} ({fmt_score(row.score)})"
+    for row in global_ranked.head(3).itertuples()
+]
+
+abstract_snapshot_summary = (
+    f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
+    f"the top US model is {top_model(us_model).model} at "
+    f"{fmt_score(top_model(us_model).score)}, the top UK model is "
+    f"{top_model(uk_model).model} at {fmt_score(top_model(uk_model).score)}, "
+    f"and the top shared global model is {top_model(global_model).model} at "
+    f"{fmt_score(top_model(global_model).score)}."
+)
+us_top_three_summary = ranked_phrase(us_top_three)
+uk_top_three_summary = ranked_phrase(uk_top_three)
+global_top_three_summary = ranked_phrase(global_top_three)
+conclusion_snapshot_summary = (
+    f"In the frozen manuscript snapshot, {top_model(us_model).model} "
+    f"is the top-scoring US model and {top_model(uk_model).model} is "
+    f"the top-scoring UK model."
+)
+```
+
+## Abstract
+
+PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced CPS-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded `0-100` metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard. `{python} abstract_snapshot_summary` In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <https://policybench.org>.
+
+## Introduction
+
+Household tax-and-benefit estimation sits between arithmetic and policy discussion. Each case has numeric labels, but generating those labels requires filing status, household composition, income concepts, program thresholds, and jurisdiction-specific rules. PolicyBench measures whether models can map household records to those outputs.
+
+Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers [@cobbe2021training; @hendrycks2021math], while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.
+
+This matters for public-facing calculators, analyst workflows, and tax-preparation or screening systems. The benchmark is intended to separate verbal policy fluency from household-level quantitative prediction.
+
+## Related work
+
+The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem [@holzenberger2021sara]. LegalBench broadens this view and includes tax-oriented numeric tasks such as `sara_numeric` [@guha2023legalbench]. RuleArena evaluates rule-guided reasoning in regulation-style settings [@kim2024rulearena], and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs [@taxcalcbench2025]. Shanahan et al. report a similar split on the VITA test: models do better on tax knowledge questions than on open-ended calculation tasks [@shanahan2025vita].
+
+PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks [@cobbe2021training; @hendrycks2021math]. That norm is less natural for continuous-valued policy outputs, where being within 1 percent is closer than being off by an order of magnitude. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead [@zhou2025tempanswerqa]. PolicyBench follows that direction by combining exactness with near-miss thresholds rather than collapsing everything into exact match alone.
+
+Finance-domain benchmarks provide another relevant precedent. FinQA and TAT-QA both show that realistic quantitative reasoning often requires combining structured numbers with domain knowledge rather than solving stylized school-math problems [@chen2021finqa; @zhu2021tatqa]. PolicyBench differs in that its reference outputs are generated by executable tax-benefit microsimulation rather than annotated document questions, but the underlying motivation is similar: domain-specific quantitative reasoning deserves dedicated evaluation.
+
+Finally, PolicyBench depends on two infrastructure literatures that are not themselves LLM benchmarks. One is structured-output reliability, since the benchmark relies on multi-output JSON responses and parse coverage rather than free-form prose [@shorten2024structuredrag]. The other is tax-benefit microsimulation, where systems such as EUROMOD provide the methodological precedent for evaluating policy rules over household microdata [@sutherland2023euromod]. The UK side of PolicyBench also builds on PolicyEngine's recent work on survey-backed calibration and imputation [@policyengineukdata2026]. There is also operational work on applying and evaluating AI systems in public-benefits settings, including caseworker-assist and SNAP-focused evaluations [@nava2026caseworker; @nava2025benefits; @propel2025snap]. PolicyBench combines these strands into a public cross-model benchmark over household-level tax and benefit outputs.
+
+## Benchmark design
+
+PolicyBench asks models to predict all benchmark outputs for a household in a single structured response. One response per household reduces repeated prompt cost and keeps the task at the household-return level rather than turning it into a sequence of unrelated one-output calls.
+
+The benchmark uses a bounded `0-100` score. For amount variables, the score averages four hit rates:
+
+1. exact
+2. within 1%
+3. within 5%
+4. within 10%
+
+For binary outputs, the score is exact accuracy. This keeps `100` as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related error metrics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized [@zhou2025tempanswerqa].
+
+All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026; UK outputs are annual amounts or annual eligibility indicators for fiscal year 2026-27. For currency amounts, the "exact" hit rate means within `1` currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same `1` currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as `0` or `1` eligibility flags and scored by exact classification accuracy. Missing or unparseable numeric answers receive zero score for that requested output.
+
+Aggregation proceeds in four steps. First, each household-output prediction receives a `0-100` score. Second, person-level coverage rows are averaged to their program group. Third, output groups are averaged with equal weight within each country. Fourth, global scores average the US and UK country scores for models run in both countries. Household-equal impact scores are reported only as a sensitivity view.
+
+The benchmark requires each model response to include numeric answers and one short explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning. Numeric-only runs are treated as prompt-contract ablations, not as the canonical leaderboard task.
+
+Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are `0`, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output.
+
+### Frozen snapshot
+
+Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen dashboard export in @tbl-snapshot rather than to the live site. The local run labels identify the source runs used to create that export; the committed export is the manuscript artifact.
+
+```{python}
+#| label: tbl-snapshot
+#| tbl-cap: "Frozen manuscript snapshot."
+snapshot_provenance
+```
+
+```{python}
+#| label: tbl-model-runs
+#| tbl-cap: "Model run configuration in the frozen manuscript snapshot."
+model_runs
+```
+
+## Data and scenario construction
+
+### United States
+
+The US benchmark is built from Enhanced CPS-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit structure while retaining variation in filing status, household composition, and income sources. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives.
+
+The current US release evaluates 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, SNAP, SSI, TANF, ACA premium tax credits, school-meal eligibility, and person-level coverage eligibility for WIC, Medicaid, CHIP, Medicare, Head Start, and Early Head Start.
+
+The output scope is intentionally narrower than the full PolicyEngine model. @tbl-scope-rationale summarizes the inclusion rule. The benchmark asks for WIC eligibility rather than a WIC dollar amount; WIC dollar values are used only as impact-weight proxies for coverage flags, not as requested model outputs.
+
+```{python}
+#| label: tbl-scope-rationale
+#| tbl-cap: "Output-selection rationale."
+scope_rationale
+```
+
+### United Kingdom
+
+The UK benchmark is built from a calibrated public transfer dataset scored through PolicyEngine UK. The current public build starts from a public export of benchmark-compatible households from PolicyEngine US Enhanced CPS, maps those records into UK-facing inputs, and recalibrates them to selected UK targets. This creates a public UK-policy transfer benchmark without publishing restricted household microdata; it is not a representative evaluation over native UK household records. The current UK release evaluates seven outputs: income tax, national insurance, capital gains tax, child benefit, universal credit, pension credit, and personal independence payment. Outputs that depend on status or award facts use prompt-visible facts rather than hidden take-up labels; for example, PIP-positive cases list the daily living and mobility award components used by PolicyEngine.
+
+The UK data path is more synthetic than the enhanced FRS pipeline, so the benchmark should not be read as a substitute for native UK microdata work. It supports the current public cross-country benchmark, but it is not equivalent to an enhanced-FRS-based benchmark [@sutherland2023euromod; @policyengineukdata2026].
+
+### Reference-output credibility
+
+PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and partially validated in specific domains. In the UK, No. 10's data science team adapted PolicyEngine's open-source microsimulation model for experimental policy simulation, with validation against external projections before use [@woodruff2026no10; @policyengine2026downing]. In the US, PolicyEngine's state tax modelling has been validated against NBER's TAXSIM, with reported penny-level agreement for the vast majority of 2021 test cases [@policyengine2024statetax; @feenberg1993taxsim]. PolicyEngine has also signed a memorandum of understanding with the Federal Reserve Bank of Atlanta for future validation of tax and benefit calculations against the Atlanta Fed's Policy Rules Database [@policyengine2025atlantafed; @atlantafed2026prd]. These sources do not validate every benchmark output; they establish PolicyEngine as a transparent, externally used reference implementation with partial external validation and planned additional checks.
+
+This does not make PolicyEngine infallible. During benchmark development, we manually and LLM-assisted reviewed discrepant household cases surfaced by model explanations. @tbl-reference-review summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects. This is a qualitative development discrepancy review, not a sampled validation study or exhaustive validation of every reference value.
+
+```{python}
+#| label: tbl-reference-review
+#| tbl-cap: "Development discrepancy review before the frozen snapshot."
+reference_audit
+```
+
+## Results
+
+### United States leaderboard
+
+The US leaderboard for the frozen manuscript snapshot is shown in @tbl-us-top. The top three models in that snapshot are `{python} us_top_three_summary`.
+
+```{python}
+#| label: tbl-us-top
+#| tbl-cap: "Top US benchmark models in the frozen manuscript snapshot."
+us_top
+```
+
+### United Kingdom leaderboard
+
+The UK leaderboard for the frozen manuscript snapshot is shown in @tbl-uk-top. The top three models in that snapshot are `{python} uk_top_three_summary`.
+
+```{python}
+#| label: tbl-uk-top
+#| tbl-cap: "Top UK benchmark models in the frozen manuscript snapshot."
+uk_top
+```
+
+### Global shared-model leaderboard
+
+The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are `{python} global_top_three_summary`. The global table summarizes cross-country performance; the country tables identify the outputs driving the differences.
+
+```{python}
+#| label: tbl-global-top
+#| tbl-cap: "Global shared-model leaderboard across US and UK runs."
+global_top
+```
+
+### Simple baselines
+
+Simple baselines help interpret score levels in a zero-heavy benchmark. @tbl-baselines reports an always-zero response and a median-reference-by-output response on the same frozen household sample. These are not model competitors; they show how much of the bounded score can be earned without household-specific policy calculation.
+
+```{python}
+#| label: tbl-baselines
+#| tbl-cap: "Simple baseline scores on the frozen manuscript snapshot."
+baseline_summary
+```
+
+### Sensitivity to benchmark view
+
+The primary leaderboard gives each country equal weight globally and each output group equal weight within a country. @tbl-sensitivity reports several alternative views. The top model is stable across the main global, amount-only, positive-reference-case, US-only, UK-only, and household-equal impact views. Lower ranks move, especially between positive cases and zero cases, so the paper avoids claims that depend on a single exact ordering beyond the frozen snapshot.
+
+```{python}
+#| label: tbl-sensitivity
+#| tbl-cap: "Leaderboard sensitivity to alternative scoring views."
+sensitivity
+```
+
+### Sampling uncertainty
+
+The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes country scores with equal output-group weighting, then recomputes the equal-country global score. The table is a sampling-uncertainty check for this household draw, not uncertainty over future model releases or prompt variants.
+
+```{python}
+#| label: tbl-bootstrap
+#| tbl-cap: "Household-resampling uncertainty for the global leaderboard."
+bootstrap_uncertainty
+```
+
+### Hardest benchmark targets
+
+The lowest-scoring US variables are multi-step tax quantities and sparse positive-dollar benefits. As shown in @tbl-us-hardest, federal income tax before refundable credits, state income tax before refundable credits, payroll tax, and SNAP are the hardest US outputs in the frozen manuscript snapshot.
+
+```{python}
+#| label: tbl-us-hardest
+#| tbl-cap: "Hardest US variables by bounded score."
+us_hardest
+```
+
+The same pattern appears in the UK run. Income tax and National Insurance are the two hardest UK outputs, while zero-heavy benefits and capital gains tax score higher overall.
+
+```{python}
+#| label: tbl-uk-hardest
+#| tbl-cap: "Hardest UK variables by bounded score."
+uk_hardest
+```
+
+### Zero and positive cases
+
+Overall hit rates can overstate performance on sparse programs because correct zeros are common. @tbl-us-positive and @tbl-uk-positive therefore report within-10% performance for all cases, positive-reference cases, and zero-reference cases. The gap is large for several outputs: models often identify that a program or tax does not apply, but miss the amount when the reference value is positive.
+
+```{python}
+#| label: tbl-us-positive
+#| tbl-cap: "US within-10% performance by zero versus positive reference cases."
+us_positive_cases
+```
+
+```{python}
+#| label: tbl-uk-positive
+#| tbl-cap: "UK within-10% performance by zero versus positive reference cases."
+uk_positive_cases
+```
+
+## Failure modes
+
+The benchmark surfaces a few recurring failure patterns.
+
+First, models miss positive tax and benefit quantities more often than zero cases. In the US, federal income tax before refundable credits, state income tax before refundable credits, payroll tax, and SNAP are the four lowest-scoring outputs. These require the model to choose the right income concepts, exclusions, program thresholds, and sequencing before applying any final subtraction.
+
+Second, the UK benchmark shows the same split between tax calculations and many benefit outputs. Income tax and National Insurance score below the benefit outputs in the frozen manuscript snapshot. Positive Universal Credit and Pension Credit cases remain difficult, so the result should not be read as a general claim that benefits are easy.
+
+Third, structured-output reliability can affect rankings. The current manuscript snapshot has full parse coverage for the included models, but the benchmark still tracks coverage because failures to return parseable numeric values should count as benchmark failures [@shorten2024structuredrag].
+
+## Limitations
+
+PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:
+
+- model rankings can reflect output-contract reliability as well as policy reasoning
+- zero-heavy outputs require separate positive-case interpretation
+- the scoring rule is one benchmark view and should be checked against alternative metrics
+- the public UK calibrated dataset is not equivalent to enhanced FRS quality
+- the public scenario explorer exposes the current test set, so this is an open-set leaderboard rather than a protected held-out evaluation
+- the 100-household manuscript snapshot should be treated as a preview until larger frozen runs are published
+- the discrepancy review is a qualitative development audit, not an exhaustive external validation of every reference value
+- benchmark success should not be interpreted as policy-advice readiness
+
+The current paper is therefore an evaluation of model performance under a specific structured-output benchmark, not a general certification of tax or benefit competence.
+
+## Conclusion
+
+PolicyBench shows a consistent pattern across both countries. Models often identify non-applicability, but positive tax and benefit amounts remain difficult, especially for multi-step income tax, payroll tax, National Insurance, and positive benefit cases. `{python} conclusion_snapshot_summary`
+
+Next steps are to expand country coverage and tighten the data and scoring pipelines so that the leaderboard is driven less by output-format reliability and more by policy calculation quality.

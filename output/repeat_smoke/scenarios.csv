@@ -1,0 +1,3 @@
+scenario_id,state,filing_status,num_adults,num_children,total_income,scenario_json
+s1,CA,single,1,0,50000.0,"{""id"":""s1"",""state"":""CA"",""filing_status"":""single"",""adults"":[{""name"":""adult1"",""age"":35,""employment_income"":50000.0,""inputs"":{}}],""children"":[],""year"":2025,""source_dataset"":""synthetic"",""metadata"":{}}"
+s2,NY,single,1,0,60000.0,"{""id"":""s2"",""state"":""NY"",""filing_status"":""single"",""adults"":[{""name"":""adult1"",""age"":40,""employment_income"":60000.0,""inputs"":{}}],""children"":[],""year"":2025,""source_dataset"":""synthetic"",""metadata"":{}}"

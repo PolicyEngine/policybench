@@ -12,7 +12,7 @@ authors = [{name = "PolicyEngine", email = "hello@policyengine.org"}]
 requires-python = ">=3.10"
 dependencies = [
     "litellm[caching]>=1.30",
-    "policyengine-us>=1.0",
+    "policyengine[us,uk]>=4.3.1,<5",
     "pandas>=2.0",
     "numpy>=1.24",
 ]
@@ -25,9 +25,6 @@ dev = [
 ]
 docs = [
     "jupyter-book>=2.0",
-    "myst-nb>=1.0",
-    "matplotlib>=3.8",
-    "seaborn>=0.13",
 ]
 
 [project.scripts]
@@ -36,9 +33,13 @@ policybench = "policybench.cli:main"
 [tool.setuptools.packages.find]
 include = ["policybench*"]
 
+[tool.setuptools.package-data]
+policybench = ["benchmark_specs.json"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py310"
+extend-exclude = ["app/public/paper/web/index.out.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
