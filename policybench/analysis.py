@@ -358,6 +358,64 @@ def _expected_prediction_grid(
     return expected.drop(columns="_join_key")
 
 
+def _prediction_detail_rows(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+) -> pd.DataFrame:
+    """Build one row per expected prediction, preserving missing rows as misses."""
+    expected = _expected_prediction_grid(ground_truth, predictions)
+    if expected.empty:
+        return pd.DataFrame(
+            columns=[
+                "model",
+                "scenario_id",
+                "variable",
+                "value",
+                "prediction",
+                "explanation",
+                "prediction_error",
+                "parsed",
+                "error",
+                "score",
+            ]
+        )
+
+    prediction_columns = ["model", "scenario_id", "variable", "prediction"]
+    optional_columns = [
+        column for column in ["explanation", "error"] if column in predictions.columns
+    ]
+    prediction_details = predictions[prediction_columns + optional_columns].rename(
+        columns={"error": "prediction_error"}
+    )
+
+    merged = expected.merge(
+        prediction_details,
+        on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+    if "explanation" not in merged.columns:
+        merged["explanation"] = pd.NA
+    if "prediction_error" not in merged.columns:
+        merged["prediction_error"] = pd.NA
+
+    merged["parsed"] = merged["prediction"].notna()
+    merged["error"] = np.where(
+        merged["parsed"],
+        merged["prediction"] - merged["value"],
+        np.nan,
+    )
+    merged["score"] = [
+        score_single_prediction(variable, y_true, y_pred)
+        for variable, y_true, y_pred in zip(
+            merged["variable"],
+            merged["value"],
+            merged["prediction"],
+            strict=True,
+        )
+    ]
+    return merged
+
+
 def compute_metrics(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
@@ -1094,13 +1152,7 @@ def build_dashboard_payload(
     scenario_prompts: dict[str, dict[str, dict[str, str]]] | None = None,
 ) -> dict:
     """Build the dashboard payload consumed by the app frontend."""
-    merged = predictions.merge(
-        ground_truth,
-        on=["scenario_id", "variable"],
-        how="inner",
-    )
-    merged = merged.dropna(subset=["prediction"]).copy()
-    merged["error"] = merged["prediction"] - merged["value"]
+    merged = _prediction_detail_rows(ground_truth, predictions)
 
     metrics = analysis["metrics"].copy()
 
@@ -1283,18 +1335,23 @@ def build_dashboard_payload(
             item["within10pct"] = float(row["within_10pct"] * 100)
         heatmap.append(item)
 
-    scenario_predictions: dict[str, dict[str, dict[str, dict[str, float | str]]]] = {}
+    scenario_predictions: dict[str, dict[str, dict[str, dict]]] = {}
     for _, row in merged.sort_values(["scenario_id", "variable", "model"]).iterrows():
         scenario_data = scenario_predictions.setdefault(row["scenario_id"], {})
         variable_data = scenario_data.setdefault(row["variable"], {})
-        prediction_item: dict[str, float | str] = {
-            "prediction": float(row["prediction"]),
-            "groundTruth": float(row["value"]),
-            "error": float(row["error"]),
+        prediction_item: dict[str, float | str | bool | None] = {
+            "prediction": _clean_json_number(row["prediction"]),
+            "groundTruth": _clean_json_number(row["value"]),
+            "error": _clean_json_number(row["error"]),
+            "parsed": bool(row["parsed"]),
+            "score": _clean_json_number(row["score"] * 100),
         }
         explanation = row.get("explanation")
         if isinstance(explanation, str) and explanation.strip():
             prediction_item["explanation"] = explanation.strip()
+        prediction_error = _clean_json_text(row.get("prediction_error"))
+        if prediction_error:
+            prediction_item["predictionError"] = prediction_error
         variable_data[row["model"]] = prediction_item
 
     return {
@@ -1426,10 +1483,13 @@ def build_scenario_prompt_map(
     if "scenario_json" not in scenarios.columns:
         return {}
 
+    variable_groups = list(
+        dict.fromkeys(output_group_id(variable) for variable in variables)
+    )
     prompt_map: dict[str, dict[str, dict[str, str]]] = {}
     for _, row in scenarios.dropna(subset=["scenario_json"]).iterrows():
         scenario = scenario_from_dict(json.loads(row["scenario_json"]))
-        scenario_variables = expand_programs_for_scenario(variables, scenario)
+        scenario_variables = expand_programs_for_scenario(variable_groups, scenario)
         tool_prompt = make_no_tools_batch_prompt(
             scenario,
             scenario_variables,

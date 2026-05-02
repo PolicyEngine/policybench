@@ -28,7 +28,8 @@ manuscript.
 
 Models are prompted to return numeric outputs plus one short non-empty
 explanation per output under a structured response contract. Scores use the
-numeric outputs; explanations are retained for audit and error analysis.
+numeric outputs; explanations are retained for qualitative review and error
+analysis.
 The same country-level prompt template is used across models. Models receive
 the same household facts and requested outputs, no tools or web access, and the
 prompt states that unlisted numeric inputs are zero while unlisted boolean or
@@ -58,13 +59,13 @@ support, and coverage flags:
 | `state_income_tax_before_refundable_credits` | State income tax before refundable credits | State tax |
 | `state_refundable_credits` | State refundable income tax credits | State tax |
 | `local_income_tax` | Local income tax liability | Local tax |
-| `snap` | SNAP (food stamps) annual benefit | Benefits |
-| `ssi` | Supplemental Security Income | Benefits |
-| `tanf` | TANF benefit amount | Benefits |
-| `premium_tax_credit` | ACA Marketplace premium assistance | Health |
-| `person_wic_eligible` | Expanded to one WIC eligibility flag per person in the household | Coverage |
+| `snap` | Supplemental Nutrition Assistance Program (SNAP) annual benefit | Benefits |
+| `ssi` | Supplemental Security Income (SSI) | Benefits |
+| `tanf` | Temporary Assistance for Needy Families (TANF) benefit amount | Benefits |
+| `premium_tax_credit` | Affordable Care Act (ACA) Marketplace premium assistance | Health |
+| `person_wic_eligible` | Expanded to one Special Supplemental Nutrition Program for Women, Infants, and Children (WIC) eligibility flag per person in the household | Coverage |
 | `person_medicaid_eligible` | Expanded to one Medicaid eligibility flag per person in the household | Coverage |
-| `person_chip_eligible` | Expanded to one CHIP eligibility flag per person in the household | Coverage |
+| `person_chip_eligible` | Expanded to one Children's Health Insurance Program (CHIP) eligibility flag per person in the household | Coverage |
 | `person_medicare_eligible` | Expanded to one Medicare eligibility flag per person in the household | Coverage |
 | `person_head_start_eligible` | Expanded to one Head Start eligibility flag per person in the household | Coverage |
 | `person_early_head_start_eligible` | Expanded to one Early Head Start eligibility flag per person in the household | Coverage |
@@ -81,14 +82,15 @@ The UK headline scope evaluates:
 | `child_benefit` | Child Benefit amount before the High Income Child Benefit Charge | Benefits |
 | `universal_credit` | Universal Credit amount | Benefits |
 | `pension_credit` | Pension Credit amount | Benefits |
-| `pip` | Personal Independence Payment amount | Benefits |
+| `pip` | Personal Independence Payment (PIP) amount | Benefits |
 
 The US federal tax decomposition is intentionally compact: final federal income
-tax excluding ACA PTC should equal tax before refundable credits minus federal
-refundable credits. ACA Premium Tax Credit is kept as a separate health-related
-output because it depends on Marketplace premium assistance rather than only
-income-tax credit sequencing. Binary coverage outputs are scored with
-classification accuracy rather than dollar error metrics.
+tax excluding the Affordable Care Act (ACA) Premium Tax Credit (PTC) should
+equal tax before refundable credits minus federal refundable credits. ACA PTC
+is kept as a separate health-related output because it depends on Marketplace
+premium assistance rather than only income-tax credit sequencing. Binary
+coverage outputs are scored with classification accuracy rather than dollar
+error metrics.
 
 The benchmark excludes intermediate tax bases, payroll subcomponents, and
 outputs that mainly require unavailable household history, restricted local
@@ -101,28 +103,32 @@ flags.
 
 ## Household scenarios
 
-US scenarios are sampled from Enhanced CPS households with a fixed random seed
-for reproducibility. To keep household descriptions faithful and tractable, we
-restrict sampled cases to households with a single federal tax unit, a single
-family, and a single benefit-calculation unit. Adult dependents remain in scope
-when they satisfy those restrictions. We carry through ages, household roles,
-employment patterns, and selected non-wage income sources, but do not provide
-filing status in the prompt.
+US scenarios are sampled from Enhanced Current Population Survey (CPS)
+households with a fixed random seed for reproducibility. To keep household
+descriptions faithful and tractable, we restrict sampled cases to households
+with a single federal tax unit, a single family, and a single
+benefit-calculation unit. Adult dependents remain in scope when they satisfy
+those restrictions. We carry through ages, household roles, employment
+patterns, and selected non-wage income sources, but do not provide filing
+status in the prompt.
 
-The public UK path samples from the UK-calibrated transfer dataset. The current
-UK benchmark keeps households with one benefit unit and one or two adults. The
-prompt states that all listed people are in the same UK benefit unit; if two
-adults are listed, they are the couple in that benefit unit. This keeps
-Universal Credit, Pension Credit, Child Benefit, Income Tax, and National
-Insurance prompts aligned with the household structure used by PolicyEngine-UK.
+The public UK path samples from the UK-calibrated transfer dataset rather than
+restricted native UK survey microdata. The current UK benchmark keeps
+households with one benefit unit and one or two adults. The prompt states that
+all listed people are in the same UK benefit unit; if two adults are listed,
+they are the couple in that benefit unit. This keeps Universal Credit, Pension
+Credit, Child Benefit, Income Tax, and National Insurance prompts aligned with
+the household structure used by PolicyEngine-UK. The public transfer path is
+intended for benchmark transparency and reproducibility, not for
+population-representative claims about UK households.
 
 US scenarios are converted to PolicyEngine-US household JSON objects specifying
-people, tax units, SPM units, families, and households. Tax-unit role flags are
-included in the PolicyEngine input so the reference calculation can infer filing
-status from the same household structure described to the model. UK scenarios
-are converted to PolicyEngine-UK inputs using the public transfer dataset's
-person and benefit-unit structure, with prompts limited to one household group
-for tax and benefit calculations.
+people, tax units, Supplemental Poverty Measure (SPM) units, families, and
+households. Tax-unit role flags are included in the PolicyEngine input so the
+reference calculation can infer filing status from the same household structure
+described to the model. UK scenarios are converted to PolicyEngine-UK inputs
+using the public transfer dataset's person and benefit-unit structure, with
+prompts limited to one household group for tax and benefit calculations.
 
 ## Reference-output computation
 
@@ -146,7 +152,11 @@ predictions are rounded to `0` or `1`. Person-level coverage rows are averaged
 within their program group before country-level aggregation. Missing or
 unparseable answers count as misses through the coverage multiplier. The
 country score gives each output group equal weight, and the global score gives
-the US and UK equal weight for models run in both countries.
+the US and UK equal weight for models run in both countries. The global score
+is an equal-country summary for this benchmark design, not a universally
+authoritative model ranking. Alternative country-only, amount-only,
+positive-reference-case, zero-reference-case, and household-equal impact views
+should be reported when making public claims.
 
 We also report diagnostic error metrics. **Mean absolute error (MAE)** measures
 the average magnitude of errors in currency terms. For a set of $n$ predictions

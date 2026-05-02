@@ -6,12 +6,47 @@
   },
   "dashboard_export": {
     "path": "app/src/data.json",
-    "sha256": "6b8f9f91337703c89d68d8fd8f34454551b80e18e39be7dbc41e29ed52af0732",
+    "sha256": "6c1a89a1433290d0317871c06d6e8d0ad143841a9b4485a749333beaf1e41b4c",
     "description": "Committed dashboard export containing parsed model predictions, explanations, model summaries, program summaries, prompts, and PolicyEngine runtime bundle metadata."
   },
   "source_run_labels": {
     "us": "us_100_stable_models_20260501_062249",
     "uk": "uk_100_hicbc_fixed_20260501_083402"
+  },
+  "source_run_artifacts": {
+    "note": "Compact copies of locally available run outputs used to verify this snapshot. The compressed predictions.csv.gz files preserve the raw provider responses, parsed predictions, explanations, usage, and cost metadata from the no_tools_chunked runs. The run data.json files retain the parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime bundle metadata used by the dashboard.",
+    "us_100_stable_models_20260501_062249": {
+      "path": "paper/snapshot/20260501/runs/us_100_stable_models_20260501_062249",
+      "files": {
+        "analysis/impact_summary_by_model.csv": "fb6f0adf689d4a8c01fdf1815e6e775c58ad1d5dfb326f6ccf27d51bad3be16c",
+        "analysis/metrics.csv": "e27e0459a11529c712b7276cfb27c3b4a91097be5b3bbf2114634b5ad4fd1a3b",
+        "analysis/report.md": "7b176fa308afdda249cb89229b1bec448960d7e60e58f26498ce82614d58e449",
+        "analysis/summary_by_model.csv": "cc53ddee5a0a5b9c32fbb5acceabc5d3828b23f2e3317a8590ba07f1c51c1739",
+        "analysis/summary_by_variable.csv": "e07667ed299c0cfb447cc6477d7fb813fceea7f66ee117c0d12b444c6bcd70a3",
+        "analysis/usage_summary.csv": "e2a9585cd02891a4a31897daf3b0e01dac62b629326cb255e2ee1f801240d3a2",
+        "data.json": "a98feeed22e476736be0e7478fe77d3de7669f72be0be4a4997dafe86cb67c65",
+        "ground_truth.csv": "caa63a93941d0792943b1cfb47cc8d4d884b6ca768b6c1fbde7568f1122f6bcc",
+        "ground_truth.csv.meta.json": "a172bc8034ffaec61ae429b2202183f2908ea7681ff648032315772cbc331545",
+        "predictions.csv.gz": "9cfbf5d3c16f608ee9b1fe339ed60f439cf858ab0a27def1e17cf4bdb94a2119",
+        "scenarios.csv": "46bc6b1ba56eb9441b9ecface7c1d0bbf5cb9c45d91e80bcef84e7e49ae21a55",
+        "scenarios.csv.meta.json": "78444224833616a24c61dc6e578b8ed8d2508924014d07a55db1452bc729d8e9"
+      }
+    },
+    "uk_100_hicbc_fixed_20260501_083402": {
+      "path": "paper/snapshot/20260501/runs/uk_100_hicbc_fixed_20260501_083402",
+      "files": {
+        "analysis/impact_summary_by_model.csv": "7373ae8dc7e68a36e191068df5810dc387df046fe580f3f55b4b1673ba30fdcc",
+        "analysis/metrics.csv": "7526510516675fc6445ed3ade31ee092a5ed584f0df3f12bc8aa8332ff7641d8",
+        "analysis/report.md": "7c3718c18076aed0879cbc8fdd7d9dcab77b34036750c175fee542433a9d34a0",
+        "analysis/summary_by_model.csv": "b091c6d2939328a7e358467405f0665d242fe2f1881a92202591292ba5c8bfcc",
+        "analysis/summary_by_variable.csv": "2b0f153c669dfbf916ca5824714efa4abca57f73be7e60c22bc2d1384501c6de",
+        "analysis/usage_summary.csv": "fd20aed7bd2b514cf5288119552064756d768b9b4de9a30579bb775783751ed3",
+        "data.json": "9052751ae6d6625d68fcc258022cf8b3a7f80a72af44828d000c9253ba44abc3",
+        "ground_truth.csv": "2e6569666750ad8c1527ec3ea4b6f274fe15c61fcd68afe072bd78442abe7043",
+        "predictions.csv.gz": "37b878fa25b3de25494d4083950b073ce8e5d21c41650423acc9cb6f476c53e8",
+        "scenarios.csv": "cc072e32df04dc313ffe4bdd72d97c9bbbb0675a5b78e87ea0469ace359493a9"
+      }
+    }
   },
   "committed_snapshot_artifacts": {
     "us_scenarios.csv": "46bc6b1ba56eb9441b9ecface7c1d0bbf5cb9c45d91e80bcef84e7e49ae21a55",
@@ -21,6 +56,40 @@
     "uk_reference_outputs.csv": "2e6569666750ad8c1527ec3ea4b6f274fe15c61fcd68afe072bd78442abe7043",
     "uk_impact_summary_by_model.csv": "7373ae8dc7e68a36e191068df5810dc387df046fe580f3f55b4b1673ba30fdcc"
   },
+  "rendered_paper_artifacts": {
+    "pdf": {
+      "path": "app/public/paper/policybench.pdf",
+      "sha256": "1213e6fbf50b3b5a6b297183116e75135a3377af47c6b87283891377443a0cc6"
+    },
+    "web": {
+      "path": "app/public/paper/web",
+      "files": {
+        "figures/global_leaderboard.png": "b892448c670fc3d33adfdd6d52f9103aaef6bd6fb77bf373b773400a5a9bd910",
+        "figures/positive_zero_scatter.png": "dd9c65688fed15c4ac4540506685b6689d7b9da4baab7f101405915608fa3079",
+        "index.html": "f518eaaf50ad03352bca6e15ea0159cfa24feaa876cd62dc05a42fb962134f99",
+        "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
+        "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
+        "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
+        "site_libs/manuscript-notebook/headroom.min.js": "5b80cc4165a661a3f2060d6bdb5ccff591f04c4f8e39a06c12d3c2544587cb17",
+        "site_libs/quarto-contrib/glightbox/glightbox.min.css": "6d3f62d4d17969f9c70e9438cf671004725019e868123f2ebc295a006f8d5d2d",
+        "site_libs/quarto-contrib/glightbox/glightbox.min.js": "03dfe1fbce92a9f17fcd1a1501213bd820d050ab085c338419ab06a3631c9459",
+        "site_libs/quarto-contrib/glightbox/lightbox.css": "6b3fe0e87e89511791431a74df3b4026b4560b17e135440baa8435d0698afd01",
+        "site_libs/quarto-html/anchor.min.js": "69098e105d990f834cff1b7886d873444228ff63c590e5ff834d568f1115ed8b",
+        "site_libs/quarto-html/light-border.css": "15ebfd4ca0df21946284c7a8f9596860143abc6d4f7a19f5ed2174c10135c3fd",
+        "site_libs/quarto-html/popper.min.js": "4d50586b184724d39ddfe0f6582861664eddd5e806e5a79e0dbaa832361414d0",
+        "site_libs/quarto-html/quarto-html-640605f58ae58ee79329c070719e555b.min.css": "7d10904431598207a02e23426162a229287b0065db018b501fe27b3fb76a0731",
+        "site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css": "510c236c766c43cb510a3a0e3aaf045f1f804d918c04350ea78209788253cfeb",
+        "site_libs/quarto-html/tabby.min.js": "d9bb77bde59c096a08171b67d3f4b797606fb06019ed3ca36028a5aa6f4d5953",
+        "site_libs/quarto-html/tippy.css": "5969f497d9158d7682f8219c6f13fa67269cdf5bf50a3931d95327151dee5678",
+        "site_libs/quarto-html/tippy.umd.min.js": "41181eeec6d7ba64cb9165f0e95563e34e026bde79e7c13aeec83270429b6fae"
+      }
+    }
+  },
+  "reproducibility_notes": [
+    "The top-level frozen scenario, reference output, and impact summary CSVs are byte-identical to the corresponding compact source run artifacts copied under paper/snapshot/20260501/runs/.",
+    "Raw provider responses are retained in compressed source-run predictions.csv.gz files. The separate LiteLLM cache remains local-only because it is a generated request cache, not the canonical snapshot artifact.",
+    "Model APIs and upstream model aliases may change after 2026-05-01, so exact reruns can diverge even with the committed household inputs, reference outputs, parsed dashboard export, and analysis summaries."
+  ],
   "uk_transfer_dataset": {
     "artifact": "enhanced_cps_2025.h5 public UK calibrated transfer artifact",
     "sha256": "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866",

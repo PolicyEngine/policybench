@@ -36,7 +36,7 @@ The `analyze` command writes local artifacts:
 ## What to read
 
 - `summary_by_model.csv` is the equal-output summary for the no-tools benchmark.
-- `impact_summary_by_model.csv` is the household-equal impact-weighted summary when available.
+- `impact_summary_by_model.csv` is the household-equal impact-weighted sensitivity summary when available.
 - `summary_by_variable.csv` shows which policy variables are easiest and hardest.
 - `metrics.csv` supports sensitivity checks such as amount-only, binary-only,
   zero-case, and positive-case summaries.
@@ -44,14 +44,18 @@ The `analyze` command writes local artifacts:
 
 ## Interpretation
 
-Three patterns matter most when reading these outputs:
+Several patterns matter most when reading these outputs:
 
-1. The benchmark is intentionally about unaided capability. Strong results here mean a model can estimate selected household-level policy outputs from parametric knowledge alone.
+1. The benchmark is intentionally about unaided capability. Strong results here mean a model can estimate selected household-level policy outputs from parametric knowledge alone under the benchmark contract.
 2. The headline scope focuses on signed household net-income components and excludes intermediate tax bases.
 3. Amount variables are scored with exact and tolerance hit rates. Coverage variables are scored as booleans and weighted by PolicyEngine value proxies in the household-equal impact score.
 4. Paper claims should include sensitivity checks for amount-only, binary-only,
    positive-reference cases, zero-reference cases, country-only rankings, and
    household-equal impact scores when available.
+5. Global scores are equal-country summaries for models run in both countries,
+   not universal model-quality rankings.
+6. Public leaderboard results are open-set because the scenario explorer
+   exposes prompts and reference outputs.
 
 ## Reproducibility
 

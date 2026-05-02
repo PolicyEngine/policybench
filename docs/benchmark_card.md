@@ -51,9 +51,9 @@ The headline score uses the numeric answers only. Explanations are retained for
 auditing, scenario exploration, and qualitative error analysis; they should not
 be described as faithful reasoning traces.
 
-Numeric-only runs are allowed only as ablations for measuring prompt-contract
-effects. They should be labeled as ablations and should not be mixed into
-leaderboard claims.
+Canonical runs require numeric answers and explanations for each requested
+output. If future prompt-contract ablations omit explanations, they should be
+labeled as ablations and not mixed into leaderboard claims.
 
 CLI default outputs under `results/local/` are scratch artifacts, not canonical
 leaderboard snapshots.
@@ -98,21 +98,25 @@ that means US tax year 2026 and UK fiscal year 2026-27.
 
 The public scenario explorer exposes the household prompts, model outputs, and
 reference outputs. The public leaderboard should therefore be treated as an
-open-set benchmark. Future protected leaderboard claims require a separate
-held-out or rotating evaluation set.
+open-set benchmark with possible leakage from released cases into future model
+behavior or benchmark-specific prompting. Future protected leaderboard claims
+require a separate held-out or rotating evaluation set.
 
 ## Country data paths
 
 ### United States
 
-The US benchmark uses households derived from PolicyEngine US Enhanced CPS and
-scores outputs against PolicyEngine US reference outputs.
+The US benchmark uses households derived from PolicyEngine US Enhanced Current
+Population Survey (CPS) and scores outputs against PolicyEngine US reference
+outputs.
 
 ### United Kingdom
 
 The current public UK path uses a calibrated transfer dataset rather than
 restricted native UK survey microdata. It should be described as a public UK
-transfer path for benchmarking, not as a replacement for enhanced FRS.
+transfer path for benchmarking, not as a replacement for enhanced Family
+Resources Survey (FRS) microdata or as a population-representative UK household
+sample.
 
 ## Naming discipline
 
@@ -121,12 +125,14 @@ Public prose should prefer:
 - `reference outputs`
 - `frozen snapshot`
 - `public calibrated transfer dataset`
+- `equal-country global summary`
 
 Public prose should avoid:
 
 - unqualified `truth` language for reference outputs
 - `current best model` without a dated snapshot
 - `first public benchmark`
+- treating the global score as a universal model ranking
 
 ## Minimum reporting standard
 
@@ -139,6 +145,7 @@ Every public writeup should state:
 - the output set used
 - whether the claim refers to the live site or a frozen paper snapshot
 - whether UK results come from the public transfer dataset or a later artifact
+- whether global results are equal-country summaries or use another weighting
 - sensitivity checks for at least amount-only, binary-only, positive-reference
   cases, zero-reference cases, country-only rankings, and household-equal
   impact scores when available

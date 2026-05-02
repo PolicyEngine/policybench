@@ -301,11 +301,7 @@ UK_EMPLOYMENT_INCOME_COLUMNS = (
 )
 
 UK_DATASET_CANDIDATES = (
-    Path(__file__).resolve().parents[2]
-    / "policyengine-uk-data-transfer-pr"
-    / "policyengine_uk_data"
-    / "storage"
-    / "enhanced_cps_2025.h5",
+    Path(__file__).resolve().parents[1] / "data" / "enhanced_cps_2025.h5",
     Path(__file__).resolve().parents[2]
     / "policyengine-uk-data"
     / "policyengine_uk_data"

@@ -5,6 +5,22 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
+UK_TRANSFER_DATASET = {
+    "runtime_dataset": "enhanced_cps_2025",
+    "runtime_dataset_uri": (
+        "policyengine_uk_data/storage/enhanced_cps_2025.h5 "
+        "from the public UK calibrated transfer artifact"
+    ),
+    "runtime_dataset_sha256": (
+        "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
+    ),
+    "runtime_dataset_note": (
+        "UK calibrated transfer dataset derived from benchmark-compatible "
+        "PolicyEngine US Enhanced CPS households; not native UK survey microdata "
+        "or enhanced FRS."
+    ),
+}
+
 
 @lru_cache(maxsize=None)
 def policyengine_release_bundle(country: str) -> dict[str, Any]:
@@ -94,10 +110,15 @@ def make_us_microsimulation(**kwargs):
 
 def policyengine_bundles_for_countries(countries: set[str] | list[str]) -> dict:
     """Return policyengine.py bundle metadata keyed by country."""
-    return {
-        country: policyengine_release_bundle(country)
-        for country in sorted({country.lower() for country in countries})
-    }
+    bundles = {}
+    for country in sorted({country.lower() for country in countries}):
+        bundle = policyengine_release_bundle(country).copy()
+        if country == "uk":
+            bundle.update(UK_TRANSFER_DATASET)
+            bundle["default_dataset"] = UK_TRANSFER_DATASET["runtime_dataset"]
+            bundle["default_dataset_uri"] = UK_TRANSFER_DATASET["runtime_dataset_uri"]
+        bundles[country] = bundle
+    return bundles
 
 
 def runtime_metadata_for_country(
@@ -108,7 +129,7 @@ def runtime_metadata_for_country(
     """Build serializable runtime provenance for benchmark artifacts."""
     country = country.lower()
     metadata = {
-        "policyengine_bundles": {country: policyengine_release_bundle(country)},
+        "policyengine_bundles": policyengine_bundles_for_countries({country}),
     }
     if source_dataset_path is not None:
         metadata["source_dataset_path"] = str(Path(source_dataset_path))
@@ -126,7 +147,8 @@ def get_uk_single_year_dataset_class():
 def make_uk_transfer_microsimulation(dataset_path: str | Path):
     """Create a PE-UK Microsimulation for PolicyBench's public transfer data.
 
-    policyengine.py managed datasets cover the certified UK private-data bundle.
+    policyengine.py managed datasets do not yet identify the public UK transfer
+    dataset that PolicyBench uses at runtime.
     PolicyBench's public UK path deliberately uses a local calibrated transfer
     artifact, so we validate the model bundle and attach provenance explicitly.
     """
@@ -137,7 +159,7 @@ def make_uk_transfer_microsimulation(dataset_path: str | Path):
     dataset = UKSingleYearDataset(file_path=str(dataset_path))
     sim = Microsimulation(dataset=dataset)
     sim.policyengine_bundle = {
-        **policyengine_release_bundle("uk"),
+        **policyengine_bundles_for_countries({"uk"})["uk"],
         "runtime_dataset": dataset_path.stem,
         "runtime_dataset_source": str(dataset_path),
         "managed_by": "policybench via policyengine.py",

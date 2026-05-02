@@ -5,6 +5,7 @@ import json
 import pandas as pd
 import pytest
 
+import policybench.scenarios as scenarios_module
 from policybench.scenarios import (
     SUPPORTED_FILING_STATUSES,
     _eligible_uk_households,
@@ -17,6 +18,15 @@ from policybench.scenarios import (
     scenarios_from_cps_frame,
     scenarios_from_uk_frames,
 )
+
+
+def test_uk_dataset_candidates_avoid_developer_transfer_worktree():
+    candidate_paths = [str(path) for path in scenarios_module.UK_DATASET_CANDIDATES]
+
+    assert all(
+        "policyengine-uk-data-transfer-pr" not in path for path in candidate_paths
+    )
+    assert any(path.endswith("data/enhanced_cps_2025.h5") for path in candidate_paths)
 
 
 @pytest.fixture

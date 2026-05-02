@@ -727,6 +727,58 @@ class TestSummaries:
             == "brief note"
         )
 
+    def test_build_dashboard_payload_keeps_missing_predictions_as_misses(self):
+        ground_truth_df = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s2", "s3"],
+                "variable": ["income_tax", "income_tax", "income_tax"],
+                "value": [100.0, 200.0, 300.0],
+            }
+        )
+        predictions_df = pd.DataFrame(
+            {
+                "model": ["model_a", "model_a"],
+                "scenario_id": ["s1", "s2"],
+                "variable": ["income_tax", "income_tax"],
+                "prediction": [100.0, None],
+                "error": [None, "could not parse numeric answer"],
+            }
+        )
+        scenarios_df = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s2", "s3"],
+                "state": ["CA", "NY", "TX"],
+                "filing_status": ["single", "single", "single"],
+                "num_adults": [1, 1, 1],
+                "num_children": [0, 0, 0],
+                "total_income": [50_000.0, 60_000.0, 70_000.0],
+            }
+        )
+        analysis = analyze_no_tools(ground_truth_df, predictions_df)
+
+        payload = build_dashboard_payload(
+            ground_truth_df,
+            predictions_df,
+            analysis,
+            scenarios_df,
+        )
+
+        parsed = payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]
+        unparseable = payload["scenarioPredictions"]["s2"]["income_tax"]["model_a"]
+        missing = payload["scenarioPredictions"]["s3"]["income_tax"]["model_a"]
+
+        assert parsed["parsed"] is True
+        assert parsed["prediction"] == 100.0
+        assert parsed["score"] == 100.0
+        assert unparseable["parsed"] is False
+        assert unparseable["prediction"] is None
+        assert unparseable["error"] is None
+        assert unparseable["score"] == 0.0
+        assert unparseable["predictionError"] == "could not parse numeric answer"
+        assert missing["parsed"] is False
+        assert missing["prediction"] is None
+        assert missing["score"] == 0.0
+
     def test_analyze_no_tools_merges_run_stability(self):
         ground_truth_df = pd.DataFrame(
             {
@@ -842,6 +894,42 @@ class TestSummaries:
         assert "income_tax" in prompt_map["s1"]
         assert "submit_answers" in prompt_map["s1"]["income_tax"]["tool"]
         assert '"income_tax": 1234.5' in prompt_map["s1"]["income_tax"]["json"]
+
+    def test_build_scenario_prompt_map_collapses_person_outputs_to_templates(self):
+        scenario = {
+            "id": "s1",
+            "country": "us",
+            "state": "CA",
+            "filing_status": "single",
+            "adults": [
+                {
+                    "name": "head",
+                    "age": 35,
+                    "employment_income": 50000.0,
+                    "inputs": {},
+                }
+            ],
+            "children": [],
+            "year": 2026,
+            "source_dataset": "enhanced_cps_2024",
+            "metadata": {"household_id": 1},
+        }
+        scenarios_df = pd.DataFrame(
+            {
+                "scenario_id": ["s1"],
+                "scenario_json": [json.dumps(scenario)],
+            }
+        )
+
+        prompt_map = build_scenario_prompt_map(
+            scenarios_df,
+            ["head_wic_eligible", "child1_wic_eligible"],
+        )
+
+        assert list(prompt_map["s1"]) == ["head_wic_eligible"]
+        assert (
+            "child1_wic_eligible" not in prompt_map["s1"]["head_wic_eligible"]["json"]
+        )
 
     def test_export_dashboard_data_writes_json(self, tmp_path):
         ground_truth_df = pd.DataFrame(

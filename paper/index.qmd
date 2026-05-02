@@ -2,7 +2,8 @@
 title: "PolicyBench"
 subtitle: "Benchmarking no-tool tax-and-benefit estimation in frontier language models"
 author:
-  - name: "PolicyEngine"
+  - name: "Max Ghenis"
+    affiliation: "PolicyEngine"
 bibliography: references.bib
 jupyter: policybench-paper
 format:
@@ -371,6 +372,63 @@ def top_model(frame: pd.DataFrame) -> pd.Series:
     return frame.sort_values("score", ascending=False).iloc[0]
 
 
+def top_model_snapshot_summary(
+    us_row: pd.Series,
+    uk_row: pd.Series,
+    global_row: pd.Series,
+) -> str:
+    if us_row.model == uk_row.model == global_row.model:
+        return (
+            f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
+            f"{us_row.model} is top-scoring in the US, UK, and shared global "
+            f"views at {fmt_score(us_row.score)}, {fmt_score(uk_row.score)}, "
+            f"and {fmt_score(global_row.score)}, respectively."
+        )
+    if us_row.model == uk_row.model:
+        return (
+            f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
+            f"{us_row.model} is top-scoring in both country tables at "
+            f"{fmt_score(us_row.score)} in the US and {fmt_score(uk_row.score)} "
+            f"in the UK, and the top shared global model is {global_row.model} "
+            f"at {fmt_score(global_row.score)}."
+        )
+    if us_row.model == global_row.model:
+        return (
+            f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
+            f"{us_row.model} is the top US and shared global model at "
+            f"{fmt_score(us_row.score)} and {fmt_score(global_row.score)}, "
+            f"respectively, while the top UK model is {uk_row.model} at "
+            f"{fmt_score(uk_row.score)}."
+        )
+    if uk_row.model == global_row.model:
+        return (
+            f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
+            f"{uk_row.model} is the top UK and shared global model at "
+            f"{fmt_score(uk_row.score)} and {fmt_score(global_row.score)}, "
+            f"respectively, while the top US model is {us_row.model} at "
+            f"{fmt_score(us_row.score)}."
+        )
+    return (
+        f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
+        f"the top US model is {us_row.model} at {fmt_score(us_row.score)}, "
+        f"the top UK model is {uk_row.model} at {fmt_score(uk_row.score)}, "
+        f"and the top shared global model is {global_row.model} at "
+        f"{fmt_score(global_row.score)}."
+    )
+
+
+def country_top_sentence(us_row: pd.Series, uk_row: pd.Series) -> str:
+    if us_row.model == uk_row.model:
+        return (
+            f"In the frozen manuscript snapshot, {us_row.model} is the "
+            "top-scoring model in both the US and UK."
+        )
+    return (
+        f"In the frozen manuscript snapshot, {us_row.model} is the top-scoring "
+        f"US model and {uk_row.model} is the top-scoring UK model."
+    )
+
+
 us_model = model_frame("us")
 uk_model = model_frame("uk")
 global_model = pd.DataFrame(dashboard["global"]["modelStats"]).sort_values(
@@ -465,27 +523,24 @@ global_top_three = [
     for row in global_ranked.head(3).itertuples()
 ]
 
-abstract_snapshot_summary = (
-    f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-    f"the top US model is {top_model(us_model).model} at "
-    f"{fmt_score(top_model(us_model).score)}, the top UK model is "
-    f"{top_model(uk_model).model} at {fmt_score(top_model(uk_model).score)}, "
-    f"and the top shared global model is {top_model(global_model).model} at "
-    f"{fmt_score(top_model(global_model).score)}."
+us_top_model = top_model(us_model)
+uk_top_model = top_model(uk_model)
+global_top_model = top_model(global_model)
+
+abstract_snapshot_summary = top_model_snapshot_summary(
+    us_top_model,
+    uk_top_model,
+    global_top_model,
 )
 us_top_three_summary = ranked_phrase(us_top_three)
 uk_top_three_summary = ranked_phrase(uk_top_three)
 global_top_three_summary = ranked_phrase(global_top_three)
-conclusion_snapshot_summary = (
-    f"In the frozen manuscript snapshot, {top_model(us_model).model} "
-    f"is the top-scoring US model and {top_model(uk_model).model} is "
-    f"the top-scoring UK model."
-)
+conclusion_snapshot_summary = country_top_sentence(us_top_model, uk_top_model)
 ```
 
 ## Abstract
 
-PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced CPS-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded `0-100` metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard. `{python} abstract_snapshot_summary` In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <https://policybench.org>.
+PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded `0-100` metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <https://policybench.org>.
 
 ## Introduction
 
@@ -497,13 +552,13 @@ This matters for public-facing calculators, analyst workflows, and tax-preparati
 
 ## Related work
 
-The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem [@holzenberger2021sara]. LegalBench broadens this view and includes tax-oriented numeric tasks such as `sara_numeric` [@guha2023legalbench]. RuleArena evaluates rule-guided reasoning in regulation-style settings [@kim2024rulearena], and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs [@taxcalcbench2025]. Shanahan et al. report a similar split on the VITA test: models do better on tax knowledge questions than on open-ended calculation tasks [@shanahan2025vita].
+The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem [@holzenberger2021sara]. LegalBench broadens this view and includes tax-oriented numeric tasks such as `sara_numeric` [@guha2023legalbench]. RuleArena evaluates rule-guided reasoning in regulation-style settings [@zhou2025rulearena], and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs [@taxcalcbench2025]. Shanahan et al. report a similar split on the Volunteer Income Tax Assistance (VITA) test: models do better on tax knowledge questions than on open-ended calculation tasks [@shanahan2025vita].
 
 PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks [@cobbe2021training; @hendrycks2021math]. That norm is less natural for continuous-valued policy outputs, where being within 1 percent is closer than being off by an order of magnitude. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead [@zhou2025tempanswerqa]. PolicyBench follows that direction by combining exactness with near-miss thresholds rather than collapsing everything into exact match alone.
 
 Finance-domain benchmarks provide another relevant precedent. FinQA and TAT-QA both show that realistic quantitative reasoning often requires combining structured numbers with domain knowledge rather than solving stylized school-math problems [@chen2021finqa; @zhu2021tatqa]. PolicyBench differs in that its reference outputs are generated by executable tax-benefit microsimulation rather than annotated document questions, but the underlying motivation is similar: domain-specific quantitative reasoning deserves dedicated evaluation.
 
-Finally, PolicyBench depends on two infrastructure literatures that are not themselves LLM benchmarks. One is structured-output reliability, since the benchmark relies on multi-output JSON responses and parse coverage rather than free-form prose [@shorten2024structuredrag]. The other is tax-benefit microsimulation, where systems such as EUROMOD provide the methodological precedent for evaluating policy rules over household microdata [@sutherland2023euromod]. The UK side of PolicyBench also builds on PolicyEngine's recent work on survey-backed calibration and imputation [@policyengineukdata2026]. There is also operational work on applying and evaluating AI systems in public-benefits settings, including caseworker-assist and SNAP-focused evaluations [@nava2026caseworker; @nava2025benefits; @propel2025snap]. PolicyBench combines these strands into a public cross-model benchmark over household-level tax and benefit outputs.
+Finally, PolicyBench depends on two infrastructure literatures that are not themselves large language model (LLM) benchmarks. One is structured-output reliability, since the benchmark relies on multi-output JSON responses and parse coverage rather than free-form prose [@shorten2024structuredrag]. The other is tax-benefit microsimulation, where systems such as EUROMOD provide the methodological precedent for evaluating policy rules over household microdata [@sutherland2023euromod]. There is also operational work on applying and evaluating AI systems in public-benefits settings, including caseworker-assist and Supplemental Nutrition Assistance Program (SNAP)-focused evaluations [@nava2026caseworker; @nava2025benefits; @propel2025snap]. PolicyBench combines these strands into a public cross-model benchmark over household-level tax and benefit outputs.
 
 ## Benchmark design
 
@@ -520,15 +575,15 @@ For binary outputs, the score is exact accuracy. This keeps `100` as the ceiling
 
 All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026; UK outputs are annual amounts or annual eligibility indicators for fiscal year 2026-27. For currency amounts, the "exact" hit rate means within `1` currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same `1` currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as `0` or `1` eligibility flags and scored by exact classification accuracy. Missing or unparseable numeric answers receive zero score for that requested output.
 
-Aggregation proceeds in four steps. First, each household-output prediction receives a `0-100` score. Second, person-level coverage rows are averaged to their program group. Third, output groups are averaged with equal weight within each country. Fourth, global scores average the US and UK country scores for models run in both countries. Household-equal impact scores are reported only as a sensitivity view.
+Aggregation proceeds in four steps. First, each household-output prediction receives a `0-100` score. Second, person-level coverage rows are averaged to their program group. Third, output groups are averaged with equal weight within each country. Fourth, global scores average the US and UK country scores for models run in both countries. The global score is therefore an equal-country summary for this benchmark sample, not a universally authoritative measure of tax-benefit competence. Household-equal impact scores and other alternative views are reported as sensitivity checks.
 
-The benchmark requires each model response to include numeric answers and one short explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning. Numeric-only runs are treated as prompt-contract ablations, not as the canonical leaderboard task.
+The benchmark requires each model response to include numeric answers and one explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.
 
 Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are `0`, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output.
 
-### Frozen snapshot
+### Frozen snapshot and open-set status
 
-Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen dashboard export in @tbl-snapshot rather than to the live site. The local run labels identify the source runs used to create that export; the committed export is the manuscript artifact.
+Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen dashboard export in @tbl-snapshot rather than to the live site. The local run labels identify the source runs used to create that export; the committed export is the manuscript artifact. The public site exposes the current prompts, predictions, explanations, and reference outputs for transparency. This makes the public leaderboard open-set: models, model providers, or benchmark users could learn from the released cases before later runs. Protected leaderboard claims would require a separate held-out or rotating set.
 
 ```{python}
 #| label: tbl-snapshot
@@ -546,9 +601,9 @@ model_runs
 
 ### United States
 
-The US benchmark is built from Enhanced CPS-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit structure while retaining variation in filing status, household composition, and income sources. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives.
+The US benchmark is built from Enhanced Current Population Survey (CPS)-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit structure while retaining variation in filing status, household composition, and income sources. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives.
 
-The current US release evaluates 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, SNAP, SSI, TANF, ACA premium tax credits, school-meal eligibility, and person-level coverage eligibility for WIC, Medicaid, CHIP, Medicare, Head Start, and Early Head Start.
+The current US release evaluates 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), Affordable Care Act (ACA) premium tax credits, school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children's Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start.
 
 The output scope is intentionally narrower than the full PolicyEngine model. @tbl-scope-rationale summarizes the inclusion rule. The benchmark asks for WIC eligibility rather than a WIC dollar amount; WIC dollar values are used only as impact-weight proxies for coverage flags, not as requested model outputs.
 
@@ -560,15 +615,15 @@ scope_rationale
 
 ### United Kingdom
 
-The UK benchmark is built from a calibrated public transfer dataset scored through PolicyEngine UK. The current public build starts from a public export of benchmark-compatible households from PolicyEngine US Enhanced CPS, maps those records into UK-facing inputs, and recalibrates them to selected UK targets. This creates a public UK-policy transfer benchmark without publishing restricted household microdata; it is not a representative evaluation over native UK household records. The current UK release evaluates seven outputs: income tax, national insurance, capital gains tax, child benefit, universal credit, pension credit, and personal independence payment. Outputs that depend on status or award facts use prompt-visible facts rather than hidden take-up labels; for example, PIP-positive cases list the daily living and mobility award components used by PolicyEngine.
+The UK benchmark is built from a calibrated public transfer dataset scored through PolicyEngine UK. The current public build starts from a public export of benchmark-compatible households from PolicyEngine US Enhanced CPS, maps those records into UK-facing inputs, and recalibrates them to selected UK targets. This creates a public UK-policy transfer benchmark without publishing restricted household microdata; it is not a representative evaluation over native UK household records and should not be treated as a substitute for Family Resources Survey (FRS)-based UK microdata. The current UK release evaluates seven outputs: Income Tax, National Insurance, Capital Gains Tax, Child Benefit, Universal Credit, Pension Credit, and Personal Independence Payment (PIP). Outputs that depend on status or award facts use prompt-visible facts rather than hidden take-up labels; for example, PIP-positive cases list the daily living and mobility award components used by PolicyEngine.
 
-The UK data path is more synthetic than the enhanced FRS pipeline, so the benchmark should not be read as a substitute for native UK microdata work. It supports the current public cross-country benchmark, but it is not equivalent to an enhanced-FRS-based benchmark [@sutherland2023euromod; @policyengineukdata2026].
+The UK data path is more synthetic than the enhanced FRS pipeline and inherits limitations from cross-country transfer, calibration choices, and the subset of variables that can be made prompt-visible. It supports the current public cross-country benchmark, but it is not equivalent to an enhanced-FRS-based benchmark and should not be used to make population-representative claims about UK households [@sutherland2023euromod].
 
 ### Reference-output credibility
 
-PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and partially validated in specific domains. In the UK, No. 10's data science team adapted PolicyEngine's open-source microsimulation model for experimental policy simulation, with validation against external projections before use [@woodruff2026no10; @policyengine2026downing]. In the US, PolicyEngine's state tax modelling has been validated against NBER's TAXSIM, with reported penny-level agreement for the vast majority of 2021 test cases [@policyengine2024statetax; @feenberg1993taxsim]. PolicyEngine has also signed a memorandum of understanding with the Federal Reserve Bank of Atlanta for future validation of tax and benefit calculations against the Atlanta Fed's Policy Rules Database [@policyengine2025atlantafed; @atlantafed2026prd]. These sources do not validate every benchmark output; they establish PolicyEngine as a transparent, externally used reference implementation with partial external validation and planned additional checks.
+PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and externally checked in specific domains. In the UK, No. 10's data science team adapted PolicyEngine's open-source microsimulation model for experimental policy simulation, with validation against external projections before use [@woodruff2026no10; @policyengine2026downing]. In the US, PolicyEngine's state tax modelling has been validated against the National Bureau of Economic Research (NBER) TAXSIM model, with reported penny-level agreement for the vast majority of 2021 test cases [@policyengine2024statetax; @feenberg1993taxsim]. PolicyEngine has also signed a memorandum of understanding with the Federal Reserve Bank of Atlanta for future validation work against the Atlanta Fed's Policy Rules Database [@policyengine2025atlantafed; @atlantafed2026prd]. The Atlanta Fed sources are a caveat rather than evidence of completed validation for this benchmark: they document planned collaboration and the comparison source, not finished checks of the frozen PolicyBench outputs. Taken together, these sources support using PolicyEngine as a transparent reference implementation with partial external validation, but they do not validate every benchmark output.
 
-This does not make PolicyEngine infallible. During benchmark development, we manually and LLM-assisted reviewed discrepant household cases surfaced by model explanations. @tbl-reference-review summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects. This is a qualitative development discrepancy review, not a sampled validation study or exhaustive validation of every reference value.
+This does not make PolicyEngine infallible. During benchmark development, we performed a manual, developer-led discrepancy review, with LLM assistance used to triage and summarize candidate cases surfaced by model explanations. @tbl-reference-review summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects. This is a qualitative development audit, not an independent sampled validation study or exhaustive validation of every reference value.
 
 ```{python}
 #| label: tbl-reference-review
@@ -600,13 +655,15 @@ uk_top
 
 ### Global shared-model leaderboard
 
-The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are `{python} global_top_three_summary`. The global table summarizes cross-country performance; the country tables identify the outputs driving the differences.
+The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are `{python} global_top_three_summary`. The global table is an equal-country summary for this two-country benchmark sample; it should be read alongside the country tables and sensitivity views rather than as a universally authoritative ordering.
 
 ```{python}
 #| label: tbl-global-top
 #| tbl-cap: "Global shared-model leaderboard across US and UK runs."
 global_top
 ```
+
+![Global shared-model leaderboard in the frozen manuscript snapshot.](figures/global_leaderboard.png){#fig-global-leaderboard fig-alt="Horizontal bar chart of global equal-country model scores in the frozen PolicyBench manuscript snapshot."}
 
 ### Simple baselines
 
@@ -620,7 +677,7 @@ baseline_summary
 
 ### Sensitivity to benchmark view
 
-The primary leaderboard gives each country equal weight globally and each output group equal weight within a country. @tbl-sensitivity reports several alternative views. The top model is stable across the main global, amount-only, positive-reference-case, US-only, UK-only, and household-equal impact views. Lower ranks move, especially between positive cases and zero cases, so the paper avoids claims that depend on a single exact ordering beyond the frozen snapshot.
+The primary leaderboard gives each country equal weight globally and each output group equal weight within a country. @tbl-sensitivity reports several alternative views. The top model is stable across the main global, amount-only, positive-reference-case, US-only, UK-only, and household-equal impact views. Lower ranks move, especially between positive cases and zero cases, so the global score is best read as a summary statistic whose interpretation depends on these sensitivity checks.
 
 ```{python}
 #| label: tbl-sensitivity
@@ -672,6 +729,8 @@ us_positive_cases
 uk_positive_cases
 ```
 
+![Output-level performance on zero-reference and positive-reference cases.](figures/positive_zero_scatter.png){#fig-positive-zero fig-alt="Scatter plot comparing percent correct on zero-reference cases with percent correct on positive-reference cases by output group."}
+
 ## Failure modes
 
 The benchmark surfaces a few recurring failure patterns.
@@ -689,10 +748,11 @@ PolicyBench is not a substitute for a production tax-and-benefit calculator. Sev
 - model rankings can reflect output-contract reliability as well as policy reasoning
 - zero-heavy outputs require separate positive-case interpretation
 - the scoring rule is one benchmark view and should be checked against alternative metrics
-- the public UK calibrated dataset is not equivalent to enhanced FRS quality
-- the public scenario explorer exposes the current test set, so this is an open-set leaderboard rather than a protected held-out evaluation
+- the global score is an equal-country summary for models run in both countries, not a universal ranking of model quality
+- the public UK calibrated transfer dataset is not equivalent to enhanced Family Resources Survey quality and is not population-representative UK microdata
+- the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail
 - the 100-household manuscript snapshot should be treated as a preview until larger frozen runs are published
-- the discrepancy review is a qualitative development audit, not an exhaustive external validation of every reference value
+- the discrepancy review is a qualitative developer audit, not an exhaustive external validation of every reference value
 - benchmark success should not be interpreted as policy-advice readiness
 
 The current paper is therefore an evaluation of model performance under a specific structured-output benchmark, not a general certification of tax or benefit competence.
@@ -701,4 +761,10 @@ The current paper is therefore an evaluation of model performance under a specif
 
 PolicyBench shows a consistent pattern across both countries. Models often identify non-applicability, but positive tax and benefit amounts remain difficult, especially for multi-step income tax, payroll tax, National Insurance, and positive benefit cases. `{python} conclusion_snapshot_summary`
 
-Next steps are to expand country coverage and tighten the data and scoring pipelines so that the leaderboard is driven less by output-format reliability and more by policy calculation quality.
+These results support a narrow conclusion: unaided frontier models still struggle to reproduce selected household-level microsimulation outputs under a structured public benchmark. They do not show that models cannot assist policy analysis, and they do not validate PolicyEngine outputs as administrative truth. They suggest that future evaluations should separate no-tool estimation, tool-using system design, and reference-output validation more explicitly.
+
+Next steps are to expand country coverage, increase frozen sample sizes, improve UK data provenance, and add protected or rotating evaluation sets so that public rankings are less exposed to open-set leakage. The benchmark should also continue reporting sensitivity views, because equal-country global scores are useful summaries only when their weighting choices are visible.
+
+## Competing interests
+
+The author is affiliated with PolicyEngine, which develops the microsimulation software used to produce the benchmark reference outputs.

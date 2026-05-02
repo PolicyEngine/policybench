@@ -6,7 +6,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="author" content="PolicyEngine">
+<meta name="author" content="Max Ghenis">
 
 <title>PolicyBench</title>
 <style>
@@ -21,7 +21,7 @@ div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
   width: 0.8em;
-  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */
   vertical-align: middle;
 }
 .display.math{display: block; text-align: center; margin: 0.5rem auto;}
@@ -56,6 +56,9 @@ div.csl-indent {
 <link href="site_libs/quarto-html/light-border.css" rel="stylesheet">
 <link href="site_libs/quarto-html/quarto-html-640605f58ae58ee79329c070719e555b.min.css" rel="stylesheet" append-hash="true" data-mode="light">
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
 
 <script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
@@ -64,23 +67,21 @@ div.csl-indent {
 <link rel="stylesheet" href="pe-tokens.css">
 <link rel="stylesheet" href="policybench-theme.css">
 <meta name="citation_title" content="PolicyBench">
-<meta name="citation_author" content="PolicyEngine ">
+<meta name="citation_author" content="Max Ghenis">
 <meta name="citation_language" content="en">
 <meta name="citation_reference" content="citation_title=PolicyBench;,citation_author=PolicyEngine;,citation_publication_date=2026;,citation_cover_date=2026;,citation_year=2026;,citation_publisher=https://policybench.org;">
-<meta name="citation_reference" content="citation_title=TaxCalcBench: Evaluating frontier models on the tax calculation task;,citation_author=Meenakshi Mahesh;,citation_author=Elliott Ash;,citation_author=Elsen Tan;,citation_author=Aman Madaan;,citation_publication_date=2025;,citation_cover_date=2025;,citation_year=2025;,citation_fulltext_html_url=https://arxiv.org/abs/2507.16126;,citation_journal_title=arXiv preprint arXiv:2507.16126;">
+<meta name="citation_reference" content="citation_title=TaxCalcBench: Evaluating frontier models on the tax calculation task;,citation_author=Michael R. Bock;,citation_author=Kara Molisee;,citation_author=Zachary Ozer;,citation_author=Sumit Shah;,citation_publication_date=2025;,citation_cover_date=2025;,citation_year=2025;,citation_fulltext_html_url=https://arxiv.org/abs/2507.16126;,citation_doi=10.48550/arXiv.2507.16126;,citation_journal_title=arXiv preprint arXiv:2507.16126;">
 <meta name="citation_reference" content="citation_title=Performance of LLMs on VITA test: Potential for AI-assisted tax returns for low income taxpayers;,citation_author=Catherine Shanahan;,citation_author=Emma McCarthy;,citation_author=Yan Zhao;,citation_author=Wesley H. Holliday;,citation_author=Jenny Zhao;,citation_author=Janet Ainsworth;,citation_author=Harry Surden;,citation_publication_date=2025;,citation_cover_date=2025;,citation_year=2025;,citation_fulltext_html_url=https://link.springer.com/article/10.1007/s10506-025-09465-7;,citation_doi=10.1007/s10506-025-09465-7;,citation_journal_title=Artificial Intelligence and Law;">
 <meta name="citation_reference" content="citation_title=Factoring statutory reasoning as language understanding challenges;,citation_author=Nils Holzenberger;,citation_author=Benjamin Van Durme;,citation_author=Sarah Lawsky;,citation_author=Kyle Richardson;,citation_publication_date=2021;,citation_cover_date=2021;,citation_year=2021;,citation_fulltext_html_url=https://arxiv.org/abs/2105.07903;,citation_journal_title=arXiv preprint arXiv:2105.07903;">
 <meta name="citation_reference" content="citation_title=LegalBench: A collaboratively built benchmark for measuring legal reasoning in large language models;,citation_author=Neel Guha;,citation_author=Julian Nyarko;,citation_author=Daniel E. Ho;,citation_author=others;,citation_publication_date=2023;,citation_cover_date=2023;,citation_year=2023;,citation_fulltext_html_url=https://arxiv.org/abs/2308.11462;,citation_journal_title=arXiv preprint arXiv:2308.11462;">
-<meta name="citation_reference" content="citation_title=RuleArena: A benchmark for rule-guided reasoning with LLMs in real-world scenarios;,citation_author=Chan Kim;,citation_author=Jiseung Kim;,citation_author=Jihyung Choi;,citation_author=Juho Lee;,citation_author=Seongyeon Ryu;,citation_author=Sangki Yoon;,citation_author=others;,citation_publication_date=2024;,citation_cover_date=2024;,citation_year=2024;,citation_fulltext_html_url=https://arxiv.org/abs/2412.08972;,citation_journal_title=arXiv preprint arXiv:2412.08972;">
+<meta name="citation_reference" content="citation_title=RuleArena: A benchmark for rule-guided reasoning with LLMs in real-world scenarios;,citation_author=Ruiwen Zhou;,citation_author=Wenyue Hua;,citation_author=Liangming Pan;,citation_author=Sitao Cheng;,citation_author=Xiaobao Wu;,citation_author=En Yu;,citation_author=William Yang Wang;,citation_publication_date=2025;,citation_cover_date=2025;,citation_year=2025;,citation_fulltext_html_url=https://aclanthology.org/2025.acl-long.27/;,citation_doi=10.18653/v1/2025.acl-long.27;,citation_conference_title=Proceedings of the 63rd annual meeting of the association for computational linguistics (volume 1: Long papers);,citation_conference=Association for Computational Linguistics;">
 <meta name="citation_reference" content="citation_title=Training verifiers to solve math word problems;,citation_author=Karl Cobbe;,citation_author=Vineet Kosaraju;,citation_author=Mohammad Bavarian;,citation_author=Mark Chen;,citation_author=Heewoo Jun;,citation_author=Lukasz Kaiser;,citation_author=Matthias Plappert;,citation_author=Jerry Tworek;,citation_author=Jacob Hilton;,citation_author=Reiichiro Nakano;,citation_author=Christopher Hesse;,citation_author=John Schulman;,citation_publication_date=2021;,citation_cover_date=2021;,citation_year=2021;,citation_fulltext_html_url=https://arxiv.org/abs/2110.14168;,citation_journal_title=arXiv preprint arXiv:2110.14168;">
 <meta name="citation_reference" content="citation_title=Measuring mathematical problem solving with the MATH dataset;,citation_author=Dan Hendrycks;,citation_author=Collin Burns;,citation_author=Saurav Kadavath;,citation_author=Akul Arora;,citation_author=Steven Basart;,citation_author=Eric Tang;,citation_author=Dawn Song;,citation_author=Jacob Steinhardt;,citation_publication_date=2021;,citation_cover_date=2021;,citation_year=2021;,citation_fulltext_html_url=https://arxiv.org/abs/2103.03874;,citation_conference_title=NeurIPS datasets and benchmarks track;">
-<meta name="citation_reference" content="citation_title=A careful examination of large language model performance on grade school arithmetic;,citation_author=Dimitris Bertsimas;,citation_author=Arthur Delarue;,citation_author=Alexander Paskov;,citation_author=others;,citation_publication_date=2024;,citation_cover_date=2024;,citation_year=2024;,citation_fulltext_html_url=https://arxiv.org/abs/2405.00332;,citation_journal_title=arXiv preprint arXiv:2405.00332;">
-<meta name="citation_reference" content="citation_title=Time to revisit exact match: Evaluating temporal question answering with numeric error metrics;,citation_author=Xinyue Zhou;,citation_author=others;,citation_publication_date=2025;,citation_cover_date=2025;,citation_year=2025;,citation_fulltext_html_url=https://arxiv.org/abs/2509.16720;,citation_journal_title=arXiv preprint arXiv:2509.16720;">
+<meta name="citation_reference" content="citation_title=Time to revisit exact match;,citation_author=Auss Abbood;,citation_author=Zaiqiao Meng;,citation_author=Nigel Collier;,citation_publication_date=2025;,citation_cover_date=2025;,citation_year=2025;,citation_fulltext_html_url=https://aclanthology.org/2025.findings-emnlp.637/;,citation_doi=10.18653/v1/2025.findings-emnlp.637;,citation_conference_title=Findings of the association for computational linguistics: EMNLP 2025;,citation_conference=Association for Computational Linguistics;">
 <meta name="citation_reference" content="citation_title=FinQA: A dataset of numerical reasoning over financial data;,citation_author=Zhiyu Chen;,citation_author=Wenhu Chen;,citation_author=Charese Smiley;,citation_author=Sameena Shah;,citation_author=Iana Borova;,citation_author=Derek Langdon;,citation_author=Reham Moussa;,citation_author=Matt Beane;,citation_author=Ting-Hao Kenneth Huang;,citation_author=Bryan Routledge;,citation_author=others;,citation_publication_date=2021;,citation_cover_date=2021;,citation_year=2021;,citation_fulltext_html_url=https://arxiv.org/abs/2109.00122;,citation_journal_title=arXiv preprint arXiv:2109.00122;">
 <meta name="citation_reference" content="citation_title=TAT-QA: A question answering benchmark on a hybrid of tabular and textual content in finance;,citation_author=Fengbin Zhu;,citation_author=Wenqiang Lei;,citation_author=Youcheng Huang;,citation_author=Chao Wang;,citation_author=Shujie Zhang;,citation_author=Hongjie Wang;,citation_author=Vincent Chen;,citation_author=others;,citation_publication_date=2021;,citation_cover_date=2021;,citation_year=2021;,citation_fulltext_html_url=https://arxiv.org/abs/2105.07624;,citation_journal_title=arXiv preprint arXiv:2105.07624;">
 <meta name="citation_reference" content="citation_title=StructuredRAG: JSON response formatting with large language models;,citation_author=Connor Shorten;,citation_author=Charles Pierse;,citation_author=Thomas Benjamin Smith;,citation_author=Erika Cardenas;,citation_author=Akanksha Sharma;,citation_author=John Trengrove;,citation_author=Bob Luijt;,citation_publication_date=2024;,citation_cover_date=2024;,citation_year=2024;,citation_fulltext_html_url=https://arxiv.org/abs/2408.11061;,citation_doi=10.48550/arXiv.2408.11061;,citation_journal_title=arXiv preprint arXiv:2408.11061;">
-<meta name="citation_reference" content="citation_title=EUROMOD: The european union tax-benefit microsimulation model;,citation_author=Holly Sutherland;,citation_author=Francesco Figari;,citation_author=Ruth Hancock;,citation_author=Manos Matsaganis;,citation_author=Alari Paulus;,citation_author=Iva Tasseva;,citation_author=Alessandra Tumino;,citation_author=Paola De Agostini;,citation_publication_date=2023;,citation_cover_date=2023;,citation_year=2023;,citation_fulltext_html_url=https://microsimulation.pub/articles/00075;,citation_journal_title=International Journal of Microsimulation;">
-<meta name="citation_reference" content="citation_title=Improving the accuracy of UK tax-benefit microsimulation with machine learning;,citation_author=Nikhil Woodruff;,citation_author=Max Ghenis;,citation_publication_date=2026;,citation_cover_date=2026;,citation_year=2026;,citation_fulltext_html_url=https://policyengine.org/uk_data_enhancement.pdf;,citation_publisher=PolicyEngine technical paper;">
+<meta name="citation_reference" content="citation_title=EUROMOD: The european union tax-benefit microsimulation model;,citation_author=Holly Sutherland;,citation_author=Francesco Figari;,citation_publication_date=2013;,citation_cover_date=2013;,citation_year=2013;,citation_fulltext_html_url=https://microsimulation.pub/articles/00075;,citation_issue=1;,citation_doi=10.34196/ijm.00075;,citation_volume=6;,citation_journal_title=International Journal of Microsimulation;">
 <meta name="citation_reference" content="citation_title=Informing policy using micro-simulations;,citation_author=Nikhil Woodruff;,citation_publication_date=2026;,citation_cover_date=2026;,citation_year=2026;,citation_fulltext_html_url=https://fellows.ai.gov.uk/articles/nikhil-woodruff-micro-simulation;,citation_publisher=No10 Innovation Fellowship;">
 <meta name="citation_reference" content="citation_title=PolicyEngine powers rapid policy analysis at no 10 downing street;,citation_author=Max Ghenis;,citation_publication_date=2026;,citation_cover_date=2026;,citation_year=2026;,citation_fulltext_html_url=https://www.policyengine.org/us/research/policyengine-10-downing-street;,citation_publisher=PolicyEngine;">
 <meta name="citation_reference" content="citation_title=PolicyEngine launches state income tax modeling nationwide;,citation_author=PolicyEngine;,citation_publication_date=2024;,citation_cover_date=2024;,citation_year=2024;,citation_fulltext_html_url=https://www.policyengine.org/us/research/state-tax-model-beta;,citation_publisher=PolicyEngine;">
@@ -98,20 +99,20 @@ div.csl-indent {
 <header id="title-block-header">
 <h1 class="title">PolicyBench</h1>
 <p class="subtitle">Benchmarking no-tool tax-and-benefit estimation in frontier language models</p>
-<p class="author">PolicyEngine</p>
+<p class="author">Max Ghenis</p>
 
 </header>
 
 <nav id="TOC" role="doc-toc">
     <h2 id="toc-title">Table of contents</h2>
-   
+
   <ul>
   <li><a href="#abstract" id="toc-abstract">Abstract</a></li>
   <li><a href="#introduction" id="toc-introduction">Introduction</a></li>
   <li><a href="#related-work" id="toc-related-work">Related work</a></li>
   <li><a href="#benchmark-design" id="toc-benchmark-design">Benchmark design</a>
   <ul>
-  <li><a href="#frozen-snapshot" id="toc-frozen-snapshot">Frozen snapshot</a></li>
+  <li><a href="#frozen-snapshot-and-open-set-status" id="toc-frozen-snapshot-and-open-set-status">Frozen snapshot and open-set status</a></li>
   </ul></li>
   <li><a href="#data-and-scenario-construction" id="toc-data-and-scenario-construction">Data and scenario construction</a>
   <ul>
@@ -133,19 +134,20 @@ div.csl-indent {
   <li><a href="#failure-modes" id="toc-failure-modes">Failure modes</a></li>
   <li><a href="#limitations" id="toc-limitations">Limitations</a></li>
   <li><a href="#conclusion" id="toc-conclusion">Conclusion</a></li>
+  <li><a href="#competing-interests" id="toc-competing-interests">Competing interests</a></li>
   </ul>
 </nav>
 <h2 id="abstract" class="anchored">Abstract</h2>
-<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced CPS-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded <code>0-100</code> metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard. In the frozen snapshot used for this manuscript (2026-05-01), the top US model is gpt-5.5 at 89.2, the top UK model is gpt-5.5 at 81.6, and the top shared global model is gpt-5.5 at 85.4. In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
+<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded <code>0-100</code> metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-05-01), gpt-5.5 is top-scoring in the US, UK, and shared global views at 89.2, 81.6, and 85.4, respectively. In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
 <h2 id="introduction" class="anchored">Introduction</h2>
 <p>Household tax-and-benefit estimation sits between arithmetic and policy discussion. Each case has numeric labels, but generating those labels requires filing status, household composition, income concepts, program thresholds, and jurisdiction-specific rules. PolicyBench measures whether models can map household records to those outputs.</p>
 <p>Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>, while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.</p>
 <p>This matters for public-facing calculators, analyst workflows, and tax-preparation or screening systems. The benchmark is intended to separate verbal policy fluency from household-level quantitative prediction.</p>
 <h2 id="related-work" class="anchored">Related work</h2>
-<p>The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem <span class="citation" data-cites="holzenberger2021sara">(Holzenberger et al. 2021)</span>. LegalBench broadens this view and includes tax-oriented numeric tasks such as <code>sara_numeric</code> <span class="citation" data-cites="guha2023legalbench">(<span class="nocase">Guha et al.</span> 2023)</span>. RuleArena evaluates rule-guided reasoning in regulation-style settings <span class="citation" data-cites="kim2024rulearena">(<span class="nocase">Kim et al.</span> 2024)</span>, and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs <span class="citation" data-cites="taxcalcbench2025">(Mahesh et al. 2025)</span>. Shanahan et al.&nbsp;report a similar split on the VITA test: models do better on tax knowledge questions than on open-ended calculation tasks <span class="citation" data-cites="shanahan2025vita">(Shanahan et al. 2025)</span>.</p>
-<p>PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>. That norm is less natural for continuous-valued policy outputs, where being within 1 percent is closer than being off by an order of magnitude. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead <span class="citation" data-cites="zhou2025tempanswerqa">(<span class="nocase">Zhou et al.</span> 2025)</span>. PolicyBench follows that direction by combining exactness with near-miss thresholds rather than collapsing everything into exact match alone.</p>
+<p>The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem <span class="citation" data-cites="holzenberger2021sara">(Holzenberger et al. 2021)</span>. LegalBench broadens this view and includes tax-oriented numeric tasks such as <code>sara_numeric</code> <span class="citation" data-cites="guha2023legalbench">(<span class="nocase">Guha et al.</span> 2023)</span>. RuleArena evaluates rule-guided reasoning in regulation-style settings <span class="citation" data-cites="zhou2025rulearena">(Zhou et al. 2025)</span>, and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs <span class="citation" data-cites="taxcalcbench2025">(Bock et al. 2025)</span>. Shanahan et al.&nbsp;report a similar split on the Volunteer Income Tax Assistance (VITA) test: models do better on tax knowledge questions than on open-ended calculation tasks <span class="citation" data-cites="shanahan2025vita">(Shanahan et al. 2025)</span>.</p>
+<p>PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>. That norm is less natural for continuous-valued policy outputs, where being within 1 percent is closer than being off by an order of magnitude. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead <span class="citation" data-cites="zhou2025tempanswerqa">(Abbood et al. 2025)</span>. PolicyBench follows that direction by combining exactness with near-miss thresholds rather than collapsing everything into exact match alone.</p>
 <p>Finance-domain benchmarks provide another relevant precedent. FinQA and TAT-QA both show that realistic quantitative reasoning often requires combining structured numbers with domain knowledge rather than solving stylized school-math problems <span class="citation" data-cites="chen2021finqa zhu2021tatqa">(<span class="nocase">Chen et al.</span> 2021; <span class="nocase">Zhu et al.</span> 2021)</span>. PolicyBench differs in that its reference outputs are generated by executable tax-benefit microsimulation rather than annotated document questions, but the underlying motivation is similar: domain-specific quantitative reasoning deserves dedicated evaluation.</p>
-<p>Finally, PolicyBench depends on two infrastructure literatures that are not themselves LLM benchmarks. One is structured-output reliability, since the benchmark relies on multi-output JSON responses and parse coverage rather than free-form prose <span class="citation" data-cites="shorten2024structuredrag">(Shorten et al. 2024)</span>. The other is tax-benefit microsimulation, where systems such as EUROMOD provide the methodological precedent for evaluating policy rules over household microdata <span class="citation" data-cites="sutherland2023euromod">(Sutherland et al. 2023)</span>. The UK side of PolicyBench also builds on PolicyEngine’s recent work on survey-backed calibration and imputation <span class="citation" data-cites="policyengineukdata2026">(Woodruff and Ghenis 2026)</span>. There is also operational work on applying and evaluating AI systems in public-benefits settings, including caseworker-assist and SNAP-focused evaluations <span class="citation" data-cites="nava2026caseworker nava2025benefits propel2025snap">(Nava Labs 2026, 2025; ZenML LLMOps Database 2025)</span>. PolicyBench combines these strands into a public cross-model benchmark over household-level tax and benefit outputs.</p>
+<p>Finally, PolicyBench depends on two infrastructure literatures that are not themselves large language model (LLM) benchmarks. One is structured-output reliability, since the benchmark relies on multi-output JSON responses and parse coverage rather than free-form prose <span class="citation" data-cites="shorten2024structuredrag">(Shorten et al. 2024)</span>. The other is tax-benefit microsimulation, where systems such as EUROMOD provide the methodological precedent for evaluating policy rules over household microdata <span class="citation" data-cites="sutherland2023euromod">(Sutherland and Figari 2013)</span>. There is also operational work on applying and evaluating AI systems in public-benefits settings, including caseworker-assist and Supplemental Nutrition Assistance Program (SNAP)-focused evaluations <span class="citation" data-cites="nava2026caseworker nava2025benefits propel2025snap">(Nava Labs 2026, 2025; ZenML LLMOps Database 2025)</span>. PolicyBench combines these strands into a public cross-model benchmark over household-level tax and benefit outputs.</p>
 <h2 id="benchmark-design" class="anchored">Benchmark design</h2>
 <p>PolicyBench asks models to predict all benchmark outputs for a household in a single structured response. One response per household reduces repeated prompt cost and keeps the task at the household-return level rather than turning it into a sequence of unrelated one-output calls.</p>
 <p>The benchmark uses a bounded <code>0-100</code> score. For amount variables, the score averages four hit rates:</p>
@@ -155,13 +157,13 @@ div.csl-indent {
 <li>within 5%</li>
 <li>within 10%</li>
 </ol>
-<p>For binary outputs, the score is exact accuracy. This keeps <code>100</code> as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related error metrics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized <span class="citation" data-cites="zhou2025tempanswerqa">(<span class="nocase">Zhou et al.</span> 2025)</span>.</p>
+<p>For binary outputs, the score is exact accuracy. This keeps <code>100</code> as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related error metrics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized <span class="citation" data-cites="zhou2025tempanswerqa">(Abbood et al. 2025)</span>.</p>
 <p>All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026; UK outputs are annual amounts or annual eligibility indicators for fiscal year 2026-27. For currency amounts, the “exact” hit rate means within <code>1</code> currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same <code>1</code> currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as <code>0</code> or <code>1</code> eligibility flags and scored by exact classification accuracy. Missing or unparseable numeric answers receive zero score for that requested output.</p>
-<p>Aggregation proceeds in four steps. First, each household-output prediction receives a <code>0-100</code> score. Second, person-level coverage rows are averaged to their program group. Third, output groups are averaged with equal weight within each country. Fourth, global scores average the US and UK country scores for models run in both countries. Household-equal impact scores are reported only as a sensitivity view.</p>
-<p>The benchmark requires each model response to include numeric answers and one short explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning. Numeric-only runs are treated as prompt-contract ablations, not as the canonical leaderboard task.</p>
+<p>Aggregation proceeds in four steps. First, each household-output prediction receives a <code>0-100</code> score. Second, person-level coverage rows are averaged to their program group. Third, output groups are averaged with equal weight within each country. Fourth, global scores average the US and UK country scores for models run in both countries. The global score is therefore an equal-country summary for this benchmark sample, not a universally authoritative measure of tax-benefit competence. Household-equal impact scores and other alternative views are reported as sensitivity checks.</p>
+<p>The benchmark requires each model response to include numeric answers and one explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.</p>
 <p>Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are <code>0</code>, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output.</p>
-<h3 id="frozen-snapshot" class="anchored">Frozen snapshot</h3>
-<p>Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen dashboard export in <a href="#tbl-snapshot" class="quarto-xref">Table&nbsp;1</a> rather than to the live site. The local run labels identify the source runs used to create that export; the committed export is the manuscript artifact.</p>
+<h3 id="frozen-snapshot-and-open-set-status" class="anchored">Frozen snapshot and open-set status</h3>
+<p>Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen dashboard export in <a href="#tbl-snapshot" class="quarto-xref">Table&nbsp;1</a> rather than to the live site. The local run labels identify the source runs used to create that export; the committed export is the manuscript artifact. The public site exposes the current prompts, predictions, explanations, and reference outputs for transparency. This makes the public leaderboard open-set: models, model providers, or benchmark users could learn from the released cases before later runs. Protected leaderboard claims would require a separate held-out or rotating set.</p>
 <div class="cell" data-execution_count="2">
 <div id="tbl-snapshot" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="2">
 <figure class="quarto-float quarto-float-tbl">
@@ -212,7 +214,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>Frozen export SHA-256 prefix</td>
-<td>6b8f9f913377</td>
+<td>6c1a89a14332</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
@@ -252,7 +254,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="even">
 <th data-quarto-table-cell-role="th">11</th>
 <td>Scoring code SHA-256 prefix</td>
-<td>2bc0cda89ffe</td>
+<td>9e6dc82a4cb4</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">12</th>
@@ -488,8 +490,8 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </div>
 <h2 id="data-and-scenario-construction" class="anchored">Data and scenario construction</h2>
 <h3 id="united-states" class="anchored">United States</h3>
-<p>The US benchmark is built from Enhanced CPS-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit structure while retaining variation in filing status, household composition, and income sources. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives.</p>
-<p>The current US release evaluates 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, SNAP, SSI, TANF, ACA premium tax credits, school-meal eligibility, and person-level coverage eligibility for WIC, Medicaid, CHIP, Medicare, Head Start, and Early Head Start.</p>
+<p>The US benchmark is built from Enhanced Current Population Survey (CPS)-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit structure while retaining variation in filing status, household composition, and income sources. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives.</p>
+<p>The current US release evaluates 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), Affordable Care Act (ACA) premium tax credits, school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children’s Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start.</p>
 <p>The output scope is intentionally narrower than the full PolicyEngine model. <a href="#tbl-scope-rationale" class="quarto-xref">Table&nbsp;3</a> summarizes the inclusion rule. The benchmark asks for WIC eligibility rather than a WIC dollar amount; WIC dollar values are used only as impact-weight proxies for coverage flags, not as requested model outputs.</p>
 <div class="cell" data-execution_count="4">
 <div id="tbl-scope-rationale" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="4">
@@ -558,11 +560,11 @@ Table&nbsp;3: Output-selection rationale.
 </div>
 </div>
 <h3 id="united-kingdom" class="anchored">United Kingdom</h3>
-<p>The UK benchmark is built from a calibrated public transfer dataset scored through PolicyEngine UK. The current public build starts from a public export of benchmark-compatible households from PolicyEngine US Enhanced CPS, maps those records into UK-facing inputs, and recalibrates them to selected UK targets. This creates a public UK-policy transfer benchmark without publishing restricted household microdata; it is not a representative evaluation over native UK household records. The current UK release evaluates seven outputs: income tax, national insurance, capital gains tax, child benefit, universal credit, pension credit, and personal independence payment. Outputs that depend on status or award facts use prompt-visible facts rather than hidden take-up labels; for example, PIP-positive cases list the daily living and mobility award components used by PolicyEngine.</p>
-<p>The UK data path is more synthetic than the enhanced FRS pipeline, so the benchmark should not be read as a substitute for native UK microdata work. It supports the current public cross-country benchmark, but it is not equivalent to an enhanced-FRS-based benchmark <span class="citation" data-cites="sutherland2023euromod policyengineukdata2026">(Sutherland et al. 2023; Woodruff and Ghenis 2026)</span>.</p>
+<p>The UK benchmark is built from a calibrated public transfer dataset scored through PolicyEngine UK. The current public build starts from a public export of benchmark-compatible households from PolicyEngine US Enhanced CPS, maps those records into UK-facing inputs, and recalibrates them to selected UK targets. This creates a public UK-policy transfer benchmark without publishing restricted household microdata; it is not a representative evaluation over native UK household records and should not be treated as a substitute for Family Resources Survey (FRS)-based UK microdata. The current UK release evaluates seven outputs: Income Tax, National Insurance, Capital Gains Tax, Child Benefit, Universal Credit, Pension Credit, and Personal Independence Payment (PIP). Outputs that depend on status or award facts use prompt-visible facts rather than hidden take-up labels; for example, PIP-positive cases list the daily living and mobility award components used by PolicyEngine.</p>
+<p>The UK data path is more synthetic than the enhanced FRS pipeline and inherits limitations from cross-country transfer, calibration choices, and the subset of variables that can be made prompt-visible. It supports the current public cross-country benchmark, but it is not equivalent to an enhanced-FRS-based benchmark and should not be used to make population-representative claims about UK households <span class="citation" data-cites="sutherland2023euromod">(Sutherland and Figari 2013)</span>.</p>
 <h3 id="reference-output-credibility" class="anchored">Reference-output credibility</h3>
-<p>PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and partially validated in specific domains. In the UK, No.&nbsp;10’s data science team adapted PolicyEngine’s open-source microsimulation model for experimental policy simulation, with validation against external projections before use <span class="citation" data-cites="woodruff2026no10 policyengine2026downing">(Woodruff 2026; Ghenis 2026)</span>. In the US, PolicyEngine’s state tax modelling has been validated against NBER’s TAXSIM, with reported penny-level agreement for the vast majority of 2021 test cases <span class="citation" data-cites="policyengine2024statetax feenberg1993taxsim">(PolicyEngine 2024; Feenberg and Coutts 1993)</span>. PolicyEngine has also signed a memorandum of understanding with the Federal Reserve Bank of Atlanta for future validation of tax and benefit calculations against the Atlanta Fed’s Policy Rules Database <span class="citation" data-cites="policyengine2025atlantafed atlantafed2026prd">(Ghenis and Makarchuk 2025; Federal Reserve Bank of Atlanta 2026)</span>. These sources do not validate every benchmark output; they establish PolicyEngine as a transparent, externally used reference implementation with partial external validation and planned additional checks.</p>
-<p>This does not make PolicyEngine infallible. During benchmark development, we manually and LLM-assisted reviewed discrepant household cases surfaced by model explanations. <a href="#tbl-reference-review" class="quarto-xref">Table&nbsp;4</a> summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects. This is a qualitative development discrepancy review, not a sampled validation study or exhaustive validation of every reference value.</p>
+<p>PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and externally checked in specific domains. In the UK, No.&nbsp;10’s data science team adapted PolicyEngine’s open-source microsimulation model for experimental policy simulation, with validation against external projections before use <span class="citation" data-cites="woodruff2026no10 policyengine2026downing">(Woodruff 2026; Ghenis 2026)</span>. In the US, PolicyEngine’s state tax modelling has been validated against the National Bureau of Economic Research (NBER) TAXSIM model, with reported penny-level agreement for the vast majority of 2021 test cases <span class="citation" data-cites="policyengine2024statetax feenberg1993taxsim">(PolicyEngine 2024; Feenberg and Coutts 1993)</span>. PolicyEngine has also signed a memorandum of understanding with the Federal Reserve Bank of Atlanta for future validation work against the Atlanta Fed’s Policy Rules Database <span class="citation" data-cites="policyengine2025atlantafed atlantafed2026prd">(Ghenis and Makarchuk 2025; Federal Reserve Bank of Atlanta 2026)</span>. The Atlanta Fed sources are a caveat rather than evidence of completed validation for this benchmark: they document planned collaboration and the comparison source, not finished checks of the frozen PolicyBench outputs. Taken together, these sources support using PolicyEngine as a transparent reference implementation with partial external validation, but they do not validate every benchmark output.</p>
+<p>This does not make PolicyEngine infallible. During benchmark development, we performed a manual, developer-led discrepancy review, with LLM assistance used to triage and summarize candidate cases surfaced by model explanations. <a href="#tbl-reference-review" class="quarto-xref">Table&nbsp;4</a> summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects. This is a qualitative development audit, not an independent sampled validation study or exhaustive validation of every reference value.</p>
 <div class="cell" data-execution_count="5">
 <div id="tbl-reference-review" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="5">
 <figure class="quarto-float quarto-float-tbl">
@@ -820,7 +822,7 @@ Table&nbsp;6: Top UK benchmark models in the frozen manuscript snapshot.
 </div>
 </div>
 <h3 id="global-shared-model-leaderboard" class="anchored">Global shared-model leaderboard</h3>
-<p>The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are gpt-5.5 (85.4), grok-4.20 (83.6), and gemini-3.1-pro-preview (83.6). The global table summarizes cross-country performance; the country tables identify the outputs driving the differences.</p>
+<p>The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are gpt-5.5 (85.4), grok-4.20 (83.6), and gemini-3.1-pro-preview (83.6). The global table is an equal-country summary for this two-country benchmark sample; it should be read alongside the country tables and sensitivity views rather than as a universally authoritative ordering.</p>
 <div class="cell" data-execution_count="8">
 <div id="tbl-global-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="8">
 <figure class="quarto-float quarto-float-tbl">
@@ -956,6 +958,16 @@ Table&nbsp;7: Global shared-model leaderboard across US and UK runs.
 </figure>
 </div>
 </div>
+<div id="fig-global-leaderboard" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Horizontal bar chart of global equal-country model scores in the frozen PolicyBench manuscript snapshot.">
+<figure class="quarto-float quarto-float-fig">
+<div aria-describedby="fig-global-leaderboard-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="figures/global_leaderboard.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Figure&nbsp;1: Global shared-model leaderboard in the frozen manuscript snapshot."><img src="figures/global_leaderboard.png" class="img-fluid" alt="Horizontal bar chart of global equal-country model scores in the frozen PolicyBench manuscript snapshot."></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-global-leaderboard-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Global shared-model leaderboard in the frozen manuscript snapshot.
+</figcaption>
+</figure>
+</div>
 <h3 id="simple-baselines" class="anchored">Simple baselines</h3>
 <p>Simple baselines help interpret score levels in a zero-heavy benchmark. <a href="#tbl-baselines" class="quarto-xref">Table&nbsp;8</a> reports an always-zero response and a median-reference-by-output response on the same frozen household sample. These are not model competitors; they show how much of the bounded score can be earned without household-specific policy calculation.</p>
 <div class="cell" data-execution_count="9">
@@ -1016,7 +1028,7 @@ Table&nbsp;8: Simple baseline scores on the frozen manuscript snapshot.
 </div>
 </div>
 <h3 id="sensitivity-to-benchmark-view" class="anchored">Sensitivity to benchmark view</h3>
-<p>The primary leaderboard gives each country equal weight globally and each output group equal weight within a country. <a href="#tbl-sensitivity" class="quarto-xref">Table&nbsp;9</a> reports several alternative views. The top model is stable across the main global, amount-only, positive-reference-case, US-only, UK-only, and household-equal impact views. Lower ranks move, especially between positive cases and zero cases, so the paper avoids claims that depend on a single exact ordering beyond the frozen snapshot.</p>
+<p>The primary leaderboard gives each country equal weight globally and each output group equal weight within a country. <a href="#tbl-sensitivity" class="quarto-xref">Table&nbsp;9</a> reports several alternative views. The top model is stable across the main global, amount-only, positive-reference-case, US-only, UK-only, and household-equal impact views. Lower ranks move, especially between positive cases and zero cases, so the global score is best read as a summary statistic whose interpretation depends on these sensitivity checks.</p>
 <div class="cell" data-execution_count="10">
 <div id="tbl-sensitivity" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="10">
 <figure class="quarto-float quarto-float-tbl">
@@ -1583,6 +1595,16 @@ Table&nbsp;14: UK within-10% performance by zero versus positive reference cases
 </figure>
 </div>
 </div>
+<div id="fig-positive-zero" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Scatter plot comparing percent correct on zero-reference cases with percent correct on positive-reference cases by output group.">
+<figure class="quarto-float quarto-float-fig">
+<div aria-describedby="fig-positive-zero-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="figures/positive_zero_scatter.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Figure&nbsp;2: Output-level performance on zero-reference and positive-reference cases."><img src="figures/positive_zero_scatter.png" class="img-fluid" alt="Scatter plot comparing percent correct on zero-reference cases with percent correct on positive-reference cases by output group."></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-positive-zero-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Output-level performance on zero-reference and positive-reference cases.
+</figcaption>
+</figure>
+</div>
 <h2 id="failure-modes" class="anchored">Failure modes</h2>
 <p>The benchmark surfaces a few recurring failure patterns.</p>
 <p>First, models miss positive tax and benefit quantities more often than zero cases. In the US, federal income tax before refundable credits, state income tax before refundable credits, payroll tax, and SNAP are the four lowest-scoring outputs. These require the model to choose the right income concepts, exclusions, program thresholds, and sequencing before applying any final subtraction.</p>
@@ -1594,17 +1616,27 @@ Table&nbsp;14: UK within-10% performance by zero versus positive reference cases
 <li>model rankings can reflect output-contract reliability as well as policy reasoning</li>
 <li>zero-heavy outputs require separate positive-case interpretation</li>
 <li>the scoring rule is one benchmark view and should be checked against alternative metrics</li>
-<li>the public UK calibrated dataset is not equivalent to enhanced FRS quality</li>
-<li>the public scenario explorer exposes the current test set, so this is an open-set leaderboard rather than a protected held-out evaluation</li>
+<li>the global score is an equal-country summary for models run in both countries, not a universal ranking of model quality</li>
+<li>the public UK calibrated transfer dataset is not equivalent to enhanced Family Resources Survey quality and is not population-representative UK microdata</li>
+<li>the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail</li>
 <li>the 100-household manuscript snapshot should be treated as a preview until larger frozen runs are published</li>
-<li>the discrepancy review is a qualitative development audit, not an exhaustive external validation of every reference value</li>
+<li>the discrepancy review is a qualitative developer audit, not an exhaustive external validation of every reference value</li>
 <li>benchmark success should not be interpreted as policy-advice readiness</li>
 </ul>
 <p>The current paper is therefore an evaluation of model performance under a specific structured-output benchmark, not a general certification of tax or benefit competence.</p>
 <h2 id="conclusion" class="anchored">Conclusion</h2>
-<p>PolicyBench shows a consistent pattern across both countries. Models often identify non-applicability, but positive tax and benefit amounts remain difficult, especially for multi-step income tax, payroll tax, National Insurance, and positive benefit cases. In the frozen manuscript snapshot, gpt-5.5 is the top-scoring US model and gpt-5.5 is the top-scoring UK model.</p>
-<p>Next steps are to expand country coverage and tighten the data and scoring pipelines so that the leaderboard is driven less by output-format reliability and more by policy calculation quality.</p>
+<p>PolicyBench shows a consistent pattern across both countries. Models often identify non-applicability, but positive tax and benefit amounts remain difficult, especially for multi-step income tax, payroll tax, National Insurance, and positive benefit cases. In the frozen manuscript snapshot, gpt-5.5 is the top-scoring model in both the US and UK.</p>
+<p>These results support a narrow conclusion: unaided frontier models still struggle to reproduce selected household-level microsimulation outputs under a structured public benchmark. They do not show that models cannot assist policy analysis, and they do not validate PolicyEngine outputs as administrative truth. They suggest that future evaluations should separate no-tool estimation, tool-using system design, and reference-output validation more explicitly.</p>
+<p>Next steps are to expand country coverage, increase frozen sample sizes, improve UK data provenance, and add protected or rotating evaluation sets so that public rankings are less exposed to open-set leakage. The benchmark should also continue reporting sensitivity views, because equal-country global scores are useful summaries only when their weighting choices are visible.</p>
+<h2 id="competing-interests" class="anchored">Competing interests</h2>
+<p>The author is affiliated with PolicyEngine, which develops the microsimulation software used to produce the benchmark reference outputs.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">
+<div id="ref-zhou2025tempanswerqa" class="csl-entry" role="listitem">
+Abbood, Auss, Zaiqiao Meng, and Nigel Collier. 2025. <span>“Time to Revisit Exact Match.”</span> <em>Findings of the Association for Computational Linguistics: EMNLP 2025</em> (Suzhou, China), 11903–26. <a href="https://doi.org/10.18653/v1/2025.findings-emnlp.637">https://doi.org/10.18653/v1/2025.findings-emnlp.637</a>.
+</div>
+<div id="ref-taxcalcbench2025" class="csl-entry" role="listitem">
+Bock, Michael R., Kara Molisee, Zachary Ozer, and Sumit Shah. 2025. <span>“TaxCalcBench: Evaluating Frontier Models on the Tax Calculation Task.”</span> <em>arXiv Preprint arXiv:2507.16126</em>, ahead of print. <a href="https://doi.org/10.48550/arXiv.2507.16126">https://doi.org/10.48550/arXiv.2507.16126</a>.
+</div>
 <div id="ref-chen2021finqa" class="csl-entry" role="listitem">
 <span class="nocase">Chen, Zhiyu, Wenhu Chen, Charese Smiley, et al.</span> 2021. <span>“FinQA: A Dataset of Numerical Reasoning over Financial Data.”</span> <em>arXiv Preprint arXiv:2109.00122</em>. <a href="https://arxiv.org/abs/2109.00122">https://arxiv.org/abs/2109.00122</a>.
 </div>
@@ -1632,12 +1664,6 @@ Hendrycks, Dan, Collin Burns, Saurav Kadavath, et al. 2021. <span>“Measuring M
 <div id="ref-holzenberger2021sara" class="csl-entry" role="listitem">
 Holzenberger, Nils, Benjamin Van Durme, Sarah Lawsky, and Kyle Richardson. 2021. <span>“Factoring Statutory Reasoning as Language Understanding Challenges.”</span> <em>arXiv Preprint arXiv:2105.07903</em>. <a href="https://arxiv.org/abs/2105.07903">https://arxiv.org/abs/2105.07903</a>.
 </div>
-<div id="ref-kim2024rulearena" class="csl-entry" role="listitem">
-<span class="nocase">Kim, Chan, Jiseung Kim, Jihyung Choi, et al.</span> 2024. <span>“RuleArena: A Benchmark for Rule-Guided Reasoning with <span>LLMs</span> in Real-World Scenarios.”</span> <em>arXiv Preprint arXiv:2412.08972</em>. <a href="https://arxiv.org/abs/2412.08972">https://arxiv.org/abs/2412.08972</a>.
-</div>
-<div id="ref-taxcalcbench2025" class="csl-entry" role="listitem">
-Mahesh, Meenakshi, Elliott Ash, Elsen Tan, and Aman Madaan. 2025. <span>“TaxCalcBench: Evaluating Frontier Models on the Tax Calculation Task.”</span> <em>arXiv Preprint arXiv:2507.16126</em>. <a href="https://arxiv.org/abs/2507.16126">https://arxiv.org/abs/2507.16126</a>.
-</div>
 <div id="ref-nava2025benefits" class="csl-entry" role="listitem">
 Nava Labs. 2025. <em>Experimenting with <span>AI</span>-Powered Tools in Public Benefits</em>. Case study. <a href="https://www.navapbc.com/case-studies/ai-tools-public-benefits">https://www.navapbc.com/case-studies/ai-tools-public-benefits</a>.
 </div>
@@ -1654,19 +1680,16 @@ Shanahan, Catherine, Emma McCarthy, Yan Zhao, et al. 2025. <span>“Performance 
 Shorten, Connor, Charles Pierse, Thomas Benjamin Smith, et al. 2024. <span>“StructuredRAG: <span>JSON</span> Response Formatting with Large Language Models.”</span> <em>arXiv Preprint arXiv:2408.11061</em>, ahead of print. <a href="https://doi.org/10.48550/arXiv.2408.11061">https://doi.org/10.48550/arXiv.2408.11061</a>.
 </div>
 <div id="ref-sutherland2023euromod" class="csl-entry" role="listitem">
-Sutherland, Holly, Francesco Figari, Ruth Hancock, et al. 2023. <span>“<span>EUROMOD</span>: The European Union Tax-Benefit Microsimulation Model.”</span> <em>International Journal of Microsimulation</em>. <a href="https://microsimulation.pub/articles/00075">https://microsimulation.pub/articles/00075</a>.
+Sutherland, Holly, and Francesco Figari. 2013. <span>“<span>EUROMOD</span>: The European Union Tax-Benefit Microsimulation Model.”</span> <em>International Journal of Microsimulation</em> 6 (1): 4–26. <a href="https://doi.org/10.34196/ijm.00075">https://doi.org/10.34196/ijm.00075</a>.
 </div>
 <div id="ref-woodruff2026no10" class="csl-entry" role="listitem">
 Woodruff, Nikhil. 2026. <em>Informing Policy Using Micro-Simulations</em>. No10 Innovation Fellowship. <a href="https://fellows.ai.gov.uk/articles/nikhil-woodruff-micro-simulation">https://fellows.ai.gov.uk/articles/nikhil-woodruff-micro-simulation</a>.
 </div>
-<div id="ref-policyengineukdata2026" class="csl-entry" role="listitem">
-Woodruff, Nikhil, and Max Ghenis. 2026. <em>Improving the Accuracy of <span>UK</span> Tax-Benefit Microsimulation with Machine Learning</em>. PolicyEngine technical paper. <a href="https://policyengine.org/uk_data_enhancement.pdf">https://policyengine.org/uk_data_enhancement.pdf</a>.
-</div>
 <div id="ref-propel2025snap" class="csl-entry" role="listitem">
 ZenML LLMOps Database. 2025. <em>Building and Automating Comprehensive <span>LLM</span> Evaluation Framework for <span>SNAP</span> Benefits</em>. Industry writeup. <a href="https://www.zenml.io/llmops-database/building-and-automating-comprehensive-llm-evaluation-framework-for-snap-benefits">https://www.zenml.io/llmops-database/building-and-automating-comprehensive-llm-evaluation-framework-for-snap-benefits</a>.
 </div>
-<div id="ref-zhou2025tempanswerqa" class="csl-entry" role="listitem">
-<span class="nocase">Zhou, Xinyue et al.</span> 2025. <span>“Time to Revisit Exact Match: Evaluating Temporal Question Answering with Numeric Error Metrics.”</span> <em>arXiv Preprint arXiv:2509.16720</em>. <a href="https://arxiv.org/abs/2509.16720">https://arxiv.org/abs/2509.16720</a>.
+<div id="ref-zhou2025rulearena" class="csl-entry" role="listitem">
+Zhou, Ruiwen, Wenyue Hua, Liangming Pan, et al. 2025. <span>“<span>R</span>ule<span>A</span>rena: A Benchmark for Rule-Guided Reasoning with <span>LLM</span>s in Real-World Scenarios.”</span> <em>Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</em> (Vienna, Austria), 550–72. <a href="https://doi.org/10.18653/v1/2025.acl-long.27">https://doi.org/10.18653/v1/2025.acl-long.27</a>.
 </div>
 <div id="ref-zhu2021tatqa" class="csl-entry" role="listitem">
 <span class="nocase">Zhu, Fengbin, Wenqiang Lei, Youcheng Huang, et al.</span> 2021. <span>“<span>TAT-QA</span>: A Question Answering Benchmark on a Hybrid of Tabular and Textual Content in Finance.”</span> <em>arXiv Preprint arXiv:2105.07624</em>. <a href="https://arxiv.org/abs/2105.07624">https://arxiv.org/abs/2105.07624</a>.
@@ -1688,7 +1711,7 @@ ZenML LLMOps Database. 2025. <em>Building and Automating Comprehensive <span>LLM
     anchorJS.add('.anchored');
     const isCodeAnnotation = (el) => {
       for (const clz of el.classList) {
-        if (clz.startsWith('code-annotation-')) {                     
+        if (clz.startsWith('code-annotation-')) {
           return true;
         }
       }
@@ -1708,11 +1731,11 @@ ZenML LLMOps Database. 2025. <em>Building and Automating Comprehensive <span>LLM
         button.setAttribute("data-bs-toggle", "tooltip");
         button.setAttribute("data-bs-placement", "left");
         button.setAttribute("data-bs-title", "Copied!");
-        tooltip = new bootstrap.Tooltip(button, 
-          { trigger: "manual", 
+        tooltip = new bootstrap.Tooltip(button,
+          { trigger: "manual",
             customClass: "code-copy-button-tooltip",
             offset: [0, -8]});
-        tooltip.show();    
+        tooltip.show();
       }
       setTimeout(function() {
         if (tooltip) {
@@ -1789,7 +1812,7 @@ ZenML LLMOps Database. 2025. <em>Building and Automating Comprehensive <span>LLM
       if (onUntriggerFn) {
         config.onUntrigger = onUntriggerFn;
       }
-      window.tippy(el, config); 
+      window.tippy(el, config);
     }
     const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
     for (var i=0; i<noterefs.length; i++) {
@@ -1864,7 +1887,7 @@ ZenML LLMOps Database. 2025. <em>Building and Automating Comprehensive <span>LLM
       tippyHover(xref, undefined, function(instance) {
         instance.disable();
         let url = xref.getAttribute('href');
-        let hash = undefined; 
+        let hash = undefined;
         if (url.startsWith('#')) {
           hash = url;
         } else {
@@ -1892,7 +1915,7 @@ ZenML LLMOps Database. 2025. <em>Building and Automating Comprehensive <span>LLM
               if (note !== null) {
                 const html = processXRef(id, note);
                 instance.setContent(html);
-              } 
+              }
             }).finally(() => {
               instance.enable();
               instance.show();
@@ -1916,7 +1939,7 @@ ZenML LLMOps Database. 2025. <em>Building and Automating Comprehensive <span>LLM
               }
               const html = processXRef(null, note);
               instance.setContent(html);
-            } 
+            }
           }).finally(() => {
             instance.enable();
             instance.show();
@@ -1956,7 +1979,7 @@ ZenML LLMOps Database. 2025. <em>Building and Automating Comprehensive <span>LLM
               height = bottom - top;
             }
             if (top !== null && height !== null && parent !== null) {
-              // cook up a div (if necessary) and position it 
+              // cook up a div (if necessary) and position it
               let div = window.document.getElementById("code-annotation-line-highlight");
               if (div === null) {
                 div = window.document.createElement("div");
@@ -2077,6 +2100,38 @@ ZenML LLMOps Database. 2025. <em>Building and Automating Comprehensive <span>LLM
     }
   });
   </script>
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      }
+    });
+
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+
+  };
+
+})();
+          </script>
 
 
 
