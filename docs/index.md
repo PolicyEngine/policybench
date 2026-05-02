@@ -1,18 +1,29 @@
 ---
-title: "PolicyBench: Can AI models calculate tax and benefit outcomes?"
+title: "PolicyBench"
 ---
 
-# PolicyBench: Can AI models calculate tax and benefit outcomes?
+# PolicyBench
 
 **Max Ghenis** (PolicyEngine)
 
-## Abstract
+PolicyBench evaluates whether frontier language models can estimate household
+tax and benefit outputs from household facts without tools. The canonical
+manuscript is maintained in [`paper/index.qmd`](https://github.com/PolicyEngine/policybench/blob/main/paper/index.qmd)
+and rendered to [`app/public/paper/policybench.pdf`](https://policybench.org/paper/policybench.pdf)
+and [`app/public/paper/web/`](https://policybench.org/paper/).
 
-Large language models have absorbed information about tax codes, benefit programs, and policy rules, yet translating this knowledge into quantitative household outputs remains difficult. PolicyBench is a public no-tool benchmark for selected person- and household-facing tax and benefit outputs in the US and UK. We test frontier models on sampled household scenarios evaluated under US tax year 2026 and UK fiscal year 2026-27 rules and scored against PolicyEngine reference outputs.
+This documentation site is a thin index for operational material that does
+not belong in the manuscript:
 
-The benchmark focuses on a single condition: AI alone, where models must rely on their parametric knowledge to estimate policy outcomes from a household description. US scenarios are sampled from Enhanced Current Population Survey (CPS) households. The public UK path uses a calibrated transfer dataset, not restricted native UK survey microdata. PolicyEngine generates the benchmark reference outputs for each described case.
+- [Benchmark card](benchmark_card.md): scope, response contract, snapshot policy,
+  naming discipline, and minimum reporting standard.
+- [Results runbook](results.md): CLI invocations, output artefacts, and
+  interpretation notes for local runs.
+- [Reading the paper](paper.md): how the rendered manuscript, snapshot
+  artefacts, and reproducibility manifests fit together.
 
-These findings are intended to measure model capability, not tool compliance. The public scenario explorer exposes prompts and reference outputs, so the public leaderboard is open-set rather than a protected held-out evaluation. The central question is therefore specific: how much household-level tax-benefit calculation ability frontier models show in this public no-tool benchmark when they do not have access to external computation.
+The live leaderboard, scenario explorer, and per-model failure-mode views are
+hosted at <https://policybench.org>.
 
 ```{tableofcontents}
 ```

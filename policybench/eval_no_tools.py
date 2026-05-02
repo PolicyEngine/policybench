@@ -120,6 +120,21 @@ def _get_usage_value(obj, key: str):
     return getattr(obj, key, None)
 
 
+def _extract_provider_fingerprint(response) -> dict:
+    """Capture the provider response id, system fingerprint, and resolved model.
+
+    These fields make it possible to audit which underlying model build a
+    provider routed an alias to (e.g. ``claude-opus-4-7`` resolving to a
+    dated weights revision). Providers that do not report a particular field
+    return ``None`` for that field.
+    """
+    return {
+        "provider_response_id": _get_usage_value(response, "id"),
+        "provider_system_fingerprint": _get_usage_value(response, "system_fingerprint"),
+        "provider_resolved_model": _get_usage_value(response, "model"),
+    }
+
+
 def _extract_usage_metadata(
     response, model_id: str, messages: list[dict], content: str
 ) -> dict:
@@ -172,6 +187,7 @@ def _extract_usage_metadata(
             provider_reported_cost_usd is None and total_cost_usd is not None
         ),
         "estimated_cost_usd": total_cost_usd,
+        **_extract_provider_fingerprint(response),
     }
 
 
@@ -566,6 +582,13 @@ def _sum_optional_numbers(values: Iterable[float | int | None]) -> float | None:
     return sum(present)
 
 
+def _first_non_null(values: Iterable):
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
 def _combine_raw_responses(raw_responses: list[str | None]) -> str | None:
     present = [raw_response for raw_response in raw_responses if raw_response]
     if not present:
@@ -605,6 +628,9 @@ def _aggregate_request_results(results: list[dict]) -> dict:
             "total_cost_usd": None,
             "cost_is_estimated": None,
             "estimated_cost_usd": None,
+            "provider_response_id": None,
+            "provider_system_fingerprint": None,
+            "provider_resolved_model": None,
         }
 
     cost_flags = [result.get("cost_is_estimated") for result in results]
@@ -649,6 +675,15 @@ def _aggregate_request_results(results: list[dict]) -> dict:
         "cost_is_estimated": cost_is_estimated,
         "estimated_cost_usd": _sum_optional_numbers(
             result.get("estimated_cost_usd") for result in results
+        ),
+        "provider_response_id": _first_non_null(
+            result.get("provider_response_id") for result in results
+        ),
+        "provider_system_fingerprint": _first_non_null(
+            result.get("provider_system_fingerprint") for result in results
+        ),
+        "provider_resolved_model": _first_non_null(
+            result.get("provider_resolved_model") for result in results
         ),
     }
 
@@ -1231,6 +1266,15 @@ def run_single_no_tools(
             "estimated_cost_usd": _sum_optional_field(
                 chunk_results, "estimated_cost_usd"
             ),
+            "provider_response_id": _first_non_null(
+                result.get("provider_response_id") for result in chunk_results
+            ),
+            "provider_system_fingerprint": _first_non_null(
+                result.get("provider_system_fingerprint") for result in chunk_results
+            ),
+            "provider_resolved_model": _first_non_null(
+                result.get("provider_resolved_model") for result in chunk_results
+            ),
         }
 
     request_results = []
@@ -1694,6 +1738,13 @@ def run_no_tools_eval(
                             estimated_cost_usd / batch_size
                             if estimated_cost_usd is not None
                             else None
+                        ),
+                        "provider_response_id": result.get("provider_response_id"),
+                        "provider_system_fingerprint": result.get(
+                            "provider_system_fingerprint"
+                        ),
+                        "provider_resolved_model": result.get(
+                            "provider_resolved_model"
                         ),
                     }
                 )
