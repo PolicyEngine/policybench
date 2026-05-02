@@ -7,6 +7,7 @@ import re
 import signal
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
@@ -22,6 +23,7 @@ from policybench.prompts import (
     make_no_tools_batch_prompt,
     make_no_tools_batch_repair_prompt,
 )
+from policybench.provenance import runtime_provenance
 from policybench.scenarios import Scenario, scenario_to_dict
 from policybench.spec import expand_programs_for_scenario
 
@@ -1419,6 +1421,7 @@ def _build_resume_metadata(
     return {
         "metadata_version": RESUME_METADATA_VERSION,
         "task": task,
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "run_id": run_id,
         "include_explanations": include_explanations,
         "scenario_count": len(scenarios),
@@ -1426,6 +1429,7 @@ def _build_resume_metadata(
         "programs": sorted(programs),
         "models": {name: models[name] for name in sorted(models)},
         "policyengine_bundles": policyengine_bundles_for_countries(countries),
+        "runtime_environment": runtime_provenance(),
     }
 
 
