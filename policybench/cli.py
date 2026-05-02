@@ -448,6 +448,7 @@ def main():
     if args.command in {"reference-outputs", "ground-truth"}:
         from policybench.ground_truth import calculate_ground_truth
         from policybench.policyengine_runtime import runtime_metadata_for_country
+        from policybench.provenance import runtime_provenance
         from policybench.scenarios import (
             generate_scenarios,
             get_uk_dataset_path,
@@ -488,6 +489,7 @@ def main():
             "programs": sorted(programs),
             "output": args.output,
             "scenario_manifest_output": args.scenario_manifest_output,
+            "runtime_environment": runtime_provenance(),
             **runtime_metadata_for_country(
                 args.country,
                 source_dataset_path=source_dataset_path,
