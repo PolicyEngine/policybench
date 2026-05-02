@@ -124,7 +124,11 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6">
         <section id="models" className="pt-12 pb-16 sm:pt-16 sm:pb-20">
-          <ModelLeaderboard data={data} selectedView={selectedView} />
+          <ModelLeaderboard
+            data={data}
+            selectedView={selectedView}
+            dashboard={dashboard}
+          />
         </section>
 
         {!isGlobal && (
