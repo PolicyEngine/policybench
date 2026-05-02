@@ -38,8 +38,15 @@ SNAPSHOT_EXPORT = "app/src/data.json"
 US_RUN_LABEL = "us_100_stable_models_20260501_062249"
 UK_RUN_LABEL = "uk_100_hicbc_fixed_20260501_083402"
 IMPACT_SNAPSHOT_DIR = "paper/snapshot/20260501"
-UK_TRANSFER_ARTIFACT = "enhanced_cps_2025.h5 public UK calibrated transfer artifact"
+UK_TRANSFER_ARTIFACT = "enhanced_cps_2025.h5"
 UK_TRANSFER_ARTIFACT_SHA256 = "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
+UK_TRANSFER_ARTIFACT_REPO = "PolicyEngine/policyengine-uk-data"
+UK_TRANSFER_ARTIFACT_PINNED_COMMIT = "9514dfb7ec607897c9f7122a2e073b922c9fd8b6"
+UK_TRANSFER_ARTIFACT_PINNED_URL = (
+    "https://raw.githubusercontent.com/PolicyEngine/policyengine-uk-data/"
+    f"{UK_TRANSFER_ARTIFACT_PINNED_COMMIT}/policyengine_uk_data/storage/"
+    f"{UK_TRANSFER_ARTIFACT}"
+)
 
 
 def file_hash_prefix(path: str) -> str:
@@ -181,6 +188,144 @@ def impact_scores() -> pd.DataFrame:
         frame["score"] = frame["mean_impact_score"] * 100
         rows.append(frame[["country", "model", "score"]])
     return pd.concat(rows, ignore_index=True)
+
+
+def federal_state_joint_accuracy() -> pd.DataFrame:
+    """Within-10% accuracy for federal vs state refundable credits and the joint."""
+    predictions = country_payload("us")["scenarioPredictions"]
+    rows = []
+    for scenario_id, variables in predictions.items():
+        if (
+            "federal_refundable_credits" not in variables
+            or "state_refundable_credits" not in variables
+        ):
+            continue
+        federal = variables["federal_refundable_credits"]
+        state = variables["state_refundable_credits"]
+        for model in federal:
+            if model not in state:
+                continue
+            rows.append(
+                {
+                    "scenario_id": scenario_id,
+                    "model": model,
+                    "fed_truth": federal[model]["groundTruth"],
+                    "fed_pred": federal[model].get("prediction"),
+                    "state_truth": state[model]["groundTruth"],
+                    "state_pred": state[model].get("prediction"),
+                }
+            )
+    frame = pd.DataFrame(rows)
+
+    def hit_within_10(truth: float, pred: float | None) -> bool:
+        if pred is None or pd.isna(pred):
+            return False
+        if truth == 0:
+            return abs(pred) <= 1.0
+        return abs(pred - truth) / abs(truth) <= 0.10
+
+    frame["fed_hit"] = [
+        hit_within_10(truth, pred)
+        for truth, pred in zip(frame["fed_truth"], frame["fed_pred"], strict=True)
+    ]
+    frame["state_hit"] = [
+        hit_within_10(truth, pred)
+        for truth, pred in zip(
+            frame["state_truth"], frame["state_pred"], strict=True
+        )
+    ]
+    frame["both_hit"] = frame["fed_hit"] & frame["state_hit"]
+    summary = (
+        frame.groupby("model")[["fed_hit", "state_hit", "both_hit"]]
+        .mean()
+        .reset_index()
+        .sort_values("both_hit", ascending=False)
+    )
+    summary["fed_hit"] = (summary["fed_hit"] * 100).round(1)
+    summary["state_hit"] = (summary["state_hit"] * 100).round(1)
+    summary["both_hit"] = (summary["both_hit"] * 100).round(1)
+    summary.columns = [
+        "Model",
+        "Federal within 10%",
+        "State within 10%",
+        "Joint within 10%",
+    ]
+    return summary
+
+
+def impact_floor_sensitivity() -> pd.DataFrame:
+    """Top US/UK models under varying household-equal impact-score floors."""
+    prediction_rows = flatten_predictions()
+
+    def impact_table(floor_share: float) -> pd.DataFrame:
+        groups = []
+        for country in ["us", "uk"]:
+            country_rows = prediction_rows[prediction_rows["country"] == country]
+            scenario_ids = sorted(country_rows["scenario_id"].unique().tolist())
+            n_outputs = country_rows["output_group"].nunique()
+            scenario_scores = []
+            for scenario_id in scenario_ids:
+                scenario_rows = country_rows[
+                    country_rows["scenario_id"] == scenario_id
+                ]
+                output_scores = (
+                    scenario_rows.groupby(["model", "output_group"])
+                    .agg(score=("score", "mean"), magnitude=("truth", lambda values: float(np.abs(values).max())))
+                    .reset_index()
+                )
+                if output_scores.empty or n_outputs == 0:
+                    continue
+                magnitude_share = output_scores.groupby("output_group")["magnitude"].first()
+                magnitude_total = magnitude_share.sum()
+                if magnitude_total <= 0:
+                    weights = pd.Series(
+                        1.0 / n_outputs, index=magnitude_share.index
+                    )
+                else:
+                    weights = (
+                        floor_share / n_outputs
+                        + (1 - floor_share) * magnitude_share / magnitude_total
+                    )
+                weighted = (
+                    output_scores.assign(
+                        weight=output_scores["output_group"].map(weights)
+                    )
+                    .assign(weighted=lambda f: f["score"] * f["weight"])
+                    .groupby("model")["weighted"]
+                    .sum()
+                    .reset_index()
+                    .rename(columns={"weighted": "score"})
+                )
+                weighted["scenario_id"] = scenario_id
+                weighted["country"] = country
+                scenario_scores.append(weighted)
+            if scenario_scores:
+                country_frame = pd.concat(scenario_scores, ignore_index=True)
+                country_summary = (
+                    country_frame.groupby(["country", "model"])["score"]
+                    .mean()
+                    .reset_index()
+                )
+                groups.append(country_summary)
+        country_summary = pd.concat(groups, ignore_index=True)
+        return country_summary
+
+    rows = []
+    for floor in [0.0, 0.1, 0.3, 0.5, 1.0]:
+        country_summary = impact_table(floor)
+        global_summary = global_scores(country_summary)
+        rank1 = global_summary.iloc[0]
+        rank2 = global_summary.iloc[1]
+        rank3 = global_summary.iloc[2]
+        rows.append(
+            {
+                "Floor": f"{floor:.1f}",
+                "Rank 1": f"{rank1.model} ({rank1.score:.1f})",
+                "Rank 2": f"{rank2.model} ({rank2.score:.1f})",
+                "Rank 3": f"{rank3.model} ({rank3.score:.1f})",
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def simple_baselines() -> pd.DataFrame:
@@ -453,6 +598,8 @@ sensitivity = sensitivity_rows()
 model_runs = model_run_table()
 bootstrap_uncertainty = bootstrap_global_uncertainty()
 baseline_summary = simple_baselines()
+federal_state_joint = federal_state_joint_accuracy()
+impact_floor = impact_floor_sensitivity()
 snapshot_provenance = pd.DataFrame(
     [
         ["Snapshot date", SNAPSHOT_DATE],
@@ -475,6 +622,8 @@ snapshot_provenance = pd.DataFrame(
         ["US data bundle", f"{bundle_version('us', 'data_package')} {bundle_version('us', 'data_version')}"],
         ["UK runtime bundle", f"{bundle_version('uk', 'data_package')} {bundle_version('uk', 'data_version')}"],
         ["UK scenario source", UK_TRANSFER_ARTIFACT],
+        ["UK scenario-source repository", UK_TRANSFER_ARTIFACT_REPO],
+        ["UK scenario-source pinned commit", UK_TRANSFER_ARTIFACT_PINNED_COMMIT],
         ["UK scenario-source SHA-256", UK_TRANSFER_ARTIFACT_SHA256],
         ["Households", "100 US and 100 UK"],
         ["Models", f"{len(global_model)} shared models"],
@@ -573,6 +722,8 @@ The benchmark uses a bounded `0-100` score. For amount variables, the score aver
 
 For binary outputs, the score is exact accuracy. This keeps `100` as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related error metrics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized [@zhou2025tempanswerqa].
 
+Because the four thresholds are nested (exact $\subseteq$ within-1% $\subseteq$ within-5% $\subseteq$ within-10%), averaging their indicator functions is equivalent to assigning step credit by error band: predictions that match exactly receive 1.00, predictions inside 1% but not exact receive 0.75, predictions inside 5% but outside 1% receive 0.50, predictions inside 10% but outside 5% receive 0.25, and predictions outside 10% receive 0.00. The score is therefore a partial-credit rule that rewards tighter agreement more than looser agreement, not an unweighted aggregate of independent hit rates.
+
 All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026; UK outputs are annual amounts or annual eligibility indicators for fiscal year 2026-27. For currency amounts, the "exact" hit rate means within `1` currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same `1` currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as `0` or `1` eligibility flags and scored by exact classification accuracy. Missing or unparseable numeric answers receive zero score for that requested output.
 
 Aggregation proceeds in four steps. First, each household-output prediction receives a `0-100` score. Second, person-level coverage rows are averaged to their program group. Third, output groups are averaged with equal weight within each country. Fourth, global scores average the US and UK country scores for models run in both countries. The global score is therefore an equal-country summary for this benchmark sample, not a universally authoritative measure of tax-benefit competence. Household-equal impact scores and other alternative views are reported as sensitivity checks.
@@ -601,7 +752,7 @@ model_runs
 
 ### United States
 
-The US benchmark is built from Enhanced Current Population Survey (CPS)-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit structure while retaining variation in filing status, household composition, and income sources. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives.
+The US benchmark is built from Enhanced Current Population Survey (CPS)-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit, single-family, single-Supplemental Poverty Measure (SPM)-unit structure with at least one adult and a supported filing status. The 2024 Enhanced CPS source contains 41,314 households; 30,173 (73.0%) pass the filter and form the eligible draw. The 27.0% excluded by the filter include multi-tax-unit households (e.g., adult roommates), multi-family households, multi-SPM-unit households, and households whose head reports a filing status outside the supported set. These excluded compositions are exactly the kind of cases where federal/state credit allocations and benefit-unit rules become hardest, so the eligible draw is a tractable subset rather than the full distribution of US households. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives. Filing status is not stated in the prompt; the reference computation infers it from tax-unit role flags. Models therefore see the same household facts that drive the reference filing-status assignment, but they do not receive that assignment as a label.
 
 The current US release evaluates 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), Affordable Care Act (ACA) premium tax credits, school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children's Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start.
 
@@ -615,13 +766,13 @@ scope_rationale
 
 ### United Kingdom
 
-The UK benchmark is built from a calibrated public transfer dataset scored through PolicyEngine UK. The current public build starts from a public export of benchmark-compatible households from PolicyEngine US Enhanced CPS, maps those records into UK-facing inputs, and recalibrates them to selected UK targets. This creates a public UK-policy transfer benchmark without publishing restricted household microdata; it is not a representative evaluation over native UK household records and should not be treated as a substitute for Family Resources Survey (FRS)-based UK microdata. The current UK release evaluates seven outputs: Income Tax, National Insurance, Capital Gains Tax, Child Benefit, Universal Credit, Pension Credit, and Personal Independence Payment (PIP). Outputs that depend on status or award facts use prompt-visible facts rather than hidden take-up labels; for example, PIP-positive cases list the daily living and mobility award components used by PolicyEngine.
+The UK benchmark is built from a calibrated public transfer dataset scored through PolicyEngine UK. The current public build starts from a public export of benchmark-compatible households from PolicyEngine US Enhanced CPS, maps those records into UK-facing inputs, and recalibrates them to selected UK targets. The resulting `enhanced_cps_2025.h5` artifact is checked in to the public PolicyEngine/policyengine-uk-data GitHub repository; the manuscript pins commit `9514dfb7ec607897c9f7122a2e073b922c9fd8b6` so that a third party can retrieve the exact file used here. The artifact contains 28,532 households; 28,502 (99.9%) pass the eligibility filter that retains households with one benefit unit and one or two adults. This creates a public UK-policy transfer benchmark without publishing restricted household microdata; it is not a representative evaluation over native UK household records and should not be treated as a substitute for Family Resources Survey (FRS)-based UK microdata. The current UK release evaluates seven outputs: Income Tax, National Insurance, Capital Gains Tax, Child Benefit, Universal Credit, Pension Credit, and Personal Independence Payment (PIP). Outputs that depend on status or award facts use prompt-visible facts rather than hidden take-up labels; for example, PIP-positive cases list the daily living and mobility award components used by PolicyEngine.
 
 The UK data path is more synthetic than the enhanced FRS pipeline and inherits limitations from cross-country transfer, calibration choices, and the subset of variables that can be made prompt-visible. It supports the current public cross-country benchmark, but it is not equivalent to an enhanced-FRS-based benchmark and should not be used to make population-representative claims about UK households [@sutherland2023euromod].
 
 ### Reference-output credibility
 
-PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and externally checked in specific domains. In the UK, No. 10's data science team adapted PolicyEngine's open-source microsimulation model for experimental policy simulation, with validation against external projections before use [@woodruff2026no10; @policyengine2026downing]. In the US, PolicyEngine's state tax modelling has been validated against the National Bureau of Economic Research (NBER) TAXSIM model, with reported penny-level agreement for the vast majority of 2021 test cases [@policyengine2024statetax; @feenberg1993taxsim]. PolicyEngine has also signed a memorandum of understanding with the Federal Reserve Bank of Atlanta for future validation work against the Atlanta Fed's Policy Rules Database [@policyengine2025atlantafed; @atlantafed2026prd]. The Atlanta Fed sources are a caveat rather than evidence of completed validation for this benchmark: they document planned collaboration and the comparison source, not finished checks of the frozen PolicyBench outputs. Taken together, these sources support using PolicyEngine as a transparent reference implementation with partial external validation, but they do not validate every benchmark output.
+PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and externally checked in specific domains. In the UK, No. 10's data science team adapted PolicyEngine's open-source microsimulation model for experimental policy simulation, with validation against external projections before use [@woodruff2026no10; @policyengine2026downing]. In the US, PolicyEngine reports matching the National Bureau of Economic Research (NBER) TAXSIM-35 model to the cent on the vast majority of cases for the 2021 tax year across hundreds of thousands of tax units per state, with state-specific differences documented in PolicyEngine's integration tests [@policyengine2024statetax; @feenberg1993taxsim]. We do not restate that comparison as a single percentage because the published source uses qualitative phrasing rather than a headline accuracy number. PolicyEngine has also signed a memorandum of understanding with the Federal Reserve Bank of Atlanta for future validation work against the Atlanta Fed's Policy Rules Database [@policyengine2025atlantafed; @atlantafed2026prd]. The Atlanta Fed sources are a caveat rather than evidence of completed validation for this benchmark: they document planned collaboration and the comparison source, not finished checks of the frozen PolicyBench outputs. Taken together, these sources support using PolicyEngine as a transparent reference implementation with partial external validation, but they do not validate every benchmark output.
 
 This does not make PolicyEngine infallible. During benchmark development, we performed a manual, developer-led discrepancy review, with LLM assistance used to triage and summarize candidate cases surfaced by model explanations. @tbl-reference-review summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects. This is a qualitative development audit, not an independent sampled validation study or exhaustive validation of every reference value.
 
@@ -685,9 +836,17 @@ The primary leaderboard gives each country equal weight globally and each output
 sensitivity
 ```
 
+The household-equal impact score weights each output group inside a household by a blend of an equal-weight floor and the absolute reference-value share. The default uses a `0.3` floor. @tbl-impact-floor reports the top three global ranks under floors of `0.0`, `0.1`, `0.3`, `0.5`, and `1.0`. Floor `1.0` collapses to the equal-output baseline; floor `0.0` is pure dollar-share weighting. Rank stability across this range means the impact view is not driven by the specific floor choice.
+
+```{python}
+#| label: tbl-impact-floor
+#| tbl-cap: "Top global ranks under varying household-equal impact-score floors."
+impact_floor
+```
+
 ### Sampling uncertainty
 
-The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes country scores with equal output-group weighting, then recomputes the equal-country global score. The table is a sampling-uncertainty check for this household draw, not uncertainty over future model releases or prompt variants.
+The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes country scores with equal output-group weighting, then recomputes the equal-country global score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after 2026-05-01 in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
 
 ```{python}
 #| label: tbl-bootstrap
@@ -739,7 +898,15 @@ First, models miss positive tax and benefit quantities more often than zero case
 
 Second, the UK benchmark shows the same split between tax calculations and many benefit outputs. Income tax and National Insurance score below the benefit outputs in the frozen manuscript snapshot. Positive Universal Credit and Pension Credit cases remain difficult, so the result should not be read as a general claim that benefits are easy.
 
-Third, structured-output reliability can affect rankings. The current manuscript snapshot has full parse coverage for the included models, but the benchmark still tracks coverage because failures to return parseable numeric values should count as benchmark failures [@shorten2024structuredrag].
+Third, joint accuracy across interacting components is lower than marginal accuracy on either component. @tbl-fed-state shows within-10% accuracy for `federal_refundable_credits`, `state_refundable_credits`, and the conjunction of both within the same household. The joint hit rate is consistently lower than either marginal hit rate, so leaderboard scores that average across outputs understate how often a model gets a single household's federal/state credit allocation jointly correct.
+
+```{python}
+#| label: tbl-fed-state
+#| tbl-cap: "US within-10% accuracy on federal vs state refundable credits and the household-level joint."
+federal_state_joint
+```
+
+Fourth, structured-output reliability can affect rankings. The current manuscript snapshot has full parse coverage for the included models, but the benchmark still tracks coverage because failures to return parseable numeric values should count as benchmark failures [@shorten2024structuredrag].
 
 ## Limitations
 

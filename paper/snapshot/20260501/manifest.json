@@ -59,14 +59,14 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "1213e6fbf50b3b5a6b297183116e75135a3377af47c6b87283891377443a0cc6"
+      "sha256": "65c66c447e2e28a568cd30c8e4e6c8c7537b0b5e7ba919712c6c78792cf791ce"
     },
     "web": {
       "path": "app/public/paper/web",
       "files": {
         "figures/global_leaderboard.png": "b892448c670fc3d33adfdd6d52f9103aaef6bd6fb77bf373b773400a5a9bd910",
         "figures/positive_zero_scatter.png": "dd9c65688fed15c4ac4540506685b6689d7b9da4baab7f101405915608fa3079",
-        "index.html": "f518eaaf50ad03352bca6e15ea0159cfa24feaa876cd62dc05a42fb962134f99",
+        "index.html": "194d3e3deb3ba2abc1d126e327d52f91eddfeaeb013fa2937c034fb28fea8452",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -88,12 +88,16 @@
   "reproducibility_notes": [
     "The top-level frozen scenario, reference output, and impact summary CSVs are byte-identical to the corresponding compact source run artifacts copied under paper/snapshot/20260501/runs/.",
     "Raw provider responses are retained in compressed source-run predictions.csv.gz files. The separate LiteLLM cache remains local-only because it is a generated request cache, not the canonical snapshot artifact.",
-    "Model APIs and upstream model aliases may change after 2026-05-01, so exact reruns can diverge even with the committed household inputs, reference outputs, parsed dashboard export, and analysis summaries."
+    "Model APIs and upstream model aliases may change after 2026-05-01, so exact reruns can diverge even with the committed household inputs, reference outputs, parsed dashboard export, and analysis summaries.",
+    "Most model identifiers in policybench/config.py are provider aliases (claude-opus-4.7, gpt-5.5, gemini-3.1-pro-preview, etc.) rather than dated revisions. This snapshot's predictions.csv.gz files therefore do not include a provider system_fingerprint column. Subsequent runs collected with the post-snapshot policybench/eval_no_tools.py capture provider_response_id, provider_system_fingerprint, and provider_resolved_model so future snapshots can pin alias resolutions explicitly."
   ],
   "uk_transfer_dataset": {
-    "artifact": "enhanced_cps_2025.h5 public UK calibrated transfer artifact",
+    "artifact": "enhanced_cps_2025.h5",
     "sha256": "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866",
-    "note": "The public paper describes this as a UK calibrated transfer dataset, not native UK survey microdata or enhanced FRS."
+    "public_repository": "https://github.com/PolicyEngine/policyengine-uk-data",
+    "pinned_commit": "9514dfb7ec607897c9f7122a2e073b922c9fd8b6",
+    "pinned_url": "https://raw.githubusercontent.com/PolicyEngine/policyengine-uk-data/9514dfb7ec607897c9f7122a2e073b922c9fd8b6/policyengine_uk_data/storage/enhanced_cps_2025.h5",
+    "note": "UK calibrated transfer dataset derived from benchmark-compatible PolicyEngine US Enhanced CPS households. The artifact is checked in to the public PolicyEngine/policyengine-uk-data GitHub repository at the pinned commit; later commits in that repository may rebuild the file. It is not native UK survey microdata, enhanced FRS, or population-representative."
   },
   "scope": {
     "households": {

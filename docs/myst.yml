@@ -1,6 +1,6 @@
 version: 1
 project:
-  title: "PolicyBench: Can AI models calculate tax and benefit outcomes?"
+  title: "PolicyBench operational documentation"
   authors:
     - name: Max Ghenis
       affiliations:
@@ -14,15 +14,9 @@ project:
   license: MIT
   toc:
     - file: index
-    - file: introduction
-    - file: methodology
+    - file: paper
+    - file: benchmark_card
     - file: results
-    - file: discussion
-    - file: references
-  exports:
-    - format: pdf
-      template: plain_latex_book
-      output: exports/policybench.pdf
 
 site:
-  title: "PolicyBench: Can AI models calculate tax and benefit outcomes?"
+  title: "PolicyBench operational documentation"
