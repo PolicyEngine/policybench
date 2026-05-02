@@ -1,7 +1,9 @@
 """Household scenario generation for PolicyBench."""
 
+import hashlib
 import json
 import os
+import urllib.request
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -300,14 +302,26 @@ UK_EMPLOYMENT_INCOME_COLUMNS = (
     "employment_income_before_lsr",
 )
 
-UK_DATASET_CANDIDATES = (
-    Path(__file__).resolve().parents[1] / "data" / "enhanced_cps_2025.h5",
+UK_TRANSFER_DATASET_FILENAME = "enhanced_cps_2025.h5"
+UK_TRANSFER_DATASET_SHA256 = (
+    "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
+)
+UK_TRANSFER_DATASET_PINNED_COMMIT = "9514dfb7ec607897c9f7122a2e073b922c9fd8b6"
+UK_TRANSFER_DATASET_PINNED_URL = (
+    "https://raw.githubusercontent.com/PolicyEngine/policyengine-uk-data/"
+    f"{UK_TRANSFER_DATASET_PINNED_COMMIT}/policyengine_uk_data/storage/"
+    f"{UK_TRANSFER_DATASET_FILENAME}"
+)
+UK_TRANSFER_DATASET_PUBLIC_REPO = "https://github.com/PolicyEngine/policyengine-uk-data"
+UK_TRANSFER_DATASET_LOCAL_CANDIDATES = (
+    Path(__file__).resolve().parents[1] / "data" / UK_TRANSFER_DATASET_FILENAME,
     Path(__file__).resolve().parents[2]
     / "policyengine-uk-data"
     / "policyengine_uk_data"
     / "storage"
-    / "enhanced_cps_2025.h5",
+    / UK_TRANSFER_DATASET_FILENAME,
 )
+UK_DATASET_CANDIDATES = UK_TRANSFER_DATASET_LOCAL_CANDIDATES
 
 
 @dataclass(frozen=True)
@@ -602,23 +616,93 @@ def load_enhanced_cps_person_frame() -> tuple[pd.DataFrame, int]:
     return pd.DataFrame(values), dataset_year
 
 
+def _hash_file(path: Path) -> str:
+    sha = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            sha.update(chunk)
+    return sha.hexdigest()
+
+
+def _verify_uk_transfer_artifact(path: Path) -> Path:
+    """Confirm the artifact's sha256 matches the pinned snapshot value."""
+    actual = _hash_file(path)
+    if actual != UK_TRANSFER_DATASET_SHA256:
+        raise ValueError(
+            f"UK transfer dataset at {path} has sha256 {actual}, expected "
+            f"{UK_TRANSFER_DATASET_SHA256}. Update the artifact or the pinned "
+            "expected hash."
+        )
+    return path
+
+
+def _download_uk_transfer_artifact(destination: Path) -> Path:
+    """Download the snapshot's UK transfer artifact from the pinned commit."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    request = urllib.request.Request(
+        UK_TRANSFER_DATASET_PINNED_URL,
+        headers={"User-Agent": "policybench"},
+    )
+    with urllib.request.urlopen(request) as response:
+        if getattr(response, "status", 200) >= 400:
+            raise RuntimeError(
+                f"Download of {UK_TRANSFER_DATASET_PINNED_URL} returned "
+                f"HTTP {response.status}."
+            )
+        with destination.open("wb") as handle:
+            for chunk in iter(lambda: response.read(1024 * 1024), b""):
+                if not chunk:
+                    break
+                handle.write(chunk)
+    return _verify_uk_transfer_artifact(destination)
+
+
 def get_uk_dataset_path() -> Path:
-    """Locate the local public UK calibrated transfer dataset artifact."""
+    """Locate the UK calibrated transfer dataset published in policyengine-uk-data.
+
+    Resolution order: ``POLICYBENCH_UK_DATASET_PATH`` env var, then the
+    sibling ``policyengine-uk-data`` checkout or a local ``data/`` copy, then
+    a pinned-commit download from the public ``policyengine-uk-data`` GitHub
+    repo. The returned path is sha256-verified against the snapshot value.
+    Set ``POLICYBENCH_UK_DATASET_DOWNLOAD=0`` to disable the download step.
+    """
     configured = os.environ.get("POLICYBENCH_UK_DATASET_PATH")
     if configured:
         path = Path(configured).expanduser()
         if path.exists():
-            return path
+            return _verify_uk_transfer_artifact(path)
 
     for candidate in UK_DATASET_CANDIDATES:
         if candidate.exists():
-            return candidate
+            try:
+                return _verify_uk_transfer_artifact(candidate)
+            except ValueError:
+                continue
+
+    if os.environ.get("POLICYBENCH_UK_DATASET_DOWNLOAD", "1") != "0":
+        cache_root = Path(
+            os.environ.get(
+                "POLICYBENCH_UK_DATASET_CACHE",
+                Path.home() / ".cache" / "policybench",
+            )
+        ).expanduser()
+        cached = cache_root / UK_TRANSFER_DATASET_FILENAME
+        if cached.exists():
+            try:
+                return _verify_uk_transfer_artifact(cached)
+            except ValueError:
+                cached.unlink(missing_ok=True)
+        return _download_uk_transfer_artifact(cached)
 
     searched = "\n".join(f"- {candidate}" for candidate in UK_DATASET_CANDIDATES)
     raise FileNotFoundError(
-        "Could not find a local UK calibrated transfer dataset. Set "
-        "POLICYBENCH_UK_DATASET_PATH or place the artifact in one of:\n"
-        f"{searched}"
+        "Could not find the UK calibrated transfer dataset. Either set "
+        "POLICYBENCH_UK_DATASET_PATH to a local copy of "
+        f"{UK_TRANSFER_DATASET_FILENAME} (sha256 "
+        f"{UK_TRANSFER_DATASET_SHA256}), enable downloads, or place the "
+        "artifact in one of:\n"
+        f"{searched}\n"
+        f"The artifact is published at {UK_TRANSFER_DATASET_PINNED_URL}."
     )
 
 
