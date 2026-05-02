@@ -65,10 +65,10 @@ def single_parent_hoh():
 class TestGroundTruth:
     """Tests that require PolicyEngine-US (slow)."""
 
-    def test_adjusted_gross_income_matches_simple_wages(self, single_50k):
-        """A simple $50k wage earner should have AGI equal to wages."""
-        agi = calculate_single(single_50k, "adjusted_gross_income")
-        assert agi == pytest.approx(50_000.0, abs=1e-6)
+    def test_payroll_tax_positive_for_simple_wages(self, single_50k):
+        """A simple wage earner should owe employee-side payroll tax."""
+        payroll_tax = calculate_single(single_50k, "payroll_tax")
+        assert payroll_tax > 0
 
     def test_eitc_zero_for_50k_single(self, single_50k):
         """A $50k single filer with no kids should get $0 EITC."""
@@ -135,7 +135,7 @@ class TestGroundTruth:
         df = calculate_ground_truth(
             [single_50k],
             programs=[
-                "adjusted_gross_income",
+                "payroll_tax",
                 "federal_refundable_credits",
                 "premium_tax_credit",
             ],
@@ -154,7 +154,7 @@ class TestGroundTruth:
         """Ground truth works with multiple scenarios."""
         df = calculate_ground_truth(
             [single_50k, family_low_income],
-            programs=["adjusted_gross_income"],
+            programs=["payroll_tax"],
         )
         assert len(df) == 2
         assert set(df["scenario_id"]) == {"gt_single_50k", "gt_family_low"}
@@ -192,11 +192,11 @@ class TestGroundTruthScalarExtraction:
             == 1.0
         )
 
-    def test_rebuilt_household_boolean_ids_map_to_policyengine_outputs(self):
+    def test_household_boolean_ids_map_to_policyengine_outputs(self):
         assert (
             ground_truth._extract_scalar_value(
                 np.array([250.0]),
-                "household_free_school_meal_eligible",
+                "free_school_meals_eligible",
             )
             == 1.0
         )

@@ -13,8 +13,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-DEFAULT_SPEC_ID = "v2"
-DEFAULT_PROGRAM_SET = "v2_headline"
+DEFAULT_SPEC_ID = "policybench"
+DEFAULT_PROGRAM_SET = "headline"
 
 PERSON_OUTPUTS = {
     "person_medicaid_eligible": {
@@ -84,25 +84,6 @@ PERSON_OUTPUTS = {
         "net_income_sign": "1",
         "impact_weight_variable": "early_head_start",
         "applies_to": "children",
-    },
-    "person_employee_social_security_tax": {
-        "suffix": "employee_social_security_tax",
-        "pe_variable": "employee_social_security_tax",
-        "label": "Employee Social Security tax",
-        "prompt": "annual employee Social Security tax for {person_label}",
-        "metric_type": "amount",
-        "net_income_sign": "-1",
-    },
-    "person_employee_medicare_tax": {
-        "suffix": "employee_medicare_tax",
-        "pe_variable": "employee_medicare_tax",
-        "label": "Employee Medicare tax",
-        "prompt": (
-            "annual employee Medicare tax for {person_label}, excluding "
-            "Additional Medicare Tax"
-        ),
-        "metric_type": "amount",
-        "net_income_sign": "-1",
     },
 }
 
@@ -236,6 +217,11 @@ def parse_program_set(program_set: str | None) -> tuple[str, str]:
         return parse_program_set(DEFAULT_PROGRAM_SET)
     if program_set in available_spec_ids():
         return program_set, "headline"
+    default_output_sets = {
+        output.output_set for output in get_benchmark_spec(DEFAULT_SPEC_ID).outputs
+    }
+    if program_set in default_output_sets:
+        return DEFAULT_SPEC_ID, program_set
     if "_" in program_set:
         spec_id, output_set = program_set.split("_", 1)
         if spec_id in available_spec_ids():
@@ -246,6 +232,8 @@ def parse_program_set(program_set: str | None) -> tuple[str, str]:
         output_sets = sorted(
             {output.output_set for output in get_benchmark_spec(spec_id).outputs}
         )
+        if spec_id == DEFAULT_SPEC_ID:
+            valid.extend(output_sets)
         valid.extend(f"{spec_id}_{output_set}" for output_set in output_sets)
     raise ValueError(
         f"Unknown program set '{program_set}'. Valid program sets: {', '.join(valid)}."

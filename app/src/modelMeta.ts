@@ -105,7 +105,7 @@ export function getPerformanceSurfaceColor(score: number): string {
 }
 
 export function getPredictionTextColor(error: number, truth: number): string {
-  if (truth === 0 && error === 0) return colors.primary[700];
+  if (truth === 0 && Math.abs(error) <= 1) return colors.primary[700];
   const pctErr = truth !== 0 ? Math.abs(error / truth) : error !== 0 ? 1 : 0;
   if (pctErr <= 0.1) return colors.primary[700];
   if (pctErr <= 0.25) return colors.info;

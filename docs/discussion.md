@@ -8,13 +8,32 @@ title: Discussion
 
 The AI-alone results reveal systematic patterns in model errors that reflect the underlying structure of tax and benefit programs.
 
-**Means-tested benefits are hardest.** Programs like SNAP and SSI involve multi-step eligibility determinations: gross income tests, net income tests, asset limits, categorical eligibility provisions, and benefit reduction rates that differ by household size and state. Models must not only know these rules but execute them in the correct order, applying the right thresholds for the specific household configuration. Even models that can recite SNAP eligibility rules struggle to correctly determine whether a family of four in California with $25,000 in income qualifies, and if so, for how much.
+**Multi-step tax quantities are consistently difficult.** In the current
+snapshot, US federal income tax before refundable credits, state income tax
+before refundable credits, payroll tax, and UK Income Tax and National
+Insurance are among the lowest-scoring outputs. These quantities require the
+model to identify the right income concept, deduction or credit sequence,
+threshold, rate schedule, and jurisdiction-specific rule before doing the final
+arithmetic.
 
-**Phase-outs and cliffs create discontinuities.** The EITC, CTC, and many state tax provisions have phase-in and phase-out schedules that create sharp nonlinearities in the relationship between income and the computed value. Models tend to produce smooth approximations where the true function is discontinuous. For example, a model might estimate a positive EITC for a household whose income is just above the phase-out threshold, producing an error of several thousand dollars at a single dollar of income difference.
+**Positive benefit cases remain hard even when zero cases are easy.** Sparse
+programs can look high-performing because many households have a true value of
+zero. Positive SNAP, Universal Credit, Pension Credit, PIP, and similar cases
+are more informative: models often know that a program exists, but miss the
+income test, asset treatment, award level, or taper when the reference value is
+positive.
 
-**State-level variation adds complexity.** State income tax calculations require knowledge of state-specific bracket structures, deductions, credits, and their interactions with federal provisions. Models must effectively maintain 50 separate tax code implementations in their parameters. Errors are systematically larger for states with complex tax systems (California, New York) than for states with no income tax (Texas, Florida, Washington).
+**Phase-outs and cliffs create discontinuities.** The EITC, CTC, ACA Premium
+Tax Credit, Universal Credit, and many state tax provisions have thresholds,
+phase-ins, phase-outs, and eligibility cliffs. Models tend to produce smooth
+approximations where the true function is piecewise and sometimes
+discontinuous.
 
-**Income tax estimates are closer but still unreliable.** Federal income tax is the program where models perform best in the AI-alone condition, likely because tax bracket calculations are well-represented in training data and involve relatively straightforward arithmetic. However, even here, models make errors on the order of thousands of dollars for complex returns, particularly those involving interactions between the standard deduction, credits, and the alternative minimum tax.
+**Jurisdiction-specific rules add complexity.** State and local income tax in
+the US and UK fiscal-year rules require jurisdiction-specific thresholds,
+rates, and credit interactions. The benchmark therefore tests more than generic
+tax bracket recall; it tests whether models can apply the right rules to a
+concrete household.
 
 ## What this benchmark is meant to measure
 
@@ -38,11 +57,19 @@ These results suggest a clear architecture for AI systems that provide policy an
 
 Several limitations qualify these findings:
 
-**Scope of outputs.** PolicyBench evaluates selected tax and benefit outputs, not the full tax-benefit system. The rebuilt headline scope focuses on person- or household-facing net-income components and selected coverage flags weighted by PolicyEngine value proxies. PolicyEngine variables may be native to lower-level entities, but headline outputs are either expanded to the people shown in the prompt or aggregated to the household before scoring. The US federal income-tax output is represented by tax before credits and applied credits; net federal income tax can be derived from those two outputs. Intermediate tax bases are retained as supplementary outputs. Model performance may differ on outputs not included in the benchmark.
+**Scope of outputs.** PolicyBench evaluates selected tax and benefit outputs, not the full tax-benefit system. The headline scope focuses on person- or household-facing net-income components and selected coverage flags. Coverage flags are binary in the main ranking; PolicyEngine value proxies are used only in the secondary household-equal impact score. PolicyEngine variables may be native to lower-level entities, but headline outputs are either expanded to the people shown in the prompt or aggregated to the household before scoring. The US federal income-tax output is represented by tax before refundable credits and refundable credits; net federal income tax excluding ACA PTC can be derived from those two outputs. Intermediate tax bases are excluded. Model performance may differ on outputs not included in the benchmark.
 
 **Household complexity.** Sampling from the Enhanced CPS preserves observed household structure, but the benchmark still uses a filtered subset of households so that cases remain promptable and interpretable. More complex multi-tax-unit households, itemized-deduction-heavy filers, and unusual household structures remain underrepresented.
 
-**Single tax year.** All evaluations use tax year 2026. Model performance may differ for historical years (where training data is more abundant) or future years (where models must extrapolate from known rules).
+**Single policy period.** Evaluations use US tax year 2026 and UK fiscal year
+2026-27. Model performance may differ for historical years, where training data
+is more abundant, or future years, where models must extrapolate from known
+rules.
+
+**Open public set.** The site exposes the current household prompts, model
+outputs, explanations, and PolicyEngine reference outputs for transparency.
+That makes the public leaderboard an open-set benchmark, not a protected
+held-out test set.
 
 **Prompt sensitivity.** We use a single prompt template per condition. Model performance may be sensitive to prompt phrasing, particularly in the AI-alone condition where chain-of-thought prompting or structured reasoning might improve accuracy.
 

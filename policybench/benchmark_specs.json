@@ -1,8 +1,8 @@
 {
-    "default_spec": "v2",
+    "default_spec": "policybench",
     "specs": {
-        "v2": {
-            "description": "Rebuilt benchmark scope centered on non-overlapping household net-income components, with coverage flags weighted by PolicyEngine value proxies and intermediate tax bases moved to supplementary outputs.",
+        "policybench": {
+            "description": "Benchmark scope centered on non-overlapping household net-income components, with coverage flags weighted by PolicyEngine value proxies.",
             "countries": {
                 "us": [
                     {
@@ -127,17 +127,6 @@
                         "net_income_sign": 1
                     },
                     {
-                        "id": "wic",
-                        "pe_variable": "wic",
-                        "label": "WIC",
-                        "prompt": "annual Special Supplemental Nutrition Program for Women, Infants, and Children (WIC) benefit amount, using the benchmark's average package-value proxy",
-                        "metric_type": "amount",
-                        "role": "benefit",
-                        "output_set": "supplementary",
-                        "aggregation": "sum",
-                        "net_income_sign": 1
-                    },
-                    {
                         "id": "person_wic_eligible",
                         "pe_variable": "is_wic_eligible",
                         "label": "Person-level WIC eligibility",
@@ -240,83 +229,6 @@
                         "net_income_sign": 1,
                         "impact_weight_variable": "reduced_price_school_meals",
                         "impact_weight_aggregation": "sum"
-                    },
-                    {
-                        "id": "adjusted_gross_income",
-                        "pe_variable": "adjusted_gross_income",
-                        "label": "Federal adjusted gross income",
-                        "prompt": "federal adjusted gross income (AGI), after above-the-line deductions but before standard or itemized deductions and exemptions",
-                        "metric_type": "amount",
-                        "role": "intermediate",
-                        "output_set": "supplementary",
-                        "aggregation": "sum",
-                        "net_income_sign": 0
-                    },
-                    {
-                        "id": "state_agi",
-                        "pe_variable": "state_agi",
-                        "label": "State adjusted gross income",
-                        "prompt": "state adjusted gross income (state AGI)",
-                        "metric_type": "amount",
-                        "role": "intermediate",
-                        "output_set": "supplementary",
-                        "aggregation": "sum",
-                        "net_income_sign": 0
-                    },
-                    {
-                        "id": "person_employee_social_security_tax",
-                        "pe_variable": "employee_social_security_tax",
-                        "label": "Person-level employee Social Security tax",
-                        "prompt": "annual employee Social Security tax for each person in the household",
-                        "metric_type": "amount",
-                        "role": "payroll_component",
-                        "output_set": "supplementary",
-                        "aggregation": "person",
-                        "net_income_sign": -1
-                    },
-                    {
-                        "id": "person_employee_medicare_tax",
-                        "pe_variable": "employee_medicare_tax",
-                        "label": "Person-level employee Medicare tax",
-                        "prompt": "annual employee Medicare tax for each person in the household, excluding Additional Medicare Tax",
-                        "metric_type": "amount",
-                        "role": "payroll_component",
-                        "output_set": "supplementary",
-                        "aggregation": "person",
-                        "net_income_sign": -1
-                    },
-                    {
-                        "id": "household_additional_medicare_tax",
-                        "pe_variable": "additional_medicare_tax",
-                        "label": "Household Additional Medicare Tax",
-                        "prompt": "annual household Additional Medicare Tax liability",
-                        "metric_type": "amount",
-                        "role": "payroll_component",
-                        "output_set": "supplementary",
-                        "aggregation": "sum",
-                        "net_income_sign": -1
-                    },
-                    {
-                        "id": "household_free_school_meal_eligible",
-                        "pe_variable": "free_school_meals",
-                        "label": "Household free school meal eligibility",
-                        "prompt": "the household free-school-meal eligibility label derived from PolicyEngine school-meal support (1 if yes, 0 if no; reduced-price meals do not count as 1)",
-                        "metric_type": "binary",
-                        "role": "eligibility",
-                        "output_set": "supplementary",
-                        "aggregation": "any_positive",
-                        "net_income_sign": 0
-                    },
-                    {
-                        "id": "household_reduced_price_school_meal_eligible",
-                        "pe_variable": "reduced_price_school_meals",
-                        "label": "Household reduced-price school meal eligibility",
-                        "prompt": "whether the household qualifies for reduced-price school meals (1 if yes, 0 if no; free meals do not count as 1)",
-                        "metric_type": "binary",
-                        "role": "eligibility",
-                        "output_set": "supplementary",
-                        "aggregation": "any_positive",
-                        "net_income_sign": 0
                     }
                 ],
                 "uk": [

@@ -81,6 +81,12 @@ div.csl-indent {
 <meta name="citation_reference" content="citation_title=StructuredRAG: JSON response formatting with large language models;,citation_author=Connor Shorten;,citation_author=Charles Pierse;,citation_author=Thomas Benjamin Smith;,citation_author=Erika Cardenas;,citation_author=Akanksha Sharma;,citation_author=John Trengrove;,citation_author=Bob Luijt;,citation_publication_date=2024;,citation_cover_date=2024;,citation_year=2024;,citation_fulltext_html_url=https://arxiv.org/abs/2408.11061;,citation_doi=10.48550/arXiv.2408.11061;,citation_journal_title=arXiv preprint arXiv:2408.11061;">
 <meta name="citation_reference" content="citation_title=EUROMOD: The european union tax-benefit microsimulation model;,citation_author=Holly Sutherland;,citation_author=Francesco Figari;,citation_author=Ruth Hancock;,citation_author=Manos Matsaganis;,citation_author=Alari Paulus;,citation_author=Iva Tasseva;,citation_author=Alessandra Tumino;,citation_author=Paola De Agostini;,citation_publication_date=2023;,citation_cover_date=2023;,citation_year=2023;,citation_fulltext_html_url=https://microsimulation.pub/articles/00075;,citation_journal_title=International Journal of Microsimulation;">
 <meta name="citation_reference" content="citation_title=Improving the accuracy of UK tax-benefit microsimulation with machine learning;,citation_author=Nikhil Woodruff;,citation_author=Max Ghenis;,citation_publication_date=2026;,citation_cover_date=2026;,citation_year=2026;,citation_fulltext_html_url=https://policyengine.org/uk_data_enhancement.pdf;,citation_publisher=PolicyEngine technical paper;">
+<meta name="citation_reference" content="citation_title=Informing policy using micro-simulations;,citation_author=Nikhil Woodruff;,citation_publication_date=2026;,citation_cover_date=2026;,citation_year=2026;,citation_fulltext_html_url=https://fellows.ai.gov.uk/articles/nikhil-woodruff-micro-simulation;,citation_publisher=No10 Innovation Fellowship;">
+<meta name="citation_reference" content="citation_title=PolicyEngine powers rapid policy analysis at no 10 downing street;,citation_author=Max Ghenis;,citation_publication_date=2026;,citation_cover_date=2026;,citation_year=2026;,citation_fulltext_html_url=https://www.policyengine.org/us/research/policyengine-10-downing-street;,citation_publisher=PolicyEngine;">
+<meta name="citation_reference" content="citation_title=PolicyEngine launches state income tax modeling nationwide;,citation_author=PolicyEngine;,citation_publication_date=2024;,citation_cover_date=2024;,citation_year=2024;,citation_fulltext_html_url=https://www.policyengine.org/us/research/state-tax-model-beta;,citation_publisher=PolicyEngine;">
+<meta name="citation_reference" content="citation_title=An introduction to the TAXSIM model;,citation_author=Daniel R. Feenberg;,citation_author=Elisabeth Coutts;,citation_publication_date=1993;,citation_cover_date=1993;,citation_year=1993;,citation_issue=1;,citation_volume=12;,citation_journal_title=Journal of Policy Analysis and Management;">
+<meta name="citation_reference" content="citation_title=PolicyEngine and atlanta fed sign memorandum of understanding for policy rules database validation;,citation_author=Max Ghenis;,citation_author=Pavel Makarchuk;,citation_publication_date=2025;,citation_cover_date=2025;,citation_year=2025;,citation_fulltext_html_url=https://www.policyengine.org/us/research/policyengine-atlanta-fed-mou-prd;,citation_publisher=PolicyEngine;">
+<meta name="citation_reference" content="citation_title=Policy rules database;,citation_author=Federal Reserve Bank of Atlanta;,citation_publication_date=2026;,citation_cover_date=2026;,citation_year=2026;,citation_fulltext_html_url=https://www.atlantafed.org/what-we-study/workforce-development/advancing-careers-for-low-income-families/policy-rules-database;,citation_publisher=Federal Reserve Bank of Atlanta;">
 <meta name="citation_reference" content="citation_title=Evaluating a genAI-powered assistive chatbot for caseworkers;,citation_author=Nava Labs;,citation_publication_date=2026;,citation_cover_date=2026;,citation_year=2026;,citation_fulltext_html_url=https://www.navapbc.com/case-studies/evaluating-ai-assistive-chatbot-caseworkers;,citation_publisher=Case study;">
 <meta name="citation_reference" content="citation_title=Experimenting with AI-powered tools in public benefits;,citation_author=Nava Labs;,citation_publication_date=2025;,citation_cover_date=2025;,citation_year=2025;,citation_fulltext_html_url=https://www.navapbc.com/case-studies/ai-tools-public-benefits;,citation_publisher=Case study;">
 <meta name="citation_reference" content="citation_title=Building and automating comprehensive LLM evaluation framework for SNAP benefits;,citation_author=ZenML LLMOps Database;,citation_publication_date=2025;,citation_cover_date=2025;,citation_year=2025;,citation_fulltext_html_url=https://www.zenml.io/llmops-database/building-and-automating-comprehensive-llm-evaluation-framework-for-snap-benefits;,citation_publisher=Industry writeup;">
@@ -91,7 +97,7 @@ div.csl-indent {
 
 <header id="title-block-header">
 <h1 class="title">PolicyBench</h1>
-<p class="subtitle">Benchmarking tax-and-benefit reasoning in frontier language models</p>
+<p class="subtitle">Benchmarking no-tool tax-and-benefit estimation in frontier language models</p>
 <p class="author">PolicyEngine</p>
 
 </header>
@@ -103,18 +109,26 @@ div.csl-indent {
   <li><a href="#abstract" id="toc-abstract">Abstract</a></li>
   <li><a href="#introduction" id="toc-introduction">Introduction</a></li>
   <li><a href="#related-work" id="toc-related-work">Related work</a></li>
-  <li><a href="#benchmark-design" id="toc-benchmark-design">Benchmark design</a></li>
+  <li><a href="#benchmark-design" id="toc-benchmark-design">Benchmark design</a>
+  <ul>
+  <li><a href="#frozen-snapshot" id="toc-frozen-snapshot">Frozen snapshot</a></li>
+  </ul></li>
   <li><a href="#data-and-scenario-construction" id="toc-data-and-scenario-construction">Data and scenario construction</a>
   <ul>
   <li><a href="#united-states" id="toc-united-states">United States</a></li>
   <li><a href="#united-kingdom" id="toc-united-kingdom">United Kingdom</a></li>
+  <li><a href="#reference-output-credibility" id="toc-reference-output-credibility">Reference-output credibility</a></li>
   </ul></li>
   <li><a href="#results" id="toc-results">Results</a>
   <ul>
   <li><a href="#united-states-leaderboard" id="toc-united-states-leaderboard">United States leaderboard</a></li>
   <li><a href="#united-kingdom-leaderboard" id="toc-united-kingdom-leaderboard">United Kingdom leaderboard</a></li>
   <li><a href="#global-shared-model-leaderboard" id="toc-global-shared-model-leaderboard">Global shared-model leaderboard</a></li>
+  <li><a href="#simple-baselines" id="toc-simple-baselines">Simple baselines</a></li>
+  <li><a href="#sensitivity-to-benchmark-view" id="toc-sensitivity-to-benchmark-view">Sensitivity to benchmark view</a></li>
+  <li><a href="#sampling-uncertainty" id="toc-sampling-uncertainty">Sampling uncertainty</a></li>
   <li><a href="#hardest-benchmark-targets" id="toc-hardest-benchmark-targets">Hardest benchmark targets</a></li>
+  <li><a href="#zero-and-positive-cases" id="toc-zero-and-positive-cases">Zero and positive cases</a></li>
   </ul></li>
   <li><a href="#failure-modes" id="toc-failure-modes">Failure modes</a></li>
   <li><a href="#limitations" id="toc-limitations">Limitations</a></li>
@@ -122,7 +136,7 @@ div.csl-indent {
   </ul>
 </nav>
 <h2 id="abstract" class="anchored">Abstract</h2>
-<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses nationally calibrated household scenarios, and scores outputs with a bounded <code>0-100</code> metric. In the frozen snapshot used for this manuscript (2026-04-04), the top US model is gemini-3.1-pro-preview at 73.3, the top UK model is grok-4.20 at 83.0, and the top shared global model is gemini-3.1-pro-preview at 78.0. In both countries, the lowest-scoring outputs are tax-base variables rather than benefits or credits. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
+<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced CPS-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded <code>0-100</code> metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard. In the frozen snapshot used for this manuscript (2026-05-01), the top US model is gpt-5.5 at 89.2, the top UK model is gpt-5.5 at 81.6, and the top shared global model is gpt-5.5 at 85.4. In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
 <h2 id="introduction" class="anchored">Introduction</h2>
 <p>Household tax-and-benefit estimation sits between arithmetic and policy discussion. Each case has numeric labels, but generating those labels requires filing status, household composition, income concepts, program thresholds, and jurisdiction-specific rules. PolicyBench measures whether models can map household records to those outputs.</p>
 <p>Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>, while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.</p>
@@ -131,7 +145,7 @@ div.csl-indent {
 <p>The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem <span class="citation" data-cites="holzenberger2021sara">(Holzenberger et al. 2021)</span>. LegalBench broadens this view and includes tax-oriented numeric tasks such as <code>sara_numeric</code> <span class="citation" data-cites="guha2023legalbench">(<span class="nocase">Guha et al.</span> 2023)</span>. RuleArena evaluates rule-guided reasoning in regulation-style settings <span class="citation" data-cites="kim2024rulearena">(<span class="nocase">Kim et al.</span> 2024)</span>, and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs <span class="citation" data-cites="taxcalcbench2025">(Mahesh et al. 2025)</span>. Shanahan et al.&nbsp;report a similar split on the VITA test: models do better on tax knowledge questions than on open-ended calculation tasks <span class="citation" data-cites="shanahan2025vita">(Shanahan et al. 2025)</span>.</p>
 <p>PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>. That norm is less natural for continuous-valued policy outputs, where being within 1 percent is closer than being off by an order of magnitude. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead <span class="citation" data-cites="zhou2025tempanswerqa">(<span class="nocase">Zhou et al.</span> 2025)</span>. PolicyBench follows that direction by combining exactness with near-miss thresholds rather than collapsing everything into exact match alone.</p>
 <p>Finance-domain benchmarks provide another relevant precedent. FinQA and TAT-QA both show that realistic quantitative reasoning often requires combining structured numbers with domain knowledge rather than solving stylized school-math problems <span class="citation" data-cites="chen2021finqa zhu2021tatqa">(<span class="nocase">Chen et al.</span> 2021; <span class="nocase">Zhu et al.</span> 2021)</span>. PolicyBench differs in that its reference outputs are generated by executable tax-benefit microsimulation rather than annotated document questions, but the underlying motivation is similar: domain-specific quantitative reasoning deserves dedicated evaluation.</p>
-<p>Finally, PolicyBench depends on two infrastructure literatures that are not themselves LLM benchmarks. One is structured-output reliability, since the benchmark relies on multi-output JSON responses and parse coverage rather than free-form prose <span class="citation" data-cites="shorten2024structuredrag">(Shorten et al. 2024)</span>. The other is tax-benefit microsimulation, where systems such as EUROMOD provide the methodological precedent for evaluating policy rules over household microdata <span class="citation" data-cites="sutherland2023euromod">(Sutherland et al. 2023)</span>. The UK side of PolicyBench also builds on PolicyEngine’s recent work on survey-backed calibration and imputation <span class="citation" data-cites="policyengineukdata2026">(Woodruff and Ghenis 2026)</span>. There is also operational work on applying and evaluating AI systems in public-benefits settings, including caseworker-assist and SNAP-focused evaluations <span class="citation" data-cites="nava2026caseworker nava2025benefits propel2025snap">(Nava Labs 2026, 2025; ZenML LLMOps Database 2025)</span>. We are not aware of a public cross-model benchmark over household-level benefit outputs.</p>
+<p>Finally, PolicyBench depends on two infrastructure literatures that are not themselves LLM benchmarks. One is structured-output reliability, since the benchmark relies on multi-output JSON responses and parse coverage rather than free-form prose <span class="citation" data-cites="shorten2024structuredrag">(Shorten et al. 2024)</span>. The other is tax-benefit microsimulation, where systems such as EUROMOD provide the methodological precedent for evaluating policy rules over household microdata <span class="citation" data-cites="sutherland2023euromod">(Sutherland et al. 2023)</span>. The UK side of PolicyBench also builds on PolicyEngine’s recent work on survey-backed calibration and imputation <span class="citation" data-cites="policyengineukdata2026">(Woodruff and Ghenis 2026)</span>. There is also operational work on applying and evaluating AI systems in public-benefits settings, including caseworker-assist and SNAP-focused evaluations <span class="citation" data-cites="nava2026caseworker nava2025benefits propel2025snap">(Nava Labs 2026, 2025; ZenML LLMOps Database 2025)</span>. PolicyBench combines these strands into a public cross-model benchmark over household-level tax and benefit outputs.</p>
 <h2 id="benchmark-design" class="anchored">Benchmark design</h2>
 <p>PolicyBench asks models to predict all benchmark outputs for a household in a single structured response. One response per household reduces repeated prompt cost and keeps the task at the household-return level rather than turning it into a sequence of unrelated one-output calls.</p>
 <p>The benchmark uses a bounded <code>0-100</code> score. For amount variables, the score averages four hit rates:</p>
@@ -142,25 +156,19 @@ div.csl-indent {
 <li>within 10%</li>
 </ol>
 <p>For binary outputs, the score is exact accuracy. This keeps <code>100</code> as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related error metrics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized <span class="citation" data-cites="zhou2025tempanswerqa">(<span class="nocase">Zhou et al.</span> 2025)</span>.</p>
+<p>All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026; UK outputs are annual amounts or annual eligibility indicators for fiscal year 2026-27. For currency amounts, the “exact” hit rate means within <code>1</code> currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same <code>1</code> currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as <code>0</code> or <code>1</code> eligibility flags and scored by exact classification accuracy. Missing or unparseable numeric answers receive zero score for that requested output.</p>
+<p>Aggregation proceeds in four steps. First, each household-output prediction receives a <code>0-100</code> score. Second, person-level coverage rows are averaged to their program group. Third, output groups are averaged with equal weight within each country. Fourth, global scores average the US and UK country scores for models run in both countries. Household-equal impact scores are reported only as a sensitivity view.</p>
 <p>The benchmark requires each model response to include numeric answers and one short explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning. Numeric-only runs are treated as prompt-contract ablations, not as the canonical leaderboard task.</p>
-<p>PolicyBench also has an earlier archived tool-assisted pilot. That condition used a single untuned function-calling contract rather than a multi-step agent setup. The only tool was <code>calculate_policy(household, variable, year)</code>, where <code>household</code> was a standard PolicyEngine-US household JSON object and the archived scenarios supplied only basic fields needed for those tests: person ages, employment income, and household state. The prompt was a short instruction to calculate one output, use the tool with the given variable name and year, and return the numeric result from the tool. The archived US run covers <code>4,200</code> predictions (<code>100</code> households x <code>14</code> outputs x <code>3</code> models: Claude Opus, Claude Sonnet, and GPT-5.2), and all <code>4,200</code> predictions match the simulator reference values exactly. We do not mix that condition into the current leaderboard because it measures whether the model can route the request to the simulator and use the returned value, not whether it can estimate the output without tools.</p>
-<h2 id="data-and-scenario-construction" class="anchored">Data and scenario construction</h2>
-<h3 id="united-states" class="anchored">United States</h3>
-<p>The US benchmark is built from Enhanced CPS-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit structure while retaining variation in filing status, household composition, and income sources. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives.</p>
-<p>The current US release evaluates 13 outputs spanning federal tax, credits, benefits, and state-tax quantities. These include federal adjusted gross income, tax before refundable credits, EITC, CTC, SNAP, SSI, and multiple state-tax outputs.</p>
-<h3 id="united-kingdom" class="anchored">United Kingdom</h3>
-<p>The UK benchmark is built from a calibrated public transfer dataset scored through PolicyEngine UK. The current public build starts from a public export of benchmark-compatible households from PolicyEngine US Enhanced CPS, maps those records into UK-facing inputs, and recalibrates them to selected UK targets. This creates a public UK benchmark path without publishing restricted household microdata. The current UK release evaluates six outputs: income tax, national insurance, child benefit, universal credit, pension credit, and personal independence payment.</p>
-<p>The UK data path is more synthetic than the enhanced FRS pipeline, so the benchmark should not be read as a substitute for native UK microdata work. It supports the current public cross-country benchmark, but it is not equivalent to an enhanced-FRS-based benchmark <span class="citation" data-cites="sutherland2023euromod policyengineukdata2026">(Sutherland et al. 2023; Woodruff and Ghenis 2026)</span>.</p>
-<h2 id="results" class="anchored">Results</h2>
-<h3 id="united-states-leaderboard" class="anchored">United States leaderboard</h3>
-<p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;1</a>. The top three models in that snapshot are gemini-3.1-pro-preview (73.4), grok-4.20 (71.7), and gemini-3-flash-preview (69.5).</p>
+<p>Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are <code>0</code>, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output.</p>
+<h3 id="frozen-snapshot" class="anchored">Frozen snapshot</h3>
+<p>Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen dashboard export in <a href="#tbl-snapshot" class="quarto-xref">Table&nbsp;1</a> rather than to the live site. The local run labels identify the source runs used to create that export; the committed export is the manuscript artifact.</p>
 <div class="cell" data-execution_count="2">
-<div id="tbl-us-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="2">
+<div id="tbl-snapshot" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="2">
 <figure class="quarto-float quarto-float-tbl">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-us-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;1: Top US benchmark models in the current release.
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-snapshot-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;1: Frozen manuscript snapshot.
 </figcaption>
-<div aria-describedby="tbl-us-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div aria-describedby="tbl-snapshot-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output cell-output-display" data-execution_count="2">
 <div>
 <style scoped="">
@@ -181,59 +189,140 @@ Table&nbsp;1: Top US benchmark models in the current release.
 <thead>
 <tr class="header" style="text-align: right;">
 <th data-quarto-table-cell-role="th"></th>
-<th data-quarto-table-cell-role="th">Model</th>
-<th data-quarto-table-cell-role="th">Score</th>
-<th data-quarto-table-cell-role="th">Exact</th>
-<th data-quarto-table-cell-role="th">Within 10%</th>
-<th data-quarto-table-cell-role="th">Parsed</th>
-<th data-quarto-table-cell-role="th">Total</th>
+<th data-quarto-table-cell-role="th">Item</th>
+<th data-quarto-table-cell-role="th">Value</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
-<td>gemini-3.1-pro-preview</td>
-<td>73.4</td>
-<td>67.6</td>
-<td>80.4</td>
-<td>12974</td>
-<td>12974</td>
+<td>Snapshot date</td>
+<td>2026-05-01</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
-<td>grok-4.20</td>
-<td>71.7</td>
-<td>66.3</td>
-<td>78.5</td>
-<td>13000</td>
-<td>13000</td>
+<td>Policy period</td>
+<td>US tax year 2026; UK fiscal year 2026-27</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
-<td>gemini-3-flash-preview</td>
-<td>69.5</td>
-<td>64.5</td>
-<td>75.7</td>
-<td>13000</td>
-<td>13000</td>
+<td>Frozen export</td>
+<td>app/src/data.json</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>gpt-5.4</td>
-<td>67.2</td>
-<td>62.7</td>
-<td>72.7</td>
-<td>13000</td>
-<td>13000</td>
+<td>Frozen export SHA-256 prefix</td>
+<td>6b8f9f913377</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>claude-opus-4.6</td>
-<td>66.2</td>
-<td>61.4</td>
-<td>71.9</td>
-<td>12558</td>
-<td>12558</td>
+<td>Snapshot manifest</td>
+<td>paper/snapshot/20260501/manifest.json</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
+<td>US scenarios SHA-256 prefix</td>
+<td>46bc6b1ba56e</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
+<td>US reference outputs SHA-256 prefix</td>
+<td>caa63a93941d</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">7</th>
+<td>UK scenarios SHA-256 prefix</td>
+<td>cc072e32df04</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">8</th>
+<td>UK reference outputs SHA-256 prefix</td>
+<td>2e6569666750</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">9</th>
+<td>Benchmark spec SHA-256 prefix</td>
+<td>532e15ba19bf</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">10</th>
+<td>Prompt template SHA-256 prefix</td>
+<td>3b81cd8ac0af</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">11</th>
+<td>Scoring code SHA-256 prefix</td>
+<td>2bc0cda89ffe</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">12</th>
+<td>US run label</td>
+<td>us_100_stable_models_20260501_062249</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">13</th>
+<td>UK run label</td>
+<td>uk_100_hicbc_fixed_20260501_083402</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">14</th>
+<td>Household sample seed</td>
+<td>42</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">15</th>
+<td>PolicyEngine-US</td>
+<td>policyengine-us 1.653.3</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">16</th>
+<td>PolicyEngine-UK</td>
+<td>policyengine-uk 2.88.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">17</th>
+<td>US data bundle</td>
+<td>policyengine-us-data 1.73.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">18</th>
+<td>UK runtime bundle</td>
+<td>policyengine-uk-data 1.40.4</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">19</th>
+<td>UK scenario source</td>
+<td>enhanced_cps_2025.h5 public UK calibrated transfer artifact</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">20</th>
+<td>UK scenario-source SHA-256</td>
+<td>199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">21</th>
+<td>Households</td>
+<td>100 US and 100 UK</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">22</th>
+<td>Models</td>
+<td>12 shared models</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">23</th>
+<td>Output groups</td>
+<td>19 US and 7 UK</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">24</th>
+<td>Condition</td>
+<td>No tools, no web access, one structured response per household</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">25</th>
+<td>Response contract</td>
+<td>Numeric answer and non-empty explanation for every requested output</td>
 </tr>
 </tbody>
 </table>
@@ -244,15 +333,13 @@ Table&nbsp;1: Top US benchmark models in the current release.
 </figure>
 </div>
 </div>
-<h3 id="united-kingdom-leaderboard" class="anchored">United Kingdom leaderboard</h3>
-<p>The UK leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-uk-top" class="quarto-xref">Table&nbsp;2</a>. The top three models in that snapshot are grok-4.20 (83.0), gemini-3.1-pro-preview (82.6), and gemini-3-flash-preview (71.6).</p>
 <div class="cell" data-execution_count="3">
-<div id="tbl-uk-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="3">
+<div id="tbl-model-runs" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="3">
 <figure class="quarto-float quarto-float-tbl">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-uk-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;2: Top UK benchmark models in the current release.
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-model-runs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </figcaption>
-<div aria-describedby="tbl-uk-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div aria-describedby="tbl-model-runs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output cell-output-display" data-execution_count="3">
 <div>
 <style scoped="">
@@ -274,58 +361,121 @@ Table&nbsp;2: Top UK benchmark models in the current release.
 <tr class="header" style="text-align: right;">
 <th data-quarto-table-cell-role="th"></th>
 <th data-quarto-table-cell-role="th">Model</th>
-<th data-quarto-table-cell-role="th">Score</th>
-<th data-quarto-table-cell-role="th">Exact</th>
-<th data-quarto-table-cell-role="th">Within 10%</th>
-<th data-quarto-table-cell-role="th">Parsed</th>
-<th data-quarto-table-cell-role="th">Total</th>
+<th data-quarto-table-cell-role="th">Provider ID</th>
+<th data-quarto-table-cell-role="th">US parsed</th>
+<th data-quarto-table-cell-role="th">UK parsed</th>
+<th data-quarto-table-cell-role="th">Structured output</th>
+<th data-quarto-table-cell-role="th">Decoding</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
-<td>grok-4.20</td>
-<td>83.0</td>
-<td>76.0</td>
-<td>90.0</td>
-<td>6000</td>
-<td>6000</td>
+<td>gpt-5.5</td>
+<td>gpt-5.5</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
-<td>gemini-3.1-pro-preview</td>
-<td>82.6</td>
-<td>74.7</td>
-<td>90.5</td>
-<td>6000</td>
-<td>6000</td>
+<td>grok-4.20</td>
+<td>xai/grok-4.20-reasoning</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
-<td>gemini-3-flash-preview</td>
-<td>71.6</td>
-<td>64.4</td>
-<td>79.5</td>
-<td>6000</td>
-<td>6000</td>
+<td>gemini-3.1-pro-preview</td>
+<td>gemini/gemini-3.1-pro-preview</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>gpt-5.4</td>
-<td>68.9</td>
-<td>62.7</td>
-<td>76.1</td>
-<td>6000</td>
-<td>6000</td>
+<td>grok-4.3</td>
+<td>xai/grok-4.3</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
+<td>gemini-3-flash-preview</td>
+<td>gemini/gemini-3-flash-preview</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
+<td>claude-opus-4.7</td>
+<td>claude-opus-4-7</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
+<td>claude-sonnet-4.6</td>
+<td>claude-sonnet-4-6</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">7</th>
 <td>gemini-3.1-flash-lite-preview</td>
-<td>68.7</td>
-<td>62.9</td>
-<td>76.3</td>
-<td>6000</td>
-<td>6000</td>
+<td>gemini/gemini-3.1-flash-lite-preview</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">8</th>
+<td>grok-4.1-fast</td>
+<td>xai/grok-4-1-fast-non-reasoning</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">9</th>
+<td>claude-haiku-4.5</td>
+<td>claude-haiku-4-5-20251001</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">10</th>
+<td>gpt-5.4-mini</td>
+<td>gpt-5.4-mini</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">11</th>
+<td>gpt-5.4-nano</td>
+<td>gpt-5.4-nano</td>
+<td>2,180/2,180</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
 </tr>
 </tbody>
 </table>
@@ -336,16 +486,165 @@ Table&nbsp;2: Top UK benchmark models in the current release.
 </figure>
 </div>
 </div>
-<h3 id="global-shared-model-leaderboard" class="anchored">Global shared-model leaderboard</h3>
-<p>The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are gemini-3.1-pro-preview (78.0), grok-4.20 (77.3), and gemini-3-flash-preview (70.6). The global table summarizes cross-country performance; the country tables identify the outputs driving the differences.</p>
+<h2 id="data-and-scenario-construction" class="anchored">Data and scenario construction</h2>
+<h3 id="united-states" class="anchored">United States</h3>
+<p>The US benchmark is built from Enhanced CPS-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit structure while retaining variation in filing status, household composition, and income sources. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives.</p>
+<p>The current US release evaluates 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, SNAP, SSI, TANF, ACA premium tax credits, school-meal eligibility, and person-level coverage eligibility for WIC, Medicaid, CHIP, Medicare, Head Start, and Early Head Start.</p>
+<p>The output scope is intentionally narrower than the full PolicyEngine model. <a href="#tbl-scope-rationale" class="quarto-xref">Table&nbsp;3</a> summarizes the inclusion rule. The benchmark asks for WIC eligibility rather than a WIC dollar amount; WIC dollar values are used only as impact-weight proxies for coverage flags, not as requested model outputs.</p>
 <div class="cell" data-execution_count="4">
-<div id="tbl-global-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="4">
+<div id="tbl-scope-rationale" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="4">
 <figure class="quarto-float quarto-float-tbl">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-global-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-scope-rationale-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;3: Output-selection rationale.
 </figcaption>
-<div aria-describedby="tbl-global-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div aria-describedby="tbl-scope-rationale-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output cell-output-display" data-execution_count="4">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Scope decision</th>
+<th data-quarto-table-cell-role="th">Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>Included</td>
+<td>Direct tax, credit, benefit, health-support, and coverage outputs that a household-facing model could plausibly be asked to estimate from household facts.</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>Excluded</td>
+<td>Intermediate tax bases, payroll subcomponents, and outputs that mainly require unavailable history, restricted local market data, restricted program-administration data, or take-up assignment rather than rule calculation.</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>ACA Premium Tax Credit</td>
+<td>Retained as a deliberate health-support output; when local benchmark premiums are not listed, the model must estimate them from the household facts.</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>Binary coverage outputs</td>
+<td>Requested as 0/1 eligibility flags and scored as classification tasks; their dollar values are used only as impact-weight proxies, not as requested model outputs.</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>WIC</td>
+<td>The benchmark asks for person-level WIC eligibility. It does not ask models to estimate a WIC dollar amount.</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<h3 id="united-kingdom" class="anchored">United Kingdom</h3>
+<p>The UK benchmark is built from a calibrated public transfer dataset scored through PolicyEngine UK. The current public build starts from a public export of benchmark-compatible households from PolicyEngine US Enhanced CPS, maps those records into UK-facing inputs, and recalibrates them to selected UK targets. This creates a public UK-policy transfer benchmark without publishing restricted household microdata; it is not a representative evaluation over native UK household records. The current UK release evaluates seven outputs: income tax, national insurance, capital gains tax, child benefit, universal credit, pension credit, and personal independence payment. Outputs that depend on status or award facts use prompt-visible facts rather than hidden take-up labels; for example, PIP-positive cases list the daily living and mobility award components used by PolicyEngine.</p>
+<p>The UK data path is more synthetic than the enhanced FRS pipeline, so the benchmark should not be read as a substitute for native UK microdata work. It supports the current public cross-country benchmark, but it is not equivalent to an enhanced-FRS-based benchmark <span class="citation" data-cites="sutherland2023euromod policyengineukdata2026">(Sutherland et al. 2023; Woodruff and Ghenis 2026)</span>.</p>
+<h3 id="reference-output-credibility" class="anchored">Reference-output credibility</h3>
+<p>PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and partially validated in specific domains. In the UK, No.&nbsp;10’s data science team adapted PolicyEngine’s open-source microsimulation model for experimental policy simulation, with validation against external projections before use <span class="citation" data-cites="woodruff2026no10 policyengine2026downing">(Woodruff 2026; Ghenis 2026)</span>. In the US, PolicyEngine’s state tax modelling has been validated against NBER’s TAXSIM, with reported penny-level agreement for the vast majority of 2021 test cases <span class="citation" data-cites="policyengine2024statetax feenberg1993taxsim">(PolicyEngine 2024; Feenberg and Coutts 1993)</span>. PolicyEngine has also signed a memorandum of understanding with the Federal Reserve Bank of Atlanta for future validation of tax and benefit calculations against the Atlanta Fed’s Policy Rules Database <span class="citation" data-cites="policyengine2025atlantafed atlantafed2026prd">(Ghenis and Makarchuk 2025; Federal Reserve Bank of Atlanta 2026)</span>. These sources do not validate every benchmark output; they establish PolicyEngine as a transparent, externally used reference implementation with partial external validation and planned additional checks.</p>
+<p>This does not make PolicyEngine infallible. During benchmark development, we manually and LLM-assisted reviewed discrepant household cases surfaced by model explanations. <a href="#tbl-reference-review" class="quarto-xref">Table&nbsp;4</a> summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects. This is a qualitative development discrepancy review, not a sampled validation study or exhaustive validation of every reference value.</p>
+<div class="cell" data-execution_count="5">
+<div id="tbl-reference-review" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="5">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-reference-review-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;4: Development discrepancy review before the frozen snapshot.
+</figcaption>
+<div aria-describedby="tbl-reference-review-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="5">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Discrepancy class</th>
+<th data-quarto-table-cell-role="th">Review outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>US federal credits</td>
+<td>Reviewed cases where explanations omitted EITC or refundable CTC; discrepancies reflected model credit-treatment errors, not identified PolicyEngine errors.</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>US SNAP, SSI, and Medicaid</td>
+<td>Reviewed false-zero and false-positive explanations; common model failures used broad asset or income heuristics inconsistent with the supplied facts and the reference rules.</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>US payroll and overtime</td>
+<td>Reviewed overtime-related cases during development; upstream data/model fixes and prompt clarifications were applied before the frozen snapshot.</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>UK Child Benefit</td>
+<td>Reviewed HICBC-related misses; the benchmark now asks for gross Child Benefit before HICBC, with HICBC included in Income Tax.</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>UK National Insurance</td>
+<td>Reviewed cases where models subtracted pension contributions or used wrong thresholds/rates; no reference-output defect was identified in the reviewed cases.</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
+<td>UK UC, Pension Credit, and PIP</td>
+<td>Reviewed positive-case misses and false positives; explanations usually showed broad capital, age, or award-level heuristics rather than simulator-reference defects.</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<h2 id="results" class="anchored">Results</h2>
+<h3 id="united-states-leaderboard" class="anchored">United States leaderboard</h3>
+<p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;5</a>. The top three models in that snapshot are gpt-5.5 (89.2), grok-4.20 (88.7), and gemini-3.1-pro-preview (87.6).</p>
+<div class="cell" data-execution_count="6">
+<div id="tbl-us-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="6">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-us-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;5: Top US benchmark models in the frozen manuscript snapshot.
+</figcaption>
+<div aria-describedby="tbl-us-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="6">
 <div>
 <style scoped="">
     .dataframe tbody tr th:only-of-type {
@@ -376,93 +675,552 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 <tbody>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
-<td>gemini-3.1-pro-preview</td>
-<td>78.0</td>
-<td>71.1</td>
-<td>85.4</td>
-<td>18974</td>
-<td>18974</td>
+<td>gpt-5.5</td>
+<td>89.2</td>
+<td>85.8</td>
+<td>92.2</td>
+<td>2180</td>
+<td>2180</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>grok-4.20</td>
-<td>77.3</td>
-<td>71.2</td>
-<td>84.2</td>
-<td>19000</td>
-<td>19000</td>
+<td>88.7</td>
+<td>86.2</td>
+<td>91.6</td>
+<td>2180</td>
+<td>2180</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
-<td>gemini-3-flash-preview</td>
-<td>70.6</td>
-<td>64.4</td>
-<td>77.6</td>
-<td>19000</td>
-<td>19000</td>
+<td>gemini-3.1-pro-preview</td>
+<td>87.6</td>
+<td>85.3</td>
+<td>90.3</td>
+<td>2180</td>
+<td>2180</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>gpt-5.4</td>
-<td>68.0</td>
-<td>62.7</td>
-<td>74.4</td>
-<td>19000</td>
-<td>19000</td>
+<td>grok-4.3</td>
+<td>87.6</td>
+<td>85.7</td>
+<td>89.8</td>
+<td>2180</td>
+<td>2180</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>gemini-3.1-flash-lite-preview</td>
-<td>67.3</td>
-<td>62.2</td>
-<td>73.9</td>
-<td>19000</td>
-<td>19000</td>
+<td>gemini-3-flash-preview</td>
+<td>86.3</td>
+<td>84.3</td>
+<td>89.0</td>
+<td>2180</td>
+<td>2180</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<h3 id="united-kingdom-leaderboard" class="anchored">United Kingdom leaderboard</h3>
+<p>The UK leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-uk-top" class="quarto-xref">Table&nbsp;6</a>. The top three models in that snapshot are gpt-5.5 (81.6), gemini-3.1-pro-preview (79.6), and grok-4.20 (78.5).</p>
+<div class="cell" data-execution_count="7">
+<div id="tbl-uk-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="7">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-uk-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;6: Top UK benchmark models in the frozen manuscript snapshot.
+</figcaption>
+<div aria-describedby="tbl-uk-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="7">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Model</th>
+<th data-quarto-table-cell-role="th">Score</th>
+<th data-quarto-table-cell-role="th">Exact</th>
+<th data-quarto-table-cell-role="th">Within 10%</th>
+<th data-quarto-table-cell-role="th">Parsed</th>
+<th data-quarto-table-cell-role="th">Total</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>gpt-5.5</td>
+<td>81.6</td>
+<td>69.0</td>
+<td>95.1</td>
+<td>700</td>
+<td>700</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>gemini-3.1-pro-preview</td>
+<td>79.6</td>
+<td>69.0</td>
+<td>94.1</td>
+<td>700</td>
+<td>700</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>grok-4.20</td>
+<td>78.5</td>
+<td>68.6</td>
+<td>92.6</td>
+<td>700</td>
+<td>700</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>grok-4.3</td>
+<td>76.9</td>
+<td>69.1</td>
+<td>89.0</td>
+<td>700</td>
+<td>700</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>gemini-3-flash-preview</td>
+<td>75.2</td>
+<td>67.6</td>
+<td>84.9</td>
+<td>700</td>
+<td>700</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<h3 id="global-shared-model-leaderboard" class="anchored">Global shared-model leaderboard</h3>
+<p>The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are gpt-5.5 (85.4), grok-4.20 (83.6), and gemini-3.1-pro-preview (83.6). The global table summarizes cross-country performance; the country tables identify the outputs driving the differences.</p>
+<div class="cell" data-execution_count="8">
+<div id="tbl-global-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="8">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-global-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;7: Global shared-model leaderboard across US and UK runs.
+</figcaption>
+<div aria-describedby="tbl-global-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="8">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Model</th>
+<th data-quarto-table-cell-role="th">Score</th>
+<th data-quarto-table-cell-role="th">Exact</th>
+<th data-quarto-table-cell-role="th">Within 10%</th>
+<th data-quarto-table-cell-role="th">Parsed</th>
+<th data-quarto-table-cell-role="th">Total</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>gpt-5.5</td>
+<td>85.4</td>
+<td>77.4</td>
+<td>93.7</td>
+<td>2880</td>
+<td>2880</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>grok-4.20</td>
+<td>83.6</td>
+<td>77.4</td>
+<td>92.1</td>
+<td>2880</td>
+<td>2880</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>gemini-3.1-pro-preview</td>
+<td>83.6</td>
+<td>77.2</td>
+<td>92.2</td>
+<td>2880</td>
+<td>2880</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>grok-4.3</td>
+<td>82.2</td>
+<td>77.4</td>
+<td>89.4</td>
+<td>2880</td>
+<td>2880</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>gemini-3-flash-preview</td>
+<td>80.7</td>
+<td>75.9</td>
+<td>86.9</td>
+<td>2880</td>
+<td>2880</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
-<td>claude-opus-4.6</td>
-<td>67.1</td>
-<td>61.7</td>
-<td>73.8</td>
-<td>18533</td>
-<td>18558</td>
+<td>claude-opus-4.7</td>
+<td>79.9</td>
+<td>75.4</td>
+<td>85.8</td>
+<td>2880</td>
+<td>2880</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
 <td>claude-sonnet-4.6</td>
-<td>66.4</td>
-<td>61.9</td>
-<td>72.1</td>
-<td>18974</td>
-<td>18974</td>
+<td>79.4</td>
+<td>75.9</td>
+<td>83.4</td>
+<td>2880</td>
+<td>2880</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
-<td>gpt-5.4-mini</td>
-<td>64.5</td>
-<td>62.3</td>
-<td>67.2</td>
-<td>19000</td>
-<td>19000</td>
+<td>gemini-3.1-flash-lite-preview</td>
+<td>79.1</td>
+<td>76.1</td>
+<td>83.2</td>
+<td>2880</td>
+<td>2880</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">8</th>
-<td>claude-haiku-4.5</td>
-<td>63.2</td>
-<td>60.9</td>
-<td>66.5</td>
-<td>19000</td>
-<td>19000</td>
+<td>grok-4.1-fast</td>
+<td>76.5</td>
+<td>75.0</td>
+<td>78.2</td>
+<td>2880</td>
+<td>2880</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">9</th>
-<td>gpt-5.4-nano</td>
-<td>61.8</td>
-<td>60.8</td>
-<td>63.2</td>
-<td>19000</td>
-<td>19000</td>
+<td>claude-haiku-4.5</td>
+<td>75.8</td>
+<td>74.5</td>
+<td>77.4</td>
+<td>2880</td>
+<td>2880</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<h3 id="simple-baselines" class="anchored">Simple baselines</h3>
+<p>Simple baselines help interpret score levels in a zero-heavy benchmark. <a href="#tbl-baselines" class="quarto-xref">Table&nbsp;8</a> reports an always-zero response and a median-reference-by-output response on the same frozen household sample. These are not model competitors; they show how much of the bounded score can be earned without household-specific policy calculation.</p>
+<div class="cell" data-execution_count="9">
+<div id="tbl-baselines" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="9">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-baselines-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;8: Simple baseline scores on the frozen manuscript snapshot.
+</figcaption>
+<div aria-describedby="tbl-baselines-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="9">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Baseline</th>
+<th data-quarto-table-cell-role="th">Global score</th>
+<th data-quarto-table-cell-role="th">US score</th>
+<th data-quarto-table-cell-role="th">UK score</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>Always zero</td>
+<td>75.6</td>
+<td>81.9</td>
+<td>69.3</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>Median reference by output</td>
+<td>68.5</td>
+<td>76.5</td>
+<td>60.5</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<h3 id="sensitivity-to-benchmark-view" class="anchored">Sensitivity to benchmark view</h3>
+<p>The primary leaderboard gives each country equal weight globally and each output group equal weight within a country. <a href="#tbl-sensitivity" class="quarto-xref">Table&nbsp;9</a> reports several alternative views. The top model is stable across the main global, amount-only, positive-reference-case, US-only, UK-only, and household-equal impact views. Lower ranks move, especially between positive cases and zero cases, so the paper avoids claims that depend on a single exact ordering beyond the frozen snapshot.</p>
+<div class="cell" data-execution_count="10">
+<div id="tbl-sensitivity" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="10">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-sensitivity-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;9: Leaderboard sensitivity to alternative scoring views.
+</figcaption>
+<div aria-describedby="tbl-sensitivity-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="10">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">View</th>
+<th data-quarto-table-cell-role="th">Rank 1</th>
+<th data-quarto-table-cell-role="th">Rank 2</th>
+<th data-quarto-table-cell-role="th">Rank 3</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>Main global leaderboard</td>
+<td>gpt-5.5 (85.4)</td>
+<td>grok-4.20 (83.6)</td>
+<td>gemini-3.1-pro-preview (83.6)</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>Amount outputs only</td>
+<td>gpt-5.5 (82.0)</td>
+<td>grok-4.20 (80.0)</td>
+<td>gemini-3.1-pro-preview (79.6)</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>Positive reference cases only</td>
+<td>gpt-5.5 (49.5)</td>
+<td>gemini-3.1-pro-preview (40.7)</td>
+<td>grok-4.20 (39.9)</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>Zero reference cases only</td>
+<td>grok-4.3 (99.3)</td>
+<td>gemini-3.1-pro-preview (99.0)</td>
+<td>gpt-5.5 (98.9)</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>US only</td>
+<td>gpt-5.5 (89.2)</td>
+<td>grok-4.20 (88.7)</td>
+<td>gemini-3.1-pro-preview (87.6)</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
+<td>UK only</td>
+<td>gpt-5.5 (81.6)</td>
+<td>gemini-3.1-pro-preview (79.6)</td>
+<td>grok-4.20 (78.5)</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
+<td>US binary coverage only</td>
+<td>gemini-3.1-pro-preview (98.8)</td>
+<td>grok-4.20 (98.8)</td>
+<td>grok-4.3 (98.7)</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">7</th>
+<td>Household-equal impact score</td>
+<td>gpt-5.5 (58.0)</td>
+<td>gemini-3.1-pro-preview (52.9)</td>
+<td>grok-4.20 (52.5)</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<h3 id="sampling-uncertainty" class="anchored">Sampling uncertainty</h3>
+<p>The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. <a href="#tbl-bootstrap" class="quarto-xref">Table&nbsp;10</a> reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes country scores with equal output-group weighting, then recomputes the equal-country global score. The table is a sampling-uncertainty check for this household draw, not uncertainty over future model releases or prompt variants.</p>
+<div class="cell" data-execution_count="11">
+<div id="tbl-bootstrap" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="11">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-bootstrap-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;10: Household-resampling uncertainty for the global leaderboard.
+</figcaption>
+<div aria-describedby="tbl-bootstrap-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="11">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Model</th>
+<th data-quarto-table-cell-role="th">Score</th>
+<th data-quarto-table-cell-role="th">95% bootstrap score interval</th>
+<th data-quarto-table-cell-role="th">Bootstrap rank range</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>gpt-5.5</td>
+<td>85.4</td>
+<td>84.3-86.4</td>
+<td>1-1</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>grok-4.20</td>
+<td>83.6</td>
+<td>82.6-84.7</td>
+<td>2-3</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>gemini-3.1-pro-preview</td>
+<td>83.6</td>
+<td>82.4-84.8</td>
+<td>2-3</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>grok-4.3</td>
+<td>82.2</td>
+<td>81.0-83.5</td>
+<td>4-4</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>gemini-3-flash-preview</td>
+<td>80.7</td>
+<td>79.4-82.1</td>
+<td>5-7</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
+<td>claude-opus-4.7</td>
+<td>79.9</td>
+<td>78.5-81.2</td>
+<td>5-8</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
+<td>claude-sonnet-4.6</td>
+<td>79.4</td>
+<td>78.1-80.7</td>
+<td>6-8</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">7</th>
+<td>gemini-3.1-flash-lite-preview</td>
+<td>79.1</td>
+<td>77.6-80.4</td>
+<td>6-8</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">8</th>
+<td>grok-4.1-fast</td>
+<td>76.5</td>
+<td>74.9-78.0</td>
+<td>9-10</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">9</th>
+<td>claude-haiku-4.5</td>
+<td>75.8</td>
+<td>74.2-77.4</td>
+<td>9-12</td>
 </tr>
 </tbody>
 </table>
@@ -474,15 +1232,15 @@ Table&nbsp;3: Global shared-model leaderboard across US and UK runs.
 </div>
 </div>
 <h3 id="hardest-benchmark-targets" class="anchored">Hardest benchmark targets</h3>
-<p>The lowest-scoring US variables are tax-base and state-tax quantities rather than benefits. As shown in <a href="#tbl-us-hardest" class="quarto-xref">Table&nbsp;4</a>, household state income tax scores <code>31.5</code>, state AGI scores <code>32.9</code>, federal income tax before refundable credits scores <code>33.2</code>, and adjusted gross income scores <code>37.1</code>. By comparison, EITC scores <code>86.3</code>, SSI scores <code>93.1</code>, and free school meals scores <code>94.1</code>.</p>
-<div class="cell" data-execution_count="5">
-<div id="tbl-us-hardest" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="5">
+<p>The lowest-scoring US variables are multi-step tax quantities and sparse positive-dollar benefits. As shown in <a href="#tbl-us-hardest" class="quarto-xref">Table&nbsp;11</a>, federal income tax before refundable credits, state income tax before refundable credits, payroll tax, and SNAP are the hardest US outputs in the frozen manuscript snapshot.</p>
+<div class="cell" data-execution_count="12">
+<div id="tbl-us-hardest" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="12">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-us-hardest-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;4: Hardest US variables by bounded score.
+Table&nbsp;11: Hardest US variables by bounded score.
 </figcaption>
 <div aria-describedby="tbl-us-hardest-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display" data-execution_count="5">
+<div class="cell-output cell-output-display" data-execution_count="12">
 <div>
 <style scoped="">
     .dataframe tbody tr th:only-of-type {
@@ -510,39 +1268,39 @@ Table&nbsp;4: Hardest US variables by bounded score.
 </thead>
 <tbody>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">4</th>
-<td>household_state_income_tax</td>
-<td>31.9</td>
-<td>28.2</td>
-<td>37.3</td>
-</tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">10</th>
-<td>state_agi</td>
-<td>34.0</td>
-<td>20.6</td>
-<td>47.5</td>
-</tr>
-<tr class="odd">
-<th data-quarto-table-cell-role="th">5</th>
-<td>income_tax_before_refundable_credits</td>
-<td>34.0</td>
-<td>30.3</td>
-<td>39.9</td>
-</tr>
-<tr class="even">
 <th data-quarto-table-cell-role="th">0</th>
-<td>adjusted_gross_income</td>
-<td>39.6</td>
-<td>21.3</td>
-<td>57.7</td>
+<td>federal_income_tax_before_refundable_credits</td>
+<td>41.6</td>
+<td>37.4</td>
+<td>47.9</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">16</th>
+<td>state_income_tax_before_refundable_credits</td>
+<td>47.4</td>
+<td>39.8</td>
+<td>56.8</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">11</th>
-<td>state_income_tax_before_refundable_credits</td>
-<td>40.4</td>
-<td>36.4</td>
-<td>46.1</td>
+<th data-quarto-table-cell-role="th">4</th>
+<td>payroll_tax</td>
+<td>56.3</td>
+<td>41.7</td>
+<td>71.8</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">14</th>
+<td>snap</td>
+<td>66.2</td>
+<td>63.1</td>
+<td>69.2</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">1</th>
+<td>federal_refundable_credits</td>
+<td>83.2</td>
+<td>82.3</td>
+<td>84.2</td>
 </tr>
 </tbody>
 </table>
@@ -553,15 +1311,15 @@ Table&nbsp;4: Hardest US variables by bounded score.
 </figure>
 </div>
 </div>
-<p>The same pattern appears in the UK run. Income tax scores <code>32.2</code> and national insurance scores <code>51.9</code>. Child benefit scores <code>77.3</code>, universal credit scores <code>77.6</code>, PIP scores <code>84.0</code>, and pension credit scores <code>88.4</code>.</p>
-<div class="cell" data-execution_count="6">
-<div id="tbl-uk-hardest" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="6">
+<p>The same pattern appears in the UK run. Income tax and National Insurance are the two hardest UK outputs, while zero-heavy benefits and capital gains tax score higher overall.</p>
+<div class="cell" data-execution_count="13">
+<div id="tbl-uk-hardest" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="13">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-uk-hardest-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;5: Hardest UK variables by bounded score.
+Table&nbsp;12: Hardest UK variables by bounded score.
 </figcaption>
 <div aria-describedby="tbl-uk-hardest-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display" data-execution_count="6">
+<div class="cell-output cell-output-display" data-execution_count="13">
 <div>
 <style scoped="">
     .dataframe tbody tr th:only-of-type {
@@ -589,39 +1347,232 @@ Table&nbsp;5: Hardest UK variables by bounded score.
 </thead>
 <tbody>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">1</th>
+<th data-quarto-table-cell-role="th">2</th>
 <td>income_tax</td>
-<td>34.8</td>
-<td>25.4</td>
-<td>45.8</td>
+<td>38.5</td>
+<td>25.0</td>
+<td>59.9</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">2</th>
+<th data-quarto-table-cell-role="th">3</th>
 <td>national_insurance</td>
-<td>55.3</td>
-<td>50.6</td>
-<td>61.5</td>
+<td>48.9</td>
+<td>39.5</td>
+<td>62.3</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">5</th>
-<td>universal_credit</td>
-<td>77.7</td>
-<td>76.9</td>
-<td>78.8</td>
+<td>pip</td>
+<td>81.2</td>
+<td>73.0</td>
+<td>89.1</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">0</th>
+<th data-quarto-table-cell-role="th">6</th>
+<td>universal_credit</td>
+<td>81.5</td>
+<td>80.0</td>
+<td>83.5</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">1</th>
 <td>child_benefit</td>
-<td>78.1</td>
-<td>70.7</td>
-<td>86.1</td>
+<td>84.5</td>
+<td>76.0</td>
+<td>93.5</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<h3 id="zero-and-positive-cases" class="anchored">Zero and positive cases</h3>
+<p>Overall hit rates can overstate performance on sparse programs because correct zeros are common. <a href="#tbl-us-positive" class="quarto-xref">Table&nbsp;13</a> and <a href="#tbl-uk-positive" class="quarto-xref">Table&nbsp;14</a> therefore report within-10% performance for all cases, positive-reference cases, and zero-reference cases. The gap is large for several outputs: models often identify that a program or tax does not apply, but miss the amount when the reference value is positive.</p>
+<div class="cell" data-execution_count="14">
+<div id="tbl-us-positive" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="14">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-us-positive-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;13: US within-10% performance by zero versus positive reference cases.
+</figcaption>
+<div aria-describedby="tbl-us-positive-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="14">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Variable</th>
+<th data-quarto-table-cell-role="th">All cases</th>
+<th data-quarto-table-cell-role="th">Positive cases</th>
+<th data-quarto-table-cell-role="th">Zero cases</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>federal_income_tax_before_refundable_credits</td>
+<td>47.9</td>
+<td>17.3</td>
+<td>95.7</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>state_income_tax_before_refundable_credits</td>
+<td>56.8</td>
+<td>29.1</td>
+<td>96.7</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>snap</td>
+<td>69.2</td>
+<td>16.9</td>
+<td>100.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>payroll_tax</td>
+<td>71.8</td>
+<td>61.6</td>
+<td>96.8</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
+<td>federal_refundable_credits</td>
+<td>84.2</td>
+<td>24.4</td>
+<td>93.2</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
+<td>state_refundable_credits</td>
+<td>85.4</td>
+<td>5.1</td>
+<td>97.4</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
+<td>person_medicaid_eligible</td>
+<td>86.6</td>
+<td>64.3</td>
+<td>94.9</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">7</th>
+<td>premium_tax_credit</td>
+<td>91.7</td>
+<td>0.0</td>
+<td>97.5</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<div class="cell" data-execution_count="15">
+<div id="tbl-uk-positive" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="15">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-uk-positive-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;14: UK within-10% performance by zero versus positive reference cases.
+</figcaption>
+<div aria-describedby="tbl-uk-positive-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="15">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Variable</th>
+<th data-quarto-table-cell-role="th">All cases</th>
+<th data-quarto-table-cell-role="th">Positive cases</th>
+<th data-quarto-table-cell-role="th">Zero cases</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>income_tax</td>
+<td>59.9</td>
+<td>47.8</td>
+<td>92.6</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>national_insurance</td>
+<td>62.3</td>
+<td>38.9</td>
+<td>97.5</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>universal_credit</td>
+<td>83.5</td>
+<td>19.4</td>
+<td>97.6</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
 <td>pip</td>
-<td>84.9</td>
-<td>79.4</td>
-<td>90.8</td>
+<td>89.1</td>
+<td>59.6</td>
+<td>100.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>capital_gains_tax</td>
+<td>92.6</td>
+<td>19.4</td>
+<td>99.8</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
+<td>child_benefit</td>
+<td>93.5</td>
+<td>72.9</td>
+<td>100.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
+<td>pension_credit</td>
+<td>94.8</td>
+<td>12.5</td>
+<td>98.3</td>
 </tr>
 </tbody>
 </table>
@@ -634,20 +1585,24 @@ Table&nbsp;5: Hardest UK variables by bounded score.
 </div>
 <h2 id="failure-modes" class="anchored">Failure modes</h2>
 <p>The benchmark surfaces a few recurring failure patterns.</p>
-<p>First, models miss positive tax quantities more often than zero cases. In the US, the four lowest-scoring variables are household state income tax, state AGI, federal income tax before refundable credits, and adjusted gross income. These outputs require the model to choose the right income concepts and exclusions before applying any final subtraction.</p>
-<p>Second, the UK benchmark shows the same split between benefits and tax. Income tax and national insurance score below the four benefit outputs in the frozen manuscript snapshot. This suggests that the models handle broad program thresholds more reliably than detailed tax-liability calculations.</p>
-<p>Third, structured-output reliability still affects the ranking. Some provider-specific gaps reflect tool or JSON contract reliability in addition to policy reasoning quality. For example, Claude Opus 4.6 parses 5,975 of 6,000 UK rows in the frozen manuscript snapshot. PolicyBench therefore tracks coverage and parse rates alongside accuracy <span class="citation" data-cites="shorten2024structuredrag">(Shorten et al. 2024)</span>.</p>
+<p>First, models miss positive tax and benefit quantities more often than zero cases. In the US, federal income tax before refundable credits, state income tax before refundable credits, payroll tax, and SNAP are the four lowest-scoring outputs. These require the model to choose the right income concepts, exclusions, program thresholds, and sequencing before applying any final subtraction.</p>
+<p>Second, the UK benchmark shows the same split between tax calculations and many benefit outputs. Income tax and National Insurance score below the benefit outputs in the frozen manuscript snapshot. Positive Universal Credit and Pension Credit cases remain difficult, so the result should not be read as a general claim that benefits are easy.</p>
+<p>Third, structured-output reliability can affect rankings. The current manuscript snapshot has full parse coverage for the included models, but the benchmark still tracks coverage because failures to return parseable numeric values should count as benchmark failures <span class="citation" data-cites="shorten2024structuredrag">(Shorten et al. 2024)</span>.</p>
 <h2 id="limitations" class="anchored">Limitations</h2>
 <p>PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:</p>
 <ul>
-<li>cost reporting is still reconstructed from provider token usage rather than invoice truth</li>
 <li>model rankings can reflect output-contract reliability as well as policy reasoning</li>
+<li>zero-heavy outputs require separate positive-case interpretation</li>
+<li>the scoring rule is one benchmark view and should be checked against alternative metrics</li>
 <li>the public UK calibrated dataset is not equivalent to enhanced FRS quality</li>
+<li>the public scenario explorer exposes the current test set, so this is an open-set leaderboard rather than a protected held-out evaluation</li>
+<li>the 100-household manuscript snapshot should be treated as a preview until larger frozen runs are published</li>
+<li>the discrepancy review is a qualitative development audit, not an exhaustive external validation of every reference value</li>
 <li>benchmark success should not be interpreted as policy-advice readiness</li>
 </ul>
 <p>The current paper is therefore an evaluation of model performance under a specific structured-output benchmark, not a general certification of tax or benefit competence.</p>
 <h2 id="conclusion" class="anchored">Conclusion</h2>
-<p>PolicyBench shows a consistent pattern across both countries. Benefit outputs score above tax-base outputs, while the lowest-scoring variables are adjusted gross income, state-tax quantities, income tax, and national insurance. In the frozen manuscript snapshot, gemini-3.1-pro-preview is the top-scoring US model and grok-4.20 is the top-scoring UK model.</p>
+<p>PolicyBench shows a consistent pattern across both countries. Models often identify non-applicability, but positive tax and benefit amounts remain difficult, especially for multi-step income tax, payroll tax, National Insurance, and positive benefit cases. In the frozen manuscript snapshot, gpt-5.5 is the top-scoring US model and gpt-5.5 is the top-scoring UK model.</p>
 <p>Next steps are to expand country coverage and tighten the data and scoring pipelines so that the leaderboard is driven less by output-format reliability and more by policy calculation quality.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">
 <div id="ref-chen2021finqa" class="csl-entry" role="listitem">
@@ -655,6 +1610,18 @@ Table&nbsp;5: Hardest UK variables by bounded score.
 </div>
 <div id="ref-cobbe2021training" class="csl-entry" role="listitem">
 Cobbe, Karl, Vineet Kosaraju, Mohammad Bavarian, et al. 2021. <span>“Training Verifiers to Solve Math Word Problems.”</span> <em>arXiv Preprint arXiv:2110.14168</em>. <a href="https://arxiv.org/abs/2110.14168">https://arxiv.org/abs/2110.14168</a>.
+</div>
+<div id="ref-atlantafed2026prd" class="csl-entry" role="listitem">
+Federal Reserve Bank of Atlanta. 2026. <em>Policy Rules Database</em>. Federal Reserve Bank of Atlanta. <a href="https://www.atlantafed.org/what-we-study/workforce-development/advancing-careers-for-low-income-families/policy-rules-database">https://www.atlantafed.org/what-we-study/workforce-development/advancing-careers-for-low-income-families/policy-rules-database</a>.
+</div>
+<div id="ref-feenberg1993taxsim" class="csl-entry" role="listitem">
+Feenberg, Daniel R., and Elisabeth Coutts. 1993. <span>“An Introduction to the <span>TAXSIM</span> Model.”</span> <em>Journal of Policy Analysis and Management</em> 12 (1): 189–94.
+</div>
+<div id="ref-policyengine2026downing" class="csl-entry" role="listitem">
+Ghenis, Max. 2026. <em>PolicyEngine Powers Rapid Policy Analysis at No 10 Downing Street</em>. PolicyEngine. <a href="https://www.policyengine.org/us/research/policyengine-10-downing-street">https://www.policyengine.org/us/research/policyengine-10-downing-street</a>.
+</div>
+<div id="ref-policyengine2025atlantafed" class="csl-entry" role="listitem">
+Ghenis, Max, and Pavel Makarchuk. 2025. <em>PolicyEngine and Atlanta Fed Sign Memorandum of Understanding for Policy Rules Database Validation</em>. PolicyEngine. <a href="https://www.policyengine.org/us/research/policyengine-atlanta-fed-mou-prd">https://www.policyengine.org/us/research/policyengine-atlanta-fed-mou-prd</a>.
 </div>
 <div id="ref-guha2023legalbench" class="csl-entry" role="listitem">
 <span class="nocase">Guha, Neel, Julian Nyarko, Daniel E. Ho, et al.</span> 2023. <span>“LegalBench: A Collaboratively Built Benchmark for Measuring Legal Reasoning in Large Language Models.”</span> <em>arXiv Preprint arXiv:2308.11462</em>. <a href="https://arxiv.org/abs/2308.11462">https://arxiv.org/abs/2308.11462</a>.
@@ -677,6 +1644,9 @@ Nava Labs. 2025. <em>Experimenting with <span>AI</span>-Powered Tools in Public 
 <div id="ref-nava2026caseworker" class="csl-entry" role="listitem">
 Nava Labs. 2026. <em>Evaluating a Gen<span>AI</span>-Powered Assistive Chatbot for Caseworkers</em>. Case study. <a href="https://www.navapbc.com/case-studies/evaluating-ai-assistive-chatbot-caseworkers">https://www.navapbc.com/case-studies/evaluating-ai-assistive-chatbot-caseworkers</a>.
 </div>
+<div id="ref-policyengine2024statetax" class="csl-entry" role="listitem">
+PolicyEngine. 2024. <em>PolicyEngine Launches State Income Tax Modeling Nationwide</em>. PolicyEngine. <a href="https://www.policyengine.org/us/research/state-tax-model-beta">https://www.policyengine.org/us/research/state-tax-model-beta</a>.
+</div>
 <div id="ref-shanahan2025vita" class="csl-entry" role="listitem">
 Shanahan, Catherine, Emma McCarthy, Yan Zhao, et al. 2025. <span>“Performance of <span>LLMs</span> on <span>VITA</span> Test: Potential for <span>AI</span>-Assisted Tax Returns for Low Income Taxpayers.”</span> <em>Artificial Intelligence and Law</em>, ahead of print. <a href="https://doi.org/10.1007/s10506-025-09465-7">https://doi.org/10.1007/s10506-025-09465-7</a>.
 </div>
@@ -685,6 +1655,9 @@ Shorten, Connor, Charles Pierse, Thomas Benjamin Smith, et al. 2024. <span>“St
 </div>
 <div id="ref-sutherland2023euromod" class="csl-entry" role="listitem">
 Sutherland, Holly, Francesco Figari, Ruth Hancock, et al. 2023. <span>“<span>EUROMOD</span>: The European Union Tax-Benefit Microsimulation Model.”</span> <em>International Journal of Microsimulation</em>. <a href="https://microsimulation.pub/articles/00075">https://microsimulation.pub/articles/00075</a>.
+</div>
+<div id="ref-woodruff2026no10" class="csl-entry" role="listitem">
+Woodruff, Nikhil. 2026. <em>Informing Policy Using Micro-Simulations</em>. No10 Innovation Fellowship. <a href="https://fellows.ai.gov.uk/articles/nikhil-woodruff-micro-simulation">https://fellows.ai.gov.uk/articles/nikhil-woodruff-micro-simulation</a>.
 </div>
 <div id="ref-policyengineukdata2026" class="csl-entry" role="listitem">
 Woodruff, Nikhil, and Max Ghenis. 2026. <em>Improving the Accuracy of <span>UK</span> Tax-Benefit Microsimulation with Machine Learning</em>. PolicyEngine technical paper. <a href="https://policyengine.org/uk_data_enhancement.pdf">https://policyengine.org/uk_data_enhancement.pdf</a>.

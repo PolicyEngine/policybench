@@ -32,10 +32,10 @@ PolicyBench is not:
 - a production tax-and-benefit calculator
 - a certification of tax-advice quality
 - a general test of tool use
-- an administrative ground-truth benchmark
+- an administrative-record benchmark
 
 PolicyEngine outputs are benchmark reference outputs produced by
-microsimulation, not administrative truth.
+microsimulation, not administrative records.
 
 ## Canonical response contract
 
@@ -58,52 +58,48 @@ leaderboard claims.
 CLI default outputs under `results/local/` are scratch artifacts, not canonical
 leaderboard snapshots.
 
-Old public-snapshot result files, where temporarily retained, are kept only
-under `results/temporary_legacy_v1_results/`.
-
 ## Output specification
 
 Benchmark scope is defined in `policybench/benchmark_specs.json`. New CLI runs
-default to `v2_headline`. The active codebase does not carry legacy benchmark
-specifications.
+default to `headline`.
 
-`v2_headline`
+`headline`
 - headline scope for current runs
 - includes person- or household-facing outputs that are directly interpretable
   as taxes, benefits, health-related support, or coverage eligibility
-- excludes AGI-like intermediate tax bases from the main ranking
+- excludes AGI-like intermediate tax bases and payroll subcomponents from the
+  public ranking
 - expands person-native coverage outputs to the people shown in the prompt and
   aggregates other lower-entity outputs to the household before scoring
-- scores coverage eligibility as binary outputs while weighting them with
-  PolicyEngine dollar-value proxies
-
-`v2_supplementary`
-- supplementary outputs that are useful but not part of the rebuilt headline
-  ranking
-- includes intermediate tax-base outputs and household eligibility labels
-- includes payroll decomposition outputs: person-level employee Social
-  Security tax, person-level employee Medicare tax, and household Additional
-  Medicare Tax
+- scores coverage eligibility as binary outputs in the main ranking
+- uses PolicyEngine dollar-value proxies for coverage outputs only in the
+  secondary household-equal impact score
 
 Each output spec records the benchmark id, PolicyEngine variable, prompt text,
 metric type, aggregation rule, role, output set, and sign in household net
 income.
+
+Output selection follows a net-income-oriented rule. The benchmark includes
+direct tax, credit, benefit, health-support, and coverage outputs that can be
+asked from household facts. It excludes intermediate tax bases, payroll
+subcomponents, outputs needing unavailable history or local market data, and
+outputs that are primarily take-up or imputation assignments. WIC is requested
+as person-level eligibility, not as a dollar amount.
 
 ## Snapshot policy
 
 The live site can change after new runs are added.
 
 Paper tables and manuscript claims should be tied to a frozen export snapshot.
-Old public-snapshot exports are temporarily retained in:
+Each paper should report the exact export date, committed export artifact,
+artifact hashes, source run labels, model set, household sample, output set, and
+policy period used for manuscript claims. For the current cross-country release,
+that means US tax year 2026 and UK fiscal year 2026-27.
 
-- [benchmark_snapshot.json](/Users/maxghenis/PolicyEngine/policybench/results/temporary_legacy_v1_results/paper_exports/benchmark_snapshot.json)
-
-That file records:
-
-- source run directories
-- export time
-- top models in the frozen export
-- the rule that paper exports are snapshots rather than live rankings
+The public scenario explorer exposes the household prompts, model outputs, and
+reference outputs. The public leaderboard should therefore be treated as an
+open-set benchmark. Future protected leaderboard claims require a separate
+held-out or rotating evaluation set.
 
 ## Country data paths
 
@@ -128,7 +124,7 @@ Public prose should prefer:
 
 Public prose should avoid:
 
-- `ground truth`
+- unqualified `truth` language for reference outputs
 - `current best model` without a dated snapshot
 - `first public benchmark`
 
@@ -136,8 +132,13 @@ Public prose should avoid:
 
 Every public writeup should state:
 
-- the frozen run directories used
+- the frozen export artifact and, when available, source run labels
+- the frozen scenario manifests and reference-output artifacts, or a durable
+  external artifact bundle containing them
 - the scored outputs included
-- the benchmark spec and output set used
+- the output set used
 - whether the claim refers to the live site or a frozen paper snapshot
 - whether UK results come from the public transfer dataset or a later artifact
+- sensitivity checks for at least amount-only, binary-only, positive-reference
+  cases, zero-reference cases, country-only rankings, and household-equal
+  impact scores when available

@@ -20,8 +20,6 @@ from policybench.spec import (
 # These benchmark variables are binary labels derived from PolicyEngine outputs
 # that are naturally person-level or dollar-valued.
 DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES = {
-    "household_free_school_meal_eligible",
-    "household_reduced_price_school_meal_eligible",
     "free_school_meals_eligible",
     "reduced_price_school_meals_eligible",
 }
@@ -324,7 +322,7 @@ def calculate_ground_truth(
     programs: list[str] | None = None,
     year: int = TAX_YEAR,
 ) -> pd.DataFrame:
-    """Calculate ground truth for all scenarios × programs.
+    """Calculate PolicyEngine reference outputs for all scenarios × programs.
 
     Returns a DataFrame with columns: scenario_id, variable, value
     """
@@ -336,7 +334,7 @@ def calculate_ground_truth(
     country = scenarios[0].country or DEFAULT_COUNTRY
     if any(scenario.country != country for scenario in scenarios):
         raise ValueError(
-            "All scenarios in one ground-truth batch must share a country."
+            "All scenarios in one reference-output batch must share a country."
         )
 
     if programs is None:

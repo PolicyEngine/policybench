@@ -1,2 +1,0 @@
-model,total_rows,parsed_rows,error_rows,total_provider_reported_cost_usd,total_reconstructed_cost_usd,total_cost_usd,estimated_cost_rows,total_estimated_cost_usd,total_elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens
-gpt-5.4,60,60,0,,0.1053049999999999,0.1053049999999999,60,0.1053049999999999,93.12718129705172,27392.0,2455.0,29847.0,0.0,0.0

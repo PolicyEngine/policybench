@@ -86,7 +86,7 @@ def _load_eval_scenarios(args) -> list:
     if not manifest_path.exists():
         raise SystemExit(
             "Scenario manifest not found at "
-            f"{manifest_path}. Run `policybench ground-truth` first or pass "
+            f"{manifest_path}. Run `policybench reference-outputs` first or pass "
             "`--regenerate-scenarios` for an ad hoc sample."
         )
 
@@ -109,11 +109,15 @@ def main():
     parser = argparse.ArgumentParser(description="PolicyBench benchmark runner")
     subparsers = parser.add_subparsers(dest="command")
 
-    # Ground truth
+    # PolicyEngine reference outputs
     gt_parser = subparsers.add_parser(
-        "ground-truth", help="Generate PolicyEngine reference outputs"
+        "reference-outputs",
+        aliases=["ground-truth"],
+        help="Generate PolicyEngine reference outputs",
     )
-    gt_parser.add_argument("-o", "--output", default="results/local/ground_truth.csv")
+    gt_parser.add_argument(
+        "-o", "--output", default="results/local/reference_outputs.csv"
+    )
     gt_parser.add_argument("-n", "--num-scenarios", type=int, default=100)
     gt_parser.add_argument("--seed", type=int, default=42)
     gt_parser.add_argument(
@@ -131,12 +135,15 @@ def main():
         "--program",
         action="append",
         dest="programs",
-        help="Restrict ground-truth generation to one or more configured program names",
+        help=(
+            "Restrict reference-output generation to one or more configured "
+            "program names"
+        ),
     )
     gt_parser.add_argument(
         "--program-set",
         default=DEFAULT_PROGRAM_SET,
-        help="Benchmark output set to use. Defaults to v2_headline.",
+        help="Benchmark output set to use. Defaults to headline.",
     )
     gt_parser.add_argument(
         "--exclude-scenario-manifest",
@@ -162,7 +169,7 @@ def main():
     nt_parser.add_argument(
         "--scenario-manifest",
         default="results/local/scenarios.csv",
-        help="CSV file with serialized scenarios exported by `ground-truth`",
+        help="CSV file with serialized scenarios exported by `reference-outputs`",
     )
     nt_parser.add_argument(
         "--regenerate-scenarios",
@@ -199,7 +206,7 @@ def main():
     nt_parser.add_argument(
         "--program-set",
         default=DEFAULT_PROGRAM_SET,
-        help="Benchmark output set to use. Defaults to v2_headline.",
+        help="Benchmark output set to use. Defaults to headline.",
     )
     nt_parser.add_argument(
         "--no-explanations",
@@ -245,7 +252,7 @@ def main():
     ntr_parser.add_argument(
         "--scenario-manifest",
         default="results/local/scenarios.csv",
-        help="CSV file with serialized scenarios exported by `ground-truth`",
+        help="CSV file with serialized scenarios exported by `reference-outputs`",
     )
     ntr_parser.add_argument(
         "--regenerate-scenarios",
@@ -288,7 +295,7 @@ def main():
     ntr_parser.add_argument(
         "--program-set",
         default=DEFAULT_PROGRAM_SET,
-        help="Benchmark output set to use. Defaults to v2_headline.",
+        help="Benchmark output set to use. Defaults to headline.",
     )
     ntr_parser.add_argument(
         "--no-explanations",
@@ -321,7 +328,7 @@ def main():
         "-s",
         "--scenario-manifest",
         default="results/local/scenarios.csv",
-        help="CSV file with serialized scenarios exported by `ground-truth`",
+        help="CSV file with serialized scenarios exported by `reference-outputs`",
     )
     chunked_parser.add_argument(
         "-o",
@@ -344,7 +351,7 @@ def main():
     chunked_parser.add_argument(
         "--program-set",
         default=DEFAULT_PROGRAM_SET,
-        help="Benchmark output set to use. Defaults to v2_headline.",
+        help="Benchmark output set to use. Defaults to headline.",
     )
     chunked_parser.add_argument(
         "--chunk-size",
@@ -390,7 +397,15 @@ def main():
     # Analyze
     analyze_parser = subparsers.add_parser("analyze", help="Analyze AI-alone results")
     analyze_parser.add_argument(
-        "-g", "--ground-truth", default="results/local/ground_truth.csv"
+        "-g",
+        "--ground-truth",
+        "--reference-outputs",
+        dest="ground_truth",
+        default="results/local/reference_outputs.csv",
+        help=(
+            "CSV file with PolicyEngine reference outputs. The "
+            "`--ground-truth` flag is kept as a compatibility alias."
+        ),
     )
     analyze_parser.add_argument(
         "-p", "--predictions", default="results/local/no_tools/predictions.csv"
@@ -430,7 +445,7 @@ def main():
 
         enable_cache()
 
-    if args.command == "ground-truth":
+    if args.command in {"reference-outputs", "ground-truth"}:
         from policybench.ground_truth import calculate_ground_truth
         from policybench.policyengine_runtime import runtime_metadata_for_country
         from policybench.scenarios import (
@@ -464,7 +479,7 @@ def main():
         source_dataset_path = get_uk_dataset_path() if args.country == "uk" else None
         metadata = {
             "metadata_version": 1,
-            "task": "ground_truth",
+            "task": "reference_outputs",
             "generated_at_utc": datetime.now(timezone.utc).isoformat(),
             "country": args.country,
             "num_scenarios": args.num_scenarios,
@@ -486,7 +501,7 @@ def main():
                 "task": "scenario_manifest",
             },
         )
-        print(f"Ground truth saved to {args.output}")
+        print(f"PolicyEngine reference outputs saved to {args.output}")
         print(f"Scenario manifest saved to {args.scenario_manifest_output}")
 
     elif args.command == "eval-no-tools":
@@ -597,7 +612,7 @@ def main():
             if not gt_ids.issubset(manifest_ids):
                 missing = ", ".join(sorted(gt_ids - manifest_ids)[:5])
                 raise SystemExit(
-                    "Ground-truth file contains scenario ids not present in the "
+                    "Reference-output file contains scenario ids not present in the "
                     f"scenario manifest: {missing}"
                 )
             if not prediction_ids.issubset(manifest_ids):

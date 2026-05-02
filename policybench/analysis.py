@@ -213,9 +213,7 @@ def household_equal_impact_scores(
     base_weights["net_income_sign"] = base_weights["variable"].map(
         net_income_sign_for_output
     )
-    default_abs_value = (
-        base_weights["value"] * base_weights["net_income_sign"]
-    ).abs()
+    default_abs_value = (base_weights["value"] * base_weights["net_income_sign"]).abs()
     if "impact_weight" in base_weights.columns:
         explicit_weight = pd.to_numeric(
             base_weights["impact_weight"],
@@ -1003,8 +1001,7 @@ def build_failure_modes_payload(
     program_slices = []
     for variable, group in merged.groupby("output_group"):
         is_binary = (
-            metric_type_for_output(variable) == "binary"
-            or variable in BINARY_PROGRAMS
+            metric_type_for_output(variable) == "binary" or variable in BINARY_PROGRAMS
         )
         item: dict[str, float | int | str | bool | None] = {
             "variable": variable,

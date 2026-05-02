@@ -3,13 +3,13 @@
 
 Expected layout:
 
-    results/full_batch_v2_YYYYMMDD/
+    results/full_batch_YYYYMMDD/
       us/
-        ground_truth.csv
+        reference_outputs.csv
         scenarios.csv
         by_model/*.csv  # or predictions.csv
       uk/
-        ground_truth.csv
+        reference_outputs.csv
         scenarios.csv
         by_model/*.csv  # or predictions.csv
 
@@ -62,27 +62,31 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_predictions(country_dir: Path) -> pd.DataFrame:
-    predictions_path = country_dir / "predictions.csv"
-    if predictions_path.exists():
-        return pd.read_csv(predictions_path)
-
     by_model_dir = country_dir / "by_model"
     files = sorted(by_model_dir.glob("*.csv")) if by_model_dir.exists() else []
-    if not files:
-        raise FileNotFoundError(
-            f"Expected {predictions_path} or at least one CSV in {by_model_dir}."
+    predictions_path = country_dir / "predictions.csv"
+    if files:
+        predictions = pd.concat(
+            (pd.read_csv(path) for path in files), ignore_index=True
         )
-
-    predictions = pd.concat((pd.read_csv(path) for path in files), ignore_index=True)
-    predictions.to_csv(predictions_path, index=False)
-    return predictions
+        predictions.to_csv(predictions_path, index=False)
+        return predictions
+    if predictions_path.exists():
+        return pd.read_csv(predictions_path)
+    raise FileNotFoundError(
+        f"Expected at least one CSV in {by_model_dir} or {predictions_path}."
+    )
 
 
 def export_country(country_dir: Path) -> dict:
-    ground_truth_path = country_dir / "ground_truth.csv"
+    ground_truth_path = country_dir / "reference_outputs.csv"
+    legacy_ground_truth_path = country_dir / "ground_truth.csv"
     scenarios_path = country_dir / "scenarios.csv"
     if not ground_truth_path.exists():
-        raise FileNotFoundError(f"Missing {ground_truth_path}.")
+        if legacy_ground_truth_path.exists():
+            ground_truth_path = legacy_ground_truth_path
+        else:
+            raise FileNotFoundError(f"Missing {ground_truth_path}.")
     if not scenarios_path.exists():
         raise FileNotFoundError(f"Missing {scenarios_path}.")
 

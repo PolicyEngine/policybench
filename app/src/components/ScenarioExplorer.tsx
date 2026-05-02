@@ -223,7 +223,7 @@ export default function ScenarioExplorer({
               </div>
             </div>
             <div className="text-text-muted text-xs">
-              GPT/Claude use function calling; Gemini uses JSON mode
+              Provider-specific structured-output transport, no external tool
             </div>
           </summary>
 
@@ -238,7 +238,7 @@ export default function ScenarioExplorer({
                     : "border-border text-text-secondary hover:text-text"
                 }`}
               >
-                Function-call contract
+                Structured schema
               </button>
               <button
                 type="button"
@@ -249,7 +249,7 @@ export default function ScenarioExplorer({
                     : "border-border text-text-secondary hover:text-text"
                 }`}
               >
-                JSON contract
+                JSON schema
               </button>
             </div>
             <pre className="bg-surface rounded-lg border border-border-subtle p-3 text-xs text-text-secondary whitespace-pre-wrap leading-relaxed overflow-x-auto">
@@ -270,7 +270,7 @@ export default function ScenarioExplorer({
                 Program
               </th>
               <th className="text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium pb-3 px-3 w-24">
-                Truth
+                Reference
               </th>
               {models.map((m) => (
                 <th
@@ -319,13 +319,13 @@ export default function ScenarioExplorer({
                     }
 
                     const displayPred = isBinary
-                      ? formatBoolean(pred.prediction)
+                      ? formatBoolean(Math.round(pred.prediction))
                       : formatCurrency(pred.prediction, currencySymbol);
 
                     const isCorrect = isBinary
-                      ? pred.prediction === truth
+                      ? Math.round(pred.prediction) === Math.round(truth)
                       : Math.abs(pred.error) <= Math.abs(truth) * 0.1 ||
-                        (truth === 0 && pred.prediction === 0);
+                        (truth === 0 && Math.abs(pred.prediction) <= 1);
 
                     return (
                       <td

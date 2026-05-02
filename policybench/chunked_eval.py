@@ -348,10 +348,7 @@ def run_chunked_eval(
     else:
         output_by_model: dict[str, Path] = {}
         with ThreadPoolExecutor(max_workers=model_parallel) as executor:
-            futures = {
-                executor.submit(run_one_model, model): model
-                for model in models
-            }
+            futures = {executor.submit(run_one_model, model): model for model in models}
             for future in as_completed(futures):
                 model = futures[future]
                 output_by_model[model] = future.result()

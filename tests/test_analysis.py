@@ -31,7 +31,6 @@ from policybench.analysis import (
 from policybench.config import (
     UK_HEADLINE_PROGRAMS,
     US_HEADLINE_PROGRAMS,
-    US_SUPPLEMENTARY_PROGRAMS,
     get_programs,
 )
 
@@ -369,32 +368,6 @@ class TestSummaries:
         )
         assert household_scores.iloc[0]["impact_score"] == pytest.approx(0.5)
 
-    def test_household_equal_impact_scores_downweight_intermediate_outputs(self):
-        ground_truth_df = pd.DataFrame(
-            {
-                "scenario_id": ["s1", "s1"],
-                "variable": ["income_tax", "adjusted_gross_income"],
-                "value": [100.0, 10_000.0],
-            }
-        )
-        predictions_df = pd.DataFrame(
-            {
-                "model": ["model_a", "model_a"],
-                "scenario_id": ["s1", "s1"],
-                "variable": ["income_tax", "adjusted_gross_income"],
-                "prediction": [100.0, 0.0],
-            }
-        )
-
-        household_scores = household_equal_impact_scores(
-            ground_truth_df,
-            predictions_df,
-            floor_share=0.3,
-        )
-
-        # AGI is an intermediate output, so it gets only the equal-weight floor.
-        assert household_scores.iloc[0]["impact_score"] == pytest.approx(0.85)
-
     def test_household_equal_impact_scores_use_explicit_impact_weight(self):
         ground_truth_df = pd.DataFrame(
             {
@@ -421,10 +394,9 @@ class TestSummaries:
 
         assert household_scores.iloc[0]["impact_score"] == pytest.approx(0.1)
 
-    def test_get_programs_supports_v2_sets(self):
-        assert get_programs("us", "v2_headline") == US_HEADLINE_PROGRAMS
-        assert get_programs("uk", "v2_headline") == UK_HEADLINE_PROGRAMS
-        assert get_programs("us", "v2_supplementary") == US_SUPPLEMENTARY_PROGRAMS
+    def test_get_programs_supports_current_sets(self):
+        assert get_programs("us", "headline") == US_HEADLINE_PROGRAMS
+        assert get_programs("uk", "headline") == UK_HEADLINE_PROGRAMS
 
     def test_analyze_no_tools_returns_expected_tables(self):
         ground_truth_df = pd.DataFrame(

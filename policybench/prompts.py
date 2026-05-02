@@ -31,34 +31,8 @@ EXPLANATION_CONSISTENCY_INSTRUCTION = (
 
 # Variable descriptions for natural language prompts
 US_VARIABLE_DESCRIPTIONS = {
-    "adjusted_gross_income": (
-        "federal adjusted gross income (AGI), after above-the-line deductions "
-        "but before standard or itemized deductions and exemptions"
-    ),
-    "income_tax": (
-        "net federal income tax liability after refundable credits "
-        "excluding the ACA Premium Tax Credit (this can be negative if "
-        "refundable credits exceed pre-credit tax liability)"
-    ),
-    "income_tax_before_credits": (
-        "federal income tax before any income tax credits are applied, including "
-        "Net Investment Income Tax and other federal income-tax additions included "
-        "in final federal income tax"
-    ),
-    "income_tax_applied_credits": (
-        "total federal income tax credits applied against federal income tax, "
-        "including nonrefundable credits actually used and refundable credits included "
-        "in federal income tax; exclude the ACA Premium Tax Credit"
-    ),
     "snap": "annual SNAP (food stamps) benefit amount",
     "ssi": "annual Supplemental Security Income (SSI) amount",
-    "state_agi": "state adjusted gross income (state AGI)",
-    "state_income_tax_before_refundable_credits": (
-        "state income tax before refundable credits are applied "
-        "(do not subtract state refundable credits)"
-    ),
-    "state_refundable_credits": "total refundable state tax credits only",
-    "household_state_income_tax": "state income tax liability",
 }
 
 UK_VARIABLE_DESCRIPTIONS = {
@@ -90,7 +64,6 @@ UK_VARIABLE_DESCRIPTIONS = {
 }
 
 INPUT_LABEL_OVERRIDES = {
-    "adjusted_gross_income": "adjusted gross income",
     "agi": "AGI",
     "alimony_expense": "alimony expense",
     "alimony_income": "alimony income",

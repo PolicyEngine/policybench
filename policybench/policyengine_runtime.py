@@ -60,9 +60,7 @@ def policyengine_release_bundle(country: str) -> dict[str, Any]:
             else None
         ),
         "data_build_fingerprint": (
-            certification.data_build_fingerprint
-            if certification is not None
-            else None
+            certification.data_build_fingerprint if certification is not None else None
         ),
         "compatibility_basis": (
             certification.compatibility_basis if certification is not None else None

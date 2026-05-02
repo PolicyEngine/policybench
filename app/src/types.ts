@@ -18,45 +18,34 @@ export const VIEW_SHORT_LABELS: Record<CountryCode, string> = {
 };
 
 const US_VARIABLE_LABELS: Record<string, string> = {
-  adjusted_gross_income: "Federal adjusted gross income",
-  income_tax: "Federal income tax",
   federal_income_tax_before_refundable_credits:
     "Federal tax before refundable credits",
   federal_refundable_credits: "Federal refundable credits",
   payroll_tax: "Payroll tax",
   self_employment_tax: "Self-employment tax",
   local_income_tax: "Local income tax",
-  income_tax_before_credits: "Federal tax before credits",
-  income_tax_applied_credits: "Federal income tax credits",
   snap: "SNAP",
   ssi: "SSI",
   tanf: "TANF",
   premium_tax_credit: "ACA Premium Tax Credit",
-  wic: "WIC",
   free_school_meals_eligible: "Free school meals eligibility",
-  household_free_school_meal_eligible: "Free school meals eligibility",
   reduced_price_school_meals_eligible:
     "Reduced-price school meals eligibility",
-  household_reduced_price_school_meal_eligible:
-    "Reduced-price school meals eligibility",
+  person_wic_eligible: "Person-level WIC eligibility",
   person_medicaid_eligible: "Person-level Medicaid eligibility",
   person_chip_eligible: "Person-level CHIP eligibility",
   person_medicare_eligible: "Person-level Medicare eligibility",
   person_head_start_eligible: "Person-level Head Start eligibility",
   person_early_head_start_eligible: "Person-level Early Head Start eligibility",
-  person_employee_social_security_tax: "Person-level employee Social Security tax",
-  person_employee_medicare_tax: "Person-level employee Medicare tax",
-  household_additional_medicare_tax: "Household Additional Medicare Tax",
-  state_agi: "State adjusted gross income",
   state_income_tax_before_refundable_credits:
     "State tax before refundable credits",
   state_refundable_credits: "State refundable credits",
-  household_state_income_tax: "State income tax",
 };
 
 const UK_VARIABLE_LABELS: Record<string, string> = {
   income_tax: "Income Tax",
   national_insurance: "National Insurance",
+  capital_gains_tax: "Capital Gains Tax",
   child_benefit: "Child Benefit",
   universal_credit: "Universal Credit",
   pension_credit: "Pension Credit",
@@ -67,41 +56,31 @@ const UK_VARIABLE_LABELS: Record<string, string> = {
 };
 
 const US_VARIABLE_CATEGORIES: Record<string, string> = {
-  adjusted_gross_income: "Federal tax",
-  income_tax: "Federal tax",
   federal_income_tax_before_refundable_credits: "Federal tax",
   federal_refundable_credits: "Federal tax",
-  payroll_tax: "Federal tax",
-  self_employment_tax: "Federal tax",
+  payroll_tax: "Payroll tax",
+  self_employment_tax: "Payroll tax",
   local_income_tax: "Local tax",
-  income_tax_before_credits: "Federal tax",
-  income_tax_applied_credits: "Federal tax",
   snap: "Benefits",
   ssi: "Benefits",
   tanf: "Benefits",
   premium_tax_credit: "Health",
-  wic: "Benefits",
   free_school_meals_eligible: "Coverage",
-  household_free_school_meal_eligible: "Benefits",
   reduced_price_school_meals_eligible: "Coverage",
-  household_reduced_price_school_meal_eligible: "Benefits",
+  person_wic_eligible: "Coverage",
   person_medicaid_eligible: "Coverage",
   person_chip_eligible: "Coverage",
   person_medicare_eligible: "Coverage",
   person_head_start_eligible: "Coverage",
   person_early_head_start_eligible: "Coverage",
-  person_employee_social_security_tax: "Federal tax",
-  person_employee_medicare_tax: "Federal tax",
-  household_additional_medicare_tax: "Federal tax",
-  state_agi: "State tax",
   state_income_tax_before_refundable_credits: "State tax",
   state_refundable_credits: "State tax",
-  household_state_income_tax: "State tax",
 };
 
 const UK_VARIABLE_CATEGORIES: Record<string, string> = {
   income_tax: "Tax",
   national_insurance: "Tax",
+  capital_gains_tax: "Tax",
   child_benefit: "Benefits",
   universal_credit: "Benefits",
   pension_credit: "Benefits",
@@ -119,10 +98,6 @@ export function getVariableLabel(
   if (personEligibility) {
     return `${personEligibility.personLabel} ${personEligibility.program} eligibility`;
   }
-  const personPayroll = parsePersonPayrollVariable(variable);
-  if (personPayroll) {
-    return `${personPayroll.personLabel} ${personPayroll.component}`;
-  }
   const labelMap = country === "uk" ? UK_VARIABLE_LABELS : US_VARIABLE_LABELS;
   return labelMap[variable] ?? variable.replace(/_/g, " ");
 }
@@ -134,9 +109,6 @@ export function getVariableCategory(
   if (parsePersonEligibilityVariable(variable)) {
     return "Coverage";
   }
-  if (parsePersonPayrollVariable(variable)) {
-    return "Federal tax";
-  }
   const categoryMap =
     country === "uk" ? UK_VARIABLE_CATEGORIES : US_VARIABLE_CATEGORIES;
   return categoryMap[variable] ?? "Other";
@@ -146,7 +118,7 @@ function parsePersonEligibilityVariable(variable: string):
   | { personLabel: string; program: string }
   | null {
   const match = variable.match(
-    /^(head|spouse|adult\d+|child\d+|dependent\d+)_(medicaid|chip|medicare|head_start|early_head_start)_eligible$/
+    /^(head|spouse|adult\d+|child\d+|dependent\d+)_(wic|medicaid|chip|medicare|head_start|early_head_start)_eligible$/
   );
   if (!match) {
     return null;
@@ -154,31 +126,15 @@ function parsePersonEligibilityVariable(variable: string):
   const [, person, program] = match;
   const personLabel = getPersonDisplayLabel(person);
   const programLabel =
-    program === "chip"
-      ? "CHIP"
-      : program
-          .split("_")
-          .map((word) => word[0].toUpperCase() + word.slice(1))
-          .join(" ");
+    program === "wic"
+      ? "WIC"
+      : program === "chip"
+        ? "CHIP"
+        : program
+            .split("_")
+            .map((word) => word[0].toUpperCase() + word.slice(1))
+            .join(" ");
   return { personLabel, program: programLabel };
-}
-
-function parsePersonPayrollVariable(variable: string):
-  | { personLabel: string; component: string }
-  | null {
-  const match = variable.match(
-    /^(head|spouse|adult\d+|child\d+|dependent\d+)_(employee_social_security_tax|employee_medicare_tax)$/
-  );
-  if (!match) {
-    return null;
-  }
-  const [, person, component] = match;
-  const personLabel = getPersonDisplayLabel(person);
-  const componentLabel =
-    component === "employee_social_security_tax"
-      ? "employee Social Security tax"
-      : "employee Medicare tax";
-  return { personLabel, component: componentLabel };
 }
 
 function getPersonDisplayLabel(person: string): string {
@@ -203,9 +159,8 @@ export function isBinaryVariable(
   }
   return (
     variable === "free_school_meals_eligible" ||
-    variable === "household_free_school_meal_eligible" ||
     variable === "reduced_price_school_meals_eligible" ||
-    variable === "household_reduced_price_school_meal_eligible" ||
+    variable === "person_wic_eligible" ||
     variable === "person_medicaid_eligible" ||
     variable === "person_chip_eligible" ||
     variable === "person_medicare_eligible" ||

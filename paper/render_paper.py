@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[1]
 PAPER_DIR = ROOT / "paper"
 PUBLIC_PAPER_DIR = ROOT / "app" / "public" / "paper"
 PUBLIC_WEB_DIR = PUBLIC_PAPER_DIR / "web"
-EXPORT_DIR = ROOT / "results" / "temporary_legacy_v1_results" / "paper_exports"
 DESIGN_SYSTEM_TOKENS = (
     ROOT
     / "app"
@@ -180,6 +179,19 @@ is slow on your device.</p>
     )
 
 
+def remove_public_web_extras(destination: Path) -> None:
+    """Keep only the public manuscript files that the app serves."""
+    for filename in [
+        "index-preview.html",
+        "index.embed.ipynb",
+        "index.out.ipynb",
+        "index.qmd",
+    ]:
+        path = destination / filename
+        if path.exists():
+            path.unlink()
+
+
 def main() -> None:
     quarto = find_executable(
         "quarto",
@@ -201,11 +213,8 @@ def main() -> None:
         env["PATH"] = f"{tex_bin}:{env.get('PATH', '')}"
     env["QUARTO_PYTHON"] = sys.executable
 
-    if not (EXPORT_DIR / "benchmark_snapshot.json").exists():
-        raise SystemExit(
-            "Missing frozen paper exports in "
-            "results/temporary_legacy_v1_results/paper_exports."
-        )
+    if not (ROOT / "app" / "src" / "data.json").exists():
+        raise SystemExit("Missing app/src/data.json for manuscript tables.")
     subprocess.run(
         [sys.executable, str(PAPER_DIR / "generate_figures.py")],
         check=True,
@@ -257,6 +266,7 @@ def main() -> None:
 
     copy_tree(html_out_dir, PUBLIC_WEB_DIR)
     ensure_web_index(PUBLIC_WEB_DIR)
+    remove_public_web_extras(PUBLIC_WEB_DIR)
 
     pdf_candidates = [
         pdf_out_dir / "policybench.pdf",
@@ -266,6 +276,9 @@ def main() -> None:
         if candidate.exists():
             copy_if_exists(candidate, PUBLIC_PAPER_DIR / "policybench.pdf")
             break
+
+    shutil.rmtree(PAPER_DIR / "out", ignore_errors=True)
+    shutil.rmtree(PAPER_DIR / "figures", ignore_errors=True)
 
     print("Rendered paper assets into app/public/paper")
 

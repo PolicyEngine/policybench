@@ -1,7 +1,7 @@
 """Compare multi-output and single-output benchmark runs.
 
 This script assumes both prediction files were generated from the same
-ground-truth/scenario manifest and differ only in prompt mode.
+reference-output/scenario manifest and differ only in prompt mode.
 """
 
 from __future__ import annotations
@@ -16,7 +16,12 @@ from policybench.analysis import analyze_no_tools
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ground-truth", required=True)
+    parser.add_argument(
+        "--reference-outputs",
+        "--ground-truth",
+        dest="ground_truth",
+        required=True,
+    )
     parser.add_argument("--multi-predictions", required=True)
     parser.add_argument("--single-predictions", required=True)
     parser.add_argument("--output-dir", required=True)
@@ -157,9 +162,7 @@ def _markdown_table(frame: pd.DataFrame, columns: list[str]) -> str:
     header = "| " + " | ".join(columns) + " |"
     separator = "| " + " | ".join("---" for _ in columns) + " |"
     rows = [
-        "| "
-        + " | ".join(_format_cell(row[column]) for column in columns)
-        + " |"
+        "| " + " | ".join(_format_cell(row[column]) for column in columns) + " |"
         for _, row in frame[columns].iterrows()
     ]
     return "\n".join([header, separator, *rows])

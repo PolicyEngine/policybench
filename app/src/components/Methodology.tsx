@@ -86,7 +86,9 @@ export default function Methodology({
         >
           The global leaderboard is a shared-model aggregate, not a separate
           benchmark. Each model’s global score is the equal-weight average of
-          its country-level PolicyBench scores across the included countries.
+          its country-level PolicyBench scores across the included countries,
+          without reweighting by household count, output count, currency amount,
+          or economic impact.
         </p>
 
         <div
@@ -108,14 +110,15 @@ export default function Methodology({
             label="Total households"
             accent="info"
           />
-          <StatCard value="2026" label="Tax year" accent="primary" />
+          <StatCard value="2026/27" label="Policy period" accent="primary" />
         </div>
 
         <div className="grid lg:grid-cols-2 gap-4 mt-8">
           <SectionCard title="Aggregation">
             Only models with both country runs appear in the global table.
             Their global score is the average of the bounded country scores,
-            rather than a currency-weighted or output-weighted blend.
+            rather than a currency-weighted, household-weighted, or
+            output-count-weighted blend.
           </SectionCard>
 
           <SectionCard title="Interpretation">
@@ -178,7 +181,7 @@ export default function Methodology({
     country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
   const benchmarkDescription =
     country === "uk"
-      ? "This app shows the current no-tools UK benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for tax year 2026."
+      ? "This app shows the current no-tools UK benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for fiscal year 2026-27."
       : "This app shows the current no-tools US benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2026.";
 
   return (
@@ -243,23 +246,58 @@ export default function Methodology({
 
         <SectionCard title="Reference outputs">
           {country === "uk"
-            ? "PolicyEngine-UK computes the PolicyEngine reference output for every household-variable pair in tax year 2026. The displayed variables define the benchmark scope for this snapshot."
+            ? "PolicyEngine-UK computes the PolicyEngine reference output for every household-variable pair in UK fiscal year 2026-27. The displayed variables define the benchmark scope for this snapshot."
             : "PolicyEngine-US computes the PolicyEngine reference output for every household-variable pair in tax year 2026. The displayed variables define the benchmark scope for this snapshot."}
         </SectionCard>
 
-        <SectionCard title="Scoring">
-          The headline leaderboard uses a bounded score from 0 to 100. For
-          dollar-valued outputs, that score averages exact-dollar hit rate,
-          within-1%, within-5%, and within-10% hit rates.
+        <SectionCard title="Output selection">
+          The benchmark includes direct tax, credit, benefit, health-support,
+          and coverage outputs that can plausibly be estimated from household
+          facts. It excludes intermediate tax bases, payroll subcomponents, and
+          outputs that mainly require unavailable history, restricted local
+          market data, or program take-up assignment. ACA Premium Tax Credit is
+          retained as a deliberate health-support output; when local benchmark
+          premiums are not listed, the model must estimate them from the
+          household facts. WIC is scored as person-level eligibility, not as a
+          dollar amount.
+        </SectionCard>
+
+        <SectionCard title="Scoring and weighting">
+          The public leaderboard uses an equal-output-group score, not a
+          currency-amount-weighted or household-weighted score. Each scored
+          output group gets the same country-level weight. Person-level outputs
+          are grouped by program first; within that group, each expected person
+          row is equal. For amount outputs, the group score averages
+          exact-within-one-currency-unit hit rate, within-1%, within-5%, and
+          within-10% hit rates.
           {country === "us"
             ? " Binary coverage flags like person-level Medicaid eligibility and school meal eligibility use exact accuracy."
             : ""}
-          {" "}Coverage still tracks how often a model produced a parseable numeric
-          answer, and mean absolute error remains a secondary error metric. The
-          leaderboard is a point estimate on this fixed test set
+          {" "}Missing or unparseable answers count as misses through the
+          coverage multiplier. Mean absolute error remains a secondary error
+          metric. The leaderboard is a point estimate on this fixed test set
           {hasRepeatedRuns
             ? "; when repeated runs are loaded, the app also shows run-to-run stability."
             : "."}
+        </SectionCard>
+
+        <SectionCard title="Sensitivity checks">
+          The manuscript reports alternative ranking views for amount-only
+          outputs, binary coverage, positive-reference cases, zero-reference
+          cases, country-only results, and the household-equal impact score.
+          Those checks are used to interpret rank stability; they do not replace
+          the public equal-output-group leaderboard.
+        </SectionCard>
+
+        <SectionCard title="Impact weighting">
+          The analysis files also compute a separate household-equal impact
+          score. That metric gives every household equal final weight; within a
+          household, each output receives a 30% equal-weight floor plus a 70%
+          weight proportional to its absolute PolicyEngine reference
+          contribution to household net income. When binary coverage flags are
+          present, their impact weights come from PolicyEngine value proxies
+          rather than the 0/1 label itself. This impact score is secondary and
+          does not order the current public leaderboard.
         </SectionCard>
       </div>
 
@@ -279,7 +317,7 @@ export default function Methodology({
             </div>
           </div>
           <div className="text-text-muted text-xs">
-            Fixed test set, no tools, tax year 2026
+            Fixed test set, no tools, US tax year 2026 / UK fiscal year 2026-27
           </div>
         </div>
 

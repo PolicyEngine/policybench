@@ -4,7 +4,6 @@ from policybench.spec import (
     DEFAULT_PROGRAM_SET,
     available_spec_ids,
     binary_output_ids,
-    get_benchmark_spec,
     get_output_ids,
     rate_output_ids,
 )
@@ -47,28 +46,14 @@ RUNNABLE_MODELS = {
     **EXPERIMENTAL_MODELS,
 }
 
-# Current output sets. The headline set contains signed household
-# net-income components plus coverage booleans with explicit impact weights;
-# intermediate bases remain supplementary outputs.
-US_HEADLINE_PROGRAMS = get_output_ids("us", "v2_headline")
-UK_HEADLINE_PROGRAMS = get_output_ids("uk", "v2_headline")
-US_SUPPLEMENTARY_PROGRAMS = get_output_ids("us", "v2_supplementary")
-UK_SUPPLEMENTARY_PROGRAMS = []
+# Current output set. The benchmark contains signed household net-income
+# components plus coverage booleans with explicit impact weights.
+US_HEADLINE_PROGRAMS = get_output_ids("us", "headline")
+UK_HEADLINE_PROGRAMS = get_output_ids("uk", "headline")
 
 COUNTRY_PROGRAMS = {
     "us": US_HEADLINE_PROGRAMS,
     "uk": UK_HEADLINE_PROGRAMS,
-}
-
-PROGRAM_SETS = {
-    "v2_headline": {
-        "us": US_HEADLINE_PROGRAMS,
-        "uk": UK_HEADLINE_PROGRAMS,
-    },
-    "v2_supplementary": {
-        "us": US_SUPPLEMENTARY_PROGRAMS,
-        "uk": UK_SUPPLEMENTARY_PROGRAMS,
-    },
 }
 
 # Default benchmark outputs for new runs.
@@ -95,13 +80,7 @@ def get_programs(country: str, program_set: str = DEFAULT_PROGRAM_SET) -> list[s
         return get_output_ids(country, program_set)
     except ValueError as exc:
         valid_countries = ", ".join(sorted(COUNTRY_PROGRAMS))
-        valid_sets = sorted(PROGRAM_SETS)
-        valid_sets.extend(available_spec_ids())
-        for spec_id in available_spec_ids():
-            output_sets = sorted(
-                {output.output_set for output in get_benchmark_spec(spec_id).outputs}
-            )
-            valid_sets.extend(f"{spec_id}_{output_set}" for output_set in output_sets)
+        valid_sets = sorted({DEFAULT_PROGRAM_SET, *available_spec_ids()})
         raise ValueError(
             "Unsupported country/program_set "
             f"('{country}', '{program_set}'). Valid countries: "

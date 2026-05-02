@@ -231,54 +231,54 @@ class TestExtractPrediction:
 
     def test_extract_predictions_returns_mapping(self):
         predictions = extract_predictions(
-            content='{"income_tax": 4923, "income_tax_applied_credits": 0}',
-            variables=["income_tax", "income_tax_applied_credits"],
+            content='{"income_tax": 4923, "federal_refundable_credits": 0}',
+            variables=["income_tax", "federal_refundable_credits"],
             tool_calls=None,
         )
-        assert predictions == {"income_tax": 4923.0, "income_tax_applied_credits": 0.0}
+        assert predictions == {"income_tax": 4923.0, "federal_refundable_credits": 0.0}
 
     def test_extract_predictions_rejects_truncated_payload(
         self,
     ):
         predictions = extract_predictions(
             content=(
-                '{"answers":{"income_tax":4923,"income_tax_applied_credits":0},'
+                '{"answers":{"income_tax":4923,"federal_refundable_credits":0},'
                 '"explanations":{"income_tax":"Moderate taxable income'
             ),
-            variables=["income_tax", "income_tax_applied_credits"],
+            variables=["income_tax", "federal_refundable_credits"],
             tool_calls=None,
         )
-        assert predictions == {"income_tax": None, "income_tax_applied_credits": None}
+        assert predictions == {"income_tax": None, "federal_refundable_credits": None}
 
     def test_extract_explanations_returns_mapping(self):
         explanations = extract_explanations(
             content=(
                 '{"answers": {"income_tax": 4923, '
-                '"income_tax_applied_credits": 0}, "explanations": '
+                '"federal_refundable_credits": 0}, "explanations": '
                 '{"income_tax": '
                 '"Taxable income is moderate."}}'
             ),
-            variables=["income_tax", "income_tax_applied_credits"],
+            variables=["income_tax", "federal_refundable_credits"],
             tool_calls=None,
         )
         assert explanations == {
             "income_tax": "Taxable income is moderate.",
-            "income_tax_applied_credits": None,
+            "federal_refundable_credits": None,
         }
 
     def test_extract_explanations_rejects_truncated_payload(self):
         explanations = extract_explanations(
             content=(
-                '{"answers":{"income_tax":4923,"income_tax_applied_credits":0},"explanations":{'
+                '{"answers":{"income_tax":4923,"federal_refundable_credits":0},"explanations":{'
                 '"income_tax":"Moderate taxable income.",'
-                '"income_tax_applied_credits":"Income too high'
+                '"federal_refundable_credits":"Income too high'
             ),
-            variables=["income_tax", "income_tax_applied_credits"],
+            variables=["income_tax", "federal_refundable_credits"],
             tool_calls=None,
         )
         assert explanations == {
             "income_tax": None,
-            "income_tax_applied_credits": None,
+            "federal_refundable_credits": None,
         }
 
     def test_extract_predictions_does_not_scrape_stray_numbers_from_prose(self):
@@ -531,7 +531,10 @@ def test_no_tools_prompt_omits_aotc_suggestive_inputs(rich_scenario):
     )
     rich_scenario.tax_unit_inputs["tuition_and_fees"] = 4_000.0
 
-    prompt = make_no_tools_prompt(rich_scenario, "income_tax")
+    prompt = make_no_tools_prompt(
+        rich_scenario,
+        "federal_income_tax_before_refundable_credits",
+    )
     prompt_lower = prompt.lower()
 
     assert "american opportunity" not in prompt_lower
@@ -539,15 +542,6 @@ def test_no_tools_prompt_omits_aotc_suggestive_inputs(rich_scenario):
     assert "qualified tuition" not in prompt_lower
     assert "technical institution" not in prompt_lower
     assert "tuition and fees" not in prompt_lower
-
-
-def test_income_tax_prompt_clarifies_negative_after_refundable_credits(mini_scenario):
-    """Income tax prompt should make the target semantics explicit."""
-    prompt = make_no_tools_prompt(mini_scenario, "income_tax")
-    prompt_lower = prompt.lower()
-    assert "after refundable credits" in prompt_lower
-    assert "excluding the aca premium tax credit" in prompt_lower
-    assert "can be negative" in prompt_lower
 
 
 def test_federal_tax_before_refundable_prompt_defines_credit_timing(mini_scenario):
@@ -604,13 +598,6 @@ def test_compact_tax_breakdown_prompts_are_explicit(mini_scenario):
     assert "refundable ctc" in prompt_lower
     assert "exclude the aca premium tax credit" in prompt_lower
     assert "marketplace health insurance premium assistance" in prompt_lower
-
-
-def test_agi_prompt_is_explicitly_federal(mini_scenario):
-    """AGI prompt should clarify that the quantity is federal unless marked state."""
-    prompt = make_no_tools_prompt(mini_scenario, "adjusted_gross_income")
-    prompt_lower = prompt.lower()
-    assert "federal adjusted gross income" in prompt_lower
 
 
 def test_free_school_meals_prompt_clarifies_household_boolean(mini_scenario):
@@ -762,8 +749,9 @@ def test_run_single_no_tools_repairs_partial_batch_response(
             function=SimpleNamespace(
                 name="submit_answers",
                 arguments=(
-                    '{"answers": {"income_tax_before_credits": 3500}, '
-                    '"explanations": {"income_tax_before_credits": '
+                    '{"answers": {'
+                    '"federal_income_tax_before_refundable_credits": 3500}, '
+                    '"explanations": {"federal_income_tax_before_refundable_credits": '
                     '"Tax before credits."}}'
                 ),
             )
@@ -778,8 +766,8 @@ def test_run_single_no_tools_repairs_partial_batch_response(
             function=SimpleNamespace(
                 name="submit_answers",
                 arguments=(
-                    '{"answers": {"income_tax_applied_credits": 1200}, '
-                    '"explanations": {"income_tax_applied_credits": '
+                    '{"answers": {"federal_refundable_credits": 1200}, '
+                    '"explanations": {"federal_refundable_credits": '
                     '"Low earnings qualify."}}'
                 ),
             )
@@ -807,14 +795,14 @@ def test_run_single_no_tools_repairs_partial_batch_response(
 
     result = run_single_no_tools(
         mini_scenario,
-        ["income_tax_before_credits", "income_tax_applied_credits"],
+        ["federal_income_tax_before_refundable_credits", "federal_refundable_credits"],
         "claude-opus-4-6",
         include_explanations=False,
     )
 
     assert result["predictions"] == {
-        "income_tax_before_credits": 3500.0,
-        "income_tax_applied_credits": 1200.0,
+        "federal_income_tax_before_refundable_credits": 3500.0,
+        "federal_refundable_credits": 1200.0,
     }
     assert result["error"] is None
     assert result["prompt_tokens"] == 16
@@ -825,8 +813,8 @@ def test_run_single_no_tools_repairs_partial_batch_response(
     assert (
         "provide only the following listed policy quantities" in repair_prompt.lower()
     )
-    assert "- income_tax_applied_credits:" in repair_prompt
-    assert "- income_tax_before_credits:" not in repair_prompt
+    assert "- federal_refundable_credits:" in repair_prompt
+    assert "- federal_income_tax_before_refundable_credits:" not in repair_prompt
     assert '"responses"' in result["raw_response"]
 
 
@@ -840,7 +828,7 @@ def test_run_single_no_tools_repairs_missing_explanations(
         SimpleNamespace(
             function=SimpleNamespace(
                 name="submit_answers",
-                arguments='{"answers":{"income_tax_before_credits":3500,"income_tax_applied_credits":1200}}',
+                arguments='{"answers":{"federal_income_tax_before_refundable_credits":3500,"federal_refundable_credits":1200}}',
             )
         )
     ]
@@ -854,12 +842,12 @@ def test_run_single_no_tools_repairs_missing_explanations(
                 name="submit_answers",
                 arguments=(
                     '{"answers":'
-                    '{"income_tax_before_credits"'
-                    ':3500,"income_tax_applied_credits":1200},'
+                    '{"federal_income_tax_before_refundable_credits"'
+                    ':3500,"federal_refundable_credits":1200},'
                     '"explanations":'
-                    '{"income_tax_before_credits"'
+                    '{"federal_income_tax_before_refundable_credits"'
                     ':"Tax after allowances.",'
-                    '"income_tax_applied_credits":'
+                    '"federal_refundable_credits":'
                     '"Credit from low earnings."}}'
                 ),
             )
@@ -887,15 +875,15 @@ def test_run_single_no_tools_repairs_missing_explanations(
 
     result = run_single_no_tools(
         mini_scenario,
-        ["income_tax_before_credits", "income_tax_applied_credits"],
+        ["federal_income_tax_before_refundable_credits", "federal_refundable_credits"],
         "claude-opus-4-6",
         include_explanations=True,
     )
 
     assert result["error"] is None
     assert result["explanations"] == {
-        "income_tax_before_credits": "Tax after allowances.",
-        "income_tax_applied_credits": "Credit from low earnings.",
+        "federal_income_tax_before_refundable_credits": "Tax after allowances.",
+        "federal_refundable_credits": "Credit from low earnings.",
     }
     repair_prompt = mock_completion.call_args_list[1].kwargs["messages"][0]["content"]
     assert "required answers and/or explanations" in repair_prompt.lower()
@@ -975,7 +963,7 @@ def test_run_single_no_tools_marks_missing_predictions_after_repair(
         SimpleNamespace(
             function=SimpleNamespace(
                 name="submit_answers",
-                arguments='{"income_tax_before_credits": 3500}',
+                arguments='{"federal_income_tax_before_refundable_credits": 3500}',
             )
         )
     ]
@@ -990,15 +978,17 @@ def test_run_single_no_tools_marks_missing_predictions_after_repair(
 
     result = run_single_no_tools(
         mini_scenario,
-        ["income_tax_before_credits", "income_tax_applied_credits"],
+        ["federal_income_tax_before_refundable_credits", "federal_refundable_credits"],
         "claude-opus-4-6",
         include_explanations=False,
     )
 
-    assert result["predictions"]["income_tax_before_credits"] == 3500.0
-    assert result["predictions"]["income_tax_applied_credits"] is None
     assert (
-        "Missing predictions after repair: income_tax_applied_credits"
+        result["predictions"]["federal_income_tax_before_refundable_credits"] == 3500.0
+    )
+    assert result["predictions"]["federal_refundable_credits"] is None
+    assert (
+        "Missing predictions after repair: federal_refundable_credits"
         == result["error"]
     )
     assert mock_completion.call_count == 3
@@ -1006,7 +996,7 @@ def test_run_single_no_tools_marks_missing_predictions_after_repair(
 
 @patch("policybench.eval_no_tools.responses")
 def test_run_single_no_tools_falls_back_to_text_content(mock_responses, mini_scenario):
-    """Responses API text output should still parse when no function call is present."""
+    """Responses API text output should still parse without structured content."""
     response = SimpleNamespace(
         output_text=(
             '{"answers": {"income_tax": 777}, '
@@ -1051,10 +1041,12 @@ def test_run_single_no_tools_supports_multiple_variables(mock_responses, mini_sc
                 type="function_call",
                 name="submit_answers",
                 arguments=(
-                    '{"answers": {"income_tax_before_credits": 3500, '
-                    '"income_tax_applied_credits": 0}, "explanations": {'
-                    '"income_tax_before_credits": "Tax before credits.", '
-                    '"income_tax_applied_credits": "Income too high."}}'
+                    '{"answers": {'
+                    '"federal_income_tax_before_refundable_credits": 3500, '
+                    '"federal_refundable_credits": 0}, "explanations": {'
+                    '"federal_income_tax_before_refundable_credits": '
+                    '"Tax before credits.", '
+                    '"federal_refundable_credits": "Income too high."}}'
                 ),
             )
         ],
@@ -1064,13 +1056,13 @@ def test_run_single_no_tools_supports_multiple_variables(mock_responses, mini_sc
 
     result = run_single_no_tools(
         mini_scenario,
-        ["income_tax_before_credits", "income_tax_applied_credits"],
+        ["federal_income_tax_before_refundable_credits", "federal_refundable_credits"],
         "gpt-5.4",
     )
 
     assert result["predictions"] == {
-        "income_tax_before_credits": 3500.0,
-        "income_tax_applied_credits": 0.0,
+        "federal_income_tax_before_refundable_credits": 3500.0,
+        "federal_refundable_credits": 0.0,
     }
     assert "submit_answers" in result["raw_response"]
 
@@ -1294,8 +1286,8 @@ def test_run_single_no_tools_falls_back_to_completion_cost(
     """Responses cost should be reconstructed when the provider omits billed cost."""
     response = SimpleNamespace(
         output_text=(
-            '{"answers": {"income_tax_applied_credits": 123}, '
-            '"explanations": {"income_tax_applied_credits": "Low earnings qualify."}}'
+            '{"answers": {"federal_refundable_credits": 123}, '
+            '"explanations": {"federal_refundable_credits": "Low earnings qualify."}}'
         ),
         output=[
             SimpleNamespace(
@@ -1304,8 +1296,8 @@ def test_run_single_no_tools_falls_back_to_completion_cost(
                     SimpleNamespace(
                         type="output_text",
                         text=(
-                            '{"answers": {"income_tax_applied_credits": 123}, '
-                            '"explanations": {"income_tax_applied_credits": '
+                            '{"answers": {"federal_refundable_credits": 123}, '
+                            '"explanations": {"federal_refundable_credits": '
                             '"Low earnings qualify."}}'
                         ),
                     )
@@ -1323,7 +1315,7 @@ def test_run_single_no_tools_falls_back_to_completion_cost(
     )
     mock_responses.return_value = response
 
-    result = run_single_no_tools(mini_scenario, "income_tax_applied_credits", "gpt-5.4")
+    result = run_single_no_tools(mini_scenario, "federal_refundable_credits", "gpt-5.4")
 
     assert result["provider_reported_cost_usd"] is None
     assert result["reconstructed_cost_usd"] == 0.00456
@@ -1350,7 +1342,7 @@ def test_run_no_tools_eval_skips_remaining_model_after_fatal_error(
     df = run_no_tools_eval(
         [mini_scenario],
         models={"claude-opus-4.6": "claude-opus-4-6"},
-        programs=["income_tax", "income_tax_applied_credits"],
+        programs=["income_tax", "federal_refundable_credits"],
     )
 
     assert df.empty
@@ -1373,7 +1365,7 @@ def test_run_no_tools_eval_stops_after_insufficient_quota(
     df = run_no_tools_eval(
         [mini_scenario],
         models={"gpt-5.4-nano": "gpt-5.4-nano"},
-        programs=["income_tax", "income_tax_applied_credits"],
+        programs=["income_tax", "federal_refundable_credits"],
     )
 
     assert df.empty
@@ -1405,11 +1397,11 @@ def test_run_no_tools_eval_resumes_from_existing_output(
         output_path,
         [mini_scenario],
         models={"gpt-5.4": "gpt-5.4"},
-        programs=["income_tax", "income_tax_applied_credits"],
+        programs=["income_tax", "federal_refundable_credits"],
     )
 
     mock_run_single_no_tools.return_value = {
-        "predictions": {"income_tax": 123.0, "income_tax_applied_credits": 456.0},
+        "predictions": {"income_tax": 123.0, "federal_refundable_credits": 456.0},
         "prediction": 123.0,
         "raw_response": "456",
         "error": None,
@@ -1418,12 +1410,12 @@ def test_run_no_tools_eval_resumes_from_existing_output(
     df = run_no_tools_eval(
         [mini_scenario],
         models={"gpt-5.4": "gpt-5.4"},
-        programs=["income_tax", "income_tax_applied_credits"],
+        programs=["income_tax", "federal_refundable_credits"],
         output_path=str(output_path),
     )
 
     assert len(df) == 2
-    assert set(df["variable"]) == {"income_tax", "income_tax_applied_credits"}
+    assert set(df["variable"]) == {"income_tax", "federal_refundable_credits"}
     assert df.loc[df["variable"] == "income_tax", "prediction"].iloc[0] == 123.0
     assert mock_run_single_no_tools.call_count == 1
 
@@ -1450,7 +1442,7 @@ def test_run_no_tools_eval_retries_rows_with_existing_errors(
             {
                 "model": "gpt-5.4",
                 "scenario_id": "mini",
-                "variable": "income_tax_applied_credits",
+                "variable": "federal_refundable_credits",
                 "prediction": 456.0,
                 "raw_response": "456",
                 "error": None,
@@ -1461,11 +1453,11 @@ def test_run_no_tools_eval_retries_rows_with_existing_errors(
         output_path,
         [mini_scenario],
         models={"gpt-5.4": "gpt-5.4"},
-        programs=["income_tax", "income_tax_applied_credits"],
+        programs=["income_tax", "federal_refundable_credits"],
     )
 
     mock_run_single_no_tools.return_value = {
-        "predictions": {"income_tax": 123.0, "income_tax_applied_credits": 456.0},
+        "predictions": {"income_tax": 123.0, "federal_refundable_credits": 456.0},
         "prediction": 123.0,
         "raw_response": "123",
         "error": None,
@@ -1474,12 +1466,12 @@ def test_run_no_tools_eval_retries_rows_with_existing_errors(
     df = run_no_tools_eval(
         [mini_scenario],
         models={"gpt-5.4": "gpt-5.4"},
-        programs=["income_tax", "income_tax_applied_credits"],
+        programs=["income_tax", "federal_refundable_credits"],
         output_path=str(output_path),
     )
 
     assert len(df) == 2
-    assert set(df["variable"]) == {"income_tax", "income_tax_applied_credits"}
+    assert set(df["variable"]) == {"income_tax", "federal_refundable_credits"}
     assert df.loc[df["variable"] == "income_tax", "prediction"].iloc[0] == 123.0
     assert mock_run_single_no_tools.call_count == 1
 
@@ -1506,7 +1498,7 @@ def test_run_no_tools_eval_retries_rows_with_missing_predictions(
             {
                 "model": "gpt-5.4",
                 "scenario_id": "mini",
-                "variable": "income_tax_applied_credits",
+                "variable": "federal_refundable_credits",
                 "prediction": 456.0,
                 "raw_response": "456",
                 "error": None,
@@ -1517,11 +1509,11 @@ def test_run_no_tools_eval_retries_rows_with_missing_predictions(
         output_path,
         [mini_scenario],
         models={"gpt-5.4": "gpt-5.4"},
-        programs=["income_tax", "income_tax_applied_credits"],
+        programs=["income_tax", "federal_refundable_credits"],
     )
 
     mock_run_single_no_tools.return_value = {
-        "predictions": {"income_tax": 123.0, "income_tax_applied_credits": 456.0},
+        "predictions": {"income_tax": 123.0, "federal_refundable_credits": 456.0},
         "prediction": 123.0,
         "raw_response": "123",
         "error": None,
@@ -1530,7 +1522,7 @@ def test_run_no_tools_eval_retries_rows_with_missing_predictions(
     df = run_no_tools_eval(
         [mini_scenario],
         models={"gpt-5.4": "gpt-5.4"},
-        programs=["income_tax", "income_tax_applied_credits"],
+        programs=["income_tax", "federal_refundable_credits"],
         output_path=str(output_path),
     )
 
@@ -1727,9 +1719,9 @@ def test_run_no_tools_single_output_eval_writes_one_row_per_call(
             "estimated_cost_usd": 0.01,
         },
         {
-            "predictions": {"income_tax_applied_credits": 456.0},
+            "predictions": {"federal_refundable_credits": 456.0},
             "explanations": {
-                "income_tax_applied_credits": "Low earnings with one child."
+                "federal_refundable_credits": "Low earnings with one child."
             },
             "prediction": 456.0,
             "raw_response": "second",
@@ -1751,12 +1743,12 @@ def test_run_no_tools_single_output_eval_writes_one_row_per_call(
     df = run_no_tools_single_output_eval(
         [mini_scenario],
         models={"gpt-5.4-mini": "gpt-5.4-mini"},
-        programs=["income_tax", "income_tax_applied_credits"],
+        programs=["income_tax", "federal_refundable_credits"],
         output_path=str(output_path),
     )
 
     assert len(df) == 2
-    assert set(df["variable"]) == {"income_tax", "income_tax_applied_credits"}
+    assert set(df["variable"]) == {"income_tax", "federal_refundable_credits"}
     assert set(df["explanation"]) == {
         "Taxable wage income only.",
         "Low earnings with one child.",

@@ -14,34 +14,40 @@ outputs without tools.
   household and must estimate the requested outputs using only its parametric
   knowledge. No tools, APIs, or reference materials are provided.
 
-The benchmark is intentionally scoped to direct no-tools capability. It is designed to measure whether models can actually carry out household-level policy calculations from the information in the prompt, not whether they can comply with a tool-calling interface.
+The benchmark is intentionally scoped to direct no-tools capability. It is
+designed to measure whether models can estimate household-level PolicyEngine
+reference outputs from the information in the prompt, not whether they can
+comply with an external calculator interface.
 
 ## Models tested
 
 The default benchmark model registry tracks the currently published no-tools
-leaderboard. Frozen paper claims should be read from
-`results/temporary_legacy_v1_results/paper_exports/benchmark_snapshot.json`,
-which records the exact run directories and shared model set used for
-manuscript claims.
+leaderboard. Published paper claims should identify the exact dated result
+export, model set, household sample, output set, and policy period used for the
+manuscript.
 
 Models are prompted to return numeric outputs plus one short non-empty
 explanation per output under a structured response contract. Scores use the
 numeric outputs; explanations are retained for audit and error analysis.
+The same country-level prompt template is used across models. Models receive
+the same household facts and requested outputs, no tools or web access, and the
+prompt states that unlisted numeric inputs are zero while unlisted boolean or
+status facts are false.
 
 ## Programs evaluated
 
 Benchmark outputs are specified in `policybench/benchmark_specs.json`. The
-active benchmark defaults to `v2_headline`, which focuses the ranking on
+active benchmark defaults to `headline`, which focuses the ranking on
 person- or household-facing outputs that contribute to household net income.
 PolicyEngine variables may be native to lower-level entities; the benchmark
 contract either expands them to the people shown in the prompt or aggregates
-them to the household before scoring. Intermediate tax bases move to
-supplementary outputs. Coverage eligibility outputs are booleans and are
-weighted by PolicyEngine dollar-value proxies in the household-equal impact
-score.
+them to the household before scoring. Intermediate tax bases and payroll
+subcomponents are excluded from the public ranking. Coverage eligibility
+outputs are booleans and are weighted by PolicyEngine dollar-value proxies in
+the household-equal impact score.
 
-The rebuilt US headline scope evaluates direct net-income components,
-health-related support, and coverage flags:
+The US headline scope evaluates direct net-income components, health-related
+support, and coverage flags:
 
 | Variable | Description | Category |
 |:---------|:-----------|:---------|
@@ -65,26 +71,33 @@ health-related support, and coverage flags:
 | `free_school_meals_eligible` | Household qualifies for free school meals | Coverage |
 | `reduced_price_school_meals_eligible` | Household qualifies for reduced-price school meals | Coverage |
 
-The rebuilt UK headline scope evaluates:
+The UK headline scope evaluates:
 
 | Variable | Description | Category |
 |:---------|:-----------|:---------|
 | `income_tax` | Income Tax liability | Tax |
 | `national_insurance` | National Insurance contributions | Tax |
+| `capital_gains_tax` | Capital Gains Tax liability | Tax |
 | `child_benefit` | Child Benefit amount before the High Income Child Benefit Charge | Benefits |
 | `universal_credit` | Universal Credit amount | Benefits |
 | `pension_credit` | Pension Credit amount | Benefits |
 | `pip` | Personal Independence Payment amount | Benefits |
 
-Intermediate tax bases and payroll-tax decompositions are kept in supplementary
-output sets. For example, the US supplementary set includes AGI, person-level
-employee Social Security and Medicare tax, and household Additional Medicare
-Tax. The US headline federal tax decomposition is intentionally compact: final
-federal income tax excluding ACA PTC should equal tax before refundable credits
-minus federal refundable credits. ACA Premium Tax Credit is kept as a separate
-health-related output because it depends on Marketplace premium assistance
-rather than only income-tax credit sequencing. Binary coverage outputs are
-scored with classification accuracy rather than dollar error metrics.
+The US federal tax decomposition is intentionally compact: final federal income
+tax excluding ACA PTC should equal tax before refundable credits minus federal
+refundable credits. ACA Premium Tax Credit is kept as a separate health-related
+output because it depends on Marketplace premium assistance rather than only
+income-tax credit sequencing. Binary coverage outputs are scored with
+classification accuracy rather than dollar error metrics.
+
+The benchmark excludes intermediate tax bases, payroll subcomponents, and
+outputs that mainly require unavailable household history, restricted local
+market data, or program take-up assignment rather than rule calculation. ACA
+Premium Tax Credit is retained as a deliberate health-support output; when
+local benchmark premiums are not listed, the model must estimate them from the
+household facts. WIC is requested as person-level eligibility, not as a dollar
+amount; WIC dollar values are used only as impact-weight proxies for coverage
+flags.
 
 ## Household scenarios
 
@@ -103,37 +116,58 @@ adults are listed, they are the couple in that benefit unit. This keeps
 Universal Credit, Pension Credit, Child Benefit, Income Tax, and National
 Insurance prompts aligned with the household structure used by PolicyEngine-UK.
 
-Each scenario is converted to a PolicyEngine-US household JSON object
-specifying people, tax units, SPM units, families, and households. Tax-unit role
-flags are included in the PolicyEngine input so the reference calculation can
-infer filing status from the same household structure described to the model.
+US scenarios are converted to PolicyEngine-US household JSON objects specifying
+people, tax units, SPM units, families, and households. Tax-unit role flags are
+included in the PolicyEngine input so the reference calculation can infer filing
+status from the same household structure described to the model. UK scenarios
+are converted to PolicyEngine-UK inputs using the public transfer dataset's
+person and benefit-unit structure, with prompts limited to one household group
+for tax and benefit calculations.
 
 ## Reference-output computation
 
 Reference output values are computed using PolicyEngine-US and PolicyEngine-UK.
 For each sampled scenario and selected output, we run a PolicyEngine simulation
-for tax year 2026 and record the computed value.
+for US tax year 2026 or UK fiscal year 2026-27 and record the computed value.
 
 PolicyEngine is the benchmark reference source. Its calculations implement
 policy rules and are maintained as open-source microsimulation models. Any
 discrepancy between a model's output and the PolicyEngine value is treated as a
 model error relative to the benchmark reference output, not as a claim about
-administrative ground truth.
+administrative records.
 
 ## Evaluation metrics
 
-We use three primary metrics, applied differently depending on the variable type:
+The public leaderboard uses a bounded `0-100` score. For amount outputs, each
+prediction receives credit for exact match and for falling within 1%, 5%, and
+10% of the PolicyEngine reference value; the output score averages those hit
+rates. For binary outputs, the score is classification accuracy after numeric
+predictions are rounded to `0` or `1`. Person-level coverage rows are averaged
+within their program group before country-level aggregation. Missing or
+unparseable answers count as misses through the coverage multiplier. The
+country score gives each output group equal weight, and the global score gives
+the US and UK equal weight for models run in both countries.
 
-**Mean absolute error (MAE)** measures the average magnitude of errors in dollar terms. For a set of $n$ predictions $\hat{y}_i$ against reference values $y_i$:
+We also report diagnostic error metrics. **Mean absolute error (MAE)** measures
+the average magnitude of errors in currency terms. For a set of $n$ predictions
+$\hat{y}_i$ against reference values $y_i$:
 
 $$\text{MAE} = \frac{1}{n}\sum_{i=1}^{n}|\hat{y}_i - y_i|$$
 
-**Mean absolute percentage error (MAPE)** measures relative error, excluding cases where the reference value is zero (where percentage error is undefined):
+**Mean absolute percentage error (MAPE)** measures relative error, excluding
+cases where the reference value is zero:
 
 $$\text{MAPE} = \frac{1}{|S|}\sum_{i \in S}\left|\frac{\hat{y}_i - y_i}{y_i}\right|, \quad S = \{i : y_i \neq 0\}$$
 
-**Within-10% accuracy** measures the fraction of predictions that fall within 10% of the reference value. For zero reference values, we instead check whether the prediction is within $1 of zero:
+**Within-10% accuracy** measures the fraction of predictions that fall within
+10% of the reference value. For zero reference values, we instead check whether
+the prediction is within `$1` of zero:
 
-$$\text{Acc}_{10\%} = \frac{1}{n}\sum_{i=1}^{n}\mathbf{1}\left[\frac{|\hat{y}_i - y_i|}{|y_i|} \leq 0.10\right]$$
+$$\text{Acc}_{10\%} = \frac{1}{n}\sum_{i=1}^{n}\mathbf{1}\left[(y_i = 0 \land |\hat{y}_i| \leq 1) \lor (y_i \neq 0 \land \frac{|\hat{y}_i - y_i|}{|y_i|} \leq 0.10)\right]$$
 
 For binary variables, we report classification accuracy.
+
+Sensitivity checks should be reported alongside paper claims, including
+amount-only, binary-only, positive-reference-case, zero-reference-case,
+country-only, and household-equal impact-score rankings when the relevant
+artifacts are available.

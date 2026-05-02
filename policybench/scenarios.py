@@ -734,7 +734,7 @@ def load_scenarios_from_manifest(path: str | Path) -> list[Scenario]:
     if "scenario_json" not in manifest.columns:
         raise ValueError(
             "Scenario manifest must include a scenario_json column. "
-            "Regenerate it with `policybench ground-truth`."
+            "Regenerate it with `policybench reference-outputs`."
         )
 
     scenarios = []

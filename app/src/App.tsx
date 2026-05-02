@@ -95,12 +95,12 @@ export default function App() {
         0
       );
       const countryCount = Object.keys(dashboard.countries).length;
-      return `PolicyBench v2 — global leaderboard across ${dashboard.global?.sharedModelCount ?? 0} shared frontier models, ${countryCount} country benchmarks, and ${totalHouseholds.toLocaleString()} households.`;
+      return `PolicyBench — global leaderboard across ${dashboard.global?.sharedModelCount ?? 0} shared frontier models, ${countryCount} country benchmarks, and ${totalHouseholds.toLocaleString()} households.`;
     }
 
     const countryData = data as BenchData;
     const scoredRows = noToolsModels.reduce((sum, model) => sum + model.n, 0);
-    return `PolicyBench v2 — ${VIEW_LABELS[countryData.country]} benchmark with ${scoredRows.toLocaleString()} scored outputs across ${noToolsModels.length} frontier models, ${countryData.programStats.length} programs, and ${Object.keys(countryData.scenarios).length} household scenarios.`;
+    return `PolicyBench — ${VIEW_LABELS[countryData.country]} benchmark with ${scoredRows.toLocaleString()} scored outputs across ${noToolsModels.length} frontier models, ${countryData.programStats.length} programs, and ${Object.keys(countryData.scenarios).length} household scenarios.`;
   }, [data, isGlobal, noToolsModels]);
 
   return (

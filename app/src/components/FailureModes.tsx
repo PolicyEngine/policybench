@@ -121,7 +121,7 @@ export default function FailureModes({ data }: { data: BenchData }) {
           Read this carefully
         </div>
         <p className="mt-3 text-sm leading-relaxed text-text-secondary">
-          These cards are intentionally stricter than the old headline view but
+          These cards are intentionally stricter than the aggregate leaderboard but
           still use <span className="text-text">within-10% accuracy</span> for
           dollar-valued programs so positive cases stay interpretable.
           <span className="text-text"> Positive-amount cases</span> is the

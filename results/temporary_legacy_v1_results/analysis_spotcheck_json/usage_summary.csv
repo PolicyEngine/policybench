@@ -1,5 +1,0 @@
-model,total_rows,parsed_rows,error_rows,total_estimated_cost_usd,total_elapsed_seconds,prompt_tokens,completion_tokens,total_tokens,reasoning_tokens,cached_prompt_tokens
-claude-opus,28,28,0,0.1570649999999998,158.56593575092847,6828.0,4917.0,11745.0,0.0,0.0
-claude-sonnet-4.6,28,9,0,0.106944,127.65911395798321,6828.0,5764.0,12592.0,0.0,0.0
-gemini-3.1-pro-preview,28,28,0,0.0921359999999998,130.75060174998362,6714.0,6559.0,13273.0,6107.0,
-gpt-5.4,28,19,0,0.0773549999999998,94.39234541609767,6186.0,4126.0,10312.0,2304.0,0.0

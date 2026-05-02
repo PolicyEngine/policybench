@@ -15,7 +15,7 @@ from policybench.spec import (
     parse_program_set,
 )
 
-US_V2_HEADLINE = [
+US_HEADLINE = [
     "federal_income_tax_before_refundable_credits",
     "federal_refundable_credits",
     "payroll_tax",
@@ -38,11 +38,11 @@ US_V2_HEADLINE = [
 ]
 
 
-def test_v2_headline_uses_net_income_components_and_coverage_bools():
-    outputs = get_output_specs("us", "v2_headline")
+def test_headline_uses_net_income_components_and_coverage_bools():
+    outputs = get_output_specs("us", "headline")
     by_id = {output.id: output for output in outputs}
 
-    assert [output.id for output in outputs] == US_V2_HEADLINE
+    assert [output.id for output in outputs] == US_HEADLINE
     assert {output.metric_type for output in outputs} == {"amount", "binary"}
     assert "income_tax" not in [output.id for output in outputs]
     assert "adjusted_gross_income" not in [output.id for output in outputs]
@@ -92,45 +92,6 @@ def test_v2_headline_uses_net_income_components_and_coverage_bools():
     )
 
 
-def test_v2_supplementary_keeps_derived_eligibility_labels_explicit():
-    outputs = get_output_specs("us", "v2_supplementary")
-    by_id = {output.id: output for output in outputs}
-
-    school_meals = by_id["household_free_school_meal_eligible"]
-    social_security_tax = by_id["person_employee_social_security_tax"]
-    additional_medicare_tax = by_id["household_additional_medicare_tax"]
-
-    assert school_meals.pe_variable == "free_school_meals"
-    assert school_meals.metric_type == "binary"
-    assert school_meals.aggregation == "any_positive"
-    assert "household free-school-meal eligibility label" in school_meals.prompt
-    assert social_security_tax.pe_variable == "employee_social_security_tax"
-    assert social_security_tax.aggregation == "person"
-    assert social_security_tax.metric_type == "amount"
-    assert additional_medicare_tax.pe_variable == "additional_medicare_tax"
-    assert additional_medicare_tax.aggregation == "sum"
-
-
-def test_person_payroll_supplementary_outputs_expand_per_household_member():
-    scenario = Scenario(
-        id="mini",
-        state="CA",
-        filing_status="head_of_household",
-        adults=[Person(name="head", age=35, employment_income=50_000)],
-        children=[Person(name="child1", age=8, employment_income=0)],
-        year=2026,
-    )
-
-    assert expand_programs_for_scenario(
-        ["person_employee_social_security_tax", "household_additional_medicare_tax"],
-        scenario,
-    ) == [
-        "head_employee_social_security_tax",
-        "child1_employee_social_security_tax",
-        "household_additional_medicare_tax",
-    ]
-
-
 def test_head_start_eligibility_expands_only_for_children():
     scenario = Scenario(
         id="mini",
@@ -151,12 +112,11 @@ def test_head_start_eligibility_expands_only_for_children():
 
 
 def test_program_set_parser_supports_current_sets():
-    assert parse_program_set(None) == ("v2", "headline")
-    assert parse_program_set("v2") == ("v2", "headline")
-    assert parse_program_set("v2_headline") == ("v2", "headline")
-    assert parse_program_set("v2_supplementary") == ("v2", "supplementary")
-    assert get_programs("us") == US_V2_HEADLINE
-    assert get_programs("uk", "v2_headline") == [
+    assert parse_program_set(None) == ("policybench", "headline")
+    assert parse_program_set("policybench") == ("policybench", "headline")
+    assert parse_program_set("headline") == ("policybench", "headline")
+    assert get_programs("us") == US_HEADLINE
+    assert get_programs("uk", "headline") == [
         "income_tax",
         "national_insurance",
         "capital_gains_tax",
@@ -165,6 +125,8 @@ def test_program_set_parser_supports_current_sets():
         "pension_credit",
         "pip",
     ]
+    with pytest.raises(ValueError, match="Unknown program set"):
+        parse_program_set("legacy_extra")
 
 
 def test_metric_and_impact_metadata_are_spec_driven():
@@ -175,7 +137,6 @@ def test_metric_and_impact_metadata_are_spec_driven():
     assert net_income_sign_for_output("federal_refundable_credits") == 1
     assert net_income_sign_for_output("premium_tax_credit") == 1
     assert net_income_sign_for_output("snap") == 1
-    assert net_income_sign_for_output("adjusted_gross_income") == 0
 
 
 def test_find_output_spec_prefers_default_spec_for_overlapping_outputs():

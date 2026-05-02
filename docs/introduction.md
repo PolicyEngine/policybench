@@ -6,7 +6,7 @@ title: Introduction
 
 ## The promise and peril of AI for policy analysis
 
-Artificial intelligence is increasingly invoked as a tool for public policy analysis. Large language models (LLMs) can summarize legislation, explain eligibility rules, and draft policy memos with impressive fluency. Policymakers, journalists, and researchers have begun using these models to answer questions about how tax and benefit systems affect specific households --- questions like "How much would this family receive in SNAP benefits?" or "What is the marginal tax rate for a single parent earning $40,000 in California?"
+Artificial intelligence is increasingly invoked as a tool for public policy analysis. Large language models (LLMs) can summarize legislation, explain eligibility rules, and draft policy memos. Policymakers, journalists, and researchers have begun using these models to answer questions about how tax and benefit systems affect specific households --- questions like "How much would this family receive in SNAP benefits?" or "What is the marginal tax rate for a single parent earning $40,000 in California?"
 
 These questions have reference outputs under a specified tax-benefit model. The US tax code and benefit programs define formulas, phase-out schedules, income thresholds, and interaction effects that together determine a household's tax liability, credit amounts, and benefit eligibility. Estimating these outputs requires knowledge of individual program rules and the ability to execute multi-step calculations that account for interactions across programs, state-specific provisions, and household-specific circumstances.
 
@@ -34,6 +34,6 @@ This paper makes three contributions:
 
 1. **A public benchmark for AI-assisted policy analysis.** PolicyBench defines sampled household scenarios, encodes them for PolicyEngine, and scores selected tax-and-benefit outputs against PolicyEngine reference values. The benchmark is open-source and extensible to additional countries and programs.
 
-2. **An empirical evaluation of frontier model capabilities.** We test Claude Opus 4.6, Claude Sonnet 4.6, GPT-5.4, and Gemini 3.1 Pro Preview in a no-tools setting. Our results quantify how much household-level policy calculation frontier models can actually do from parametric knowledge alone.
+2. **An empirical evaluation of frontier model capabilities.** We test a dated snapshot of frontier and budget models in a no-tools setting across the US and UK. Our results quantify how much household-level policy calculation these models can do from parametric knowledge alone.
 
 3. **Evidence about the limits of unaided policy calculation.** We show where frontier models systematically fail on thresholds, phase-outs, state variation, and program interactions, and provide a benchmark that can track whether future model generations close that gap.

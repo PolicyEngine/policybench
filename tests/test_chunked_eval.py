@@ -20,7 +20,7 @@ def test_chunk_is_complete_requires_expected_rows_and_clean_predictions(tmp_path
         {
             "model": ["m", "m"],
             "scenario_id": ["s1", "s1"],
-            "variable": ["income_tax", "income_tax_applied_credits"],
+            "variable": ["income_tax", "federal_refundable_credits"],
             "prediction": [1.0, 2.0],
             "explanation": ["Wages drive tax.", "Income is too high."],
             "error": [None, None],
@@ -37,7 +37,7 @@ def test_chunk_is_complete_rejects_error_rows(tmp_path):
         {
             "model": ["m", "m"],
             "scenario_id": ["s1", "s1"],
-            "variable": ["income_tax", "income_tax_applied_credits"],
+            "variable": ["income_tax", "federal_refundable_credits"],
             "prediction": [1.0, None],
             "explanation": ["Wages drive tax.", "Income is too high."],
             "error": [None, "RateLimitError: insufficient_quota"],
@@ -53,7 +53,7 @@ def test_chunk_is_complete_requires_explanations_by_default(tmp_path):
         {
             "model": ["m", "m"],
             "scenario_id": ["s1", "s1"],
-            "variable": ["income_tax", "income_tax_applied_credits"],
+            "variable": ["income_tax", "federal_refundable_credits"],
             "prediction": [1.0, 2.0],
             "explanation": ["Wages drive tax.", ""],
             "error": [None, None],
@@ -108,7 +108,7 @@ def test_run_chunk_invokes_package_cli(monkeypatch, tmp_path):
     run_chunk(
         country="us",
         model="gpt-5.5",
-        program_set="v2_headline",
+        program_set="headline",
         scenario_manifest=tmp_path / "scenarios.csv",
         scenario_count=100,
         output=tmp_path / "chunk.csv",
@@ -141,7 +141,7 @@ def test_run_chunk_adds_ablation_flags(monkeypatch, tmp_path):
     run_chunk(
         country="us",
         model="gpt-5.5",
-        program_set="v2_headline",
+        program_set="headline",
         scenario_manifest=tmp_path / "scenarios.csv",
         scenario_count=100,
         output=tmp_path / "chunk.csv",
@@ -179,7 +179,7 @@ def test_run_chunk_with_retries_retries_incomplete_output(monkeypatch, tmp_path)
     run_chunk_with_retries(
         country="us",
         model="gpt-5.5",
-        program_set="v2_headline",
+        program_set="headline",
         scenario_manifest=tmp_path / "scenarios.csv",
         scenario_count=1,
         output=output,
@@ -252,7 +252,7 @@ def test_run_chunked_eval_runs_requested_models_and_merges(monkeypatch, tmp_path
         output_dir=tmp_path / "predictions",
         country="us",
         models=["gpt-5.5", "claude-opus-4.7"],
-        program_set="v2_headline",
+        program_set="headline",
         chunk_size=10,
         parallel=2,
         model_parallel=1,
@@ -293,7 +293,7 @@ def test_run_chunked_eval_can_parallelize_models(monkeypatch, tmp_path):
         output_dir=tmp_path / "predictions",
         country="us",
         models=["gpt-5.5", "claude-opus-4.7"],
-        program_set="v2_headline",
+        program_set="headline",
         chunk_size=10,
         parallel=2,
         model_parallel=2,
