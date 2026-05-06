@@ -2,7 +2,8 @@ import type { CountryCode, ViewKey } from "../types";
 import type { ScoreRow } from "./scoring";
 import { type SensitivityViewId } from "./sensitivity";
 
-const DEFAULT_DRAWS = 500;
+export const DEFAULT_DRAWS = 400;
+const GLOBAL_REQUIRED_COUNTRIES: readonly CountryCode[] = ["us", "uk"];
 
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
@@ -83,12 +84,21 @@ export function bootstrapIntervals(
   }
   for (const list of perCountryScenarios.values()) list.sort();
 
-  const countriesToUse: CountryCode[] =
-    selectedView === "global"
-      ? (["us", "uk"] as CountryCode[]).filter((c) =>
-          perCountryScenarios.has(c),
-        )
-      : [selectedView as CountryCode];
+  // For the global view, only return intervals when every required country
+  // has rows under the active sensitivity slice. Otherwise return an empty
+  // map so the leaderboard component can suppress or relabel the global view
+  // rather than silently presenting a single-country score under a global
+  // banner.
+  let countriesToUse: CountryCode[];
+  if (selectedView === "global") {
+    const haveAllRequired = GLOBAL_REQUIRED_COUNTRIES.every((c) =>
+      perCountryScenarios.has(c),
+    );
+    if (!haveAllRequired) return new Map();
+    countriesToUse = [...GLOBAL_REQUIRED_COUNTRIES];
+  } else {
+    countriesToUse = [selectedView as CountryCode];
+  }
 
   const models = [...buckets.keys()];
   const rng = mulberry32(seed);
@@ -119,7 +129,11 @@ export function bootstrapIntervals(
         const scenarioMap = countryMap.get(country);
         if (!scenarioMap) continue;
         const sampled = sampledIds.get(country) ?? [];
-        // Aggregate output-group means across the sampled scenarios.
+        // Aggregate row-level scores per output group across the sampled
+        // scenarios. We add the bucket sums and counts directly so each row
+        // (e.g. each person-expanded medicaid_eligible row) contributes to
+        // the output-group mean with equal weight, matching the headline
+        // estimator in modelScoresForView.
         const outputBuckets = new Map<string, { sum: number; count: number }>();
         for (const scenarioId of sampled) {
           const outputMap = scenarioMap.get(scenarioId);
@@ -129,9 +143,8 @@ export function bootstrapIntervals(
               sum: 0,
               count: 0,
             };
-            // Each scenario contributes its mean for that output_group.
-            cur.sum += v.sum / v.count;
-            cur.count += 1;
+            cur.sum += v.sum;
+            cur.count += v.count;
             outputBuckets.set(outputGroup, cur);
           }
         }

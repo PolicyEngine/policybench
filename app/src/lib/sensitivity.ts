@@ -4,6 +4,8 @@ import type {
   DashboardBundle,
   ViewKey,
 } from "../types";
+
+const GLOBAL_REQUIRED_COUNTRIES: readonly CountryCode[] = ["us", "uk"];
 import {
   metricTypeForVariable,
   outputGroupForVariable,
@@ -174,6 +176,17 @@ function scoresPerCountryModel(rows: ScoreRow[]): Map<
   return out;
 }
 
+/** Returns true if the active sensitivity slice has rows for every required country. */
+export function viewSupportsGlobal(
+  rows: ScoreRow[],
+  view: SensitivityViewId,
+): boolean {
+  const filtered = filterRows(rows, view);
+  const present = new Set<CountryCode>();
+  for (const row of filtered) present.add(row.country);
+  return GLOBAL_REQUIRED_COUNTRIES.every((c) => present.has(c));
+}
+
 export function modelScoresForView(
   rows: ScoreRow[],
   view: SensitivityViewId,
@@ -182,19 +195,27 @@ export function modelScoresForView(
   const filtered = filterRows(rows, view);
   const perCountry = scoresPerCountryModel(filtered);
   if (selectedView === "global") {
+    // Global score requires every required country to have rows under the
+    // active sensitivity slice. If any required country is missing (e.g.
+    // "Binary only" with no UK binary outputs), surface no rows so the
+    // leaderboard component can suppress or relabel the global view.
+    const haveAllRequired = GLOBAL_REQUIRED_COUNTRIES.every((c) =>
+      perCountry.has(c),
+    );
+    if (!haveAllRequired) return [];
+
     const allModels = new Set<string>();
-    for (const map of perCountry.values()) {
-      for (const m of map.keys()) allModels.add(m);
+    for (const c of GLOBAL_REQUIRED_COUNTRIES) {
+      for (const m of perCountry.get(c)?.keys() ?? []) allModels.add(m);
     }
     const out: ModelScore[] = [];
     for (const model of allModels) {
       const present: number[] = [];
-      for (const map of perCountry.values()) {
-        const s = map.get(model);
+      for (const c of GLOBAL_REQUIRED_COUNTRIES) {
+        const s = perCountry.get(c)?.get(model);
         if (s !== undefined && Number.isFinite(s)) present.push(s);
       }
-      // Global score requires presence in both countries.
-      if (present.length === perCountry.size && perCountry.size > 0) {
+      if (present.length === GLOBAL_REQUIRED_COUNTRIES.length) {
         out.push({
           model,
           score: present.reduce((a, b) => a + b, 0) / present.length,

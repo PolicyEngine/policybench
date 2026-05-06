@@ -30,12 +30,17 @@ function ViewSelector({
     ? "rounded-full text-[10px] px-2.5 py-1 font-medium transition-colors"
     : "rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:px-4";
   return (
-    <div className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-bg/80 p-1">
+    <div
+      role="group"
+      aria-label="Country view"
+      className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-bg/80 p-1"
+    >
       {views.map((view) => (
         <button
           key={view}
           type="button"
           onClick={() => onSelect(view)}
+          aria-pressed={selectedView === view}
           className={`${pill} ${
             selectedView === view
               ? "bg-primary text-void"
@@ -54,11 +59,14 @@ function getScrollProgress(threshold: number) {
   return Math.min(1, Math.max(0, window.scrollY / threshold));
 }
 
-function useScrollProgress(threshold = 80) {
-  const [progress, setProgress] = useState(() => getScrollProgress(threshold));
+function useScrollProgress(threshold = 80, enabled = true) {
+  const [progress, setProgress] = useState(() =>
+    enabled ? getScrollProgress(threshold) : 0,
+  );
   const rafRef = useRef(0);
 
   useEffect(() => {
+    if (!enabled) return;
     const onScroll = () => {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
@@ -70,9 +78,9 @@ function useScrollProgress(threshold = 80) {
       window.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(rafRef.current);
     };
-  }, [threshold]);
+  }, [threshold, enabled]);
 
-  return progress;
+  return enabled ? progress : 0;
 }
 
 export type SiteHeaderProps = {
@@ -100,9 +108,13 @@ export default function SiteHeader({
   expandedContent,
   alwaysExpanded = false,
 }: SiteHeaderProps) {
-  const measuredProgress = useScrollProgress(80);
+  const measuredProgress = useScrollProgress(80, !alwaysExpanded);
   const progress = alwaysExpanded ? 0 : measuredProgress;
   const scrolled = progress > 0.5;
+  const navVisible = !alwaysExpanded; // navItems are only meaningful while
+  // the in-page hero is driving the collapse; on alwaysExpanded pages we
+  // hide them outright by leaving navItems empty.
+  const actionVisible = alwaysExpanded || progress > 0.3;
 
   const lerp = (a: number, b: number) => a + (b - a) * progress;
   const expandedPadTop = lerp(40, 8);
@@ -161,6 +173,7 @@ export default function SiteHeader({
                 maxWidth: navOpacity > 0.05 ? "600px" : "0px",
                 marginLeft: navOpacity > 0.05 ? "4px" : "0px",
               }}
+              aria-hidden={navVisible ? undefined : true}
             >
               <div className="h-4 w-px bg-border shrink-0 mx-2" />
               <div className="flex min-w-max gap-0.5">
@@ -168,6 +181,7 @@ export default function SiteHeader({
                   <a
                     key={item.id}
                     href={`#${item.id}`}
+                    tabIndex={navVisible ? 0 : -1}
                     className={`px-2.5 py-2 text-[11px] font-medium tracking-wider uppercase border-b-2 sm:px-3 ${
                       activeNav === item.id
                         ? "border-primary text-primary"
@@ -200,10 +214,12 @@ export default function SiteHeader({
                 maxWidth:
                   alwaysExpanded || navOpacity > 0.05 ? "120px" : "0px",
               }}
+              aria-hidden={actionVisible ? undefined : true}
             >
               {actionLink.type === "external" ? (
                 <a
                   href={actionLink.href}
+                  tabIndex={actionVisible ? 0 : -1}
                   className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary hover:border-primary/40 hover:text-primary whitespace-nowrap"
                 >
                   {actionLink.label}
@@ -211,6 +227,7 @@ export default function SiteHeader({
               ) : (
                 <Link
                   href={actionLink.href}
+                  tabIndex={actionVisible ? 0 : -1}
                   className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary hover:border-primary/40 hover:text-primary whitespace-nowrap"
                 >
                   {actionLink.label}

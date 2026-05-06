@@ -17,9 +17,14 @@ import {
   SENSITIVITY_VIEWS,
   buildAllRows,
   modelScoresForView,
+  viewSupportsGlobal,
   type SensitivityViewId,
 } from "../lib/sensitivity";
-import { bootstrapIntervals, viewToFilter } from "../lib/bootstrap";
+import {
+  DEFAULT_DRAWS,
+  bootstrapIntervals,
+  viewToFilter,
+} from "../lib/bootstrap";
 
 function Badge({
   children,
@@ -117,9 +122,24 @@ export default function ModelLeaderboard({
 
   const allRows = useMemo(() => buildAllRows(dashboard), [dashboard]);
 
+  // Some sensitivity slices have no rows in one country (e.g. "Binary only"
+  // has zero UK rows). In that case the global view cannot be a true
+  // cross-country score; fall back to the canonical Main view so the global
+  // tab still has a defensible ranking and surface a notice on the leaderboard.
+  const globalUnsupportedForView = useMemo(
+    () =>
+      isGlobal &&
+      sensitivityView !== "main" &&
+      !viewSupportsGlobal(allRows, sensitivityView),
+    [allRows, isGlobal, sensitivityView],
+  );
+  const effectiveView: SensitivityViewId = globalUnsupportedForView
+    ? "main"
+    : sensitivityView;
+
   const sensitivityScores = useMemo(() => {
-    return modelScoresForView(allRows, sensitivityView, selectedView);
-  }, [allRows, sensitivityView, selectedView]);
+    return modelScoresForView(allRows, effectiveView, selectedView);
+  }, [allRows, effectiveView, selectedView]);
 
   const sensitivityScoreByModel = useMemo(() => {
     const out = new Map<string, number>();
@@ -129,7 +149,7 @@ export default function ModelLeaderboard({
 
   const noTools = useMemo<ModelStat[]>(() => {
     const base = data.modelStats.filter((m) => m.condition === "no_tools");
-    if (sensitivityView === "main") {
+    if (effectiveView === "main") {
       return [...base].sort((a, b) => b.score - a.score);
     }
     // Reorder + replace score with the sensitivity-view score, dropping models
@@ -138,16 +158,16 @@ export default function ModelLeaderboard({
       .filter((m) => sensitivityScoreByModel.has(m.model))
       .map((m) => ({ ...m, score: sensitivityScoreByModel.get(m.model)! }))
       .sort((a, b) => b.score - a.score);
-  }, [data, sensitivityView, sensitivityScoreByModel]);
+  }, [data, effectiveView, sensitivityScoreByModel]);
 
   const intervals = useMemo(() => {
     return bootstrapIntervals(
       allRows,
       selectedView,
-      viewToFilter(sensitivityView),
-      { draws: 400, seed: 42 },
+      viewToFilter(effectiveView),
+      { draws: DEFAULT_DRAWS, seed: 42 },
     );
-  }, [allRows, selectedView, sensitivityView]);
+  }, [allRows, selectedView, effectiveView]);
 
   const pendingModels = useMemo<PendingModel[]>(() => {
     const present = new Set(noTools.map((model) => model.model));
@@ -209,30 +229,64 @@ export default function ModelLeaderboard({
         className="mt-5 flex flex-wrap items-center gap-3 animate-fade-up"
         style={{ animationDelay: "200ms" }}
       >
-        <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
+        <span
+          id="leaderboard-view-label"
+          className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+        >
           View
         </span>
-        <div className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1">
-          {SENSITIVITY_VIEWS.map((view) => (
-            <button
-              key={view.id}
-              type="button"
-              onClick={() => setSensitivityView(view.id)}
-              className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
-                sensitivityView === view.id
-                  ? "bg-primary text-void"
-                  : "text-text-secondary hover:text-text"
-              }`}
-              title={view.description}
-            >
-              {view.label}
-            </button>
-          ))}
+        <div
+          role="group"
+          aria-labelledby="leaderboard-view-label"
+          className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+        >
+          {SENSITIVITY_VIEWS.map((view) => {
+            const isActive = sensitivityView === view.id;
+            const disabledForGlobal =
+              isGlobal &&
+              view.id !== "main" &&
+              !viewSupportsGlobal(allRows, view.id);
+            return (
+              <button
+                key={view.id}
+                type="button"
+                onClick={() => setSensitivityView(view.id)}
+                aria-pressed={isActive}
+                aria-disabled={disabledForGlobal || undefined}
+                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary text-void"
+                    : disabledForGlobal
+                      ? "text-text-muted opacity-60"
+                      : "text-text-secondary hover:text-text"
+                }`}
+                title={
+                  disabledForGlobal
+                    ? `${view.description} (not available for the Global view; switch to US or UK)`
+                    : view.description
+                }
+              >
+                {view.label}
+              </button>
+            );
+          })}
         </div>
         <span className="text-[11px] text-text-muted">
           {activeView.description}
         </span>
       </div>
+      {globalUnsupportedForView && (
+        <p
+          role="note"
+          className="mt-3 text-[11px] text-text-muted animate-fade-up"
+          style={{ animationDelay: "220ms" }}
+        >
+          The {activeView.label.toLowerCase()} slice has no rows in at least
+          one country, so the global ranking falls back to the Main view.
+          Switch to United States or United Kingdom to see this slice on a
+          single country.
+        </p>
+      )}
 
       <div className="mt-8 space-y-3">
         <div
