@@ -111,9 +111,11 @@ export default function SiteHeader({
   const measuredProgress = useScrollProgress(80, !alwaysExpanded);
   const progress = alwaysExpanded ? 0 : measuredProgress;
   const scrolled = progress > 0.5;
-  const navVisible = !alwaysExpanded; // navItems are only meaningful while
-  // the in-page hero is driving the collapse; on alwaysExpanded pages we
-  // hide them outright by leaving navItems empty.
+  const navOpacity = Math.max(0, (progress - 0.3) / 0.7);
+  // The collapsed nav has opacity:0 / max-width:0 until the user has scrolled
+  // past ~30% of the threshold; tie keyboard focus to the same gate so the
+  // links don't sit invisible-but-tabbable in the home-page tab order.
+  const navVisible = !alwaysExpanded && navOpacity > 0.05;
   const actionVisible = alwaysExpanded || progress > 0.3;
 
   const lerp = (a: number, b: number) => a + (b - a) * progress;
@@ -122,7 +124,6 @@ export default function SiteHeader({
   const titleSize = lerp(36, 16);
   const expandOpacity = 1 - Math.min(1, progress * 2);
   const expandHeight = `${(1 - progress) * 320}px`;
-  const navOpacity = Math.max(0, (progress - 0.3) / 0.7);
   const bgOpacity = progress;
 
   const showViewSelector =
