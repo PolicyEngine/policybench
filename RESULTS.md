@@ -14,7 +14,7 @@ policybench analyze --output-dir results/local/analysis
 ```
 
 The first command writes PolicyEngine reference outputs, not administrative
-truth. `policybench ground-truth` remains as a compatibility alias.
+truth.
 
 ## Full runbook
 
@@ -53,7 +53,7 @@ for country in us uk; do
   cp "$RUN_DIR/$country/no_tools_chunked/by_model/"*.csv "$RUN_DIR/$country/by_model/"
 done
 
-python scripts/export_full_run.py --run-dir "$RUN_DIR"
+policybench export-full-run --run-dir "$RUN_DIR"
 ```
 
 For first-pass cost control, run the same commands with `-n 100` in a separate

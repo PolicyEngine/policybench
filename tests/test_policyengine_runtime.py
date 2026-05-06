@@ -1,5 +1,7 @@
 """Tests for PolicyEngine runtime provenance metadata."""
 
+from importlib import metadata
+
 import policybench.policyengine_runtime as runtime
 
 
@@ -24,3 +26,55 @@ def test_uk_policyengine_bundle_uses_transfer_artifact(monkeypatch):
         "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
     )
     assert "not native UK survey microdata" in bundle["runtime_dataset_note"]
+
+
+def test_unbundled_runtime_metadata_does_not_import_policyengine(monkeypatch):
+    monkeypatch.setattr(
+        runtime,
+        "_bundled_model_version_from_policyengine_metadata",
+        lambda country, model_package_name: "1.0.0",
+    )
+    monkeypatch.setattr(runtime, "_load_policyengine_manifest", lambda country: None)
+    monkeypatch.setattr(
+        runtime,
+        "_load_raw_policyengine_manifest",
+        lambda country: {
+            "bundle_id": f"{country}-bundle",
+            "policyengine_version": "4.0.0",
+            "data_package": {
+                "name": f"policyengine-{country}-data",
+                "version": "1.2.3",
+                "repo_id": f"policyengine/{country}-data",
+            },
+            "default_dataset": "sample_dataset",
+            "datasets": {"sample_dataset": {"path": "sample_dataset.h5"}},
+            "certification": {
+                "compatibility_basis": "exact_build_model_version",
+                "data_build_id": "sample-build",
+                "built_with_model_version": "1.0.0",
+                "certified_by": "policyengine.py bundled manifest",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        metadata,
+        "version",
+        lambda package: {
+            "policyengine": "4.3.1",
+            "policyengine-us": "1.1.0",
+        }[package],
+    )
+
+    runtime.policyengine_release_bundle.cache_clear()
+    bundle = runtime.policyengine_release_bundle("us")
+
+    assert bundle["model_version"] == "1.1.0"
+    assert bundle["bundled_model_version"] == "1.0.0"
+    assert bundle["model_matches_policyengine_bundle"] is False
+    assert (
+        bundle["compatibility_basis"]
+        == "installed_model_package_not_policyengine_py_bundle"
+    )
+    assert bundle["data_version"] == "1.2.3"
+    assert bundle["certified_data_build_id"] == "sample-build"
+    runtime.policyengine_release_bundle.cache_clear()

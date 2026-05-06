@@ -279,8 +279,12 @@ export type PolicyEngineBundle = {
   bundle_id?: string | null;
   country_id?: string | null;
   policyengine_version?: string | null;
+  bundled_policyengine_version?: string | null;
   model_package?: string | null;
   model_version?: string | null;
+  bundled_model_version?: string | null;
+  model_version_source?: string | null;
+  model_matches_policyengine_bundle?: boolean | null;
   data_package?: string | null;
   data_version?: string | null;
   default_dataset?: string | null;
@@ -291,7 +295,9 @@ export type PolicyEngineBundle = {
   data_build_model_git_sha?: string | null;
   data_build_fingerprint?: string | null;
   compatibility_basis?: string | null;
+  bundled_compatibility_basis?: string | null;
   certified_by?: string | null;
+  bundled_certified_by?: string | null;
 };
 
 export type BenchData = {

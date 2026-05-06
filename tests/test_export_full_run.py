@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from scripts.export_full_run import load_predictions
+from policybench.full_run_export import load_predictions
 
 
 def _write_predictions(path: Path, model: str) -> None:

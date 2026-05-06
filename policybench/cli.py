@@ -112,7 +112,6 @@ def main():
     # PolicyEngine reference outputs
     gt_parser = subparsers.add_parser(
         "reference-outputs",
-        aliases=["ground-truth"],
         help="Generate PolicyEngine reference outputs",
     )
     gt_parser.add_argument(
@@ -394,18 +393,56 @@ def main():
         ),
     )
 
+    # Export full run
+    export_parser = subparsers.add_parser(
+        "export-full-run",
+        help="Export full-run analysis and frontend payloads",
+    )
+    export_parser.add_argument(
+        "--run-dir",
+        required=True,
+        help="Full-run directory containing country subdirectories",
+    )
+    export_parser.add_argument(
+        "--country",
+        action="append",
+        dest="countries",
+        default=None,
+        help="Country code to export. Repeat to export multiple countries.",
+    )
+    export_parser.add_argument(
+        "--app-data-output",
+        default="app/src/data.json",
+        help="Path for the combined frontend payload",
+    )
+    export_parser.add_argument(
+        "--skip-app-data",
+        action="store_true",
+        help="Only write the combined payload under the run directory",
+    )
+
+    # Compare prompt modes
+    compare_parser = subparsers.add_parser(
+        "compare-prompt-modes",
+        help="Compare multi-output and single-output benchmark runs",
+    )
+    compare_parser.add_argument(
+        "--reference-outputs",
+        dest="reference_outputs",
+        required=True,
+    )
+    compare_parser.add_argument("--multi-predictions", required=True)
+    compare_parser.add_argument("--single-predictions", required=True)
+    compare_parser.add_argument("--output-dir", required=True)
+
     # Analyze
     analyze_parser = subparsers.add_parser("analyze", help="Analyze AI-alone results")
     analyze_parser.add_argument(
         "-g",
-        "--ground-truth",
         "--reference-outputs",
         dest="ground_truth",
         default="results/local/reference_outputs.csv",
-        help=(
-            "CSV file with PolicyEngine reference outputs. The "
-            "`--ground-truth` flag is kept as a compatibility alias."
-        ),
+        help="CSV file with PolicyEngine reference outputs.",
     )
     analyze_parser.add_argument(
         "-p", "--predictions", default="results/local/no_tools/predictions.csv"
@@ -445,7 +482,7 @@ def main():
 
         enable_cache()
 
-    if args.command in {"reference-outputs", "ground-truth"}:
+    if args.command == "reference-outputs":
         from policybench.ground_truth import calculate_ground_truth
         from policybench.policyengine_runtime import runtime_metadata_for_country
         from policybench.scenarios import (
@@ -579,6 +616,29 @@ def main():
         except (FileNotFoundError, RuntimeError, ValueError) as exc:
             raise SystemExit(str(exc)) from exc
         print(f"Chunked no-tools predictions saved to {output}")
+
+    elif args.command == "export-full-run":
+        from policybench.full_run_export import export_full_run
+
+        try:
+            export_full_run(
+                run_dir=args.run_dir,
+                countries=args.countries,
+                app_data_output=args.app_data_output,
+                skip_app_data=args.skip_app_data,
+            )
+        except FileNotFoundError as exc:
+            raise SystemExit(str(exc)) from exc
+
+    elif args.command == "compare-prompt-modes":
+        from policybench.prompt_mode_comparison import compare_prompt_modes
+
+        compare_prompt_modes(
+            reference_outputs=args.reference_outputs,
+            multi_predictions=args.multi_predictions,
+            single_predictions=args.single_predictions,
+            output_dir=args.output_dir,
+        )
 
     elif args.command == "analyze":
         import pandas as pd

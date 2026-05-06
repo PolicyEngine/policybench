@@ -83,4 +83,3 @@ administrative truth. It also writes `results/local/scenarios.csv`, and the eval
 commands reuse that manifest by default instead of regenerating households from
 the current source dataset. Prediction CSVs also get a `.meta.json` sidecar so
 resumes only happen against the exact same manifest, model set, and program set.
-`policybench ground-truth` remains as a compatibility alias.

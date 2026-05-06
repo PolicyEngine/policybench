@@ -17,12 +17,11 @@ policybench analyze --output-dir results/local/analysis
 
 These commands are for local scratch analysis. Published dashboard exports are
 assembled from dated country/model batch directories with
-`scripts/export_full_run.py`; do not treat a single local `analyze` run as the
+`policybench export-full-run`; do not treat a single local `analyze` run as the
 source for `app/src/data.json`.
 
 `reference-outputs` writes PolicyEngine reference outputs rather than
-administrative truth. The older `ground-truth` command name remains available as
-a compatibility alias.
+administrative truth.
 
 The `analyze` command writes local artifacts:
 
