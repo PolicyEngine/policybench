@@ -250,13 +250,9 @@ export default function ModelLeaderboard({
               <button
                 key={view.id}
                 type="button"
-                onClick={
-                  disabledForGlobal
-                    ? undefined
-                    : () => setSensitivityView(view.id)
-                }
+                disabled={disabledForGlobal}
+                onClick={() => setSensitivityView(view.id)}
                 aria-pressed={isActive && !disabledForGlobal}
-                aria-disabled={disabledForGlobal || undefined}
                 className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
                   isActive && !disabledForGlobal
                     ? "bg-primary text-void"
