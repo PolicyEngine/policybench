@@ -1845,6 +1845,9 @@ def run_no_tools_single_output_eval(
                         "total_cost_usd": None,
                         "cost_is_estimated": None,
                         "estimated_cost_usd": None,
+                        "provider_response_id": None,
+                        "provider_system_fingerprint": None,
+                        "provider_resolved_model": None,
                     }
 
                 call_id = ":".join(
@@ -1878,6 +1881,13 @@ def run_no_tools_single_output_eval(
                         "total_cost_usd": result.get("total_cost_usd"),
                         "cost_is_estimated": result.get("cost_is_estimated"),
                         "estimated_cost_usd": result.get("estimated_cost_usd"),
+                        "provider_response_id": result.get("provider_response_id"),
+                        "provider_system_fingerprint": result.get(
+                            "provider_system_fingerprint"
+                        ),
+                        "provider_resolved_model": result.get(
+                            "provider_resolved_model"
+                        ),
                     }
                 )
 

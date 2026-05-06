@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -636,25 +637,52 @@ def _verify_uk_transfer_artifact(path: Path) -> Path:
     return path
 
 
+UK_TRANSFER_DOWNLOAD_TIMEOUT_SECONDS = 60
+
+
 def _download_uk_transfer_artifact(destination: Path) -> Path:
-    """Download the snapshot's UK transfer artifact from the pinned commit."""
+    """Download the snapshot's UK transfer artifact from the pinned commit.
+
+    Streams the download to a temp file alongside the destination, verifies
+    the sha256 matches the pinned snapshot value, and only atomically replaces
+    the destination on success. Raises ``RuntimeError`` on network errors or
+    HTTP failures and ``ValueError`` (via verification) on hash mismatch.
+    """
     destination.parent.mkdir(parents=True, exist_ok=True)
     request = urllib.request.Request(
         UK_TRANSFER_DATASET_PINNED_URL,
         headers={"User-Agent": "policybench"},
     )
-    with urllib.request.urlopen(request) as response:
-        if getattr(response, "status", 200) >= 400:
-            raise RuntimeError(
-                f"Download of {UK_TRANSFER_DATASET_PINNED_URL} returned "
-                f"HTTP {response.status}."
-            )
-        with destination.open("wb") as handle:
-            for chunk in iter(lambda: response.read(1024 * 1024), b""):
-                if not chunk:
-                    break
-                handle.write(chunk)
-    return _verify_uk_transfer_artifact(destination)
+    tmp_path = destination.with_suffix(destination.suffix + ".part")
+    try:
+        with urllib.request.urlopen(
+            request, timeout=UK_TRANSFER_DOWNLOAD_TIMEOUT_SECONDS
+        ) as response:
+            if getattr(response, "status", 200) >= 400:
+                raise RuntimeError(
+                    f"Download of {UK_TRANSFER_DATASET_PINNED_URL} returned "
+                    f"HTTP {response.status}."
+                )
+            with tmp_path.open("wb") as handle:
+                for chunk in iter(lambda: response.read(1024 * 1024), b""):
+                    if not chunk:
+                        break
+                    handle.write(chunk)
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        tmp_path.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"Failed to download UK transfer dataset from "
+            f"{UK_TRANSFER_DATASET_PINNED_URL}: {exc}. Set "
+            "POLICYBENCH_UK_DATASET_PATH to a local copy or "
+            "POLICYBENCH_UK_DATASET_DOWNLOAD=0 to disable the download step."
+        ) from exc
+    try:
+        _verify_uk_transfer_artifact(tmp_path)
+    except ValueError:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    tmp_path.replace(destination)
+    return destination
 
 
 def get_uk_dataset_path() -> Path:
@@ -665,12 +693,24 @@ def get_uk_dataset_path() -> Path:
     a pinned-commit download from the public ``policyengine-uk-data`` GitHub
     repo. The returned path is sha256-verified against the snapshot value.
     Set ``POLICYBENCH_UK_DATASET_DOWNLOAD=0`` to disable the download step.
+    Set ``POLICYBENCH_UK_DATASET_CACHE`` to override the download cache root
+    (default ``~/.cache/policybench``).
+
+    If ``POLICYBENCH_UK_DATASET_PATH`` is set to a path that does not exist or
+    does not match the pinned sha256, this raises ``FileNotFoundError`` or
+    ``ValueError`` rather than silently falling through to the download path.
     """
     configured = os.environ.get("POLICYBENCH_UK_DATASET_PATH")
     if configured:
         path = Path(configured).expanduser()
-        if path.exists():
-            return _verify_uk_transfer_artifact(path)
+        if not path.exists():
+            raise FileNotFoundError(
+                f"POLICYBENCH_UK_DATASET_PATH={configured} does not exist. "
+                "Unset the variable or point it at a local copy of "
+                f"{UK_TRANSFER_DATASET_FILENAME} (sha256 "
+                f"{UK_TRANSFER_DATASET_SHA256})."
+            )
+        return _verify_uk_transfer_artifact(path)
 
     for candidate in UK_DATASET_CANDIDATES:
         if candidate.exists():

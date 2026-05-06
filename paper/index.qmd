@@ -254,65 +254,49 @@ def federal_state_joint_accuracy() -> pd.DataFrame:
 
 
 def impact_floor_sensitivity() -> pd.DataFrame:
-    """Top US/UK models under varying household-equal impact-score floors."""
-    prediction_rows = flatten_predictions()
+    """Top US/UK models under varying household-equal impact-score floors.
 
-    def impact_table(floor_share: float) -> pd.DataFrame:
-        groups = []
+    Uses the canonical ``policybench.analysis.household_equal_impact_scores``
+    over the committed snapshot ground-truth and per-run prediction CSVs so
+    the table matches the same impact statistic used in
+    ``us_impact_summary_by_model.csv`` and ``uk_impact_summary_by_model.csv``.
+    """
+    from policybench.analysis import household_equal_impact_scores
+
+    run_paths = {
+        "us": ROOT / IMPACT_SNAPSHOT_DIR / "runs" / US_RUN_LABEL,
+        "uk": ROOT / IMPACT_SNAPSHOT_DIR / "runs" / UK_RUN_LABEL,
+    }
+    ground_truths: dict[str, pd.DataFrame] = {}
+    predictions: dict[str, pd.DataFrame] = {}
+    for country, run_dir in run_paths.items():
+        ground_truths[country] = pd.read_csv(run_dir / "ground_truth.csv")
+        predictions[country] = pd.read_csv(
+            run_dir / "predictions.csv.gz",
+            usecols=["model", "scenario_id", "variable", "prediction"],
+        )
+
+    def country_table(floor_share: float) -> pd.DataFrame:
+        country_rows = []
         for country in ["us", "uk"]:
-            country_rows = prediction_rows[prediction_rows["country"] == country]
-            scenario_ids = sorted(country_rows["scenario_id"].unique().tolist())
-            n_outputs = country_rows["output_group"].nunique()
-            scenario_scores = []
-            for scenario_id in scenario_ids:
-                scenario_rows = country_rows[
-                    country_rows["scenario_id"] == scenario_id
-                ]
-                output_scores = (
-                    scenario_rows.groupby(["model", "output_group"])
-                    .agg(score=("score", "mean"), magnitude=("truth", lambda values: float(np.abs(values).max())))
-                    .reset_index()
-                )
-                if output_scores.empty or n_outputs == 0:
-                    continue
-                magnitude_share = output_scores.groupby("output_group")["magnitude"].first()
-                magnitude_total = magnitude_share.sum()
-                if magnitude_total <= 0:
-                    weights = pd.Series(
-                        1.0 / n_outputs, index=magnitude_share.index
-                    )
-                else:
-                    weights = (
-                        floor_share / n_outputs
-                        + (1 - floor_share) * magnitude_share / magnitude_total
-                    )
-                weighted = (
-                    output_scores.assign(
-                        weight=output_scores["output_group"].map(weights)
-                    )
-                    .assign(weighted=lambda f: f["score"] * f["weight"])
-                    .groupby("model")["weighted"]
-                    .sum()
-                    .reset_index()
-                    .rename(columns={"weighted": "score"})
-                )
-                weighted["scenario_id"] = scenario_id
-                weighted["country"] = country
-                scenario_scores.append(weighted)
-            if scenario_scores:
-                country_frame = pd.concat(scenario_scores, ignore_index=True)
-                country_summary = (
-                    country_frame.groupby(["country", "model"])["score"]
-                    .mean()
-                    .reset_index()
-                )
-                groups.append(country_summary)
-        country_summary = pd.concat(groups, ignore_index=True)
-        return country_summary
+            scenarios = household_equal_impact_scores(
+                ground_truths[country],
+                predictions[country],
+                floor_share=floor_share,
+            )
+            if scenarios.empty:
+                continue
+            country_summary = (
+                scenarios.groupby("model")["impact_score"].mean().reset_index()
+            )
+            country_summary["score"] = country_summary["impact_score"] * 100
+            country_summary["country"] = country
+            country_rows.append(country_summary[["country", "model", "score"]])
+        return pd.concat(country_rows, ignore_index=True)
 
     rows = []
     for floor in [0.0, 0.1, 0.3, 0.5, 1.0]:
-        country_summary = impact_table(floor)
+        country_summary = country_table(floor)
         global_summary = global_scores(country_summary)
         rank1 = global_summary.iloc[0]
         rank2 = global_summary.iloc[1]
