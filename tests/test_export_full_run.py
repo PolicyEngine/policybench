@@ -39,3 +39,14 @@ def test_load_predictions_falls_back_to_root_predictions(tmp_path: Path) -> None
     predictions = load_predictions(country_dir)
 
     assert predictions["model"].tolist() == ["combined"]
+
+
+def test_load_predictions_reads_compressed_snapshot_predictions(
+    tmp_path: Path,
+) -> None:
+    country_dir = tmp_path / "us"
+    _write_predictions(country_dir / "predictions.csv.gz", "compressed")
+
+    predictions = load_predictions(country_dir)
+
+    assert predictions["model"].tolist() == ["compressed"]

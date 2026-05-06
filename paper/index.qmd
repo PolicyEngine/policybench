@@ -677,7 +677,7 @@ baseline_summary
 
 ### Sensitivity to benchmark view
 
-The primary leaderboard gives each country equal weight globally and each output group equal weight within a country. @tbl-sensitivity reports several alternative views. The top model is stable across the main global, amount-only, positive-reference-case, US-only, UK-only, and household-equal impact views. Lower ranks move, especially between positive cases and zero cases, so the global score is best read as a summary statistic whose interpretation depends on these sensitivity checks.
+The primary leaderboard gives each country equal weight globally and each output group equal weight within a country. @tbl-sensitivity reports several alternative views. The top model is stable across the main global, amount-only, positive-reference-case, US-only, UK-only, and household-equal impact views. The zero-reference-case view changes the top rank, and lower ranks move across several sensitivity views. The global score is therefore best read as a summary statistic whose interpretation depends on these sensitivity checks.
 
 ```{python}
 #| label: tbl-sensitivity

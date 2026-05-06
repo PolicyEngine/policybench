@@ -43,9 +43,7 @@ export default function ScenarioExplorer({
     [data],
   );
 
-  const [selectedScenario, setSelectedScenario] = useState<string | null>(() =>
-    pickRandomScenario(scenarioIds),
-  );
+  const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
 
   const resolvedScenarioId =
     selectedScenario && data.scenarios[selectedScenario]

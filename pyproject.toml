@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -25,6 +25,7 @@ dev = [
     "ruff>=0.4",
 ]
 docs = [
+    "ipykernel>=6.0",
     "jupyter-book>=2.0",
 ]
 

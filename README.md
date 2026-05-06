@@ -6,7 +6,7 @@ PolicyBench measures how well frontier AI models estimate selected household tax
 and benefit outputs without tools.
 
 For benchmark scope, snapshot policy, and terminology, see the
-[benchmark card](docs/benchmark_card.md).
+[benchmark card](https://github.com/PolicyEngine/policybench/blob/main/docs/benchmark_card.md).
 
 US benchmark scenarios are sampled from Enhanced CPS households and evaluated
 under tax year 2026 rules with PolicyEngine-US. The public UK path uses a
@@ -42,8 +42,15 @@ The ACA Premium Tax Credit is scored separately as a health-related output.
 ## Quick start
 
 ```bash
+pip install policybench
+policybench --help
+```
+
+For repository development, clone the full Git repository before running tests:
+
+```bash
 pip install -e ".[dev]"
-pytest  # Run tests (mocked, no API calls)
+pytest
 ```
 
 ## Benchmark run

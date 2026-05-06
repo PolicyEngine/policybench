@@ -2688,11 +2688,13 @@ dev = [
     { name = "ruff" },
 ]
 docs = [
+    { name = "ipykernel" },
     { name = "jupyter-book" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "ipykernel", marker = "extra == 'docs'", specifier = ">=6.0" },
     { name = "jupyter-book", marker = "extra == 'docs'", specifier = ">=2.0" },
     { name = "litellm", extras = ["caching"], specifier = ">=1.30" },
     { name = "numpy", specifier = ">=1.24" },
