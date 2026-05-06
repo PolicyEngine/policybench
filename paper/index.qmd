@@ -299,7 +299,15 @@ def impact_floor_sensitivity() -> pd.DataFrame:
     rows = []
     for floor in [0.0, 0.1, 0.3, 0.5, 1.0]:
         country_summary = country_table(floor)
+        # Skip floors where any required country is missing or fewer than three
+        # global rows are available, rather than relying on a single-country
+        # fallback inside global_scores or crashing on iloc out-of-bounds.
+        countries_present = set(country_summary["country"].unique())
+        if not {"us", "uk"} <= countries_present:
+            continue
         global_summary = global_scores(country_summary)
+        if len(global_summary) < 3:
+            continue
         rank1 = global_summary.iloc[0]
         rank2 = global_summary.iloc[1]
         rank3 = global_summary.iloc[2]
