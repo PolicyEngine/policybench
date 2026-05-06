@@ -643,46 +643,55 @@ UK_TRANSFER_DOWNLOAD_TIMEOUT_SECONDS = 60
 def _download_uk_transfer_artifact(destination: Path) -> Path:
     """Download the snapshot's UK transfer artifact from the pinned commit.
 
-    Streams the download to a temp file alongside the destination, verifies
-    the sha256 matches the pinned snapshot value, and only atomically replaces
-    the destination on success. Raises ``RuntimeError`` on network errors or
-    HTTP failures and ``ValueError`` (via verification) on hash mismatch.
+    Streams the download to a per-process temp file alongside the destination,
+    sha256-verifies the temp file, and only atomically ``replace()``s the
+    destination on success. The per-process temp suffix avoids collisions
+    when two policybench processes share a cache directory. Raises
+    ``RuntimeError`` on network errors or HTTP failures and ``ValueError``
+    (via verification) on hash mismatch.
     """
+    import tempfile
+
     destination.parent.mkdir(parents=True, exist_ok=True)
     request = urllib.request.Request(
         UK_TRANSFER_DATASET_PINNED_URL,
         headers={"User-Agent": "policybench"},
     )
-    tmp_path = destination.with_suffix(destination.suffix + ".part")
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=destination.name + ".",
+        suffix=".part",
+        dir=str(destination.parent),
+    )
+    tmp_path = Path(tmp_name)
     try:
-        with urllib.request.urlopen(
-            request, timeout=UK_TRANSFER_DOWNLOAD_TIMEOUT_SECONDS
-        ) as response:
-            if getattr(response, "status", 200) >= 400:
+        with os.fdopen(fd, "wb") as handle:
+            try:
+                with urllib.request.urlopen(
+                    request, timeout=UK_TRANSFER_DOWNLOAD_TIMEOUT_SECONDS
+                ) as response:
+                    if getattr(response, "status", 200) >= 400:
+                        raise RuntimeError(
+                            f"Download of {UK_TRANSFER_DATASET_PINNED_URL} "
+                            f"returned HTTP {response.status}."
+                        )
+                    for chunk in iter(lambda: response.read(1024 * 1024), b""):
+                        if not chunk:
+                            break
+                        handle.write(chunk)
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
                 raise RuntimeError(
-                    f"Download of {UK_TRANSFER_DATASET_PINNED_URL} returned "
-                    f"HTTP {response.status}."
-                )
-            with tmp_path.open("wb") as handle:
-                for chunk in iter(lambda: response.read(1024 * 1024), b""):
-                    if not chunk:
-                        break
-                    handle.write(chunk)
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        tmp_path.unlink(missing_ok=True)
-        raise RuntimeError(
-            f"Failed to download UK transfer dataset from "
-            f"{UK_TRANSFER_DATASET_PINNED_URL}: {exc}. Set "
-            "POLICYBENCH_UK_DATASET_PATH to a local copy or "
-            "POLICYBENCH_UK_DATASET_DOWNLOAD=0 to disable the download step."
-        ) from exc
-    try:
+                    "Failed to download UK transfer dataset from "
+                    f"{UK_TRANSFER_DATASET_PINNED_URL}: {exc}. Set "
+                    "POLICYBENCH_UK_DATASET_PATH to a local copy or "
+                    "POLICYBENCH_UK_DATASET_DOWNLOAD=0 to disable the "
+                    "download step."
+                ) from exc
         _verify_uk_transfer_artifact(tmp_path)
-    except ValueError:
+        tmp_path.replace(destination)
+        return destination
+    except BaseException:
         tmp_path.unlink(missing_ok=True)
         raise
-    tmp_path.replace(destination)
-    return destination
 
 
 def get_uk_dataset_path() -> Path:

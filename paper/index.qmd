@@ -292,6 +292,8 @@ def impact_floor_sensitivity() -> pd.DataFrame:
             country_summary["score"] = country_summary["impact_score"] * 100
             country_summary["country"] = country
             country_rows.append(country_summary[["country", "model", "score"]])
+        if not country_rows:
+            return pd.DataFrame(columns=["country", "model", "score"])
         return pd.concat(country_rows, ignore_index=True)
 
     rows = []
