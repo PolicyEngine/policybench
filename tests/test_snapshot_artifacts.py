@@ -14,15 +14,45 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _assert_hash(path: Path, expected_hash: str) -> None:
+    assert path.exists(), f"Missing snapshot artifact: {path}"
+    assert sha256(path) == expected_hash
+
+
 def test_snapshot_manifest_hashes_match_committed_artifacts():
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
     artifacts = manifest["committed_snapshot_artifacts"]
-
     assert artifacts
     for filename, expected_hash in artifacts.items():
-        path = SNAPSHOT_DIR / filename
-        assert path.exists(), f"Missing snapshot artifact: {filename}"
-        assert sha256(path) == expected_hash
+        _assert_hash(SNAPSHOT_DIR / filename, expected_hash)
+
+
+def test_snapshot_manifest_hashes_match_source_run_artifacts():
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    source_artifacts = manifest["source_run_artifacts"]
+
+    checked = 0
+    for run_manifest in source_artifacts.values():
+        if not isinstance(run_manifest, dict) or "path" not in run_manifest:
+            continue
+        run_dir = ROOT / run_manifest["path"]
+        for relative_path, expected_hash in run_manifest["files"].items():
+            _assert_hash(run_dir / relative_path, expected_hash)
+            checked += 1
+    assert checked
+
+
+def test_snapshot_manifest_hashes_match_rendered_paper_artifacts():
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    rendered_artifacts = manifest["rendered_paper_artifacts"]
+
+    pdf = rendered_artifacts["pdf"]
+    _assert_hash(ROOT / pdf["path"], pdf["sha256"])
+
+    web = rendered_artifacts["web"]
+    web_dir = ROOT / web["path"]
+    for relative_path, expected_hash in web["files"].items():
+        _assert_hash(web_dir / relative_path, expected_hash)
 
 
 def test_snapshot_manifest_matches_dashboard_export():

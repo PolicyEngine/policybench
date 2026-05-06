@@ -1,0 +1,12 @@
+include LICENSE
+include README.md
+include pyproject.toml
+include uv.lock
+prune .github
+prune app
+prune docs
+prune output
+prune paper
+prune results
+prune tests
+global-exclude __pycache__ *.py[cod] .DS_Store

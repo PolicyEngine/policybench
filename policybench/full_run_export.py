@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 from typing import Sequence
@@ -99,3 +100,41 @@ def export_full_run(
         print(f"Wrote {app_data_path}")
 
     return combined_payload
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--run-dir",
+        required=True,
+        help="Full-run directory containing country subdirectories.",
+    )
+    parser.add_argument(
+        "--country",
+        action="append",
+        dest="countries",
+        default=None,
+        help="Country code to export. Repeat to export multiple countries.",
+    )
+    parser.add_argument(
+        "--app-data-output",
+        default="app/src/data.json",
+        help="Path for the combined frontend payload.",
+    )
+    parser.add_argument(
+        "--skip-app-data",
+        action="store_true",
+        help="Only write the combined payload under the run directory.",
+    )
+    args = parser.parse_args()
+
+    export_full_run(
+        run_dir=args.run_dir,
+        countries=args.countries,
+        app_data_output=args.app_data_output,
+        skip_app_data=args.skip_app_data,
+    )
+
+
+if __name__ == "__main__":
+    main()

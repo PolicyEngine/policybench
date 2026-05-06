@@ -192,6 +192,19 @@ def remove_public_web_extras(destination: Path) -> None:
             path.unlink()
 
 
+def set_public_web_base_href(destination: Path) -> None:
+    """Make paper-relative assets work at both /paper/web and index.html."""
+    index_path = destination / "index.html"
+    html = index_path.read_text(encoding="utf-8")
+    base_href = '<base href="/paper/web/">'
+    if base_href in html:
+        return
+    index_path.write_text(
+        html.replace("<head>", f"<head>\n{base_href}", 1),
+        encoding="utf-8",
+    )
+
+
 def main() -> None:
     quarto = find_executable(
         "quarto",
@@ -266,6 +279,7 @@ def main() -> None:
 
     copy_tree(html_out_dir, PUBLIC_WEB_DIR)
     ensure_web_index(PUBLIC_WEB_DIR)
+    set_public_web_base_href(PUBLIC_WEB_DIR)
     remove_public_web_extras(PUBLIC_WEB_DIR)
 
     pdf_candidates = [

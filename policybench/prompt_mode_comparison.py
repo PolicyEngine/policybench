@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import pandas as pd
@@ -247,3 +248,27 @@ def compare_prompt_modes(
 
     print(f"Wrote prompt-mode comparison to {destination}")
     return destination
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--reference-outputs",
+        dest="reference_outputs",
+        required=True,
+    )
+    parser.add_argument("--multi-predictions", required=True)
+    parser.add_argument("--single-predictions", required=True)
+    parser.add_argument("--output-dir", required=True)
+    args = parser.parse_args()
+
+    compare_prompt_modes(
+        reference_outputs=args.reference_outputs,
+        multi_predictions=args.multi_predictions,
+        single_predictions=args.single_predictions,
+        output_dir=args.output_dir,
+    )
+
+
+if __name__ == "__main__":
+    main()

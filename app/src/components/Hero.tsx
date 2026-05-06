@@ -128,7 +128,6 @@ export default function Hero({
   const expandedPadTop = lerp(40, 8); // pt-10 → py-2
   const expandedPadBot = lerp(16, 8);
   const titleSize = lerp(36, 16); // text-4xl → text-base
-  const taglineOpacity = 1 - progress;
   const expandOpacity = 1 - Math.min(1, progress * 2); // fade out faster
   const expandHeight = `${(1 - progress) * 140}px`;
   const navOpacity = Math.max(0, (progress - 0.3) / 0.7); // fade in after 30%
@@ -161,27 +160,12 @@ export default function Hero({
             paddingBottom: `${expandedPadBot}px`,
           }}
         >
-          <Link
-            href="/"
-            className="shrink-0 flex items-center gap-2 hover:opacity-80"
-          >
+          <Link href="/" className="shrink-0 hover:opacity-80">
             <span
               className="font-[family-name:var(--font-display)] tracking-tight text-text leading-none"
               style={{ fontSize: `${titleSize}px` }}
             >
               PolicyBench
-            </span>
-            {/* "by [PE logo]" tagline */}
-            <span
-              className="flex items-center gap-1.5 overflow-hidden"
-              style={{ opacity: taglineOpacity * 0.6, maxWidth: taglineOpacity > 0.05 ? "160px" : "0px" }}
-            >
-              <span className="text-text-muted text-sm whitespace-nowrap">by</span>
-              <img
-                src="/assets/policyengine-logo.svg"
-                alt="PolicyEngine"
-                className="h-3.5 w-auto shrink-0"
-              />
             </span>
           </Link>
 
@@ -236,6 +220,20 @@ export default function Hero({
               Paper
             </Link>
           </div>
+
+          <a
+            href="https://policyengine.org"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary transition-colors hover:border-primary/40 hover:text-primary"
+            aria-label="By PolicyEngine"
+            title="By PolicyEngine"
+          >
+            <span>by</span>
+            <img
+              src="/assets/policyengine-logo.svg"
+              alt="PolicyEngine"
+              className="h-3 w-auto"
+            />
+          </a>
         </div>
 
         {/* Expanded content: subtitle + stats */}

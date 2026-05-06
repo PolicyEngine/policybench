@@ -7,7 +7,7 @@ name = "policybench"
 version = "2.0.0"
 description = "Benchmark: can AI models calculate tax/benefit outcomes without tools?"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 authors = [{name = "PolicyEngine", email = "hello@policyengine.org"}]
 requires-python = ">=3.10"
 dependencies = [
