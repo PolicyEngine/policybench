@@ -250,14 +250,18 @@ export default function ModelLeaderboard({
               <button
                 key={view.id}
                 type="button"
-                onClick={() => setSensitivityView(view.id)}
-                aria-pressed={isActive}
+                onClick={
+                  disabledForGlobal
+                    ? undefined
+                    : () => setSensitivityView(view.id)
+                }
+                aria-pressed={isActive && !disabledForGlobal}
                 aria-disabled={disabledForGlobal || undefined}
                 className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
-                  isActive
+                  isActive && !disabledForGlobal
                     ? "bg-primary text-void"
                     : disabledForGlobal
-                      ? "text-text-muted opacity-60"
+                      ? "cursor-not-allowed text-text-muted opacity-60"
                       : "text-text-secondary hover:text-text"
                 }`}
                 title={
@@ -281,7 +285,7 @@ export default function ModelLeaderboard({
           className="mt-3 text-[11px] text-text-muted animate-fade-up"
           style={{ animationDelay: "220ms" }}
         >
-          The {activeView.label.toLowerCase()} slice has no rows in at least
+          The &ldquo;{activeView.label}&rdquo; slice has no rows in at least
           one country, so the global ranking falls back to the Main view.
           Switch to United States or United Kingdom to see this slice on a
           single country.
