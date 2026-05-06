@@ -23,8 +23,7 @@ SOURCE_DATA_PROVENANCE = {
         "data_version": "1.73.0",
         "default_dataset": "enhanced_cps_2024",
         "default_dataset_uri": (
-            "hf://policyengine/policyengine-us-data/"
-            "enhanced_cps_2024.h5@1.73.0"
+            "hf://policyengine/policyengine-us-data/enhanced_cps_2024.h5@1.73.0"
         ),
         "certified_data_build_id": "policyengine-us-data-1.73.0",
         "certified_data_artifact_sha256": (
@@ -210,9 +209,7 @@ def _load_raw_policyengine_manifest(country: str) -> dict[str, Any] | None:
     except metadata.PackageNotFoundError:
         return None
     manifest_path = Path(
-        distribution.locate_file(
-            f"policyengine/data/release_manifests/{country}.json"
-        )
+        distribution.locate_file(f"policyengine/data/release_manifests/{country}.json")
     )
     if not manifest_path.exists():
         return None
