@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type {
   BenchData,
+  DashboardBundle,
   GlobalBenchData,
   ModelStat,
   ViewKey,
@@ -12,6 +13,18 @@ import {
   getProviderForModel,
 } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
+import {
+  SENSITIVITY_VIEWS,
+  buildAllRows,
+  modelScoresForView,
+  viewSupportsGlobal,
+  type SensitivityViewId,
+} from "../lib/sensitivity";
+import {
+  DEFAULT_DRAWS,
+  bootstrapIntervals,
+  viewToFilter,
+} from "../lib/bootstrap";
 
 function Badge({
   children,
@@ -97,18 +110,65 @@ const PENDING_MODELS: Record<ViewKey, PendingModel[]> = {
 export default function ModelLeaderboard({
   data,
   selectedView,
+  dashboard,
 }: {
   data: BenchData | GlobalBenchData;
   selectedView: ViewKey;
+  dashboard: DashboardBundle;
 }) {
   const isGlobal = selectedView === "global";
-  const noTools = useMemo<ModelStat[]>(
+  const [sensitivityView, setSensitivityView] =
+    useState<SensitivityViewId>("main");
+
+  const allRows = useMemo(() => buildAllRows(dashboard), [dashboard]);
+
+  // Some sensitivity slices have no rows in one country (e.g. "Binary only"
+  // has zero UK rows). In that case the global view cannot be a true
+  // cross-country score; fall back to the canonical Main view so the global
+  // tab still has a defensible ranking and surface a notice on the leaderboard.
+  const globalUnsupportedForView = useMemo(
     () =>
-      data.modelStats
-        .filter((m) => m.condition === "no_tools")
-        .sort((a, b) => b.score - a.score),
-    [data]
+      isGlobal &&
+      sensitivityView !== "main" &&
+      !viewSupportsGlobal(allRows, sensitivityView),
+    [allRows, isGlobal, sensitivityView],
   );
+  const effectiveView: SensitivityViewId = globalUnsupportedForView
+    ? "main"
+    : sensitivityView;
+
+  const sensitivityScores = useMemo(() => {
+    return modelScoresForView(allRows, effectiveView, selectedView);
+  }, [allRows, effectiveView, selectedView]);
+
+  const sensitivityScoreByModel = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const entry of sensitivityScores) out.set(entry.model, entry.score);
+    return out;
+  }, [sensitivityScores]);
+
+  const noTools = useMemo<ModelStat[]>(() => {
+    const base = data.modelStats.filter((m) => m.condition === "no_tools");
+    if (effectiveView === "main") {
+      return [...base].sort((a, b) => b.score - a.score);
+    }
+    // Reorder + replace score with the sensitivity-view score, dropping models
+    // that don't have a score under this slice.
+    return base
+      .filter((m) => sensitivityScoreByModel.has(m.model))
+      .map((m) => ({ ...m, score: sensitivityScoreByModel.get(m.model)! }))
+      .sort((a, b) => b.score - a.score);
+  }, [data, effectiveView, sensitivityScoreByModel]);
+
+  const intervals = useMemo(() => {
+    return bootstrapIntervals(
+      allRows,
+      selectedView,
+      viewToFilter(effectiveView),
+      { draws: DEFAULT_DRAWS, seed: 42 },
+    );
+  }, [allRows, selectedView, effectiveView]);
+
   const pendingModels = useMemo<PendingModel[]>(() => {
     const present = new Set(noTools.map((model) => model.model));
     const configured = PENDING_MODELS[selectedView].filter(
@@ -120,6 +180,8 @@ export default function ModelLeaderboard({
       return aIndex - bIndex;
     });
   }, [noTools, selectedView]);
+
+  const activeView = SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)!;
 
   return (
     <div>
@@ -145,6 +207,87 @@ export default function ModelLeaderboard({
         )}
       </p>
 
+      <div
+        className="mt-5 flex items-start gap-3 rounded-xl border border-warning/15 bg-warning-soft px-4 py-3 text-xs text-text-secondary animate-fade-up"
+        style={{ animationDelay: "180ms" }}
+        role="note"
+      >
+        <span
+          aria-hidden
+          className="mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-warning"
+        />
+        <p>
+          <strong className="text-text">Open-set leaderboard.</strong> The
+          public scenario explorer exposes prompts and PolicyEngine reference
+          outputs, so future model releases or fine-tunes could learn from the
+          released cases. Treat this as a public preview; protected
+          held-out claims would require a separate rotating evaluation set.
+        </p>
+      </div>
+
+      <div
+        className="mt-5 flex flex-wrap items-center gap-3 animate-fade-up"
+        style={{ animationDelay: "200ms" }}
+      >
+        <span
+          id="leaderboard-view-label"
+          className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+        >
+          View
+        </span>
+        <div
+          role="group"
+          aria-labelledby="leaderboard-view-label"
+          className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+        >
+          {SENSITIVITY_VIEWS.map((view) => {
+            const isActive = sensitivityView === view.id;
+            const disabledForGlobal =
+              isGlobal &&
+              view.id !== "main" &&
+              !viewSupportsGlobal(allRows, view.id);
+            return (
+              <button
+                key={view.id}
+                type="button"
+                disabled={disabledForGlobal}
+                onClick={() => setSensitivityView(view.id)}
+                aria-pressed={isActive && !disabledForGlobal}
+                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
+                  isActive && !disabledForGlobal
+                    ? "bg-primary text-void"
+                    : disabledForGlobal
+                      ? "cursor-not-allowed text-text-muted opacity-60"
+                      : "text-text-secondary hover:text-text"
+                }`}
+                title={
+                  disabledForGlobal
+                    ? `${view.description} (not available for the Global view; switch to US or UK)`
+                    : view.description
+                }
+              >
+                {view.label}
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[11px] text-text-muted">
+          {activeView.description}
+        </span>
+      </div>
+      {globalUnsupportedForView && (
+        <p
+          role="note"
+          className="mt-3 text-[11px] text-text-muted animate-fade-up"
+          style={{ animationDelay: "220ms" }}
+        >
+          The &ldquo;{activeView.label}&rdquo; slice has no rows in at least
+          one country, so the global ranking falls back to the Main view.
+          Switch to United States or United Kingdom to see this slice on a
+          single country.
+        </p>
+      )}
+
       <div className="mt-8 space-y-3">
         <div
           className={`hidden gap-3 px-4 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium md:grid ${
@@ -167,6 +310,16 @@ export default function ModelLeaderboard({
             m.scoreRunStd,
             m.runCount
           );
+          const interval = intervals.get(m.model);
+          const rankRange =
+            interval && interval.rankLower !== interval.rankUpper
+              ? `Rank ${interval.rankLower}-${interval.rankUpper}`
+              : interval
+                ? `Rank ${interval.rankLower}`
+                : null;
+          const scoreRange = interval
+            ? `${interval.lower.toFixed(1)}-${interval.upper.toFixed(1)}`
+            : null;
           return (
             <div
               key={m.model}
@@ -192,6 +345,11 @@ export default function ModelLeaderboard({
                     {!isGlobal && stabilityLabel && (
                       <div className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted">
                         {stabilityLabel}
+                      </div>
+                    )}
+                    {rankRange && (
+                      <div className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted">
+                        {rankRange} · 95% {scoreRange}
                       </div>
                     )}
                   </div>
@@ -235,6 +393,14 @@ export default function ModelLeaderboard({
                   <Badge variant={accColor(m.score)}>
                     {m.score.toFixed(1)}%
                   </Badge>
+                  {rankRange && (
+                    <div
+                      className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1"
+                      title="Household-resampling 95% interval (400 draws, seed 42)"
+                    >
+                      {rankRange} · 95% {scoreRange}
+                    </div>
+                  )}
                   {!isGlobal && stabilityLabel && (
                     <div className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1">
                       {stabilityLabel}
