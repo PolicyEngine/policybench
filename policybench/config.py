@@ -19,6 +19,13 @@ DEFAULT_COUNTRY = "us"
 
 # Canonical default benchmark models. This list should track the published
 # no-tools leaderboard rather than every model ever probed in the repo.
+#
+# Most identifiers below are provider aliases (e.g. ``claude-opus-4.7`` or
+# ``gpt-5.5``), not dated revisions. Provider responses can be routed to
+# different underlying weights over time. Runs after 2026-05-01 capture
+# ``provider_response_id``, ``provider_system_fingerprint``, and
+# ``provider_resolved_model`` in ``predictions.csv.gz``; older snapshots
+# only have the alias and the raw response payload.
 MODELS = {
     "claude-opus-4.7": "claude-opus-4-7",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
