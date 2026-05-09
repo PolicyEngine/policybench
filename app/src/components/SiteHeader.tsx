@@ -26,8 +26,11 @@ function ViewSelector({
   views: ViewKey[];
   compact?: boolean;
 }) {
+  // Compact mode is used in the scrolled state. We keep the same vertical
+  // touch target as the expanded mode (~28px including padding+border) so
+  // pills clear WCAG 2.2 SC 2.5.8 (24×24 minimum).
   const pill = compact
-    ? "rounded-full text-[10px] px-2.5 py-1 font-medium transition-colors"
+    ? "rounded-full text-[11px] px-3 py-1.5 font-medium transition-colors"
     : "rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:px-4";
   return (
     <div
@@ -43,7 +46,7 @@ function ViewSelector({
           aria-pressed={selectedView === view}
           className={`${pill} ${
             selectedView === view
-              ? "bg-primary text-void"
+              ? "bg-primary-strong text-white"
               : "text-text-secondary hover:text-text"
           }`}
         >
@@ -59,6 +62,13 @@ function getScrollProgress(threshold: number) {
   return Math.min(1, Math.max(0, window.scrollY / threshold));
 }
 
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function useScrollProgress(threshold = 80, enabled = true) {
   const [progress, setProgress] = useState(() =>
     enabled ? getScrollProgress(threshold) : 0,
@@ -67,6 +77,13 @@ function useScrollProgress(threshold = 80, enabled = true) {
 
   useEffect(() => {
     if (!enabled) return;
+    if (prefersReducedMotion()) {
+      // Skip scroll-driven animation entirely; snap to either state.
+      const snap = () => setProgress(getScrollProgress(threshold) > 0.5 ? 1 : 0);
+      snap();
+      window.addEventListener("scroll", snap, { passive: true });
+      return () => window.removeEventListener("scroll", snap);
+    }
     const onScroll = () => {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
@@ -183,9 +200,10 @@ export default function SiteHeader({
                     key={item.id}
                     href={`#${item.id}`}
                     tabIndex={navVisible ? 0 : -1}
+                    aria-current={activeNav === item.id ? "true" : undefined}
                     className={`px-2.5 py-2 text-[11px] font-medium tracking-wider uppercase border-b-2 sm:px-3 ${
                       activeNav === item.id
-                        ? "border-primary text-primary"
+                        ? "border-primary-strong text-primary-strong"
                         : "border-transparent text-text-secondary hover:text-text"
                     }`}
                   >
@@ -239,9 +257,7 @@ export default function SiteHeader({
 
           <a
             href="https://policyengine.org"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary transition-colors hover:border-primary/40 hover:text-primary"
-            aria-label="By PolicyEngine"
-            title="By PolicyEngine"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary transition-colors hover:border-primary-strong/40 hover:text-primary-strong"
           >
             <span>by</span>
             <img

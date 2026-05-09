@@ -34,11 +34,14 @@ function Badge({
   children: React.ReactNode;
   variant: "primary" | "warning" | "danger" | "success";
 }) {
+  // Use accessible text tokens (text-warning-text / text-danger-text /
+  // text-success-text / text-primary-strong) on -soft fills so badges
+  // clear 4.5:1 contrast at the 10px size we render them at.
   const styles = {
-    primary: "text-primary bg-primary-soft border-primary/15",
-    warning: "text-warning bg-warning-soft border-warning/15",
-    danger: "text-danger bg-danger-soft border-danger/15",
-    success: "text-success bg-success-soft border-success/15",
+    primary: "text-primary-strong bg-primary-soft border-primary/30",
+    warning: "text-warning-text bg-warning-soft border-warning/40",
+    danger: "text-danger-text bg-danger-soft border-danger/40",
+    success: "text-success-text bg-success-soft border-success/30",
   };
   return (
     <span
@@ -198,6 +201,7 @@ export default function ModelLeaderboard({
     <div>
       <div className="eyebrow mb-3 animate-fade-up">Leaderboard</div>
       <h2
+        id="leaderboard-heading"
         className="font-[family-name:var(--font-display)] text-4xl md:text-5xl text-text tracking-tight animate-fade-up"
         style={{ animationDelay: "80ms" }}
       >
@@ -218,23 +222,26 @@ export default function ModelLeaderboard({
         )}
       </p>
 
-      <div
-        className="mt-5 flex items-start gap-3 rounded-xl border border-warning/15 bg-warning-soft px-4 py-3 text-xs text-text-secondary animate-fade-up"
+      <aside
+        aria-labelledby="open-set-heading"
+        className="mt-5 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-xs text-text-secondary animate-fade-up"
         style={{ animationDelay: "180ms" }}
-        role="note"
       >
         <span
           aria-hidden
           className="mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-warning"
         />
         <p>
-          <strong className="text-text">Open-set leaderboard.</strong> The
-          public scenario explorer exposes prompts and PolicyEngine reference
-          outputs, so future model releases or fine-tunes could learn from the
-          released cases. Treat this as a public preview; protected
-          held-out claims would require a separate rotating evaluation set.
+          <strong id="open-set-heading" className="text-text">
+            Open-set leaderboard.
+          </strong>{" "}
+          The public scenario explorer exposes prompts and PolicyEngine
+          reference outputs, so future model releases or fine-tunes could
+          learn from the released cases. Treat this as a public preview;
+          protected held-out claims would require a separate rotating
+          evaluation set.
         </p>
-      </div>
+      </aside>
 
       <div
         className="mt-5 flex flex-wrap items-center gap-3 animate-fade-up"
@@ -268,14 +275,20 @@ export default function ModelLeaderboard({
               <button
                 key={view.id}
                 type="button"
-                disabled={disabled}
-                onClick={() => setSensitivityView(view.id)}
-                aria-pressed={isActive && !disabled}
-                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
+                aria-disabled={disabled || undefined}
+                onClick={(event) => {
+                  if (disabled) {
+                    event.preventDefault();
+                    return;
+                  }
+                  setSensitivityView(view.id);
+                }}
+                aria-pressed={disabled ? undefined : isActive}
+                className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
                   isActive && !disabled
-                    ? "bg-primary text-void"
+                    ? "bg-primary-strong text-white"
                     : disabled
-                      ? "cursor-not-allowed text-text-muted opacity-60"
+                      ? "cursor-not-allowed text-text-muted line-through"
                       : "text-text-secondary hover:text-text"
                 }`}
                 title={
@@ -297,15 +310,13 @@ export default function ModelLeaderboard({
             type="checkbox"
             checked={showIntervals}
             onChange={(event) => setShowIntervals(event.target.checked)}
-            className="h-3 w-3 rounded border-border accent-primary"
-            aria-label="Show 95% bootstrap intervals"
+            className="h-3.5 w-3.5 rounded border-border accent-primary-strong"
           />
           <span>Show 95% intervals</span>
         </label>
       </div>
       {sensitivityUnsupportedForView && (
         <p
-          role="note"
           className="mt-3 text-[11px] text-text-muted animate-fade-up"
           style={{ animationDelay: "220ms" }}
         >
@@ -326,18 +337,30 @@ export default function ModelLeaderboard({
         </p>
       )}
 
-      <div className="mt-8 space-y-3">
+      <div
+        role="region"
+        aria-labelledby="leaderboard-heading"
+        aria-live="polite"
+        aria-atomic="false"
+        className="mt-8 space-y-3"
+      >
+        <p className="sr-only" role="status">
+          {`${noTools.length} models, ranked by ${activeView.label} score (${
+            isGlobal ? "global" : selectedView === "us" ? "United States" : "United Kingdom"
+          })`}
+        </p>
         <div
+          role="row"
           className={`hidden gap-3 px-4 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium md:grid ${
             isGlobal ? "md:grid-cols-12" : "md:grid-cols-12"
           }`}
         >
-          <div className="col-span-1">#</div>
-          <div className={isGlobal ? "col-span-5" : "col-span-5"}>Model</div>
-          <div className="col-span-3 text-right">
+          <div role="columnheader" className="col-span-1">#</div>
+          <div role="columnheader" className={isGlobal ? "col-span-5" : "col-span-5"}>Model</div>
+          <div role="columnheader" className="col-span-3 text-right">
             {isGlobal ? "Global score" : "Score"}
           </div>
-          <div className="col-span-3 text-right">
+          <div role="columnheader" className="col-span-3 text-right">
             {isGlobal ? "Country scores" : "MAE"}
           </div>
         </div>
@@ -358,9 +381,14 @@ export default function ModelLeaderboard({
           const scoreRange = interval
             ? `${interval.lower.toFixed(1)}-${interval.upper.toFixed(1)}`
             : null;
+          const intervalAriaLabel = interval
+            ? `${rankRange} across bootstrap draws; 95% score interval ${interval.lower.toFixed(1)}% to ${interval.upper.toFixed(1)}%`
+            : undefined;
           return (
             <div
               key={m.model}
+              role="row"
+              aria-label={`Rank ${i + 1}, ${MODEL_LABELS[m.model] || m.model}, score ${m.score.toFixed(1)}%`}
               className="card card-hover px-4 py-4 animate-fade-up"
               style={{ animationDelay: `${240 + i * 80}ms` }}
             >
@@ -386,7 +414,10 @@ export default function ModelLeaderboard({
                       </div>
                     )}
                     {rankRange && (
-                      <div className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted">
+                      <div
+                        className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted"
+                        aria-label={intervalAriaLabel}
+                      >
                         {rankRange} · 95% {scoreRange}
                       </div>
                     )}
@@ -435,6 +466,7 @@ export default function ModelLeaderboard({
                     <div
                       className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1"
                       title="Household-resampling 95% interval (400 draws, seed 42)"
+                      aria-label={intervalAriaLabel}
                     >
                       {rankRange} · 95% {scoreRange}
                     </div>

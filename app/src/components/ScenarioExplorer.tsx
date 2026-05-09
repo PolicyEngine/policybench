@@ -110,14 +110,18 @@ export default function ScenarioExplorer({
 
       <div className="mt-8 flex flex-wrap items-end gap-4">
         <div className="min-w-0 flex-1">
-          <label className="block text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium mb-1.5">
+          <label
+            htmlFor="scenario-select"
+            className="block text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium mb-1.5"
+          >
             Household
           </label>
           <div className="flex items-center gap-2">
             <select
+              id="scenario-select"
               value={resolvedScenarioId}
               onChange={(e) => setSelectedScenario(e.target.value)}
-              className="min-w-0 flex-1 bg-surface border border-border text-text text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-primary/50 font-[family-name:var(--font-mono)]"
+              className="min-w-0 flex-1 bg-surface border border-border text-text text-sm rounded-lg px-3 py-2 focus:border-primary-strong/60 font-[family-name:var(--font-mono)]"
             >
               {scenarioIds.map((id) => {
                 const s = data.scenarios[id];
@@ -135,8 +139,7 @@ export default function ScenarioExplorer({
               onClick={handleShuffle}
               disabled={scenarioIds.length < 2}
               aria-label="Shuffle household"
-              title="Shuffle household"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-text-secondary transition-colors hover:border-primary/50 hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-text-secondary transition-colors hover:border-primary-strong/50 hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
             >
               <svg
                 aria-hidden="true"
@@ -154,7 +157,6 @@ export default function ScenarioExplorer({
                 <path d="M15 15 21 21" />
                 <path d="M4 4 9 9" />
               </svg>
-              <span className="sr-only">Shuffle household</span>
             </button>
           </div>
         </div>
@@ -208,16 +210,24 @@ export default function ScenarioExplorer({
 
       {activePrompt && (
         <details
-          className="card px-5 py-4 mt-6 animate-fade-up"
+          className="card px-5 py-4 mt-6 animate-fade-up group"
           style={{ animationDelay: "280ms" }}
         >
           <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                Exact prompt
-              </div>
-              <div className="text-text text-sm mt-1">
-                Full household batch contract for all benchmark outputs
+            <div className="flex items-start gap-2">
+              <span
+                aria-hidden
+                className="mt-0.5 inline-block text-text-muted transition-transform group-open:rotate-90"
+              >
+                ▸
+              </span>
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                  Exact prompt
+                </div>
+                <div className="text-text text-sm mt-1">
+                  Full household batch contract for all benchmark outputs
+                </div>
               </div>
             </div>
             <div className="text-text-muted text-xs">

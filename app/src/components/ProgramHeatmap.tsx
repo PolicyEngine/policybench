@@ -142,30 +142,42 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-6 mt-6 text-[10px] uppercase tracking-[0.14em] text-text-muted">
-        <div className="flex items-center gap-1.5">
+      <div
+        role="list"
+        aria-label="Score color scale: cells color-code each row's percent score; the printed percentage in the cell is the source of truth"
+        className="flex items-center gap-6 mt-6 text-[10px] uppercase tracking-[0.14em] text-text-muted"
+      >
+        <span className="sr-only">
+          Cells use color as a redundant cue; the percentage shown in each
+          cell is the actual benchmark score.
+        </span>
+        <div role="listitem" className="flex items-center gap-1.5">
           <span
+            aria-hidden
             className="w-3 h-3 rounded"
             style={{ backgroundColor: cellColor(40) }}
           />
           &lt;50%
         </div>
-        <div className="flex items-center gap-1.5">
+        <div role="listitem" className="flex items-center gap-1.5">
           <span
+            aria-hidden
             className="w-3 h-3 rounded"
             style={{ backgroundColor: cellColor(60) }}
           />
           50–70%
         </div>
-        <div className="flex items-center gap-1.5">
+        <div role="listitem" className="flex items-center gap-1.5">
           <span
+            aria-hidden
             className="w-3 h-3 rounded"
             style={{ backgroundColor: cellColor(75) }}
           />
           70–80%
         </div>
-        <div className="flex items-center gap-1.5">
+        <div role="listitem" className="flex items-center gap-1.5">
           <span
+            aria-hidden
             className="w-3 h-3 rounded"
             style={{ backgroundColor: cellColor(92) }}
           />
@@ -191,17 +203,25 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
             return (
               <details
                 key={variable}
-                className="card px-5 py-4 open:border-primary/30"
+                className="card px-5 py-4 open:border-primary/30 group"
               >
                 <summary className="flex cursor-pointer list-none items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-text text-sm font-medium">
-                      {getVariableLabel(variable, country)}
+                  <div className="min-w-0 flex items-start gap-2">
+                    <span
+                      aria-hidden
+                      className="mt-0.5 inline-block text-text-muted transition-transform group-open:rotate-90"
+                    >
+                      ▸
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-text text-sm font-medium">
+                        {getVariableLabel(variable, country)}
+                      </div>
+                      <p className="mt-1 text-sm leading-relaxed text-text-secondary">
+                        {explainer?.summary ??
+                          "This target combines multiple policy rules, and errors usually come from positive cases rather than zero cases."}
+                      </p>
                     </div>
-                    <p className="mt-1 text-sm leading-relaxed text-text-secondary">
-                      {explainer?.summary ??
-                        "This target combines multiple policy rules, and errors usually come from positive cases rather than zero cases."}
-                    </p>
                   </div>
                   <div className="shrink-0 rounded-full border border-border bg-surface px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
                     Avg {avg.toFixed(0)}%
