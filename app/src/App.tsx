@@ -38,12 +38,61 @@ function getAvailableViews(dashboard: DashboardBundle): ViewKey[] {
   return countryViews;
 }
 
+/** Map IANA timezone or BCP-47 language to a benchmark country, when we can tell. */
+function detectVisitorCountry(
+  availableViews: readonly ViewKey[],
+): CountryCode | null {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return null;
+  }
+  let timezone = "";
+  try {
+    timezone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
+  } catch {
+    timezone = "";
+  }
+  const langs = (navigator.languages ?? [navigator.language ?? ""])
+    .map((value) => value.toLowerCase());
+  const matchesUS =
+    timezone.startsWith("America/") ||
+    timezone === "Pacific/Honolulu" ||
+    timezone === "Pacific/Pago_Pago" ||
+    langs.some((lang) => lang === "en-us" || lang.endsWith("-us"));
+  const matchesUK =
+    timezone === "Europe/London" ||
+    timezone === "Europe/Belfast" ||
+    timezone === "Europe/Guernsey" ||
+    timezone === "Europe/Isle_of_Man" ||
+    timezone === "Europe/Jersey" ||
+    langs.some((lang) =>
+      ["en-gb", "cy-gb", "gd-gb", "en-uk"].includes(lang),
+    );
+  if (matchesUS && availableViews.includes("us")) return "us";
+  if (matchesUK && availableViews.includes("uk")) return "uk";
+  return null;
+}
+
 export default function App() {
   const availableViews = useMemo(() => getAvailableViews(dashboard), []);
-  const defaultView = availableViews.includes("uk")
-    ? "uk"
+  // Default to the global leaderboard. After mount we try to switch to the
+  // visitor's country (US or UK) when we can detect it from timezone or
+  // navigator.language; if neither matches we stay on Global.
+  const initialView: ViewKey = availableViews.includes("global")
+    ? "global"
     : (availableViews[0] ?? "global");
-  const [selectedView, setSelectedView] = useState<ViewKey>(defaultView);
+  const [selectedView, setSelectedView] = useState<ViewKey>(initialView);
+  const [hasUserPickedView, setHasUserPickedView] = useState(false);
+
+  useEffect(() => {
+    if (hasUserPickedView) return;
+    const detected = detectVisitorCountry(availableViews);
+    if (detected && detected !== selectedView) {
+      setSelectedView(detected);
+    }
+    // We only want this auto-pick to run once per session; further changes
+    // come from the user clicking the country selector.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [activeNav, setActiveNav] = useState<string>("models");
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -54,6 +103,7 @@ export default function App() {
   const navItems = isGlobal ? GLOBAL_NAV_ITEMS : COUNTRY_NAV_ITEMS;
   const handleSelectView = (view: ViewKey) => {
     setSelectedView(view);
+    setHasUserPickedView(true);
     setActiveNav("models");
   };
 
