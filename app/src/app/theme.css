@@ -1,41 +1,45 @@
+/**
+ * PolicyBench-local Tailwind theme aliases.
+ *
+ * Source of truth: @policyengine/ui-kit (see app/src/app/globals.css).
+ * This file re-exports a small set of renamed `--color-*` aliases that the
+ * dashboard's components use (`bg-card`, `text-text-secondary`, etc.) so we
+ * don't have to rename every Tailwind class call site. Anything not mapped
+ * here resolves directly through the ui-kit @theme inline layer.
+ */
+
 @theme {
-  --color-void: var(--pe-color-bg-secondary);
-  --color-bg: var(--pe-color-bg-primary);
-  --color-elevated: color-mix(in srgb, var(--pe-color-bg-primary) 95%, var(--pe-color-primary-50));
-  --color-card: color-mix(in srgb, var(--pe-color-bg-primary) 94%, var(--pe-color-primary-50));
-  --color-surface: var(--pe-color-bg-secondary);
-  --color-border: var(--pe-color-border-medium);
-  --color-border-subtle: var(--pe-color-border-light);
+  --color-void: var(--background-secondary);
+  --color-bg: var(--background);
+  --color-elevated: color-mix(in srgb, var(--background) 95%, var(--color-teal-50));
+  --color-card: color-mix(in srgb, var(--background) 94%, var(--color-teal-50));
+  --color-surface: var(--background-secondary);
+  --color-border: var(--border-medium);
+  --color-border-subtle: var(--border-light);
 
-  --color-text: var(--pe-color-text-primary);
-  --color-text-secondary: var(--pe-color-text-secondary);
-  /* Was --pe-color-text-tertiary (#9CA3AF) which fails 4.5:1 on white at small
-     sizes. Switch to gray-600 (#4B5563), which clears 4.5:1 (8.59:1 actual). */
-  --color-text-muted: var(--pe-color-gray-600);
-  /* Reserve --color-text-muted-light for ≥18px decorative use only. */
-  --color-text-muted-light: var(--pe-color-text-tertiary);
+  --color-text: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  /* Was --text-tertiary (#94A3B8) which fails 4.5:1 on white at small sizes.
+     Use the brand gray-600 from ui-kit (#4B5563, 8.59:1). */
+  --color-text-muted: var(--color-gray-600);
+  --color-text-muted-light: var(--text-tertiary);
 
-  --color-primary: var(--pe-color-primary-500);
-  --color-primary-strong: var(--pe-color-primary-700);
-  --color-primary-soft: color-mix(in srgb, var(--pe-color-primary-100) 70%, var(--pe-color-bg-primary));
-  --color-info: var(--pe-color-info);
-  --color-info-soft: color-mix(in srgb, var(--pe-color-info) 12%, var(--pe-color-bg-primary));
-  --color-warning: var(--pe-color-warning);
-  --color-warning-soft: color-mix(in srgb, var(--pe-color-warning) 14%, var(--pe-color-bg-primary));
-  /* Accessible semantic text colors. Each prefers the upstream
-     @policyengine/design-system token (added in v0.5+ via
-     PolicyEngine/policyengine-app-v2#1024) and falls back to the same
-     hex if an older design-system release is installed. The fallback
-     drops out automatically once the upgrade lands. */
-  --color-warning-text: var(--pe-color-text-warning, #d9480f);
-  --color-danger: var(--pe-color-error);
-  --color-danger-soft: color-mix(in srgb, var(--pe-color-error) 12%, var(--pe-color-bg-primary));
-  --color-danger-text: var(--pe-color-text-error, #b91c1c);
-  --color-success: var(--pe-color-primary-600);
-  --color-success-soft: color-mix(in srgb, var(--pe-color-primary-200) 68%, var(--pe-color-bg-primary));
-  --color-success-text: var(--pe-color-text-success, #285e61);
-  --color-neutral: var(--pe-color-gray-600);
-  --color-neutral-soft: color-mix(in srgb, var(--pe-color-border-light) 72%, var(--pe-color-bg-primary));
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--color-teal-700);
+  --color-primary-soft: color-mix(in srgb, var(--color-teal-100) 70%, var(--background));
+  --color-info: var(--color-info);
+  --color-info-soft: color-mix(in srgb, var(--color-info) 12%, var(--background));
+  --color-warning: var(--color-warning);
+  --color-warning-soft: color-mix(in srgb, var(--color-warning) 14%, var(--background));
+  --color-warning-text: var(--text-warning, #d9480f);
+  --color-danger: var(--color-error);
+  --color-danger-soft: color-mix(in srgb, var(--color-error) 12%, var(--background));
+  --color-danger-text: var(--text-error, #b91c1c);
+  --color-success: var(--color-teal-600);
+  --color-success-soft: color-mix(in srgb, var(--color-teal-200) 68%, var(--background));
+  --color-success-text: var(--text-success, #285e61);
+  --color-neutral: var(--color-gray-600);
+  --color-neutral-soft: color-mix(in srgb, var(--border-light) 72%, var(--background));
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
