@@ -1,5 +1,7 @@
-import { chartColors } from "@policyengine/design-system/charts";
-import { colors } from "@policyengine/design-system/tokens";
+// Color references go through @policyengine/ui-kit CSS variables (defined in
+// `app/src/app/globals.css` via the imported theme). Browsers resolve `var(...)`
+// strings inside both inline `style` attributes and Recharts chart props, so we
+// can keep the runtime values out of the JS bundle.
 
 export const MODEL_ORDER = [
   "claude-opus-4.7",
@@ -51,64 +53,84 @@ export function getProviderForModel(model: string): ProviderKey | null {
   return null;
 }
 
+const TEAL_500 = "var(--color-teal-500)";
+const TEAL_300 = "var(--color-teal-300)";
+const TEAL_400 = "var(--color-teal-400)";
+const TEAL_600 = "var(--color-teal-600)";
+const TEAL_700 = "var(--color-teal-700)";
+const GRAY_400 = "var(--color-gray-400)";
+const GRAY_700 = "var(--color-gray-700)";
+const GRAY_800 = "var(--color-gray-800)";
+const GRAY_900 = "var(--color-gray-900)";
+const SECONDARY_300 = "var(--color-gray-300)";
+const SECONDARY_400 = "var(--color-gray-400)";
+const SECONDARY_500 = "var(--color-gray-500)";
+const SECONDARY_700 = "var(--color-gray-700)";
+const INFO = "var(--color-info)";
+const WARNING = "var(--color-warning)";
+const ERROR = "var(--color-error)";
+const BORDER_LIGHT = "var(--border-light)";
+const BORDER_MEDIUM = "var(--border-medium)";
+const TEXT_SECONDARY = "var(--text-secondary)";
+
 export const MODEL_COLORS: Record<string, string> = {
-  "claude-opus": chartColors.primary,
-  "claude-opus-4.7": chartColors.primary,
-  "claude-opus-4.6": chartColors.primary,
-  "claude-haiku-4.5": colors.primary[300],
-  "claude-sonnet-4.6": colors.primary[400],
-  "grok-4.3": colors.gray[900],
-  "grok-4.20": colors.gray[800],
-  "grok-4.1-fast": colors.gray[700],
-  "gpt-5.5": colors.secondary[700],
-  "gpt-5.4": colors.secondary[700],
-  "gpt-5.4-mini": colors.secondary[500],
-  "gpt-5.4-nano": colors.secondary[300],
-  "gemini-3.1-pro-preview": colors.warning,
-  "gemini-3-flash-preview": colors.warning,
-  "gemini-3.1-flash-lite-preview": colors.warning,
+  "claude-opus": TEAL_500,
+  "claude-opus-4.7": TEAL_500,
+  "claude-opus-4.6": TEAL_500,
+  "claude-haiku-4.5": TEAL_300,
+  "claude-sonnet-4.6": TEAL_400,
+  "grok-4.3": GRAY_900,
+  "grok-4.20": GRAY_800,
+  "grok-4.1-fast": GRAY_700,
+  "gpt-5.5": SECONDARY_700,
+  "gpt-5.4": SECONDARY_700,
+  "gpt-5.4-mini": SECONDARY_500,
+  "gpt-5.4-nano": SECONDARY_300,
+  "gemini-3.1-pro-preview": WARNING,
+  "gemini-3-flash-preview": WARNING,
+  "gemini-3.1-flash-lite-preview": WARNING,
 };
 
-function mixWithSurface(color: string, amount: number): string {
-  return `color-mix(in srgb, ${color} ${amount}%, ${colors.background.primary})`;
+function mixWithBackground(color: string, amount: number): string {
+  return `color-mix(in srgb, ${color} ${amount}%, var(--background))`;
 }
 
 export const UI_COLORS = {
-  border: colors.border.medium,
-  borderLight: colors.border.light,
-  chartLabel: colors.text.secondary,
-  chartReference: colors.border.medium,
-  inactive: colors.gray[400],
-  primary: colors.primary[500],
-  success: colors.primary[600],
-  info: colors.info,
-  warning: colors.warning,
-  danger: colors.error,
+  border: BORDER_MEDIUM,
+  borderLight: BORDER_LIGHT,
+  chartLabel: TEXT_SECONDARY,
+  chartReference: BORDER_MEDIUM,
+  inactive: GRAY_400,
+  primary: TEAL_500,
+  success: TEAL_600,
+  info: INFO,
+  warning: WARNING,
+  danger: ERROR,
 } as const;
 
 export function getPerformanceTextColor(score: number): string {
-  if (score >= 90) return colors.primary[700];
-  if (score >= 80) return colors.primary[600];
-  if (score >= 70) return colors.info;
-  if (score >= 60) return colors.warning;
-  if (score >= 50) return colors.secondary[700];
-  return colors.error;
+  if (score >= 90) return TEAL_700;
+  if (score >= 80) return TEAL_600;
+  if (score >= 70) return INFO;
+  if (score >= 60) return WARNING;
+  if (score >= 50) return SECONDARY_700;
+  return ERROR;
 }
 
 export function getPerformanceSurfaceColor(score: number): string {
-  if (score >= 90) return mixWithSurface(colors.primary[500], 18);
-  if (score >= 80) return mixWithSurface(colors.primary[400], 14);
-  if (score >= 70) return mixWithSurface(colors.info, 14);
-  if (score >= 60) return mixWithSurface(colors.warning, 14);
-  if (score >= 50) return mixWithSurface(colors.secondary[400], 14);
-  return mixWithSurface(colors.error, 14);
+  if (score >= 90) return mixWithBackground(TEAL_500, 18);
+  if (score >= 80) return mixWithBackground(TEAL_400, 14);
+  if (score >= 70) return mixWithBackground(INFO, 14);
+  if (score >= 60) return mixWithBackground(WARNING, 14);
+  if (score >= 50) return mixWithBackground(SECONDARY_400, 14);
+  return mixWithBackground(ERROR, 14);
 }
 
 export function getPredictionTextColor(error: number, truth: number): string {
-  if (truth === 0 && Math.abs(error) <= 1) return colors.primary[700];
+  if (truth === 0 && Math.abs(error) <= 1) return TEAL_700;
   const pctErr = truth !== 0 ? Math.abs(error / truth) : error !== 0 ? 1 : 0;
-  if (pctErr <= 0.1) return colors.primary[700];
-  if (pctErr <= 0.25) return colors.info;
-  if (pctErr <= 0.5) return colors.warning;
-  return colors.error;
+  if (pctErr <= 0.1) return TEAL_700;
+  if (pctErr <= 0.25) return INFO;
+  if (pctErr <= 0.5) return WARNING;
+  return ERROR;
 }

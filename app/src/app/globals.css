@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "@policyengine/design-system/tokens.css";
+@import "@policyengine/ui-kit/theme.css";
 @import "./theme.css";
 
 :root {
