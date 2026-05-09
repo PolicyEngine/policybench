@@ -11,23 +11,23 @@
     "lint": "eslint . --max-warnings=0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.2",
+    "@tailwindcss/postcss": "^4.2.4",
     "@types/node": "^22.18.8",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.38.0",
-    "eslint-config-next": "^16.2.1",
-    "next": "^16.2.1",
-    "tailwindcss": "^4.2.0",
+    "eslint-config-next": "^16.2.6",
+    "next": "^16.2.6",
+    "tailwindcss": "^4.2.4",
     "typescript": "~5.9.3"
   },
   "dependencies": {
     "@icons-pack/react-simple-icons": "^13.13.0",
     "@lobehub/icons": "^5.2.0",
-    "@policyengine/ui-kit": "^0.8.1",
+    "@policyengine/ui-kit": "^0.9.0",
     "motion": "^12.34.3",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "recharts": "^3.7.0",
     "simple-icons": "^16.14.0"
   }
