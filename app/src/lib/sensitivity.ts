@@ -15,6 +15,7 @@ import {
 
 export type SensitivityViewId =
   | "main"
+  | "household_weighted"
   | "amount_only"
   | "binary_only"
   | "positive_only"
@@ -31,6 +32,12 @@ export const SENSITIVITY_VIEWS: SensitivityView[] = [
     id: "main",
     label: "Main",
     description: "Equal-weight average across output groups; baseline ranking.",
+  },
+  {
+    id: "household_weighted",
+    label: "Household-weighted",
+    description:
+      "Each household contributes equally; within a household, outputs are weighted by absolute reference dollar share (with a 0.3 floor).",
   },
   {
     id: "amount_only",
@@ -193,12 +200,37 @@ export function viewSupportsSelected(
   view: SensitivityViewId,
   selectedView: ViewKey,
 ): boolean {
+  if (view === "household_weighted") return true;
   if (selectedView === "global") return viewSupportsGlobal(rows, view);
   const filtered = filterRows(rows, view);
   for (const row of filtered) {
     if (row.country === selectedView) return true;
   }
   return false;
+}
+
+/** Read pre-computed household-equal impact scores from the dashboard payload. */
+export function householdImpactScores(
+  dashboard: DashboardBundle,
+  selectedView: ViewKey,
+): ModelScore[] {
+  const scores: ModelScore[] = [];
+  if (selectedView === "global") {
+    for (const stat of dashboard.global?.modelStats ?? []) {
+      if (stat.condition !== "no_tools") continue;
+      if (typeof stat.impactScore !== "number") continue;
+      scores.push({ model: stat.model, score: stat.impactScore });
+    }
+  } else {
+    const country = dashboard.countries[selectedView];
+    if (!country) return [];
+    for (const stat of country.modelStats) {
+      if (stat.condition !== "no_tools") continue;
+      if (typeof stat.impactScore !== "number") continue;
+      scores.push({ model: stat.model, score: stat.impactScore });
+    }
+  }
+  return scores.sort((a, b) => b.score - a.score);
 }
 
 export function modelScoresForView(

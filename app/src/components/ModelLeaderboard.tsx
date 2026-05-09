@@ -16,6 +16,7 @@ import ProviderMark from "./ProviderMark";
 import {
   SENSITIVITY_VIEWS,
   buildAllRows,
+  householdImpactScores,
   modelScoresForView,
   viewSupportsSelected,
   type SensitivityViewId,
@@ -119,6 +120,7 @@ export default function ModelLeaderboard({
   const isGlobal = selectedView === "global";
   const [sensitivityView, setSensitivityView] =
     useState<SensitivityViewId>("main");
+  const [showIntervals, setShowIntervals] = useState(false);
 
   const allRows = useMemo(() => buildAllRows(dashboard), [dashboard]);
 
@@ -138,8 +140,11 @@ export default function ModelLeaderboard({
     : sensitivityView;
 
   const sensitivityScores = useMemo(() => {
+    if (effectiveView === "household_weighted") {
+      return householdImpactScores(dashboard, selectedView);
+    }
     return modelScoresForView(allRows, effectiveView, selectedView);
-  }, [allRows, effectiveView, selectedView]);
+  }, [allRows, dashboard, effectiveView, selectedView]);
 
   const sensitivityScoreByModel = useMemo(() => {
     const out = new Map<string, number>();
@@ -160,14 +165,20 @@ export default function ModelLeaderboard({
       .sort((a, b) => b.score - a.score);
   }, [data, effectiveView, sensitivityScoreByModel]);
 
+  // Bootstrap intervals are off by default — they roughly triple the
+  // first-paint cost and are noise to most readers. Compute on-demand when
+  // the user opens the toggle. Households-weighted view doesn't have a
+  // bootstrap path yet; fall back to no intervals there.
   const intervals = useMemo(() => {
+    if (!showIntervals) return new Map();
+    if (effectiveView === "household_weighted") return new Map();
     return bootstrapIntervals(
       allRows,
       selectedView,
       viewToFilter(effectiveView),
       { draws: DEFAULT_DRAWS, seed: 42 },
     );
-  }, [allRows, selectedView, effectiveView]);
+  }, [allRows, selectedView, effectiveView, showIntervals]);
 
   const pendingModels = useMemo<PendingModel[]>(() => {
     const present = new Set(noTools.map((model) => model.model));
@@ -281,6 +292,16 @@ export default function ModelLeaderboard({
         <span className="text-[11px] text-text-muted">
           {activeView.description}
         </span>
+        <label className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-text-secondary">
+          <input
+            type="checkbox"
+            checked={showIntervals}
+            onChange={(event) => setShowIntervals(event.target.checked)}
+            className="h-3 w-3 rounded border-border accent-primary"
+            aria-label="Show 95% bootstrap intervals"
+          />
+          <span>Show 95% intervals</span>
+        </label>
       </div>
       {sensitivityUnsupportedForView && (
         <p

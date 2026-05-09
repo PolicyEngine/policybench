@@ -1180,6 +1180,16 @@ def build_dashboard_payload(
                 item["prompt"] = first_prompt
         scenario_payload[row["scenario_id"]] = item
 
+    impact_summary = analysis.get("impact_summary")
+    impact_by_model: dict[str, float] = {}
+    if isinstance(impact_summary, pd.DataFrame) and not impact_summary.empty:
+        for _, impact_row in impact_summary.iterrows():
+            model_name = impact_row.get("model")
+            score = impact_row.get("mean_impact_score")
+            if model_name is None or pd.isna(score):
+                continue
+            impact_by_model[str(model_name)] = float(score) * 100
+
     model_stats = []
     for _, row in (
         analysis["model_summary"].sort_values("mean_score", ascending=False).iterrows()
@@ -1285,6 +1295,9 @@ def build_dashboard_payload(
         }
         if not pd.isna(row["mean_accuracy"]):
             item["accuracy"] = float(row["mean_accuracy"] * 100)
+        impact_score = impact_by_model.get(str(row["model"]))
+        if impact_score is not None:
+            item["impactScore"] = impact_score
         model_stats.append({k: v for k, v in item.items() if v is not None})
 
     program_rows = []
@@ -1425,6 +1438,14 @@ def build_global_dashboard_payload(country_payloads: dict[str, dict]) -> dict:
         accuracy = _mean([row.get("accuracy") for row in rows.values()])
         if accuracy is not None:
             item["accuracy"] = accuracy
+        impact_values = [row.get("impactScore") for row in rows.values()]
+        if all(value is not None for value in impact_values) and impact_values:
+            item["impactScore"] = _mean(impact_values)
+            item["impactCountryScores"] = {
+                country: float(row["impactScore"])
+                for country, row in rows.items()
+                if row.get("impactScore") is not None
+            }
         model_stats.append(item)
 
     model_stats.sort(key=lambda row: row["score"], reverse=True)
