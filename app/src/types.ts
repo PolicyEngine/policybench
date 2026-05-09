@@ -206,6 +206,8 @@ export type ModelStat = {
   maeRunMean?: number;
   maeRunStd?: number;
   countryScores?: Partial<Record<CountryCode, number>>;
+  impactScore?: number;
+  impactCountryScores?: Partial<Record<CountryCode, number>>;
 };
 
 export type ProgramStat = {
