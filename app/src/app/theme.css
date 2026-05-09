@@ -22,16 +22,18 @@
   --color-info-soft: color-mix(in srgb, var(--pe-color-info) 12%, var(--pe-color-bg-primary));
   --color-warning: var(--pe-color-warning);
   --color-warning-soft: color-mix(in srgb, var(--pe-color-warning) 14%, var(--pe-color-bg-primary));
-  /* Accessible warning text for use on white or warning-soft. */
-  --color-warning-text: var(--pe-color-text-warning);
+  /* Accessible semantic text colors. Each prefers the upstream
+     @policyengine/design-system token (added in v0.5+ via
+     PolicyEngine/policyengine-app-v2#1024) and falls back to the same
+     hex if an older design-system release is installed. The fallback
+     drops out automatically once the upgrade lands. */
+  --color-warning-text: var(--pe-color-text-warning, #d9480f);
   --color-danger: var(--pe-color-error);
   --color-danger-soft: color-mix(in srgb, var(--pe-color-error) 12%, var(--pe-color-bg-primary));
-  /* Accessible danger text (gray-700-tinted red). */
-  --color-danger-text: #b91c1c;
+  --color-danger-text: var(--pe-color-text-error, #b91c1c);
   --color-success: var(--pe-color-primary-600);
   --color-success-soft: color-mix(in srgb, var(--pe-color-primary-200) 68%, var(--pe-color-bg-primary));
-  /* Accessible success text matching success-soft fill at AA. */
-  --color-success-text: var(--pe-color-primary-700);
+  --color-success-text: var(--pe-color-text-success, #285e61);
   --color-neutral: var(--pe-color-gray-600);
   --color-neutral-soft: color-mix(in srgb, var(--pe-color-border-light) 72%, var(--pe-color-bg-primary));
 
