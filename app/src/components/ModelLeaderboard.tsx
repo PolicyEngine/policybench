@@ -17,7 +17,7 @@ import {
   SENSITIVITY_VIEWS,
   buildAllRows,
   modelScoresForView,
-  viewSupportsGlobal,
+  viewSupportsSelected,
   type SensitivityViewId,
 } from "../lib/sensitivity";
 import {
@@ -122,18 +122,18 @@ export default function ModelLeaderboard({
 
   const allRows = useMemo(() => buildAllRows(dashboard), [dashboard]);
 
-  // Some sensitivity slices have no rows in one country (e.g. "Binary only"
-  // has zero UK rows). In that case the global view cannot be a true
-  // cross-country score; fall back to the canonical Main view so the global
-  // tab still has a defensible ranking and surface a notice on the leaderboard.
-  const globalUnsupportedForView = useMemo(
+  // Some sensitivity slices have no rows in the selected country (e.g.
+  // "Binary only" has zero UK rows; "Binary only" on Global has zero UK
+  // rows so the global view cannot be a true cross-country score). In that
+  // case we fall back to the canonical Main view so the leaderboard still
+  // has a defensible ranking and surface a notice explaining why.
+  const sensitivityUnsupportedForView = useMemo(
     () =>
-      isGlobal &&
       sensitivityView !== "main" &&
-      !viewSupportsGlobal(allRows, sensitivityView),
-    [allRows, isGlobal, sensitivityView],
+      !viewSupportsSelected(allRows, sensitivityView, selectedView),
+    [allRows, selectedView, sensitivityView],
   );
-  const effectiveView: SensitivityViewId = globalUnsupportedForView
+  const effectiveView: SensitivityViewId = sensitivityUnsupportedForView
     ? "main"
     : sensitivityView;
 
@@ -242,27 +242,34 @@ export default function ModelLeaderboard({
         >
           {SENSITIVITY_VIEWS.map((view) => {
             const isActive = sensitivityView === view.id;
-            const disabledForGlobal =
-              isGlobal &&
-              view.id !== "main" &&
-              !viewSupportsGlobal(allRows, view.id);
+            const supported =
+              view.id === "main" ||
+              viewSupportsSelected(allRows, view.id, selectedView);
+            const disabled = !supported;
+            const disabledTitleSuffix = isGlobal
+              ? " (not available for the Global view; switch to US or UK)"
+              : selectedView === "uk"
+                ? " (no UK rows under this slice; switch to US or Global)"
+                : selectedView === "us"
+                  ? " (no US rows under this slice; switch to UK or Global)"
+                  : "";
             return (
               <button
                 key={view.id}
                 type="button"
-                disabled={disabledForGlobal}
+                disabled={disabled}
                 onClick={() => setSensitivityView(view.id)}
-                aria-pressed={isActive && !disabledForGlobal}
+                aria-pressed={isActive && !disabled}
                 className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
-                  isActive && !disabledForGlobal
+                  isActive && !disabled
                     ? "bg-primary text-void"
-                    : disabledForGlobal
+                    : disabled
                       ? "cursor-not-allowed text-text-muted opacity-60"
                       : "text-text-secondary hover:text-text"
                 }`}
                 title={
-                  disabledForGlobal
-                    ? `${view.description} (not available for the Global view; switch to US or UK)`
+                  disabled
+                    ? `${view.description}${disabledTitleSuffix}`
                     : view.description
                 }
               >
@@ -275,16 +282,26 @@ export default function ModelLeaderboard({
           {activeView.description}
         </span>
       </div>
-      {globalUnsupportedForView && (
+      {sensitivityUnsupportedForView && (
         <p
           role="note"
           className="mt-3 text-[11px] text-text-muted animate-fade-up"
           style={{ animationDelay: "220ms" }}
         >
-          The &ldquo;{activeView.label}&rdquo; slice has no rows in at least
-          one country, so the global ranking falls back to the Main view.
-          Switch to United States or United Kingdom to see this slice on a
-          single country.
+          The &ldquo;{
+            SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)?.label ??
+              sensitivityView
+          }&rdquo; slice has no rows in {
+            isGlobal
+              ? "at least one country"
+              : selectedView === "uk"
+                ? "the UK"
+                : "the US"
+          }, so the leaderboard falls back to the Main view. {
+            isGlobal
+              ? "Switch to United States or United Kingdom to see this slice on a single country."
+              : "Switch to the other country to see this slice."
+          }
         </p>
       )}
 

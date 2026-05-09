@@ -187,6 +187,20 @@ export function viewSupportsGlobal(
   return GLOBAL_REQUIRED_COUNTRIES.every((c) => present.has(c));
 }
 
+/** Returns true if the active sensitivity slice has rows under the selected view. */
+export function viewSupportsSelected(
+  rows: ScoreRow[],
+  view: SensitivityViewId,
+  selectedView: ViewKey,
+): boolean {
+  if (selectedView === "global") return viewSupportsGlobal(rows, view);
+  const filtered = filterRows(rows, view);
+  for (const row of filtered) {
+    if (row.country === selectedView) return true;
+  }
+  return false;
+}
+
 export function modelScoresForView(
   rows: ScoreRow[],
   view: SensitivityViewId,
