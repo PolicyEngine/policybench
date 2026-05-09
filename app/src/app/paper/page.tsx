@@ -1,9 +1,16 @@
 /* eslint-disable @next/next/no-img-element */
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import SiteHeader from "../../components/SiteHeader";
 
 const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-01";
+
+export const metadata: Metadata = {
+  title: "Paper",
+  description:
+    "PolicyBench paper — frozen 2026-05-01 manuscript snapshot scored against PolicyEngine reference outputs.",
+};
 
 const manuscriptPaths = {
   pdf: "/paper/policybench.pdf",
@@ -30,7 +37,8 @@ export default function PaperPage() {
   );
 
   return (
-    <main className="min-h-screen bg-void">
+    <main id="main" className="min-h-screen bg-void">
+      <h1 className="sr-only">PolicyBench paper</h1>
       <SiteHeader
         actionLink={{
           label: "Benchmark",
@@ -83,15 +91,41 @@ export default function PaperPage() {
           </Link>
         </div>
 
-        <section className="mt-8 overflow-hidden rounded-3xl border border-border bg-card">
-          <div className="border-b border-border px-5 py-3 text-sm text-text-secondary">
+        <section
+          aria-labelledby="manuscript-section-heading"
+          className="mt-8 overflow-hidden rounded-3xl border border-border bg-card"
+        >
+          <div
+            id="manuscript-section-heading"
+            className="border-b border-border px-5 py-3 text-sm text-text-secondary"
+          >
             Frozen manuscript snapshot
           </div>
           <iframe
             src={manuscriptPaths.web}
-            title="PolicyBench paper"
+            title="PolicyBench manuscript (embedded)"
+            loading="lazy"
+            sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            referrerPolicy="same-origin"
             className="block h-[calc(100vh-16rem)] min-h-[720px] w-full border-0 bg-white"
           />
+          <div className="border-t border-border px-5 py-3 text-sm">
+            <a
+              href="#paper-top"
+              className="text-text-secondary hover:text-primary-strong"
+            >
+              ↑ Back to top
+            </a>
+            <span className="mx-2 text-text-muted" aria-hidden>
+              ·
+            </span>
+            <a
+              href={manuscriptPaths.web}
+              className="text-text-secondary hover:text-primary-strong"
+            >
+              Open manuscript in a new page
+            </a>
+          </div>
         </section>
       </div>
     </main>

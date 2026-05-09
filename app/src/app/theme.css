@@ -9,7 +9,11 @@
 
   --color-text: var(--pe-color-text-primary);
   --color-text-secondary: var(--pe-color-text-secondary);
-  --color-text-muted: var(--pe-color-text-tertiary);
+  /* Was --pe-color-text-tertiary (#9CA3AF) which fails 4.5:1 on white at small
+     sizes. Switch to gray-600 (#4B5563), which clears 4.5:1 (8.59:1 actual). */
+  --color-text-muted: var(--pe-color-gray-600);
+  /* Reserve --color-text-muted-light for ≥18px decorative use only. */
+  --color-text-muted-light: var(--pe-color-text-tertiary);
 
   --color-primary: var(--pe-color-primary-500);
   --color-primary-strong: var(--pe-color-primary-700);
@@ -18,10 +22,16 @@
   --color-info-soft: color-mix(in srgb, var(--pe-color-info) 12%, var(--pe-color-bg-primary));
   --color-warning: var(--pe-color-warning);
   --color-warning-soft: color-mix(in srgb, var(--pe-color-warning) 14%, var(--pe-color-bg-primary));
+  /* Accessible warning text for use on white or warning-soft. */
+  --color-warning-text: var(--pe-color-text-warning);
   --color-danger: var(--pe-color-error);
   --color-danger-soft: color-mix(in srgb, var(--pe-color-error) 12%, var(--pe-color-bg-primary));
+  /* Accessible danger text (gray-700-tinted red). */
+  --color-danger-text: #b91c1c;
   --color-success: var(--pe-color-primary-600);
   --color-success-soft: color-mix(in srgb, var(--pe-color-primary-200) 68%, var(--pe-color-bg-primary));
+  /* Accessible success text matching success-soft fill at AA. */
+  --color-success-text: var(--pe-color-primary-700);
   --color-neutral: var(--pe-color-gray-600);
   --color-neutral-soft: color-mix(in srgb, var(--pe-color-border-light) 72%, var(--pe-color-bg-primary));
 
