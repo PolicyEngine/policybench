@@ -1557,10 +1557,13 @@ def test_run_no_tools_eval_writes_resume_metadata(
     assert metadata_path.exists()
     metadata = json.loads(metadata_path.read_text())
     assert metadata["task"] == "eval_no_tools_batch"
+    assert metadata["generated_at_utc"]
     assert metadata["scenario_count"] == 1
     assert metadata["programs"] == ["income_tax"]
     assert metadata["models"] == {"gpt-5.4": "gpt-5.4"}
     assert metadata["policyengine_bundles"]["us"]["model_package"] == "policyengine-us"
+    assert metadata["runtime_environment"]["python"]["version"]
+    assert metadata["runtime_environment"]["packages"]["litellm"]
 
 
 @patch("policybench.eval_no_tools.run_single_no_tools")
