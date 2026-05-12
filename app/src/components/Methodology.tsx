@@ -86,9 +86,9 @@ export default function Methodology({
         >
           The global leaderboard is a shared-model aggregate, not a separate
           benchmark. Each model’s global score is the equal-weight average of
-          its country-level PolicyBench scores across the included countries,
-          without reweighting by household count, output count, currency amount,
-          or economic impact.
+          its country-level household-equal impact scores across the included
+          countries, without reweighting by country population, household count,
+          or currency totals.
         </p>
 
         <div
@@ -117,8 +117,8 @@ export default function Methodology({
           <SectionCard title="Aggregation">
             Only models with both country runs appear in the global table.
             Their global score is the average of the bounded country scores,
-            rather than a currency-weighted, household-weighted, or
-            output-count-weighted blend.
+            rather than a country-population-weighted or currency-total-weighted
+            blend.
           </SectionCard>
 
           <SectionCard title="Interpretation">
@@ -263,13 +263,14 @@ export default function Methodology({
         </SectionCard>
 
         <SectionCard title="Scoring and weighting">
-          The public leaderboard uses an equal-output-group score, not a
-          currency-amount-weighted or household-weighted score. Each scored
-          output group gets the same country-level weight. Person-level outputs
-          are grouped by program first; within that group, each expected person
-          row is equal. For amount outputs, the group score averages
-          exact-within-one-currency-unit hit rate, within-1%, within-5%, and
-          within-10% hit rates.
+          The public leaderboard uses a household-equal impact score. Each
+          household gets the same country-level weight. Within a household,
+          each output receives a 30% equal-weight floor plus a 70% weight
+          proportional to its absolute PolicyEngine reference contribution to
+          household resources. Person-level flags are scored at the person row,
+          with value-proxy impact weights where available. For amount outputs,
+          the row score averages exact-within-one-currency-unit
+          hit rate, within-1%, within-5%, and within-10% hit rates.
           {country === "us"
             ? " Binary coverage flags like person-level Medicaid eligibility and school meal eligibility use exact accuracy."
             : ""}
@@ -282,22 +283,22 @@ export default function Methodology({
         </SectionCard>
 
         <SectionCard title="Sensitivity checks">
-          The manuscript reports alternative ranking views for amount-only
-          outputs, binary coverage, positive-reference cases, zero-reference
-          cases, country-only results, and the household-equal impact score.
-          Those checks are used to interpret rank stability; they do not replace
-          the public equal-output-group leaderboard.
+          The manuscript reports alternative ranking views for equal-output
+          groups, amount-only outputs, binary coverage, positive-reference
+          cases, zero-reference cases, and country-only results. In the
+          equal-output-group view, person-level outputs are grouped by program
+          before the country average. These checks are used to interpret rank
+          stability; they do not replace the public household-equal impact
+          leaderboard.
         </SectionCard>
 
         <SectionCard title="Impact weighting">
-          The analysis files also compute a separate household-equal impact
-          score. That metric gives every household equal final weight; within a
-          household, each output receives a 30% equal-weight floor plus a 70%
-          weight proportional to its absolute PolicyEngine reference
-          contribution to household net income. When binary coverage flags are
-          present, their impact weights come from PolicyEngine value proxies
-          rather than the 0/1 label itself. This impact score is secondary and
-          does not order the current public leaderboard.
+          Binary coverage flags have 0/1 labels, but a 0/1 label is not their
+          economic impact. Their leaderboard weights therefore come from
+          PolicyEngine value proxies where available, such as estimated health
+          coverage or nutrition-program value, rather than from the binary label
+          itself. When every reference impact in a household is zero, the
+          household falls back to equal output weights.
         </SectionCard>
       </div>
 

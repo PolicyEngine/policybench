@@ -157,13 +157,13 @@ def household_equal_impact_scores(
     """Score models by equal household weight and within-household dollar impact.
 
     Each household contributes equally to the final metric. Within a household,
-    each program gets a blended weight:
+    each requested output row gets a blended weight:
 
     - `floor_share / K` equal-weight floor
     - `(1 - floor_share)` times its absolute reference-value share
 
     This keeps small or zero-value components from disappearing while still
-    giving more weight to larger budget components within a household.
+    giving more weight to larger resource components within a household.
     """
     if floor_share < 0 or floor_share > 1:
         raise ValueError("floor_share must be between 0 and 1.")
@@ -688,17 +688,27 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
     ]
 
     if not model_summary.empty:
-        top_model = model_summary.iloc[0]
+        primary_summary = impact_summary if not impact_summary.empty else model_summary
+        top_model = primary_summary.iloc[0]
+        if not impact_summary.empty:
+            headline = (
+                f"Top model: `{top_model['model']}` with "
+                f"`mean_impact_score="
+                f"{_format_metric(top_model['mean_impact_score'])}` "
+                "(household-equal impact score)."
+            )
+        else:
+            headline = (
+                f"Top model: `{top_model['model']}` with "
+                f"`mean_score={_format_metric(top_model['mean_score'])}` "
+                f"`mean_exact={_format_metric(top_model['mean_exact'])}` "
+                f"and `mean_mae={_format_metric(top_model['mean_mae'])}`."
+            )
         lines.extend(
             [
                 "## Headline",
                 "",
-                (
-                    f"Top model: `{top_model['model']}` with "
-                    f"`mean_score={_format_metric(top_model['mean_score'])}` "
-                    f"`mean_exact={_format_metric(top_model['mean_exact'])}` "
-                    f"and `mean_mae={_format_metric(top_model['mean_mae'])}`."
-                ),
+                headline,
                 "",
             ]
         )
@@ -792,7 +802,7 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
 
     lines.extend(
         [
-            "## Summary by model",
+            "## Summary by model (equal-output-group score)",
             "",
             "| model | mean_score | mean_exact "
             "| mean_within_1pct | mean_within_5pct "
@@ -826,8 +836,8 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
                 "## Household-equal impact score",
                 "",
                 "Households receive equal weight. Within each household, "
-                "programs get a blend of equal weighting and weighting by "
-                "absolute contribution to household net income.",
+                "requested output rows get a blend of equal weighting and "
+                "weighting by absolute reference impact.",
                 "",
                 "| model | mean_impact_score | mean_household_score "
                 "| mean_household_coverage | households |",
@@ -1191,17 +1201,23 @@ def build_dashboard_payload(
             impact_by_model[str(model_name)] = float(score) * 100
 
     model_stats = []
-    for _, row in (
-        analysis["model_summary"].sort_values("mean_score", ascending=False).iterrows()
-    ):
+    for _, row in analysis["model_summary"].iterrows():
+        output_group_score = _clean_json_number(
+            row["mean_score"] * 100
+            if not pd.isna(row["mean_score"])
+            else row["mean_score"]
+        )
+        impact_score = impact_by_model.get(str(row["model"]))
+        primary_score = (
+            _clean_json_number(impact_score)
+            if impact_score is not None
+            else output_group_score
+        )
         item = {
             "model": row["model"],
             "condition": "no_tools",
-            "score": _clean_json_number(
-                row["mean_score"] * 100
-                if not pd.isna(row["mean_score"])
-                else row["mean_score"]
-            ),
+            "score": primary_score,
+            "outputGroupScore": output_group_score,
             "exact": _clean_json_number(
                 row["mean_exact"] * 100
                 if not pd.isna(row["mean_exact"])
@@ -1295,10 +1311,10 @@ def build_dashboard_payload(
         }
         if not pd.isna(row["mean_accuracy"]):
             item["accuracy"] = float(row["mean_accuracy"] * 100)
-        impact_score = impact_by_model.get(str(row["model"]))
         if impact_score is not None:
             item["impactScore"] = impact_score
         model_stats.append({k: v for k, v in item.items() if v is not None})
+    model_stats.sort(key=lambda row: row["score"], reverse=True)
 
     program_rows = []
     for variable, group in metrics.groupby("variable"):
@@ -1418,10 +1434,15 @@ def build_global_dashboard_payload(country_payloads: dict[str, dict]) -> dict:
             country: country_models[model]
             for country, country_models in no_tools_models_by_country.items()
         }
+        primary_values = [row.get("score") for row in rows.values()]
+        output_group_values = [
+            row.get("outputGroupScore", row.get("score")) for row in rows.values()
+        ]
         item = {
             "model": model,
             "condition": "no_tools",
-            "score": _mean([row.get("score") for row in rows.values()]),
+            "score": _mean(primary_values),
+            "outputGroupScore": _mean(output_group_values),
             "exact": _mean([row.get("exact") for row in rows.values()]),
             "within1pct": _mean([row.get("within1pct") for row in rows.values()]),
             "within5pct": _mean([row.get("within5pct") for row in rows.values()]),
@@ -1433,6 +1454,11 @@ def build_global_dashboard_payload(country_payloads: dict[str, dict]) -> dict:
                 country: float(row["score"])
                 for country, row in rows.items()
                 if row.get("score") is not None
+            },
+            "outputGroupCountryScores": {
+                country: float(row["outputGroupScore"])
+                for country, row in rows.items()
+                if row.get("outputGroupScore") is not None
             },
         }
         accuracy = _mean([row.get("accuracy") for row in rows.values()])

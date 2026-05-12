@@ -9,12 +9,12 @@ const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-12";
 export const metadata: Metadata = {
   title: "Paper",
   description:
-    "PolicyBench paper — 2026-05-12 scored manuscript snapshot with May 1 model responses and refreshed PolicyEngine reference outputs.",
+    "PolicyBench paper — 2026-05-12 household-equal scored manuscript snapshot with May 1 model responses and refreshed PolicyEngine reference outputs.",
 };
 
 const manuscriptPaths = {
   pdf: "/paper/policybench.pdf",
-  web: "/paper/web/index.html?v=20260512",
+  web: "/paper/web/index.html?v=20260512-household",
 };
 const ssrnUrl = process.env.NEXT_PUBLIC_POLICYBENCH_SSRN_URL;
 
@@ -24,8 +24,8 @@ export default function PaperPage() {
       <p className="max-w-2xl text-sm leading-relaxed text-text-secondary sm:text-base">
         Benchmarking no-tool tax-and-benefit estimation in frontier language
         models. This page embeds the 2026-05-12 scored manuscript snapshot:
-        a 100-household-per-country public preview scored against
-        PolicyEngine reference outputs.
+        a 100-household-per-country public preview using household-equal impact
+        scores against PolicyEngine reference outputs.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-text-secondary">

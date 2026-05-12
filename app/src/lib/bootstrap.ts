@@ -132,8 +132,7 @@ export function bootstrapIntervals(
         // Aggregate row-level scores per output group across the sampled
         // scenarios. We add the bucket sums and counts directly so each row
         // (e.g. each person-expanded medicaid_eligible row) contributes to
-        // the output-group mean with equal weight, matching the headline
-        // estimator in modelScoresForView.
+        // the output-group sensitivity mean with equal weight.
         const outputBuckets = new Map<string, { sum: number; count: number }>();
         for (const scenarioId of sampled) {
           const outputMap = scenarioMap.get(scenarioId);
@@ -199,6 +198,7 @@ export function viewToFilter(
 ): (row: ScoreRow) => boolean {
   switch (view) {
     case "main":
+    case "output_group":
       return () => true;
     case "amount_only":
       return (row) => row.metricType === "amount";

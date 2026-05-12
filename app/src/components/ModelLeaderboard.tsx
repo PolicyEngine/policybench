@@ -16,7 +16,6 @@ import ProviderMark from "./ProviderMark";
 import {
   SENSITIVITY_VIEWS,
   buildAllRows,
-  householdImpactScores,
   modelScoresForView,
   viewSupportsSelected,
   type SensitivityViewId,
@@ -143,11 +142,8 @@ export default function ModelLeaderboard({
     : sensitivityView;
 
   const sensitivityScores = useMemo(() => {
-    if (effectiveView === "household_weighted") {
-      return householdImpactScores(dashboard, selectedView);
-    }
     return modelScoresForView(allRows, effectiveView, selectedView);
-  }, [allRows, dashboard, effectiveView, selectedView]);
+  }, [allRows, effectiveView, selectedView]);
 
   const sensitivityScoreByModel = useMemo(() => {
     const out = new Map<string, number>();
@@ -170,11 +166,11 @@ export default function ModelLeaderboard({
 
   // Bootstrap intervals are off by default — they roughly triple the
   // first-paint cost and are noise to most readers. Compute on-demand when
-  // the user opens the toggle. Households-weighted view doesn't have a
-  // bootstrap path yet; fall back to no intervals there.
+  // the user opens the toggle. The Main view uses precomputed household-equal
+  // impact scores, which do not have a browser-side bootstrap path yet.
   const intervals = useMemo(() => {
     if (!showIntervals) return new Map();
-    if (effectiveView === "household_weighted") return new Map();
+    if (effectiveView === "main") return new Map();
     return bootstrapIntervals(
       allRows,
       selectedView,
@@ -212,8 +208,8 @@ export default function ModelLeaderboard({
         style={{ animationDelay: "160ms" }}
       >
         {isGlobal
-          ? "Global scores are equal-weight averages of each model’s US and UK benchmark scores. They are not weighted by household count, currency amounts, or number of outputs."
-          : "Country scores give each output group equal weight. Amount outputs average exact, within-1%, within-5%, and within-10% hits; binary coverage flags use exact accuracy."}
+          ? "Global scores are equal-weight averages of each model’s US and UK household-equal impact scores. They are not weighted by country population or household count."
+          : "Country scores give each household equal weight. Within a household, outputs receive a 30% equal-weight floor plus a 70% weight based on absolute reference impact."}
         {pendingModels.length > 0 && (
           <>
             {" "}
@@ -310,9 +306,14 @@ export default function ModelLeaderboard({
             type="checkbox"
             checked={showIntervals}
             onChange={(event) => setShowIntervals(event.target.checked)}
+            disabled={effectiveView === "main"}
             className="h-3.5 w-3.5 rounded border-border accent-primary-strong"
           />
-          <span>Show 95% intervals</span>
+          <span>
+            {effectiveView === "main"
+              ? "Intervals available on sensitivity views"
+              : "Show 95% intervals"}
+          </span>
         </label>
       </div>
       {sensitivityUnsupportedForView && (

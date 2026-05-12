@@ -179,16 +179,27 @@ def rank_cell(frame: pd.DataFrame, rank: int) -> str:
     return f"{row.model} ({row.score:.1f})"
 
 
-def impact_scores() -> pd.DataFrame:
-    rows = []
-    for country in ["us", "uk"]:
-        path = ROOT / IMPACT_SNAPSHOT_DIR / f"{country}_impact_summary_by_model.csv"
-        frame = pd.read_csv(path)
-        frame = frame[["model", "mean_impact_score"]].copy()
-        frame["country"] = country
-        frame["score"] = frame["mean_impact_score"] * 100
-        rows.append(frame[["country", "model", "score"]])
-    return pd.concat(rows, ignore_index=True)
+def snapshot_run_paths() -> dict[str, Path]:
+    return {
+        "us": ROOT / IMPACT_SNAPSHOT_DIR / "runs" / US_RUN_LABEL,
+        "uk": ROOT / IMPACT_SNAPSHOT_DIR / "runs" / UK_RUN_LABEL,
+    }
+
+
+def load_snapshot_ground_truth() -> dict[str, pd.DataFrame]:
+    return {
+        country: pd.read_csv(run_dir / "ground_truth.csv")
+        for country, run_dir in snapshot_run_paths().items()
+    }
+
+
+def load_snapshot_predictions(
+    usecols: list[str] | None = None,
+) -> dict[str, pd.DataFrame]:
+    return {
+        country: pd.read_csv(run_dir / "predictions.csv.gz", usecols=usecols)
+        for country, run_dir in snapshot_run_paths().items()
+    }
 
 
 def federal_state_joint_accuracy() -> pd.DataFrame:
@@ -264,18 +275,10 @@ def impact_floor_sensitivity() -> pd.DataFrame:
     """
     from policybench.analysis import household_equal_impact_scores
 
-    run_paths = {
-        "us": ROOT / IMPACT_SNAPSHOT_DIR / "runs" / US_RUN_LABEL,
-        "uk": ROOT / IMPACT_SNAPSHOT_DIR / "runs" / UK_RUN_LABEL,
-    }
-    ground_truths: dict[str, pd.DataFrame] = {}
-    predictions: dict[str, pd.DataFrame] = {}
-    for country, run_dir in run_paths.items():
-        ground_truths[country] = pd.read_csv(run_dir / "ground_truth.csv")
-        predictions[country] = pd.read_csv(
-            run_dir / "predictions.csv.gz",
-            usecols=["model", "scenario_id", "variable", "prediction"],
-        )
+    ground_truths = load_snapshot_ground_truth()
+    predictions = load_snapshot_predictions(
+        usecols=["model", "scenario_id", "variable", "prediction"]
+    )
 
     def country_table(floor_share: float) -> pd.DataFrame:
         country_rows = []
@@ -324,29 +327,43 @@ def impact_floor_sensitivity() -> pd.DataFrame:
 
 
 def simple_baselines() -> pd.DataFrame:
-    prediction_rows = flatten_predictions()
+    from policybench.analysis import household_equal_impact_scores
+
+    ground_truths = load_snapshot_ground_truth()
     baselines = []
     for name, predictor in [
         ("Always zero", lambda frame: np.zeros(len(frame))),
         (
             "Median reference by output",
-            lambda frame: frame.groupby(["country", "output_group"])[
-                "truth"
-            ].transform("median").to_numpy(),
+            lambda frame: frame.groupby("output_group")["value"]
+            .transform("median")
+            .to_numpy(),
         ),
     ]:
-        frame = prediction_rows.copy()
-        frame["model"] = name
-        frame["prediction"] = predictor(frame)
-        frame["score"] = 100 * frame.apply(
-            lambda row: score_single_prediction(
-                row["variable"],
-                row["truth"],
-                row["prediction"],
-            ),
-            axis=1,
-        )
-        country_scores = country_scores_from_rows(frame)
+        country_rows = []
+        for country, ground_truth in ground_truths.items():
+            frame = ground_truth.copy()
+            parsed = frame["variable"].map(parse_person_output)
+            frame["output_group"] = [
+                value[1] if value else variable
+                for value, variable in zip(parsed, frame["variable"], strict=True)
+            ]
+            predictions = frame[["scenario_id", "variable"]].copy()
+            predictions["model"] = name
+            predictions["prediction"] = predictor(frame)
+            household_scores = household_equal_impact_scores(
+                ground_truth,
+                predictions,
+            )
+            country_score = household_scores["impact_score"].mean() * 100
+            country_rows.append(
+                {
+                    "country": country,
+                    "model": name,
+                    "score": country_score,
+                }
+            )
+        country_scores = pd.DataFrame(country_rows)
         global_score = global_scores(country_scores)["score"].iloc[0]
         us_score = country_scores.loc[country_scores["country"] == "us", "score"].iloc[
             0
@@ -371,9 +388,11 @@ def simple_baselines() -> pd.DataFrame:
 def sensitivity_rows() -> pd.DataFrame:
     prediction_rows = flatten_predictions()
     views = {
-        "Main global leaderboard": global_model[["model", "score"]].sort_values(
-            "score",
-            ascending=False,
+        "Main household-equal impact score": global_model[
+            ["model", "score"]
+        ].sort_values("score", ascending=False),
+        "Equal-output-group score": global_scores(
+            country_scores_from_rows(prediction_rows)
         ),
         "Amount outputs only": global_scores(
             country_scores_from_rows(
@@ -400,7 +419,6 @@ def sensitivity_rows() -> pd.DataFrame:
                 & (prediction_rows["metric_type"] == "binary")
             ]
         )[["model", "score"]].sort_values("score", ascending=False),
-        "Household-equal impact score": global_scores(impact_scores()),
     }
     rows = []
     for view, frame in views.items():
@@ -437,33 +455,45 @@ def bootstrap_global_uncertainty(
     n_boot: int = 1000,
     top_n: int = 10,
 ) -> pd.DataFrame:
-    prediction_rows = flatten_predictions()
+    from policybench.analysis import household_equal_impact_scores
+
+    ground_truths = load_snapshot_ground_truth()
+    predictions = load_snapshot_predictions(
+        usecols=["model", "scenario_id", "variable", "prediction"]
+    )
+    household_scores = {
+        country: household_equal_impact_scores(ground_truths[country], prediction)
+        for country, prediction in predictions.items()
+    }
     scenario_ids = {
-        country: sorted(
-            prediction_rows.loc[prediction_rows["country"] == country, "scenario_id"]
-            .unique()
-            .tolist()
-        )
-        for country in ["us", "uk"]
+        country: sorted(frame["scenario_id"].unique().tolist())
+        for country, frame in household_scores.items()
     }
     country_frames = {
-        country: prediction_rows[prediction_rows["country"] == country]
-        for country in ["us", "uk"]
+        country: frame[["model", "scenario_id", "impact_score"]]
+        for country, frame in household_scores.items()
     }
     rng = np.random.default_rng(SEED)
     boot_frames = []
     for draw in range(n_boot):
-        sampled_frames = []
+        country_score_frames = []
         for country, ids in scenario_ids.items():
             sampled_ids = rng.choice(ids, size=len(ids), replace=True)
-            sampled_frames.extend(
-                country_frames[country][
-                    country_frames[country]["scenario_id"] == scenario_id
-                ]
-                for scenario_id in sampled_ids
+            sampled_index = pd.DataFrame({"scenario_id": sampled_ids})
+            sampled = sampled_index.merge(
+                country_frames[country],
+                on="scenario_id",
+                how="left",
             )
-        sampled = pd.concat(sampled_frames, ignore_index=True)
-        scores = global_scores(country_scores_from_rows(sampled)).reset_index(drop=True)
+            country_scores = (
+                sampled.groupby("model")["impact_score"].mean().reset_index()
+            )
+            country_scores["country"] = country
+            country_scores["score"] = country_scores["impact_score"] * 100
+            country_score_frames.append(country_scores[["country", "model", "score"]])
+        scores = global_scores(
+            pd.concat(country_score_frames, ignore_index=True)
+        ).reset_index(drop=True)
         scores["rank"] = scores.index + 1
         scores["draw"] = draw
         boot_frames.append(scores)
@@ -723,7 +753,7 @@ Because the four thresholds are nested (exact $\subseteq$ within-1% $\subseteq$ 
 
 All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026; UK outputs are annual amounts or annual eligibility indicators for fiscal year 2026-27. For currency amounts, the "exact" hit rate means within `1` currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same `1` currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as `0` or `1` eligibility flags and scored by exact classification accuracy. Missing or unparseable numeric answers receive zero score for that requested output.
 
-Aggregation proceeds in four steps. First, each household-output prediction receives a `0-100` score. Second, person-level coverage rows are averaged to their program group. Third, output groups are averaged with equal weight within each country. Fourth, global scores average the US and UK country scores for models run in both countries. The global score is therefore an equal-country summary for this benchmark sample, not a universally authoritative measure of tax-benefit competence. Household-equal impact scores and other alternative views are reported as sensitivity checks.
+Aggregation proceeds in four steps. First, each household-output prediction receives a `0-100` score. Second, each household receives one model score: requested output rows are weighted inside the household by a blend of equal weighting and absolute PolicyEngine reference-impact share. Person-level coverage flags are scored at the person row, with value-proxy impact weights where available. Third, country scores average those household scores with equal household weight. Fourth, global scores average the US and UK country scores for models run in both countries. The global score is therefore an equal-country, household-equal summary for this benchmark sample, not a universally authoritative measure of tax-benefit competence. Equal-output-group scores and other alternative views are reported as sensitivity checks.
 
 The benchmark requires each model response to include numeric answers and one explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.
 
@@ -825,7 +855,7 @@ baseline_summary
 
 ### Sensitivity to benchmark view
 
-The primary leaderboard gives each country equal weight globally and each output group equal weight within a country. @tbl-sensitivity reports several alternative views. The top model is stable across the main global, amount-only, positive-reference-case, US-only, UK-only, and household-equal impact views. The zero-reference-case view changes the top rank, and lower ranks move across several sensitivity views. The global score is therefore best read as a summary statistic whose interpretation depends on these sensitivity checks.
+The primary leaderboard gives each country equal weight globally and each household equal weight within a country. @tbl-sensitivity reports several alternative views, including the older equal-output-group score. The top model is stable across several views, but lower ranks move across sensitivity views. The global score is therefore best read as a summary statistic whose interpretation depends on these checks.
 
 ```{python}
 #| label: tbl-sensitivity
@@ -833,7 +863,7 @@ The primary leaderboard gives each country equal weight globally and each output
 sensitivity
 ```
 
-The household-equal impact score weights each output group inside a household by a blend of an equal-weight floor and the absolute reference-value share. The default uses a `0.3` floor. @tbl-impact-floor reports the top three global ranks under floors of `0.0`, `0.1`, `0.3`, `0.5`, and `1.0`. Floor `1.0` collapses to the equal-output baseline; floor `0.0` is pure dollar-share weighting. Rank stability across this range means the impact view is not driven by the specific floor choice.
+The household-equal impact score weights each requested output row inside a household by a blend of an equal-weight floor and the absolute reference-impact share. The default uses a `0.3` floor. @tbl-impact-floor reports the top three global ranks under floors of `0.0`, `0.1`, `0.3`, `0.5`, and `1.0`. Floor `1.0` is equal-row weighting within each household; floor `0.0` is pure impact-share weighting. Rank stability across this range means the main view is not driven by the specific floor choice.
 
 ```{python}
 #| label: tbl-impact-floor
@@ -843,7 +873,7 @@ impact_floor
 
 ### Sampling uncertainty
 
-The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes country scores with equal output-group weighting, then recomputes the equal-country global score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after `{python} MODEL_RESPONSE_DATE` in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
+The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes household-equal impact country scores, then recomputes the equal-country global score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after `{python} MODEL_RESPONSE_DATE` in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
 
 ```{python}
 #| label: tbl-bootstrap
@@ -912,7 +942,7 @@ PolicyBench is not a substitute for a production tax-and-benefit calculator. Sev
 - model rankings can reflect output-contract reliability as well as policy reasoning
 - zero-heavy outputs require separate positive-case interpretation
 - the scoring rule is one benchmark view and should be checked against alternative metrics
-- the global score is an equal-country summary for models run in both countries, not a universal ranking of model quality
+- the global score is an equal-country, household-equal summary for models run in both countries, not a universal ranking of model quality
 - the public UK calibrated transfer dataset is not equivalent to enhanced Family Resources Survey quality and is not population-representative UK microdata
 - the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail
 - the 100-household manuscript snapshot should be treated as a preview until larger frozen runs are published
@@ -927,7 +957,7 @@ PolicyBench shows a consistent pattern across both countries. Models often ident
 
 These results support a narrow conclusion: unaided frontier models still struggle to reproduce selected household-level microsimulation outputs under a structured public benchmark. They do not show that models cannot assist policy analysis, and they do not validate PolicyEngine outputs as administrative truth. They suggest that future evaluations should separate no-tool estimation, tool-using system design, and reference-output validation more explicitly.
 
-Next steps are to expand country coverage, increase frozen sample sizes, improve UK data provenance, and add protected or rotating evaluation sets so that public rankings are less exposed to open-set leakage. The benchmark should also continue reporting sensitivity views, because equal-country global scores are useful summaries only when their weighting choices are visible.
+Next steps are to expand country coverage, increase frozen sample sizes, improve UK data provenance, and add protected or rotating evaluation sets so that public rankings are less exposed to open-set leakage. The benchmark should also continue reporting sensitivity views, because equal-country household-equal scores are useful summaries only when their weighting choices are visible.
 
 ## Competing interests
 

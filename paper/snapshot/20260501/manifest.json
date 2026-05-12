@@ -6,7 +6,7 @@
   },
   "dashboard_export": {
     "path": "app/src/data.json",
-    "sha256": "8e442c0ab3b34d01eb1262e74ba2b3d838750e27002b6ff5b3fd49d8dd923240",
+    "sha256": "cb420ee4e9c31c441355ab76b7af4f1bb4261cc591b2f7c1feebef47ae1e0213",
     "description": "Committed dashboard export containing parsed model predictions, explanations, model summaries, program summaries, prompts, and PolicyEngine runtime bundle metadata."
   },
   "source_run_labels": {
@@ -20,11 +20,11 @@
       "files": {
         "analysis/impact_summary_by_model.csv": "32989da797c34dce6d982ae4b268b09e3901c9aa795d25a6db8ad7d6ef1bb1d1",
         "analysis/metrics.csv": "447b92ad1253f8c4571bf5c0d7a9f00d80cfe470bf8d076a6fc958c20dd88e17",
-        "analysis/report.md": "17c596861f65a6909a5d914c21813773a4fbff44641db8ac16c36a19aa7347ce",
+        "analysis/report.md": "46b83c1455ccaeec965ef1a4e3d4f2a5bbf1e1843ee573eaec552d7271828c7d",
         "analysis/summary_by_model.csv": "b27fe028fecc8b66a456ef2cb3111952db9eb1501b96537cae7523f2cb067afa",
         "analysis/summary_by_variable.csv": "9f1faf9be53e45c86b57cad83dbbbedaed6b00f56d6c55448cfa1b5f8e77e449",
         "analysis/usage_summary.csv": "e2a9585cd02891a4a31897daf3b0e01dac62b629326cb255e2ee1f801240d3a2",
-        "data.json": "078651acc01287d0845268fe2e48f293a33018ec859705faa8e2b81b93cc45c6",
+        "data.json": "66bef9e621f8191393a48b6ae7a4be50af16d6e28ebb250f28254985a3d99358",
         "ground_truth.csv": "f988e1771a830e336cb4ff3238a7c98281a859ea25271ffda9071f1a22141243",
         "ground_truth.csv.meta.json": "99f52924ad83b5f953a2d52337ca7cdc9f1c421b5308ce6b1f433510ebb7c371",
         "predictions.csv.gz": "9cfbf5d3c16f608ee9b1fe339ed60f439cf858ab0a27def1e17cf4bdb94a2119",
@@ -37,11 +37,11 @@
       "files": {
         "analysis/impact_summary_by_model.csv": "dacb786da3671a3320375909bb6bf6572441af4a840d0043a882b0f67cc957d1",
         "analysis/metrics.csv": "086c842b4cf11f599e687c9ac383197a3398708081858159528fc97a529c12ed",
-        "analysis/report.md": "8a45661224d1d5123ce9759ec7cb8afb08dad03cc6d7bd4cf78b6911a91e292f",
+        "analysis/report.md": "aef172b04f4d52ae418f1bffcc32e8af4853deac92af9d7681bac49c37f9afde",
         "analysis/summary_by_model.csv": "72aa424e5c15a52e96c85d2bff23533bdfd40f2ae4bfae3b6cad2f45947c5687",
         "analysis/summary_by_variable.csv": "c96c893eb615324bcc55d6ec75541837a27036eacdba0c0fb6b3738f61bf4537",
         "analysis/usage_summary.csv": "fd20aed7bd2b514cf5288119552064756d768b9b4de9a30579bb775783751ed3",
-        "data.json": "194d3c5281151e90bbcd54ce23762f865c09cdbfe07241be61e755c60e5d93f8",
+        "data.json": "b9d5f318307a7fef3149c5a35e3889cf7dbeba730e7aafcbf6114894fcbe3720",
         "ground_truth.csv": "b1cd6386e7304bdcd5ab4c82057c4f0c0b0a02208ff7d54494ba11aac516f6cc",
         "ground_truth.csv.meta.json": "5aa774f7656cdebe021d49125efb0fed397bf0171510178701df800450dbbfac",
         "predictions.csv.gz": "37b878fa25b3de25494d4083950b073ce8e5d21c41650423acc9cb6f476c53e8",
@@ -60,14 +60,14 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "e27649b61fcffb94df1c855676934709dc92024591bf71400bd237c0bae67dbc"
+      "sha256": "ba546665c6d4897687f7281c034d0f2b302cbe6a1514676682810d292abac5b6"
     },
     "web": {
       "path": "app/public/paper/web",
       "files": {
-        "figures/global_leaderboard.png": "46f9e6c12cb9e42b97ce310182688d40c7dd3489844c09eca65580b548fc5f47",
+        "figures/global_leaderboard.png": "acb64851ab79120c24b34d6ee6642b91c8a8d4c854c17920b984dbc935ebbd49",
         "figures/positive_zero_scatter.png": "ba58c773d8ce0261ad8d8826fabfdc10d1e5d6b1695b73fe8835912c98837496",
-        "index.html": "6093197a931ab22f4e79839dc63480e512a91b95e5c5dfe31177e9515503b11b",
+        "index.html": "be69b89f49741e70dabc7d8a765cc17d90147f5487e45a6a0cb472b7702f5beb",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
