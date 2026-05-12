@@ -33,8 +33,9 @@ ROOT = Path.cwd().resolve()
 if not (ROOT / "results").exists():
     ROOT = ROOT.parent
 dashboard = json.loads((ROOT / "app" / "src" / "data.json").read_text())
-SNAPSHOT_DATE = "2026-05-01"
+SNAPSHOT_DATE = "2026-05-12"
 SNAPSHOT_EXPORT = "app/src/data.json"
+MODEL_RESPONSE_DATE = "2026-05-01"
 US_RUN_LABEL = "us_100_stable_models_20260501_062249"
 UK_RUN_LABEL = "uk_100_hicbc_fixed_20260501_083402"
 IMPACT_SNAPSHOT_DIR = "paper/snapshot/20260501"
@@ -597,6 +598,7 @@ impact_floor = impact_floor_sensitivity()
 snapshot_provenance = pd.DataFrame(
     [
         ["Snapshot date", SNAPSHOT_DATE],
+        ["Model response date", MODEL_RESPONSE_DATE],
         ["Policy period", "US tax year 2026; UK fiscal year 2026-27"],
         ["Frozen export", SNAPSHOT_EXPORT],
         ["Frozen export SHA-256 prefix", file_hash_prefix(SNAPSHOT_EXPORT)],
@@ -611,6 +613,7 @@ snapshot_provenance = pd.DataFrame(
         ["US run label", US_RUN_LABEL],
         ["UK run label", UK_RUN_LABEL],
         ["Household sample seed", str(SEED)],
+        ["PolicyEngine.py", bundle_version("us", "policyengine_version")],
         ["PolicyEngine-US", f"{bundle_version('us', 'model_package')} {bundle_version('us', 'model_version')}"],
         ["PolicyEngine-UK", f"{bundle_version('uk', 'model_package')} {bundle_version('uk', 'model_version')}"],
         ["US data bundle", f"{bundle_version('us', 'data_package')} {bundle_version('us', 'data_version')}"],
@@ -840,7 +843,7 @@ impact_floor
 
 ### Sampling uncertainty
 
-The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes country scores with equal output-group weighting, then recomputes the equal-country global score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after 2026-05-01 in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
+The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes country scores with equal output-group weighting, then recomputes the equal-country global score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after `{python} MODEL_RESPONSE_DATE` in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
 
 ```{python}
 #| label: tbl-bootstrap

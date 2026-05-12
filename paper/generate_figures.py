@@ -108,7 +108,7 @@ def _global_leaderboard_svg(payload: dict[str, Any]) -> str:
         (
             "<text x='32' y='68' font-family='Arial, sans-serif' "
             "font-size='13' fill='#52645f'>Equal-country score, frozen "
-            "2026-05-01 snapshot</text>"
+            "2026-05-12 scored snapshot</text>"
         ),
     ]
     for index, row in enumerate(models):

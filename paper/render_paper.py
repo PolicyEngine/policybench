@@ -12,14 +12,15 @@ ROOT = Path(__file__).resolve().parents[1]
 PAPER_DIR = ROOT / "paper"
 PUBLIC_PAPER_DIR = ROOT / "app" / "public" / "paper"
 PUBLIC_WEB_DIR = PUBLIC_PAPER_DIR / "web"
-DESIGN_SYSTEM_TOKENS = (
+DESIGN_SYSTEM_TOKEN_CANDIDATES = (
     ROOT
     / "app"
     / "node_modules"
     / "@policyengine"
     / "design-system"
     / "dist"
-    / "tokens.css"
+    / "tokens.css",
+    PAPER_DIR / "pe-tokens.css",
 )
 
 
@@ -35,6 +36,8 @@ def find_executable(name: str, fallbacks: list[Path]) -> str | None:
 
 def copy_if_exists(source: Path, destination: Path) -> None:
     if not source.exists():
+        return
+    if source.resolve() == destination.resolve():
         return
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, destination)
@@ -234,12 +237,21 @@ def main() -> None:
         cwd=ROOT,
         env=env,
     )
-    if not DESIGN_SYSTEM_TOKENS.exists():
+    design_system_tokens = next(
+        (
+            candidate
+            for candidate in DESIGN_SYSTEM_TOKEN_CANDIDATES
+            if candidate.exists()
+        ),
+        None,
+    )
+    if design_system_tokens is None:
         raise SystemExit(
-            "Missing PolicyEngine design tokens at "
-            f"{DESIGN_SYSTEM_TOKENS}. Run `bun install` in app first."
+            "Missing PolicyEngine design tokens. Checked "
+            f"{', '.join(str(path) for path in DESIGN_SYSTEM_TOKEN_CANDIDATES)}. "
+            "Run `bun install` in app first."
         )
-    copy_if_exists(DESIGN_SYSTEM_TOKENS, PAPER_DIR / "pe-tokens.css")
+    copy_if_exists(design_system_tokens, PAPER_DIR / "pe-tokens.css")
 
     html_out_dir = PAPER_DIR / "out" / "web"
     pdf_out_dir = PAPER_DIR / "out" / "pdf"

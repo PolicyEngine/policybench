@@ -4,17 +4,17 @@ import Link from "next/link";
 
 import SiteHeader from "../../components/SiteHeader";
 
-const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-01";
+const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-12";
 
 export const metadata: Metadata = {
   title: "Paper",
   description:
-    "PolicyBench paper — frozen 2026-05-01 manuscript snapshot scored against PolicyEngine reference outputs.",
+    "PolicyBench paper — 2026-05-12 scored manuscript snapshot with May 1 model responses and refreshed PolicyEngine reference outputs.",
 };
 
 const manuscriptPaths = {
   pdf: "/paper/policybench.pdf",
-  web: "/paper/web/index.html?v=20260501",
+  web: "/paper/web/index.html?v=20260512",
 };
 const ssrnUrl = process.env.NEXT_PUBLIC_POLICYBENCH_SSRN_URL;
 
@@ -23,7 +23,7 @@ export default function PaperPage() {
     <>
       <p className="max-w-2xl text-sm leading-relaxed text-text-secondary sm:text-base">
         Benchmarking no-tool tax-and-benefit estimation in frontier language
-        models. This page embeds the frozen 2026-05-01 manuscript snapshot:
+        models. This page embeds the 2026-05-12 scored manuscript snapshot:
         a 100-household-per-country public preview scored against
         PolicyEngine reference outputs.
       </p>
