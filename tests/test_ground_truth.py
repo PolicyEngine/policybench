@@ -159,6 +159,38 @@ class TestGroundTruth:
         assert len(df) == 2
         assert set(df["scenario_id"]) == {"gt_single_50k", "gt_family_low"}
 
+    def test_us_vectorized_ground_truth_matches_scalar_reference(
+        self,
+        single_50k,
+        family_low_income,
+    ):
+        """US reference outputs are vectorized without changing semantics."""
+        scenarios = [single_50k, family_low_income]
+        programs = [
+            "federal_income_tax_before_refundable_credits",
+            "self_employment_tax",
+            "snap",
+            "person_medicaid_eligible",
+            "person_wic_eligible",
+            "free_school_meals_eligible",
+        ]
+
+        vectorized = calculate_ground_truth(scenarios, programs=programs)
+        scalar = ground_truth._calculate_ground_truth_us_scalar(
+            scenarios,
+            programs,
+            year=2026,
+        )
+        sort_columns = ["scenario_id", "variable"]
+
+        pd.testing.assert_frame_equal(
+            vectorized.sort_values(sort_columns).reset_index(drop=True),
+            scalar.sort_values(sort_columns).reset_index(drop=True),
+            check_exact=False,
+            rtol=1e-9,
+            atol=1e-9,
+        )
+
 
 class TestGroundTruthScalarExtraction:
     def test_free_school_meals_amount_becomes_household_boolean(self):

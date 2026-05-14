@@ -1,8 +1,10 @@
 """Reference-output calculations using PolicyEngine."""
 
 import os
+from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from policybench.config import DEFAULT_COUNTRY, TAX_YEAR, get_programs
@@ -23,6 +25,16 @@ DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES = {
     "free_school_meals_eligible",
     "reduced_price_school_meals_eligible",
 }
+
+
+@dataclass(frozen=True)
+class _USScenarioEntityIndex:
+    person_indices: dict[str, int]
+    marital_unit_indices: tuple[int, ...]
+    tax_unit_indices: tuple[int, ...]
+    spm_unit_indices: tuple[int, ...]
+    family_indices: tuple[int, ...]
+    household_indices: tuple[int, ...]
 
 
 def _pe_variable_for_output(variable: str, country: str) -> str:
@@ -106,6 +118,43 @@ def _extract_scalar_with_aggregation(result, aggregation: str) -> float:
     return value
 
 
+def _us_entity_indices(
+    index: _USScenarioEntityIndex,
+    entity_key: str,
+) -> tuple[int, ...]:
+    if entity_key == "person":
+        return tuple(index.person_indices.values())
+    if entity_key == "marital_unit":
+        return index.marital_unit_indices
+    if entity_key == "tax_unit":
+        return index.tax_unit_indices
+    if entity_key == "spm_unit":
+        return index.spm_unit_indices
+    if entity_key == "family":
+        return index.family_indices
+    if entity_key == "household":
+        return index.household_indices
+    raise ValueError(f"Unsupported US entity '{entity_key}'.")
+
+
+def _us_entity_indices_for_output(
+    scenario: Scenario,
+    variable: str,
+    entity_key: str,
+    index: _USScenarioEntityIndex,
+) -> tuple[int, ...]:
+    parsed_person_output = parse_person_output(variable)
+    if parsed_person_output is not None and entity_key == "person":
+        person_name = parsed_person_output[0]
+        if person_name not in index.person_indices:
+            raise ValueError(
+                f"Output '{variable}' refers to {person_name}, but that person "
+                f"is not present in scenario '{scenario.id}'."
+            )
+        return (index.person_indices[person_name],)
+    return _us_entity_indices(index, entity_key)
+
+
 def _extract_impact_weight(
     value_result,
     weight_result,
@@ -156,6 +205,175 @@ def _extract_person_impact_weight(
     return abs(float(weight_result[person_index]))
 
 
+def _copy_us_entity_data(
+    entity_data: dict[str, Any],
+    person_name_map: dict[str, str],
+) -> dict[str, Any]:
+    copied = dict(entity_data)
+    if "members" in copied:
+        copied["members"] = [person_name_map[member] for member in copied["members"]]
+    return copied
+
+
+def _build_us_vectorized_situation(
+    scenarios: list[Scenario],
+) -> tuple[dict[str, dict[str, Any]], dict[str, _USScenarioEntityIndex]]:
+    """Build one PE-US situation containing all benchmark scenarios."""
+    entity_id_variables = {
+        "marital_units": "marital_unit_id",
+        "tax_units": "tax_unit_id",
+        "spm_units": "spm_unit_id",
+        "families": "family_id",
+        "households": "household_id",
+    }
+    person_entity_id_variables = {
+        "marital_units": "person_marital_unit_id",
+        "tax_units": "person_tax_unit_id",
+        "spm_units": "person_spm_unit_id",
+        "families": "person_family_id",
+        "households": "person_household_id",
+    }
+    combined = {
+        "people": {},
+        "marital_units": {},
+        "tax_units": {},
+        "spm_units": {},
+        "families": {},
+        "households": {},
+    }
+    scenario_indexes: dict[str, _USScenarioEntityIndex] = {}
+
+    for scenario_position, scenario in enumerate(scenarios):
+        if scenario.id in scenario_indexes:
+            raise ValueError(f"Duplicate scenario id '{scenario.id}'.")
+        situation = scenario.to_pe_household()
+        situation.setdefault(
+            "marital_units",
+            {"marital_unit": {"members": list(situation["people"])}},
+        )
+        prefix = f"scenario{scenario_position}"
+        person_name_map: dict[str, str] = {}
+        person_indices: dict[str, int] = {}
+        period = str(scenario.year)
+        person_entity_ids = {
+            person_name: {} for person_name in situation["people"]
+        }
+        source_entity_ids: dict[str, dict[str, int]] = {}
+
+        for entity_group in (
+            "marital_units",
+            "tax_units",
+            "spm_units",
+            "families",
+            "households",
+        ):
+            source_entity_ids[entity_group] = {}
+            person_id_variable = person_entity_id_variables[entity_group]
+            for entity_name, entity_data in situation[entity_group].items():
+                entity_id = len(combined[entity_group]) + len(
+                    source_entity_ids[entity_group]
+                )
+                source_entity_ids[entity_group][entity_name] = entity_id
+                for member in entity_data["members"]:
+                    person_entity_ids[member][person_id_variable] = entity_id
+
+        for person_name, person_data in situation["people"].items():
+            prefixed_name = f"{prefix}_{person_name}"
+            person_name_map[person_name] = prefixed_name
+            person_indices[person_name] = len(combined["people"])
+            copied_person_data = dict(person_data)
+            for variable, entity_id in person_entity_ids[person_name].items():
+                copied_person_data[variable] = {period: entity_id}
+            combined["people"][prefixed_name] = copied_person_data
+
+        entity_indices: dict[str, tuple[int, ...]] = {}
+        for entity_group in (
+            "marital_units",
+            "tax_units",
+            "spm_units",
+            "families",
+            "households",
+        ):
+            indices = []
+            for entity_name, entity_data in situation[entity_group].items():
+                prefixed_name = f"{prefix}_{entity_name}"
+                entity_id = source_entity_ids[entity_group][entity_name]
+                indices.append(entity_id)
+                copied_entity_data = _copy_us_entity_data(
+                    entity_data,
+                    person_name_map,
+                )
+                copied_entity_data[entity_id_variables[entity_group]] = {
+                    period: entity_id
+                }
+                combined[entity_group][prefixed_name] = copied_entity_data
+            entity_indices[entity_group] = tuple(indices)
+
+        scenario_indexes[scenario.id] = _USScenarioEntityIndex(
+            person_indices=person_indices,
+            marital_unit_indices=entity_indices["marital_units"],
+            tax_unit_indices=entity_indices["tax_units"],
+            spm_unit_indices=entity_indices["spm_units"],
+            family_indices=entity_indices["families"],
+            household_indices=entity_indices["households"],
+        )
+
+    return combined, scenario_indexes
+
+
+def _extract_us_vectorized_value(
+    value_result: np.ndarray,
+    *,
+    scenario: Scenario,
+    variable: str,
+    entity_key: str,
+    index: _USScenarioEntityIndex,
+) -> float:
+    indices = _us_entity_indices_for_output(scenario, variable, entity_key, index)
+    return _extract_scalar_with_aggregation(
+        value_result[list(indices)],
+        _aggregation_for_output(variable, "us"),
+    )
+
+
+def _extract_us_vectorized_impact_weight(
+    value_result: np.ndarray,
+    weight_result: np.ndarray,
+    *,
+    scenario: Scenario,
+    variable: str,
+    value_entity_key: str,
+    weight_entity_key: str,
+    index: _USScenarioEntityIndex,
+) -> float:
+    parsed_person_output = parse_person_output(variable)
+    if parsed_person_output is not None:
+        person_name = parsed_person_output[0]
+        person_index = index.person_indices[person_name]
+        if float(value_result[person_index]) <= 0:
+            return 0.0
+        return abs(float(weight_result[person_index]))
+
+    value_indices = _us_entity_indices_for_output(
+        scenario,
+        variable,
+        value_entity_key,
+        index,
+    )
+    weight_indices = _us_entity_indices_for_output(
+        scenario,
+        variable,
+        weight_entity_key,
+        index,
+    )
+    return _extract_impact_weight(
+        value_result[list(value_indices)],
+        weight_result[list(weight_indices)],
+        variable,
+        "us",
+    )
+
+
 def calculate_single(
     scenario: Scenario,
     variable: str,
@@ -178,7 +396,7 @@ def calculate_single(
     )
 
 
-def _calculate_ground_truth_us(
+def _calculate_ground_truth_us_scalar(
     scenarios: list[Scenario],
     programs: list[str],
     year: int,
@@ -199,6 +417,65 @@ def _calculate_ground_truth_us(
                     sim.calculate(impact_weight_variable, year),
                     scenario,
                     variable,
+                )
+            rows.append(
+                {
+                    "scenario_id": scenario.id,
+                    "variable": variable,
+                    "value": value,
+                    "impact_weight": impact_weight,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _calculate_ground_truth_us(
+    scenarios: list[Scenario],
+    programs: list[str],
+    year: int,
+) -> pd.DataFrame:
+    Simulation = get_us_situation_simulation_class()
+    situation, scenario_indexes = _build_us_vectorized_situation(scenarios)
+    sim = Simulation(situation=situation)
+
+    variable_cache: dict[str, tuple[np.ndarray, str]] = {}
+
+    def calculate_variable(variable: str) -> tuple[np.ndarray, str]:
+        if variable not in variable_cache:
+            entity_key = sim.tax_benefit_system.variables[variable].entity.key
+            variable_cache[variable] = (
+                np.asarray(sim.calculate(variable, year)),
+                entity_key,
+            )
+        return variable_cache[variable]
+
+    rows = []
+    for scenario in scenarios:
+        index = scenario_indexes[scenario.id]
+        for variable in expand_programs_for_scenario(programs, scenario):
+            pe_variable = _pe_variable_for_output(variable, "us")
+            value_result, value_entity_key = calculate_variable(pe_variable)
+            value = _extract_us_vectorized_value(
+                value_result,
+                scenario=scenario,
+                variable=variable,
+                entity_key=value_entity_key,
+                index=index,
+            )
+            impact_weight = None
+            impact_weight_variable = _impact_weight_variable_for_output(variable, "us")
+            if impact_weight_variable is not None:
+                weight_result, weight_entity_key = calculate_variable(
+                    impact_weight_variable,
+                )
+                impact_weight = _extract_us_vectorized_impact_weight(
+                    value_result,
+                    weight_result,
+                    scenario=scenario,
+                    variable=variable,
+                    value_entity_key=value_entity_key,
+                    weight_entity_key=weight_entity_key,
+                    index=index,
                 )
             rows.append(
                 {
