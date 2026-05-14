@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.full_run_export import load_predictions
+from policybench.full_run_export import load_annotations, load_predictions
 
 
 def _write_predictions(path: Path, model: str) -> None:
@@ -50,3 +50,58 @@ def test_load_predictions_reads_compressed_snapshot_predictions(
     predictions = load_predictions(country_dir)
 
     assert predictions["model"].tolist() == ["compressed"]
+
+
+def test_load_annotations_reads_run_annotations(tmp_path: Path) -> None:
+    annotations_dir = tmp_path / "full_run" / "annotations"
+    annotations_dir.mkdir(parents=True)
+    pd.DataFrame(
+        [
+            {
+                "country": "us",
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "annotation": "Wrong tax bracket.",
+            }
+        ]
+    ).to_csv(annotations_dir / "us_tax_annotations.csv", index=False)
+
+    annotations = load_annotations(tmp_path / "full_run" / "us")
+
+    assert annotations.to_dict(orient="records") == [
+        {
+            "model": "model_a",
+            "scenario_id": "s001",
+            "variable": "income_tax",
+            "annotation": "Wrong tax bracket.",
+        }
+    ]
+
+
+def test_load_annotations_rejects_duplicate_prediction_keys(tmp_path: Path) -> None:
+    annotations_dir = tmp_path / "full_run" / "annotations"
+    annotations_dir.mkdir(parents=True)
+    pd.DataFrame(
+        [
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "annotation": "First.",
+            },
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "annotation": "Duplicate.",
+            },
+        ]
+    ).to_csv(annotations_dir / "us_tax_annotations.csv", index=False)
+
+    try:
+        load_annotations(tmp_path / "full_run" / "us")
+    except ValueError as error:
+        assert "Duplicate annotations" in str(error)
+    else:
+        raise AssertionError("Expected duplicate annotations to fail")

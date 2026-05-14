@@ -247,7 +247,9 @@ export type ScenarioPrediction = {
   prediction: number | null;
   error: number | null;
   groundTruth: number;
+  score?: number;
   explanation?: string;
+  annotation?: string;
   predictionError?: string;
 };
 

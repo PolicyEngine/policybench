@@ -40,6 +40,59 @@ def load_predictions(country_dir: Path) -> pd.DataFrame:
     )
 
 
+def load_annotations(country_dir: Path) -> pd.DataFrame:
+    """Load optional prediction annotations for a country run."""
+    country = country_dir.name
+    annotations_dir = country_dir.parent / "annotations"
+    committed_annotations_dir = Path("annotations") / country_dir.parent.name
+    files = sorted(annotations_dir.glob(f"{country}_*_annotations.csv"))
+    if not files:
+        files = sorted(committed_annotations_dir.glob(f"{country}_*_annotations.csv"))
+    if not files:
+        return pd.DataFrame(columns=["model", "scenario_id", "variable", "annotation"])
+
+    annotations = pd.concat((pd.read_csv(path) for path in files), ignore_index=True)
+    required = {"model", "scenario_id", "variable", "annotation"}
+    missing = required - set(annotations.columns)
+    if missing:
+        missing_text = ", ".join(sorted(missing))
+        raise ValueError(f"Annotation files missing columns: {missing_text}")
+
+    annotations = annotations[["model", "scenario_id", "variable", "annotation"]].copy()
+    annotations = annotations[
+        annotations["annotation"].astype("string").fillna("").str.strip() != ""
+    ]
+    duplicate_keys = annotations.duplicated(
+        ["model", "scenario_id", "variable"],
+        keep=False,
+    )
+    if duplicate_keys.any():
+        duplicates = annotations.loc[
+            duplicate_keys, ["model", "scenario_id", "variable"]
+        ].drop_duplicates()
+        raise ValueError(
+            "Duplicate annotations for prediction rows: "
+            f"{duplicates.to_dict(orient='records')[:5]}"
+        )
+    return annotations
+
+
+def merge_annotations(
+    predictions: pd.DataFrame,
+    annotations: pd.DataFrame,
+) -> pd.DataFrame:
+    """Attach optional audit annotations to prediction rows."""
+    if annotations.empty:
+        return predictions
+    if "annotation" in predictions.columns:
+        predictions = predictions.drop(columns=["annotation"])
+    return predictions.merge(
+        annotations,
+        on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+
+
 def export_country(country_dir: Path) -> dict:
     """Write analysis artifacts and dashboard payload for one country run."""
     ground_truth_path = country_dir / "reference_outputs.csv"
@@ -55,6 +108,7 @@ def export_country(country_dir: Path) -> dict:
 
     ground_truth = pd.read_csv(ground_truth_path)
     predictions = load_predictions(country_dir)
+    predictions = merge_annotations(predictions, load_annotations(country_dir))
     scenarios = pd.read_csv(scenarios_path)
 
     analysis = analyze_no_tools(ground_truth, predictions)

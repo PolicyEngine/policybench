@@ -680,6 +680,7 @@ class TestSummaries:
                 "variable": ["income_tax", "adult1_medicaid_eligible"] * 2,
                 "prediction": [110.0, 1.0, 210.0, 0.0],
                 "explanation": ["brief note", None, None, None],
+                "annotation": ["off by 10%", None, None, None],
             }
         )
         scenarios_df = pd.DataFrame(
@@ -725,6 +726,10 @@ class TestSummaries:
         assert (
             payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]["explanation"]
             == "brief note"
+        )
+        assert (
+            payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]["annotation"]
+            == "off by 10%"
         )
 
     def test_build_dashboard_payload_keeps_missing_predictions_as_misses(self):

@@ -81,6 +81,12 @@ export default function ScenarioExplorer({
       Object.values(modelMap).filter((entry) => !!entry.explanation).length,
     0,
   );
+  const annotationRows = Object.values(predictions).reduce(
+    (sum, modelMap) =>
+      sum +
+      Object.values(modelMap).filter((entry) => !!entry.annotation).length,
+    0,
+  );
   const totalPredictionRows = Object.values(predictions).reduce(
     (sum, modelMap) => sum + Object.keys(modelMap).length,
     0,
@@ -197,13 +203,14 @@ export default function ScenarioExplorer({
           style={{ animationDelay: "260ms" }}
         >
           <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-            Explanation coverage
+            Explanation and audit coverage
           </div>
           <p className="mt-2 text-sm text-text-secondary leading-relaxed">
             {explanationRows} of {totalPredictionRows} model-output rows for
             this household include explanation text. These notes are returned
-            by the model and are not separately scored; hover the note markers
-            next to predictions to read them.
+            by the model and are not separately scored. {annotationRows} rows
+            include developer audit notes for incorrect predictions. Hover the
+            note and audit markers next to predictions to read them.
           </p>
         </div>
       )}
@@ -317,7 +324,9 @@ export default function ScenarioExplorer({
                     const pred = varData[m];
                     if (!pred || pred.prediction === null) {
                       const missingNote =
-                        pred?.explanation || pred?.predictionError;
+                        pred?.annotation ||
+                        pred?.explanation ||
+                        pred?.predictionError;
                       return (
                         <td
                           key={m}
@@ -342,10 +351,13 @@ export default function ScenarioExplorer({
                       : formatCurrency(pred.prediction, currencySymbol);
                     const predictionError = pred.error ?? pred.prediction - truth;
 
-                    const isCorrect = isBinary
-                      ? Math.round(pred.prediction) === Math.round(truth)
-                      : Math.abs(predictionError) <= Math.abs(truth) * 0.1 ||
-                        (truth === 0 && Math.abs(pred.prediction) <= 1);
+                    const isCorrect =
+                      pred.score !== undefined
+                        ? pred.score >= 100
+                        : isBinary
+                          ? Math.round(pred.prediction) === Math.round(truth)
+                          : Math.abs(predictionError) <= Math.abs(truth) * 0.1 ||
+                            (truth === 0 && Math.abs(pred.prediction) <= 1);
 
                     return (
                       <td
@@ -364,6 +376,11 @@ export default function ScenarioExplorer({
                           {pred.explanation && (
                             <ExplanationTooltip explanation={pred.explanation}>
                               note
+                            </ExplanationTooltip>
+                          )}
+                          {pred.annotation && (
+                            <ExplanationTooltip explanation={pred.annotation}>
+                              audit
                             </ExplanationTooltip>
                           )}
                         </div>
