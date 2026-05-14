@@ -255,9 +255,7 @@ def _build_us_vectorized_situation(
         person_name_map: dict[str, str] = {}
         person_indices: dict[str, int] = {}
         period = str(scenario.year)
-        person_entity_ids = {
-            person_name: {} for person_name in situation["people"]
-        }
+        person_entity_ids = {person_name: {} for person_name in situation["people"]}
         source_entity_ids: dict[str, dict[str, int]] = {}
 
         for entity_group in (
