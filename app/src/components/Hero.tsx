@@ -6,7 +6,7 @@ import type {
 } from "../types";
 import SiteHeader, { type HeaderNavItem } from "./SiteHeader";
 
-const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-12";
+const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-14";
 
 export default function Hero({
   selectedView,

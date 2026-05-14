@@ -1,71 +1,72 @@
 {
-  "snapshot_date": "2026-05-12",
+  "snapshot_date": "2026-05-14",
   "policy_period": {
     "us": "tax year 2026",
     "uk": "fiscal year 2026-27"
   },
   "live_dashboard_note": "app/src/data.json is the live site export and is not the frozen manuscript source. The manuscript uses the committed source run data.json files listed under source_run_artifacts.",
   "source_run_labels": {
-    "us": "us_100_stable_models_20260501_062249",
-    "uk": "uk_100_hicbc_fixed_20260501_083402"
+    "us": "us_full_run_20260513_policyengine_4_4_4_nested_outputs",
+    "uk": "uk_full_run_20260513_policyengine_4_4_4_nested_outputs"
   },
   "source_run_artifacts": {
-    "note": "Compact copies of locally available run outputs used to verify this snapshot. The compressed predictions.csv.gz files preserve the raw provider responses, parsed predictions, explanations, usage, and cost metadata from the no_tools_chunked runs. The run data.json files retain the parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime bundle metadata used by the dashboard.",
-    "us_100_stable_models_20260501_062249": {
-      "path": "paper/snapshot/20260501/runs/us_100_stable_models_20260501_062249",
-      "prompt_payload_sha256": "f13b06ea698c968c2b7898e62916c5be7a79955eca81158d9b876d14b05e8aae",
+    "note": "Compact copies of locally available run outputs used to verify this snapshot. The compressed predictions.csv.gz files preserve raw provider responses, parsed predictions, explanations, usage, and cost metadata. The run data.json files retain parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime metadata used by the dashboard.",
+    "us_full_run_20260513_policyengine_4_4_4_nested_outputs": {
+      "path": "paper/snapshot/20260501/runs/us_full_run_20260513_policyengine_4_4_4_nested_outputs",
+      "prompt_payload_sha256": "f3f208702ac61ea7ed5f30a69847884b8ca0775e53222a77d724e1369480d286",
       "files": {
-        "analysis/impact_summary_by_model.csv": "32989da797c34dce6d982ae4b268b09e3901c9aa795d25a6db8ad7d6ef1bb1d1",
-        "analysis/metrics.csv": "447b92ad1253f8c4571bf5c0d7a9f00d80cfe470bf8d076a6fc958c20dd88e17",
-        "analysis/report.md": "46b83c1455ccaeec965ef1a4e3d4f2a5bbf1e1843ee573eaec552d7271828c7d",
-        "analysis/summary_by_model.csv": "b27fe028fecc8b66a456ef2cb3111952db9eb1501b96537cae7523f2cb067afa",
-        "analysis/summary_by_variable.csv": "9f1faf9be53e45c86b57cad83dbbbedaed6b00f56d6c55448cfa1b5f8e77e449",
-        "analysis/usage_summary.csv": "e2a9585cd02891a4a31897daf3b0e01dac62b629326cb255e2ee1f801240d3a2",
-        "data.json": "66bef9e621f8191393a48b6ae7a4be50af16d6e28ebb250f28254985a3d99358",
-        "ground_truth.csv": "f988e1771a830e336cb4ff3238a7c98281a859ea25271ffda9071f1a22141243",
-        "ground_truth.csv.meta.json": "99f52924ad83b5f953a2d52337ca7cdc9f1c421b5308ce6b1f433510ebb7c371",
-        "predictions.csv.gz": "9cfbf5d3c16f608ee9b1fe339ed60f439cf858ab0a27def1e17cf4bdb94a2119",
-        "scenarios.csv": "46bc6b1ba56eb9441b9ecface7c1d0bbf5cb9c45d91e80bcef84e7e49ae21a55",
-        "scenarios.csv.meta.json": "73bb896944e456b44b4c9307dd93b9b5c4186b2ce2625e0b55e08d3e7ff29ff4"
+        "analysis/impact_summary_by_model.csv": "9bee93a643614a21311611b7a4309198357534fcc26de25868db0b704fbdc394",
+        "analysis/metrics.csv": "5edb9fee92c73f24437fd2669d3f978f0b2d70bccc22c01e52d781cc5dfa0494",
+        "analysis/report.md": "71b55910b46350a990f609a9a5281fd5b3cff1b1e77c11e5514f2ae39b206d0b",
+        "analysis/summary_by_model.csv": "57a429a83f2c13eaf7bce77574cbd88fe5f86213d71aaabd75dd4e18c37a9d7b",
+        "analysis/summary_by_variable.csv": "cb5e26f0daa60e7cc36e3130849d34b0216005e196f813c065206d2a8f6ee5f9",
+        "analysis/usage_summary.csv": "aab821b9ac6aa4f5cc7c292306bd443f15b7132c966ddb7b3493ebaf50778594",
+        "data.json": "ef110baf2822090f75c3eec6ea8d465bcd488b3c7de88dcc99094ac2868a8363",
+        "reference_outputs.csv": "04febaadd091dfa7de97fcf71a8a52d3db2296ca98fe1c97f9be92c4bf1383ce",
+        "reference_outputs.csv.meta.json": "4db925a1841ce8549d99e3e69cd5796dab3ca960da08a6108185f5cbc0190f8c",
+        "scenarios.csv": "b05091225c066b652c11d16bf1c78778193d4f3ee277ce8aed8f0a7536c0e66c",
+        "scenarios.csv.meta.json": "ec705caa68554f008ef7b6e76e1e5d9b1f9768588e786e35438562b4dfb00074",
+        "predictions.csv.gz": "153e5292e5dd84823c698d9e748ea65dde71cd601dc1d266a11648976ae00e5c"
       }
     },
-    "uk_100_hicbc_fixed_20260501_083402": {
-      "path": "paper/snapshot/20260501/runs/uk_100_hicbc_fixed_20260501_083402",
-      "prompt_payload_sha256": "fcd8e943edd4349fd56f328835f6ac4352d023aab024903c78807cfc45475f15",
+    "uk_full_run_20260513_policyengine_4_4_4_nested_outputs": {
+      "path": "paper/snapshot/20260501/runs/uk_full_run_20260513_policyengine_4_4_4_nested_outputs",
+      "prompt_payload_sha256": "2f64b11a99aac4b4e1e150e397481b9139ae38d6f8e13065de2220f4b210dbfe",
       "files": {
-        "analysis/impact_summary_by_model.csv": "dacb786da3671a3320375909bb6bf6572441af4a840d0043a882b0f67cc957d1",
-        "analysis/metrics.csv": "086c842b4cf11f599e687c9ac383197a3398708081858159528fc97a529c12ed",
-        "analysis/report.md": "aef172b04f4d52ae418f1bffcc32e8af4853deac92af9d7681bac49c37f9afde",
-        "analysis/summary_by_model.csv": "72aa424e5c15a52e96c85d2bff23533bdfd40f2ae4bfae3b6cad2f45947c5687",
-        "analysis/summary_by_variable.csv": "c96c893eb615324bcc55d6ec75541837a27036eacdba0c0fb6b3738f61bf4537",
-        "analysis/usage_summary.csv": "fd20aed7bd2b514cf5288119552064756d768b9b4de9a30579bb775783751ed3",
-        "data.json": "b9d5f318307a7fef3149c5a35e3889cf7dbeba730e7aafcbf6114894fcbe3720",
-        "ground_truth.csv": "b1cd6386e7304bdcd5ab4c82057c4f0c0b0a02208ff7d54494ba11aac516f6cc",
-        "ground_truth.csv.meta.json": "5aa774f7656cdebe021d49125efb0fed397bf0171510178701df800450dbbfac",
-        "predictions.csv.gz": "37b878fa25b3de25494d4083950b073ce8e5d21c41650423acc9cb6f476c53e8",
-        "scenarios.csv": "cc072e32df04dc313ffe4bdd72d97c9bbbb0675a5b78e87ea0469ace359493a9"
+        "analysis/impact_summary_by_model.csv": "b5708bc1b068f6e2bb18e6338ec0d6189a9d826d87f2e0b25de6d1c980a5ed6e",
+        "analysis/metrics.csv": "375419e10c88aba2722a4249e9714102ad19b7265e873b94f0416d3d405cca89",
+        "analysis/report.md": "abf2a5e0275722836203d2f66aed54bd8a1e43007f81255e05377329e9e82ce6",
+        "analysis/summary_by_model.csv": "cd0140b26ffdbd4595861c53543bdda30bfe0516ffc1b4864a8f5bee40646ed6",
+        "analysis/summary_by_variable.csv": "a4660b0fcbeae59f7dda0fcdb2b15b56073c0c30a76c5115773523b9811beaee",
+        "analysis/usage_summary.csv": "3f766c0e1a968b321928e2120622aaad71935c1739e0e508c1c863f821f40fdb",
+        "data.json": "ca4ee2fdce51e1735779402ac9290ccc7822eeb68aa40a46675c8bb1ffa05428",
+        "reference_outputs.csv": "6286a238e54a0b948385a60a73f36a1aae3cb9bf6612fa28c530d0fd3e024aae",
+        "reference_outputs.csv.meta.json": "4518f1c756b0fd9582d6c8a34120ef9c105b87e147e22d0aa7385071e6ce8336",
+        "scenarios.csv": "eee79fb1db36851fd3b0d3fd343c1dbe62f86222f45b1fe806a5e0f4e49645d2",
+        "scenarios.csv.meta.json": "792cd45f912f23f741de994642850a4445afe5360df9afa008d3235f6b25ffcf",
+        "predictions.csv.gz": "014a0743ab2ee1bdf16f013946624419faddf68bdf70bc0b872cd4c96d6dc6cf"
       }
     }
   },
   "committed_snapshot_artifacts": {
-    "us_scenarios.csv": "46bc6b1ba56eb9441b9ecface7c1d0bbf5cb9c45d91e80bcef84e7e49ae21a55",
-    "us_reference_outputs.csv": "f988e1771a830e336cb4ff3238a7c98281a859ea25271ffda9071f1a22141243",
-    "us_impact_summary_by_model.csv": "32989da797c34dce6d982ae4b268b09e3901c9aa795d25a6db8ad7d6ef1bb1d1",
-    "uk_scenarios.csv": "cc072e32df04dc313ffe4bdd72d97c9bbbb0675a5b78e87ea0469ace359493a9",
-    "uk_reference_outputs.csv": "b1cd6386e7304bdcd5ab4c82057c4f0c0b0a02208ff7d54494ba11aac516f6cc",
-    "uk_impact_summary_by_model.csv": "dacb786da3671a3320375909bb6bf6572441af4a840d0043a882b0f67cc957d1"
+    "us_scenarios.csv": "b05091225c066b652c11d16bf1c78778193d4f3ee277ce8aed8f0a7536c0e66c",
+    "us_reference_outputs.csv": "04febaadd091dfa7de97fcf71a8a52d3db2296ca98fe1c97f9be92c4bf1383ce",
+    "us_impact_summary_by_model.csv": "9bee93a643614a21311611b7a4309198357534fcc26de25868db0b704fbdc394",
+    "uk_scenarios.csv": "eee79fb1db36851fd3b0d3fd343c1dbe62f86222f45b1fe806a5e0f4e49645d2",
+    "uk_reference_outputs.csv": "6286a238e54a0b948385a60a73f36a1aae3cb9bf6612fa28c530d0fd3e024aae",
+    "uk_impact_summary_by_model.csv": "b5708bc1b068f6e2bb18e6338ec0d6189a9d826d87f2e0b25de6d1c980a5ed6e"
   },
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "4d4c0030a89fdadb019a247ce29a62ea9b1f80b324a5c8d3a8ef5837e615ef21"
+      "sha256": "665dcc3b1a43b083309a6dd2206fd065ab6126c6efdeb61d56bed1804840b3bc"
     },
     "web": {
       "path": "app/public/paper/web",
       "files": {
-        "figures/global_leaderboard.png": "acb64851ab79120c24b34d6ee6642b91c8a8d4c854c17920b984dbc935ebbd49",
-        "figures/positive_zero_scatter.png": "ba58c773d8ce0261ad8d8826fabfdc10d1e5d6b1695b73fe8835912c98837496",
-        "index.html": "2d7950eb134f677f691e0ff358021142eaf8cc6843c470ad1c74704b25f9a62f",
+        "figures/global_leaderboard.png": "90d55551ef3803b7cb471375e0e871665834da812904158c7b8f442ad095a0b6",
+        "figures/positive_zero_scatter.png": "6c44b4d84770deb9dac2f952a2f638811eb2594d9adc756079ab9342f221c1f6",
+        "index.html": "bebe5746aa7a980f6240a0a34ede89841ba2baf42f181fc7d26c2e21fa896b9a",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -85,11 +86,10 @@
     }
   },
   "reproducibility_notes": [
-    "The top-level scenario, refreshed reference output, and impact summary CSVs are byte-identical to the corresponding compact source run artifacts copied under paper/snapshot/20260501/runs/.",
-    "Model responses are from the May 1, 2026 source runs; reference outputs and derived scores were refreshed on 2026-05-12 with policyengine.py 4.4.3 (policyengine-us 1.690.7, policyengine-uk 2.88.14).",
+    "The top-level scenario, refreshed reference-output, and impact-summary CSVs are byte-identical to the corresponding compact source-run artifacts copied under paper/snapshot/20260501/runs/.",
+    "Model responses are from the May 13, 2026 source run; reference outputs and derived scores were refreshed on 2026-05-14 with policyengine.py 4.4.4, policyengine-us 1.691.10 from Git SHA 4fd79e6608bc2dac3a7fde0be37191cb4870bd85, and policyengine-uk 2.88.15.",
     "Raw provider responses are retained in compressed source-run predictions.csv.gz files. The separate LiteLLM cache remains local-only because it is a generated request cache, not the canonical snapshot artifact.",
-    "Model APIs and upstream model aliases may change after 2026-05-01, so exact reruns can diverge even with the committed household inputs, reference outputs, parsed dashboard export, and analysis summaries.",
-    "Most model identifiers in policybench/config.py are provider aliases (claude-opus-4.7, gpt-5.5, gemini-3.1-pro-preview, etc.) rather than dated revisions. This snapshot's predictions.csv.gz files therefore do not include a provider system_fingerprint column. Subsequent runs collected with the post-snapshot policybench/eval_no_tools.py capture provider_response_id, provider_system_fingerprint, and provider_resolved_model so future snapshots can pin alias resolutions explicitly."
+    "Model APIs and upstream model aliases may change after 2026-05-13, so exact reruns can diverge even with the committed household inputs, reference outputs, parsed dashboard export, and analysis summaries."
   ],
   "uk_transfer_dataset": {
     "artifact": "enhanced_cps_2025.h5",
@@ -111,11 +111,12 @@
     "models": 12,
     "condition": "No tools, no web access, one structured response per household with numeric answers and non-empty explanations."
   },
-  "model_response_date": "2026-05-01",
+  "model_response_date": "2026-05-13",
   "reference_output_refresh": {
-    "date": "2026-05-12",
-    "policyengine_version": "4.4.3",
-    "policyengine_us_version": "1.690.7",
-    "policyengine_uk_version": "2.88.14"
+    "date": "2026-05-14",
+    "policyengine_version": "4.4.4",
+    "policyengine_us_version": "1.691.10",
+    "policyengine_us_git_sha": "4fd79e6608bc2dac3a7fde0be37191cb4870bd85",
+    "policyengine_uk_version": "2.88.15"
   }
 }

@@ -44,6 +44,6 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
   retained locally (LiteLLM cache, since it is a generated request cache)
 
 A third party can verify the leaderboard numbers against the committed
-`ground_truth.csv` files without rerunning the benchmark, and can rerun the
-benchmark by pointing `policybench eval-no-tools-chunked` at the same
+`reference_outputs.csv` files without rerunning the benchmark, and can rerun
+the benchmark by pointing `policybench eval-no-tools-chunked` at the same
 scenarios.

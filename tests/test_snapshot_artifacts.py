@@ -123,5 +123,5 @@ def test_snapshot_copied_artifacts_match_source_runs():
         copied_references = pd.read_csv(
             SNAPSHOT_DIR / f"{country}_reference_outputs.csv"
         )
-        source_references = pd.read_csv(run_dir / "ground_truth.csv")
+        source_references = pd.read_csv(run_dir / "reference_outputs.csv")
         pd.testing.assert_frame_equal(copied_references, source_references)

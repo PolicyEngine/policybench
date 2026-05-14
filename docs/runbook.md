@@ -42,6 +42,18 @@ uv run python -m policybench.cli reference-outputs \
   --scenario-manifest-output "$RUN_DIR/uk/scenarios.csv"
 ```
 
+If PolicyEngine rules change after paid model responses have been collected,
+refresh only the reference outputs against the frozen scenario manifests. Do not
+rerun or resample scenarios unless you also rerun model calls.
+
+```bash
+uv run python -m policybench.cli reference-outputs \
+  --country us \
+  --scenario-manifest "$RUN_DIR/us/scenarios.csv" \
+  --scenario-manifest-output "$RUN_DIR/us/scenarios.csv" \
+  --output "$RUN_DIR/us/reference_outputs.csv"
+```
+
 ## 3. Run Claude Separately
 
 Run Claude models serially. Claude calls need the main-thread wall timeout, and

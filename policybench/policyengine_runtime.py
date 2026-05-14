@@ -86,6 +86,7 @@ def policyengine_release_bundle(country: str) -> dict[str, Any]:
     installed_policyengine_version = _package_version_or_none("policyengine")
     model_package_name = MODEL_PACKAGES[country]
     installed_model_version = metadata.version(model_package_name)
+    installed_model_direct_url = _package_direct_url_or_none(model_package_name)
     bundled_model_version = _bundled_model_version_from_policyengine_metadata(
         country,
         model_package_name,
@@ -100,6 +101,7 @@ def policyengine_release_bundle(country: str) -> dict[str, Any]:
             installed_policyengine_version=installed_policyengine_version,
             model_package_name=model_package_name,
             installed_model_version=installed_model_version,
+            installed_model_direct_url=installed_model_direct_url,
             bundled_model_version=bundled_model_version,
             raw_manifest=_load_raw_policyengine_manifest(country),
         )
@@ -121,6 +123,7 @@ def policyengine_release_bundle(country: str) -> dict[str, Any]:
         "bundled_policyengine_version": manifest.policyengine_version,
         "model_package": manifest.model_package.name,
         "model_version": installed_model_version,
+        "model_direct_url": installed_model_direct_url,
         "bundled_model_version": bundled_model_version,
         "model_version_source": "policyengine.py bundle"
         if model_matches_bundle
@@ -198,6 +201,19 @@ def _package_version_or_none(package_name: str) -> str | None:
         return None
 
 
+def _package_direct_url_or_none(package_name: str) -> dict[str, Any] | None:
+    try:
+        direct_url = metadata.distribution(package_name).read_text("direct_url.json")
+    except metadata.PackageNotFoundError:
+        return None
+    if not direct_url:
+        return None
+    try:
+        return json.loads(direct_url)
+    except json.JSONDecodeError:
+        return {"raw": direct_url}
+
+
 def _load_policyengine_manifest(country: str) -> Any | None:
     """Load a policyengine.py manifest when it is importable for this environment."""
     try:
@@ -250,6 +266,7 @@ def _unbundled_policyengine_metadata(
     installed_policyengine_version: str | None,
     model_package_name: str,
     installed_model_version: str,
+    installed_model_direct_url: dict[str, Any] | None,
     bundled_model_version: str | None,
     raw_manifest: dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -267,6 +284,7 @@ def _unbundled_policyengine_metadata(
         ),
         "model_package": model_package_name,
         "model_version": installed_model_version,
+        "model_direct_url": installed_model_direct_url,
         "bundled_model_version": bundled_model_version,
         "model_version_source": "installed package",
         "model_matches_policyengine_bundle": False,

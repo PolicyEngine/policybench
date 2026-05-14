@@ -32,10 +32,10 @@ pd.set_option("display.max_colwidth", None)
 ROOT = Path.cwd().resolve()
 if not (ROOT / "results").exists():
     ROOT = ROOT.parent
-SNAPSHOT_DATE = "2026-05-12"
-MODEL_RESPONSE_DATE = "2026-05-01"
-US_RUN_LABEL = "us_100_stable_models_20260501_062249"
-UK_RUN_LABEL = "uk_100_hicbc_fixed_20260501_083402"
+SNAPSHOT_DATE = "2026-05-14"
+MODEL_RESPONSE_DATE = "2026-05-13"
+US_RUN_LABEL = "us_full_run_20260513_policyengine_4_4_4_nested_outputs"
+UK_RUN_LABEL = "uk_full_run_20260513_policyengine_4_4_4_nested_outputs"
 IMPACT_SNAPSHOT_DIR = "paper/snapshot/20260501"
 US_DASHBOARD_EXPORT = f"{IMPACT_SNAPSHOT_DIR}/runs/{US_RUN_LABEL}/data.json"
 UK_DASHBOARD_EXPORT = f"{IMPACT_SNAPSHOT_DIR}/runs/{UK_RUN_LABEL}/data.json"
@@ -230,7 +230,7 @@ def snapshot_run_paths() -> dict[str, Path]:
 
 def load_snapshot_ground_truth() -> dict[str, pd.DataFrame]:
     return {
-        country: pd.read_csv(run_dir / "ground_truth.csv")
+        country: pd.read_csv(run_dir / "reference_outputs.csv")
         for country, run_dir in snapshot_run_paths().items()
     }
 

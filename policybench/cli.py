@@ -105,6 +105,34 @@ def _load_eval_scenarios(args) -> list:
     return scenarios
 
 
+def _load_reference_scenarios(args) -> tuple[list, str | None]:
+    from policybench.scenarios import generate_scenarios, load_scenarios_from_manifest
+
+    if args.scenario_manifest:
+        scenarios = load_scenarios_from_manifest(args.scenario_manifest)
+        if any(scenario.country != args.country for scenario in scenarios):
+            raise SystemExit(
+                "Scenario manifest country does not match the requested "
+                f"`--country={args.country}`."
+            )
+        return scenarios, args.scenario_manifest
+
+    excluded_household_ids = None
+    if args.exclude_scenario_manifest:
+        from policybench.scenarios import load_excluded_household_ids
+
+        excluded_household_ids = load_excluded_household_ids(
+            args.exclude_scenario_manifest
+        )
+    scenarios = generate_scenarios(
+        n=args.num_scenarios,
+        seed=args.seed,
+        excluded_household_ids=excluded_household_ids,
+        country=args.country,
+    )
+    return scenarios, None
+
+
 def main():
     parser = argparse.ArgumentParser(description="PolicyBench benchmark runner")
     subparsers = parser.add_subparsers(dest="command")
@@ -129,6 +157,14 @@ def main():
         "--scenario-manifest-output",
         default="results/local/scenarios.csv",
         help="CSV file for exported scenario metadata (local scratch path)",
+    )
+    gt_parser.add_argument(
+        "--scenario-manifest",
+        default=None,
+        help=(
+            "Existing scenario manifest to recompute reference outputs for. "
+            "When provided, households are not resampled."
+        ),
     )
     gt_parser.add_argument(
         "--program",
@@ -488,25 +524,9 @@ def main():
     if args.command == "reference-outputs":
         from policybench.ground_truth import calculate_ground_truth
         from policybench.policyengine_runtime import runtime_metadata_for_country
-        from policybench.scenarios import (
-            generate_scenarios,
-            get_uk_dataset_path,
-            load_excluded_household_ids,
-            scenario_manifest,
-        )
+        from policybench.scenarios import get_uk_dataset_path, scenario_manifest
 
-        excluded_household_ids = None
-        if args.exclude_scenario_manifest:
-            excluded_household_ids = load_excluded_household_ids(
-                args.exclude_scenario_manifest
-            )
-
-        scenarios = generate_scenarios(
-            n=args.num_scenarios,
-            seed=args.seed,
-            excluded_household_ids=excluded_household_ids,
-            country=args.country,
-        )
+        scenarios, scenario_manifest_input = _load_reference_scenarios(args)
         programs = _parse_programs(
             args.programs,
             get_programs(args.country, args.program_set),
@@ -522,12 +542,14 @@ def main():
             "task": "reference_outputs",
             "generated_at_utc": datetime.now(timezone.utc).isoformat(),
             "country": args.country,
-            "num_scenarios": args.num_scenarios,
+            "num_scenarios": len(scenarios),
+            "requested_num_scenarios": args.num_scenarios,
             "seed": args.seed,
             "program_set": args.program_set,
             "programs": sorted(programs),
             "output": args.output,
             "scenario_manifest_output": args.scenario_manifest_output,
+            "scenario_manifest_input": scenario_manifest_input,
             **runtime_metadata_for_country(
                 args.country,
                 source_dataset_path=source_dataset_path,

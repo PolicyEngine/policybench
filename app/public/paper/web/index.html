@@ -139,7 +139,7 @@ div.csl-indent {
   </ul>
 </nav>
 <h2 id="abstract" class="anchored">Abstract</h2>
-<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded <code>0-100</code> metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-05-12), gpt-5.5 is top-scoring in the US, UK, and shared global views at 66.8, 45.4, and 56.1, respectively. In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
+<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded <code>0-100</code> metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-05-14), gpt-5.5 is top-scoring in the US, UK, and shared global views at 70.3, 50.3, and 60.3, respectively. In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
 <h2 id="introduction" class="anchored">Introduction</h2>
 <p>Household tax-and-benefit estimation sits between arithmetic and policy discussion. Each case has numeric labels, but generating those labels requires filing status, household composition, income concepts, program thresholds, and jurisdiction-specific rules. PolicyBench measures whether models can map household records to those outputs.</p>
 <p>Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>, while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.</p>
@@ -201,12 +201,12 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>Snapshot date</td>
-<td>2026-05-12</td>
+<td>2026-05-14</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>Model response date</td>
-<td>2026-05-01</td>
+<td>2026-05-13</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
@@ -216,12 +216,12 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>Frozen export</td>
-<td>paper/snapshot/20260501/runs/us_100_stable_models_20260501_062249/data.json; paper/snapshot/20260501/runs/uk_100_hicbc_fixed_20260501_083402/data.json</td>
+<td>paper/snapshot/20260501/runs/us_full_run_20260513_policyengine_4_4_4_nested_outputs/data.json; paper/snapshot/20260501/runs/uk_full_run_20260513_policyengine_4_4_4_nested_outputs/data.json</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>Frozen export SHA-256 prefixes</td>
-<td>US 66bef9e621f8; UK b9d5f318307a</td>
+<td>US ef110baf2822; UK ca4ee2fdce51</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
@@ -231,22 +231,22 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
 <td>US scenarios SHA-256 prefix</td>
-<td>46bc6b1ba56e</td>
+<td>b05091225c06</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
 <td>US reference outputs SHA-256 prefix</td>
-<td>f988e1771a83</td>
+<td>04febaadd091</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">8</th>
 <td>UK scenarios SHA-256 prefix</td>
-<td>cc072e32df04</td>
+<td>eee79fb1db36</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">9</th>
 <td>UK reference outputs SHA-256 prefix</td>
-<td>b1cd6386e730</td>
+<td>6286a238e54a</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">10</th>
@@ -256,22 +256,22 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="even">
 <th data-quarto-table-cell-role="th">11</th>
 <td>Frozen prompt payload SHA-256 prefixes</td>
-<td>US f13b06ea698c; UK fcd8e943edd4</td>
+<td>US f3f208702ac6; UK 2f64b11a99aa</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">12</th>
 <td>Scoring code SHA-256 prefix</td>
-<td>e3c114f5b819</td>
+<td>e8b3d46c74e5</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">13</th>
 <td>US run label</td>
-<td>us_100_stable_models_20260501_062249</td>
+<td>us_full_run_20260513_policyengine_4_4_4_nested_outputs</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">14</th>
 <td>UK run label</td>
-<td>uk_100_hicbc_fixed_20260501_083402</td>
+<td>uk_full_run_20260513_policyengine_4_4_4_nested_outputs</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">15</th>
@@ -281,22 +281,22 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">16</th>
 <td>PolicyEngine.py</td>
-<td>4.4.3</td>
+<td>4.4.4</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">17</th>
 <td>PolicyEngine-US</td>
-<td>policyengine-us 1.690.7</td>
+<td>policyengine-us 1.691.10</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">18</th>
 <td>PolicyEngine-UK</td>
-<td>policyengine-uk 2.88.14</td>
+<td>policyengine-uk 2.88.15</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">19</th>
 <td>US data bundle</td>
-<td>policyengine-us-data 1.110.12</td>
+<td>policyengine-us-data 1.113.1</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">20</th>
@@ -397,17 +397,17 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 <th data-quarto-table-cell-role="th">0</th>
 <td>gpt-5.5</td>
 <td>gpt-5.5</td>
-<td>2,180/2,180</td>
+<td>2,188/2,188</td>
 <td>700/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
-<td>gemini-3.1-pro-preview</td>
-<td>gemini/gemini-3.1-pro-preview</td>
-<td>2,180/2,180</td>
-<td>700/700</td>
+<td>claude-opus-4.7</td>
+<td>claude-opus-4-7</td>
+<td>2,188/2,188</td>
+<td>699/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
@@ -415,89 +415,89 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 <th data-quarto-table-cell-role="th">2</th>
 <td>grok-4.20</td>
 <td>xai/grok-4.20-reasoning</td>
-<td>2,180/2,180</td>
+<td>2,188/2,188</td>
 <td>700/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>gemini-3-flash-preview</td>
-<td>gemini/gemini-3-flash-preview</td>
-<td>2,180/2,180</td>
-<td>700/700</td>
+<td>claude-sonnet-4.6</td>
+<td>claude-sonnet-4-6</td>
+<td>2,062/2,188</td>
+<td>665/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>grok-4.3</td>
-<td>xai/grok-4.3</td>
-<td>2,180/2,180</td>
-<td>700/700</td>
+<td>gemini-3.1-pro-preview</td>
+<td>gemini/gemini-3.1-pro-preview</td>
+<td>2,068/2,188</td>
+<td>665/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
-<td>claude-opus-4.7</td>
-<td>claude-opus-4-7</td>
-<td>2,180/2,180</td>
-<td>700/700</td>
+<td>gemini-3-flash-preview</td>
+<td>gemini/gemini-3-flash-preview</td>
+<td>2,167/2,188</td>
+<td>694/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
-<td>claude-sonnet-4.6</td>
-<td>claude-sonnet-4-6</td>
-<td>2,180/2,180</td>
+<td>grok-4.3</td>
+<td>xai/grok-4.3</td>
+<td>2,188/2,188</td>
 <td>700/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
-<td>gemini-3.1-flash-lite-preview</td>
-<td>gemini/gemini-3.1-flash-lite-preview</td>
-<td>2,180/2,180</td>
+<td>gpt-5.4-mini</td>
+<td>gpt-5.4-mini</td>
+<td>2,188/2,188</td>
 <td>700/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">8</th>
-<td>grok-4.1-fast</td>
-<td>xai/grok-4-1-fast-non-reasoning</td>
-<td>2,180/2,180</td>
-<td>700/700</td>
+<td>claude-haiku-4.5</td>
+<td>claude-haiku-4-5-20251001</td>
+<td>2,183/2,188</td>
+<td>699/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">9</th>
-<td>claude-haiku-4.5</td>
-<td>claude-haiku-4-5-20251001</td>
-<td>2,180/2,180</td>
-<td>700/700</td>
+<td>gemini-3.1-flash-lite-preview</td>
+<td>gemini/gemini-3.1-flash-lite-preview</td>
+<td>2,161/2,188</td>
+<td>427/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">10</th>
-<td>gpt-5.4-mini</td>
-<td>gpt-5.4-mini</td>
-<td>2,180/2,180</td>
+<td>gpt-5.4-nano</td>
+<td>gpt-5.4-nano</td>
+<td>2,188/2,188</td>
 <td>700/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">11</th>
-<td>gpt-5.4-nano</td>
-<td>gpt-5.4-nano</td>
-<td>2,180/2,180</td>
-<td>700/700</td>
+<td>grok-4.1-fast</td>
+<td>xai/grok-4-1-fast-non-reasoning</td>
+<td>1,401/2,188</td>
+<td>112/700</td>
 <td>provider structured-output schema; no external tool</td>
 <td>provider default; no model-specific prompt tuning</td>
 </tr>
@@ -660,7 +660,7 @@ Table&nbsp;4: Development discrepancy review before the frozen snapshot.
 </div>
 <h2 id="results" class="anchored">Results</h2>
 <h3 id="united-states-leaderboard" class="anchored">United States leaderboard</h3>
-<p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;5</a>. The top three models in that snapshot are gpt-5.5 (66.8), grok-4.20 (60.6), and gemini-3.1-pro-preview (59.6).</p>
+<p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;5</a>. The top three models in that snapshot are gpt-5.5 (70.3), claude-opus-4.7 (67.5), and grok-4.20 (65.3).</p>
 <div class="cell" data-execution_count="6">
 <div id="tbl-us-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="6">
 <figure class="quarto-float quarto-float-tbl">
@@ -700,47 +700,47 @@ Table&nbsp;5: Top US benchmark models in the frozen manuscript snapshot.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>gpt-5.5</td>
-<td>66.8</td>
-<td>86.7</td>
-<td>93.3</td>
-<td>2180</td>
-<td>2180</td>
+<td>70.3</td>
+<td>86.8</td>
+<td>92.5</td>
+<td>2188</td>
+<td>2188</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
-<td>grok-4.20</td>
-<td>60.6</td>
-<td>87.0</td>
-<td>92.3</td>
-<td>2180</td>
-<td>2180</td>
+<td>claude-opus-4.7</td>
+<td>67.5</td>
+<td>85.1</td>
+<td>90.3</td>
+<td>2188</td>
+<td>2188</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
-<td>gemini-3.1-pro-preview</td>
-<td>59.6</td>
-<td>86.1</td>
-<td>91.0</td>
-<td>2180</td>
-<td>2180</td>
+<td>grok-4.20</td>
+<td>65.3</td>
+<td>86.8</td>
+<td>91.9</td>
+<td>2188</td>
+<td>2188</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>gemini-3-flash-preview</td>
-<td>58.3</td>
-<td>85.1</td>
-<td>89.7</td>
-<td>2180</td>
-<td>2180</td>
+<td>claude-sonnet-4.6</td>
+<td>63.2</td>
+<td>83.8</td>
+<td>87.0</td>
+<td>2062</td>
+<td>2188</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>claude-opus-4.7</td>
-<td>57.3</td>
-<td>83.8</td>
-<td>87.5</td>
-<td>2180</td>
-<td>2180</td>
+<td>gemini-3-flash-preview</td>
+<td>62.4</td>
+<td>85.1</td>
+<td>88.7</td>
+<td>2167</td>
+<td>2188</td>
 </tr>
 </tbody>
 </table>
@@ -752,7 +752,7 @@ Table&nbsp;5: Top US benchmark models in the frozen manuscript snapshot.
 </div>
 </div>
 <h3 id="united-kingdom-leaderboard" class="anchored">United Kingdom leaderboard</h3>
-<p>The UK leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-uk-top" class="quarto-xref">Table&nbsp;6</a>. The top three models in that snapshot are gpt-5.5 (45.4), gemini-3.1-pro-preview (44.0), and grok-4.20 (42.3).</p>
+<p>The UK leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-uk-top" class="quarto-xref">Table&nbsp;6</a>. The top three models in that snapshot are gpt-5.5 (50.3), gemini-3.1-pro-preview (45.2), and grok-4.20 (45.1).</p>
 <div class="cell" data-execution_count="7">
 <div id="tbl-uk-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="7">
 <figure class="quarto-float quarto-float-tbl">
@@ -792,46 +792,46 @@ Table&nbsp;6: Top UK benchmark models in the frozen manuscript snapshot.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>gpt-5.5</td>
-<td>45.4</td>
-<td>68.7</td>
-<td>88.7</td>
+<td>50.3</td>
+<td>70.7</td>
+<td>91.4</td>
 <td>700</td>
 <td>700</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>gemini-3.1-pro-preview</td>
-<td>44.0</td>
-<td>68.7</td>
-<td>88.3</td>
-<td>700</td>
+<td>45.2</td>
+<td>67.3</td>
+<td>86.1</td>
+<td>665</td>
 <td>700</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>grok-4.20</td>
-<td>42.3</td>
-<td>68.3</td>
-<td>86.6</td>
+<td>45.1</td>
+<td>70.3</td>
+<td>89.0</td>
 <td>700</td>
 <td>700</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>grok-4.3</td>
-<td>39.7</td>
-<td>69.4</td>
-<td>84.4</td>
-<td>700</td>
+<td>claude-opus-4.7</td>
+<td>45.1</td>
+<td>69.7</td>
+<td>88.6</td>
+<td>699</td>
 <td>700</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>gemini-3-flash-preview</td>
-<td>39.3</td>
-<td>67.6</td>
-<td>81.1</td>
-<td>700</td>
+<td>claude-sonnet-4.6</td>
+<td>42.0</td>
+<td>69.4</td>
+<td>86.1</td>
+<td>665</td>
 <td>700</td>
 </tr>
 </tbody>
@@ -844,7 +844,7 @@ Table&nbsp;6: Top UK benchmark models in the frozen manuscript snapshot.
 </div>
 </div>
 <h3 id="global-shared-model-leaderboard" class="anchored">Global shared-model leaderboard</h3>
-<p>The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are gpt-5.5 (56.1), gemini-3.1-pro-preview (51.8), and grok-4.20 (51.4). The global table is an equal-country summary for this two-country benchmark sample; it should be read alongside the country tables and sensitivity views rather than as a universally authoritative ordering.</p>
+<p>The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are gpt-5.5 (60.3), claude-opus-4.7 (56.3), and grok-4.20 (55.2). The global table is an equal-country summary for this two-country benchmark sample; it should be read alongside the country tables and sensitivity views rather than as a universally authoritative ordering.</p>
 <div class="cell" data-execution_count="8">
 <div id="tbl-global-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="8">
 <figure class="quarto-float quarto-float-tbl">
@@ -884,92 +884,92 @@ Table&nbsp;7: Global shared-model leaderboard across US and UK runs.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>gpt-5.5</td>
-<td>56.1</td>
-<td>77.7</td>
-<td>91.0</td>
-<td>2880</td>
-<td>2880</td>
+<td>60.3</td>
+<td>78.8</td>
+<td>92.0</td>
+<td>2888</td>
+<td>2888</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
-<td>gemini-3.1-pro-preview</td>
-<td>51.8</td>
+<td>claude-opus-4.7</td>
+<td>56.3</td>
 <td>77.4</td>
-<td>89.6</td>
-<td>2880</td>
-<td>2880</td>
+<td>89.4</td>
+<td>2887</td>
+<td>2888</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>grok-4.20</td>
-<td>51.4</td>
-<td>77.7</td>
-<td>89.4</td>
-<td>2880</td>
-<td>2880</td>
+<td>55.2</td>
+<td>78.5</td>
+<td>90.5</td>
+<td>2888</td>
+<td>2888</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>gemini-3-flash-preview</td>
-<td>48.8</td>
-<td>76.3</td>
-<td>85.4</td>
-<td>2880</td>
-<td>2880</td>
+<td>claude-sonnet-4.6</td>
+<td>52.6</td>
+<td>76.6</td>
+<td>86.6</td>
+<td>2727</td>
+<td>2888</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>grok-4.3</td>
-<td>48.0</td>
-<td>78.0</td>
-<td>87.5</td>
-<td>2880</td>
-<td>2880</td>
+<td>gemini-3.1-pro-preview</td>
+<td>52.3</td>
+<td>74.8</td>
+<td>86.2</td>
+<td>2733</td>
+<td>2888</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
-<td>claude-opus-4.7</td>
-<td>47.6</td>
-<td>75.8</td>
-<td>84.1</td>
-<td>2880</td>
-<td>2880</td>
+<td>gemini-3-flash-preview</td>
+<td>51.3</td>
+<td>77.5</td>
+<td>86.7</td>
+<td>2861</td>
+<td>2888</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
-<td>claude-sonnet-4.6</td>
-<td>44.8</td>
-<td>76.3</td>
-<td>82.1</td>
-<td>2880</td>
-<td>2880</td>
+<td>grok-4.3</td>
+<td>49.1</td>
+<td>77.2</td>
+<td>85.6</td>
+<td>2888</td>
+<td>2888</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
-<td>gemini-3.1-flash-lite-preview</td>
-<td>41.3</td>
-<td>76.6</td>
-<td>82.4</td>
-<td>2880</td>
-<td>2880</td>
+<td>gpt-5.4-mini</td>
+<td>43.5</td>
+<td>76.7</td>
+<td>80.9</td>
+<td>2888</td>
+<td>2888</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">8</th>
-<td>grok-4.1-fast</td>
-<td>37.6</td>
-<td>75.2</td>
-<td>78.0</td>
-<td>2880</td>
-<td>2880</td>
+<td>claude-haiku-4.5</td>
+<td>42.9</td>
+<td>76.1</td>
+<td>79.8</td>
+<td>2882</td>
+<td>2888</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">9</th>
-<td>claude-haiku-4.5</td>
-<td>37.2</td>
-<td>74.8</td>
-<td>77.8</td>
-<td>2880</td>
-<td>2880</td>
+<td>gemini-3.1-flash-lite-preview</td>
+<td>41.7</td>
+<td>65.0</td>
+<td>68.4</td>
+<td>2588</td>
+<td>2888</td>
 </tr>
 </tbody>
 </table>
@@ -1029,16 +1029,16 @@ Table&nbsp;8: Simple baseline scores on the frozen manuscript snapshot.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>Always zero</td>
-<td>25.8</td>
-<td>24.6</td>
-<td>27.0</td>
+<td>26.5</td>
+<td>25.3</td>
+<td>27.6</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>Median reference by output</td>
-<td>24.4</td>
-<td>23.8</td>
-<td>24.9</td>
+<td>24.2</td>
+<td>24.6</td>
+<td>23.7</td>
 </tr>
 </tbody>
 </table>
@@ -1088,58 +1088,58 @@ Table&nbsp;9: Leaderboard sensitivity to alternative scoring views.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>Main household-equal impact score</td>
-<td>gpt-5.5 (56.1)</td>
-<td>gemini-3.1-pro-preview (51.8)</td>
-<td>grok-4.20 (51.4)</td>
+<td>gpt-5.5 (60.3)</td>
+<td>claude-opus-4.7 (56.3)</td>
+<td>grok-4.20 (55.2)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>Equal-output-group score</td>
-<td>gpt-5.5 (83.8)</td>
-<td>grok-4.20 (82.5)</td>
-<td>gemini-3.1-pro-preview (82.5)</td>
+<td>gpt-5.5 (85.1)</td>
+<td>grok-4.20 (83.5)</td>
+<td>claude-opus-4.7 (82.6)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>Amount outputs only</td>
-<td>gpt-5.5 (80.8)</td>
-<td>grok-4.20 (79.1)</td>
-<td>gemini-3.1-pro-preview (78.7)</td>
+<td>gpt-5.5 (82.5)</td>
+<td>grok-4.20 (80.3)</td>
+<td>claude-opus-4.7 (80.2)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>Positive reference cases only</td>
-<td>gpt-5.5 (44.1)</td>
-<td>gemini-3.1-pro-preview (37.3)</td>
-<td>grok-4.20 (36.3)</td>
+<td>gpt-5.5 (43.4)</td>
+<td>claude-opus-4.7 (40.1)</td>
+<td>grok-4.20 (35.9)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>Zero reference cases only</td>
-<td>grok-4.3 (96.9)</td>
-<td>gemini-3.1-pro-preview (96.3)</td>
-<td>gpt-5.5 (96.1)</td>
+<td>gpt-5.5 (98.6)</td>
+<td>grok-4.20 (98.3)</td>
+<td>gemini-3-flash-preview (97.5)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
 <td>US only</td>
-<td>gpt-5.5 (66.8)</td>
-<td>grok-4.20 (60.6)</td>
-<td>gemini-3.1-pro-preview (59.6)</td>
+<td>gpt-5.5 (70.3)</td>
+<td>claude-opus-4.7 (67.5)</td>
+<td>grok-4.20 (65.3)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
 <td>UK only</td>
-<td>gpt-5.5 (45.4)</td>
-<td>gemini-3.1-pro-preview (44.0)</td>
-<td>grok-4.20 (42.3)</td>
+<td>gpt-5.5 (50.3)</td>
+<td>gemini-3.1-pro-preview (45.2)</td>
+<td>grok-4.20 (45.1)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
 <td>US binary coverage only</td>
-<td>gemini-3.1-pro-preview (98.5)</td>
-<td>grok-4.20 (98.5)</td>
-<td>grok-4.3 (98.4)</td>
+<td>grok-4.20 (97.7)</td>
+<td>gemini-3-flash-preview (96.9)</td>
+<td>gpt-5.5 (96.8)</td>
 </tr>
 </tbody>
 </table>
@@ -1188,37 +1188,37 @@ Table&nbsp;10: Top global ranks under varying household-equal impact-score floor
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>0.0</td>
-<td>gpt-5.5 (44.1)</td>
-<td>gemini-3.1-pro-preview (38.5)</td>
-<td>grok-4.20 (38.0)</td>
+<td>gpt-5.5 (49.5)</td>
+<td>claude-opus-4.7 (44.7)</td>
+<td>grok-4.20 (42.8)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>0.1</td>
-<td>gpt-5.5 (48.1)</td>
-<td>gemini-3.1-pro-preview (42.9)</td>
-<td>grok-4.20 (42.5)</td>
+<td>gpt-5.5 (53.1)</td>
+<td>claude-opus-4.7 (48.6)</td>
+<td>grok-4.20 (46.9)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>0.3</td>
-<td>gpt-5.5 (56.1)</td>
-<td>gemini-3.1-pro-preview (51.8)</td>
-<td>grok-4.20 (51.4)</td>
+<td>gpt-5.5 (60.3)</td>
+<td>claude-opus-4.7 (56.3)</td>
+<td>grok-4.20 (55.2)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>0.5</td>
-<td>gpt-5.5 (64.1)</td>
-<td>gemini-3.1-pro-preview (60.7)</td>
-<td>grok-4.20 (60.4)</td>
+<td>gpt-5.5 (67.5)</td>
+<td>claude-opus-4.7 (63.9)</td>
+<td>grok-4.20 (63.4)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>1.0</td>
-<td>gpt-5.5 (84.1)</td>
-<td>gemini-3.1-pro-preview (83.0)</td>
-<td>grok-4.20 (82.8)</td>
+<td>gpt-5.5 (85.6)</td>
+<td>grok-4.20 (84.1)</td>
+<td>claude-opus-4.7 (83.1)</td>
 </tr>
 </tbody>
 </table>
@@ -1230,7 +1230,7 @@ Table&nbsp;10: Top global ranks under varying household-equal impact-score floor
 </div>
 </div>
 <h3 id="sampling-uncertainty" class="anchored">Sampling uncertainty</h3>
-<p>The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. <a href="#tbl-bootstrap" class="quarto-xref">Table&nbsp;11</a> reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes household-equal impact country scores, then recomputes the equal-country global score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model’s snapshot prediction is a single sample at the provider’s default decoding settings; (iii) provider-side drift after 2026-05-01 in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.</p>
+<p>The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. <a href="#tbl-bootstrap" class="quarto-xref">Table&nbsp;11</a> reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes household-equal impact country scores, then recomputes the equal-country global score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model’s snapshot prediction is a single sample at the provider’s default decoding settings; (iii) provider-side drift after 2026-05-13 in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.</p>
 <div class="cell" data-execution_count="12">
 <div id="tbl-bootstrap" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="12">
 <figure class="quarto-float quarto-float-tbl">
@@ -1268,72 +1268,72 @@ Table&nbsp;11: Household-resampling uncertainty for the global leaderboard.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>gpt-5.5</td>
-<td>56.1</td>
-<td>53.0-59.3</td>
+<td>60.3</td>
+<td>57.2-63.3</td>
 <td>1-1</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
-<td>gemini-3.1-pro-preview</td>
-<td>51.8</td>
-<td>48.7-54.7</td>
+<td>claude-opus-4.7</td>
+<td>56.3</td>
+<td>53.5-59.1</td>
 <td>2-3</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>grok-4.20</td>
-<td>51.4</td>
-<td>48.5-54.3</td>
-<td>2-4</td>
+<td>55.2</td>
+<td>52.2-58.2</td>
+<td>2-5</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>gemini-3-flash-preview</td>
-<td>48.8</td>
-<td>45.8-51.6</td>
+<td>claude-sonnet-4.6</td>
+<td>52.6</td>
+<td>49.6-55.8</td>
 <td>3-6</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>grok-4.3</td>
-<td>48.0</td>
-<td>44.9-51.0</td>
-<td>4-7</td>
+<td>gemini-3.1-pro-preview</td>
+<td>52.3</td>
+<td>48.8-55.7</td>
+<td>3-7</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
-<td>claude-opus-4.7</td>
-<td>47.6</td>
-<td>44.6-50.4</td>
+<td>gemini-3-flash-preview</td>
+<td>51.3</td>
+<td>48.2-54.5</td>
 <td>4-7</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
-<td>claude-sonnet-4.6</td>
-<td>44.8</td>
-<td>42.0-47.8</td>
-<td>5-8</td>
+<td>grok-4.3</td>
+<td>49.1</td>
+<td>46.2-52.2</td>
+<td>5-7</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
-<td>gemini-3.1-flash-lite-preview</td>
-<td>41.3</td>
-<td>38.6-43.8</td>
-<td>7-8</td>
+<td>gpt-5.4-mini</td>
+<td>43.5</td>
+<td>40.5-46.7</td>
+<td>8-10</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">8</th>
-<td>grok-4.1-fast</td>
-<td>37.6</td>
-<td>34.8-40.8</td>
-<td>9-11</td>
+<td>claude-haiku-4.5</td>
+<td>42.9</td>
+<td>39.9-46.0</td>
+<td>8-10</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">9</th>
-<td>claude-haiku-4.5</td>
-<td>37.2</td>
-<td>34.5-40.2</td>
-<td>9-11</td>
+<td>gemini-3.1-flash-lite-preview</td>
+<td>41.7</td>
+<td>38.4-45.2</td>
+<td>8-10</td>
 </tr>
 </tbody>
 </table>
@@ -1383,37 +1383,37 @@ Table&nbsp;12: Hardest US variables by bounded score.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>federal_income_tax_before_refundable_credits</td>
-<td>42.6</td>
-<td>37.5</td>
-<td>50.2</td>
+<td>42.7</td>
+<td>35.7</td>
+<td>52.1</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">16</th>
 <td>state_income_tax_before_refundable_credits</td>
-<td>47.8</td>
-<td>39.9</td>
-<td>57.7</td>
+<td>43.9</td>
+<td>39.2</td>
+<td>51.8</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>payroll_tax</td>
-<td>62.8</td>
-<td>50.7</td>
-<td>75.7</td>
+<td>68.6</td>
+<td>56.4</td>
+<td>82.1</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">14</th>
 <td>snap</td>
-<td>69.4</td>
-<td>66.1</td>
-<td>72.8</td>
+<td>71.9</td>
+<td>70.5</td>
+<td>73.5</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">1</th>
 <td>federal_refundable_credits</td>
-<td>83.2</td>
-<td>82.3</td>
-<td>84.2</td>
+<td>74.3</td>
+<td>72.7</td>
+<td>76.7</td>
 </tr>
 </tbody>
 </table>
@@ -1462,37 +1462,37 @@ Table&nbsp;13: Hardest UK variables by bounded score.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>income_tax</td>
-<td>37.9</td>
-<td>25.8</td>
-<td>58.0</td>
+<td>31.4</td>
+<td>19.8</td>
+<td>46.8</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>national_insurance</td>
-<td>48.9</td>
-<td>39.5</td>
-<td>62.3</td>
-</tr>
-<tr class="odd">
-<th data-quarto-table-cell-role="th">5</th>
-<td>pip</td>
-<td>74.0</td>
-<td>74.0</td>
-<td>74.0</td>
-</tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">6</th>
-<td>universal_credit</td>
-<td>81.5</td>
-<td>80.0</td>
-<td>83.5</td>
+<td>49.2</td>
+<td>40.6</td>
+<td>63.9</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">1</th>
 <td>child_benefit</td>
-<td>84.2</td>
-<td>76.8</td>
-<td>92.0</td>
+<td>69.4</td>
+<td>56.9</td>
+<td>82.7</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">6</th>
+<td>universal_credit</td>
+<td>70.6</td>
+<td>68.8</td>
+<td>73.2</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>pension_credit</td>
+<td>82.8</td>
+<td>82.8</td>
+<td>82.8</td>
 </tr>
 </tbody>
 </table>
@@ -1541,59 +1541,59 @@ Table&nbsp;14: US within-10% performance by zero versus positive reference cases
 <tbody>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
-<td>federal_income_tax_before_refundable_credits</td>
-<td>50.2</td>
-<td>21.0</td>
-<td>95.7</td>
+<td>state_income_tax_before_refundable_credits</td>
+<td>54.6</td>
+<td>26.7</td>
+<td>93.7</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
-<td>state_income_tax_before_refundable_credits</td>
-<td>57.7</td>
-<td>30.5</td>
-<td>96.7</td>
+<td>federal_income_tax_before_refundable_credits</td>
+<td>56.2</td>
+<td>30.6</td>
+<td>94.2</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>snap</td>
-<td>72.8</td>
-<td>19.9</td>
-<td>100.0</td>
+<td>76.8</td>
+<td>12.9</td>
+<td>97.4</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>payroll_tax</td>
-<td>75.7</td>
-<td>67.0</td>
-<td>96.8</td>
+<td>federal_refundable_credits</td>
+<td>80.5</td>
+<td>24.6</td>
+<td>94.7</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>federal_refundable_credits</td>
-<td>84.2</td>
-<td>24.4</td>
-<td>93.2</td>
+<td>state_refundable_credits</td>
+<td>81.4</td>
+<td>4.7</td>
+<td>98.9</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
-<td>state_refundable_credits</td>
-<td>85.4</td>
-<td>5.1</td>
-<td>97.4</td>
+<td>payroll_tax</td>
+<td>85.9</td>
+<td>83.0</td>
+<td>94.9</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
 <td>person_medicaid_eligible</td>
-<td>85.7</td>
-<td>62.1</td>
-<td>94.9</td>
+<td>89.6</td>
+<td>74.3</td>
+<td>95.7</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
-<td>ssi</td>
-<td>91.9</td>
-<td>26.7</td>
-<td>99.2</td>
+<td>person_head_start_eligible</td>
+<td>92.4</td>
+<td>90.9</td>
+<td>92.5</td>
 </tr>
 </tbody>
 </table>
@@ -1641,51 +1641,51 @@ Table&nbsp;15: UK within-10% performance by zero versus positive reference cases
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>income_tax</td>
-<td>58.0</td>
-<td>46.0</td>
-<td>86.1</td>
+<td>53.4</td>
+<td>40.8</td>
+<td>92.9</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>national_insurance</td>
-<td>62.3</td>
-<td>38.9</td>
-<td>97.5</td>
+<td>71.7</td>
+<td>50.7</td>
+<td>95.2</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
-<td>pip</td>
-<td>74.0</td>
-<td>NaN</td>
-<td>74.0</td>
+<td>universal_credit</td>
+<td>82.8</td>
+<td>24.2</td>
+<td>98.0</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>universal_credit</td>
-<td>83.5</td>
-<td>19.4</td>
-<td>97.6</td>
+<td>child_benefit</td>
+<td>92.6</td>
+<td>79.7</td>
+<td>100.0</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>child_benefit</td>
-<td>92.0</td>
-<td>68.9</td>
-<td>98.5</td>
+<td>pension_credit</td>
+<td>92.8</td>
+<td>1.5</td>
+<td>98.9</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
 <td>capital_gains_tax</td>
-<td>92.6</td>
-<td>19.4</td>
+<td>94.5</td>
+<td>23.0</td>
 <td>99.8</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
-<td>pension_credit</td>
-<td>92.8</td>
-<td>1.4</td>
-<td>98.6</td>
+<td>pip</td>
+<td>99.0</td>
+<td>NaN</td>
+<td>99.0</td>
 </tr>
 </tbody>
 </table>
@@ -1746,88 +1746,88 @@ Table&nbsp;16: US within-10% accuracy on federal vs state refundable credits and
 </thead>
 <tbody>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">10</th>
-<td>grok-4.20</td>
-<td>95.0</td>
-<td>89.0</td>
-<td>84.0</td>
-</tr>
-<tr class="even">
 <th data-quarto-table-cell-role="th">8</th>
 <td>gpt-5.5</td>
-<td>96.0</td>
-<td>86.0</td>
+<td>94.0</td>
 <td>82.0</td>
-</tr>
-<tr class="odd">
-<th data-quarto-table-cell-role="th">11</th>
-<td>grok-4.3</td>
-<td>90.0</td>
-<td>88.0</td>
-<td>81.0</td>
-</tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">7</th>
-<td>gpt-5.4-nano</td>
-<td>87.0</td>
-<td>86.0</td>
-<td>79.0</td>
-</tr>
-<tr class="odd">
-<th data-quarto-table-cell-role="th">6</th>
-<td>gpt-5.4-mini</td>
-<td>87.0</td>
-<td>86.0</td>
-<td>78.0</td>
-</tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">4</th>
-<td>gemini-3.1-flash-lite-preview</td>
-<td>87.0</td>
-<td>86.0</td>
 <td>77.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">10</th>
+<td>grok-4.20</td>
+<td>88.0</td>
+<td>83.0</td>
+<td>76.0</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">5</th>
 <td>gemini-3.1-pro-preview</td>
-<td>86.0</td>
-<td>85.0</td>
-<td>76.0</td>
-</tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">3</th>
-<td>gemini-3-flash-preview</td>
-<td>84.0</td>
-<td>85.0</td>
-<td>75.0</td>
-</tr>
-<tr class="odd">
-<th data-quarto-table-cell-role="th">2</th>
-<td>claude-sonnet-4.6</td>
-<td>81.0</td>
-<td>86.0</td>
+<td>83.0</td>
+<td>79.0</td>
 <td>72.0</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>claude-opus-4.7</td>
-<td>77.0</td>
+<td>87.0</td>
 <td>78.0</td>
+<td>71.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">7</th>
+<td>gpt-5.4-nano</td>
+<td>79.0</td>
+<td>81.0</td>
+<td>71.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">2</th>
+<td>claude-sonnet-4.6</td>
+<td>82.0</td>
+<td>80.0</td>
+<td>68.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">3</th>
+<td>gemini-3-flash-preview</td>
+<td>77.0</td>
+<td>81.0</td>
+<td>66.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">4</th>
+<td>gemini-3.1-flash-lite-preview</td>
+<td>75.0</td>
+<td>80.0</td>
+<td>66.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">11</th>
+<td>grok-4.3</td>
+<td>75.0</td>
+<td>81.0</td>
+<td>66.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">6</th>
+<td>gpt-5.4-mini</td>
+<td>73.0</td>
+<td>81.0</td>
 <td>65.0</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">9</th>
-<td>grok-4.1-fast</td>
-<td>72.0</td>
-<td>87.0</td>
-<td>64.0</td>
-</tr>
-<tr class="even">
 <th data-quarto-table-cell-role="th">0</th>
 <td>claude-haiku-4.5</td>
-<td>69.0</td>
-<td>83.0</td>
-<td>63.0</td>
+<td>70.0</td>
+<td>81.0</td>
+<td>62.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">9</th>
+<td>grok-4.1-fast</td>
+<td>37.0</td>
+<td>51.0</td>
+<td>31.0</td>
 </tr>
 </tbody>
 </table>
