@@ -377,13 +377,15 @@ def _prediction_detail_rows(
                 "parsed",
                 "error",
                 "score",
+                "annotation",
+                "case_annotation",
             ]
         )
 
     prediction_columns = ["model", "scenario_id", "variable", "prediction"]
     optional_columns = [
         column
-        for column in ["explanation", "error", "annotation"]
+        for column in ["explanation", "error", "annotation", "case_annotation"]
         if column in predictions.columns
     ]
     prediction_details = predictions[prediction_columns + optional_columns].rename(
@@ -401,6 +403,8 @@ def _prediction_detail_rows(
         merged["prediction_error"] = pd.NA
     if "annotation" not in merged.columns:
         merged["annotation"] = pd.NA
+    if "case_annotation" not in merged.columns:
+        merged["case_annotation"] = pd.NA
 
     merged["parsed"] = merged["prediction"].notna()
     merged["error"] = np.where(
@@ -1385,6 +1389,13 @@ def build_dashboard_payload(
         annotation = row.get("annotation")
         if isinstance(annotation, str) and annotation.strip():
             prediction_item["annotation"] = annotation.strip()
+        case_annotation = row.get("case_annotation")
+        if (
+            isinstance(case_annotation, str)
+            and case_annotation.strip()
+            and row["score"] < 1
+        ):
+            prediction_item["caseAnnotation"] = case_annotation.strip()
         prediction_error = _clean_json_text(row.get("prediction_error"))
         if prediction_error:
             prediction_item["predictionError"] = prediction_error

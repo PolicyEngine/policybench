@@ -77,6 +77,49 @@ def load_annotations(country_dir: Path) -> pd.DataFrame:
     return annotations
 
 
+def load_case_annotations(country_dir: Path) -> pd.DataFrame:
+    """Load optional grouped annotations for country scenario-output cases."""
+    country = country_dir.name
+    annotations_dir = country_dir.parent / "annotations"
+    committed_annotations_dir = Path("annotations") / country_dir.parent.name
+    files = sorted(annotations_dir.glob(f"{country}_case_notes.csv"))
+    if not files:
+        files = sorted(committed_annotations_dir.glob(f"{country}_case_notes.csv"))
+    if not files:
+        return pd.DataFrame(columns=["scenario_id", "variable", "case_annotation"])
+
+    case_annotations = pd.concat(
+        (pd.read_csv(path) for path in files),
+        ignore_index=True,
+    )
+    required = {"scenario_id", "variable", "case_annotation"}
+    missing = required - set(case_annotations.columns)
+    if missing:
+        missing_text = ", ".join(sorted(missing))
+        raise ValueError(f"Case annotation files missing columns: {missing_text}")
+
+    case_annotations = case_annotations[
+        ["scenario_id", "variable", "case_annotation"]
+    ].copy()
+    case_annotations = case_annotations[
+        case_annotations["case_annotation"].astype("string").fillna("").str.strip()
+        != ""
+    ]
+    duplicate_keys = case_annotations.duplicated(
+        ["scenario_id", "variable"],
+        keep=False,
+    )
+    if duplicate_keys.any():
+        duplicates = case_annotations.loc[
+            duplicate_keys, ["scenario_id", "variable"]
+        ].drop_duplicates()
+        raise ValueError(
+            "Duplicate case annotations for scenario-output rows: "
+            f"{duplicates.to_dict(orient='records')[:5]}"
+        )
+    return case_annotations
+
+
 def merge_annotations(
     predictions: pd.DataFrame,
     annotations: pd.DataFrame,
@@ -89,6 +132,22 @@ def merge_annotations(
     return predictions.merge(
         annotations,
         on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+
+
+def merge_case_annotations(
+    predictions: pd.DataFrame,
+    case_annotations: pd.DataFrame,
+) -> pd.DataFrame:
+    """Attach optional grouped audit annotations to prediction rows."""
+    if case_annotations.empty:
+        return predictions
+    if "case_annotation" in predictions.columns:
+        predictions = predictions.drop(columns=["case_annotation"])
+    return predictions.merge(
+        case_annotations,
+        on=["scenario_id", "variable"],
         how="left",
     )
 
@@ -109,6 +168,10 @@ def export_country(country_dir: Path) -> dict:
     ground_truth = pd.read_csv(ground_truth_path)
     predictions = load_predictions(country_dir)
     predictions = merge_annotations(predictions, load_annotations(country_dir))
+    predictions = merge_case_annotations(
+        predictions,
+        load_case_annotations(country_dir),
+    )
     scenarios = pd.read_csv(scenarios_path)
 
     analysis = analyze_no_tools(ground_truth, predictions)

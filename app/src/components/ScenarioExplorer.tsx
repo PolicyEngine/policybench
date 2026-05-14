@@ -87,6 +87,12 @@ export default function ScenarioExplorer({
       Object.values(modelMap).filter((entry) => !!entry.annotation).length,
     0,
   );
+  const caseAnnotationRows = Object.values(predictions).reduce(
+    (sum, modelMap) =>
+      sum +
+      Object.values(modelMap).filter((entry) => !!entry.caseAnnotation).length,
+    0,
+  );
   const totalPredictionRows = Object.values(predictions).reduce(
     (sum, modelMap) => sum + Object.keys(modelMap).length,
     0,
@@ -209,8 +215,10 @@ export default function ScenarioExplorer({
             {explanationRows} of {totalPredictionRows} model-output rows for
             this household include explanation text. These notes are returned
             by the model and are not separately scored. {annotationRows} rows
-            include developer audit notes for incorrect predictions. Hover the
-            note and audit markers next to predictions to read them.
+            include developer audit notes for incorrect predictions, and{" "}
+            {caseAnnotationRows} incorrect rows include case-level notes
+            comparing wrong models on the same household-output target. Hover
+            the note, audit, and case markers next to predictions to read them.
           </p>
         </div>
       )}
@@ -325,6 +333,7 @@ export default function ScenarioExplorer({
                     if (!pred || pred.prediction === null) {
                       const missingNote =
                         pred?.annotation ||
+                        pred?.caseAnnotation ||
                         pred?.explanation ||
                         pred?.predictionError;
                       return (
@@ -381,6 +390,11 @@ export default function ScenarioExplorer({
                           {pred.annotation && (
                             <ExplanationTooltip explanation={pred.annotation}>
                               audit
+                            </ExplanationTooltip>
+                          )}
+                          {pred.caseAnnotation && (
+                            <ExplanationTooltip explanation={pred.caseAnnotation}>
+                              case
                             </ExplanationTooltip>
                           )}
                         </div>

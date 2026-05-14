@@ -681,6 +681,12 @@ class TestSummaries:
                 "prediction": [110.0, 1.0, 210.0, 0.0],
                 "explanation": ["brief note", None, None, None],
                 "annotation": ["off by 10%", None, None, None],
+                "case_annotation": [
+                    "two models missed the bracket",
+                    None,
+                    None,
+                    None,
+                ],
             }
         )
         scenarios_df = pd.DataFrame(
@@ -730,6 +736,12 @@ class TestSummaries:
         assert (
             payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]["annotation"]
             == "off by 10%"
+        )
+        assert (
+            payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"][
+                "caseAnnotation"
+            ]
+            == "two models missed the bracket"
         )
 
     def test_build_dashboard_payload_keeps_missing_predictions_as_misses(self):

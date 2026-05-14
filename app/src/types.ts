@@ -250,6 +250,7 @@ export type ScenarioPrediction = {
   score?: number;
   explanation?: string;
   annotation?: string;
+  caseAnnotation?: string;
   predictionError?: string;
 };
 

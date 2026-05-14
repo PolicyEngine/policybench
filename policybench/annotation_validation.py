@@ -8,7 +8,11 @@ from pathlib import Path
 import pandas as pd
 
 from policybench.analysis import score_single_prediction
-from policybench.full_run_export import load_annotations, load_predictions
+from policybench.full_run_export import (
+    load_annotations,
+    load_case_annotations,
+    load_predictions,
+)
 
 
 def wrong_prediction_rows(country_dir: Path) -> pd.DataFrame:
@@ -53,6 +57,25 @@ def validate_annotation_coverage(country_dir: Path) -> pd.DataFrame:
     return annotated.loc[missing_annotation].copy()
 
 
+def validate_case_annotation_coverage(country_dir: Path) -> pd.DataFrame:
+    """Return wrong scenario-output groups missing a case annotation."""
+    wrong_cases = (
+        wrong_prediction_rows(country_dir)[["scenario_id", "variable"]]
+        .drop_duplicates()
+        .copy()
+    )
+    case_annotations = load_case_annotations(country_dir)
+    annotated = wrong_cases.merge(
+        case_annotations[["scenario_id", "variable", "case_annotation"]],
+        on=["scenario_id", "variable"],
+        how="left",
+    )
+    missing_annotation = (
+        annotated["case_annotation"].astype("string").fillna("").str.strip() == ""
+    )
+    return annotated.loc[missing_annotation].copy()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -71,15 +94,24 @@ def main() -> None:
     run_dir = Path(args.run_dir)
     countries = args.country or ["us", "uk"]
     missing_frames = []
+    missing_case_frames = []
     for country in countries:
         country_dir = run_dir / country
         missing = validate_annotation_coverage(country_dir)
         missing["country"] = country
         missing_frames.append(missing)
         print(f"{country}: {len(missing)} wrong prediction rows missing annotation")
+        missing_cases = validate_case_annotation_coverage(country_dir)
+        missing_cases["country"] = country
+        missing_case_frames.append(missing_cases)
+        print(
+            f"{country}: {len(missing_cases)} wrong scenario-output cases "
+            "missing case annotation"
+        )
 
     all_missing = pd.concat(missing_frames, ignore_index=True)
-    if not all_missing.empty:
+    all_missing_cases = pd.concat(missing_case_frames, ignore_index=True)
+    if not all_missing.empty or not all_missing_cases.empty:
         raise SystemExit(1)
 
 

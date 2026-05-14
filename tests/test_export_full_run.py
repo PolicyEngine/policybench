@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.full_run_export import load_annotations, load_predictions
+from policybench.full_run_export import (
+    load_annotations,
+    load_case_annotations,
+    load_predictions,
+    merge_case_annotations,
+)
 
 
 def _write_predictions(path: Path, model: str) -> None:
@@ -105,3 +110,80 @@ def test_load_annotations_rejects_duplicate_prediction_keys(tmp_path: Path) -> N
         assert "Duplicate annotations" in str(error)
     else:
         raise AssertionError("Expected duplicate annotations to fail")
+
+
+def test_load_case_annotations_reads_run_case_notes(tmp_path: Path) -> None:
+    annotations_dir = tmp_path / "full_run" / "annotations"
+    annotations_dir.mkdir(parents=True)
+    pd.DataFrame(
+        [
+            {
+                "country": "us",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "case_annotation": "Two models used the wrong bracket.",
+            }
+        ]
+    ).to_csv(annotations_dir / "us_case_notes.csv", index=False)
+
+    case_annotations = load_case_annotations(tmp_path / "full_run" / "us")
+
+    assert case_annotations.to_dict(orient="records") == [
+        {
+            "scenario_id": "s001",
+            "variable": "income_tax",
+            "case_annotation": "Two models used the wrong bracket.",
+        }
+    ]
+
+
+def test_load_case_annotations_rejects_duplicate_case_keys(tmp_path: Path) -> None:
+    annotations_dir = tmp_path / "full_run" / "annotations"
+    annotations_dir.mkdir(parents=True)
+    pd.DataFrame(
+        [
+            {
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "case_annotation": "First.",
+            },
+            {
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "case_annotation": "Duplicate.",
+            },
+        ]
+    ).to_csv(annotations_dir / "us_case_notes.csv", index=False)
+
+    try:
+        load_case_annotations(tmp_path / "full_run" / "us")
+    except ValueError as error:
+        assert "Duplicate case annotations" in str(error)
+    else:
+        raise AssertionError("Expected duplicate case annotations to fail")
+
+
+def test_merge_case_annotations_attaches_notes_to_prediction_rows() -> None:
+    predictions = pd.DataFrame(
+        [
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "prediction": 100,
+            }
+        ]
+    )
+    case_annotations = pd.DataFrame(
+        [
+            {
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "case_annotation": "Shared case note.",
+            }
+        ]
+    )
+
+    merged = merge_case_annotations(predictions, case_annotations)
+
+    assert merged["case_annotation"].tolist() == ["Shared case note."]
