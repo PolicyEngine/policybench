@@ -263,14 +263,10 @@ def _positive_zero_scatter_svg(payload: dict[str, Any]) -> str:
 def load_frozen_dashboard() -> dict[str, Any]:
     country_payloads = {
         "us": json.loads(
-            (SNAPSHOT_RUN_DIR / US_RUN_LABEL / "data.json").read_text(
-                encoding="utf-8"
-            )
+            (SNAPSHOT_RUN_DIR / US_RUN_LABEL / "data.json").read_text(encoding="utf-8")
         ),
         "uk": json.loads(
-            (SNAPSHOT_RUN_DIR / UK_RUN_LABEL / "data.json").read_text(
-                encoding="utf-8"
-            )
+            (SNAPSHOT_RUN_DIR / UK_RUN_LABEL / "data.json").read_text(encoding="utf-8")
         ),
     }
     return {

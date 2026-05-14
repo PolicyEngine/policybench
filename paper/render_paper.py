@@ -231,9 +231,7 @@ def main() -> None:
 
     snapshot_runs = ROOT / "paper" / "snapshot" / "20260501" / "runs"
     if not snapshot_runs.exists():
-        raise SystemExit(
-            "Missing paper/snapshot/20260501/runs for manuscript tables."
-        )
+        raise SystemExit("Missing paper/snapshot/20260501/runs for manuscript tables.")
     subprocess.run(
         [sys.executable, str(PAPER_DIR / "generate_figures.py")],
         check=True,

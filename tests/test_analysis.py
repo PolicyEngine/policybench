@@ -893,9 +893,10 @@ class TestSummaries:
 
         assert "income_tax" in prompt_map["s1"]
         assert "submit_outputs" in prompt_map["s1"]["income_tax"]["tool"]
-        assert '"outputs": {"income_tax": {"value": 1234.5' in prompt_map["s1"][
-            "income_tax"
-        ]["json"]
+        assert (
+            '"outputs": {"income_tax": {"value": 1234.5'
+            in prompt_map["s1"]["income_tax"]["json"]
+        )
 
     def test_build_scenario_prompt_map_collapses_person_outputs_to_templates(self):
         scenario = {

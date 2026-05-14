@@ -935,9 +935,7 @@ def test_explanation_only_repair_requires_terminal_value(
         )
         return response
 
-    values_only = (
-        '{"outputs": {"income_tax": {"value": 3500}}}'
-    )
+    values_only = '{"outputs": {"income_tax": {"value": 3500}}}'
     final_explanation = '{"income_tax": "Taxable wage income only. value = 3500"}'
     mock_completion.side_effect = [
         response_for(values_only),
@@ -1121,9 +1119,9 @@ def test_run_single_no_tools_preserves_successful_chunks_after_provider_failure(
         include_explanations=True,
     )
 
-    assert result["predictions"][
-        "federal_income_tax_before_refundable_credits"
-    ] == 3500.0
+    assert (
+        result["predictions"]["federal_income_tax_before_refundable_credits"] == 3500.0
+    )
     assert result["predictions"]["federal_refundable_credits"] is None
     assert "RequestWallTimeoutError" in result["error"]
     assert mock_completion.call_count == 2
@@ -1447,9 +1445,7 @@ def test_provider_error_text_classification():
     assert is_retryable_provider_error_text("BadGatewayError: upstream failed")
     assert is_retryable_provider_error_text("APIResponseValidationError: bad body")
     assert is_retryable_provider_error_text("RateLimitError: provider overloaded")
-    assert not is_retryable_provider_error_text(
-        "RateLimitError: insufficient_quota"
-    )
+    assert not is_retryable_provider_error_text("RateLimitError: insufficient_quota")
     assert not is_retryable_provider_error_text(
         "Missing predictions after repair: income_tax"
     )

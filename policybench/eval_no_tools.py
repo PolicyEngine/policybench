@@ -570,9 +570,7 @@ def _build_answer_tool(
     else:
         outputs_schema = {
             "type": "object",
-            "properties": {
-                variable: value_schema(variable) for variable in variables
-            },
+            "properties": {variable: value_schema(variable) for variable in variables},
             "required": list(variables),
             "additionalProperties": False,
         }
@@ -1526,9 +1524,14 @@ def _load_existing_rows(
             key[1],
             set(programs),
         )
-        has_infrastructure_error = "error" in group.columns and group["error"].fillna(
-            ""
-        ).astype(str).map(is_infrastructure_error_text).any()
+        has_infrastructure_error = (
+            "error" in group.columns
+            and group["error"]
+            .fillna("")
+            .astype(str)
+            .map(is_infrastructure_error_text)
+            .any()
+        )
         has_explanation_column = not include_explanations or (
             "explanation" in group.columns
         )
