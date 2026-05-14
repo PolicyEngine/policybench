@@ -23,7 +23,7 @@ from policybench.prompts import (
     make_no_tools_batch_repair_prompt,
 )
 from policybench.scenarios import Scenario, scenario_to_dict
-from policybench.spec import expand_programs_for_scenario
+from policybench.spec import expand_programs_for_scenario, metric_type_for_output
 
 
 def _env_int(name: str, default: int) -> int:
@@ -47,7 +47,7 @@ REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
 MAX_REPAIR_ROUNDS = 2
-RESUME_METADATA_VERSION = 1
+RESUME_METADATA_VERSION = 2
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 EXPLANATION_MAX_COMPLETION_TOKENS = 1024
@@ -57,10 +57,11 @@ MAX_COMPLETION_TOKENS_CAP = 4096
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
-ANSWER_FUNCTION_NAME = "submit_answers"
+ANSWER_FUNCTION_NAME = "submit_outputs"
 EXPLANATION_FUNCTION_NAME = "submit_explanations"
-CLAUDE_EXPLANATION_CHUNK_SIZE = 3
-CLAUDE_SONNET_EXPLANATION_CHUNK_SIZE = 1
+PROMPT_CONTRACT_VERSION = "2026-05-13-nested-output-explanations"
+CLAUDE_EXPLANATION_CHUNK_SIZE = 1
+GPT55_EXPLANATION_CHUNK_SIZE = 3
 
 
 class RequestWallTimeoutError(TimeoutError):
@@ -87,7 +88,45 @@ MODEL_FATAL_ERRORS = (
     litellm.UnsupportedParamsError,
     litellm.UnprocessableEntityError,
 )
+RETRYABLE_PROVIDER_ERRORS = (
+    RequestWallTimeoutError,
+    litellm.APIConnectionError,
+    litellm.APIError,
+    litellm.APIResponseValidationError,
+    litellm.BadGatewayError,
+    litellm.InternalServerError,
+    litellm.RateLimitError,
+    litellm.ServiceUnavailableError,
+    litellm.Timeout,
+)
+PROVIDER_ERROR_TEXT_MARKERS = (
+    "APIConnectionError",
+    "APIError",
+    "APIResponseValidationError",
+    "BadGatewayError",
+    "Connection timed out",
+    "InternalServerError",
+    "RateLimitError",
+    "RequestWallTimeoutError",
+    "ServiceUnavailableError",
+    "Timeout",
+    "temporarily unavailable",
+)
+FATAL_ERROR_TEXT_MARKERS = (
+    "AuthenticationError",
+    "BadRequestError",
+    "ContextWindowExceededError",
+    "InvalidRequestError",
+    "NotFoundError",
+    "PermissionDeniedError",
+    "UnsupportedParamsError",
+    "UnprocessableEntityError",
+)
 STANDALONE_NUMBER_RE = re.compile(r"^\$?-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$")
+EXPLANATION_VALUE_RE = re.compile(
+    r"\bvalue\s*=\s*(\$?-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*\.?\s*$",
+    re.IGNORECASE,
+)
 
 
 def _format_error(error: Exception) -> str:
@@ -110,6 +149,37 @@ def _should_retry(error: Exception) -> bool:
 
 def _is_model_fatal_error(error: Exception) -> bool:
     return isinstance(error, MODEL_FATAL_ERRORS) or _is_insufficient_quota_error(error)
+
+
+def is_retryable_provider_error_text(error: str | None) -> bool:
+    """Return whether an error string reflects provider transport instability."""
+    if not error:
+        return False
+    if _is_insufficient_quota_error(Exception(error)):
+        return False
+    error_lower = error.lower()
+    return any(marker.lower() in error_lower for marker in PROVIDER_ERROR_TEXT_MARKERS)
+
+
+def is_infrastructure_error_text(error: str | None) -> bool:
+    """Return whether a stored row error should not count as a model miss."""
+    if not error:
+        return False
+    if _is_fatal_error_text(error):
+        return True
+    error_lower = error.lower()
+    if any(marker.lower() in error_lower for marker in FATAL_ERROR_TEXT_MARKERS):
+        return True
+    return is_retryable_provider_error_text(error)
+
+
+def _is_retryable_provider_error(error: Exception) -> bool:
+    if _is_model_fatal_error(error):
+        return False
+    return isinstance(
+        error,
+        RETRYABLE_PROVIDER_ERRORS,
+    ) or is_retryable_provider_error_text(_format_error(error))
 
 
 def _get_usage_value(obj, key: str):
@@ -202,11 +272,9 @@ def _required_explanation_chunk_size(
     model_id: str, include_explanations: bool
 ) -> int | None:
     if include_explanations and model_id.startswith("claude-"):
-        if "sonnet" in model_id:
-            return CLAUDE_SONNET_EXPLANATION_CHUNK_SIZE
         return CLAUDE_EXPLANATION_CHUNK_SIZE
     if include_explanations and model_id == "gpt-5.5":
-        return CLAUDE_EXPLANATION_CHUNK_SIZE
+        return GPT55_EXPLANATION_CHUNK_SIZE
     return None
 
 
@@ -458,40 +526,64 @@ def _build_answer_tool(
     country: str = "us",
     include_explanations: bool = True,
 ) -> dict:
-    answers_schema = {
-        "type": "object",
-        "properties": {
-            variable: {
-                "type": "number",
-                "description": get_variable_description(variable, country=country),
-            }
-            for variable in variables
-        },
-        "required": list(variables),
-        "additionalProperties": False,
-    }
-    parameters = answers_schema
+    def value_schema(variable: str) -> dict:
+        schema = {
+            "type": "number",
+            "description": get_variable_description(variable, country=country),
+        }
+        if metric_type_for_output(variable) == "binary":
+            schema.update(
+                {
+                    "type": "integer",
+                    "enum": [0, 1],
+                    "description": (
+                        get_variable_description(variable, country=country)
+                        + " Use 1 for yes/eligible and 0 for no/not eligible."
+                    ),
+                }
+            )
+        return schema
+
+    if include_explanations:
+        outputs_schema = {
+            "type": "object",
+            "properties": {
+                variable: {
+                    "type": "object",
+                    "properties": {
+                        "value": value_schema(variable),
+                        "explanation": {
+                            "type": "string",
+                            "description": (
+                                "Brief explanation supporting this exact value"
+                            ),
+                        },
+                    },
+                    "required": ["value", "explanation"],
+                    "additionalProperties": False,
+                }
+                for variable in variables
+            },
+            "required": list(variables),
+            "additionalProperties": False,
+        }
+    else:
+        outputs_schema = {
+            "type": "object",
+            "properties": {
+                variable: value_schema(variable) for variable in variables
+            },
+            "required": list(variables),
+            "additionalProperties": False,
+        }
+    parameters = outputs_schema
     if include_explanations:
         parameters = {
             "type": "object",
             "properties": {
-                "answers": answers_schema,
-                "explanations": {
-                    "type": "object",
-                    "properties": {
-                        variable: {
-                            "type": "string",
-                            "description": (
-                                f"Brief explanation for the estimated {variable} value"
-                            ),
-                        }
-                        for variable in variables
-                    },
-                    "required": list(variables),
-                    "additionalProperties": False,
-                },
+                "outputs": outputs_schema,
             },
-            "required": ["answers", "explanations"],
+            "required": ["outputs"],
             "additionalProperties": False,
         }
     return {
@@ -499,7 +591,7 @@ def _build_answer_tool(
         "function": {
             "name": ANSWER_FUNCTION_NAME,
             "description": (
-                "Submit all requested numeric answers for the benchmark. "
+                "Submit all requested benchmark outputs. "
                 "Every requested key is required, including keys whose value is 0."
             ),
             "parameters": parameters,
@@ -688,8 +780,21 @@ def _aggregate_request_results(results: list[dict]) -> dict:
     }
 
 
+def _empty_failed_result(
+    variables: list[str],
+    error: Exception,
+) -> dict:
+    return {
+        "predictions": {variable: None for variable in variables},
+        "explanations": {variable: None for variable in variables},
+        "prediction": None,
+        "error": _format_error(error),
+        **_aggregate_request_results([]),
+    }
+
+
 def extract_number(text: str) -> float | None:
-    """Extract a numeric value from a valid answer payload."""
+    """Extract a numeric value from a standalone numeric payload."""
     if not text:
         return None
 
@@ -697,23 +802,52 @@ def extract_number(text: str) -> float | None:
     if full_match is not None:
         return full_match
 
-    try:
-        payload = json.loads(text)
-    except Exception:
-        return None
-
-    if isinstance(payload, dict) and "answer" in payload:
-        return _coerce_prediction_value(payload.get("answer"))
-
     return None
 
 
 def _coerce_prediction_value(value) -> float | None:
+    if isinstance(value, dict):
+        return _coerce_prediction_value(value.get("value"))
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return float(value)
     if isinstance(value, str):
         return extract_number(value)
     return None
+
+
+def _extract_terminal_explanation_value(explanation: str) -> float | None:
+    match = EXPLANATION_VALUE_RE.search(explanation.strip())
+    if not match:
+        return None
+    return float(match.group(1).replace("$", "").replace(",", ""))
+
+
+def _numeric_values_match(left: float, right: float) -> bool:
+    return abs(left - right) <= 1e-6 * max(1.0, abs(left), abs(right))
+
+
+def _enforce_explanation_value_contract(
+    predictions: dict[str, float | None],
+    explanations: dict[str, str | None],
+    variables: list[str],
+) -> tuple[dict[str, float | None], dict[str, str | None]]:
+    """Use the required terminal explanation value as the canonical parsed value."""
+    checked_predictions = dict(predictions)
+    checked_explanations = dict(explanations)
+    for variable in variables:
+        explanation = checked_explanations.get(variable)
+        if not isinstance(explanation, str) or not explanation.strip():
+            continue
+        explanation_value = _extract_terminal_explanation_value(explanation)
+        if explanation_value is None:
+            checked_explanations[variable] = None
+            continue
+        prediction = checked_predictions.get(variable)
+        if prediction is None or not _numeric_values_match(
+            prediction, explanation_value
+        ):
+            checked_predictions[variable] = explanation_value
+    return checked_predictions, checked_explanations
 
 
 def _extract_predictions_from_payload(
@@ -726,14 +860,11 @@ def _extract_predictions_from_payload(
         except Exception:
             payload = None
 
-    if isinstance(payload, dict) and isinstance(payload.get("answers"), dict):
-        payload = payload["answers"]
+    if isinstance(payload, dict) and isinstance(payload.get("outputs"), dict):
+        payload = payload["outputs"]
 
     predictions = {variable: None for variable in variables}
     if isinstance(payload, dict):
-        if len(variables) == 1 and "answer" in payload:
-            predictions[variables[0]] = _coerce_prediction_value(payload.get("answer"))
-            return predictions
         for variable in variables:
             predictions[variable] = _coerce_prediction_value(payload.get(variable))
         return predictions
@@ -755,14 +886,16 @@ def _extract_explanations_from_payload(
     if not isinstance(payload, dict):
         return explanations
 
-    explanation_payload = payload.get("explanations")
-    if not isinstance(explanation_payload, dict):
+    output_payload = payload.get("outputs")
+    if not isinstance(output_payload, dict):
         return explanations
-
     for variable in variables:
-        value = explanation_payload.get(variable)
-        if isinstance(value, str):
-            cleaned = value.strip()
+        value = output_payload.get(variable)
+        if not isinstance(value, dict):
+            continue
+        explanation = value.get("explanation")
+        if isinstance(explanation, str):
+            cleaned = explanation.strip()
             explanations[variable] = cleaned or None
     return explanations
 
@@ -890,38 +1023,6 @@ def _responses_content_and_tool_calls(response) -> tuple[str | None, list[dict]]
     if not content and content_segments:
         content = "\n".join(content_segments)
     return content, tool_calls
-
-
-def extract_prediction(
-    content: str | None,
-    tool_calls=None,
-    function_call=None,
-) -> float | None:
-    """Extract a numeric prediction from structured tool output or valid JSON."""
-    for tool_call in tool_calls or []:
-        function = _get_tool_call_function(tool_call)
-        if _get_function_name(function) != ANSWER_FUNCTION_NAME:
-            continue
-        arguments = _get_function_arguments(function)
-        if isinstance(arguments, dict):
-            arguments = json.dumps(arguments)
-        elif not isinstance(arguments, str):
-            arguments = None
-        prediction = extract_number(arguments or "")
-        if prediction is not None:
-            return prediction
-
-    if _get_function_name(function_call) == ANSWER_FUNCTION_NAME:
-        arguments = _get_function_arguments(function_call)
-        if isinstance(arguments, dict):
-            arguments = json.dumps(arguments)
-        elif not isinstance(arguments, str):
-            arguments = None
-        prediction = extract_number(arguments or "")
-        if prediction is not None:
-            return prediction
-
-    return extract_number(content or "")
 
 
 def extract_predictions(
@@ -1092,6 +1193,18 @@ def _request_explanations_once(
         tool_calls=tool_calls,
         function_call=function_call,
     )
+    for variable in variables:
+        explanation = explanations.get(variable)
+        if not isinstance(explanation, str) or not explanation.strip():
+            explanations[variable] = None
+            continue
+        explanation_value = _extract_terminal_explanation_value(explanation)
+        answer = answers.get(variable)
+        if explanation_value is None or answer is None:
+            explanations[variable] = None
+            continue
+        if not _numeric_values_match(explanation_value, float(answer)):
+            explanations[variable] = None
     usage = _extract_usage_metadata(response, model_id, messages, content or "")
     return {
         "explanations": explanations,
@@ -1158,6 +1271,11 @@ def _request_predictions_once(
                 tool_calls=tool_calls,
                 function_call=function_call,
             )
+            predictions, explanations = _enforce_explanation_value_contract(
+                predictions,
+                explanations,
+                variables,
+            )
             return {
                 "predictions": predictions,
                 "explanations": explanations,
@@ -1196,13 +1314,18 @@ def run_single_no_tools(
         explanations = {}
         errors = []
         for chunk in _chunk_variables(variables, chunk_size):
-            chunk_result = run_single_no_tools(
-                scenario,
-                chunk,
-                model_id,
-                include_explanations=include_explanations,
-                _allow_chunking=False,
-            )
+            try:
+                chunk_result = run_single_no_tools(
+                    scenario,
+                    chunk,
+                    model_id,
+                    include_explanations=include_explanations,
+                    _allow_chunking=False,
+                )
+            except Exception as error:
+                if _is_model_fatal_error(error):
+                    raise
+                chunk_result = _empty_failed_result(chunk, error)
             chunk_results.append(chunk_result)
             predictions.update(chunk_result["predictions"])
             explanations.update(
@@ -1383,10 +1506,10 @@ def _load_existing_rows(
         return [], set()
 
     path = Path(output_path)
-    if not path.exists() or path.stat().st_size == 0:
+    existing = _read_existing_output(path)
+    if existing is None:
         return [], set()
 
-    existing = pd.read_csv(path)
     if existing.empty:
         return [], set()
 
@@ -1403,20 +1526,13 @@ def _load_existing_rows(
             key[1],
             set(programs),
         )
-        has_no_errors = "error" not in group.columns or group["error"].isna().all()
-        has_all_predictions = (
-            "prediction" not in group.columns or group["prediction"].notna().all()
-        )
-        has_all_explanations = not include_explanations or (
+        has_infrastructure_error = "error" in group.columns and group["error"].fillna(
+            ""
+        ).astype(str).map(is_infrastructure_error_text).any()
+        has_explanation_column = not include_explanations or (
             "explanation" in group.columns
-            and group["explanation"].fillna("").str.strip().ne("").all()
         )
-        if (
-            has_all_programs
-            and has_no_errors
-            and has_all_predictions
-            and has_all_explanations
-        ):
+        if has_all_programs and has_explanation_column and not has_infrastructure_error:
             completed_keys.add((key[0], key[1]))
             keep_mask.loc[group.index] = True
 
@@ -1429,6 +1545,31 @@ def _output_metadata_path(output_path: str | None) -> Path | None:
     if not output_path:
         return None
     return Path(f"{output_path}.meta.json")
+
+
+def _read_existing_output(path: Path) -> pd.DataFrame | None:
+    if not path.exists() or path.stat().st_size == 0:
+        return None
+    try:
+        return pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return None
+
+
+def _package_file_sha256(filename: str) -> str:
+    return hashlib.sha256(Path(__file__).with_name(filename).read_bytes()).hexdigest()
+
+
+def _response_contract_metadata() -> dict:
+    return {
+        "prompt_contract_version": PROMPT_CONTRACT_VERSION,
+        "answer_function_name": ANSWER_FUNCTION_NAME,
+        "explanation_function_name": EXPLANATION_FUNCTION_NAME,
+        "response_shape": "outputs.{variable}.{value,explanation}",
+        "explanation_value_contract": "terminal explanation value equals numeric value",
+        "prompt_template_sha256": _package_file_sha256("prompts.py"),
+        "benchmark_spec_sha256": _package_file_sha256("benchmark_specs.json"),
+    }
 
 
 def _serialize_scenario(scenario: Scenario) -> str:
@@ -1470,6 +1611,7 @@ def _build_resume_metadata(
         "programs": sorted(programs),
         "models": {name: models[name] for name in sorted(models)},
         "policyengine_bundles": policyengine_bundles_for_countries(countries),
+        "response_contract": _response_contract_metadata(),
     }
 
 
@@ -1512,6 +1654,7 @@ def _validate_resume_metadata(output_path: str | None, expected: dict) -> None:
         "programs",
         "models",
         "policyengine_bundles",
+        "response_contract",
     ):
         if existing.get(key) != expected.get(key):
             mismatches.append(key)
@@ -1532,7 +1675,13 @@ def _save_checkpoint(
 ) -> None:
     if not output_path:
         return
-    pd.DataFrame(rows).to_csv(output_path, index=False)
+    path = Path(output_path)
+    if not rows:
+        if path.exists():
+            path.unlink()
+        _write_resume_metadata(output_path, metadata)
+        return
+    pd.DataFrame(rows).to_csv(path, index=False)
     _write_resume_metadata(output_path, metadata)
 
 
@@ -1540,30 +1689,25 @@ def _load_existing_single_output_rows(
     output_path: str | None,
     include_explanations: bool = True,
 ) -> tuple[list[dict], set[tuple[str, str, str]]]:
-    if not output_path or not Path(output_path).exists():
+    if not output_path:
         return [], set()
 
-    existing = pd.read_csv(output_path)
+    existing = _read_existing_output(Path(output_path))
+    if existing is None:
+        return [], set()
     required_columns = {"model", "scenario_id", "variable", "prediction"}
     if not required_columns.issubset(existing.columns):
         return [], set()
 
-    error_mask = (
-        existing["error"].fillna("").astype(str).str.strip().ne("")
+    infrastructure_error_mask = (
+        existing["error"].fillna("").astype(str).map(is_infrastructure_error_text)
         if "error" in existing.columns
         else pd.Series(False, index=existing.index)
     )
-    prediction_mask = existing["prediction"].notna()
-    if include_explanations:
-        explanation_mask = (
-            existing["explanation"].fillna("").astype(str).str.strip().ne("")
-            if "explanation" in existing.columns
-            else pd.Series(False, index=existing.index)
-        )
-    else:
-        explanation_mask = pd.Series(True, index=existing.index)
+    if include_explanations and "explanation" not in existing.columns:
+        return [], set()
 
-    keep_mask = ~error_mask & prediction_mask & explanation_mask
+    keep_mask = ~infrastructure_error_mask
     retained = existing.loc[keep_mask].copy()
     completed_keys = {
         (str(row.model), str(row.scenario_id), str(row.variable))
@@ -1629,6 +1773,17 @@ def run_no_tools_eval(
                 error = result.get("error")
                 if _is_fatal_error_text(error):
                     model_fatal = True
+                    print(
+                        f"  Stopping {model_name} due to fatal error; "
+                        "unattempted rows will be retried on resume."
+                    )
+                    if output_path:
+                        _save_checkpoint(output_path, all_rows, resume_metadata)
+                    break
+                if is_retryable_provider_error_text(error):
+                    if output_path:
+                        _save_checkpoint(output_path, all_rows, resume_metadata)
+                    raise RuntimeError(error)
             except Exception as e:
                 error = _format_error(e)
                 print(f"  ERROR [{model_name}] {scenario.id}: {error}")
@@ -1641,6 +1796,10 @@ def run_no_tools_eval(
                     if output_path:
                         _save_checkpoint(output_path, all_rows, resume_metadata)
                     break
+                if _is_retryable_provider_error(e):
+                    if output_path:
+                        _save_checkpoint(output_path, all_rows, resume_metadata)
+                    raise
                 result = {
                     "predictions": {variable: None for variable in scenario_programs},
                     "explanations": {variable: None for variable in scenario_programs},
@@ -1817,6 +1976,17 @@ def run_no_tools_single_output_eval(
                     error = result.get("error")
                     if _is_fatal_error_text(error):
                         model_fatal = True
+                        print(
+                            f"  Stopping {model_name} due to fatal error; "
+                            "unattempted rows will be retried on resume."
+                        )
+                        if output_path:
+                            _save_checkpoint(output_path, all_rows, resume_metadata)
+                        break
+                    if is_retryable_provider_error_text(error):
+                        if output_path:
+                            _save_checkpoint(output_path, all_rows, resume_metadata)
+                        raise RuntimeError(error)
                 except Exception as e:
                     error = _format_error(e)
                     print(f"  ERROR [{model_name}] {scenario.id} {variable}: {error}")
@@ -1829,6 +1999,10 @@ def run_no_tools_single_output_eval(
                         if output_path:
                             _save_checkpoint(output_path, all_rows, resume_metadata)
                         break
+                    if _is_retryable_provider_error(e):
+                        if output_path:
+                            _save_checkpoint(output_path, all_rows, resume_metadata)
+                        raise
                     result = {
                         "predictions": {variable: None},
                         "explanations": {variable: None},

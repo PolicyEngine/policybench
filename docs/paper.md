@@ -8,13 +8,12 @@ The canonical PolicyBench manuscript is the Quarto source at
 [`paper/index.qmd`](https://github.com/PolicyEngine/policybench/blob/main/paper/index.qmd).
 It builds against:
 
-- `app/src/data.json` — the frozen dashboard export with model summaries,
-  program summaries, scenario predictions, prompts, and PolicyEngine runtime
-  bundle metadata.
 - `paper/snapshot/20260501/` — the dated snapshot directory with
-  scenarios, reference outputs, impact summaries, run-level artefacts under
-  `runs/`, the rendered PDF/web manuscript hashes, and the
+  scenarios, reference outputs, impact summaries, frozen run-level dashboard
+  exports under `runs/`, the rendered PDF/web manuscript hashes, and the
   `manifest.json` provenance index.
+- `app/src/data.json` — the live site export. It may change after the
+  manuscript snapshot and is not the source for the paper tables or figures.
 
 ## Rendered outputs
 
@@ -36,7 +35,7 @@ and the normative benchmark card
 
 The manifest at `paper/snapshot/20260501/manifest.json` lists:
 
-- the dashboard export and snapshot CSV hashes
+- the source run dashboard exports and snapshot CSV hashes
 - the per-run compact artefacts (`runs/<run_label>/`) including
   `predictions.csv.gz` with raw provider responses
 - the rendered PDF and web bundle hashes

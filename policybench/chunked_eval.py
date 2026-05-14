@@ -11,8 +11,11 @@ from pathlib import Path
 import pandas as pd
 
 from policybench.config import DEFAULT_PROGRAM_SET, RUNNABLE_MODELS, get_programs
+from policybench.eval_no_tools import is_infrastructure_error_text
 from policybench.scenarios import load_scenarios_from_manifest
 from policybench.spec import expand_programs_for_scenario
+
+SERIAL_ONLY_MODEL_PREFIXES = ("claude-",)
 
 
 @dataclass(frozen=True)
@@ -26,12 +29,23 @@ def expected_rows(*, scenario_program_counts: list[int]) -> int:
     return sum(scenario_program_counts)
 
 
+def model_requires_serial_execution(model: str) -> bool:
+    """Return whether model calls must run on the main thread."""
+    return model.startswith(SERIAL_ONLY_MODEL_PREFIXES)
+
+
 def chunk_is_complete(
     path: Path,
     *,
     scenario_program_counts: list[int],
     require_explanations: bool = True,
 ) -> bool:
+    """Return whether a chunk wrote the expected rows.
+
+    Missing predictions and missing explanations are valid benchmark outcomes
+    when they come from model output/contract failures. Provider transport
+    failures remain incomplete so the orchestration layer can retry/resume.
+    """
     if not path.exists():
         return False
     try:
@@ -45,15 +59,15 @@ def chunk_is_complete(
         return False
     if len(frame) != expected_rows(scenario_program_counts=scenario_program_counts):
         return False
-    if "prediction" not in frame.columns or frame["prediction"].isna().any():
+    required_columns = {"model", "scenario_id", "variable", "prediction"}
+    if not required_columns.issubset(frame.columns):
         return False
-    if require_explanations:
-        if "explanation" not in frame.columns:
-            return False
-        if frame["explanation"].fillna("").astype(str).str.strip().eq("").any():
-            return False
-    if "error" in frame.columns and frame["error"].fillna("").str.strip().ne("").any():
+    if require_explanations and "explanation" not in frame.columns:
         return False
+    if "error" in frame.columns:
+        errors = frame["error"].fillna("").astype(str)
+        if errors.map(is_infrastructure_error_text).any():
+            return False
     return True
 
 
@@ -238,6 +252,12 @@ def run_model_chunks(
     if model not in RUNNABLE_MODELS:
         valid = ", ".join(sorted(RUNNABLE_MODELS))
         raise ValueError(f"Unknown model '{model}'. Valid models: {valid}.")
+    if model_requires_serial_execution(model) and parallel != 1:
+        raise ValueError(
+            f"{model} must run with --parallel 1. Its provider calls need the "
+            "main-thread wall timeout; run Claude models separately from "
+            "parallel non-Claude models."
+        )
 
     manifest = Path(scenario_manifest)
     output_dir = Path(output_dir)
@@ -267,7 +287,25 @@ def run_model_chunks(
         f"{len(chunks)} chunks, {len(pending)} pending"
     )
 
-    if pending:
+    if pending and parallel == 1:
+        for chunk in pending:
+            run_chunk_with_retries(
+                country=country,
+                model=model,
+                program_set=program_set,
+                scenario_manifest=manifest,
+                scenario_count=scenario_count,
+                output=chunk.path,
+                start=chunk.start,
+                end=chunk.end,
+                include_explanations=include_explanations,
+                single_output=single_output,
+                scenario_program_counts=scenario_program_counts[
+                    chunk.start : chunk.end
+                ],
+                attempts=chunk_attempts,
+            )
+    elif pending:
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             futures = [
                 executor.submit(
@@ -328,6 +366,15 @@ def run_chunked_eval(
 ) -> Path:
     if model_parallel <= 0:
         raise ValueError("model_parallel must be positive.")
+    serial_models = [
+        model for model in models if model_requires_serial_execution(model)
+    ]
+    if serial_models and model_parallel != 1:
+        raise ValueError(
+            "Claude models must run with --model-parallel 1 so provider calls "
+            "stay on the main thread for wall-timeout enforcement. Run these "
+            f"models separately: {', '.join(serial_models)}."
+        )
 
     def run_one_model(model: str) -> Path:
         return run_model_chunks(

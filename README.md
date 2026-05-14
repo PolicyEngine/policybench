@@ -55,6 +55,12 @@ pytest
 
 ## Benchmark run
 
+For paid/public runs, follow the concrete
+[benchmark runbook](https://github.com/PolicyEngine/policybench/blob/main/docs/runbook.md).
+The short version is: generate fixed reference-output manifests first, run
+Claude models serially, run non-Claude models in parallel, then do a final merge
+and export pass.
+
 ```bash
 # Generate reference outputs for 100 sampled households using headline outputs
 policybench reference-outputs -n 100 --seed 42
@@ -69,7 +75,10 @@ policybench eval-no-tools-chunked \
   --output-dir results/local/no_tools_chunked \
   --country us \
   --chunk-size 10 \
-  --parallel 2
+  --parallel 1
+
+# Non-Claude models can be run with higher concurrency after a smoke test.
+# Claude models must use --parallel 1 and --model-parallel 1.
 
 # Analyze local results and export local artifacts
 policybench analyze --output-dir results/local/analysis

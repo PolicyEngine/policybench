@@ -14,7 +14,7 @@ TASK_PREFACE = (
     "full tax-benefit year. Treat demographic, work, student, disability, housing, "
     "health coverage, and household-composition facts as constant throughout "
     "the tax-benefit year, with no within-year income volatility or status changes. "
-    "Wage and salary amounts are annual totals, including any overtime pay; "
+    "Gross wage and salary amounts are annual totals, including any overtime pay; "
     "hourly wage is a straight-time rate when listed. "
     "Treat any unlisted numeric input as 0 and any other unlisted household "
     "fact, boolean, or status input as false. Assume tax filing and program "
@@ -24,9 +24,13 @@ TASK_PREFACE = (
 
 EXPLANATION_CONSISTENCY_INSTRUCTION = (
     "Each explanation must support the numeric value submitted for the same "
-    "variable in `answers`. If an explanation mentions a final amount, that "
-    "amount must match the corresponding `answers` value. Do not write that "
-    "you will use one value while submitting a different value. "
+    "variable in `outputs`. If an explanation mentions a final amount, that "
+    "amount must match the corresponding `outputs` value. Do not write that "
+    "you will use one value while submitting a different value. Do not include "
+    "scratch work, abandoned calculations, or corrections. End each explanation "
+    "with `value = X`, where X exactly matches the numeric `value` field. For "
+    "1/0 eligibility outputs, submit 1 only when the explanation says eligible "
+    "or yes, and submit 0 only when it says not eligible or no. "
 )
 
 # Variable descriptions for natural language prompts
@@ -82,7 +86,7 @@ INPUT_LABEL_OVERRIDES = {
     "domestic_production_ald": "domestic production deduction",
     "early_withdrawal_penalty": "early withdrawal penalty",
     "educator_expense": "educator expense",
-    "employment_income": "wages and salaries, including tips and commissions",
+    "employment_income": "gross wages and salaries",
     "employee_pension_contributions_reported": "employee pension contributions",
     "estate_income": "estate income",
     "excess_withheld_payroll_tax": "excess withheld payroll tax",
@@ -143,7 +147,7 @@ INPUT_LABEL_OVERRIDES = {
     "taxable_ira_distributions": "taxable IRA distributions",
     "taxable_private_pension_income": "taxable private pension income",
     "taxable_sep_distributions": "taxable SEP distributions",
-    "tip_income": "tip income included in wages and salaries",
+    "tip_income": "tip income included in gross wages and salaries above",
     "traditional_401k_contributions": "traditional 401(k) contributions",
     "traditional_ira_contributions": "traditional IRA contributions",
     "unadjusted_basis_qualified_property": ("unadjusted basis of qualified property"),
@@ -414,16 +418,16 @@ def make_no_tools_prompt(
 
     if answer_contract == "json":
         answer_instructions = (
-            'Return a JSON object exactly like {"answer": 1234.5}. '
-            "Put only the numeric value in the answer field, with no dollar signs, "
-            "commas, or other text in that field. "
+            f'Return a JSON object exactly like {{"{variable}": 1234.5}}. '
+            "Put only the numeric value in that field, with no dollar signs, "
+            "commas, or other text. "
             "Do not rely on plain text outside the JSON object for the final answer. "
         )
     else:
         answer_instructions = (
-            "Use the `submit_answer` function exactly once to return "
-            "the final numeric answer. "
-            "Put only the numeric value in the `answer` field, with "
+            "Use the `submit_outputs` function exactly once to return "
+            "the final numeric output. "
+            f"Put only the numeric value in the `{variable}` field, with "
             "no dollar signs, commas, or other text in that field. "
             "Do not rely on plain text for the final answer. "
         )
@@ -455,24 +459,23 @@ def make_no_tools_batch_prompt(
         requested_keys = ", ".join(f'"{variable}": 1234.5' for variable in variables)
         if include_explanations:
             example = (
-                f'{{"answers": {{{requested_keys}}}, '
-                f'"explanations": {{"{variables[0]}": "short note"}}}}'
+                '{"outputs": {'
+                f'"{variables[0]}": '
+                '{"value": 1234.5, "explanation": "Reason. value = 1234.5"}'
+                "}}}"
             )
             answer_instructions = (
                 "Return a single JSON object with an "
-                "`answers` object and a required "
-                "`explanations` object. "
-                "Use the exact variable names as keys "
-                "inside `answers`, for example "
+                "`outputs` object. Use the exact variable "
+                "names as keys inside `outputs`, for example "
                 f"{example}. "
                 "Include every requested key exactly once "
-                "in `answers`, even if the value is 0. "
-                "Include every requested key exactly "
-                "once in `explanations`. "
-                "Each explanation must be non-empty, "
-                "specific to that variable, and concise. "
+                "in `outputs`, even if the value is 0. "
+                "Each requested key must map to an object "
+                "with a numeric `value` and a non-empty, "
+                "specific, concise `explanation`. "
                 f"{EXPLANATION_CONSISTENCY_INSTRUCTION}"
-                "Put only numeric values in `answers`, "
+                "Put only numeric values in `value`, "
                 "with no dollar signs, commas, or "
                 "explanatory text in the values. "
                 "Do not rely on plain text outside "
@@ -497,27 +500,26 @@ def make_no_tools_batch_prompt(
     else:
         if include_explanations:
             answer_instructions = (
-                "Use the `submit_answers` function "
+                "Use the `submit_outputs` function "
                 "exactly once. "
-                "Return an `answers` object with every "
-                "requested quantity and a required "
-                "`explanations` object with concise notes "
-                "keyed by the same variable names. "
-                "Include every requested key exactly "
-                "once in `explanations`, and do not "
-                "leave any explanation blank. "
+                "Return an `outputs` object with every "
+                "requested quantity keyed by variable name. "
+                "Each requested key must map to an object "
+                "with a numeric `value` and a non-empty, "
+                "specific, concise `explanation`. "
                 f"{EXPLANATION_CONSISTENCY_INSTRUCTION}"
                 "Use the exact variable names as keys "
-                "inside `answers` and put only numeric "
-                "values there. "
+                "inside `outputs`. "
                 "Include every requested key exactly "
-                "once in `answers`, even if the "
+                "once in `outputs`, even if the "
                 "value is 0. "
+                "Put only numeric values in `value`, with no "
+                "dollar signs, commas, or explanatory text. "
                 "Do not rely on plain text for the final answers. "
             )
         else:
             answer_instructions = (
-                "Use the `submit_answers` function exactly once to return every "
+                "Use the `submit_outputs` function exactly once to return every "
                 "requested quantity. "
                 "Use the exact variable names as keys and put only numeric values "
                 "in the arguments. "
@@ -553,30 +555,29 @@ def make_no_tools_batch_repair_prompt(
         requested_keys = ", ".join(f'"{variable}": 1234.5' for variable in variables)
         if include_explanations:
             example = (
-                f'{{"answers": {{{requested_keys}}}, '
-                f'"explanations": {{"{variables[0]}": "short note"}}}}'
+                '{"outputs": {'
+                f'"{variables[0]}": '
+                '{"value": 1234.5, "explanation": "Reason. value = 1234.5"}'
+                "}}}"
             )
             answer_instructions = (
                 "A prior response omitted required "
-                "answers and/or explanations. "
+                "outputs and/or explanations. "
                 "Return a single JSON object "
-                "with an `answers` object containing "
-                "the listed quantities below "
-                "and a required `explanations` object "
-                "keyed by those same variables. "
+                "with an `outputs` object containing "
+                "the listed quantities below. "
                 "Use the exact variable names as keys "
-                "inside `answers`, for example "
+                "inside `outputs`, for example "
                 f"{example}. "
                 "Include every listed key exactly once "
-                "in `answers`, even if the value is 0. "
-                "Include every listed key exactly "
-                "once in `explanations`. "
-                "Each explanation must be non-empty, "
-                "specific to that variable, and concise. "
+                "in `outputs`, even if the value is 0. "
+                "Each listed key must map to an object "
+                "with a numeric `value` and a non-empty, "
+                "specific, concise `explanation`. "
                 f"{EXPLANATION_CONSISTENCY_INSTRUCTION}"
                 "Do not include any keys that are "
                 "not listed below. "
-                "Put only numeric values in `answers`, "
+                "Put only numeric values in `value`, "
                 "with no dollar signs, commas, or "
                 "explanatory text in the values. "
                 "Do not rely on plain text outside "
@@ -605,30 +606,29 @@ def make_no_tools_batch_repair_prompt(
         if include_explanations:
             answer_instructions = (
                 "A prior response omitted required "
-                "answers and/or explanations. "
-                "Use the `submit_answers` function "
-                "exactly once to return an `answers` "
+                "outputs and/or explanations. "
+                "Use the `submit_outputs` function "
+                "exactly once to return an `outputs` "
                 "object containing the listed "
-                "quantities below, and a required "
-                "`explanations` object keyed by those "
-                "same variables. "
-                "Include every listed key exactly once "
-                "in `explanations`, and do not leave "
-                "any explanation blank. "
+                "quantities below, keyed by variable name. "
+                "Each listed key must map to an object "
+                "with a numeric `value` and a non-empty, "
+                "specific, concise `explanation`. "
                 f"{EXPLANATION_CONSISTENCY_INSTRUCTION}"
                 "Use the exact variable names as keys "
-                "inside `answers` and put only numeric "
-                "values there. "
+                "inside `outputs`. "
                 "Include every listed key exactly once "
-                "in `answers`, even if the value "
+                "in `outputs`, even if the value "
                 "is 0. "
+                "Put only numeric values in `value`, with no "
+                "dollar signs, commas, or explanatory text. "
                 "Do not include any keys that are not listed below. "
                 "Do not rely on plain text for the final answers. "
             )
         else:
             answer_instructions = (
                 "A prior response omitted required "
-                "keys. Use the `submit_answers` "
+                "keys. Use the `submit_outputs` "
                 "function exactly once to return only "
                 "the missing quantities listed below. "
                 "Use the exact variable names as keys and put only numeric values in "
@@ -678,5 +678,6 @@ def make_explanation_repair_prompt(
         "key exactly once, and make every explanation non-empty, specific to "
         "that variable, and concise. Each explanation must support the "
         "already-returned numeric answer for the same variable; do not mention "
-        "a different final amount."
+        "a different final amount. End each explanation with `value = X`, "
+        "where X exactly matches the already-returned numeric answer."
     )

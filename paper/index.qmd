@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from policybench.config import MODELS, SEED
-from policybench.analysis import score_single_prediction
+from policybench.analysis import build_global_dashboard_payload, score_single_prediction
 from policybench.spec import metric_type_for_output, parse_person_output
 
 pd.set_option("display.max_colwidth", None)
@@ -32,13 +32,14 @@ pd.set_option("display.max_colwidth", None)
 ROOT = Path.cwd().resolve()
 if not (ROOT / "results").exists():
     ROOT = ROOT.parent
-dashboard = json.loads((ROOT / "app" / "src" / "data.json").read_text())
 SNAPSHOT_DATE = "2026-05-12"
-SNAPSHOT_EXPORT = "app/src/data.json"
 MODEL_RESPONSE_DATE = "2026-05-01"
 US_RUN_LABEL = "us_100_stable_models_20260501_062249"
 UK_RUN_LABEL = "uk_100_hicbc_fixed_20260501_083402"
 IMPACT_SNAPSHOT_DIR = "paper/snapshot/20260501"
+US_DASHBOARD_EXPORT = f"{IMPACT_SNAPSHOT_DIR}/runs/{US_RUN_LABEL}/data.json"
+UK_DASHBOARD_EXPORT = f"{IMPACT_SNAPSHOT_DIR}/runs/{UK_RUN_LABEL}/data.json"
+SNAPSHOT_EXPORT = f"{US_DASHBOARD_EXPORT}; {UK_DASHBOARD_EXPORT}"
 UK_TRANSFER_ARTIFACT = "enhanced_cps_2025.h5"
 UK_TRANSFER_ARTIFACT_SHA256 = "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
 UK_TRANSFER_ARTIFACT_REPO = "PolicyEngine/policyengine-uk-data"
@@ -48,6 +49,36 @@ UK_TRANSFER_ARTIFACT_PINNED_URL = (
     f"{UK_TRANSFER_ARTIFACT_PINNED_COMMIT}/policyengine_uk_data/storage/"
     f"{UK_TRANSFER_ARTIFACT}"
 )
+
+
+def load_frozen_dashboard() -> dict:
+    country_payloads = {
+        "us": json.loads(
+            (
+                ROOT
+                / IMPACT_SNAPSHOT_DIR
+                / "runs"
+                / US_RUN_LABEL
+                / "data.json"
+            ).read_text()
+        ),
+        "uk": json.loads(
+            (
+                ROOT
+                / IMPACT_SNAPSHOT_DIR
+                / "runs"
+                / UK_RUN_LABEL
+                / "data.json"
+            ).read_text()
+        ),
+    }
+    return {
+        "countries": country_payloads,
+        "global": build_global_dashboard_payload(country_payloads),
+    }
+
+
+dashboard = load_frozen_dashboard()
 
 
 def file_hash_prefix(path: str) -> str:
@@ -61,6 +92,17 @@ def bundle_version(country: str, key: str) -> str:
 
 def country_payload(country: str) -> dict:
     return dashboard["countries"][country]
+
+
+def prompt_payload_hash_prefix(country: str) -> str:
+    prompts = {
+        scenario_id: scenario.get("prompt")
+        for scenario_id, scenario in sorted(country_payload(country)["scenarios"].items())
+    }
+    payload = json.dumps(prompts, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
+    return hashlib.sha256(payload).hexdigest()[:12]
 
 
 def model_frame(country: str) -> pd.DataFrame:
@@ -631,14 +673,23 @@ snapshot_provenance = pd.DataFrame(
         ["Model response date", MODEL_RESPONSE_DATE],
         ["Policy period", "US tax year 2026; UK fiscal year 2026-27"],
         ["Frozen export", SNAPSHOT_EXPORT],
-        ["Frozen export SHA-256 prefix", file_hash_prefix(SNAPSHOT_EXPORT)],
+        [
+            "Frozen export SHA-256 prefixes",
+            (
+                f"US {file_hash_prefix(US_DASHBOARD_EXPORT)}; "
+                f"UK {file_hash_prefix(UK_DASHBOARD_EXPORT)}"
+            ),
+        ],
         ["Snapshot manifest", f"{IMPACT_SNAPSHOT_DIR}/manifest.json"],
         ["US scenarios SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_scenarios.csv")],
         ["US reference outputs SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_reference_outputs.csv")],
         ["UK scenarios SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/uk_scenarios.csv")],
         ["UK reference outputs SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/uk_reference_outputs.csv")],
         ["Benchmark spec SHA-256 prefix", file_hash_prefix("policybench/benchmark_specs.json")],
-        ["Prompt template SHA-256 prefix", file_hash_prefix("policybench/prompts.py")],
+        [
+            "Frozen prompt payload SHA-256 prefixes",
+            f"US {prompt_payload_hash_prefix('us')}; UK {prompt_payload_hash_prefix('uk')}",
+        ],
         ["Scoring code SHA-256 prefix", file_hash_prefix("policybench/analysis.py")],
         ["US run label", US_RUN_LABEL],
         ["UK run label", UK_RUN_LABEL],
@@ -761,7 +812,7 @@ Because explanations are required, the canonical task measures policy estimation
 
 ### Frozen snapshot and open-set status
 
-Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen dashboard export in @tbl-snapshot rather than to the live site. The local run labels identify the source runs used to create that export; the committed export is the manuscript artifact. The public site exposes the current prompts, predictions, explanations, and reference outputs for transparency. This makes the public leaderboard open-set: models, model providers, or benchmark users could learn from the released cases before later runs. Protected leaderboard claims would require a separate held-out or rotating set.
+Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen source-run exports in @tbl-snapshot rather than to the live site. The committed source-run exports are the manuscript artifacts. The public site exposes the current prompts, predictions, explanations, and reference outputs for transparency. This makes the public leaderboard open-set: models, model providers, or benchmark users could learn from the released cases before later runs. Protected leaderboard claims would require a separate held-out or rotating set.
 
 ```{python}
 #| label: tbl-snapshot

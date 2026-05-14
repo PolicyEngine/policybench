@@ -315,13 +315,24 @@ export default function ScenarioExplorer({
                   </td>
                   {models.map((m) => {
                     const pred = varData[m];
-                    if (!pred) {
+                    if (!pred || pred.prediction === null) {
+                      const missingNote =
+                        pred?.explanation || pred?.predictionError;
                       return (
                         <td
                           key={m}
                           className="py-2.5 px-3 text-right text-text-muted text-sm"
                         >
-                          --
+                          {missingNote ? (
+                            <div className="flex items-start justify-end gap-2">
+                              <span>--</span>
+                              <ExplanationTooltip explanation={missingNote}>
+                                note
+                              </ExplanationTooltip>
+                            </div>
+                          ) : (
+                            "--"
+                          )}
                         </td>
                       );
                     }
@@ -329,10 +340,11 @@ export default function ScenarioExplorer({
                     const displayPred = isBinary
                       ? formatBoolean(Math.round(pred.prediction))
                       : formatCurrency(pred.prediction, currencySymbol);
+                    const predictionError = pred.error ?? pred.prediction - truth;
 
                     const isCorrect = isBinary
                       ? Math.round(pred.prediction) === Math.round(truth)
-                      : Math.abs(pred.error) <= Math.abs(truth) * 0.1 ||
+                      : Math.abs(predictionError) <= Math.abs(truth) * 0.1 ||
                         (truth === 0 && Math.abs(pred.prediction) <= 1);
 
                     return (
@@ -342,7 +354,7 @@ export default function ScenarioExplorer({
                         style={{
                           color: isCorrect
                             ? getPredictionTextColor(0, 1)
-                            : getPredictionTextColor(pred.error, truth),
+                            : getPredictionTextColor(predictionError, truth),
                         }}
                       >
                         <div className="flex items-start justify-end gap-2">

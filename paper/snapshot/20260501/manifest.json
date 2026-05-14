@@ -4,11 +4,7 @@
     "us": "tax year 2026",
     "uk": "fiscal year 2026-27"
   },
-  "dashboard_export": {
-    "path": "app/src/data.json",
-    "sha256": "cb420ee4e9c31c441355ab76b7af4f1bb4261cc591b2f7c1feebef47ae1e0213",
-    "description": "Committed dashboard export containing parsed model predictions, explanations, model summaries, program summaries, prompts, and PolicyEngine runtime bundle metadata."
-  },
+  "live_dashboard_note": "app/src/data.json is the live site export and is not the frozen manuscript source. The manuscript uses the committed source run data.json files listed under source_run_artifacts.",
   "source_run_labels": {
     "us": "us_100_stable_models_20260501_062249",
     "uk": "uk_100_hicbc_fixed_20260501_083402"
@@ -17,6 +13,7 @@
     "note": "Compact copies of locally available run outputs used to verify this snapshot. The compressed predictions.csv.gz files preserve the raw provider responses, parsed predictions, explanations, usage, and cost metadata from the no_tools_chunked runs. The run data.json files retain the parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime bundle metadata used by the dashboard.",
     "us_100_stable_models_20260501_062249": {
       "path": "paper/snapshot/20260501/runs/us_100_stable_models_20260501_062249",
+      "prompt_payload_sha256": "f13b06ea698c968c2b7898e62916c5be7a79955eca81158d9b876d14b05e8aae",
       "files": {
         "analysis/impact_summary_by_model.csv": "32989da797c34dce6d982ae4b268b09e3901c9aa795d25a6db8ad7d6ef1bb1d1",
         "analysis/metrics.csv": "447b92ad1253f8c4571bf5c0d7a9f00d80cfe470bf8d076a6fc958c20dd88e17",
@@ -34,6 +31,7 @@
     },
     "uk_100_hicbc_fixed_20260501_083402": {
       "path": "paper/snapshot/20260501/runs/uk_100_hicbc_fixed_20260501_083402",
+      "prompt_payload_sha256": "fcd8e943edd4349fd56f328835f6ac4352d023aab024903c78807cfc45475f15",
       "files": {
         "analysis/impact_summary_by_model.csv": "dacb786da3671a3320375909bb6bf6572441af4a840d0043a882b0f67cc957d1",
         "analysis/metrics.csv": "086c842b4cf11f599e687c9ac383197a3398708081858159528fc97a529c12ed",
@@ -60,14 +58,14 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "ba546665c6d4897687f7281c034d0f2b302cbe6a1514676682810d292abac5b6"
+      "sha256": "4d4c0030a89fdadb019a247ce29a62ea9b1f80b324a5c8d3a8ef5837e615ef21"
     },
     "web": {
       "path": "app/public/paper/web",
       "files": {
         "figures/global_leaderboard.png": "acb64851ab79120c24b34d6ee6642b91c8a8d4c854c17920b984dbc935ebbd49",
         "figures/positive_zero_scatter.png": "ba58c773d8ce0261ad8d8826fabfdc10d1e5d6b1695b73fe8835912c98837496",
-        "index.html": "be69b89f49741e70dabc7d8a765cc17d90147f5487e45a6a0cb472b7702f5beb",
+        "index.html": "2d7950eb134f677f691e0ff358021142eaf8cc6843c470ad1c74704b25f9a62f",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",

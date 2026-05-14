@@ -361,8 +361,11 @@ def main():
     chunked_parser.add_argument(
         "--parallel",
         type=int,
-        default=4,
-        help="Concurrent chunks per model",
+        default=1,
+        help=(
+            "Concurrent chunks per model. Keep at 1 for Claude/Anthropic "
+            "models so local wall timeouts run on the main thread."
+        ),
     )
     chunked_parser.add_argument(
         "--model-parallel",

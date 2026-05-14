@@ -165,7 +165,7 @@ div.csl-indent {
 <p>The benchmark requires each model response to include numeric answers and one explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.</p>
 <p>Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are <code>0</code>, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output.</p>
 <h3 id="frozen-snapshot-and-open-set-status" class="anchored">Frozen snapshot and open-set status</h3>
-<p>Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen dashboard export in <a href="#tbl-snapshot" class="quarto-xref">Table&nbsp;1</a> rather than to the live site. The local run labels identify the source runs used to create that export; the committed export is the manuscript artifact. The public site exposes the current prompts, predictions, explanations, and reference outputs for transparency. This makes the public leaderboard open-set: models, model providers, or benchmark users could learn from the released cases before later runs. Protected leaderboard claims would require a separate held-out or rotating set.</p>
+<p>Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen source-run exports in <a href="#tbl-snapshot" class="quarto-xref">Table&nbsp;1</a> rather than to the live site. The committed source-run exports are the manuscript artifacts. The public site exposes the current prompts, predictions, explanations, and reference outputs for transparency. This makes the public leaderboard open-set: models, model providers, or benchmark users could learn from the released cases before later runs. Protected leaderboard claims would require a separate held-out or rotating set.</p>
 <div class="cell" data-execution_count="2">
 <div id="tbl-snapshot" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="2">
 <figure class="quarto-float quarto-float-tbl">
@@ -216,12 +216,12 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>Frozen export</td>
-<td>app/src/data.json</td>
+<td>paper/snapshot/20260501/runs/us_100_stable_models_20260501_062249/data.json; paper/snapshot/20260501/runs/uk_100_hicbc_fixed_20260501_083402/data.json</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>Frozen export SHA-256 prefix</td>
-<td>cb420ee4e9c3</td>
+<td>Frozen export SHA-256 prefixes</td>
+<td>US 66bef9e621f8; UK b9d5f318307a</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
@@ -255,8 +255,8 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">11</th>
-<td>Prompt template SHA-256 prefix</td>
-<td>3b81cd8ac0af</td>
+<td>Frozen prompt payload SHA-256 prefixes</td>
+<td>US f13b06ea698c; UK fcd8e943edd4</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">12</th>

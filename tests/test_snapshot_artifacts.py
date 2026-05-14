@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from policybench.analysis import build_global_dashboard_payload
+
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 
@@ -55,11 +57,41 @@ def test_snapshot_manifest_hashes_match_rendered_paper_artifacts():
         _assert_hash(web_dir / relative_path, expected_hash)
 
 
-def test_snapshot_manifest_matches_dashboard_export():
+def _snapshot_country_payloads(manifest: dict) -> dict[str, dict]:
+    payloads = {}
+    for country, run_label in manifest["source_run_labels"].items():
+        run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+        payloads[country] = json.loads((run_dir / "data.json").read_text())
+    return payloads
+
+
+def _prompt_payload_sha256(country_payload: dict) -> str:
+    prompts = {
+        scenario_id: scenario.get("prompt")
+        for scenario_id, scenario in sorted(country_payload["scenarios"].items())
+    }
+    payload = json.dumps(prompts, separators=(",", ":"), sort_keys=True).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def test_snapshot_prompt_payload_hashes_are_frozen_to_source_runs():
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
-    dashboard_path = ROOT / manifest["dashboard_export"]["path"]
-    assert sha256(dashboard_path) == manifest["dashboard_export"]["sha256"]
-    dashboard = json.loads(dashboard_path.read_text())
+    country_payloads = _snapshot_country_payloads(manifest)
+
+    for country, run_label in manifest["source_run_labels"].items():
+        expected_hash = manifest["source_run_artifacts"][run_label][
+            "prompt_payload_sha256"
+        ]
+        assert _prompt_payload_sha256(country_payloads[country]) == expected_hash
+
+
+def test_snapshot_source_run_payloads_match_scope():
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    country_payloads = _snapshot_country_payloads(manifest)
+    dashboard = {
+        "countries": country_payloads,
+        "global": build_global_dashboard_payload(country_payloads),
+    }
 
     for country, expected_households in manifest["scope"]["households"].items():
         country_payload = dashboard["countries"][country]
@@ -77,3 +109,19 @@ def test_snapshot_manifest_matches_dashboard_export():
     shared_models = manifest["scope"]["models"]
     assert len(dashboard["global"]["modelStats"]) == shared_models
     assert dashboard["global"]["modelStats"][0]["model"] == "gpt-5.5"
+
+
+def test_snapshot_copied_artifacts_match_source_runs():
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+
+    for country, run_label in manifest["source_run_labels"].items():
+        run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+        copied_scenarios = pd.read_csv(SNAPSHOT_DIR / f"{country}_scenarios.csv")
+        source_scenarios = pd.read_csv(run_dir / "scenarios.csv")
+        pd.testing.assert_frame_equal(copied_scenarios, source_scenarios)
+
+        copied_references = pd.read_csv(
+            SNAPSHOT_DIR / f"{country}_reference_outputs.csv"
+        )
+        source_references = pd.read_csv(run_dir / "ground_truth.csv")
+        pd.testing.assert_frame_equal(copied_references, source_references)

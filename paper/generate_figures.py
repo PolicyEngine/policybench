@@ -1,4 +1,4 @@
-"""Generate paper-ready derived artifacts from the current dashboard data."""
+"""Generate paper-ready derived artifacts from the frozen manuscript snapshot."""
 
 from __future__ import annotations
 
@@ -9,8 +9,12 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from policybench.analysis import build_global_dashboard_payload
+
 ROOT = Path(__file__).resolve().parents[1]
-APP_DATA = ROOT / "app" / "src" / "data.json"
+SNAPSHOT_RUN_DIR = ROOT / "paper" / "snapshot" / "20260501" / "runs"
+US_RUN_LABEL = "us_100_stable_models_20260501_062249"
+UK_RUN_LABEL = "uk_100_hicbc_fixed_20260501_083402"
 FIGURES_DIR = ROOT / "paper" / "figures"
 
 
@@ -256,13 +260,36 @@ def _positive_zero_scatter_svg(payload: dict[str, Any]) -> str:
     return "\n".join(rows)
 
 
-def load_dashboard_summary(path: Path) -> dict[str, object] | None:
-    if not path.exists():
-        return None
-    payload = json.loads(path.read_text(encoding="utf-8"))
+def load_frozen_dashboard() -> dict[str, Any]:
+    country_payloads = {
+        "us": json.loads(
+            (SNAPSHOT_RUN_DIR / US_RUN_LABEL / "data.json").read_text(
+                encoding="utf-8"
+            )
+        ),
+        "uk": json.loads(
+            (SNAPSHOT_RUN_DIR / UK_RUN_LABEL / "data.json").read_text(
+                encoding="utf-8"
+            )
+        ),
+    }
+    return {
+        "countries": country_payloads,
+        "global": build_global_dashboard_payload(country_payloads),
+    }
+
+
+def dashboard_summary(payload: dict[str, Any]) -> dict[str, object]:
     countries = payload.get("countries", {})
     return {
-        "path": str(path.relative_to(ROOT)),
+        "source": {
+            "us": str(
+                (SNAPSHOT_RUN_DIR / US_RUN_LABEL / "data.json").relative_to(ROOT)
+            ),
+            "uk": str(
+                (SNAPSHOT_RUN_DIR / UK_RUN_LABEL / "data.json").relative_to(ROOT)
+            ),
+        },
         "countries": sorted(countries),
         "global_models": len(payload.get("global", {}).get("modelStats", [])),
         "country_models": {
@@ -278,7 +305,7 @@ def load_dashboard_summary(path: Path) -> dict[str, object] | None:
 
 def main() -> None:
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    payload = json.loads(APP_DATA.read_text(encoding="utf-8"))
+    payload = load_frozen_dashboard()
 
     generated_figures = {
         "global_leaderboard": _write_svg_and_png(
@@ -292,7 +319,7 @@ def main() -> None:
     }
 
     manifest = {
-        "dashboard": load_dashboard_summary(APP_DATA),
+        "dashboard": dashboard_summary(payload),
         "figures": generated_figures,
     }
 

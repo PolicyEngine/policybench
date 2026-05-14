@@ -19,6 +19,7 @@ from policybench.eval_no_tools import (
     _build_answer_tool,
     _build_resume_metadata,
     _completion_controls,
+    _enforce_explanation_value_contract,
     _request_timeout_seconds,
     _request_wall_timeout_seconds,
     _required_explanation_chunk_size,
@@ -26,8 +27,8 @@ from policybench.eval_no_tools import (
     _write_resume_metadata,
     extract_explanations,
     extract_number,
-    extract_prediction,
     extract_predictions,
+    is_retryable_provider_error_text,
     load_repeated_predictions,
     run_no_tools_eval,
     run_no_tools_single_output_eval,
@@ -153,17 +154,17 @@ class TestExtractNumber:
     def test_negative(self):
         assert extract_number("-1500") == -1500.0
 
-    def test_json_answer_object(self):
-        assert extract_number('{"answer": 3500}') == 3500.0
+    def test_none_for_json_object(self):
+        assert extract_number('{"value": 3500}') is None
 
-    def test_none_for_json_answer_with_extra_text(self):
+    def test_none_for_json_object_with_extra_text(self):
         assert (
-            extract_number('{"answer": 3500}\nThe household has no refundable credits.')
+            extract_number('{"value": 3500}\nThe household has no refundable credits.')
             is None
         )
 
-    def test_none_for_truncated_json_answer_prefix(self):
-        assert extract_number('{"answer": 4923') is None
+    def test_none_for_truncated_json_prefix(self):
+        assert extract_number('{"value": 4923') is None
 
     def test_none_for_multiline_response_with_numeric_final_line(self):
         assert (
@@ -202,33 +203,7 @@ class TestExtractNumber:
         )
 
 
-class TestExtractPrediction:
-    def test_tool_call_arguments_take_priority(self):
-        tool_calls = [
-            SimpleNamespace(
-                function=SimpleNamespace(
-                    name="submit_answers",
-                    arguments='{"answer": 3500}',
-                )
-            )
-        ]
-
-        assert (
-            extract_prediction(
-                content="Adult 2 has $24,002 of wage income, so the answer is 11271.",
-                tool_calls=tool_calls,
-            )
-            == 3500.0
-        )
-
-    def test_function_call_field_is_supported(self):
-        function_call = {"name": "submit_answers", "arguments": '{"answer": 0.25}'}
-
-        assert extract_prediction(content=None, function_call=function_call) == 0.25
-
-    def test_falls_back_to_text_when_no_tool_call_exists(self):
-        assert extract_prediction(content='{"answer": 4923}', tool_calls=None) == 4923.0
-
+class TestExtractPredictions:
     def test_extract_predictions_returns_mapping(self):
         predictions = extract_predictions(
             content='{"income_tax": 4923, "federal_refundable_credits": 0}',
@@ -242,8 +217,8 @@ class TestExtractPrediction:
     ):
         predictions = extract_predictions(
             content=(
-                '{"answers":{"income_tax":4923,"federal_refundable_credits":0},'
-                '"explanations":{"income_tax":"Moderate taxable income'
+                '{"outputs":{"income_tax":{"value":4923,'
+                '"explanation":"Moderate taxable income'
             ),
             variables=["income_tax", "federal_refundable_credits"],
             tool_calls=None,
@@ -253,10 +228,10 @@ class TestExtractPrediction:
     def test_extract_explanations_returns_mapping(self):
         explanations = extract_explanations(
             content=(
-                '{"answers": {"income_tax": 4923, '
-                '"federal_refundable_credits": 0}, "explanations": '
-                '{"income_tax": '
-                '"Taxable income is moderate."}}'
+                '{"outputs": {"income_tax": {"value": 4923, '
+                '"explanation": "Taxable income is moderate."}, '
+                '"federal_refundable_credits": {"value": 0, '
+                '"explanation": ""}}}'
             ),
             variables=["income_tax", "federal_refundable_credits"],
             tool_calls=None,
@@ -269,9 +244,10 @@ class TestExtractPrediction:
     def test_extract_explanations_rejects_truncated_payload(self):
         explanations = extract_explanations(
             content=(
-                '{"answers":{"income_tax":4923,"federal_refundable_credits":0},"explanations":{'
-                '"income_tax":"Moderate taxable income.",'
-                '"federal_refundable_credits":"Income too high'
+                '{"outputs":{"income_tax":{"value":4923,'
+                '"explanation":"Moderate taxable income."},'
+                '"federal_refundable_credits":{"value":0,'
+                '"explanation":"Income too high'
             ),
             variables=["income_tax", "federal_refundable_credits"],
             tool_calls=None,
@@ -307,7 +283,7 @@ def test_no_tools_prompt_contains_household_info(mini_scenario):
     assert "filing status is not provided" not in prompt_lower
     assert "infer it from the household" not in prompt_lower
     assert "state: ca" in prompt_lower
-    assert "wages and salaries, including tips and commissions: $50,000" in prompt
+    assert "gross wages and salaries: $50,000" in prompt
     assert "tax year: 2026" in prompt_lower
     assert "all listed facts describe the full tax-benefit year" in prompt_lower
     assert "unless explicitly stated otherwise" not in prompt_lower
@@ -339,8 +315,8 @@ def test_no_tools_prompt_uses_leaf_wage_inputs_only():
 
     prompt = make_no_tools_prompt(scenario, "income_tax")
 
-    assert "wages and salaries, including tips and commissions: $50,000" in prompt
-    assert "tip income included in wages and salaries: $5,000" in prompt
+    assert "gross wages and salaries: $50,000" in prompt
+    assert "tip income included in gross wages and salaries above: $5,000" in prompt
     assert "employment income: $50,000" not in prompt
     assert "ordinary wages" not in prompt
     assert "overtime premium" not in prompt
@@ -394,15 +370,15 @@ def test_no_tools_prompt_asks_for_numeric(mini_scenario):
     """Prompt should request numeric-only response."""
     prompt = make_no_tools_prompt(mini_scenario, "income_tax")
     assert "numeric" in prompt.lower()
-    assert "submit_answer" in prompt
+    assert "submit_outputs" in prompt
     assert "plain text" in prompt.lower()
 
 
 def test_no_tools_prompt_supports_json_contract(mini_scenario):
     """Gemini path should be able to request JSON output instead of a tool call."""
     prompt = make_no_tools_prompt(mini_scenario, "income_tax", answer_contract="json")
-    assert '{"answer": 1234.5}' in prompt
-    assert "submit_answer" not in prompt
+    assert '{"income_tax": 1234.5}' in prompt
+    assert "submit_outputs" not in prompt
 
 
 def test_no_tools_batch_prompt_requests_all_variables(mini_scenario):
@@ -418,7 +394,7 @@ def test_no_tools_batch_prompt_requests_all_variables(mini_scenario):
     assert "provide the following policy quantities" in prompt_lower
     assert "- federal_income_tax_before_refundable_credits:" in prompt
     assert "- federal_refundable_credits:" in prompt
-    assert "submit_answers" in prompt
+    assert "submit_outputs" in prompt
     assert "include every requested key exactly once" in prompt.lower()
 
 
@@ -430,8 +406,10 @@ def test_no_tools_batch_prompt_requires_explanations_by_default(mini_scenario):
             "federal_refundable_credits",
         ],
     )
-    assert "`answers` object" in prompt
-    assert "`explanations` object" in prompt
+    assert "`outputs` object" in prompt
+    assert "`explanations` object" not in prompt
+    assert "numeric `value`" in prompt
+    assert "specific, concise `explanation`" in prompt
     assert "required" in prompt.lower()
     assert (
         "do not leave any explanation blank" in prompt.lower()
@@ -439,6 +417,8 @@ def test_no_tools_batch_prompt_requires_explanations_by_default(mini_scenario):
     )
     assert "must support the numeric value" in prompt.lower()
     assert "do not write that you will use one value" in prompt.lower()
+    assert "end each explanation with `value = x`" in prompt.lower()
+    assert "1/0 eligibility outputs" in prompt.lower()
     assert "12 words" not in prompt
 
 
@@ -452,11 +432,41 @@ def test_answer_tool_requires_explanations_by_default():
     )
 
     parameters = tool["function"]["parameters"]
-    assert parameters["required"] == ["answers", "explanations"]
-    assert parameters["properties"]["explanations"]["required"] == [
+    assert parameters["required"] == ["outputs"]
+    outputs_schema = parameters["properties"]["outputs"]
+    assert outputs_schema["required"] == [
         "federal_income_tax_before_refundable_credits",
         "federal_refundable_credits",
     ]
+    first_answer = outputs_schema["properties"][
+        "federal_income_tax_before_refundable_credits"
+    ]
+    assert first_answer["required"] == ["value", "explanation"]
+
+
+def test_answer_tool_constrains_binary_outputs():
+    tool = _build_answer_tool(["head_medicare_eligible"], country="us")
+    value_schema = tool["function"]["parameters"]["properties"]["outputs"][
+        "properties"
+    ]["head_medicare_eligible"]["properties"]["value"]
+
+    assert value_schema["type"] == "integer"
+    assert value_schema["enum"] == [0, 1]
+
+
+def test_terminal_explanation_value_overrides_mismatched_value_field():
+    predictions, explanations = _enforce_explanation_value_contract(
+        {"head_medicare_eligible": 1.0},
+        {
+            "head_medicare_eligible": (
+                "Head is age 63, so Medicare eligibility is no. value = 0"
+            )
+        },
+        ["head_medicare_eligible"],
+    )
+
+    assert predictions["head_medicare_eligible"] == 0.0
+    assert explanations["head_medicare_eligible"].endswith("value = 0")
 
 
 def test_no_tools_prompt_includes_nonzero_raw_inputs_across_entities(rich_scenario):
@@ -643,10 +653,10 @@ def test_run_single_no_tools(mock_responses, mini_scenario):
         output=[
             SimpleNamespace(
                 type="function_call",
-                name="submit_answers",
+                name="submit_outputs",
                 arguments=(
-                    '{"answers": {"income_tax": 3500}, '
-                    '"explanations": {"income_tax": "Wage income drives tax."}}'
+                    '{"outputs": {"income_tax": {"value": 3500, '
+                    '"explanation": "Wage income drives tax. value = 3500"}}}'
                 ),
             )
         ],
@@ -665,7 +675,7 @@ def test_run_single_no_tools(mock_responses, mini_scenario):
 
     assert result["prediction"] == 3500.0
     assert result["predictions"]["income_tax"] == 3500.0
-    assert "submit_answers" in result["raw_response"]
+    assert "submit_outputs" in result["raw_response"]
     assert "3500" in result["raw_response"]
     assert result["error"] is None
     assert result["prompt_tokens"] == 12
@@ -682,8 +692,8 @@ def test_run_single_no_tools(mock_responses, mini_scenario):
     mock_responses.assert_called_once()
     assert mock_responses.call_args.kwargs["timeout"] == 20
     assert mock_responses.call_args.kwargs["max_output_tokens"] == 1024
-    assert mock_responses.call_args.kwargs["tools"][0]["name"] == "submit_answers"
-    assert mock_responses.call_args.kwargs["tool_choice"]["name"] == "submit_answers"
+    assert mock_responses.call_args.kwargs["tools"][0]["name"] == "submit_outputs"
+    assert mock_responses.call_args.kwargs["tool_choice"]["name"] == "submit_outputs"
     assert "temperature" not in mock_responses.call_args.kwargs
     assert "reasoning_effort" not in mock_responses.call_args.kwargs
 
@@ -713,10 +723,10 @@ def test_run_single_no_tools_uses_default_completion_budget_for_claude(
     message.tool_calls = [
         SimpleNamespace(
             function=SimpleNamespace(
-                name="submit_answers",
+                name="submit_outputs",
                 arguments=(
-                    '{"answers": {"income_tax": 3500}, '
-                    '"explanations": {"income_tax": "Wage income drives tax."}}'
+                    '{"outputs": {"income_tax": {"value": 3500, '
+                    '"explanation": "Wage income drives tax. value = 3500"}}}'
                 ),
             )
         )
@@ -747,12 +757,12 @@ def test_run_single_no_tools_repairs_partial_batch_response(
     first_message.tool_calls = [
         SimpleNamespace(
             function=SimpleNamespace(
-                name="submit_answers",
+                name="submit_outputs",
                 arguments=(
-                    '{"answers": {'
-                    '"federal_income_tax_before_refundable_credits": 3500}, '
-                    '"explanations": {"federal_income_tax_before_refundable_credits": '
-                    '"Tax before credits."}}'
+                    '{"outputs": {'
+                    '"federal_income_tax_before_refundable_credits": '
+                    '{"value": 3500, "explanation": '
+                    '"Tax before credits. value = 3500"}}}'
                 ),
             )
         )
@@ -764,11 +774,11 @@ def test_run_single_no_tools_repairs_partial_batch_response(
     second_message.tool_calls = [
         SimpleNamespace(
             function=SimpleNamespace(
-                name="submit_answers",
+                name="submit_outputs",
                 arguments=(
-                    '{"answers": {"federal_refundable_credits": 1200}, '
-                    '"explanations": {"federal_refundable_credits": '
-                    '"Low earnings qualify."}}'
+                    '{"outputs": {"federal_refundable_credits": '
+                    '{"value": 1200, "explanation": '
+                    '"Low earnings qualify. value = 1200"}}}'
                 ),
             )
         )
@@ -827,8 +837,11 @@ def test_run_single_no_tools_repairs_missing_explanations(
     first_message.tool_calls = [
         SimpleNamespace(
             function=SimpleNamespace(
-                name="submit_answers",
-                arguments='{"answers":{"federal_income_tax_before_refundable_credits":3500,"federal_refundable_credits":1200}}',
+                name="submit_outputs",
+                arguments=(
+                    '{"outputs":{"federal_income_tax_before_refundable_credits":'
+                    '{"value":3500},"federal_refundable_credits":{"value":1200}}}'
+                ),
             )
         )
     ]
@@ -839,16 +852,14 @@ def test_run_single_no_tools_repairs_missing_explanations(
     second_message.tool_calls = [
         SimpleNamespace(
             function=SimpleNamespace(
-                name="submit_answers",
+                name="submit_outputs",
                 arguments=(
-                    '{"answers":'
-                    '{"federal_income_tax_before_refundable_credits"'
-                    ':3500,"federal_refundable_credits":1200},'
-                    '"explanations":'
-                    '{"federal_income_tax_before_refundable_credits"'
-                    ':"Tax after allowances.",'
+                    '{"outputs":'
+                    '{"federal_income_tax_before_refundable_credits":'
+                    '{"value":3500,"explanation":"Tax after allowances. value = 3500"},'
                     '"federal_refundable_credits":'
-                    '"Credit from low earnings."}}'
+                    '{"value":1200,"explanation":'
+                    '"Credit from low earnings. value = 1200"}}}'
                 ),
             )
         )
@@ -878,15 +889,133 @@ def test_run_single_no_tools_repairs_missing_explanations(
         ["federal_income_tax_before_refundable_credits", "federal_refundable_credits"],
         "claude-opus-4-6",
         include_explanations=True,
+        _allow_chunking=False,
     )
 
     assert result["error"] is None
     assert result["explanations"] == {
-        "federal_income_tax_before_refundable_credits": "Tax after allowances.",
-        "federal_refundable_credits": "Credit from low earnings.",
+        "federal_income_tax_before_refundable_credits": (
+            "Tax after allowances. value = 3500"
+        ),
+        "federal_refundable_credits": "Credit from low earnings. value = 1200",
     }
     repair_prompt = mock_completion.call_args_list[1].kwargs["messages"][0]["content"]
-    assert "required answers and/or explanations" in repair_prompt.lower()
+    assert "required outputs and/or explanations" in repair_prompt.lower()
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_explanation_only_repair_requires_terminal_value(
+    mock_completion,
+    mini_scenario,
+):
+    """Explanation-only repair should enforce the same value consistency contract."""
+
+    def response_for(arguments: str):
+        message = MagicMock()
+        message.content = None
+        message.tool_calls = [
+            SimpleNamespace(
+                function=SimpleNamespace(
+                    name=(
+                        "submit_explanations"
+                        if "Taxable wage income only" in arguments
+                        else "submit_outputs"
+                    ),
+                    arguments=arguments,
+                )
+            )
+        ]
+        message.function_call = None
+        response = MagicMock()
+        response.choices = [MagicMock(message=message)]
+        response.usage = litellm.Usage(
+            prompt_tokens=4,
+            completion_tokens=2,
+            total_tokens=6,
+        )
+        return response
+
+    values_only = (
+        '{"outputs": {"income_tax": {"value": 3500}}}'
+    )
+    final_explanation = '{"income_tax": "Taxable wage income only. value = 3500"}'
+    mock_completion.side_effect = [
+        response_for(values_only),
+        response_for(values_only),
+        response_for(values_only),
+        response_for(final_explanation),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "claude-opus-4-6",
+        include_explanations=True,
+        _allow_chunking=False,
+    )
+
+    assert result["error"] is None
+    assert result["explanations"]["income_tax"] == (
+        "Taxable wage income only. value = 3500"
+    )
+    explanation_prompt = mock_completion.call_args_list[-1].kwargs["messages"][0][
+        "content"
+    ]
+    assert "End each explanation with `value = X`" in explanation_prompt
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_explanation_only_repair_rejects_mismatched_terminal_value(
+    mock_completion,
+    mini_scenario,
+):
+    """A repair explanation with a different final value should remain missing."""
+
+    def response_for(arguments: str):
+        message = MagicMock()
+        message.content = None
+        message.tool_calls = [
+            SimpleNamespace(
+                function=SimpleNamespace(
+                    name=(
+                        "submit_explanations"
+                        if "Taxable wage income only" in arguments
+                        else "submit_outputs"
+                    ),
+                    arguments=arguments,
+                )
+            )
+        ]
+        message.function_call = None
+        response = MagicMock()
+        response.choices = [MagicMock(message=message)]
+        response.usage = litellm.Usage(
+            prompt_tokens=4,
+            completion_tokens=2,
+            total_tokens=6,
+        )
+        return response
+
+    values_only = '{"outputs": {"income_tax": {"value": 3500}}}'
+    bad_explanation = '{"income_tax": "Taxable wage income only. value = 3400"}'
+    mock_completion.side_effect = [
+        response_for(values_only),
+        response_for(values_only),
+        response_for(values_only),
+        response_for(bad_explanation),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "claude-opus-4-6",
+        include_explanations=True,
+        _allow_chunking=False,
+    )
+
+    assert result["predictions"]["income_tax"] == 3500
+    assert result["explanations"]["income_tax"] is None
+    assert result["error"] == "Missing explanations after repair: income_tax"
 
 
 @patch("policybench.eval_no_tools.completion")
@@ -900,11 +1029,12 @@ def test_run_single_no_tools_chunks_claude_explanation_batches(
     ]
     chunk_payloads = [
         {
-            "answers": {
-                variable: float(index + 1) for index, variable in enumerate(chunk)
-            },
-            "explanations": {
-                variable: f"Explanation for {variable}." for variable in chunk
+            "outputs": {
+                variable: {
+                    "value": float(index + 1),
+                    "explanation": f"Explanation for {variable}. value = {index + 1}",
+                }
+                for index, variable in enumerate(chunk)
             },
         }
         for chunk in chunks
@@ -917,7 +1047,7 @@ def test_run_single_no_tools_chunks_claude_explanation_batches(
         message.tool_calls = [
             SimpleNamespace(
                 function=SimpleNamespace(
-                    name="submit_answers",
+                    name="submit_outputs",
                     arguments=json.dumps(payload),
                 )
             )
@@ -953,6 +1083,53 @@ def test_run_single_no_tools_chunks_claude_explanation_batches(
 
 
 @patch("policybench.eval_no_tools.completion")
+def test_run_single_no_tools_preserves_successful_chunks_after_provider_failure(
+    mock_completion,
+    mini_scenario,
+):
+    """Chunked Claude requests should keep successes after a later failure."""
+    message = MagicMock()
+    message.content = None
+    message.tool_calls = [
+        SimpleNamespace(
+            function=SimpleNamespace(
+                name="submit_outputs",
+                arguments=(
+                    '{"outputs":{"federal_income_tax_before_refundable_credits":'
+                    '{"value":3500,"explanation":"Tax after credits. value = 3500"}}}'
+                ),
+            )
+        )
+    ]
+    message.function_call = None
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(
+        prompt_tokens=10,
+        completion_tokens=5,
+        total_tokens=15,
+    )
+    mock_completion.side_effect = [
+        response,
+        RequestWallTimeoutError("Provider request timed out"),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        ["federal_income_tax_before_refundable_credits", "federal_refundable_credits"],
+        "claude-sonnet-4-6",
+        include_explanations=True,
+    )
+
+    assert result["predictions"][
+        "federal_income_tax_before_refundable_credits"
+    ] == 3500.0
+    assert result["predictions"]["federal_refundable_credits"] is None
+    assert "RequestWallTimeoutError" in result["error"]
+    assert mock_completion.call_count == 2
+
+
+@patch("policybench.eval_no_tools.completion")
 def test_run_single_no_tools_marks_missing_predictions_after_repair(
     mock_completion, mini_scenario
 ):
@@ -962,7 +1139,7 @@ def test_run_single_no_tools_marks_missing_predictions_after_repair(
     message.tool_calls = [
         SimpleNamespace(
             function=SimpleNamespace(
-                name="submit_answers",
+                name="submit_outputs",
                 arguments='{"federal_income_tax_before_refundable_credits": 3500}',
             )
         )
@@ -999,8 +1176,8 @@ def test_run_single_no_tools_falls_back_to_text_content(mock_responses, mini_sce
     """Responses API text output should still parse without structured content."""
     response = SimpleNamespace(
         output_text=(
-            '{"answers": {"income_tax": 777}, '
-            '"explanations": {"income_tax": "Wage income drives tax."}}'
+            '{"outputs": {"income_tax": {"value": 777, '
+            '"explanation": "Wage income drives tax. value = 777"}}}'
         ),
         output=[
             SimpleNamespace(
@@ -1009,9 +1186,8 @@ def test_run_single_no_tools_falls_back_to_text_content(mock_responses, mini_sce
                     SimpleNamespace(
                         type="output_text",
                         text=(
-                            '{"answers": {"income_tax": 777}, '
-                            '"explanations": {"income_tax": '
-                            '"Wage income drives tax."}}'
+                            '{"outputs": {"income_tax": {"value": 777, '
+                            '"explanation": "Wage income drives tax. value = 777"}}}'
                         ),
                     )
                 ],
@@ -1026,8 +1202,8 @@ def test_run_single_no_tools_falls_back_to_text_content(mock_responses, mini_sce
     assert result["prediction"] == 777.0
     assert result["predictions"]["income_tax"] == 777.0
     assert result["raw_response"] == (
-        '{"answers": {"income_tax": 777}, '
-        '"explanations": {"income_tax": "Wage income drives tax."}}'
+        '{"outputs": {"income_tax": {"value": 777, '
+        '"explanation": "Wage income drives tax. value = 777"}}}'
     )
 
 
@@ -1039,14 +1215,14 @@ def test_run_single_no_tools_supports_multiple_variables(mock_responses, mini_sc
         output=[
             SimpleNamespace(
                 type="function_call",
-                name="submit_answers",
+                name="submit_outputs",
                 arguments=(
-                    '{"answers": {'
-                    '"federal_income_tax_before_refundable_credits": 3500, '
-                    '"federal_refundable_credits": 0}, "explanations": {'
+                    '{"outputs": {'
                     '"federal_income_tax_before_refundable_credits": '
-                    '"Tax before credits.", '
-                    '"federal_refundable_credits": "Income too high."}}'
+                    '{"value": 3500, "explanation": '
+                    '"Tax before credits. value = 3500"}, '
+                    '"federal_refundable_credits": '
+                    '{"value": 0, "explanation": "Income too high. value = 0"}}}'
                 ),
             )
         ],
@@ -1064,7 +1240,7 @@ def test_run_single_no_tools_supports_multiple_variables(mock_responses, mini_sc
         "federal_income_tax_before_refundable_credits": 3500.0,
         "federal_refundable_credits": 0.0,
     }
-    assert "submit_answers" in result["raw_response"]
+    assert "submit_outputs" in result["raw_response"]
 
 
 @patch("policybench.eval_no_tools.completion")
@@ -1074,8 +1250,8 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
     """Gemini should use JSON structured output instead of the tool-call transport."""
     message = MagicMock()
     message.content = (
-        '{"answers": {"income_tax": 3500}, '
-        '"explanations": {"income_tax": "Wage income drives tax."}}'
+        '{"outputs": {"income_tax": {"value": 3500, '
+        '"explanation": "Wage income drives tax. value = 3500"}}}'
     )
     message.tool_calls = None
     message.function_call = None
@@ -1111,8 +1287,8 @@ def test_run_single_no_tools_supports_deepseek_json_contract(
     """DeepSeek is manually runnable, but excluded from default benchmark runs."""
     message = MagicMock()
     message.content = (
-        '{"answers": {"income_tax": 2400}, '
-        '"explanations": {"income_tax": "Taxable wages exceed allowance."}}'
+        '{"outputs": {"income_tax": {"value": 2400, '
+        '"explanation": "Taxable wages exceed allowance. value = 2400"}}}'
     )
     message.tool_calls = None
     message.function_call = None
@@ -1132,7 +1308,10 @@ def test_run_single_no_tools_supports_deepseek_json_contract(
 
     assert result["prediction"] == 2400.0
     assert result["predictions"]["income_tax"] == 2400.0
-    assert result["explanations"]["income_tax"] == "Taxable wages exceed allowance."
+    assert (
+        result["explanations"]["income_tax"]
+        == "Taxable wages exceed allowance. value = 2400"
+    )
     assert mock_completion.call_args.kwargs["model"] == "deepseek/deepseek-v4-pro"
     assert mock_completion.call_args.kwargs["max_completion_tokens"] >= 192
     assert mock_completion.call_args.kwargs["response_format"] == {
@@ -1150,10 +1329,10 @@ def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario)
     message.tool_calls = [
         {
             "function": {
-                "name": "submit_answers",
+                "name": "submit_outputs",
                 "arguments": (
-                    '{"answers": {"income_tax": 1234}, '
-                    '"explanations": {"income_tax": "Wage income drives tax."}}'
+                    '{"outputs": {"income_tax": {"value": 1234, '
+                    '"explanation": "Wage income drives tax. value = 1234"}}}'
                 ),
             }
         }
@@ -1177,7 +1356,7 @@ def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario)
     assert "max_completion_tokens" not in mock_completion.call_args.kwargs
     assert (
         mock_completion.call_args.kwargs["tools"][0]["function"]["name"]
-        == "submit_answers"
+        == "submit_outputs"
     )
 
 
@@ -1243,10 +1422,11 @@ def test_completion_budget_scales_with_output_count():
     )
 
 
-def test_sonnet_explanation_runs_use_single_output_chunks():
-    """Sonnet omits explanations in larger chunks, so keep those chunks small."""
+def test_claude_explanation_runs_use_single_output_chunks():
+    """Claude providers can omit outputs in larger chunks, so keep them small."""
     assert _required_explanation_chunk_size("claude-sonnet-4-6", True) == 1
-    assert _required_explanation_chunk_size("claude-opus-4-7", True) == 3
+    assert _required_explanation_chunk_size("claude-opus-4-7", True) == 1
+    assert _required_explanation_chunk_size("gpt-5.5", True) == 3
     assert _required_explanation_chunk_size("claude-sonnet-4-6", False) is None
 
 
@@ -1260,6 +1440,19 @@ def test_xai_models_use_longer_timeout():
     assert _request_timeout_seconds("xai/grok-4.3") == 420
     assert _request_timeout_seconds("xai/grok-4.20") == 420
     assert _request_timeout_seconds("xai/grok-4.1-fast") == 420
+
+
+def test_provider_error_text_classification():
+    """Stored provider failures should trigger orchestration retry, not scoring."""
+    assert is_retryable_provider_error_text("BadGatewayError: upstream failed")
+    assert is_retryable_provider_error_text("APIResponseValidationError: bad body")
+    assert is_retryable_provider_error_text("RateLimitError: provider overloaded")
+    assert not is_retryable_provider_error_text(
+        "RateLimitError: insufficient_quota"
+    )
+    assert not is_retryable_provider_error_text(
+        "Missing predictions after repair: income_tax"
+    )
 
 
 def test_request_wall_timeout_interrupts_hung_request(monkeypatch):
@@ -1286,8 +1479,8 @@ def test_run_single_no_tools_falls_back_to_completion_cost(
     """Responses cost should be reconstructed when the provider omits billed cost."""
     response = SimpleNamespace(
         output_text=(
-            '{"answers": {"federal_refundable_credits": 123}, '
-            '"explanations": {"federal_refundable_credits": "Low earnings qualify."}}'
+            '{"outputs": {"federal_refundable_credits": {"value": 123, '
+            '"explanation": "Low earnings qualify. value = 123"}}}'
         ),
         output=[
             SimpleNamespace(
@@ -1296,9 +1489,9 @@ def test_run_single_no_tools_falls_back_to_completion_cost(
                     SimpleNamespace(
                         type="output_text",
                         text=(
-                            '{"answers": {"federal_refundable_credits": 123}, '
-                            '"explanations": {"federal_refundable_credits": '
-                            '"Low earnings qualify."}}'
+                            '{"outputs": {"federal_refundable_credits": '
+                            '{"value": 123, "explanation": '
+                            '"Low earnings qualify. value = 123"}}}'
                         ),
                     )
                 ],
@@ -1373,6 +1566,67 @@ def test_run_no_tools_eval_stops_after_insufficient_quota(
 
 
 @patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_reraises_provider_failures(
+    mock_run_single_no_tools,
+    mini_scenario,
+):
+    """Provider failures should fail the chunk process so orchestration retries it."""
+    timeout_error = RequestWallTimeoutError("provider call exceeded wall timeout")
+    mock_run_single_no_tools.side_effect = timeout_error
+
+    with pytest.raises(RequestWallTimeoutError):
+        run_no_tools_eval(
+            [mini_scenario],
+            models={"gpt-5.5": "gpt-5.5"},
+            programs=["income_tax", "federal_refundable_credits"],
+        )
+
+    mock_run_single_no_tools.assert_called_once()
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_reraises_litellm_provider_failures(
+    mock_run_single_no_tools,
+    mini_scenario,
+):
+    """LiteLLM server-side failures should also leave chunks retryable."""
+    provider_error = litellm.BadGatewayError(
+        message="upstream provider failed",
+        llm_provider="anthropic",
+        model="claude-sonnet-4-6",
+    )
+    mock_run_single_no_tools.side_effect = provider_error
+
+    with pytest.raises(litellm.BadGatewayError):
+        run_no_tools_eval(
+            [mini_scenario],
+            models={"claude-sonnet-4.6": "claude-sonnet-4-6"},
+            programs=["income_tax"],
+        )
+
+    mock_run_single_no_tools.assert_called_once()
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_single_output_eval_reraises_provider_failures(
+    mock_run_single_no_tools,
+    mini_scenario,
+):
+    """Single-output ablations should also let orchestration retry provider failures."""
+    timeout_error = RequestWallTimeoutError("provider call exceeded wall timeout")
+    mock_run_single_no_tools.side_effect = timeout_error
+
+    with pytest.raises(RequestWallTimeoutError):
+        run_no_tools_single_output_eval(
+            [mini_scenario],
+            models={"gpt-5.5": "gpt-5.5"},
+            programs=["income_tax"],
+        )
+
+    mock_run_single_no_tools.assert_called_once()
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
 def test_run_no_tools_eval_resumes_from_existing_output(
     mock_run_single_no_tools,
     mini_scenario,
@@ -1418,6 +1672,39 @@ def test_run_no_tools_eval_resumes_from_existing_output(
     assert set(df["variable"]) == {"income_tax", "federal_refundable_credits"}
     assert df.loc[df["variable"] == "income_tax", "prediction"].iloc[0] == 123.0
     assert mock_run_single_no_tools.call_count == 1
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_treats_empty_checkpoint_as_no_rows(
+    mock_run_single_no_tools,
+    mini_scenario,
+    tmp_path,
+):
+    output_path = tmp_path / "predictions.csv"
+    output_path.write_text("\n")
+    _write_resume_sidecar(
+        output_path,
+        [mini_scenario],
+        models={"gpt-5.4": "gpt-5.4"},
+        programs=["income_tax"],
+    )
+    mock_run_single_no_tools.return_value = {
+        "predictions": {"income_tax": 123.0},
+        "prediction": 123.0,
+        "raw_response": "123",
+        "error": None,
+    }
+
+    df = run_no_tools_eval(
+        [mini_scenario],
+        models={"gpt-5.4": "gpt-5.4"},
+        programs=["income_tax"],
+        output_path=str(output_path),
+    )
+
+    assert len(df) == 1
+    assert df["prediction"].tolist() == [123.0]
+    mock_run_single_no_tools.assert_called_once()
 
 
 @patch("policybench.eval_no_tools.run_single_no_tools")
@@ -1477,6 +1764,56 @@ def test_run_no_tools_eval_retries_rows_with_existing_errors(
 
 
 @patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_resumes_existing_model_contract_misses(
+    mock_run_single_no_tools,
+    mini_scenario,
+    tmp_path,
+):
+    """Stored model output failures should not get extra attempts on resume."""
+    output_path = tmp_path / "predictions.csv"
+    pd = pytest.importorskip("pandas")
+    pd.DataFrame(
+        [
+            {
+                "model": "gpt-5.4",
+                "scenario_id": "mini",
+                "variable": "income_tax",
+                "prediction": None,
+                "explanation": "",
+                "raw_response": '{"outputs": {}}',
+                "error": "Missing predictions after repair: income_tax",
+            },
+            {
+                "model": "gpt-5.4",
+                "scenario_id": "mini",
+                "variable": "federal_refundable_credits",
+                "prediction": 456.0,
+                "explanation": "Low earnings qualify. value = 456",
+                "raw_response": "456",
+                "error": None,
+            },
+        ]
+    ).to_csv(output_path, index=False)
+    _write_resume_sidecar(
+        output_path,
+        [mini_scenario],
+        models={"gpt-5.4": "gpt-5.4"},
+        programs=["income_tax", "federal_refundable_credits"],
+    )
+
+    df = run_no_tools_eval(
+        [mini_scenario],
+        models={"gpt-5.4": "gpt-5.4"},
+        programs=["income_tax", "federal_refundable_credits"],
+        output_path=str(output_path),
+    )
+
+    assert len(df) == 2
+    assert df.loc[df["variable"] == "income_tax", "prediction"].isna().iloc[0]
+    mock_run_single_no_tools.assert_not_called()
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
 def test_run_no_tools_eval_retries_rows_with_missing_predictions(
     mock_run_single_no_tools,
     mini_scenario,
@@ -1492,7 +1829,7 @@ def test_run_no_tools_eval_retries_rows_with_missing_predictions(
                 "scenario_id": "mini",
                 "variable": "income_tax",
                 "prediction": None,
-                "raw_response": '{"answer":',
+                "raw_response": '{"outputs":',
                 "error": None,
             },
             {
@@ -1561,6 +1898,12 @@ def test_run_no_tools_eval_writes_resume_metadata(
     assert metadata["programs"] == ["income_tax"]
     assert metadata["models"] == {"gpt-5.4": "gpt-5.4"}
     assert metadata["policyengine_bundles"]["us"]["model_package"] == "policyengine-us"
+    assert metadata["response_contract"]["answer_function_name"] == "submit_outputs"
+    assert (
+        metadata["response_contract"]["response_shape"]
+        == "outputs.{variable}.{value,explanation}"
+    )
+    assert len(metadata["response_contract"]["prompt_template_sha256"]) == 64
 
 
 @patch("policybench.eval_no_tools.run_single_no_tools")
@@ -1754,6 +2097,82 @@ def test_run_no_tools_single_output_eval_writes_one_row_per_call(
         "Low earnings with one child.",
     }
     assert mock_run_single_no_tools.call_count == 2
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_single_output_eval_resumes_model_contract_misses(
+    mock_run_single_no_tools,
+    mini_scenario,
+    tmp_path,
+):
+    output_path = tmp_path / "predictions.csv"
+    pd = pytest.importorskip("pandas")
+    pd.DataFrame(
+        [
+            {
+                "model": "gpt-5.4-mini",
+                "scenario_id": "mini",
+                "variable": "income_tax",
+                "prediction": None,
+                "explanation": "",
+                "raw_response": '{"outputs": {}}',
+                "error": "Missing predictions after repair: income_tax",
+            }
+        ]
+    ).to_csv(output_path, index=False)
+    _write_resume_sidecar(
+        output_path,
+        [mini_scenario],
+        models={"gpt-5.4-mini": "gpt-5.4-mini"},
+        programs=["income_tax"],
+        task="eval_no_tools_single_output",
+    )
+
+    df = run_no_tools_single_output_eval(
+        [mini_scenario],
+        models={"gpt-5.4-mini": "gpt-5.4-mini"},
+        programs=["income_tax"],
+        output_path=str(output_path),
+    )
+
+    assert len(df) == 1
+    assert df["prediction"].isna().iloc[0]
+    mock_run_single_no_tools.assert_not_called()
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_single_output_eval_treats_empty_checkpoint_as_no_rows(
+    mock_run_single_no_tools,
+    mini_scenario,
+    tmp_path,
+):
+    output_path = tmp_path / "predictions.csv"
+    output_path.write_text("\n")
+    _write_resume_sidecar(
+        output_path,
+        [mini_scenario],
+        models={"gpt-5.4-mini": "gpt-5.4-mini"},
+        programs=["income_tax"],
+        task="eval_no_tools_single_output",
+    )
+    mock_run_single_no_tools.return_value = {
+        "predictions": {"income_tax": 123.0},
+        "explanations": {"income_tax": "Taxable wage income only."},
+        "prediction": 123.0,
+        "raw_response": "123",
+        "error": None,
+    }
+
+    df = run_no_tools_single_output_eval(
+        [mini_scenario],
+        models={"gpt-5.4-mini": "gpt-5.4-mini"},
+        programs=["income_tax"],
+        output_path=str(output_path),
+    )
+
+    assert len(df) == 1
+    assert df["prediction"].tolist() == [123.0]
+    mock_run_single_no_tools.assert_called_once()
 
 
 @patch("policybench.eval_no_tools.run_no_tools_eval")

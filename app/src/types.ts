@@ -244,10 +244,11 @@ export type HeatmapEntry = {
 };
 
 export type ScenarioPrediction = {
-  prediction: number;
-  error: number;
+  prediction: number | null;
+  error: number | null;
   groundTruth: number;
   explanation?: string;
+  predictionError?: string;
 };
 
 export type ScenarioPredictionsByVariable = Record<

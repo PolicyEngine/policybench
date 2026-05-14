@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from policybench.chunked_eval import (
     chunk_is_complete,
@@ -11,10 +12,11 @@ from policybench.chunked_eval import (
     run_chunk,
     run_chunk_with_retries,
     run_chunked_eval,
+    run_model_chunks,
 )
 
 
-def test_chunk_is_complete_requires_expected_rows_and_clean_predictions(tmp_path):
+def test_chunk_is_complete_requires_expected_rows(tmp_path):
     path = tmp_path / "chunk.csv"
     pd.DataFrame(
         {
@@ -31,7 +33,9 @@ def test_chunk_is_complete_requires_expected_rows_and_clean_predictions(tmp_path
     assert not chunk_is_complete(path, scenario_program_counts=[3])
 
 
-def test_chunk_is_complete_rejects_error_rows(tmp_path):
+def test_chunk_is_complete_keeps_model_contract_errors_as_benchmark_outcomes(
+    tmp_path,
+):
     path = tmp_path / "chunk.csv"
     pd.DataFrame(
         {
@@ -40,14 +44,32 @@ def test_chunk_is_complete_rejects_error_rows(tmp_path):
             "variable": ["income_tax", "federal_refundable_credits"],
             "prediction": [1.0, None],
             "explanation": ["Wages drive tax.", "Income is too high."],
-            "error": [None, "RateLimitError: insufficient_quota"],
+            "error": [None, "Missing predictions after repair: foo"],
+        }
+    ).to_csv(path, index=False)
+
+    assert chunk_is_complete(path, scenario_program_counts=[2])
+
+
+def test_chunk_is_complete_rejects_provider_errors(tmp_path):
+    path = tmp_path / "chunk.csv"
+    pd.DataFrame(
+        {
+            "model": ["m", "m"],
+            "scenario_id": ["s1", "s1"],
+            "variable": ["income_tax", "federal_refundable_credits"],
+            "prediction": [1.0, None],
+            "explanation": ["Wages drive tax.", ""],
+            "error": [None, "RequestWallTimeoutError: Provider request timed out"],
         }
     ).to_csv(path, index=False)
 
     assert not chunk_is_complete(path, scenario_program_counts=[2])
 
 
-def test_chunk_is_complete_requires_explanations_by_default(tmp_path):
+def test_chunk_is_complete_keeps_missing_explanations_as_benchmark_outcomes(
+    tmp_path,
+):
     path = tmp_path / "chunk.csv"
     pd.DataFrame(
         {
@@ -60,7 +82,7 @@ def test_chunk_is_complete_requires_explanations_by_default(tmp_path):
         }
     ).to_csv(path, index=False)
 
-    assert not chunk_is_complete(path, scenario_program_counts=[2])
+    assert chunk_is_complete(path, scenario_program_counts=[2])
     assert chunk_is_complete(
         path,
         scenario_program_counts=[2],
@@ -156,20 +178,69 @@ def test_run_chunk_adds_ablation_flags(monkeypatch, tmp_path):
     assert "--single-output" in cmd
 
 
-def test_run_chunk_with_retries_retries_incomplete_output(monkeypatch, tmp_path):
+def test_run_chunk_with_retries_keeps_row_level_failures(monkeypatch, tmp_path):
     output = tmp_path / "chunk.csv"
     calls = []
 
     def fake_run_chunk(**kwargs):
         calls.append(kwargs)
-        explanation = "" if len(calls) == 1 else "Wages drive tax."
         pd.DataFrame(
             {
                 "model": ["gpt-5.5"],
                 "scenario_id": ["s1"],
                 "variable": ["income_tax"],
-                "prediction": [1.0],
-                "explanation": [explanation],
+                "prediction": [None],
+                "explanation": [""],
+                "error": ["Missing prediction"],
+            }
+        ).to_csv(output, index=False)
+
+    monkeypatch.setattr("policybench.chunked_eval.run_chunk", fake_run_chunk)
+
+    run_chunk_with_retries(
+        country="us",
+        model="gpt-5.5",
+        program_set="headline",
+        scenario_manifest=tmp_path / "scenarios.csv",
+        scenario_count=1,
+        output=output,
+        start=0,
+        end=1,
+        include_explanations=True,
+        single_output=False,
+        scenario_program_counts=[1],
+        attempts=2,
+    )
+
+    assert len(calls) == 1
+    assert chunk_is_complete(output, scenario_program_counts=[1])
+
+
+def test_run_chunk_with_retries_retries_provider_failures(monkeypatch, tmp_path):
+    output = tmp_path / "chunk.csv"
+    calls = []
+
+    def fake_run_chunk(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            pd.DataFrame(
+                {
+                    "model": ["gpt-5.5"],
+                    "scenario_id": ["s1"],
+                    "variable": ["income_tax"],
+                    "prediction": [None],
+                    "explanation": [""],
+                    "error": ["RateLimitError: provider overloaded"],
+                }
+            ).to_csv(output, index=False)
+            return
+        pd.DataFrame(
+            {
+                "model": ["gpt-5.5"],
+                "scenario_id": ["s1"],
+                "variable": ["income_tax"],
+                "prediction": [123.0],
+                "explanation": ["Wage income drives tax. value = 123"],
                 "error": [None],
             }
         ).to_csv(output, index=False)
@@ -251,7 +322,7 @@ def test_run_chunked_eval_runs_requested_models_and_merges(monkeypatch, tmp_path
         scenario_manifest=tmp_path / "scenarios.csv",
         output_dir=tmp_path / "predictions",
         country="us",
-        models=["gpt-5.5", "claude-opus-4.7"],
+        models=["gpt-5.5", "grok-4.3"],
         program_set="headline",
         chunk_size=10,
         parallel=2,
@@ -261,9 +332,9 @@ def test_run_chunked_eval_runs_requested_models_and_merges(monkeypatch, tmp_path
         single_output=False,
     )
 
-    assert [call["model"] for call in calls] == ["gpt-5.5", "claude-opus-4.7"]
+    assert [call["model"] for call in calls] == ["gpt-5.5", "grok-4.3"]
     assert output == tmp_path / "predictions" / "predictions.csv"
-    assert pd.read_csv(output)["model"].tolist() == ["gpt-5.5", "claude-opus-4.7"]
+    assert pd.read_csv(output)["model"].tolist() == ["gpt-5.5", "grok-4.3"]
 
 
 def test_run_chunked_eval_can_parallelize_models(monkeypatch, tmp_path):
@@ -292,7 +363,7 @@ def test_run_chunked_eval_can_parallelize_models(monkeypatch, tmp_path):
         scenario_manifest=tmp_path / "scenarios.csv",
         output_dir=tmp_path / "predictions",
         country="us",
-        models=["gpt-5.5", "claude-opus-4.7"],
+        models=["gpt-5.5", "grok-4.3"],
         program_set="headline",
         chunk_size=10,
         parallel=2,
@@ -303,8 +374,41 @@ def test_run_chunked_eval_can_parallelize_models(monkeypatch, tmp_path):
     )
 
     assert sorted(call["model"] for call in calls) == [
-        "claude-opus-4.7",
         "gpt-5.5",
+        "grok-4.3",
     ]
     assert {call["chunk_attempts"] for call in calls} == {3}
     assert output == tmp_path / "predictions" / "predictions.csv"
+
+
+def test_run_model_chunks_rejects_parallel_claude(tmp_path):
+    with pytest.raises(ValueError, match="must run with --parallel 1"):
+        run_model_chunks(
+            scenario_manifest=tmp_path / "missing.csv",
+            output_dir=tmp_path / "predictions",
+            country="us",
+            model="claude-opus-4.7",
+            program_set="headline",
+            chunk_size=10,
+            parallel=2,
+            chunk_attempts=1,
+            include_explanations=True,
+            single_output=False,
+        )
+
+
+def test_run_chunked_eval_rejects_model_parallel_claude(tmp_path):
+    with pytest.raises(ValueError, match="--model-parallel 1"):
+        run_chunked_eval(
+            scenario_manifest=tmp_path / "missing.csv",
+            output_dir=tmp_path / "predictions",
+            country="us",
+            models=["gpt-5.5", "claude-opus-4.7"],
+            program_set="headline",
+            chunk_size=10,
+            parallel=1,
+            model_parallel=2,
+            chunk_attempts=1,
+            include_explanations=True,
+            single_output=False,
+        )

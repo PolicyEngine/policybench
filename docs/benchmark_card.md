@@ -58,6 +58,11 @@ labeled as ablations and not mixed into leaderboard claims.
 CLI default outputs under `results/local/` are scratch artifacts, not canonical
 leaderboard snapshots.
 
+Operational paid runs should follow the repository runbook
+([`docs/runbook.md`](runbook.md)): fixed scenario manifests, Claude models in
+serial timeout-safe mode, non-Claude models in bounded parallel mode, and one
+final merge/export pass.
+
 ## Output specification
 
 Benchmark scope is defined in `policybench/benchmark_specs.json`. New CLI runs
