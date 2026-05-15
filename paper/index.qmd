@@ -32,7 +32,7 @@ pd.set_option("display.max_colwidth", None)
 ROOT = Path.cwd().resolve()
 if not (ROOT / "results").exists():
     ROOT = ROOT.parent
-SNAPSHOT_DATE = "2026-05-14"
+SNAPSHOT_DATE = "2026-05-15"
 MODEL_RESPONSE_DATE = "2026-05-13"
 US_RUN_LABEL = "us_full_run_20260513_policyengine_4_4_4_nested_outputs"
 UK_RUN_LABEL = "uk_full_run_20260513_policyengine_4_4_4_nested_outputs"

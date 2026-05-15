@@ -1,9 +1,9 @@
 {
   "country": "uk",
-  "generated_at_utc": "2026-05-14T23:17:15.899113+00:00",
+  "generated_at_utc": "2026-05-15T01:15:57.444404+00:00",
   "metadata_version": 1,
   "num_scenarios": 100,
-  "output": "results/local/full_run_20260513_policyengine_4_4_4_nested_outputs/uk/reference_outputs.updated.csv",
+  "output": "results/local/reference_validation_20260515_pe_uk_stock/uk/reference_outputs.csv",
   "policyengine_bundles": {
     "uk": {
       "bundle_id": "uk-4.4.4",
@@ -26,7 +26,7 @@
       "model_direct_url": null,
       "model_matches_policyengine_bundle": false,
       "model_package": "policyengine-uk",
-      "model_version": "2.88.15",
+      "model_version": "2.88.16",
       "model_version_source": "installed package",
       "policyengine_version": "4.4.4",
       "runtime_dataset": "enhanced_cps_2025",
@@ -51,7 +51,7 @@
   ],
   "requested_num_scenarios": 100,
   "scenario_manifest_input": "results/local/full_run_20260513_policyengine_4_4_4_nested_outputs/uk/scenarios.csv",
-  "scenario_manifest_output": "results/local/full_run_20260513_policyengine_4_4_4_nested_outputs/uk/scenarios.updated.csv",
+  "scenario_manifest_output": "results/local/reference_validation_20260515_pe_uk_stock/uk/scenarios.csv",
   "seed": 42,
   "source_dataset_path": "/Users/maxghenis/.cache/policybench/enhanced_cps_2025.h5",
   "task": "reference_outputs"

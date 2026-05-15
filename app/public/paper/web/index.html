@@ -139,7 +139,7 @@ div.csl-indent {
   </ul>
 </nav>
 <h2 id="abstract" class="anchored">Abstract</h2>
-<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded <code>0-100</code> metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-05-14), gpt-5.5 is top-scoring in the US, UK, and shared global views at 70.3, 50.3, and 60.3, respectively. In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
+<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded <code>0-100</code> metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-05-15), gpt-5.5 is top-scoring in the US, UK, and shared global views at 70.3, 50.3, and 60.3, respectively. In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
 <h2 id="introduction" class="anchored">Introduction</h2>
 <p>Household tax-and-benefit estimation sits between arithmetic and policy discussion. Each case has numeric labels, but generating those labels requires filing status, household composition, income concepts, program thresholds, and jurisdiction-specific rules. PolicyBench measures whether models can map household records to those outputs.</p>
 <p>Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>, while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.</p>
@@ -201,7 +201,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>Snapshot date</td>
-<td>2026-05-14</td>
+<td>2026-05-15</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
@@ -221,7 +221,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>Frozen export SHA-256 prefixes</td>
-<td>US ef110baf2822; UK ca4ee2fdce51</td>
+<td>US ef110baf2822; UK 44e1c61db493</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
@@ -291,7 +291,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">18</th>
 <td>PolicyEngine-UK</td>
-<td>policyengine-uk 2.88.15</td>
+<td>policyengine-uk 2.88.16</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">19</th>
