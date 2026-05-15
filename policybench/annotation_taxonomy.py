@@ -74,7 +74,6 @@ def infer_failure_category(annotation: object) -> FailureCategory:
             "missing prediction",
             "prediction parser reported missing",
             "output extraction failure",
-            "model omitted",
         )
     ) or ("missing" in text and "prediction" in text)
 
@@ -105,7 +104,6 @@ def _infer_failure_subtype(text: str) -> str:
             "missing prediction",
             "prediction parser reported missing",
             "output extraction failure",
-            "model omitted",
         )
     ) or ("missing" in text and "prediction" in text):
         return "missing_output"
@@ -140,6 +138,7 @@ def _infer_failure_subtype(text: str) -> str:
             "fpl",
             "poverty",
             "taper",
+            "exemption",
         )
     ):
         return "thresholds_rates"
