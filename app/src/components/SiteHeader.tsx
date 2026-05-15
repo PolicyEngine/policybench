@@ -19,19 +19,11 @@ function ViewSelector({
   selectedView,
   onSelect,
   views,
-  compact,
 }: {
   selectedView: ViewKey;
   onSelect: (view: ViewKey) => void;
   views: ViewKey[];
-  compact?: boolean;
 }) {
-  // Compact mode is used in the scrolled state. We keep the same vertical
-  // touch target as the expanded mode (~28px including padding+border) so
-  // pills clear WCAG 2.2 SC 2.5.8 (24×24 minimum).
-  const pill = compact
-    ? "rounded-full text-[11px] px-3 py-1.5 font-medium transition-colors"
-    : "rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:px-4";
   return (
     <div
       role="group"
@@ -44,7 +36,7 @@ function ViewSelector({
           type="button"
           onClick={() => onSelect(view)}
           aria-pressed={selectedView === view}
-          className={`${pill} ${
+          className={`rounded-full text-[11px] px-3 py-1.5 font-medium transition-colors ${
             selectedView === view
               ? "bg-primary-strong text-white"
               : "text-text-secondary hover:text-text"
@@ -69,7 +61,7 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function useScrollProgress(threshold = 80, enabled = true) {
+function useScrollProgress(threshold: number, enabled: boolean) {
   const [progress, setProgress] = useState(() =>
     enabled ? getScrollProgress(threshold) : 0,
   );
@@ -78,7 +70,6 @@ function useScrollProgress(threshold = 80, enabled = true) {
   useEffect(() => {
     if (!enabled) return;
     if (prefersReducedMotion()) {
-      // Skip scroll-driven animation entirely; snap to either state.
       const snap = () => setProgress(getScrollProgress(threshold) > 0.5 ? 1 : 0);
       snap();
       window.addEventListener("scroll", snap, { passive: true });
@@ -90,6 +81,7 @@ function useScrollProgress(threshold = 80, enabled = true) {
         setProgress(getScrollProgress(threshold));
       });
     };
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
@@ -107,6 +99,13 @@ export type SiteHeaderProps = {
   onSelectView?: (view: ViewKey) => void;
   availableViews?: ViewKey[];
   actionLink?: HeaderActionLink;
+  /**
+   * Optional expanded content shown inside the sticky header. Use only with
+   * `alwaysExpanded` — when `alwaysExpanded` is false, this prop is ignored and
+   * pages should render hero content as a regular in-flow section instead. The
+   * old scroll-driven collapse caused the sticky's layout box to shrink during
+   * scroll, which fed back into scrollY and created a "caught" dead zone.
+   */
   expandedContent?: React.ReactNode;
   /**
    * When true, the header always renders in its expanded state. Used on pages
@@ -125,23 +124,13 @@ export default function SiteHeader({
   expandedContent,
   alwaysExpanded = false,
 }: SiteHeaderProps) {
-  const measuredProgress = useScrollProgress(80, !alwaysExpanded);
-  const progress = alwaysExpanded ? 0 : measuredProgress;
-  const scrolled = progress > 0.5;
-  const navOpacity = Math.max(0, (progress - 0.3) / 0.7);
-  // The collapsed nav has opacity:0 / max-width:0 until the user has scrolled
-  // past ~30% of the threshold; tie keyboard focus to the same gate so the
-  // links don't sit invisible-but-tabbable in the home-page tab order.
-  const navVisible = !alwaysExpanded && navOpacity > 0.05;
-  const actionVisible = alwaysExpanded || progress > 0.3;
-
-  const lerp = (a: number, b: number) => a + (b - a) * progress;
-  const expandedPadTop = lerp(40, 8);
-  const expandedPadBot = lerp(16, 8);
-  const titleSize = lerp(36, 16);
-  const expandOpacity = 1 - Math.min(1, progress * 2);
-  const expandHeight = `${(1 - progress) * 320}px`;
-  const bgOpacity = progress;
+  // Background and content opacity are scroll-driven so the sticky bar reveals
+  // itself as the in-flow hero scrolls away. These properties don't affect
+  // layout, so they can't trigger the scroll-position feedback loop.
+  const progress = useScrollProgress(160, !alwaysExpanded);
+  const bgOpacity = alwaysExpanded ? 1 : progress;
+  const contentOpacity = alwaysExpanded ? 1 : progress;
+  const contentVisible = alwaysExpanded || contentOpacity > 0.05;
 
   const showViewSelector =
     availableViews && availableViews.length > 0 && selectedView && onSelectView;
@@ -151,33 +140,43 @@ export default function SiteHeader({
       <div
         className="absolute inset-0 border-b backdrop-blur-md"
         style={{
-          opacity: alwaysExpanded ? 1 : bgOpacity,
-          backgroundColor: alwaysExpanded
-            ? "color-mix(in srgb, var(--color-bg) 90%, transparent)"
-            : `color-mix(in srgb, var(--color-bg) ${Math.round(bgOpacity * 90)}%, transparent)`,
-          borderColor: alwaysExpanded
-            ? "var(--color-border)"
-            : `color-mix(in srgb, var(--color-border) ${Math.round(bgOpacity * 100)}%, transparent)`,
+          opacity: bgOpacity,
+          backgroundColor: `color-mix(in srgb, var(--color-bg) ${Math.round(
+            bgOpacity * 90,
+          )}%, transparent)`,
+          borderColor: `color-mix(in srgb, var(--color-border) ${Math.round(
+            bgOpacity * 100,
+          )}%, transparent)`,
         }}
       />
 
-      <div
-        className="absolute inset-x-0 top-0 h-[280px] bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--color-primary)_13%,transparent),transparent_58%)] pointer-events-none"
-        style={{ opacity: alwaysExpanded ? 1 : 1 - progress }}
-      />
+      {alwaysExpanded && (
+        <div
+          className="absolute inset-x-0 top-0 h-[280px] bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--color-primary)_13%,transparent),transparent_58%)] pointer-events-none"
+        />
+      )}
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
         <div
-          className="flex items-center gap-3"
-          style={{
-            paddingTop: `${expandedPadTop}px`,
-            paddingBottom: `${expandedPadBot}px`,
-          }}
+          className={`flex items-center gap-3 ${
+            alwaysExpanded ? "pt-10 pb-4" : "py-3"
+          }`}
         >
-          <Link href="/" className="shrink-0 hover:opacity-80">
+          <Link
+            href="/"
+            className="shrink-0 transition-opacity hover:opacity-80"
+            style={
+              alwaysExpanded
+                ? undefined
+                : { opacity: contentOpacity, pointerEvents: contentVisible ? "auto" : "none" }
+            }
+            tabIndex={alwaysExpanded || contentVisible ? 0 : -1}
+            aria-hidden={!alwaysExpanded && !contentVisible ? true : undefined}
+          >
             <span
-              className="font-[family-name:var(--font-display)] tracking-tight text-text leading-none"
-              style={{ fontSize: `${titleSize}px` }}
+              className={`font-[family-name:var(--font-display)] tracking-tight text-text leading-none ${
+                alwaysExpanded ? "text-[36px]" : "text-[16px]"
+              }`}
             >
               PolicyBench
             </span>
@@ -185,13 +184,12 @@ export default function SiteHeader({
 
           {navItems.length > 0 && (
             <div
-              className="flex items-center overflow-hidden"
+              className="flex items-center transition-opacity"
               style={{
-                opacity: navOpacity,
-                maxWidth: navOpacity > 0.05 ? "600px" : "0px",
-                marginLeft: navOpacity > 0.05 ? "4px" : "0px",
+                opacity: contentOpacity,
+                pointerEvents: contentVisible ? "auto" : "none",
               }}
-              aria-hidden={navVisible ? undefined : true}
+              aria-hidden={!contentVisible ? true : undefined}
             >
               <div className="h-4 w-px bg-border shrink-0 mx-2" />
               <div className="flex min-w-max gap-0.5">
@@ -199,7 +197,7 @@ export default function SiteHeader({
                   <a
                     key={item.id}
                     href={`#${item.id}`}
-                    tabIndex={navVisible ? 0 : -1}
+                    tabIndex={contentVisible ? 0 : -1}
                     aria-current={activeNav === item.id ? "true" : undefined}
                     className={`px-2.5 py-2 text-[11px] font-medium tracking-wider uppercase border-b-2 sm:px-3 ${
                       activeNav === item.id
@@ -221,33 +219,22 @@ export default function SiteHeader({
               selectedView={selectedView}
               onSelect={onSelectView}
               views={availableViews}
-              compact={scrolled}
             />
           )}
 
           {actionLink && (
-            <div
-              className="overflow-hidden"
-              style={{
-                opacity: alwaysExpanded ? 1 : navOpacity,
-                maxWidth:
-                  alwaysExpanded || navOpacity > 0.05 ? "120px" : "0px",
-              }}
-              aria-hidden={actionVisible ? undefined : true}
-            >
+            <div>
               {actionLink.type === "external" ? (
                 <a
                   href={actionLink.href}
-                  tabIndex={actionVisible ? 0 : -1}
-                  className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary hover:border-primary/40 hover:text-primary whitespace-nowrap"
+                  className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary backdrop-blur hover:border-primary/40 hover:text-primary whitespace-nowrap"
                 >
                   {actionLink.label}
                 </a>
               ) : (
                 <Link
                   href={actionLink.href}
-                  tabIndex={actionVisible ? 0 : -1}
-                  className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary hover:border-primary/40 hover:text-primary whitespace-nowrap"
+                  className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary backdrop-blur hover:border-primary/40 hover:text-primary whitespace-nowrap"
                 >
                   {actionLink.label}
                 </Link>
@@ -268,26 +255,14 @@ export default function SiteHeader({
           </a>
         </div>
 
-        {expandedContent && (
-          <div
-            className="overflow-hidden"
-            style={{
-              maxHeight: alwaysExpanded ? "none" : expandHeight,
-              opacity: alwaysExpanded ? 1 : expandOpacity,
-              paddingBottom:
-                alwaysExpanded || expandOpacity > 0.05
-                  ? `${alwaysExpanded ? 32 : lerp(32, 0)}px`
-                  : "0px",
-            }}
-          >
-            {expandedContent}
-          </div>
+        {alwaysExpanded && expandedContent && (
+          <div className="pb-8">{expandedContent}</div>
         )}
       </div>
 
       <div
         className="h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent"
-        style={{ opacity: alwaysExpanded ? 1 : 1 - progress }}
+        style={{ opacity: alwaysExpanded ? 1 : bgOpacity }}
       />
     </header>
   );

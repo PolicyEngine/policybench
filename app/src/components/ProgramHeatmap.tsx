@@ -85,7 +85,7 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-bg text-left text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium pb-3 pr-4 w-48 border-r border-border-subtle">
+              <th className="sticky left-0 z-10 bg-bg text-left text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium pb-3 pl-3 pr-4 w-48 border-r border-border-subtle">
                 Program
               </th>
               {models.map((m) => (
@@ -106,7 +106,7 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
               const avg = averageScores[v];
               return (
                 <tr key={v} className="border-t border-border-subtle">
-                  <td className="sticky left-0 z-10 bg-bg py-2.5 pr-4 text-sm text-text-secondary border-r border-border-subtle">
+                  <td className="sticky left-0 z-10 bg-bg py-2.5 pl-3 pr-4 text-sm text-text-secondary border-r border-border-subtle">
                     {getVariableLabel(v, country)}
                   </td>
                   {models.map((m, mi) => {
