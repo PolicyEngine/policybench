@@ -429,7 +429,7 @@ def test_uk_output_prompts_define_target_quantities(uk_scenario):
 
 
 def test_no_tools_prompt_asks_for_numeric(mini_scenario):
-    """Prompt should request numeric-only response."""
+    """Prompt should request a numeric response contract."""
     prompt = make_no_tools_prompt(mini_scenario, "income_tax")
     assert "numeric" in prompt.lower()
     assert "submit_outputs" in prompt
