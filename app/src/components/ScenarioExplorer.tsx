@@ -14,6 +14,20 @@ function formatBoolean(value: number): string {
   return value === 1 ? "Yes" : "No";
 }
 
+const FAILURE_SOURCE_LABELS: Record<string, string> = {
+  llm_error: "LLM",
+  prompt_ambiguity: "Prompt",
+  reference_model_issue_fixed: "PE fixed",
+  reference_data_issue_fixed: "Data fixed",
+  parse_contract_failure: "Parse",
+  needs_review: "Review",
+};
+
+function formatFailureLabel(value?: string): string | null {
+  if (!value) return null;
+  return FAILURE_SOURCE_LABELS[value] ?? value.replaceAll("_", " ");
+}
+
 function pickRandomScenario(
   scenarioIds: string[],
   exclude?: string | null,
@@ -86,6 +100,16 @@ export default function ScenarioExplorer({
       sum +
       Object.values(modelMap).filter((entry) => !!entry.annotation).length,
     0,
+  );
+  const failureSources = Object.values(predictions).reduce<Record<string, number>>(
+    (counts, modelMap) => {
+      for (const entry of Object.values(modelMap)) {
+        if (!entry.failureSource) continue;
+        counts[entry.failureSource] = (counts[entry.failureSource] ?? 0) + 1;
+      }
+      return counts;
+    },
+    {},
   );
   const caseAnnotationRows = Object.values(predictions).reduce(
     (sum, modelMap) =>
@@ -220,6 +244,20 @@ export default function ScenarioExplorer({
             comparing wrong models on the same household-output target. Hover
             the note, audit, and case markers next to predictions to read them.
           </p>
+          {Object.keys(failureSources).length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Object.entries(failureSources)
+                .sort((a, b) => b[1] - a[1])
+                .map(([source, count]) => (
+                  <span
+                    key={source}
+                    className="rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-[11px] text-text-secondary"
+                  >
+                    {formatFailureLabel(source)}: {count}
+                  </span>
+                ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -330,10 +368,37 @@ export default function ScenarioExplorer({
                   </td>
                   {models.map((m) => {
                     const pred = varData[m];
+                    const auditLabel = formatFailureLabel(pred?.failureSource);
+                    const auditText = [
+                      auditLabel ? `Source: ${auditLabel}` : null,
+                      pred?.failureSubtype
+                        ? `Subtype: ${pred.failureSubtype.replaceAll("_", " ")}`
+                        : null,
+                      pred?.annotation ?? null,
+                    ]
+                      .filter(Boolean)
+                      .join("\n\n");
+                    const caseText = [
+                      pred?.caseFailureSources
+                        ? `Sources: ${pred.caseFailureSources
+                            .split(";")
+                            .map(formatFailureLabel)
+                            .join(", ")}`
+                        : null,
+                      pred?.caseFailureSubtypes
+                        ? `Subtypes: ${pred.caseFailureSubtypes
+                            .split(";")
+                            .map((value) => value.replaceAll("_", " "))
+                            .join(", ")}`
+                        : null,
+                      pred?.caseAnnotation ?? null,
+                    ]
+                      .filter(Boolean)
+                      .join("\n\n");
                     if (!pred || pred.prediction === null) {
                       const missingNote =
-                        pred?.annotation ||
-                        pred?.caseAnnotation ||
+                        auditText ||
+                        caseText ||
                         pred?.explanation ||
                         pred?.predictionError;
                       return (
@@ -387,13 +452,13 @@ export default function ScenarioExplorer({
                               note
                             </ExplanationTooltip>
                           )}
-                          {pred.annotation && (
-                            <ExplanationTooltip explanation={pred.annotation}>
-                              audit
+                          {auditText && (
+                            <ExplanationTooltip explanation={auditText}>
+                              {auditLabel ? auditLabel.toLowerCase() : "audit"}
                             </ExplanationTooltip>
                           )}
-                          {pred.caseAnnotation && (
-                            <ExplanationTooltip explanation={pred.caseAnnotation}>
+                          {caseText && (
+                            <ExplanationTooltip explanation={caseText}>
                               case
                             </ExplanationTooltip>
                           )}

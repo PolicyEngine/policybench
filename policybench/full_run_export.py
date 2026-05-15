@@ -16,6 +16,10 @@ from policybench.analysis import (
     build_scenario_prompt_map,
     export_analysis,
 )
+from policybench.annotation_taxonomy import (
+    validate_failure_source,
+    validate_failure_subtype,
+)
 
 
 def load_predictions(country_dir: Path) -> pd.DataFrame:
@@ -48,20 +52,34 @@ def load_annotations(country_dir: Path) -> pd.DataFrame:
     files = sorted(annotations_dir.glob(f"{country}_*_annotations.csv"))
     if not files:
         files = sorted(committed_annotations_dir.glob(f"{country}_*_annotations.csv"))
+    annotation_columns = [
+        "model",
+        "scenario_id",
+        "variable",
+        "annotation",
+        "failure_source",
+        "failure_subtype",
+    ]
     if not files:
-        return pd.DataFrame(columns=["model", "scenario_id", "variable", "annotation"])
+        return pd.DataFrame(columns=annotation_columns)
 
     annotations = pd.concat((pd.read_csv(path) for path in files), ignore_index=True)
-    required = {"model", "scenario_id", "variable", "annotation"}
+    required = set(annotation_columns)
     missing = required - set(annotations.columns)
     if missing:
         missing_text = ", ".join(sorted(missing))
         raise ValueError(f"Annotation files missing columns: {missing_text}")
 
-    annotations = annotations[["model", "scenario_id", "variable", "annotation"]].copy()
+    annotations = annotations[annotation_columns].copy()
     annotations = annotations[
         annotations["annotation"].astype("string").fillna("").str.strip() != ""
     ]
+    annotations["failure_source"] = annotations["failure_source"].map(
+        validate_failure_source
+    )
+    annotations["failure_subtype"] = annotations["failure_subtype"].map(
+        validate_failure_subtype
+    )
     duplicate_keys = annotations.duplicated(
         ["model", "scenario_id", "variable"],
         keep=False,
@@ -85,22 +103,27 @@ def load_case_annotations(country_dir: Path) -> pd.DataFrame:
     files = sorted(annotations_dir.glob(f"{country}_case_notes.csv"))
     if not files:
         files = sorted(committed_annotations_dir.glob(f"{country}_case_notes.csv"))
+    case_annotation_columns = [
+        "scenario_id",
+        "variable",
+        "case_annotation",
+        "case_failure_sources",
+        "case_failure_subtypes",
+    ]
     if not files:
-        return pd.DataFrame(columns=["scenario_id", "variable", "case_annotation"])
+        return pd.DataFrame(columns=case_annotation_columns)
 
     case_annotations = pd.concat(
         (pd.read_csv(path) for path in files),
         ignore_index=True,
     )
-    required = {"scenario_id", "variable", "case_annotation"}
+    required = set(case_annotation_columns)
     missing = required - set(case_annotations.columns)
     if missing:
         missing_text = ", ".join(sorted(missing))
         raise ValueError(f"Case annotation files missing columns: {missing_text}")
 
-    case_annotations = case_annotations[
-        ["scenario_id", "variable", "case_annotation"]
-    ].copy()
+    case_annotations = case_annotations[case_annotation_columns].copy()
     case_annotations = case_annotations[
         case_annotations["case_annotation"].astype("string").fillna("").str.strip()
         != ""
@@ -127,8 +150,13 @@ def merge_annotations(
     """Attach optional audit annotations to prediction rows."""
     if annotations.empty:
         return predictions
-    if "annotation" in predictions.columns:
-        predictions = predictions.drop(columns=["annotation"])
+    existing_columns = [
+        column
+        for column in ["annotation", "failure_source", "failure_subtype"]
+        if column in predictions.columns
+    ]
+    if existing_columns:
+        predictions = predictions.drop(columns=existing_columns)
     return predictions.merge(
         annotations,
         on=["model", "scenario_id", "variable"],
@@ -143,8 +171,17 @@ def merge_case_annotations(
     """Attach optional grouped audit annotations to prediction rows."""
     if case_annotations.empty:
         return predictions
-    if "case_annotation" in predictions.columns:
-        predictions = predictions.drop(columns=["case_annotation"])
+    existing_columns = [
+        column
+        for column in [
+            "case_annotation",
+            "case_failure_sources",
+            "case_failure_subtypes",
+        ]
+        if column in predictions.columns
+    ]
+    if existing_columns:
+        predictions = predictions.drop(columns=existing_columns)
     return predictions.merge(
         case_annotations,
         on=["scenario_id", "variable"],

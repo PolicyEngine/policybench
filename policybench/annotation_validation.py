@@ -47,12 +47,23 @@ def validate_annotation_coverage(country_dir: Path) -> pd.DataFrame:
     wrong = wrong_prediction_rows(country_dir)
     annotations = load_annotations(country_dir)
     annotated = wrong.merge(
-        annotations[["model", "scenario_id", "variable", "annotation"]],
+        annotations[
+            [
+                "model",
+                "scenario_id",
+                "variable",
+                "annotation",
+                "failure_source",
+                "failure_subtype",
+            ]
+        ],
         on=["model", "scenario_id", "variable"],
         how="left",
     )
     missing_annotation = (
-        annotated["annotation"].astype("string").fillna("").str.strip() == ""
+        (annotated["annotation"].astype("string").fillna("").str.strip() == "")
+        | (annotated["failure_source"].astype("string").fillna("").str.strip() == "")
+        | (annotated["failure_subtype"].astype("string").fillna("").str.strip() == "")
     )
     return annotated.loc[missing_annotation].copy()
 
@@ -66,12 +77,28 @@ def validate_case_annotation_coverage(country_dir: Path) -> pd.DataFrame:
     )
     case_annotations = load_case_annotations(country_dir)
     annotated = wrong_cases.merge(
-        case_annotations[["scenario_id", "variable", "case_annotation"]],
+        case_annotations[
+            [
+                "scenario_id",
+                "variable",
+                "case_annotation",
+                "case_failure_sources",
+                "case_failure_subtypes",
+            ]
+        ],
         on=["scenario_id", "variable"],
         how="left",
     )
     missing_annotation = (
-        annotated["case_annotation"].astype("string").fillna("").str.strip() == ""
+        (annotated["case_annotation"].astype("string").fillna("").str.strip() == "")
+        | (
+            annotated["case_failure_sources"].astype("string").fillna("").str.strip()
+            == ""
+        )
+        | (
+            annotated["case_failure_subtypes"].astype("string").fillna("").str.strip()
+            == ""
+        )
     )
     return annotated.loc[missing_annotation].copy()
 

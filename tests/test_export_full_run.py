@@ -68,6 +68,8 @@ def test_load_annotations_reads_run_annotations(tmp_path: Path) -> None:
                 "scenario_id": "s001",
                 "variable": "income_tax",
                 "annotation": "Wrong tax bracket.",
+                "failure_source": "llm_error",
+                "failure_subtype": "thresholds_rates",
             }
         ]
     ).to_csv(annotations_dir / "us_tax_annotations.csv", index=False)
@@ -80,6 +82,8 @@ def test_load_annotations_reads_run_annotations(tmp_path: Path) -> None:
             "scenario_id": "s001",
             "variable": "income_tax",
             "annotation": "Wrong tax bracket.",
+            "failure_source": "llm_error",
+            "failure_subtype": "thresholds_rates",
         }
     ]
 
@@ -94,12 +98,16 @@ def test_load_annotations_rejects_duplicate_prediction_keys(tmp_path: Path) -> N
                 "scenario_id": "s001",
                 "variable": "income_tax",
                 "annotation": "First.",
+                "failure_source": "llm_error",
+                "failure_subtype": "thresholds_rates",
             },
             {
                 "model": "model_a",
                 "scenario_id": "s001",
                 "variable": "income_tax",
                 "annotation": "Duplicate.",
+                "failure_source": "llm_error",
+                "failure_subtype": "thresholds_rates",
             },
         ]
     ).to_csv(annotations_dir / "us_tax_annotations.csv", index=False)
@@ -112,6 +120,29 @@ def test_load_annotations_rejects_duplicate_prediction_keys(tmp_path: Path) -> N
         raise AssertionError("Expected duplicate annotations to fail")
 
 
+def test_load_annotations_rejects_missing_failure_category(tmp_path: Path) -> None:
+    annotations_dir = tmp_path / "full_run" / "annotations"
+    annotations_dir.mkdir(parents=True)
+    pd.DataFrame(
+        [
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "annotation": "Wrong tax bracket.",
+            },
+        ]
+    ).to_csv(annotations_dir / "us_tax_annotations.csv", index=False)
+
+    try:
+        load_annotations(tmp_path / "full_run" / "us")
+    except ValueError as error:
+        assert "failure_source" in str(error)
+        assert "failure_subtype" in str(error)
+    else:
+        raise AssertionError("Expected missing failure category to fail")
+
+
 def test_load_case_annotations_reads_run_case_notes(tmp_path: Path) -> None:
     annotations_dir = tmp_path / "full_run" / "annotations"
     annotations_dir.mkdir(parents=True)
@@ -122,6 +153,8 @@ def test_load_case_annotations_reads_run_case_notes(tmp_path: Path) -> None:
                 "scenario_id": "s001",
                 "variable": "income_tax",
                 "case_annotation": "Two models used the wrong bracket.",
+                "case_failure_sources": "llm_error",
+                "case_failure_subtypes": "thresholds_rates",
             }
         ]
     ).to_csv(annotations_dir / "us_case_notes.csv", index=False)
@@ -133,6 +166,8 @@ def test_load_case_annotations_reads_run_case_notes(tmp_path: Path) -> None:
             "scenario_id": "s001",
             "variable": "income_tax",
             "case_annotation": "Two models used the wrong bracket.",
+            "case_failure_sources": "llm_error",
+            "case_failure_subtypes": "thresholds_rates",
         }
     ]
 
@@ -146,11 +181,15 @@ def test_load_case_annotations_rejects_duplicate_case_keys(tmp_path: Path) -> No
                 "scenario_id": "s001",
                 "variable": "income_tax",
                 "case_annotation": "First.",
+                "case_failure_sources": "llm_error",
+                "case_failure_subtypes": "thresholds_rates",
             },
             {
                 "scenario_id": "s001",
                 "variable": "income_tax",
                 "case_annotation": "Duplicate.",
+                "case_failure_sources": "llm_error",
+                "case_failure_subtypes": "thresholds_rates",
             },
         ]
     ).to_csv(annotations_dir / "us_case_notes.csv", index=False)
@@ -180,6 +219,8 @@ def test_merge_case_annotations_attaches_notes_to_prediction_rows() -> None:
                 "scenario_id": "s001",
                 "variable": "income_tax",
                 "case_annotation": "Shared case note.",
+                "case_failure_sources": "llm_error",
+                "case_failure_subtypes": "thresholds_rates",
             }
         ]
     )
@@ -187,3 +228,5 @@ def test_merge_case_annotations_attaches_notes_to_prediction_rows() -> None:
     merged = merge_case_annotations(predictions, case_annotations)
 
     assert merged["case_annotation"].tolist() == ["Shared case note."]
+    assert merged["case_failure_sources"].tolist() == ["llm_error"]
+    assert merged["case_failure_subtypes"].tolist() == ["thresholds_rates"]

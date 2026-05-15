@@ -378,14 +378,27 @@ def _prediction_detail_rows(
                 "error",
                 "score",
                 "annotation",
+                "failure_source",
+                "failure_subtype",
                 "case_annotation",
+                "case_failure_sources",
+                "case_failure_subtypes",
             ]
         )
 
     prediction_columns = ["model", "scenario_id", "variable", "prediction"]
     optional_columns = [
         column
-        for column in ["explanation", "error", "annotation", "case_annotation"]
+        for column in [
+            "explanation",
+            "error",
+            "annotation",
+            "failure_source",
+            "failure_subtype",
+            "case_annotation",
+            "case_failure_sources",
+            "case_failure_subtypes",
+        ]
         if column in predictions.columns
     ]
     prediction_details = predictions[prediction_columns + optional_columns].rename(
@@ -403,8 +416,16 @@ def _prediction_detail_rows(
         merged["prediction_error"] = pd.NA
     if "annotation" not in merged.columns:
         merged["annotation"] = pd.NA
+    if "failure_source" not in merged.columns:
+        merged["failure_source"] = pd.NA
+    if "failure_subtype" not in merged.columns:
+        merged["failure_subtype"] = pd.NA
     if "case_annotation" not in merged.columns:
         merged["case_annotation"] = pd.NA
+    if "case_failure_sources" not in merged.columns:
+        merged["case_failure_sources"] = pd.NA
+    if "case_failure_subtypes" not in merged.columns:
+        merged["case_failure_subtypes"] = pd.NA
 
     merged["parsed"] = merged["prediction"].notna()
     merged["error"] = np.where(
@@ -1389,6 +1410,12 @@ def build_dashboard_payload(
         annotation = row.get("annotation")
         if isinstance(annotation, str) and annotation.strip():
             prediction_item["annotation"] = annotation.strip()
+        failure_source = row.get("failure_source")
+        if isinstance(failure_source, str) and failure_source.strip():
+            prediction_item["failureSource"] = failure_source.strip()
+        failure_subtype = row.get("failure_subtype")
+        if isinstance(failure_subtype, str) and failure_subtype.strip():
+            prediction_item["failureSubtype"] = failure_subtype.strip()
         case_annotation = row.get("case_annotation")
         if (
             isinstance(case_annotation, str)
@@ -1396,6 +1423,20 @@ def build_dashboard_payload(
             and row["score"] < 1
         ):
             prediction_item["caseAnnotation"] = case_annotation.strip()
+        case_failure_sources = row.get("case_failure_sources")
+        if (
+            isinstance(case_failure_sources, str)
+            and case_failure_sources.strip()
+            and row["score"] < 1
+        ):
+            prediction_item["caseFailureSources"] = case_failure_sources.strip()
+        case_failure_subtypes = row.get("case_failure_subtypes")
+        if (
+            isinstance(case_failure_subtypes, str)
+            and case_failure_subtypes.strip()
+            and row["score"] < 1
+        ):
+            prediction_item["caseFailureSubtypes"] = case_failure_subtypes.strip()
         prediction_error = _clean_json_text(row.get("prediction_error"))
         if prediction_error:
             prediction_item["predictionError"] = prediction_error

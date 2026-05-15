@@ -681,12 +681,16 @@ class TestSummaries:
                 "prediction": [110.0, 1.0, 210.0, 0.0],
                 "explanation": ["brief note", None, None, None],
                 "annotation": ["off by 10%", None, None, None],
+                "failure_source": ["llm_error", None, None, None],
+                "failure_subtype": ["thresholds_rates", None, None, None],
                 "case_annotation": [
                     "two models missed the bracket",
                     None,
                     None,
                     None,
                 ],
+                "case_failure_sources": ["llm_error", None, None, None],
+                "case_failure_subtypes": ["thresholds_rates", None, None, None],
             }
         )
         scenarios_df = pd.DataFrame(
@@ -739,9 +743,33 @@ class TestSummaries:
         )
         assert (
             payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"][
+                "failureSource"
+            ]
+            == "llm_error"
+        )
+        assert (
+            payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"][
+                "failureSubtype"
+            ]
+            == "thresholds_rates"
+        )
+        assert (
+            payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"][
                 "caseAnnotation"
             ]
             == "two models missed the bracket"
+        )
+        assert (
+            payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"][
+                "caseFailureSources"
+            ]
+            == "llm_error"
+        )
+        assert (
+            payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"][
+                "caseFailureSubtypes"
+            ]
+            == "thresholds_rates"
         )
 
     def test_build_dashboard_payload_keeps_missing_predictions_as_misses(self):

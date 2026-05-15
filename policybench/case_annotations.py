@@ -10,6 +10,7 @@ from typing import Sequence
 import pandas as pd
 
 from policybench.analysis import score_single_prediction
+from policybench.annotation_taxonomy import infer_failure_category
 from policybench.full_run_export import load_annotations, load_predictions
 from policybench.spec import metric_type_for_output
 
@@ -120,12 +121,40 @@ def wrong_prediction_rows(country_dir: Path) -> pd.DataFrame:
     annotations = load_annotations(country_dir)
     if not annotations.empty:
         wrong = wrong.merge(
-            annotations[["model", "scenario_id", "variable", "annotation"]],
+            annotations[
+                [
+                    "model",
+                    "scenario_id",
+                    "variable",
+                    "annotation",
+                    "failure_source",
+                    "failure_subtype",
+                ]
+            ],
             on=["model", "scenario_id", "variable"],
             how="left",
         )
     if "annotation" not in wrong.columns:
         wrong["annotation"] = pd.NA
+    for column in ["failure_source", "failure_subtype"]:
+        if column not in wrong.columns:
+            wrong[column] = pd.NA
+    missing_categories = (
+        wrong["annotation"].astype("string").fillna("").str.strip() != ""
+    ) & (
+        (wrong["failure_source"].astype("string").fillna("").str.strip() == "")
+        | (wrong["failure_subtype"].astype("string").fillna("").str.strip() == "")
+    )
+    if missing_categories.any():
+        inferred = wrong.loc[missing_categories, "annotation"].map(
+            infer_failure_category
+        )
+        wrong.loc[missing_categories, "failure_source"] = [
+            category.failure_source for category in inferred
+        ]
+        wrong.loc[missing_categories, "failure_subtype"] = [
+            category.failure_subtype for category in inferred
+        ]
     return wrong
 
 
@@ -221,6 +250,13 @@ def _case_annotation(
     return note
 
 
+def _joined_unique_values(group: pd.DataFrame, column: str) -> str:
+    values = sorted(
+        {str(value).strip() for value in group[column].dropna() if str(value).strip()}
+    )
+    return ";".join(values)
+
+
 def build_case_annotations(country_dir: Path) -> pd.DataFrame:
     """Build one grouped audit note per wrong scenario-output case."""
     country = country_dir.name
@@ -239,6 +275,14 @@ def build_case_annotations(country_dir: Path) -> pd.DataFrame:
                 "variable": variable,
                 "wrong_model_count": int(len(group)),
                 "total_model_count": total_model_count,
+                "case_failure_sources": _joined_unique_values(
+                    group,
+                    "failure_source",
+                ),
+                "case_failure_subtypes": _joined_unique_values(
+                    group,
+                    "failure_subtype",
+                ),
                 "case_annotation": _case_annotation(
                     group,
                     country,
@@ -254,6 +298,8 @@ def build_case_annotations(country_dir: Path) -> pd.DataFrame:
             "variable",
             "wrong_model_count",
             "total_model_count",
+            "case_failure_sources",
+            "case_failure_subtypes",
             "case_annotation",
         ],
     )
