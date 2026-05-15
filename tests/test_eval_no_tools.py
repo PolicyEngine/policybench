@@ -212,6 +212,37 @@ class TestExtractPredictions:
         )
         assert predictions == {"income_tax": 4923.0, "federal_refundable_credits": 0.0}
 
+    def test_extract_predictions_accepts_outputs_as_json_string(self):
+        predictions = extract_predictions(
+            content=json.dumps(
+                {
+                    "outputs": (
+                        json.dumps(
+                            {
+                                "income_tax": {
+                                    "value": 4923,
+                                    "explanation": (
+                                        "Taxable income is moderate. value = 4923"
+                                    ),
+                                },
+                                "federal_refundable_credits": {
+                                    "value": 0,
+                                    "explanation": "No refundable credits. value = 0",
+                                },
+                            }
+                        )
+                        + '"\n'
+                    )
+                }
+            ),
+            variables=["income_tax", "federal_refundable_credits"],
+            tool_calls=None,
+        )
+        assert predictions == {
+            "income_tax": 4923.0,
+            "federal_refundable_credits": 0.0,
+        }
+
     def test_extract_predictions_rejects_truncated_payload(
         self,
     ):
@@ -238,6 +269,37 @@ class TestExtractPredictions:
         )
         assert explanations == {
             "income_tax": "Taxable income is moderate.",
+            "federal_refundable_credits": None,
+        }
+
+    def test_extract_explanations_accepts_outputs_as_json_string(self):
+        explanations = extract_explanations(
+            content=json.dumps(
+                {
+                    "outputs": (
+                        json.dumps(
+                            {
+                                "income_tax": {
+                                    "value": 4923,
+                                    "explanation": (
+                                        "Taxable income is moderate. value = 4923"
+                                    ),
+                                },
+                                "federal_refundable_credits": {
+                                    "value": 0,
+                                    "explanation": "",
+                                },
+                            }
+                        )
+                        + '"\n'
+                    )
+                }
+            ),
+            variables=["income_tax", "federal_refundable_credits"],
+            tool_calls=None,
+        )
+        assert explanations == {
+            "income_tax": "Taxable income is moderate. value = 4923",
             "federal_refundable_credits": None,
         }
 

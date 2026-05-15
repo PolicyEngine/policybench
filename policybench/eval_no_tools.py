@@ -813,6 +813,44 @@ def _coerce_prediction_value(value) -> float | None:
     return None
 
 
+def _parse_json_object_string(value):
+    if not isinstance(value, str):
+        return value
+    try:
+        parsed = json.loads(value)
+    except Exception:
+        stripped = value.strip()
+        if not stripped.startswith(("{", "[")):
+            return value
+        try:
+            parsed, end = json.JSONDecoder().raw_decode(stripped)
+        except Exception:
+            return value
+        trailing = stripped[end:].strip()
+        if trailing and set(trailing) - {'"', "'"}:
+            return value
+        return parsed
+    return parsed
+
+
+def _extract_outputs_payload(payload):
+    """Return the nested outputs object from a provider payload, if present."""
+    if isinstance(payload, str):
+        payload = _parse_json_object_string(payload)
+
+    if not isinstance(payload, dict):
+        return payload
+
+    outputs = payload.get("outputs")
+    if outputs is None:
+        return payload
+
+    outputs = _parse_json_object_string(outputs)
+    if isinstance(outputs, dict):
+        return outputs
+    return payload
+
+
 def _extract_terminal_explanation_value(explanation: str) -> float | None:
     match = EXPLANATION_VALUE_RE.search(explanation.strip())
     if not match:
@@ -852,14 +890,7 @@ def _extract_predictions_from_payload(
     payload,
     variables: list[str],
 ) -> dict[str, float | None]:
-    if isinstance(payload, str):
-        try:
-            payload = json.loads(payload)
-        except Exception:
-            payload = None
-
-    if isinstance(payload, dict) and isinstance(payload.get("outputs"), dict):
-        payload = payload["outputs"]
+    payload = _extract_outputs_payload(payload)
 
     predictions = {variable: None for variable in variables}
     if isinstance(payload, dict):
@@ -874,19 +905,11 @@ def _extract_explanations_from_payload(
     payload,
     variables: list[str],
 ) -> dict[str, str | None]:
-    if isinstance(payload, str):
-        try:
-            payload = json.loads(payload)
-        except Exception:
-            payload = None
-
     explanations = {variable: None for variable in variables}
-    if not isinstance(payload, dict):
-        return explanations
-
-    output_payload = payload.get("outputs")
+    output_payload = _extract_outputs_payload(payload)
     if not isinstance(output_payload, dict):
         return explanations
+
     for variable in variables:
         value = output_payload.get(variable)
         if not isinstance(value, dict):

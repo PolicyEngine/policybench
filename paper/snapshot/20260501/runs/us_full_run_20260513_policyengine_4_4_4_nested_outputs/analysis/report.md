@@ -14,7 +14,7 @@ Total cost: `73.482` USD. Estimated total runtime: `809.5 min`.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | claude-haiku-4.5 | 6.157 | 2188 | 93.0 min | 4228837.000 | 0.000 | 2183 | 2188 |
 | claude-opus-4.7 | 16.335 | 2188 | 62.0 min | 2273473.000 | 0.000 | 2188 | 2188 |
-| claude-sonnet-4.6 | 24.665 | 2188 | 149.3 min | 4825685.000 | 0.000 | 2062 | 2188 |
+| claude-sonnet-4.6 | 24.665 | 2188 | 149.3 min | 4825685.000 | 0.000 | 2104 | 2188 |
 | gemini-3-flash-preview | 0.485 | 2188 | 10.3 min | 295006.000 | n/a | 2167 | 2188 |
 | gemini-3.1-flash-lite-preview | 0.266 | 2188 | 9.1 min | 314039.000 | 17328.000 | 2161 | 2188 |
 | gemini-3.1-pro-preview | 3.108 | 2188 | 30.3 min | 411366.000 | 94842.000 | 2068 | 2188 |
@@ -32,9 +32,9 @@ Total cost: `73.482` USD. Estimated total runtime: `809.5 min`.
 | gpt-5.5 | 0.896 | 0.868 | 0.881 | 0.909 | 0.925 | 0.968 | 134.793 | 2188 |
 | grok-4.20 | 0.889 | 0.868 | 0.872 | 0.895 | 0.919 | 0.977 | 175.147 | 2188 |
 | claude-opus-4.7 | 0.873 | 0.851 | 0.857 | 0.883 | 0.903 | 0.940 | 191.783 | 2188 |
+| claude-sonnet-4.6 | 0.870 | 0.857 | 0.857 | 0.875 | 0.889 | 0.956 | 123.035 | 2188 |
 | grok-4.3 | 0.867 | 0.852 | 0.858 | 0.870 | 0.886 | 0.958 | 309.236 | 2188 |
 | gemini-3-flash-preview | 0.866 | 0.851 | 0.854 | 0.872 | 0.887 | 0.969 | 223.213 | 2188 |
-| claude-sonnet-4.6 | 0.850 | 0.838 | 0.838 | 0.855 | 0.870 | 0.913 | 123.117 | 2188 |
 | gemini-3.1-flash-lite-preview | 0.849 | 0.836 | 0.841 | 0.855 | 0.865 | 0.939 | 283.619 | 2188 |
 | gemini-3.1-pro-preview | 0.840 | 0.823 | 0.827 | 0.847 | 0.863 | 0.935 | 173.346 | 2188 |
 | gpt-5.4-mini | 0.839 | 0.827 | 0.836 | 0.844 | 0.850 | 0.911 | 425.128 | 2188 |
@@ -51,7 +51,7 @@ Households receive equal weight. Within each household, requested output rows ge
 | gpt-5.5 | 0.703 | 0.905 | 1.000 | 100 |
 | claude-opus-4.7 | 0.675 | 0.884 | 1.000 | 100 |
 | grok-4.20 | 0.653 | 0.900 | 1.000 | 100 |
-| claude-sonnet-4.6 | 0.632 | 0.863 | 0.944 | 100 |
+| claude-sonnet-4.6 | 0.638 | 0.882 | 0.964 | 100 |
 | gemini-3-flash-preview | 0.624 | 0.878 | 0.990 | 100 |
 | grok-4.3 | 0.606 | 0.882 | 1.000 | 100 |
 | gemini-3.1-flash-lite-preview | 0.596 | 0.866 | 0.990 | 100 |
@@ -69,20 +69,20 @@ Amount variables use the tolerance columns. Binary coverage flags use `mean_accu
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | federal_income_tax_before_refundable_credits | amount_tolerance | 0.427 | 0.357 | 0.378 | 0.452 | 0.521 | n/a | 2100.800 | 1200 |
 | federal_refundable_credits | amount_tolerance | 0.743 | 0.727 | 0.733 | 0.745 | 0.767 | n/a | 569.178 | 1200 |
-| free_school_meals_eligible | binary_accuracy | 0.927 | 0.927 | 0.927 | 0.927 | 0.927 | 0.927 | 0.025 | 1200 |
+| free_school_meals_eligible | binary_accuracy | 0.938 | 0.938 | 0.938 | 0.938 | 0.938 | 0.938 | 0.025 | 1200 |
 | local_income_tax | amount_tolerance | 0.955 | 0.955 | 0.955 | 0.955 | 0.955 | n/a | 21.338 | 1200 |
-| payroll_tax | amount_tolerance | 0.686 | 0.564 | 0.619 | 0.742 | 0.821 | n/a | 404.635 | 1200 |
-| person_chip_eligible | binary_accuracy | 0.906 | 0.906 | 0.906 | 0.906 | 0.906 | 0.906 | 0.059 | 2412 |
+| payroll_tax | amount_tolerance | 0.687 | 0.565 | 0.620 | 0.743 | 0.822 | n/a | 404.533 | 1200 |
+| person_chip_eligible | binary_accuracy | 0.907 | 0.907 | 0.907 | 0.907 | 0.907 | 0.907 | 0.059 | 2412 |
 | person_early_head_start_eligible | binary_accuracy | 0.921 | 0.921 | 0.921 | 0.921 | 0.921 | 0.921 | 0.052 | 504 |
 | person_head_start_eligible | binary_accuracy | 0.897 | 0.897 | 0.897 | 0.897 | 0.897 | 0.897 | 0.074 | 504 |
-| person_medicaid_eligible | binary_accuracy | 0.863 | 0.863 | 0.863 | 0.863 | 0.863 | 0.863 | 0.103 | 2412 |
+| person_medicaid_eligible | binary_accuracy | 0.865 | 0.865 | 0.865 | 0.865 | 0.865 | 0.865 | 0.103 | 2412 |
 | person_medicare_eligible | binary_accuracy | 0.932 | 0.932 | 0.932 | 0.932 | 0.932 | 0.932 | 0.033 | 2412 |
-| person_wic_eligible | binary_accuracy | 0.935 | 0.935 | 0.935 | 0.935 | 0.935 | 0.935 | 0.030 | 2412 |
+| person_wic_eligible | binary_accuracy | 0.937 | 0.937 | 0.937 | 0.937 | 0.937 | 0.937 | 0.030 | 2412 |
 | premium_tax_credit | amount_tolerance | 0.892 | 0.892 | 0.892 | 0.892 | 0.892 | n/a | 780.854 | 1200 |
-| reduced_price_school_meals_eligible | binary_accuracy | 0.927 | 0.927 | 0.927 | 0.927 | 0.927 | 0.927 | 0.024 | 1200 |
+| reduced_price_school_meals_eligible | binary_accuracy | 0.940 | 0.940 | 0.940 | 0.940 | 0.940 | 0.940 | 0.024 | 1200 |
 | self_employment_tax | amount_tolerance | 0.932 | 0.914 | 0.937 | 0.938 | 0.940 | n/a | 37.358 | 1200 |
 | snap | amount_tolerance | 0.719 | 0.705 | 0.710 | 0.728 | 0.735 | n/a | 767.884 | 1200 |
-| ssi | amount_tolerance | 0.945 | 0.942 | 0.945 | 0.946 | 0.947 | n/a | 114.575 | 1200 |
+| ssi | amount_tolerance | 0.946 | 0.943 | 0.946 | 0.947 | 0.948 | n/a | 114.548 | 1200 |
 | state_income_tax_before_refundable_credits | amount_tolerance | 0.439 | 0.393 | 0.385 | 0.460 | 0.518 | n/a | 554.590 | 1200 |
 | state_refundable_credits | amount_tolerance | 0.779 | 0.775 | 0.778 | 0.781 | 0.782 | n/a | 111.245 | 1200 |
 | tanf | amount_tolerance | 0.938 | 0.938 | 0.938 | 0.938 | 0.938 | n/a | 128.764 | 1200 |
