@@ -12,3 +12,11 @@ Row annotations also include `failure_source` and `failure_subtype`. Allowed `fa
 For future audits, reviewers should proceed within each variable family by grouping rows first on `(scenario_id, variable)`, reviewing all wrong model responses for that group side by side, and then writing the shared case note before adding any model-specific row notes.
 
 `policybench.annotation_validation` enforces both layers: every wrong prediction row must have a row annotation and structured category, and every scenario-output case with at least one wrong prediction must have a case annotation and grouped category summary.
+
+Validate these annotations against the frozen paper snapshot with:
+
+```bash
+uv run python -m policybench.annotation_validation \
+  --snapshot-dir paper/snapshot/20260501 \
+  --annotations-dir annotations/full_run_20260513_policyengine_4_4_4_nested_outputs
+```

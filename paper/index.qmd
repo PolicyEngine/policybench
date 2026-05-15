@@ -40,6 +40,7 @@ IMPACT_SNAPSHOT_DIR = "paper/snapshot/20260501"
 US_DASHBOARD_EXPORT = f"{IMPACT_SNAPSHOT_DIR}/runs/{US_RUN_LABEL}/data.json"
 UK_DASHBOARD_EXPORT = f"{IMPACT_SNAPSHOT_DIR}/runs/{UK_RUN_LABEL}/data.json"
 SNAPSHOT_EXPORT = f"{US_DASHBOARD_EXPORT}; {UK_DASHBOARD_EXPORT}"
+ANNOTATION_DIR = "annotations/full_run_20260513_policyengine_4_4_4_nested_outputs"
 UK_TRANSFER_ARTIFACT = "enhanced_cps_2025.h5"
 UK_TRANSFER_ARTIFACT_SHA256 = "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
 UK_TRANSFER_ARTIFACT_REPO = "PolicyEngine/policyengine-uk-data"
@@ -464,6 +465,50 @@ def retry_score_sensitivity_table() -> pd.DataFrame:
     )
 
 
+def deviation_audit_summary_table() -> pd.DataFrame:
+    from policybench.annotation_validation import validate_snapshot_audit
+
+    rows = []
+    annotations_dir = ROOT / ANNOTATION_DIR
+    for country in ["us", "uk"]:
+        result = validate_snapshot_audit(
+            snapshot_dir=ROOT / IMPACT_SNAPSHOT_DIR,
+            annotations_dir=annotations_dir,
+            country=country,
+        )
+        wrong = result["wrong"]
+        annotations = pd.concat(
+            pd.read_csv(path)
+            for path in sorted(annotations_dir.glob(f"{country}_*_annotations.csv"))
+        )
+        audited = wrong.merge(
+            annotations[["model", "scenario_id", "variable", "failure_source"]],
+            on=["model", "scenario_id", "variable"],
+            how="left",
+        )
+        source_counts = audited["failure_source"].value_counts()
+        rows.append(
+            {
+                "Country": country.upper(),
+                "Wrong rows audited": len(wrong),
+                "LLM numeric/policy errors": int(source_counts.get("llm_error", 0)),
+                "Parse-contract failures": int(
+                    source_counts.get("parse_contract_failure", 0)
+                ),
+                "Unresolved prompt/reference rows": len(result["unresolved_rows"]),
+                "Missing row annotations": len(result["missing_rows"]),
+                "Missing case notes": len(result["missing_cases"]),
+            }
+        )
+    frame = pd.DataFrame(rows)
+    total = frame.drop(columns=["Country"]).sum(numeric_only=True)
+    frame = pd.concat(
+        [frame, pd.DataFrame([{**{"Country": "Total"}, **total.to_dict()}])],
+        ignore_index=True,
+    )
+    return frame
+
+
 def simple_baselines() -> pd.DataFrame:
     from policybench.analysis import household_equal_impact_scores
 
@@ -765,6 +810,7 @@ federal_state_joint = federal_state_joint_accuracy()
 impact_floor = impact_floor_sensitivity()
 retry_round_summary = retry_round_summary_table()
 retry_score_sensitivity = retry_score_sensitivity_table()
+deviation_audit_summary = deviation_audit_summary_table()
 snapshot_provenance = pd.DataFrame(
     [
         ["Snapshot date", SNAPSHOT_DATE],
@@ -780,6 +826,7 @@ snapshot_provenance = pd.DataFrame(
         ],
         ["Snapshot manifest", f"{IMPACT_SNAPSHOT_DIR}/manifest.json"],
         ["Response retry artifacts", f"{IMPACT_SNAPSHOT_DIR}/response_retries"],
+        ["Deviation annotations", ANNOTATION_DIR],
         ["US scenarios SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_scenarios.csv")],
         ["US reference outputs SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_reference_outputs.csv")],
         ["UK scenarios SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/uk_scenarios.csv")],
@@ -1034,12 +1081,20 @@ The UK data path is more synthetic than the enhanced FRS pipeline and inherits l
 
 PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and externally checked in specific domains. In the UK, No. 10's data science team adapted PolicyEngine's open-source microsimulation model for experimental policy simulation, with validation against external projections before use [@woodruff2026no10; @policyengine2026downing]. In the US, PolicyEngine reports matching the National Bureau of Economic Research (NBER) TAXSIM-35 model to the cent on the vast majority of cases for the 2021 tax year across hundreds of thousands of tax units per state, with state-specific differences documented in PolicyEngine's integration tests [@policyengine2024statetax; @feenberg1993taxsim]. We do not restate that comparison as a single percentage because the published source uses qualitative phrasing rather than a headline accuracy number. PolicyEngine has also signed a memorandum of understanding with the Federal Reserve Bank of Atlanta for future validation work against the Atlanta Fed's Policy Rules Database [@policyengine2025atlantafed; @atlantafed2026prd]. The Atlanta Fed sources are a caveat rather than evidence of completed validation for this benchmark: they document planned collaboration and the comparison source, not finished checks of the frozen PolicyBench outputs. Taken together, these sources support using PolicyEngine as a transparent reference implementation with partial external validation, but they do not validate every benchmark output.
 
-This does not make PolicyEngine infallible. During benchmark development, we performed a manual, developer-led discrepancy review, with LLM assistance used to triage and summarize candidate cases surfaced by model explanations. @tbl-reference-review summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects. This is a qualitative development audit, not an independent sampled validation study or exhaustive validation of every reference value.
+This does not make PolicyEngine infallible. During benchmark development, we performed a manual, developer-led discrepancy review, with LLM assistance used to triage and summarize candidate cases surfaced by model explanations. @tbl-reference-review summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects.
+
+After freezing the snapshot, we also annotated every wrong model-output row and every scenario-output case with at least one wrong row. @tbl-deviation-audit reports that all `7,664` rows receiving less than full score have row-level and case-level annotations. The final row-level sources are `llm_error` and `parse_contract_failure`; no frozen-snapshot wrong row remains classified as a prompt ambiguity, unresolved reference-model issue, unresolved reference-data issue, or needs-review item. In this paper, "LLM response error" therefore includes both parsed numeric/policy errors and response-contract failures. The audit is still developer-led rather than independent external validation, but it is exhaustive over scored misses in the frozen snapshot.
 
 ```{python}
 #| label: tbl-reference-review
 #| tbl-cap: "Development discrepancy review before the frozen snapshot."
 reference_audit
+```
+
+```{python}
+#| label: tbl-deviation-audit
+#| tbl-cap: "Exhaustive annotation coverage for scored misses in the frozen snapshot."
+deviation_audit_summary
 ```
 
 ## Results
@@ -1179,7 +1234,7 @@ PolicyBench is not a substitute for a production tax-and-benefit calculator. Sev
 - the public UK calibrated transfer dataset is not equivalent to enhanced Family Resources Survey quality and is not population-representative UK microdata
 - the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail
 - the 100-household manuscript snapshot should be treated as a preview until larger frozen runs are published
-- the discrepancy review is a qualitative developer audit, not an exhaustive external validation of every reference value
+- the scored-miss audit is exhaustive over this frozen snapshot, but it is developer-led and not an independent validation of every reference value
 - benchmark success should not be interpreted as policy-advice readiness
 
 The current paper is therefore an evaluation of model performance under a specific structured-output benchmark, not a general certification of tax or benefit competence.

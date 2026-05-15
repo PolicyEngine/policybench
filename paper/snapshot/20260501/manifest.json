@@ -59,14 +59,14 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "b45d173365a880b5131bc4f302d6207b1c48d4efbe57272bf92f27b2a53e7dab"
+      "sha256": "49d44105a96eeefda614284dc4d91bcf5535cd1a1136e1f81783c2de91b74eff"
     },
     "web": {
       "path": "app/public/paper/web",
       "files": {
         "figures/global_leaderboard.png": "05ca6ec8abcfb1fdd603f40e725de308828e8210e6995004d49384402dc6f0e1",
         "figures/positive_zero_scatter.png": "2f16ae63ff3f351381b509dfcb5ca3287ae3d6c6dc75c9579df4abace80ecbae",
-        "index.html": "344e0aa786c92deac60a6661f826ab1170fbca37aa11b464808e91e04db7de3e",
+        "index.html": "60a14c4de9e63d2df33293ce8309251ffd9d889356080510a7c4a39b2147a204",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -170,6 +170,19 @@
       "round_2/us/retry_metadata.json": "21d31a1d23aa91ae474b45b471abc3186938659ed14235fae46c21fd05264b5b",
       "round_2/us/retry_predictions.csv.gz": "ca6d7bb54e206298a31a64a0f57b41278101cf8adaf505013bf3a6e18693d849",
       "round_2/us/target_units.csv": "16063df9142b6e8bfbc23c4520fbb85317cd69f8ad22dfd782b61ce72890f178"
+    }
+  },
+  "audit_annotation_artifacts": {
+    "path": "annotations/full_run_20260513_policyengine_4_4_4_nested_outputs",
+    "note": "Developer-led row and case annotations for every wrong prediction row in the frozen source run. Final failure_source values are limited to llm_error and parse_contract_failure.",
+    "files": {
+      "README.md": "1a9412942392681dc00041717c0c4a04aa6edd790132b5ebfd4cc33deb04545f",
+      "uk_benefit_annotations.csv": "64c3bb585aadaa5b1097b5f264e9d75a9438b372f4ee824079f53a9d73590729",
+      "uk_case_notes.csv": "f98a15338bf487938cdb8480141acf5c3572a5b1724224b1cf9611b677ae4c87",
+      "uk_tax_annotations.csv": "ae841ee03160ed672cd73798eb988e428212c60d501461b7054417032a60da3c",
+      "us_benefit_annotations.csv": "5e1cd313e22f7edf009a22d62ec1947733ab0be4cc0839ba29d467a6e01d47dc",
+      "us_case_notes.csv": "3b740199a1c76b793679ae28230cff0aa640de8b995b5f2695ba600d3623d884",
+      "us_tax_annotations.csv": "c7bfbde8f955b2a1f14e0239d89ec68d4687e9602045677ebbe750b3065fe255"
     }
   }
 }

@@ -7,9 +7,13 @@ from pathlib import Path
 import pandas as pd
 
 from policybench.analysis import build_global_dashboard_payload
+from policybench.annotation_validation import validate_snapshot_audit
 
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
+ANNOTATIONS_DIR = (
+    ROOT / "annotations" / "full_run_20260513_policyengine_4_4_4_nested_outputs"
+)
 
 
 def sha256(path: Path) -> str:
@@ -55,6 +59,22 @@ def test_snapshot_manifest_hashes_match_rendered_paper_artifacts():
     web_dir = ROOT / web["path"]
     for relative_path, expected_hash in web["files"].items():
         _assert_hash(web_dir / relative_path, expected_hash)
+
+
+def test_snapshot_manifest_hashes_match_response_retry_artifacts():
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    retry_artifacts = manifest["response_retry_artifacts"]
+    retry_dir = ROOT / retry_artifacts["path"]
+    for relative_path, expected_hash in retry_artifacts["files"].items():
+        _assert_hash(retry_dir / relative_path, expected_hash)
+
+
+def test_snapshot_manifest_hashes_match_audit_annotation_artifacts():
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    annotation_artifacts = manifest["audit_annotation_artifacts"]
+    annotation_dir = ROOT / annotation_artifacts["path"]
+    for relative_path, expected_hash in annotation_artifacts["files"].items():
+        _assert_hash(annotation_dir / relative_path, expected_hash)
 
 
 def _snapshot_country_payloads(manifest: dict) -> dict[str, dict]:
@@ -125,3 +145,39 @@ def test_snapshot_copied_artifacts_match_source_runs():
         )
         source_references = pd.read_csv(run_dir / "reference_outputs.csv")
         pd.testing.assert_frame_equal(copied_references, source_references)
+
+
+def test_snapshot_deviation_audit_annotations_are_complete_and_final():
+    expected_wrong_rows = {
+        "us": 4_533,
+        "uk": 3_131,
+    }
+    expected_sources = {
+        "us": {"llm_error": 3_489, "parse_contract_failure": 1_044},
+        "uk": {"llm_error": 2_192, "parse_contract_failure": 939},
+    }
+
+    for country in ["us", "uk"]:
+        result = validate_snapshot_audit(
+            snapshot_dir=SNAPSHOT_DIR,
+            annotations_dir=ANNOTATIONS_DIR,
+            country=country,
+        )
+        assert len(result["wrong"]) == expected_wrong_rows[country]
+        assert result["missing_rows"].empty
+        assert result["unresolved_rows"].empty
+        assert result["missing_cases"].empty
+
+        annotations = pd.concat(
+            pd.read_csv(path)
+            for path in sorted(ANNOTATIONS_DIR.glob(f"{country}_*_annotations.csv"))
+        )
+        audited = result["wrong"].merge(
+            annotations[["model", "scenario_id", "variable", "failure_source"]],
+            on=["model", "scenario_id", "variable"],
+            how="left",
+        )
+        assert (
+            audited["failure_source"].value_counts().to_dict()
+            == expected_sources[country]
+        )
