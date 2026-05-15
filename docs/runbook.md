@@ -151,13 +151,62 @@ gemini-3.1-flash-lite-preview
 ```
 
 The runner skips complete chunks and rewrites per-model merged CSVs on resume.
-Missing predictions and missing explanations caused by model output contract
-failures are benchmark outcomes; they are scored through coverage rather than
-retried until success. Provider transport, timeout, rate-limit, server,
-authentication, and request-configuration errors are infrastructure failures;
-chunks containing those errors remain incomplete and should be retried or rerun.
+Provider transport, timeout, rate-limit, server, authentication, and
+request-configuration errors are infrastructure failures; chunks containing
+those errors remain incomplete and should be retried or rerun.
 
-## 5. Merge and Export
+## 5. Retry Broken Full Responses
+
+Before freezing a paid run, run bounded full-response retries for households
+where a model violated the canonical response contract. The contract requires
+one numeric answer and one nonempty explanation for every requested output.
+Retries target the full `(country, model, household)` response, not individual
+output rows, so the final file never mixes values from different attempts within
+one model-household response.
+
+```bash
+uv run policybench retry-failed-responses \
+  --country us \
+  --source-predictions "$RUN_DIR/us/predictions.csv" \
+  --scenario-manifest "$RUN_DIR/us/scenarios.csv" \
+  --output-dir "$RUN_DIR/us/response_retries/round_1" \
+  --chunk-size 5 \
+  --parallel 2 \
+  --model-parallel 2 \
+  --chunk-attempts 1
+```
+
+For later rounds, pass the previous round's `merged_predictions.csv.gz` as
+`--source-predictions` and write to a new round directory.
+
+```bash
+uv run policybench retry-failed-responses \
+  --country us \
+  --source-predictions "$RUN_DIR/us/response_retries/round_1/merged_predictions.csv.gz" \
+  --scenario-manifest "$RUN_DIR/us/scenarios.csv" \
+  --output-dir "$RUN_DIR/us/response_retries/round_2" \
+  --chunk-size 5 \
+  --parallel 2 \
+  --model-parallel 2 \
+  --chunk-attempts 1
+```
+
+Each retry directory writes:
+
+- `target_units.csv`: full responses selected for retry.
+- `original_failed_responses.csv.gz`: the original rows for those responses.
+- `retry_predictions.csv`: raw retry rows returned by the models.
+- `accepted_retry_units.csv`: responses that fully satisfied the contract.
+- `rejected_retry_units.csv`: responses rejected and why.
+- `accepted_retry_rows.csv.gz`: retry rows accepted into the merged file.
+- `replaced_original_responses.csv.gz`: original rows replaced by accepted retries.
+- `merged_predictions.csv.gz`: source predictions with accepted full responses replaced.
+
+Use `--prepare-only` to estimate retry scope without model calls. Use repeated
+`--model` flags for targeted later rounds when an earlier round shows that some
+models have near-zero retry yield.
+
+## 6. Merge and Export
 
 After all per-model files exist, run one final merge pass per country. This
 should skip all completed chunks and write the combined `predictions.csv`.
@@ -177,6 +226,11 @@ done
 uv run python -m policybench.cli export-full-run --run-dir "$RUN_DIR"
 ```
 
+If a retry round is adopted for the public snapshot, point analysis and
+`export-full-run` at the final `merged_predictions.csv.gz`, not the pre-retry
+prediction file. Keep the retry directory with the frozen snapshot so readers
+can inspect both the original failed responses and the accepted replacements.
+
 Then run verification before committing or deploying.
 
 ```bash
@@ -184,7 +238,7 @@ uv run pytest -q
 cd app && npm run lint && npm run build
 ```
 
-## 6. Progress and Cost Check
+## 7. Progress and Cost Check
 
 Use this during a run to inspect checkpoint coverage and estimated cost.
 

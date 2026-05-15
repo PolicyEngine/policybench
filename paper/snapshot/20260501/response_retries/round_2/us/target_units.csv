@@ -1,0 +1,10 @@
+country,model,scenario_id,missing_predictions,missing_explanations,infrastructure_error_rows,source_rows
+us,claude-haiku-4.5,scenario_000,1,2,0,21
+us,claude-haiku-4.5,scenario_009,0,1,0,27
+us,claude-haiku-4.5,scenario_049,1,1,0,21
+us,claude-haiku-4.5,scenario_068,0,1,0,17
+us,claude-haiku-4.5,scenario_072,1,1,0,21
+us,claude-haiku-4.5,scenario_082,1,1,0,33
+us,claude-haiku-4.5,scenario_090,1,1,0,21
+us,gemini-3.1-pro-preview,scenario_040,17,17,0,17
+us,gemini-3.1-pro-preview,scenario_066,21,21,0,21

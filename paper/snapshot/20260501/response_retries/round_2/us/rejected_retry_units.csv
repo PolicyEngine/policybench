@@ -1,0 +1,10 @@
+model,scenario_id,reason
+claude-haiku-4.5,scenario_000,missing retry prediction; missing retry explanation; retry row has parser or provider error
+claude-haiku-4.5,scenario_009,missing retry explanation; retry row has parser or provider error
+claude-haiku-4.5,scenario_049,missing retry prediction; missing retry explanation; retry row has parser or provider error
+claude-haiku-4.5,scenario_068,missing retry explanation; retry row has parser or provider error
+claude-haiku-4.5,scenario_072,missing retry prediction; missing retry explanation; retry row has parser or provider error
+claude-haiku-4.5,scenario_082,missing retry prediction; missing retry explanation; retry row has parser or provider error
+claude-haiku-4.5,scenario_090,missing retry prediction; missing retry explanation; retry row has parser or provider error
+gemini-3.1-pro-preview,scenario_040,missing retry prediction; missing retry explanation; retry row has parser or provider error
+gemini-3.1-pro-preview,scenario_066,missing retry prediction; missing retry explanation; retry row has parser or provider error

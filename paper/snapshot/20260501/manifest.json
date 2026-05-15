@@ -59,14 +59,14 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "41cec82eba0a81eed913db6218690d40fd9d8146864199eec11855c234f7c826"
+      "sha256": "b45d173365a880b5131bc4f302d6207b1c48d4efbe57272bf92f27b2a53e7dab"
     },
     "web": {
       "path": "app/public/paper/web",
       "files": {
         "figures/global_leaderboard.png": "05ca6ec8abcfb1fdd603f40e725de308828e8210e6995004d49384402dc6f0e1",
         "figures/positive_zero_scatter.png": "2f16ae63ff3f351381b509dfcb5ca3287ae3d6c6dc75c9579df4abace80ecbae",
-        "index.html": "c1e8309911364f1e64b5c28b2bd6d3201f5e8bdde7c7780a13bd564e38caeec4",
+        "index.html": "344e0aa786c92deac60a6661f826ab1170fbca37aa11b464808e91e04db7de3e",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -128,5 +128,48 @@
       "path": "runs/uk_full_run_20260513_policyengine_4_4_4_nested_outputs/data.json",
       "sha256": "f0e4af6c4a1f23f8fede55e006e708cea95c16fefaf385f397109ce58ef41391"
     }
-  ]
+  ],
+  "response_retry_artifacts": {
+    "path": "paper/snapshot/20260501/response_retries",
+    "note": "Bounded second-chance full-response retries. Accepted retries replace whole country-model-household responses only; rejected attempts and original failed responses are preserved.",
+    "files": {
+      "README.md": "a189319c1249c3312945e941cbd646942944da343b65bd3bb3eb5efd7d686060",
+      "round_1/uk/accepted_retry_rows.csv.gz": "e31e10d1a77c347d26bdfccd9215d6815e0ea7783fc2ba0d4f660e6bb18b392e",
+      "round_1/uk/accepted_retry_units.csv": "8f097ea559aebb4ad63e099953ddaceaa47f134c4d1b52ebab8ceefe55c61d86",
+      "round_1/uk/merged_predictions.csv.gz": "c49ced02991d50148aadd1a4b74f7b13e6f5a887341177c35bea3b647921d912",
+      "round_1/uk/original_failed_responses.csv.gz": "64430041c5ff3c7d9ce40062675b44bbd69de72c0dc809601602715bd9a46ba2",
+      "round_1/uk/rejected_retry_units.csv": "307d84636a0e9511fbe2cae40ad5aaf6a27309204e424a4bfc34230ac2025ed4",
+      "round_1/uk/replaced_original_responses.csv.gz": "f284a3e7f20359afb8f09f627b484138f8547a8b719bbf28fa734561e335c001",
+      "round_1/uk/retry_metadata.json": "c33c7fdb26fe9d41c06b06c55083df34c3b8025b8f8cf3ab640f09b54cc70cfa",
+      "round_1/uk/retry_predictions.csv.gz": "e2a0492a393ff1506738b58c1221ff95efc339545ac63d2015e4797159ca4af3",
+      "round_1/uk/target_units.csv": "bcbf4fe41fd0d44761bca6352fa1c50644d90edf6eb1ade953a3ef3ab842b5d3",
+      "round_1/us/accepted_retry_rows.csv.gz": "cde8b1d7e6774ba506ade04ac729bddfb1b30f6a76d5257e361b6ea7ccbfd490",
+      "round_1/us/accepted_retry_units.csv": "c7dd1d425d0a9d90a9972e45c89677ed5d3ee73fb3cee23f2062a161ad42cf50",
+      "round_1/us/merged_predictions.csv.gz": "ad19c360198513c378c96ecd3fc6066abfced09ef5e10e5949093507bb7571a7",
+      "round_1/us/original_failed_responses.csv.gz": "159b8fd34d704a71e5e2ca23d4719d96702b8f9a2ff4f743312c51ade27d8229",
+      "round_1/us/rejected_retry_units.csv": "b7857ff43bdb6c471827924946a17a483e36c66d5bdb07df5c325cd973b0f29d",
+      "round_1/us/replaced_original_responses.csv.gz": "452edf06b7ba886a19cf43e73f23bfbbb63a2f080d76ab272d6bda2d8955e9ee",
+      "round_1/us/retry_metadata.json": "b5ef33621d3de5874471b627b2698942e54cbb32dd4e825a3532d703ae1a140d",
+      "round_1/us/retry_predictions.csv.gz": "37656720b1bc7482bc0d19bfccb590997f2de135ad063eaee81d4a9a29d5c0eb",
+      "round_1/us/target_units.csv": "f5439d87992bc564c583cebcdecbd1231d821a6ead2aa4a420eecebeb7570cab",
+      "round_2/uk/accepted_retry_rows.csv.gz": "7e3e1e6868e2f02420a033bdd5cc50f9ff68fefd07fbb6925b6f2ce9733f6b92",
+      "round_2/uk/accepted_retry_units.csv": "a43b082aac2b45ca92cc7af9d9f4af9eaac89456dc5ca081f2ab70c0777d0c64",
+      "round_2/uk/merged_predictions.csv.gz": "ca0c5eec673c8288a36f28b1ae1d0f739137dc7b6582cf1221dd66dfc7bd3b17",
+      "round_2/uk/original_failed_responses.csv.gz": "5fa0c88f9baff3481a80148c6727fd2a3cd6ec6582f0bc30e89826c04511cbd8",
+      "round_2/uk/rejected_retry_units.csv": "4559aecb6866d28282f5319afe59e61569399832917dd6c729eb3e3a1926e9a8",
+      "round_2/uk/replaced_original_responses.csv.gz": "61f4d375beec8083f62c75839354e15fa77fa44c1e7b477ccf402ee96733c604",
+      "round_2/uk/retry_metadata.json": "0c6dbcdcd71970dfdd3eb109546a04268bf2ea9b6055feae14a7d0657b321307",
+      "round_2/uk/retry_predictions.csv.gz": "ec55869cec6352500259b73e7ee1ae75cdcaa0440d17cf6bb02aeb89c83958aa",
+      "round_2/uk/target_units.csv": "eb84c6934bf6301eca736864d217b899588e2dfca621877cf99d94e45828e9e4",
+      "round_2/us/accepted_retry_rows.csv.gz": "d34a1261f3ec2385ba2d91a384370834ce3692d594adb49fb1ddf4c6ef988b64",
+      "round_2/us/accepted_retry_units.csv": "a43b082aac2b45ca92cc7af9d9f4af9eaac89456dc5ca081f2ab70c0777d0c64",
+      "round_2/us/merged_predictions.csv.gz": "d48c8d2ba29e611359c0586035209ca46b4576051b7230bddecad1e6cb5994b3",
+      "round_2/us/original_failed_responses.csv.gz": "046e987b702bd88ca7f874540a6d013b27383a6a9469dd5c61f0fe1f6ba33e6f",
+      "round_2/us/rejected_retry_units.csv": "f8625ea09bee70310327c9f7c898a2be7f48ac06fce4642652992ed008529e7e",
+      "round_2/us/replaced_original_responses.csv.gz": "bd594c821d8034e4c1f44b9b82513676ab30d1fcc39986b28e089ce65620e526",
+      "round_2/us/retry_metadata.json": "21d31a1d23aa91ae474b45b471abc3186938659ed14235fae46c21fd05264b5b",
+      "round_2/us/retry_predictions.csv.gz": "ca6d7bb54e206298a31a64a0f57b41278101cf8adaf505013bf3a6e18693d849",
+      "round_2/us/target_units.csv": "16063df9142b6e8bfbc23c4520fbb85317cd69f8ad22dfd782b61ce72890f178"
+    }
+  }
 }

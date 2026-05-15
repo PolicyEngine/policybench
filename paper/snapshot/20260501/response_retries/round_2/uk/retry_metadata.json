@@ -1,0 +1,15 @@
+{
+  "country": "uk",
+  "max_responses": null,
+  "require_explanations": true,
+  "scenario_manifest": "paper/snapshot/20260501/runs/uk_full_run_20260513_policyengine_4_4_4_nested_outputs/scenarios.csv",
+  "scenario_manifest_sha256": "eee79fb1db36851fd3b0d3fd343c1dbe62f86222f45b1fe806a5e0f4e49645d2",
+  "source_predictions": "results/local/response_retries/round_1/uk/merged_predictions.csv.gz",
+  "source_predictions_sha256": "c49ced02991d50148aadd1a4b74f7b13e6f5a887341177c35bea3b647921d912",
+  "target_models": [
+    "claude-haiku-4.5",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3.1-pro-preview"
+  ],
+  "target_responses": 32
+}

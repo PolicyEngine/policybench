@@ -474,6 +474,74 @@ def main():
     compare_parser.add_argument("--single-predictions", required=True)
     compare_parser.add_argument("--output-dir", required=True)
 
+    # Retry failed full responses
+    retry_parser = subparsers.add_parser(
+        "retry-failed-responses",
+        help=(
+            "Retry full country-model-household responses with missing "
+            "predictions or explanations"
+        ),
+    )
+    retry_parser.add_argument(
+        "--country",
+        choices=sorted(COUNTRY_PROGRAMS),
+        required=True,
+    )
+    retry_parser.add_argument("--source-predictions", required=True)
+    retry_parser.add_argument("--scenario-manifest", required=True)
+    retry_parser.add_argument("--output-dir", required=True)
+    retry_parser.add_argument(
+        "--program-set",
+        default=DEFAULT_PROGRAM_SET,
+        help="Benchmark output set to use. Defaults to headline.",
+    )
+    retry_parser.add_argument(
+        "--model",
+        action="append",
+        dest="models",
+        help="Restrict retry targets to one or more configured model names",
+    )
+    retry_parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=10,
+        help="Number of retry scenarios per chunk",
+    )
+    retry_parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="Concurrent chunks per non-Claude model",
+    )
+    retry_parser.add_argument(
+        "--model-parallel",
+        type=int,
+        default=1,
+        help="Concurrent non-Claude models to retry",
+    )
+    retry_parser.add_argument(
+        "--chunk-attempts",
+        type=int,
+        default=1,
+        help="Attempts per retry chunk before failing",
+    )
+    retry_parser.add_argument(
+        "--no-explanations",
+        action="store_true",
+        help="Ignore explanation completeness when selecting and accepting retries",
+    )
+    retry_parser.add_argument(
+        "--max-responses",
+        type=int,
+        default=None,
+        help="Only target the first N broken full responses, for smoke tests",
+    )
+    retry_parser.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="Write retry manifests and original failed rows without model calls",
+    )
+
     # Analyze
     analyze_parser = subparsers.add_parser("analyze", help="Analyze AI-alone results")
     analyze_parser.add_argument(
@@ -516,6 +584,7 @@ def main():
         "eval-no-tools",
         "eval-no-tools-repeated",
         "eval-no-tools-chunked",
+        "retry-failed-responses",
     }:
         from policybench.cache import enable_cache
 
@@ -664,6 +733,28 @@ def main():
             single_predictions=args.single_predictions,
             output_dir=args.output_dir,
         )
+
+    elif args.command == "retry-failed-responses":
+        from policybench.retry_eval import run_retry_round
+
+        outputs = run_retry_round(
+            country=args.country,
+            source_predictions=args.source_predictions,
+            scenario_manifest=args.scenario_manifest,
+            output_dir=args.output_dir,
+            program_set=args.program_set,
+            chunk_size=args.chunk_size,
+            parallel=args.parallel,
+            model_parallel=args.model_parallel,
+            chunk_attempts=args.chunk_attempts,
+            require_explanations=not args.no_explanations,
+            models=args.models,
+            max_responses=args.max_responses,
+            prepare_only=args.prepare_only,
+        )
+        print("\n=== Retry outputs ===")
+        for name, path in outputs.items():
+            print(f"{name}: {path}")
 
     elif args.command == "analyze":
         import pandas as pd

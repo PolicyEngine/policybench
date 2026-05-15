@@ -84,6 +84,23 @@ policybench eval-no-tools-chunked \
 policybench analyze --output-dir results/local/analysis
 ```
 
+## Response-contract retries
+
+For paid runs, retry broken full responses before freezing a snapshot:
+
+```bash
+policybench retry-failed-responses \
+  --country us \
+  --source-predictions results/local/full_run/us/predictions.csv \
+  --scenario-manifest results/local/full_run/us/scenarios.csv \
+  --output-dir results/local/full_run/us/response_retries/round_1
+```
+
+This retries whole model-household responses with missing numeric answers,
+missing explanations, or infrastructure errors. Accepted retries replace the
+entire original response; partial retry responses are rejected and the original
+rows are preserved.
+
 ## Repeated runs
 
 ```bash

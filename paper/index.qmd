@@ -368,6 +368,102 @@ def impact_floor_sensitivity() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def response_retry_dir() -> Path:
+    return ROOT / IMPACT_SNAPSHOT_DIR / "response_retries"
+
+
+def retry_round_summary_table() -> pd.DataFrame:
+    rows = []
+    for round_name in ["round_1", "round_2"]:
+        for country in ["us", "uk"]:
+            retry_dir = response_retry_dir() / round_name / country
+            if not retry_dir.exists():
+                continue
+            target = pd.read_csv(retry_dir / "target_units.csv")
+            accepted = pd.read_csv(retry_dir / "accepted_retry_units.csv")
+            rejected = pd.read_csv(retry_dir / "rejected_retry_units.csv")
+            predictions = pd.read_csv(
+                retry_dir / "retry_predictions.csv.gz",
+                usecols=lambda column: column in {"estimated_cost_usd"},
+            )
+            rows.append(
+                {
+                    "Round": round_name.replace("_", " ").title(),
+                    "Country": country.upper(),
+                    "Target responses": len(target),
+                    "Accepted responses": len(accepted),
+                    "Rejected responses": len(rejected),
+                    "Estimated cost": f"${predictions['estimated_cost_usd'].fillna(0).sum():.2f}",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def retry_score_sensitivity_table() -> pd.DataFrame:
+    from policybench.analysis import household_equal_impact_scores
+
+    rows = []
+    ground_truths = load_snapshot_ground_truth()
+    original_predictions = load_snapshot_predictions(
+        usecols=["model", "scenario_id", "variable", "prediction"]
+    )
+    for country in ["us", "uk"]:
+        retry_path = (
+            response_retry_dir()
+            / "round_2"
+            / country
+            / "merged_predictions.csv.gz"
+        )
+        if not retry_path.exists():
+            continue
+        retry_predictions = pd.read_csv(
+            retry_path,
+            usecols=["model", "scenario_id", "variable", "prediction"],
+        )
+        original_scores = household_equal_impact_scores(
+            ground_truths[country],
+            original_predictions[country],
+        )
+        retry_scores = household_equal_impact_scores(
+            ground_truths[country],
+            retry_predictions,
+        )
+        original_summary = (
+            original_scores.groupby("model")["impact_score"].mean().mul(100)
+        )
+        retry_summary = retry_scores.groupby("model")["impact_score"].mean().mul(100)
+        original_parsed = (
+            original_predictions[country]
+            .dropna(subset=["prediction"])
+            .groupby("model")
+            .size()
+        )
+        retry_parsed = (
+            retry_predictions.dropna(subset=["prediction"]).groupby("model").size()
+        )
+        for model in sorted(set(original_summary.index) | set(retry_summary.index)):
+            original_score = original_summary.get(model, np.nan)
+            retry_score = retry_summary.get(model, np.nan)
+            parsed_delta = int(retry_parsed.get(model, 0) - original_parsed.get(model, 0))
+            score_delta = retry_score - original_score
+            if abs(score_delta) < 0.05 and parsed_delta == 0:
+                continue
+            rows.append(
+                {
+                    "Country": country.upper(),
+                    "Model": model,
+                    "Original score": round(original_score, 2),
+                    "After accepted retries": round(retry_score, 2),
+                    "Score change": round(score_delta, 2),
+                    "Parsed-output change": parsed_delta,
+                }
+            )
+    return pd.DataFrame(rows).sort_values(
+        ["Country", "Score change", "Parsed-output change"],
+        ascending=[True, False, False],
+    )
+
+
 def simple_baselines() -> pd.DataFrame:
     from policybench.analysis import household_equal_impact_scores
 
@@ -667,6 +763,8 @@ bootstrap_uncertainty = bootstrap_global_uncertainty()
 baseline_summary = simple_baselines()
 federal_state_joint = federal_state_joint_accuracy()
 impact_floor = impact_floor_sensitivity()
+retry_round_summary = retry_round_summary_table()
+retry_score_sensitivity = retry_score_sensitivity_table()
 snapshot_provenance = pd.DataFrame(
     [
         ["Snapshot date", SNAPSHOT_DATE],
@@ -681,6 +779,7 @@ snapshot_provenance = pd.DataFrame(
             ),
         ],
         ["Snapshot manifest", f"{IMPACT_SNAPSHOT_DIR}/manifest.json"],
+        ["Response retry artifacts", f"{IMPACT_SNAPSHOT_DIR}/response_retries"],
         ["US scenarios SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_scenarios.csv")],
         ["US reference outputs SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_reference_outputs.csv")],
         ["UK scenarios SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/uk_scenarios.csv")],
@@ -738,7 +837,8 @@ parse_repair_summary = pd.DataFrame(
         ["Parser repair", "The parser was extended to accept nested `outputs` payloads serialized as JSON strings, including the malformed trailing-quote shape seen in saved raw responses."],
         ["Recovered outputs", "A conservative reparse recovered 42 formerly missing US numeric predictions. All 42 were correct under the existing scorer, and no recovered numeric prediction lowered a score."],
         ["Remaining parse failures", "1,983 of 34,656 model-output rows remain missing or unparseable after conservative reparse, spread across 271 of 2,400 country-model-household responses."],
-        ["Retry unit", "Any future second-chance sensitivity run should retry and replace an entire country-model-household response, not individual missing variables, because several requested outputs are mechanically related."],
+        ["Retry unit", "Second-chance retries target and replace entire country-model-household responses, not individual missing variables, because several requested outputs are mechanically related."],
+        ["Preservation rule", "The retry artifacts retain the original failed responses, raw retry rows, accepted replacements, rejected retry units, and merged sensitivity prediction files."],
     ],
     columns=["Step", "Finding"],
 )
@@ -1134,7 +1234,21 @@ The concentration also differs by country. @tbl-parse-failure-country-model repo
 parse_failure_by_country_model
 ```
 
-We do not mix replacement values within a single household-model response in the canonical snapshot. Several outputs in the same response are mechanically related, so replacing only missing variables could combine two inconsistent answer sets. A future second-chance analysis should therefore rerun each broken country-model-household response, accept the retry only if it satisfies the full response contract, and report the original-run and retry-run scores separately.
+We do not mix replacement values within a single household-model response in the canonical source run. Several outputs in the same response are mechanically related, so replacing only missing variables could combine two inconsistent answer sets. We therefore ran bounded second-chance retries as a sensitivity exercise, accepted a retry only when the full response satisfied the numeric-and-explanation contract, and preserved rejected retry attempts. Round 1 targeted more responses than the numeric-parse denominator above because the retry contract also includes nonempty explanations. @tbl-retry-round-summary summarizes the retry rounds.
+
+```{python}
+#| label: tbl-retry-round-summary
+#| tbl-cap: "Full-response retry rounds preserved with the paper snapshot."
+retry_round_summary
+```
+
+Accepted retries improved numeric coverage for a few models but did not make repeated contract failures disappear. @tbl-retry-score-sensitivity reports model-country cells where accepted retries changed either the household-equal impact score or parsed-output count. Models not shown had no numeric-score or parsed-output change in the accepted-retry sensitivity file. These retry results are preserved as sensitivity artifacts rather than silently replacing the original frozen source-run artifacts.
+
+```{python}
+#| label: tbl-retry-score-sensitivity
+#| tbl-cap: "Score sensitivity after accepted full-response retries."
+retry_score_sensitivity
+```
 
 ## Competing interests
 
