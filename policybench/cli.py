@@ -541,6 +541,66 @@ def main():
         action="store_true",
         help="Write retry manifests and original failed rows without model calls",
     )
+    retry_parser.add_argument(
+        "--use-cache",
+        action="store_true",
+        help="Allow LiteLLM disk-cache replay during retry calls",
+    )
+
+    # Repair failed rows
+    row_repair_parser = subparsers.add_parser(
+        "repair-failed-rows",
+        help=(
+            "Repair individual output rows with missing parsed values or explanations"
+        ),
+    )
+    row_repair_parser.add_argument(
+        "--country",
+        choices=sorted(COUNTRY_PROGRAMS),
+        required=True,
+    )
+    row_repair_parser.add_argument("--source-predictions", required=True)
+    row_repair_parser.add_argument("--scenario-manifest", required=True)
+    row_repair_parser.add_argument("--output-dir", required=True)
+    row_repair_parser.add_argument(
+        "--model",
+        action="append",
+        dest="models",
+        help="Restrict repair targets to one or more configured model names",
+    )
+    row_repair_parser.add_argument(
+        "--attempts-per-row",
+        type=int,
+        default=3,
+        help="Attempts per missing row before leaving it unrepaired",
+    )
+    row_repair_parser.add_argument(
+        "--parallel",
+        type=int,
+        default=4,
+        help="Concurrent non-Claude row repairs",
+    )
+    row_repair_parser.add_argument(
+        "--no-explanations",
+        action="store_true",
+        help="Ignore explanation completeness when selecting and accepting repairs",
+    )
+    row_repair_parser.add_argument(
+        "--max-rows",
+        type=int,
+        default=None,
+        help="Only target the first N broken rows, for smoke tests",
+    )
+    row_repair_parser.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="Write repair targets without model calls",
+    )
+    row_repair_parser.add_argument(
+        "--use-cache",
+        action="store_true",
+        help="Allow LiteLLM disk-cache replay during row-repair calls",
+    )
 
     # Analyze
     analyze_parser = subparsers.add_parser("analyze", help="Analyze AI-alone results")
@@ -579,13 +639,17 @@ def main():
 
     args = parser.parse_args()
 
-    # Enable disk cache for all LLM calls
+    # Enable disk cache for ordinary eval calls. Contract-failure retry/repair
+    # commands bypass cache by default, otherwise they can replay the same bad
+    # provider response indefinitely.
     if args.command in {
         "eval-no-tools",
         "eval-no-tools-repeated",
         "eval-no-tools-chunked",
-        "retry-failed-responses",
-    }:
+    } or (
+        args.command in {"retry-failed-responses", "repair-failed-rows"}
+        and args.use_cache
+    ):
         from policybench.cache import enable_cache
 
         enable_cache()
@@ -753,6 +817,25 @@ def main():
             prepare_only=args.prepare_only,
         )
         print("\n=== Retry outputs ===")
+        for name, path in outputs.items():
+            print(f"{name}: {path}")
+
+    elif args.command == "repair-failed-rows":
+        from policybench.row_repair import run_row_repair_round
+
+        outputs = run_row_repair_round(
+            country=args.country,
+            source_predictions=args.source_predictions,
+            scenario_manifest=args.scenario_manifest,
+            output_dir=args.output_dir,
+            attempts_per_row=args.attempts_per_row,
+            parallel=args.parallel,
+            require_explanations=not args.no_explanations,
+            models=args.models,
+            max_rows=args.max_rows,
+            prepare_only=args.prepare_only,
+        )
+        print("\n=== Row repair outputs ===")
         for name, path in outputs.items():
             print(f"{name}: {path}")
 

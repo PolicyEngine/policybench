@@ -55,6 +55,71 @@ def test_parse_serialized_response_accepts_nested_outputs_string() -> None:
     }
 
 
+def test_parse_serialized_response_recovers_complete_blocks_from_truncated_json() -> (
+    None
+):
+    raw_response = json.dumps(
+        {
+            "responses": [
+                (
+                    '{"outputs":{"income_tax":{"value":4923,'
+                    '"explanation":"Tax before credits. value = 4923"},'
+                    '"federal_refundable_credits":{"value":0,'
+                    '"explanation":"'
+                )
+            ]
+        }
+    )
+
+    predictions, explanations = parse_serialized_response(
+        raw_response,
+        ["income_tax", "federal_refundable_credits"],
+    )
+
+    assert predictions == {
+        "income_tax": 4923.0,
+        "federal_refundable_credits": None,
+    }
+    assert explanations == {
+        "income_tax": "Tax before credits. value = 4923",
+        "federal_refundable_credits": None,
+    }
+
+
+def test_parse_serialized_response_recovers_nested_variable_blocks() -> None:
+    raw_response = json.dumps(
+        {
+            "responses": [
+                json.dumps(
+                    {
+                        "outputs": {
+                            "income_tax": {
+                                "value": 545.2,
+                                "explanation": "Tax on earnings. value = 545.2",
+                                "pension_credit": {
+                                    "value": 0,
+                                    "explanation": "Not old enough. value = 0",
+                                },
+                            }
+                        }
+                    }
+                )
+            ]
+        }
+    )
+
+    predictions, explanations = parse_serialized_response(
+        raw_response,
+        ["income_tax", "pension_credit"],
+    )
+
+    assert predictions == {"income_tax": 545.2, "pension_credit": 0.0}
+    assert explanations == {
+        "income_tax": "Tax on earnings. value = 545.2",
+        "pension_credit": "Not old enough. value = 0",
+    }
+
+
 def test_reparse_predictions_frame_updates_missing_values_from_raw_response() -> None:
     raw_response = json.dumps(
         {

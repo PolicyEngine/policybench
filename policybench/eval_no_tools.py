@@ -50,9 +50,9 @@ MAX_REPAIR_ROUNDS = 2
 RESUME_METADATA_VERSION = 2
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
-EXPLANATION_MAX_COMPLETION_TOKENS = 1024
-GEMINI_JSON_MAX_COMPLETION_TOKENS = 512
-GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS = 2048
+EXPLANATION_MAX_COMPLETION_TOKENS = 4096
+GEMINI_JSON_MAX_COMPLETION_TOKENS = 4096
+GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS = 4096
 MAX_COMPLETION_TOKENS_CAP = 4096
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
@@ -833,6 +833,114 @@ def _parse_json_object_string(value):
     return parsed
 
 
+def _json_text_candidates(value: str) -> list[str]:
+    """Return JSON-like text variants for provider-escaped partial payloads."""
+    candidates = [value]
+    if '\\"' in value:
+        unescaped = (
+            value.replace('\\"', '"').replace("\\\\n", "\n").replace("\\\\t", "\t")
+        )
+        if unescaped not in candidates:
+            candidates.append(unescaped)
+    return candidates
+
+
+def _balanced_json_object_at(text: str, start: int) -> str | None:
+    """Return the complete JSON object starting at start, or None if truncated."""
+    if start < 0 or start >= len(text) or text[start] != "{":
+        return None
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            continue
+        if char == "{":
+            depth += 1
+            continue
+        if char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : index + 1]
+    return None
+
+
+def _extract_complete_variable_objects_from_text(
+    text: str,
+    variables: list[str],
+) -> dict[str, dict]:
+    """Extract complete keyed JSON objects from otherwise invalid JSON text."""
+    extracted: dict[str, dict] = {}
+    for candidate in _json_text_candidates(text):
+        for variable in variables:
+            if variable in extracted:
+                continue
+            pattern = re.compile(rf'"{re.escape(variable)}"\s*:\s*{{')
+            match = pattern.search(candidate)
+            if not match:
+                continue
+            object_start = match.end() - 1
+            object_text = _balanced_json_object_at(candidate, object_start)
+            if object_text is None:
+                continue
+            try:
+                parsed = json.loads(object_text)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                extracted[variable] = parsed
+    return extracted
+
+
+def _find_variable_entries(payload, variables: list[str]) -> dict[str, dict]:
+    """Find requested variable answer objects in nested provider payloads."""
+    found: dict[str, dict] = {}
+
+    def visit(value) -> None:
+        if len(found) == len(variables):
+            return
+        if isinstance(value, str):
+            parsed = _parse_json_object_string(value)
+            if parsed is not value:
+                visit(parsed)
+            for variable, entry in _extract_complete_variable_objects_from_text(
+                value,
+                variables,
+            ).items():
+                found.setdefault(variable, entry)
+            return
+        if isinstance(value, list):
+            for item in value:
+                visit(item)
+            return
+        if not isinstance(value, dict):
+            return
+        for variable in variables:
+            entry = value.get(variable)
+            if isinstance(entry, dict):
+                found.setdefault(variable, entry)
+            elif entry is not None:
+                found.setdefault(variable, {"value": entry})
+        if "outputs" in value:
+            visit(value.get("outputs"))
+        for item in value.values():
+            visit(item)
+
+    visit(_extract_outputs_payload(payload))
+    return found
+
+
 def _extract_outputs_payload(payload):
     """Return the nested outputs object from a provider payload, if present."""
     if isinstance(payload, str):
@@ -890,13 +998,10 @@ def _extract_predictions_from_payload(
     payload,
     variables: list[str],
 ) -> dict[str, float | None]:
-    payload = _extract_outputs_payload(payload)
-
     predictions = {variable: None for variable in variables}
-    if isinstance(payload, dict):
-        for variable in variables:
-            predictions[variable] = _coerce_prediction_value(payload.get(variable))
-        return predictions
+    entries = _find_variable_entries(payload, variables)
+    for variable, entry in entries.items():
+        predictions[variable] = _coerce_prediction_value(entry)
 
     return predictions
 
@@ -906,15 +1011,9 @@ def _extract_explanations_from_payload(
     variables: list[str],
 ) -> dict[str, str | None]:
     explanations = {variable: None for variable in variables}
-    output_payload = _extract_outputs_payload(payload)
-    if not isinstance(output_payload, dict):
-        return explanations
-
-    for variable in variables:
-        value = output_payload.get(variable)
-        if not isinstance(value, dict):
-            continue
-        explanation = value.get("explanation")
+    entries = _find_variable_entries(payload, variables)
+    for variable, entry in entries.items():
+        explanation = entry.get("explanation")
         if isinstance(explanation, str):
             cleaned = explanation.strip()
             explanations[variable] = cleaned or None

@@ -1,0 +1,16 @@
+{
+  "country": "us",
+  "max_responses": null,
+  "require_explanations": true,
+  "scenario_manifest": "paper/snapshot/20260501/runs/us_full_run_20260513_policyengine_4_4_4_nested_outputs/scenarios.csv",
+  "scenario_manifest_sha256": "b05091225c066b652c11d16bf1c78778193d4f3ee277ce8aed8f0a7536c0e66c",
+  "source_predictions": "paper/snapshot/20260501/response_retries/round_2/us/merged_predictions.csv.gz",
+  "source_predictions_sha256": "d48c8d2ba29e611359c0586035209ca46b4576051b7230bddecad1e6cb5994b3",
+  "target_models": [
+    "claude-haiku-4.5",
+    "claude-sonnet-4.6",
+    "gemini-3.1-pro-preview",
+    "grok-4.1-fast"
+  ],
+  "target_responses": 106
+}

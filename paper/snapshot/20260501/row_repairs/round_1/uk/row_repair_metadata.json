@@ -1,0 +1,21 @@
+{
+  "country": "uk",
+  "max_rows": null,
+  "reparsed_source_predictions": "paper/snapshot/20260501/row_repairs/round_1/uk/reparsed_source_predictions.csv.gz",
+  "reparsed_source_predictions_sha256": "acd5bffce19ea39d406cc162ade7e56c4d02bda5cc7f610cc91fb39026c73553",
+  "require_explanations": true,
+  "scenario_manifest": "paper/snapshot/20260501/runs/uk_full_run_20260513_policyengine_4_4_4_nested_outputs/scenarios.csv",
+  "scenario_manifest_sha256": "eee79fb1db36851fd3b0d3fd343c1dbe62f86222f45b1fe806a5e0f4e49645d2",
+  "source_predictions": "paper/snapshot/20260501/response_retries/round_3/uk/merged_predictions.csv.gz",
+  "source_predictions_copy": "paper/snapshot/20260501/row_repairs/round_1/uk/source_predictions.csv.gz",
+  "source_predictions_copy_sha256": "aa3b34b26bda21cc92adc9dd6cc049debb7f698ee1410022d9973d41ca835397",
+  "source_predictions_sha256": "aa3b34b26bda21cc92adc9dd6cc049debb7f698ee1410022d9973d41ca835397",
+  "target_models": [
+    "claude-haiku-4.5",
+    "claude-sonnet-4.6",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3.1-pro-preview",
+    "grok-4.1-fast"
+  ],
+  "target_rows": 412
+}

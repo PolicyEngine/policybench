@@ -303,7 +303,7 @@ class TestExtractPredictions:
             "federal_refundable_credits": None,
         }
 
-    def test_extract_explanations_rejects_truncated_payload(self):
+    def test_extract_explanations_recovers_complete_blocks_from_truncated_payload(self):
         explanations = extract_explanations(
             content=(
                 '{"outputs":{"income_tax":{"value":4923,'
@@ -315,7 +315,7 @@ class TestExtractPredictions:
             tool_calls=None,
         )
         assert explanations == {
-            "income_tax": None,
+            "income_tax": "Moderate taxable income.",
             "federal_refundable_credits": None,
         }
 
@@ -753,7 +753,7 @@ def test_run_single_no_tools(mock_responses, mini_scenario):
     assert result["elapsed_seconds"] >= 0
     mock_responses.assert_called_once()
     assert mock_responses.call_args.kwargs["timeout"] == 20
-    assert mock_responses.call_args.kwargs["max_output_tokens"] == 1024
+    assert mock_responses.call_args.kwargs["max_output_tokens"] == 4096
     assert mock_responses.call_args.kwargs["tools"][0]["name"] == "submit_outputs"
     assert mock_responses.call_args.kwargs["tool_choice"]["name"] == "submit_outputs"
     assert "temperature" not in mock_responses.call_args.kwargs
@@ -804,7 +804,7 @@ def test_run_single_no_tools_uses_default_completion_budget_for_claude(
 
     run_single_no_tools(mini_scenario, "income_tax", "claude-opus-4-6")
 
-    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 1024
+    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 4096
     assert "reasoning_effort" not in mock_completion.call_args.kwargs
     assert "response_format" not in mock_completion.call_args.kwargs
 
@@ -1334,7 +1334,7 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
     assert mock_completion.call_args.kwargs["response_format"] == {
         "type": "json_object"
     }
-    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 2048
+    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 4096
     assert mock_completion.call_args.kwargs["timeout"] == 60
     assert "tools" not in mock_completion.call_args.kwargs
     assert "tool_choice" not in mock_completion.call_args.kwargs
@@ -1412,7 +1412,7 @@ def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario)
 
     assert result["prediction"] == 1234.0
     assert result["predictions"]["income_tax"] == 1234.0
-    assert mock_completion.call_args.kwargs["max_tokens"] == 1024
+    assert mock_completion.call_args.kwargs["max_tokens"] == 4096
     assert "max_completion_tokens" not in mock_completion.call_args.kwargs
     assert (
         mock_completion.call_args.kwargs["tools"][0]["function"]["name"]
@@ -1448,7 +1448,7 @@ def test_completion_budget_scales_with_output_count():
         _completion_controls("gpt-5.4", variables=["income_tax"])[
             "max_completion_tokens"
         ]
-        == 1024
+        == 4096
     )
     assert (
         _completion_controls(
@@ -1472,7 +1472,7 @@ def test_completion_budget_scales_with_output_count():
         _completion_controls("claude-opus-4-7", variables=["income_tax"])[
             "max_completion_tokens"
         ]
-        == 1024
+        == 4096
     )
     assert (
         _completion_controls("gpt-5.5", variables=["income_tax"])[

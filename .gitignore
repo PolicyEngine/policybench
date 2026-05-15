@@ -11,6 +11,7 @@ results/reference_outputs.csv
 results/ground_truth.csv
 results/scenarios.csv
 output/
+data/
 
 # Paper render scratch outputs. The served paper artifacts live under
 # app/public/paper/ and frozen manuscript inputs live under paper/snapshot/.

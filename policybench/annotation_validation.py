@@ -19,7 +19,7 @@ from policybench.full_run_export import (
     load_predictions,
 )
 
-FINAL_FAILURE_SOURCES = {"llm_error", "parse_contract_failure"}
+FINAL_FAILURE_SOURCES = {"llm_error"}
 
 
 def _expected_prediction_rows(

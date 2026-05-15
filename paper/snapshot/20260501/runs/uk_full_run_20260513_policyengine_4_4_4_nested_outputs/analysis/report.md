@@ -8,39 +8,39 @@ Top model: `gpt-5.5` with `mean_impact_score=0.503` (household-equal impact scor
 
 ## Usage
 
-Total cost: `33.839` USD. Estimated total runtime: `473.2 min`.
+Total cost: `33.913` USD. Estimated total runtime: `473.1 min`.
 
 | model | total_cost_usd | cost_rows_estimated | total_elapsed | total_tokens | reasoning_tokens | parsed_rows | total_rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| claude-haiku-4.5 | 2.248 | 700 | 38.3 min | 1421804.000 | 0.000 | 699 | 700 |
-| claude-opus-4.7 | 9.934 | 700 | 37.0 min | 1513476.000 | 0.000 | 699 | 700 |
-| claude-sonnet-4.6 | 8.152 | 700 | 80.7 min | 1475039.000 | 0.000 | 665 | 700 |
-| gemini-3-flash-preview | 0.273 | 700 | 6.4 min | 187808.000 | n/a | 694 | 700 |
-| gemini-3.1-flash-lite-preview | 0.274 | 700 | 8.8 min | 343762.000 | 28555.000 | 427 | 700 |
-| gemini-3.1-pro-preview | 2.292 | 700 | 22.7 min | 282244.000 | 117696.000 | 665 | 700 |
+| claude-haiku-4.5 | 2.252 | 700 | 31.7 min | 1422379.571 | 0.000 | 700 | 700 |
+| claude-opus-4.7 | 9.934 | 700 | 36.5 min | 1513476.000 | 0.000 | 700 | 700 |
+| claude-sonnet-4.6 | 8.423 | 700 | 89.5 min | 1475924.571 | 0.000 | 700 | 700 |
+| gemini-3-flash-preview | 0.273 | 700 | 6.4 min | 187808.000 | n/a | 700 | 700 |
+| gemini-3.1-flash-lite-preview | 0.253 | 700 | 8.7 min | 331897.286 | 30064.571 | 700 | 700 |
+| gemini-3.1-pro-preview | 2.071 | 700 | 23.0 min | 262786.143 | 100150.000 | 700 | 700 |
 | gpt-5.4-mini | 0.268 | 700 | 6.0 min | 167735.000 | 0.000 | 700 | 700 |
 | gpt-5.4-nano | 0.086 | 700 | 6.5 min | 175914.000 | 0.000 | 700 | 700 |
 | gpt-5.5 | 4.899 | 700 | 48.0 min | 381291.000 | 70611.000 | 700 | 700 |
-| grok-4.1-fast | 0.102 | 700 | 25.3 min | 557423.000 | 0.000 | 112 | 700 |
+| grok-4.1-fast | 0.143 | 700 | 25.6 min | 787757.714 | 0.000 | 700 | 700 |
 | grok-4.20 | 4.656 | 700 | 160.2 min | 903101.000 | 681197.000 | 700 | 700 |
-| grok-4.3 | 0.655 | 700 | 33.2 min | 396880.000 | 110447.000 | 700 | 700 |
+| grok-4.3 | 0.655 | 700 | 30.9 min | 396789.000 | 109957.000 | 700 | 700 |
 
 ## Summary by model (equal-output-group score)
 
 | model | mean_score | mean_exact | mean_within_1pct | mean_within_5pct | mean_within_10pct | mean_binary_accuracy | mean_mae | total_n |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | gpt-5.5 | 0.806 | 0.707 | 0.757 | 0.847 | 0.914 | n/a | 245.595 | 700 |
+| gemini-3.1-pro-preview | 0.790 | 0.704 | 0.719 | 0.839 | 0.900 | n/a | 342.190 | 700 |
+| claude-sonnet-4.6 | 0.781 | 0.697 | 0.713 | 0.829 | 0.887 | n/a | 340.302 | 700 |
 | grok-4.20 | 0.781 | 0.703 | 0.713 | 0.820 | 0.890 | n/a | 355.731 | 700 |
-| claude-opus-4.7 | 0.779 | 0.697 | 0.710 | 0.824 | 0.886 | n/a | 420.952 | 700 |
-| claude-sonnet-4.6 | 0.769 | 0.694 | 0.709 | 0.813 | 0.861 | n/a | 264.341 | 700 |
-| gemini-3-flash-preview | 0.762 | 0.699 | 0.709 | 0.793 | 0.847 | n/a | 442.083 | 700 |
-| gemini-3.1-pro-preview | 0.756 | 0.673 | 0.687 | 0.803 | 0.861 | n/a | 314.223 | 700 |
+| claude-opus-4.7 | 0.781 | 0.699 | 0.711 | 0.826 | 0.887 | n/a | 419.425 | 700 |
+| gemini-3-flash-preview | 0.768 | 0.704 | 0.714 | 0.799 | 0.853 | n/a | 460.365 | 700 |
 | grok-4.3 | 0.742 | 0.693 | 0.701 | 0.749 | 0.826 | n/a | 917.049 | 700 |
+| gemini-3.1-flash-lite-preview | 0.739 | 0.694 | 0.700 | 0.757 | 0.806 | n/a | 570.365 | 700 |
+| grok-4.1-fast | 0.736 | 0.707 | 0.714 | 0.753 | 0.771 | n/a | 1094.751 | 700 |
 | gpt-5.4-mini | 0.728 | 0.707 | 0.707 | 0.730 | 0.767 | n/a | 1001.798 | 700 |
-| claude-haiku-4.5 | 0.723 | 0.701 | 0.701 | 0.734 | 0.754 | n/a | 1076.057 | 700 |
+| claude-haiku-4.5 | 0.723 | 0.701 | 0.701 | 0.734 | 0.754 | n/a | 1075.758 | 700 |
 | gpt-5.4-nano | 0.692 | 0.686 | 0.686 | 0.696 | 0.701 | n/a | 1448.748 | 700 |
-| gemini-3.1-flash-lite-preview | 0.480 | 0.464 | 0.466 | 0.487 | 0.503 | n/a | 479.705 | 700 |
-| grok-4.1-fast | 0.121 | 0.111 | 0.114 | 0.127 | 0.131 | n/a | 1610.158 | 700 |
 
 ## Household-equal impact score
 
@@ -49,17 +49,17 @@ Households receive equal weight. Within each household, requested output rows ge
 | model | mean_impact_score | mean_household_score | mean_household_coverage | households |
 | --- | ---: | ---: | ---: | ---: |
 | gpt-5.5 | 0.503 | 0.806 | 1.000 | 100 |
-| gemini-3.1-pro-preview | 0.452 | 0.756 | 0.950 | 100 |
+| gemini-3.1-pro-preview | 0.468 | 0.790 | 1.000 | 100 |
+| claude-sonnet-4.6 | 0.457 | 0.781 | 1.000 | 100 |
 | grok-4.20 | 0.451 | 0.781 | 1.000 | 100 |
-| claude-opus-4.7 | 0.451 | 0.779 | 0.999 | 100 |
-| claude-sonnet-4.6 | 0.420 | 0.769 | 0.950 | 100 |
-| gemini-3-flash-preview | 0.402 | 0.762 | 0.991 | 100 |
+| claude-opus-4.7 | 0.451 | 0.781 | 1.000 | 100 |
+| gemini-3-flash-preview | 0.403 | 0.767 | 1.000 | 100 |
 | grok-4.3 | 0.377 | 0.742 | 1.000 | 100 |
+| gemini-3.1-flash-lite-preview | 0.367 | 0.739 | 1.000 | 100 |
+| grok-4.1-fast | 0.322 | 0.736 | 1.000 | 100 |
 | gpt-5.4-mini | 0.319 | 0.728 | 1.000 | 100 |
-| claude-haiku-4.5 | 0.306 | 0.723 | 0.999 | 100 |
+| claude-haiku-4.5 | 0.306 | 0.723 | 1.000 | 100 |
 | gpt-5.4-nano | 0.287 | 0.692 | 1.000 | 100 |
-| gemini-3.1-flash-lite-preview | 0.239 | 0.480 | 0.610 | 100 |
-| grok-4.1-fast | 0.056 | 0.121 | 0.160 | 100 |
 
 ## Summary by variable
 
@@ -67,10 +67,10 @@ Amount variables use the tolerance columns. Binary coverage flags use `mean_accu
 
 | variable | metric_type | mean_score | mean_exact | mean_within_1pct | mean_within_5pct | mean_within_10pct | mean_accuracy | mean_mae | total_n |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| capital_gains_tax | amount_tolerance | 0.832 | 0.826 | 0.828 | 0.834 | 0.840 | n/a | 594.753 | 1200 |
-| child_benefit | amount_tolerance | 0.694 | 0.569 | 0.591 | 0.789 | 0.827 | n/a | 94.372 | 1200 |
-| income_tax | amount_tolerance | 0.314 | 0.198 | 0.244 | 0.347 | 0.468 | n/a | 2137.038 | 1200 |
-| national_insurance | amount_tolerance | 0.492 | 0.406 | 0.401 | 0.523 | 0.639 | n/a | 370.489 | 1200 |
-| pension_credit | amount_tolerance | 0.828 | 0.828 | 0.828 | 0.828 | 0.828 | n/a | 510.677 | 1200 |
-| pip | amount_tolerance | 0.882 | 0.882 | 0.882 | 0.882 | 0.882 | n/a | 45.581 | 1200 |
-| universal_credit | amount_tolerance | 0.706 | 0.688 | 0.695 | 0.710 | 0.732 | n/a | 1250.013 | 1200 |
+| capital_gains_tax | amount_tolerance | 0.926 | 0.918 | 0.921 | 0.929 | 0.936 | n/a | 501.838 | 1200 |
+| child_benefit | amount_tolerance | 0.771 | 0.631 | 0.654 | 0.877 | 0.922 | n/a | 103.165 | 1200 |
+| income_tax | amount_tolerance | 0.343 | 0.215 | 0.264 | 0.377 | 0.514 | n/a | 1964.871 | 1200 |
+| national_insurance | amount_tolerance | 0.537 | 0.443 | 0.439 | 0.569 | 0.695 | n/a | 382.069 | 1200 |
+| pension_credit | amount_tolerance | 0.931 | 0.931 | 0.931 | 0.931 | 0.932 | n/a | 477.209 | 1200 |
+| pip | amount_tolerance | 0.990 | 0.990 | 0.990 | 0.990 | 0.990 | n/a | 46.818 | 1200 |
+| universal_credit | amount_tolerance | 0.792 | 0.773 | 0.781 | 0.797 | 0.819 | n/a | 1349.409 | 1200 |

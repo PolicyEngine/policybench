@@ -24,3 +24,5 @@ Per country and round:
 
 Round 2 used the Round 1 merged predictions as its source and only targeted
 models that had at least one accepted retry in Round 1.
+
+Round 3 reran the same response-retry workflow after parser recovery. It is preserved as the immediate source for the row-level contract-repair pass.

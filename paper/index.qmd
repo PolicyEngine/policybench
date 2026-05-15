@@ -373,9 +373,13 @@ def response_retry_dir() -> Path:
     return ROOT / IMPACT_SNAPSHOT_DIR / "response_retries"
 
 
+def row_repair_dir() -> Path:
+    return ROOT / IMPACT_SNAPSHOT_DIR / "row_repairs"
+
+
 def retry_round_summary_table() -> pd.DataFrame:
     rows = []
-    for round_name in ["round_1", "round_2"]:
+    for round_name in ["round_1", "round_2", "round_3"]:
         for country in ["us", "uk"]:
             retry_dir = response_retry_dir() / round_name / country
             if not retry_dir.exists():
@@ -400,69 +404,40 @@ def retry_round_summary_table() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def retry_score_sensitivity_table() -> pd.DataFrame:
-    from policybench.analysis import household_equal_impact_scores
-
+def row_repair_summary_table() -> pd.DataFrame:
     rows = []
-    ground_truths = load_snapshot_ground_truth()
-    original_predictions = load_snapshot_predictions(
-        usecols=["model", "scenario_id", "variable", "prediction"]
-    )
-    for country in ["us", "uk"]:
-        retry_path = (
-            response_retry_dir()
-            / "round_2"
-            / country
-            / "merged_predictions.csv.gz"
-        )
-        if not retry_path.exists():
-            continue
-        retry_predictions = pd.read_csv(
-            retry_path,
-            usecols=["model", "scenario_id", "variable", "prediction"],
-        )
-        original_scores = household_equal_impact_scores(
-            ground_truths[country],
-            original_predictions[country],
-        )
-        retry_scores = household_equal_impact_scores(
-            ground_truths[country],
-            retry_predictions,
-        )
-        original_summary = (
-            original_scores.groupby("model")["impact_score"].mean().mul(100)
-        )
-        retry_summary = retry_scores.groupby("model")["impact_score"].mean().mul(100)
-        original_parsed = (
-            original_predictions[country]
-            .dropna(subset=["prediction"])
-            .groupby("model")
-            .size()
-        )
-        retry_parsed = (
-            retry_predictions.dropna(subset=["prediction"]).groupby("model").size()
-        )
-        for model in sorted(set(original_summary.index) | set(retry_summary.index)):
-            original_score = original_summary.get(model, np.nan)
-            retry_score = retry_summary.get(model, np.nan)
-            parsed_delta = int(retry_parsed.get(model, 0) - original_parsed.get(model, 0))
-            score_delta = retry_score - original_score
-            if abs(score_delta) < 0.05 and parsed_delta == 0:
+    for round_name in ["round_1"]:
+        for country in ["us", "uk"]:
+            repair_dir = row_repair_dir() / round_name / country
+            if not repair_dir.exists():
                 continue
+            target = pd.read_csv(repair_dir / "target_rows.csv")
+            accepted = pd.read_csv(repair_dir / "accepted_row_repair_rows.csv.gz")
+            rejected = pd.read_csv(repair_dir / "rejected_row_repair_rows.csv")
+            attempts = pd.read_csv(
+                repair_dir / "row_repair_attempts.csv.gz",
+                usecols=lambda column: column in {"estimated_cost_usd"},
+            )
+            merged = pd.read_csv(
+                repair_dir / "merged_predictions.csv.gz",
+                usecols=["prediction", "explanation"],
+            )
+            missing = (
+                merged["prediction"].isna()
+                | merged["explanation"].fillna("").astype(str).str.strip().eq("")
+            )
             rows.append(
                 {
+                    "Round": round_name.replace("_", " ").title(),
                     "Country": country.upper(),
-                    "Model": model,
-                    "Original score": round(original_score, 2),
-                    "After accepted retries": round(retry_score, 2),
-                    "Score change": round(score_delta, 2),
-                    "Parsed-output change": parsed_delta,
+                    "Target rows": len(target),
+                    "Accepted row repairs": len(accepted),
+                    "Rejected row repairs": len(rejected),
+                    "Final missing rows": int(missing.sum()),
+                    "Estimated cost": f"${attempts['estimated_cost_usd'].fillna(0).sum():.2f}",
                 }
             )
-    return pd.DataFrame(rows).sort_values(
-        ["Country", "Score change", "Parsed-output change"],
-        ascending=[True, False, False],
-    )
+    return pd.DataFrame(rows)
 
 
 def deviation_audit_summary_table() -> pd.DataFrame:
@@ -491,10 +466,7 @@ def deviation_audit_summary_table() -> pd.DataFrame:
             {
                 "Country": country.upper(),
                 "Wrong rows audited": len(wrong),
-                "LLM numeric/policy errors": int(source_counts.get("llm_error", 0)),
-                "Parse-contract failures": int(
-                    source_counts.get("parse_contract_failure", 0)
-                ),
+                "LLM response errors": int(source_counts.get("llm_error", 0)),
                 "Unresolved prompt/reference rows": len(result["unresolved_rows"]),
                 "Missing row annotations": len(result["missing_rows"]),
                 "Missing case notes": len(result["missing_cases"]),
@@ -809,8 +781,14 @@ baseline_summary = simple_baselines()
 federal_state_joint = federal_state_joint_accuracy()
 impact_floor = impact_floor_sensitivity()
 retry_round_summary = retry_round_summary_table()
-retry_score_sensitivity = retry_score_sensitivity_table()
+row_repair_summary = row_repair_summary_table()
 deviation_audit_summary = deviation_audit_summary_table()
+total_wrong_rows_audited = int(
+    deviation_audit_summary.loc[
+        deviation_audit_summary["Country"] == "Total",
+        "Wrong rows audited",
+    ].iloc[0]
+)
 snapshot_provenance = pd.DataFrame(
     [
         ["Snapshot date", SNAPSHOT_DATE],
@@ -826,6 +804,7 @@ snapshot_provenance = pd.DataFrame(
         ],
         ["Snapshot manifest", f"{IMPACT_SNAPSHOT_DIR}/manifest.json"],
         ["Response retry artifacts", f"{IMPACT_SNAPSHOT_DIR}/response_retries"],
+        ["Row-repair artifacts", f"{IMPACT_SNAPSHOT_DIR}/row_repairs"],
         ["Deviation annotations", ANNOTATION_DIR],
         ["US scenarios SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_scenarios.csv")],
         ["US reference outputs SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_reference_outputs.csv")],
@@ -880,86 +859,14 @@ reference_audit = pd.DataFrame(
 )
 parse_repair_summary = pd.DataFrame(
     [
-        ["Initial parse-contract audit", "2,025 output rows were classified as parse-contract failures after the frozen model run."],
-        ["Parser repair", "The parser was extended to accept nested `outputs` payloads serialized as JSON strings, including the malformed trailing-quote shape seen in saved raw responses."],
-        ["Recovered outputs", "A conservative reparse recovered 42 formerly missing US numeric predictions. All 42 were correct under the existing scorer, and no recovered numeric prediction lowered a score."],
-        ["Remaining parse failures", "1,983 of 34,656 model-output rows remain missing or unparseable after conservative reparse, spread across 271 of 2,400 country-model-household responses."],
-        ["Retry unit", "Second-chance retries target and replace entire country-model-household responses, not individual missing variables, because several requested outputs are mechanically related."],
-        ["Preservation rule", "The retry artifacts retain the original failed responses, raw retry rows, accepted replacements, rejected retry units, and merged sensitivity prediction files."],
+        ["Initial parse-contract audit", "The source run was audited for rows missing a parsed numeric value or non-empty explanation; those rows were not dropped from the denominator."],
+        ["Parser repair", "The parser was extended to recover explicit `value` and non-empty `explanation` blocks from nested, escaped, or partially truncated provider JSON without scraping prose numbers."],
+        ["Full-response retries", "Three bounded retry rounds targeted broken country-model-household responses and accepted only fully valid replacement responses."],
+        ["Row-level repairs", "A final repair pass retried only rows still missing a parsed numeric value or non-empty explanation, using the same model, household, and output."],
+        ["Final parse coverage", "The repaired manuscript snapshot has zero missing parsed numeric values and zero missing explanations across all 34,656 model-output rows."],
+        ["Preservation rule", "The snapshot retains response-retry and row-repair targets, attempts, accepted replacements, rejected rows, and merged prediction files."],
     ],
     columns=["Step", "Finding"],
-)
-parse_response_denominator = pd.DataFrame(
-    [
-        ["Overall", 271, 2400, 11.3],
-        ["United States", 110, 1200, 9.2],
-        ["United Kingdom", 161, 1200, 13.4],
-    ],
-    columns=[
-        "Scope",
-        "Responses with any remaining parse failure",
-        "Total country-model-household responses",
-        "Share (%)",
-    ],
-)
-parse_failure_shape = pd.DataFrame(
-    [
-        ["No saved raw response", 834, 554, 280, 64],
-        ["Repair attempts returned malformed JSON text", 476, 168, 308, 52],
-        ["Tool call with malformed `outputs` string", 291, 123, 168, 31],
-        ["Repair attempts returned malformed `outputs` string", 250, 110, 140, 26],
-        ["Repair attempts returned empty tool arguments", 125, 89, 36, 125],
-        ["Invalid saved raw JSON plus top-level `outputs` object", 6, 0, 6, 1],
-        ["Double-nested `outputs` object", 1, 0, 1, 1],
-    ],
-    columns=[
-        "Remaining raw-response shape",
-        "Output rows",
-        "US rows",
-        "UK rows",
-        "Affected raw-response groups",
-    ],
-)
-parse_failure_by_model = pd.DataFrame(
-    [
-        ["grok-4.1-fast", 121, 200, 60.5],
-        ["claude-sonnet-4.6", 90, 200, 45.0],
-        ["gemini-3.1-flash-lite-preview", 40, 200, 20.0],
-        ["gemini-3.1-pro-preview", 11, 200, 5.5],
-        ["claude-haiku-4.5", 6, 200, 3.0],
-        ["gemini-3-flash-preview", 2, 200, 1.0],
-        ["claude-opus-4.7", 1, 200, 0.5],
-    ],
-    columns=[
-        "Model",
-        "Responses with any remaining parse failure",
-        "Total responses",
-        "Share (%)",
-    ],
-)
-parse_failure_by_country_model = pd.DataFrame(
-    [
-        ["UK", "grok-4.1-fast", 84, 100, 84.0],
-        ["UK", "gemini-3.1-flash-lite-preview", 39, 100, 39.0],
-        ["UK", "claude-sonnet-4.6", 30, 100, 30.0],
-        ["UK", "gemini-3.1-pro-preview", 5, 100, 5.0],
-        ["UK", "claude-haiku-4.5", 1, 100, 1.0],
-        ["UK", "claude-opus-4.7", 1, 100, 1.0],
-        ["UK", "gemini-3-flash-preview", 1, 100, 1.0],
-        ["US", "claude-sonnet-4.6", 60, 100, 60.0],
-        ["US", "grok-4.1-fast", 37, 100, 37.0],
-        ["US", "gemini-3.1-pro-preview", 6, 100, 6.0],
-        ["US", "claude-haiku-4.5", 5, 100, 5.0],
-        ["US", "gemini-3-flash-preview", 1, 100, 1.0],
-        ["US", "gemini-3.1-flash-lite-preview", 1, 100, 1.0],
-    ],
-    columns=[
-        "Country",
-        "Model",
-        "Responses with any remaining parse failure",
-        "Total responses",
-        "Share (%)",
-    ],
 )
 
 us_ranked = us_model.reset_index(drop=True)
@@ -1083,7 +990,7 @@ PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as a
 
 This does not make PolicyEngine infallible. During benchmark development, we performed a manual, developer-led discrepancy review, with LLM assistance used to triage and summarize candidate cases surfaced by model explanations. @tbl-reference-review summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects.
 
-After freezing the snapshot, we also annotated every wrong model-output row and every scenario-output case with at least one wrong row. @tbl-deviation-audit reports that all `7,664` rows receiving less than full score have row-level and case-level annotations. The final row-level sources are `llm_error` and `parse_contract_failure`; no frozen-snapshot wrong row remains classified as a prompt ambiguity, unresolved reference-model issue, unresolved reference-data issue, or needs-review item. In this paper, "LLM response error" therefore includes both parsed numeric/policy errors and response-contract failures. The audit is still developer-led rather than independent external validation, but it is exhaustive over scored misses in the frozen snapshot.
+After freezing the snapshot and completing response-contract repairs, we annotated every wrong model-output row and every scenario-output case with at least one wrong row. @tbl-deviation-audit reports that all `{python} f"{total_wrong_rows_audited:,}"` rows receiving less than full score have row-level and case-level annotations. The final row-level source is `llm_error`; no frozen-snapshot wrong row remains classified as a prompt ambiguity, unresolved reference-model issue, unresolved reference-data issue, parse-contract failure, or needs-review item. The audit is still developer-led rather than independent external validation, but it is exhaustive over scored misses in the repaired frozen snapshot.
 
 ```{python}
 #| label: tbl-reference-review
@@ -1221,13 +1128,13 @@ Third, joint accuracy across interacting components is lower than marginal accur
 federal_state_joint
 ```
 
-Fourth, structured-output reliability affects rankings. Missing or unparseable numeric values count as benchmark failures, and Appendix A reports the post-run parser audit. After a conservative reparse of saved raw responses, 271 of 2,400 country-model-household responses still have at least one missing output.
+Fourth, structured-output reliability is part of the benchmark contract. Missing or unparseable numeric values are not dropped. Appendix A documents parser recovery, bounded full-response retries, and row-level repairs that brought the canonical manuscript snapshot to zero missing numeric values or explanations while preserving the failed attempts.
 
 ## Limitations
 
 PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:
 
-- model rankings can reflect output-contract reliability as well as policy reasoning
+- output-contract reliability required a repair workflow, and the raw failed attempts are preserved separately from the repaired canonical prediction files
 - zero-heavy outputs require separate positive-case interpretation
 - the scoring rule is one benchmark view and should be checked against alternative metrics
 - the global score is an equal-country, household-equal summary for models run in both countries, not a universal ranking of model quality
@@ -1249,47 +1156,15 @@ Next steps are to expand country coverage, increase frozen sample sizes, improve
 
 ## Appendix A: Structured-output audit
 
-The benchmark requires one numeric value and one explanation for every requested output. Parse failures are therefore benchmark failures, not missing data to drop from the denominator. After the frozen model run, we audited all rows classified as parse-contract failures, repaired one parser defect, and reran the parser against saved raw responses without making new model calls. @tbl-parse-repair-summary summarizes that sequence.
+The benchmark requires one numeric value and one explanation for every requested output. Parse failures are benchmark failures, not missing data to drop from the denominator. Before publishing the manuscript snapshot, we audited missing numeric values and explanations, extended the parser only where explicit variable-keyed `value` and `explanation` fields were recoverable, retried broken full responses, and then ran targeted row repairs for the remaining missing rows. @tbl-parse-repair-summary summarizes that sequence.
 
 ```{python}
 #| label: tbl-parse-repair-summary
-#| tbl-cap: "Structured-output parser audit and conservative reparse."
+#| tbl-cap: "Structured-output parser audit and repair sequence."
 parse_repair_summary
 ```
 
-The main denominator for response reliability is the country-model-household response: one model answering one household in one country. @tbl-parse-response-denominator reports that 271 of 2,400 such responses had at least one remaining missing output after the conservative reparse. The output-row count is larger because each response contains multiple requested outputs.
-
-```{python}
-#| label: tbl-parse-response-denominator
-#| tbl-cap: "Remaining parse failures by country-model-household response."
-parse_response_denominator
-```
-
-The remaining failures are not one homogeneous bug. @tbl-parse-failure-shape groups the 1,983 remaining missing output rows, or 5.7% of 34,656 model-output rows, by the raw-response shape observed during the audit. Some rows have no saved raw response and therefore cannot be recovered by parser changes. Others contain malformed JSON, malformed nested `outputs` strings, or empty tool arguments after repair attempts. The final column counts affected saved-response or chunk groups for that raw-response shape; it is not a mutually exclusive full-response denominator.
-
-```{python}
-#| label: tbl-parse-failure-shape
-#| tbl-cap: "Remaining missing output rows by raw-response shape."
-parse_failure_shape
-```
-
-Parse failures are concentrated in a few models. @tbl-parse-failure-model reports the model-level response denominator across both countries. Models not shown in the table had no country-model-household response with a remaining parse failure after the conservative reparse.
-
-```{python}
-#| label: tbl-parse-failure-model
-#| tbl-cap: "Remaining response-level parse failures by model."
-parse_failure_by_model
-```
-
-The concentration also differs by country. @tbl-parse-failure-country-model reports the nonzero country-model cells. This is the most direct table for deciding whether a second-chance sensitivity run is worth the cost: a retry should target whole country-model-household responses in these cells and should preserve both the original and retry raw responses.
-
-```{python}
-#| label: tbl-parse-failure-country-model
-#| tbl-cap: "Remaining response-level parse failures by country and model."
-parse_failure_by_country_model
-```
-
-We do not mix replacement values within a single household-model response in the canonical source run. Several outputs in the same response are mechanically related, so replacing only missing variables could combine two inconsistent answer sets. We therefore ran bounded second-chance retries as a sensitivity exercise, accepted a retry only when the full response satisfied the numeric-and-explanation contract, and preserved rejected retry attempts. Round 1 targeted more responses than the numeric-parse denominator above because the retry contract also includes nonempty explanations. @tbl-retry-round-summary summarizes the retry rounds.
+The main full-response denominator is the country-model-household response: one model answering one household in one country. We first retried broken responses at that level, accepting a retry only when the whole response satisfied the numeric-and-explanation contract. Several outputs in the same response are mechanically related, so this full-response pass avoided mixing answer sets where possible. @tbl-retry-round-summary summarizes the preserved retry rounds.
 
 ```{python}
 #| label: tbl-retry-round-summary
@@ -1297,12 +1172,12 @@ We do not mix replacement values within a single household-model response in the
 retry_round_summary
 ```
 
-Accepted retries improved numeric coverage for a few models but did not make repeated contract failures disappear. @tbl-retry-score-sensitivity reports model-country cells where accepted retries changed either the household-equal impact score or parsed-output count. Models not shown had no numeric-score or parsed-output change in the accepted-retry sensitivity file. These retry results are preserved as sensitivity artifacts rather than silently replacing the original frozen source-run artifacts.
+The full-response pass did not eliminate every missing row. The final row-level repair pass retried the same model on the same household-output target and accepted only rows with both a parsed numeric value and non-empty explanation. These repairs are part of the canonical manuscript snapshot, not a separate leaderboard condition. @tbl-row-repair-summary reports the row-level repair counts and confirms that the final repaired prediction files have zero missing output rows.
 
 ```{python}
-#| label: tbl-retry-score-sensitivity
-#| tbl-cap: "Score sensitivity after accepted full-response retries."
-retry_score_sensitivity
+#| label: tbl-row-repair-summary
+#| tbl-cap: "Row-level repairs preserved with the paper snapshot."
+row_repair_summary
 ```
 
 ## Competing interests

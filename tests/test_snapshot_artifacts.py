@@ -69,6 +69,14 @@ def test_snapshot_manifest_hashes_match_response_retry_artifacts():
         _assert_hash(retry_dir / relative_path, expected_hash)
 
 
+def test_snapshot_manifest_hashes_match_row_repair_artifacts():
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    repair_artifacts = manifest["row_repair_artifacts"]
+    repair_dir = ROOT / repair_artifacts["path"]
+    for relative_path, expected_hash in repair_artifacts["files"].items():
+        _assert_hash(repair_dir / relative_path, expected_hash)
+
+
 def test_snapshot_manifest_hashes_match_audit_annotation_artifacts():
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
     annotation_artifacts = manifest["audit_annotation_artifacts"]
@@ -149,12 +157,12 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_wrong_rows = {
-        "us": 4_533,
-        "uk": 3_131,
+        "us": 3_752,
+        "uk": 2_524,
     }
     expected_sources = {
-        "us": {"llm_error": 3_489, "parse_contract_failure": 1_044},
-        "uk": {"llm_error": 2_192, "parse_contract_failure": 939},
+        "us": {"llm_error": 3_752},
+        "uk": {"llm_error": 2_524},
     }
 
     for country in ["us", "uk"]:

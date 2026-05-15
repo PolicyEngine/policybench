@@ -116,6 +116,8 @@ def parse_serialized_response(
         content = payload.get("content")
         tool_calls = _serialized_tool_calls(payload)
         function_call = _serialized_function_call(payload)
+        if content is None and not tool_calls and function_call is None:
+            content = payload
     else:
         content = raw_response if isinstance(raw_response, str) else None
         tool_calls = None
@@ -159,6 +161,23 @@ def _format_missing_error(
                 "Missing explanations after repair: "
                 + ", ".join(sorted(missing_explanations))
             )
+    return "; ".join(errors) if errors else None
+
+
+def _format_row_missing_error(
+    prediction: float | None,
+    explanation: str | None,
+    variable: str,
+    *,
+    include_explanations: bool,
+) -> str | None:
+    errors = []
+    if prediction is None:
+        errors.append(f"Missing prediction after repair: {variable}")
+    if include_explanations and (
+        not isinstance(explanation, str) or not explanation.strip()
+    ):
+        errors.append(f"Missing explanation after repair: {variable}")
     return "; ".join(errors) if errors else None
 
 
@@ -221,19 +240,18 @@ def reparse_predictions_frame(
                 variables,
             )
         )
-        parsed_error = _format_missing_error(
-            combined_predictions,
-            combined_explanations,
-            variables,
-            include_explanations=include_explanations,
-        )
         for index, row in group.iterrows():
             variable = str(row["variable"])
             if variable in combined_predictions:
                 reparsed.at[index, "prediction"] = combined_predictions[variable]
             if variable in combined_explanations:
                 reparsed.at[index, "explanation"] = combined_explanations[variable]
-            reparsed.at[index, "error"] = parsed_error
+            reparsed.at[index, "error"] = _format_row_missing_error(
+                combined_predictions.get(variable),
+                combined_explanations.get(variable),
+                variable,
+                include_explanations=include_explanations,
+            )
     return reparsed
 
 
