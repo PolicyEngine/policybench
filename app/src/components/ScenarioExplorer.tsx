@@ -327,7 +327,7 @@ export default function ScenarioExplorer({
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-bg text-left text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium pb-3 pr-4 w-44 border-r border-border-subtle">
+              <th className="sticky left-0 z-10 bg-bg text-left text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium pb-3 pl-3 pr-4 w-44 border-r border-border-subtle">
                 Program
               </th>
               <th className="text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium pb-3 px-3 w-24">
@@ -358,7 +358,7 @@ export default function ScenarioExplorer({
 
               return (
                 <tr key={v} className="border-t border-border-subtle">
-                  <td className="sticky left-0 z-10 bg-bg py-2.5 pr-4 text-sm text-text-secondary border-r border-border-subtle">
+                  <td className="sticky left-0 z-10 bg-bg py-2.5 pl-3 pr-4 text-sm text-text-secondary border-r border-border-subtle">
                     {getVariableLabel(v, country)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-[family-name:var(--font-mono)] text-sm text-text">

@@ -177,7 +177,7 @@ export default function App() {
         <section
           id="models"
           aria-labelledby="leaderboard-heading"
-          className="pt-12 pb-16 sm:pt-16 sm:pb-20"
+          className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
         >
           <ModelLeaderboard
             data={data}
@@ -189,7 +189,7 @@ export default function App() {
         {!isGlobal && (
           <>
             <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-            <section id="scenarios" className="pt-12 pb-16 sm:pt-16 sm:pb-20">
+            <section id="scenarios" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
               <ScenarioExplorer
                 key={(data as BenchData).country}
                 data={data as BenchData}
@@ -199,20 +199,20 @@ export default function App() {
             <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
             <section
               id="failure-modes"
-              className="pt-12 pb-16 sm:pt-16 sm:pb-20"
+              className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
             >
               <FailureModes data={data as BenchData} />
             </section>
 
             <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-            <section id="programs" className="pt-12 pb-16 sm:pt-16 sm:pb-20">
+            <section id="programs" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
               <ProgramHeatmap data={data as BenchData} />
             </section>
           </>
         )}
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-        <section id="methodology" className="pt-12 pb-16 sm:pt-16 sm:pb-20">
+        <section id="methodology" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
           <Methodology data={data} selectedView={selectedView} />
         </section>
       </main>
