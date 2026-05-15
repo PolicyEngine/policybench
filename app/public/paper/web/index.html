@@ -135,6 +135,7 @@ div.csl-indent {
   <li><a href="#failure-modes" id="toc-failure-modes">Failure modes</a></li>
   <li><a href="#limitations" id="toc-limitations">Limitations</a></li>
   <li><a href="#conclusion" id="toc-conclusion">Conclusion</a></li>
+  <li><a href="#appendix-a-structured-output-audit" id="toc-appendix-a-structured-output-audit">Appendix A: Structured-output audit</a></li>
   <li><a href="#competing-interests" id="toc-competing-interests">Competing interests</a></li>
   </ul>
 </nav>
@@ -1838,7 +1839,7 @@ Table&nbsp;16: US within-10% accuracy on federal vs state refundable credits and
 </figure>
 </div>
 </div>
-<p>Fourth, structured-output reliability can affect rankings. The current manuscript snapshot has full parse coverage for the included models, but the benchmark still tracks coverage because failures to return parseable numeric values should count as benchmark failures <span class="citation" data-cites="shorten2024structuredrag">(Shorten et al. 2024)</span>.</p>
+<p>Fourth, structured-output reliability affects rankings. Missing or unparseable numeric values count as benchmark failures, and Appendix A reports the post-run parser audit. After a conservative reparse of saved raw responses, 271 of 2,400 country-model-household responses still have at least one missing output.</p>
 <h2 id="limitations" class="anchored">Limitations</h2>
 <p>PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:</p>
 <ul>
@@ -1857,6 +1858,483 @@ Table&nbsp;16: US within-10% accuracy on federal vs state refundable credits and
 <p>PolicyBench shows a consistent pattern across both countries. Models often identify non-applicability, but positive tax and benefit amounts remain difficult, especially for multi-step income tax, payroll tax, National Insurance, and positive benefit cases. In the frozen manuscript snapshot, gpt-5.5 is the top-scoring model in both the US and UK.</p>
 <p>These results support a narrow conclusion: unaided frontier models still struggle to reproduce selected household-level microsimulation outputs under a structured public benchmark. They do not show that models cannot assist policy analysis, and they do not validate PolicyEngine outputs as administrative truth. They suggest that future evaluations should separate no-tool estimation, tool-using system design, and reference-output validation more explicitly.</p>
 <p>Next steps are to expand country coverage, increase frozen sample sizes, improve UK data provenance, and add protected or rotating evaluation sets so that public rankings are less exposed to open-set leakage. The benchmark should also continue reporting sensitivity views, because equal-country household-equal scores are useful summaries only when their weighting choices are visible.</p>
+<h2 id="appendix-a-structured-output-audit" class="anchored">Appendix A: Structured-output audit</h2>
+<p>The benchmark requires one numeric value and one explanation for every requested output. Parse failures are therefore benchmark failures, not missing data to drop from the denominator. After the frozen model run, we audited all rows classified as parse-contract failures, repaired one parser defect, and reran the parser against saved raw responses without making new model calls. <a href="#tbl-parse-repair-summary" class="quarto-xref">Table&nbsp;17</a> summarizes that sequence.</p>
+<div class="cell" data-execution_count="18">
+<div id="tbl-parse-repair-summary" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="18">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-parse-repair-summary-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;17: Structured-output parser audit and conservative reparse.
+</figcaption>
+<div aria-describedby="tbl-parse-repair-summary-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="18">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Step</th>
+<th data-quarto-table-cell-role="th">Finding</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>Initial parse-contract audit</td>
+<td>2,025 output rows were classified as parse-contract failures after the frozen model run.</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>Parser repair</td>
+<td>The parser was extended to accept nested `outputs` payloads serialized as JSON strings, including the malformed trailing-quote shape seen in saved raw responses.</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>Recovered outputs</td>
+<td>A conservative reparse recovered 42 formerly missing US numeric predictions. All 42 were correct under the existing scorer, and no recovered numeric prediction lowered a score.</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>Remaining parse failures</td>
+<td>1,983 of 34,656 model-output rows remain missing or unparseable after conservative reparse, spread across 271 of 2,400 country-model-household responses.</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>Retry unit</td>
+<td>Any future second-chance sensitivity run should retry and replace an entire country-model-household response, not individual missing variables, because several requested outputs are mechanically related.</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>The main denominator for response reliability is the country-model-household response: one model answering one household in one country. <a href="#tbl-parse-response-denominator" class="quarto-xref">Table&nbsp;18</a> reports that 271 of 2,400 such responses had at least one remaining missing output after the conservative reparse. The output-row count is larger because each response contains multiple requested outputs.</p>
+<div class="cell" data-execution_count="19">
+<div id="tbl-parse-response-denominator" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="19">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-parse-response-denominator-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;18: Remaining parse failures by country-model-household response.
+</figcaption>
+<div aria-describedby="tbl-parse-response-denominator-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="19">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Scope</th>
+<th data-quarto-table-cell-role="th">Responses with any remaining parse failure</th>
+<th data-quarto-table-cell-role="th">Total country-model-household responses</th>
+<th data-quarto-table-cell-role="th">Share (%)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>Overall</td>
+<td>271</td>
+<td>2400</td>
+<td>11.3</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>United States</td>
+<td>110</td>
+<td>1200</td>
+<td>9.2</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>United Kingdom</td>
+<td>161</td>
+<td>1200</td>
+<td>13.4</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>The remaining failures are not one homogeneous bug. <a href="#tbl-parse-failure-shape" class="quarto-xref">Table&nbsp;19</a> groups the 1,983 remaining missing output rows, or 5.7% of 34,656 model-output rows, by the raw-response shape observed during the audit. Some rows have no saved raw response and therefore cannot be recovered by parser changes. Others contain malformed JSON, malformed nested <code>outputs</code> strings, or empty tool arguments after repair attempts. The final column counts affected saved-response or chunk groups for that raw-response shape; it is not a mutually exclusive full-response denominator.</p>
+<div class="cell" data-execution_count="20">
+<div id="tbl-parse-failure-shape" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="20">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-parse-failure-shape-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;19: Remaining missing output rows by raw-response shape.
+</figcaption>
+<div aria-describedby="tbl-parse-failure-shape-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="20">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Remaining raw-response shape</th>
+<th data-quarto-table-cell-role="th">Output rows</th>
+<th data-quarto-table-cell-role="th">US rows</th>
+<th data-quarto-table-cell-role="th">UK rows</th>
+<th data-quarto-table-cell-role="th">Affected raw-response groups</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>No saved raw response</td>
+<td>834</td>
+<td>554</td>
+<td>280</td>
+<td>64</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>Repair attempts returned malformed JSON text</td>
+<td>476</td>
+<td>168</td>
+<td>308</td>
+<td>52</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>Tool call with malformed `outputs` string</td>
+<td>291</td>
+<td>123</td>
+<td>168</td>
+<td>31</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>Repair attempts returned malformed `outputs` string</td>
+<td>250</td>
+<td>110</td>
+<td>140</td>
+<td>26</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>Repair attempts returned empty tool arguments</td>
+<td>125</td>
+<td>89</td>
+<td>36</td>
+<td>125</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
+<td>Invalid saved raw JSON plus top-level `outputs` object</td>
+<td>6</td>
+<td>0</td>
+<td>6</td>
+<td>1</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
+<td>Double-nested `outputs` object</td>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>Parse failures are concentrated in a few models. <a href="#tbl-parse-failure-model" class="quarto-xref">Table&nbsp;20</a> reports the model-level response denominator across both countries. Models not shown in the table had no country-model-household response with a remaining parse failure after the conservative reparse.</p>
+<div class="cell" data-execution_count="21">
+<div id="tbl-parse-failure-model" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="21">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-parse-failure-model-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;20: Remaining response-level parse failures by model.
+</figcaption>
+<div aria-describedby="tbl-parse-failure-model-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="21">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Model</th>
+<th data-quarto-table-cell-role="th">Responses with any remaining parse failure</th>
+<th data-quarto-table-cell-role="th">Total responses</th>
+<th data-quarto-table-cell-role="th">Share (%)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>grok-4.1-fast</td>
+<td>121</td>
+<td>200</td>
+<td>60.5</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>claude-sonnet-4.6</td>
+<td>90</td>
+<td>200</td>
+<td>45.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>gemini-3.1-flash-lite-preview</td>
+<td>40</td>
+<td>200</td>
+<td>20.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>gemini-3.1-pro-preview</td>
+<td>11</td>
+<td>200</td>
+<td>5.5</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>claude-haiku-4.5</td>
+<td>6</td>
+<td>200</td>
+<td>3.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
+<td>gemini-3-flash-preview</td>
+<td>2</td>
+<td>200</td>
+<td>1.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
+<td>claude-opus-4.7</td>
+<td>1</td>
+<td>200</td>
+<td>0.5</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>The concentration also differs by country. <a href="#tbl-parse-failure-country-model" class="quarto-xref">Table&nbsp;21</a> reports the nonzero country-model cells. This is the most direct table for deciding whether a second-chance sensitivity run is worth the cost: a retry should target whole country-model-household responses in these cells and should preserve both the original and retry raw responses.</p>
+<div class="cell" data-execution_count="22">
+<div id="tbl-parse-failure-country-model" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="22">
+<figure class="quarto-float quarto-float-tbl">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-parse-failure-country-model-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;21: Remaining response-level parse failures by country and model.
+</figcaption>
+<div aria-describedby="tbl-parse-failure-country-model-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="22">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+
+<table class="dataframe cell caption-top" data-border="1">
+<thead>
+<tr class="header" style="text-align: right;">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Country</th>
+<th data-quarto-table-cell-role="th">Model</th>
+<th data-quarto-table-cell-role="th">Responses with any remaining parse failure</th>
+<th data-quarto-table-cell-role="th">Total responses</th>
+<th data-quarto-table-cell-role="th">Share (%)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>UK</td>
+<td>grok-4.1-fast</td>
+<td>84</td>
+<td>100</td>
+<td>84.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>UK</td>
+<td>gemini-3.1-flash-lite-preview</td>
+<td>39</td>
+<td>100</td>
+<td>39.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>UK</td>
+<td>claude-sonnet-4.6</td>
+<td>30</td>
+<td>100</td>
+<td>30.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>UK</td>
+<td>gemini-3.1-pro-preview</td>
+<td>5</td>
+<td>100</td>
+<td>5.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
+<td>UK</td>
+<td>claude-haiku-4.5</td>
+<td>1</td>
+<td>100</td>
+<td>1.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
+<td>UK</td>
+<td>claude-opus-4.7</td>
+<td>1</td>
+<td>100</td>
+<td>1.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
+<td>UK</td>
+<td>gemini-3-flash-preview</td>
+<td>1</td>
+<td>100</td>
+<td>1.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">7</th>
+<td>US</td>
+<td>claude-sonnet-4.6</td>
+<td>60</td>
+<td>100</td>
+<td>60.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">8</th>
+<td>US</td>
+<td>grok-4.1-fast</td>
+<td>37</td>
+<td>100</td>
+<td>37.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">9</th>
+<td>US</td>
+<td>gemini-3.1-pro-preview</td>
+<td>6</td>
+<td>100</td>
+<td>6.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">10</th>
+<td>US</td>
+<td>claude-haiku-4.5</td>
+<td>5</td>
+<td>100</td>
+<td>5.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">11</th>
+<td>US</td>
+<td>gemini-3-flash-preview</td>
+<td>1</td>
+<td>100</td>
+<td>1.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">12</th>
+<td>US</td>
+<td>gemini-3.1-flash-lite-preview</td>
+<td>1</td>
+<td>100</td>
+<td>1.0</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>We do not mix replacement values within a single household-model response in the canonical snapshot. Several outputs in the same response are mechanically related, so replacing only missing variables could combine two inconsistent answer sets. A future second-chance analysis should therefore rerun each broken country-model-household response, accept the retry only if it satisfies the full response contract, and report the original-run and retry-run scores separately.</p>
 <h2 id="competing-interests" class="anchored">Competing interests</h2>
 <p>The author is affiliated with PolicyEngine, which develops the microsimulation software used to produce the benchmark reference outputs.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">

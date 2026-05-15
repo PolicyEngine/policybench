@@ -732,6 +732,88 @@ reference_audit = pd.DataFrame(
     ],
     columns=["Discrepancy class", "Review outcome"],
 )
+parse_repair_summary = pd.DataFrame(
+    [
+        ["Initial parse-contract audit", "2,025 output rows were classified as parse-contract failures after the frozen model run."],
+        ["Parser repair", "The parser was extended to accept nested `outputs` payloads serialized as JSON strings, including the malformed trailing-quote shape seen in saved raw responses."],
+        ["Recovered outputs", "A conservative reparse recovered 42 formerly missing US numeric predictions. All 42 were correct under the existing scorer, and no recovered numeric prediction lowered a score."],
+        ["Remaining parse failures", "1,983 of 34,656 model-output rows remain missing or unparseable after conservative reparse, spread across 271 of 2,400 country-model-household responses."],
+        ["Retry unit", "Any future second-chance sensitivity run should retry and replace an entire country-model-household response, not individual missing variables, because several requested outputs are mechanically related."],
+    ],
+    columns=["Step", "Finding"],
+)
+parse_response_denominator = pd.DataFrame(
+    [
+        ["Overall", 271, 2400, 11.3],
+        ["United States", 110, 1200, 9.2],
+        ["United Kingdom", 161, 1200, 13.4],
+    ],
+    columns=[
+        "Scope",
+        "Responses with any remaining parse failure",
+        "Total country-model-household responses",
+        "Share (%)",
+    ],
+)
+parse_failure_shape = pd.DataFrame(
+    [
+        ["No saved raw response", 834, 554, 280, 64],
+        ["Repair attempts returned malformed JSON text", 476, 168, 308, 52],
+        ["Tool call with malformed `outputs` string", 291, 123, 168, 31],
+        ["Repair attempts returned malformed `outputs` string", 250, 110, 140, 26],
+        ["Repair attempts returned empty tool arguments", 125, 89, 36, 125],
+        ["Invalid saved raw JSON plus top-level `outputs` object", 6, 0, 6, 1],
+        ["Double-nested `outputs` object", 1, 0, 1, 1],
+    ],
+    columns=[
+        "Remaining raw-response shape",
+        "Output rows",
+        "US rows",
+        "UK rows",
+        "Affected raw-response groups",
+    ],
+)
+parse_failure_by_model = pd.DataFrame(
+    [
+        ["grok-4.1-fast", 121, 200, 60.5],
+        ["claude-sonnet-4.6", 90, 200, 45.0],
+        ["gemini-3.1-flash-lite-preview", 40, 200, 20.0],
+        ["gemini-3.1-pro-preview", 11, 200, 5.5],
+        ["claude-haiku-4.5", 6, 200, 3.0],
+        ["gemini-3-flash-preview", 2, 200, 1.0],
+        ["claude-opus-4.7", 1, 200, 0.5],
+    ],
+    columns=[
+        "Model",
+        "Responses with any remaining parse failure",
+        "Total responses",
+        "Share (%)",
+    ],
+)
+parse_failure_by_country_model = pd.DataFrame(
+    [
+        ["UK", "grok-4.1-fast", 84, 100, 84.0],
+        ["UK", "gemini-3.1-flash-lite-preview", 39, 100, 39.0],
+        ["UK", "claude-sonnet-4.6", 30, 100, 30.0],
+        ["UK", "gemini-3.1-pro-preview", 5, 100, 5.0],
+        ["UK", "claude-haiku-4.5", 1, 100, 1.0],
+        ["UK", "claude-opus-4.7", 1, 100, 1.0],
+        ["UK", "gemini-3-flash-preview", 1, 100, 1.0],
+        ["US", "claude-sonnet-4.6", 60, 100, 60.0],
+        ["US", "grok-4.1-fast", 37, 100, 37.0],
+        ["US", "gemini-3.1-pro-preview", 6, 100, 6.0],
+        ["US", "claude-haiku-4.5", 5, 100, 5.0],
+        ["US", "gemini-3-flash-preview", 1, 100, 1.0],
+        ["US", "gemini-3.1-flash-lite-preview", 1, 100, 1.0],
+    ],
+    columns=[
+        "Country",
+        "Model",
+        "Responses with any remaining parse failure",
+        "Total responses",
+        "Share (%)",
+    ],
+)
 
 us_ranked = us_model.reset_index(drop=True)
 uk_ranked = uk_model.reset_index(drop=True)
@@ -984,7 +1066,7 @@ Third, joint accuracy across interacting components is lower than marginal accur
 federal_state_joint
 ```
 
-Fourth, structured-output reliability can affect rankings. The current manuscript snapshot has full parse coverage for the included models, but the benchmark still tracks coverage because failures to return parseable numeric values should count as benchmark failures [@shorten2024structuredrag].
+Fourth, structured-output reliability affects rankings. Missing or unparseable numeric values count as benchmark failures, and Appendix A reports the post-run parser audit. After a conservative reparse of saved raw responses, 271 of 2,400 country-model-household responses still have at least one missing output.
 
 ## Limitations
 
@@ -1009,6 +1091,50 @@ PolicyBench shows a consistent pattern across both countries. Models often ident
 These results support a narrow conclusion: unaided frontier models still struggle to reproduce selected household-level microsimulation outputs under a structured public benchmark. They do not show that models cannot assist policy analysis, and they do not validate PolicyEngine outputs as administrative truth. They suggest that future evaluations should separate no-tool estimation, tool-using system design, and reference-output validation more explicitly.
 
 Next steps are to expand country coverage, increase frozen sample sizes, improve UK data provenance, and add protected or rotating evaluation sets so that public rankings are less exposed to open-set leakage. The benchmark should also continue reporting sensitivity views, because equal-country household-equal scores are useful summaries only when their weighting choices are visible.
+
+## Appendix A: Structured-output audit
+
+The benchmark requires one numeric value and one explanation for every requested output. Parse failures are therefore benchmark failures, not missing data to drop from the denominator. After the frozen model run, we audited all rows classified as parse-contract failures, repaired one parser defect, and reran the parser against saved raw responses without making new model calls. @tbl-parse-repair-summary summarizes that sequence.
+
+```{python}
+#| label: tbl-parse-repair-summary
+#| tbl-cap: "Structured-output parser audit and conservative reparse."
+parse_repair_summary
+```
+
+The main denominator for response reliability is the country-model-household response: one model answering one household in one country. @tbl-parse-response-denominator reports that 271 of 2,400 such responses had at least one remaining missing output after the conservative reparse. The output-row count is larger because each response contains multiple requested outputs.
+
+```{python}
+#| label: tbl-parse-response-denominator
+#| tbl-cap: "Remaining parse failures by country-model-household response."
+parse_response_denominator
+```
+
+The remaining failures are not one homogeneous bug. @tbl-parse-failure-shape groups the 1,983 remaining missing output rows, or 5.7% of 34,656 model-output rows, by the raw-response shape observed during the audit. Some rows have no saved raw response and therefore cannot be recovered by parser changes. Others contain malformed JSON, malformed nested `outputs` strings, or empty tool arguments after repair attempts. The final column counts affected saved-response or chunk groups for that raw-response shape; it is not a mutually exclusive full-response denominator.
+
+```{python}
+#| label: tbl-parse-failure-shape
+#| tbl-cap: "Remaining missing output rows by raw-response shape."
+parse_failure_shape
+```
+
+Parse failures are concentrated in a few models. @tbl-parse-failure-model reports the model-level response denominator across both countries. Models not shown in the table had no country-model-household response with a remaining parse failure after the conservative reparse.
+
+```{python}
+#| label: tbl-parse-failure-model
+#| tbl-cap: "Remaining response-level parse failures by model."
+parse_failure_by_model
+```
+
+The concentration also differs by country. @tbl-parse-failure-country-model reports the nonzero country-model cells. This is the most direct table for deciding whether a second-chance sensitivity run is worth the cost: a retry should target whole country-model-household responses in these cells and should preserve both the original and retry raw responses.
+
+```{python}
+#| label: tbl-parse-failure-country-model
+#| tbl-cap: "Remaining response-level parse failures by country and model."
+parse_failure_by_country_model
+```
+
+We do not mix replacement values within a single household-model response in the canonical snapshot. Several outputs in the same response are mechanically related, so replacing only missing variables could combine two inconsistent answer sets. A future second-chance analysis should therefore rerun each broken country-model-household response, accept the retry only if it satisfies the full response contract, and report the original-run and retry-run scores separately.
 
 ## Competing interests
 
