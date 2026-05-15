@@ -28,7 +28,7 @@ def mean_absolute_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 def mean_absolute_percentage_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Compute MAPE, excluding zero ground truth values."""
+    """Compute MAPE, excluding zero reference values."""
     mask = y_true != 0
     if not mask.any():
         return float("nan")
@@ -57,23 +57,23 @@ def within_tolerance(
     y_pred: np.ndarray,
     tolerance: float = 0.10,
 ) -> float:
-    """Fraction of predictions within tolerance of ground truth.
+    """Fraction of predictions within tolerance of reference values.
 
-    For values where ground truth is 0, checks if prediction is also 0.
+    For values where the reference value is 0, checks if prediction is also 0.
     """
     mask_nonzero = y_true != 0
     mask_zero = ~mask_nonzero
 
     correct = np.zeros(len(y_true), dtype=bool)
 
-    # For nonzero ground truth: within relative tolerance
+    # For nonzero reference values: within relative tolerance
     if mask_nonzero.any():
         rel_error = np.abs(
             (y_true[mask_nonzero] - y_pred[mask_nonzero]) / y_true[mask_nonzero]
         )
         correct[mask_nonzero] = rel_error <= tolerance
 
-    # For zero ground truth: prediction must be within absolute tolerance
+    # For zero reference values: prediction must be within absolute tolerance
     if mask_zero.any():
         correct[mask_zero] = np.abs(y_pred[mask_zero]) <= 1.0  # $1 tolerance
 

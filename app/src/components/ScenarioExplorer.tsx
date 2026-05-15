@@ -16,11 +16,6 @@ function formatBoolean(value: number): string {
 
 const FAILURE_SOURCE_LABELS: Record<string, string> = {
   llm_error: "LLM",
-  prompt_ambiguity: "Prompt",
-  reference_model_issue_fixed: "PE fixed",
-  reference_data_issue_fixed: "Data fixed",
-  parse_contract_failure: "Parse",
-  needs_review: "Review",
 };
 
 function formatFailureLabel(value?: string): string | null {

@@ -312,7 +312,7 @@ def impact_floor_sensitivity() -> pd.DataFrame:
     """Top US/UK models under varying household-equal impact-score floors.
 
     Uses the canonical ``policybench.analysis.household_equal_impact_scores``
-    over the committed snapshot ground-truth and per-run prediction CSVs so
+    over the committed snapshot reference-output and per-run prediction CSVs so
     the table matches the same impact statistic used in
     ``us_impact_summary_by_model.csv`` and ``uk_impact_summary_by_model.csv``.
     """

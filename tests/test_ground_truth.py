@@ -1,4 +1,4 @@
-"""Tests for ground truth calculations."""
+"""Tests for reference-output calculations."""
 
 from types import SimpleNamespace
 
