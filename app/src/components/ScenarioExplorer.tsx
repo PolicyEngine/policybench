@@ -618,21 +618,6 @@ function DetailContent({
     formatFailureLabel(pred.failureSource),
     pred.failureSubtype ? pred.failureSubtype.replaceAll("_", " ") : null,
   ].filter(Boolean) as string[];
-  const caseTags = [
-    pred.caseFailureSources
-      ? pred.caseFailureSources
-          .split(";")
-          .map((source) => formatFailureLabel(source))
-          .filter(Boolean)
-          .join(", ")
-      : null,
-    pred.caseFailureSubtypes
-      ? pred.caseFailureSubtypes
-          .split(";")
-          .map((value) => value.replaceAll("_", " "))
-          .join(", ")
-      : null,
-  ].filter(Boolean) as string[];
 
   return (
     <div className="relative px-5 py-5">
@@ -752,30 +737,6 @@ function DetailContent({
         </section>
       )}
 
-      {(pred.caseAnnotation || caseTags.length > 0) && (
-        <section className="mt-5 border-t border-border-subtle pt-4">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-            Cross-model note
-          </div>
-          {pred.caseAnnotation && (
-            <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
-              {pred.caseAnnotation}
-            </p>
-          )}
-          {caseTags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {caseTags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full border border-border-subtle bg-surface px-2 py-0.5 text-[10px] uppercase tracking-wider text-text-muted"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 }
