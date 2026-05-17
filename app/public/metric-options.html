@@ -1,0 +1,1845 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Metric design walkthrough — PolicyBench</title>
+    <meta
+      name="description"
+      content="Step-by-step comparison of scoring options for combining multi-output model predictions into a single ranking."
+    />
+    <link rel="icon" href="/assets/policyengine-mark.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f8fafa;
+        --surface: #ffffff;
+        --surface-soft: #f1f7f7;
+        --text: #0f172a;
+        --muted: #475569;
+        --muted-soft: #94a3b8;
+        --border: #e2e8f0;
+        --border-strong: #cbd5e1;
+        --primary: #228b8d;
+        --primary-strong: #155e60;
+        --primary-soft: #e3f2f2;
+        --good: #15803d;
+        --good-soft: #dcfce7;
+        --bad: #b91c1c;
+        --bad-soft: #fee2e2;
+        --accent: #0e7490;
+        --accent-soft: #cffafe;
+        --warn: #b45309;
+        --warn-soft: #fef3c7;
+        --sans:
+          "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          sans-serif;
+        --mono:
+          "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--bg);
+        color: var(--text);
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--text);
+        background:
+          radial-gradient(
+            circle at 10% -10%,
+            rgba(34, 139, 141, 0.12),
+            transparent 28rem
+          ),
+          radial-gradient(
+            circle at 90% 5%,
+            rgba(14, 116, 144, 0.08),
+            transparent 24rem
+          ),
+          linear-gradient(180deg, #ffffff 0%, var(--bg) 36rem);
+      }
+
+      a {
+        color: var(--primary-strong);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .shell {
+        width: min(960px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      header.site {
+        border-bottom: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.78);
+        backdrop-filter: blur(12px);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      header.site .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 56px;
+      }
+
+      header.site .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: var(--text);
+      }
+
+      header.site .brand img {
+        height: 18px;
+        width: auto;
+      }
+
+      header.site .brand span {
+        font-weight: 600;
+        font-size: 14px;
+        letter-spacing: -0.01em;
+      }
+
+      header.site nav a {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-left: 18px;
+      }
+      header.site nav a:hover {
+        color: var(--primary-strong);
+        text-decoration: none;
+      }
+
+      .hero {
+        padding: 56px 0 32px;
+      }
+
+      .eyebrow {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--primary-strong);
+        margin-bottom: 14px;
+      }
+
+      h1 {
+        font-size: clamp(32px, 4vw, 44px);
+        line-height: 1.12;
+        letter-spacing: -0.025em;
+        margin: 0 0 16px;
+        font-weight: 700;
+      }
+
+      h2 {
+        font-size: 26px;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        margin: 0 0 8px;
+        font-weight: 600;
+      }
+
+      h3 {
+        font-size: 16px;
+        margin: 24px 0 8px;
+        font-weight: 600;
+        letter-spacing: -0.005em;
+      }
+
+      .lede {
+        font-size: 18px;
+        color: var(--muted);
+        max-width: 60ch;
+        margin: 0;
+      }
+
+      .step {
+        padding: 32px 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .step-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--primary-soft);
+        color: var(--primary-strong);
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 600;
+        margin-right: 10px;
+        vertical-align: 2px;
+      }
+
+      .step h2 {
+        margin-bottom: 4px;
+      }
+
+      .step .sub {
+        font-size: 14px;
+        color: var(--muted);
+        margin: 4px 0 24px;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px 24px;
+      }
+
+      .card + .card {
+        margin-top: 16px;
+      }
+
+      .card.muted {
+        background: var(--surface-soft);
+      }
+
+      .card.good {
+        background: var(--good-soft);
+        border-color: rgba(21, 128, 61, 0.22);
+      }
+
+      .card.bad {
+        background: var(--bad-soft);
+        border-color: rgba(185, 28, 28, 0.22);
+      }
+
+      .card.warn {
+        background: var(--warn-soft);
+        border-color: rgba(180, 83, 9, 0.25);
+      }
+
+      .card.accent {
+        background: var(--accent-soft);
+        border-color: rgba(14, 116, 144, 0.25);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .pill.good {
+        background: var(--good-soft);
+        color: var(--good);
+      }
+      .pill.bad {
+        background: var(--bad-soft);
+        color: var(--bad);
+      }
+      .pill.warn {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .pill.neutral {
+        background: var(--surface-soft);
+        color: var(--muted);
+      }
+
+      .formula {
+        font-family: var(--mono);
+        font-size: 13.5px;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 14px 18px;
+        border-radius: 10px;
+        overflow-x: auto;
+        line-height: 1.7;
+      }
+
+      .formula .var {
+        color: #5eead4;
+      }
+      .formula .num {
+        color: #fcd34d;
+      }
+      .formula .op {
+        color: #94a3b8;
+      }
+      .formula .comment {
+        color: #64748b;
+        font-style: italic;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+      }
+
+      table caption {
+        text-align: left;
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+
+      thead th {
+        text-align: left;
+        font-weight: 500;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+
+      tbody td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+
+      tbody tr.total td {
+        font-weight: 600;
+        border-top: 1px solid var(--border-strong);
+        border-bottom: none;
+        background: var(--surface-soft);
+      }
+
+      td.right,
+      th.right {
+        text-align: right;
+      }
+
+      td.mono,
+      th.mono {
+        font-family: var(--mono);
+      }
+
+      .num-good {
+        color: var(--good);
+      }
+      .num-bad {
+        color: var(--bad);
+      }
+      .num-zero {
+        color: var(--muted-soft);
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        margin: 16px 0;
+      }
+
+      .key {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-family: var(--mono);
+        font-size: 12px;
+        background: var(--surface-soft);
+        color: var(--primary-strong);
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 720px) {
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .verdict {
+        display: flex;
+        gap: 12px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+
+      .leaderboard {
+        margin-top: 8px;
+      }
+
+      .leaderboard td.rank {
+        font-family: var(--mono);
+        font-weight: 600;
+        color: var(--muted);
+        width: 32px;
+      }
+
+      .leaderboard td.score {
+        font-family: var(--mono);
+        font-weight: 600;
+      }
+
+      footer.site {
+        margin-top: 64px;
+        padding: 32px 0 56px;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .toc {
+        position: sticky;
+        top: 70px;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .toc ol {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        counter-reset: tocstep;
+      }
+      .toc li {
+        counter-increment: tocstep;
+      }
+      .toc li::before {
+        content: counter(tocstep, decimal-leading-zero);
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted-soft);
+        margin-right: 8px;
+      }
+      .toc a {
+        color: var(--muted);
+      }
+      .toc a:hover {
+        color: var(--primary-strong);
+      }
+
+      .with-toc {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+      @media (min-width: 980px) {
+        .with-toc {
+          grid-template-columns: 200px 1fr;
+          gap: 48px;
+        }
+      }
+
+      p {
+        max-width: 65ch;
+      }
+
+      .step .card p:first-child {
+        margin-top: 0;
+      }
+      .step .card p:last-child {
+        margin-bottom: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <div class="shell row">
+        <a class="brand" href="https://policybench.org">
+          <img src="/assets/policyengine-logo.svg" alt="PolicyEngine" />
+          <span>PolicyBench / metric design</span>
+        </a>
+        <nav>
+          <a href="/">Benchmark</a>
+          <a href="/paper">Paper</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="shell hero">
+        <span class="eyebrow">Metric design</span>
+        <h1>How should we score a model across many outputs?</h1>
+        <p class="lede">
+          Each model produces predictions for several tax and benefit outputs
+          per household. To rank models we have to combine those into a single
+          number. This page builds up the choices step by step on a tiny worked
+          example, ending with the recommendation: data-derived global variable
+          weights instead of the arbitrary 30% floor.
+        </p>
+      </section>
+
+      <section class="shell">
+        <div class="with-toc">
+          <aside class="toc" aria-label="Table of contents">
+            <ol>
+              <li><a href="#setup">The setup</a></li>
+              <li><a href="#row-score">Row score</a></li>
+              <li><a href="#equal">Equal weights</a></li>
+              <li><a href="#impact">Per-household impact</a></li>
+              <li><a href="#floor">The 30% floor</a></li>
+              <li><a href="#global">Global variable weights</a></li>
+              <li><a href="#two-score">Two-score breakdown</a></li>
+              <li><a href="#combine">Collapsing A and P</a></li>
+              <li><a href="#budget">Budget-weighted</a></li>
+              <li><a href="#net-income">Net-income reconstruction</a></li>
+              <li><a href="#also">Also considered</a></li>
+              <li><a href="#leaderboard">Side by side</a></li>
+            </ol>
+          </aside>
+
+          <div>
+            <section id="setup" class="step">
+              <h2><span class="step-num">1</span>The setup</h2>
+              <p class="sub">
+                Three households, five outputs (four dollar amounts plus one
+                eligibility flag), two models. Every step on this page uses
+                the same numbers.
+              </p>
+
+              <div class="card">
+                <h3>Reference values (what PolicyEngine computes)</h3>
+                <p>
+                  Dollar cells are signed amounts for one tax year — negatives
+                  are liabilities (taxes paid), positives are benefits
+                  received. The Medicaid column is a boolean eligibility
+                  flag; the paired dollar value shown below "Eligible" is
+                  PolicyEngine's per-capita Medicaid value for that household.
+                  We use it only for weighting (it never enters the LLM's
+                  prediction task).
+                </p>
+                <div class="table-wrap" id="reference-table"></div>
+              </div>
+
+              <div class="card">
+                <h3>What the two models predict</h3>
+                <p>
+                  Stylized predictions designed to make the trade-off visible.
+                  The tax-focused model nails taxes but zeros out benefits and
+                  flags everyone as Medicaid-ineligible; the benefit-focused
+                  model gets the eligibility calls right but is rough on tax
+                  amounts. Predictions are LLM outputs — they include the
+                  boolean for Medicaid but never the dollar value.
+                </p>
+                <div class="grid-2">
+                  <div class="table-wrap" id="model-tax-predictions"></div>
+                  <div class="table-wrap" id="model-benefit-predictions"></div>
+                </div>
+              </div>
+
+              <div class="card accent">
+                <h3>How booleans fit in</h3>
+                <p>
+                  Eligibility flags like
+                  <span class="key">medicaid_eligible</span> are a different
+                  prediction task from a dollar amount. We handle them in the
+                  same single-bucket scheme by separating two concerns:
+                </p>
+                <ul style="margin: 0 0 12px 20px; padding: 0; color: var(--muted)">
+                  <li style="margin-bottom: 6px">
+                    <strong>Score</strong> the LLM only on the boolean (true
+                    or false). It never has to estimate the per-capita value.
+                  </li>
+                  <li>
+                    <strong>Weight</strong> the boolean using PolicyEngine's
+                    paired value variable
+                    (<span class="key">medicaid_value</span>), so a wrong
+                    eligibility call for someone with $9,000 of Medicaid value
+                    counts more than the same wrong call with $0 at stake.
+                  </li>
+                </ul>
+                <p>
+                  All the weighting schemes below (equal, per-household
+                  impact, global, budget, floor) use this paired value as
+                  |ref| for the boolean. Row scores stay binary for booleans
+                  — wrong eligibility = 0, right eligibility = 1.
+                </p>
+              </div>
+            </section>
+
+            <section id="row-score" class="step">
+              <h2><span class="step-num">2</span>Row score</h2>
+              <p class="sub">
+                The atomic unit. We need this before we can talk about
+                weighting.
+              </p>
+
+              <div class="card">
+                <p>
+                  For one household and one output, the row score compares the
+                  prediction to the reference and rescales the error. The
+                  reference-zero case gets its own line so boolean outputs and
+                  dollar zeros are handled identically: any nonzero prediction
+                  on a zero reference scores 0.
+                </p>
+                <div class="formula">
+                  <span class="comment">// when the reference is zero (no liability, no benefit, or eligibility = false)</span>
+                  <br />
+                  <span class="var">row_score</span>
+                  <span class="op">=</span>
+                  <span class="num">1</span>
+                  if <span class="var">pred</span>
+                  <span class="op">=</span>
+                  <span class="num">0</span>
+                  else <span class="num">0</span>
+                  <br />
+                  <br />
+                  <span class="comment">// otherwise</span>
+                  <br />
+                  <span class="var">row_score</span>
+                  <span class="op">=</span>
+                  max(<span class="num">0</span>,
+                  <span class="num">1</span>
+                  <span class="op">−</span> |<span class="var">pred</span>
+                  <span class="op">−</span> <span class="var">ref</span>| /
+                  |<span class="var">ref</span>|)
+                </div>
+                <p>
+                  No `$1,000` floor in the denominator: the
+                  <span class="key">max(0, …)</span> already caps the score at
+                  0 when the error exceeds the reference, so the floor wasn't
+                  doing any extra work. Bonus: booleans
+                  (<span class="var">ref</span> ∈ {0, 1}) drop out of this
+                  same formula at 0 or 1 with no special branch needed.
+                </p>
+                <div class="table-wrap" id="row-scores-tax"></div>
+                <div class="table-wrap" id="row-scores-benefit"></div>
+              </div>
+            </section>
+
+            <section id="equal" class="step">
+              <h2><span class="step-num">3</span>Equal weights</h2>
+              <p class="sub">
+                The simplest combination: each output counts the same inside
+                each household.
+              </p>
+
+              <div class="card">
+                <p>
+                  Average the five row scores into a household score, then
+                  average the household scores into a model score. Each output
+                  gets a weight of 1/5 in every household.
+                </p>
+                <div class="table-wrap" id="equal-table"></div>
+                <div class="verdict">
+                  <span class="pill good">Transparent</span>
+                  <span class="pill bad">Treats $20 like $4,000</span>
+                  <span class="pill bad">Benefit-heavy mix wins by default</span>
+                </div>
+                <p>
+                  Because most outputs are benefits or near-zero for most
+                  households, a model that just outputs zeros and "not
+                  eligible" everywhere does well — it gets full credit on
+                  every correct zero. Predicting the actual dollar amount of
+                  a benefit, or the correct Medicaid eligibility, is worth no
+                  more than predicting that it is zero when it actually is
+                  zero.
+                </p>
+              </div>
+            </section>
+
+            <section id="impact" class="step">
+              <h2><span class="step-num">4</span>Per-household impact weights</h2>
+              <p class="sub">
+                Inside each household, weight each output by its share of total
+                absolute dollars.
+              </p>
+
+              <div class="card">
+                <div class="formula">
+                  <span class="var">impact_weight</span><span class="op">_</span><span class="var">ij</span>
+                  <span class="op">=</span> |<span class="var">ref</span><span class="op">_</span><span class="var">ij</span>|
+                  <span class="op">/</span>
+                  Σ<span class="op">_</span><span class="var">k</span> |<span class="var">ref</span><span class="op">_</span><span class="var">ik</span>|
+                </div>
+                <p>
+                  Now an output gets weight in proportion to its dollar size
+                  for that household. A $5,000 income tax line carries more
+                  weight than a $500 ACA premium tax credit.
+                </p>
+                <div class="table-wrap" id="impact-weights-table"></div>
+                <div class="table-wrap" id="impact-table"></div>
+                <div class="verdict">
+                  <span class="pill good">Rewards big-dollar accuracy</span>
+                  <span class="pill bad">A household with one nonzero output gives that output 100% weight</span>
+                  <span class="pill bad">Models can game per-household quirks</span>
+                </div>
+                <p>
+                  The failure mode: if a household's only nonzero output is
+                  income tax, getting income tax right earns 100% of that
+                  household's score. Predicting zeros for the others doesn't
+                  matter — they had zero weight anyway. A model can score well
+                  by being good at the dominant output for each household
+                  without being good in general.
+                </p>
+              </div>
+            </section>
+
+            <section id="floor" class="step">
+              <h2><span class="step-num">5</span>The 30% floor (the current bandaid)</h2>
+              <p class="sub">
+                Blend equal weights and household-impact weights with a floor
+                of 30% equal weight per output.
+              </p>
+
+              <div class="card">
+                <div class="formula">
+                  <span class="var">weight</span><span class="op">_</span><span class="var">ij</span>
+                  <span class="op">=</span>
+                  <span class="num">0.3</span>
+                  <span class="op">×</span> (<span class="num">1</span><span class="op">/</span><span class="var">K</span>)
+                  <span class="op">+</span>
+                  <span class="num">0.7</span>
+                  <span class="op">×</span>
+                  <span class="var">impact_weight</span><span class="op">_</span><span class="var">ij</span>
+                </div>
+                <p>
+                  This patches the per-household failure mode by guaranteeing
+                  every output some minimum weight. But the 30% is a free
+                  parameter — change it to 25% or 40% and the leaderboard
+                  shifts. Nothing in the data tells us which value to use.
+                </p>
+                <div class="table-wrap" id="floor-table"></div>
+                <div class="verdict">
+                  <span class="pill good">Caps the per-household failure</span>
+                  <span class="pill bad">0.3 is arbitrary — it picks the winner</span>
+                  <span class="pill warn">Two hidden assumptions stacked together</span>
+                </div>
+              </div>
+            </section>
+
+            <section id="global" class="step">
+              <h2>
+                <span class="step-num">6</span>Global variable weights
+                <span
+                  class="pill good"
+                  style="
+                    vertical-align: middle;
+                    margin-left: 8px;
+                    font-size: 10px;
+                  "
+                  >Recommended</span
+                >
+              </h2>
+              <p class="sub">
+                Take the per-household impact share, average it across
+                households, and use that as one fixed weight per variable.
+              </p>
+
+              <div class="card">
+                <div class="formula">
+                  <span class="comment">// Step 1: compute the household-impact share for each cell</span>
+                  <br />
+                  <span class="var">share</span><span class="op">_</span><span class="var">ij</span>
+                  <span class="op">=</span>
+                  |<span class="var">ref</span><span class="op">_</span><span class="var">ij</span>|
+                  <span class="op">/</span>
+                  Σ<span class="op">_</span><span class="var">k</span> |<span class="var">ref</span><span class="op">_</span><span class="var">ik</span>|
+                  <br />
+                  <br />
+                  <span class="comment">// Step 2: average across households to get a fixed variable weight</span>
+                  <br />
+                  <span class="var">weight</span><span class="op">_</span><span class="var">j</span>
+                  <span class="op">=</span>
+                  mean<span class="op">_</span><span class="var">i</span>
+                  <span class="var">share</span><span class="op">_</span><span class="var">ij</span>
+                  <br />
+                  <br />
+                  <span class="comment">// Step 3: score each household with the same weights</span>
+                  <br />
+                  <span class="var">household_score</span><span class="op">_</span><span class="var">i</span>
+                  <span class="op">=</span>
+                  Σ<span class="op">_</span><span class="var">j</span>
+                  <span class="var">weight</span><span class="op">_</span><span class="var">j</span>
+                  <span class="op">×</span>
+                  <span class="var">row_score</span><span class="op">_</span><span class="var">ij</span>
+                  <br />
+                  <br />
+                  <span class="comment">// Step 4: average across households (one household = one household)</span>
+                  <br />
+                  <span class="var">model_score</span>
+                  <span class="op">=</span>
+                  mean<span class="op">_</span><span class="var">i</span>
+                  <span class="var">household_score</span><span class="op">_</span><span class="var">i</span>
+                </div>
+                <p>
+                  The weights come from the data, not from a choice. Medicaid
+                  ends up with the largest weight because its paired
+                  per-capita value is large for the two households that have
+                  it — eligibility carries real dollar stakes. Income tax
+                  stays a big variable because it is sizeable for every
+                  household. SNAP and ACA PTC are smaller but non-trivial.
+                  Every household uses the same weights, so models can't
+                  exploit per-household quirks.
+                </p>
+                <div class="table-wrap" id="global-weights-table"></div>
+                <div class="table-wrap" id="global-table"></div>
+                <div class="verdict">
+                  <span class="pill good">No arbitrary floor</span>
+                  <span class="pill good">Same weights for every household</span>
+                  <span class="pill good">Correct zeros still count</span>
+                  <span class="pill good">Derived from the benchmark, not chosen</span>
+                </div>
+              </div>
+            </section>
+
+            <section id="two-score" class="step">
+              <h2><span class="step-num">7</span>Two-score breakdown</h2>
+              <p class="sub">
+                The methodologically cleanest option: report two numbers
+                instead of forcing one.
+              </p>
+
+              <div class="card">
+                <p>
+                  <strong>Amount accuracy</strong> scores only the dollar
+                  cells where the reference is nonzero, using global variable
+                  weights from step 6 (booleans don't have a magnitude to
+                  predict, so they're excluded).
+                  <strong>Participation accuracy</strong> scores the
+                  zero-vs-positive call on dollar cells and the eligibility
+                  call on boolean cells — both binary checks on every cell.
+                </p>
+                <div class="formula">
+                  <span class="var">amount_score</span>
+                  <span class="op">=</span>
+                  mean<span class="op">_</span><span class="var">i</span>
+                  Σ<span class="op">_{j: amount, ref_ij ≠ 0}</span>
+                  <span class="var">weight</span><span class="op">_</span><span class="var">j</span>
+                  <span class="op">×</span>
+                  <span class="var">row_score</span><span class="op">_</span><span class="var">ij</span>
+                  <span class="op">/</span>
+                  Σ<span class="op">_{j: amount, ref_ij ≠ 0}</span>
+                  <span class="var">weight</span><span class="op">_</span><span class="var">j</span>
+                  <br />
+                  <br />
+                  <span class="var">participation_score</span>
+                  <span class="op">=</span>
+                  fraction of cells where the binary call matches:
+                  <br />
+                  &nbsp;&nbsp;<span class="comment">// amount cells</span>
+                  (<span class="var">pred_ij</span>
+                  <span class="op">=</span>
+                  <span class="num">0</span>)
+                  matches
+                  (<span class="var">ref_ij</span>
+                  <span class="op">=</span>
+                  <span class="num">0</span>)
+                  <br />
+                  &nbsp;&nbsp;<span class="comment">// boolean cells</span>
+                  <span class="var">pred_ij</span>
+                  <span class="op">=</span>
+                  <span class="var">ref_ij</span>
+                </div>
+                <div class="table-wrap" id="two-score-table"></div>
+                <div class="verdict">
+                  <span class="pill good">Cleanest separation</span>
+                  <span class="pill warn">Two numbers, not a leaderboard</span>
+                </div>
+                <p>
+                  Useful as a companion to the global-weights score: it shows
+                  whether a model is failing on dollar amounts or on whether a
+                  benefit applies at all. If a single leaderboard column is
+                  non-negotiable, the next section walks through the precise
+                  math for collapsing A and P into one number.
+                </p>
+              </div>
+            </section>
+
+            <section id="combine" class="step">
+              <h2><span class="step-num">8</span>Collapsing A and P into one number</h2>
+              <p class="sub">
+                If you decide a single leaderboard column is non-negotiable,
+                here is the precise math. Five options, each with the formula
+                and what it does to the worked example.
+              </p>
+
+              <div class="card accent">
+                <h3>Option 0: skip the combine</h3>
+                <p>
+                  The global variable weights score from step 6 already counts
+                  every cell, including correct zeros, so participation is
+                  already inside it. Use that as the headline and treat
+                  amount and participation as a diagnostic split rather than
+                  components of the combined score. Cheapest defense for
+                  reviewers, no new combine function to argue about.
+                </p>
+              </div>
+
+              <div class="card">
+                <h3>Option 1: arithmetic mean</h3>
+                <div class="formula">
+                  <span class="var">S</span>
+                  <span class="op">=</span>
+                  (<span class="var">A</span>
+                  <span class="op">+</span>
+                  <span class="var">P</span>)
+                  <span class="op">/</span>
+                  <span class="num">2</span>
+                </div>
+                <p>
+                  Easy to read. Lets a model compensate (e.g.&nbsp;100% on
+                  participation, 0% on amount → 50% combined), which reviewers
+                  will flag as papering over a real failure.
+                </p>
+              </div>
+
+              <div class="card">
+                <h3>Option 2: geometric mean</h3>
+                <div class="formula">
+                  <span class="var">S</span>
+                  <span class="op">=</span>
+                  √(<span class="var">A</span>
+                  <span class="op">·</span>
+                  <span class="var">P</span>)
+                </div>
+                <p>
+                  Zero on either component zeros the combined score.
+                  Penalizes imbalance smoothly. Common in compound rates,
+                  reasonably defensible.
+                </p>
+              </div>
+
+              <div class="card good">
+                <h3>Option 3: harmonic mean (F1-style)</h3>
+                <div class="formula">
+                  <span class="var">S</span>
+                  <span class="op">=</span>
+                  <span class="num">2</span>
+                  <span class="op">·</span>
+                  <span class="var">A</span>
+                  <span class="op">·</span>
+                  <span class="var">P</span>
+                  <span class="op">/</span>
+                  (<span class="var">A</span>
+                  <span class="op">+</span>
+                  <span class="var">P</span>)
+                </div>
+                <p>
+                  The convention for combining two complementary 0-to-1
+                  metrics. Reviewers already recognize the F1 pattern, so
+                  this needs the least defense. Penalizes imbalance more than
+                  arithmetic but less than min.
+                </p>
+              </div>
+
+              <div class="card">
+                <h3>Option 4: minimum</h3>
+                <div class="formula">
+                  <span class="var">S</span>
+                  <span class="op">=</span>
+                  min(<span class="var">A</span>,
+                  <span class="var">P</span>)
+                </div>
+                <p>
+                  A model wins only if its weakest dimension is best. Strict
+                  but easy to justify: "good at both, evidenced by the worse
+                  of the two." Tends to flip rankings versus the means
+                  because tied weak sides are common.
+                </p>
+              </div>
+
+              <div class="card warn">
+                <h3>Option 5: weighted (tunable)</h3>
+                <div class="formula">
+                  <span class="var">S</span>
+                  <span class="op">=</span>
+                  <span class="var">α</span>
+                  <span class="op">·</span>
+                  <span class="var">A</span>
+                  <span class="op">+</span>
+                  (<span class="num">1</span>
+                  <span class="op">−</span>
+                  <span class="var">α</span>)
+                  <span class="op">·</span>
+                  <span class="var">P</span>
+                  <span class="comment">  // or generalized mean of order p</span>
+                </div>
+                <p>
+                  Brings back the same free knob as the 30% floor unless α is
+                  derived from the data (e.g. the fraction of cells where
+                  the reference is nonzero). Avoid as a primary metric;
+                  reviewers will press on the choice of α.
+                </p>
+              </div>
+
+              <div class="card">
+                <h3>How they rank the two models</h3>
+                <div class="table-wrap" id="combine-table"></div>
+                <div class="verdict">
+                  <span class="pill good">Arithmetic / geometric / harmonic agree directionally</span>
+                  <span class="pill warn">Min flips the winner</span>
+                </div>
+                <p>
+                  Arithmetic, geometric, and harmonic all rank
+                  benefit-focused above tax-focused because they reward its
+                  big lead on participation. Min flips it: tax-focused's
+                  weak side is participation, benefit-focused's weak side is
+                  amount, and tax-focused's weak side is the higher of the
+                  two — so it wins the strict "good at both" test.
+                </p>
+              </div>
+
+              <div class="card">
+                <p>
+                  <strong>Recommendation:</strong> ship the global variable
+                  weights score (option 0) as the headline. If a column has
+                  to be amount-and-participation combined, use the harmonic
+                  mean — the only one in this list that reviewers won't ask
+                  you to justify from first principles.
+                </p>
+              </div>
+            </section>
+
+            <section id="budget" class="step">
+              <h2><span class="step-num">9</span>Budget-weighted variable weights</h2>
+              <p class="sub">
+                Same shape as the recommended metric, but weights come from
+                aggregate dollar volume across all households instead of from
+                averaging household shares.
+              </p>
+
+              <div class="card">
+                <div class="formula">
+                  <span class="var">weight</span><span class="op">_</span><span class="var">j</span>
+                  <span class="op">=</span>
+                  Σ<span class="op">_</span><span class="var">i</span>
+                  |<span class="var">ref</span><span class="op">_</span><span class="var">ij</span>|
+                  <span class="op">/</span>
+                  Σ<span class="op">_</span><span class="var">i,k</span>
+                  |<span class="var">ref</span><span class="op">_</span><span class="var">ik</span>|
+                </div>
+                <p>
+                  Each variable's weight is the share of all reference dollars
+                  it accounts for in the benchmark. Big aggregate programs
+                  dominate; small ones recede. This is what you would use if
+                  you wanted to score against fiscal impact rather than
+                  household impact.
+                </p>
+                <div class="table-wrap" id="budget-weights-table"></div>
+                <div class="table-wrap" id="budget-table"></div>
+                <div class="verdict">
+                  <span class="pill good">Data-derived, no free knob</span>
+                  <span class="pill warn">Big programs dominate</span>
+                  <span class="pill warn">Households with bigger totals pull more weight</span>
+                </div>
+                <p>
+                  Versus global variable weights: budget tilts even further
+                  toward Medicaid (the $9,000 value in H3 dominates the
+                  aggregate) and less toward income tax (medium for everyone,
+                  small in aggregate). The household-perspective question
+                  &mdash; how well does this model do for an average household
+                  &mdash; bends toward fiscal aggregate accounting instead.
+                </p>
+              </div>
+            </section>
+
+            <section id="net-income" class="step">
+              <h2><span class="step-num">10</span>Net-income reconstruction</h2>
+              <p class="sub">
+                Different paradigm. Skip per-output weights and score the
+                summed household bottom line instead.
+              </p>
+
+              <div class="card">
+                <div class="formula">
+                  <span class="var">net</span><span class="op">_</span><span class="var">i</span>
+                  <span class="op">=</span>
+                  Σ<span class="op">_</span><span class="var">j ∈ amount</span>
+                  <span class="var">value</span><span class="op">_</span><span class="var">ij</span>
+                  <span class="op">+</span>
+                  Σ<span class="op">_</span><span class="var">j ∈ binary</span>
+                  <span class="var">eligible</span><span class="op">_</span><span class="var">ij</span>
+                  <span class="op">·</span>
+                  <span class="var">paired_value</span><span class="op">_</span><span class="var">ij</span>
+                  <br />
+                  <br />
+                  <span class="var">score</span>
+                  <span class="op">=</span>
+                  mean<span class="op">_</span><span class="var">i</span>
+                  row_score(<span class="var">net_ref</span><span class="op">_</span><span class="var">i</span>,
+                  <span class="var">net_pred</span><span class="op">_</span><span class="var">i</span>)
+                </div>
+                <p>
+                  Adds up all components for the household: dollar amounts
+                  go in directly, and each boolean contributes its paired
+                  per-capita value when the LLM predicts "eligible" (zero
+                  otherwise). Scores how close the predicted bottom line is
+                  to the reference. No component-weighting choice because the
+                  components are added rather than averaged.
+                </p>
+                <div class="table-wrap" id="net-income-table"></div>
+                <div class="verdict">
+                  <span class="pill good">No component weighting choice</span>
+                  <span class="pill good">Maps to household well-being</span>
+                  <span class="pill bad">Offsetting errors hide mistakes</span>
+                  <span class="pill warn">Components can't be diagnosed</span>
+                </div>
+                <p>
+                  Failure mode: a model that overstates taxes by $1,000 and
+                  overstates benefits by $1,000 scores perfectly on net even
+                  though both components are wrong. Useful as a sanity check
+                  alongside a component-level metric, not as a replacement.
+                </p>
+              </div>
+            </section>
+
+            <section id="also" class="step">
+              <h2><span class="step-num">11</span>Other variants we considered</h2>
+              <p class="sub">
+                Defensible but not chosen, with the reason in each card.
+              </p>
+
+              <div class="card">
+                <h3>Geometric mean across cells</h3>
+                <p>
+                  Replace the arithmetic mean of row scores with a geometric
+                  mean. A single zero score drags the household score to zero.
+                  Penalizes any catastrophic miss instead of letting good
+                  outputs average them out. Hard to recover from one wrong
+                  cell, which is too punishing for a benchmark across many
+                  outputs.
+                </p>
+              </div>
+
+              <div class="card">
+                <h3>Median household instead of mean</h3>
+                <p>
+                  Robust to outlier households. With three households it makes
+                  no statistical sense; with thousands it would dampen the
+                  influence of unusual cases. Worth keeping in mind for the
+                  full benchmark but not the primary metric &mdash; we want
+                  models that work for everyone, not just the typical
+                  household.
+                </p>
+              </div>
+
+              <div class="card">
+                <h3>Stratified by household type</h3>
+                <p>
+                  Group households by income decile or family structure, score
+                  within each stratum, then average across strata. Guarantees
+                  every household type is represented equally, regardless of
+                  how the sample was drawn. Worth doing as a report breakdown,
+                  but stratum choice is its own free parameter.
+                </p>
+              </div>
+
+              <div class="card">
+                <h3>Threshold accuracy (got it / didn't)</h3>
+                <p>
+                  Score 1 if the prediction is within X% of the reference and
+                  0 otherwise. Conceptually clean and easy to communicate, but
+                  the threshold X is the same arbitrary knob as the 30% floor
+                  &mdash; in a different costume.
+                </p>
+              </div>
+
+              <div class="card">
+                <h3>Smooth continuous row score</h3>
+                <p>
+                  Replace
+                  <span class="key">max(0, 1 − err/scale)</span>
+                  with
+                  <span class="key">1 / (1 + err/scale)</span>
+                  or
+                  <span class="key">exp(−err/scale)</span>
+                  so the score never clips at zero. Lets the metric distinguish
+                  between "very wrong" and "extremely wrong." Useful for
+                  diagnosing model behavior on hard rows, but harder to read
+                  as a percentage.
+                </p>
+              </div>
+            </section>
+
+            <section id="leaderboard" class="step">
+              <h2><span class="step-num">12</span>Side by side</h2>
+              <p class="sub">
+                The same two models, scored every way. Different choices give
+                different winners.
+              </p>
+
+              <div class="card">
+                <div class="table-wrap" id="comparison-table"></div>
+                <p style="margin-top: 16px">
+                  Recommendation: ship
+                  <strong>global variable weights</strong> as the headline
+                  ranking and the
+                  <strong>amount + participation breakdown</strong> as the
+                  diagnostic companion. If a column must be the combined
+                  A,P score, use the
+                  <strong>harmonic mean</strong> &mdash; it inherits the F1
+                  convention and reviewers won't ask you to justify the
+                  combine function. Drop the 30% floor &mdash; it is the only
+                  option whose result moves when you change a number that
+                  isn't in the data. Keep net-income reconstruction available
+                  as a sanity check, and consider stratified breakdowns on the
+                  full benchmark.
+                </p>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site">
+      <div class="shell">
+        Worked example for thinking about PolicyBench scoring options.
+        Not a published metric.
+      </div>
+    </footer>
+
+    <script>
+      // Each variable is either an "amount" (dollar-valued) or "binary"
+      // (eligibility flag). Binary variables carry a paired value field —
+      // PE's per-capita dollar value for that program when eligible — that
+      // supplies |ref| for the weighting schemes without asking the LLM to
+      // estimate it.
+      const variables = [
+        { id: "income_tax", label: "Income tax", kind: "amount" },
+        { id: "payroll_tax", label: "Payroll tax", kind: "amount" },
+        { id: "snap", label: "SNAP", kind: "amount" },
+        { id: "aca_ptc", label: "ACA PTC", kind: "amount" },
+        {
+          id: "medicaid_eligible",
+          label: "Medicaid eligibility",
+          kind: "binary",
+          valueField: "medicaid_value",
+        },
+      ];
+
+      const households = [
+        {
+          id: "H1",
+          label: "Worker, no benefits",
+          reference: {
+            income_tax: -4000,
+            payroll_tax: -5000,
+            snap: 0,
+            aca_ptc: 0,
+            medicaid_eligible: false,
+            medicaid_value: 0,
+          },
+        },
+        {
+          id: "H2",
+          label: "Low-income family",
+          reference: {
+            income_tax: -1000,
+            payroll_tax: -1500,
+            snap: 6000,
+            aca_ptc: 8000,
+            medicaid_eligible: true,
+            medicaid_value: 6000,
+          },
+        },
+        {
+          id: "H3",
+          label: "Older renter",
+          reference: {
+            income_tax: -2000,
+            payroll_tax: 0,
+            snap: 2400,
+            aca_ptc: 0,
+            medicaid_eligible: true,
+            medicaid_value: 9000,
+          },
+        },
+      ];
+
+      const models = [
+        {
+          id: "tax",
+          label: "Tax-focused",
+          predictions: {
+            H1: { income_tax: -4000, payroll_tax: -5000, snap: 0, aca_ptc: 0, medicaid_eligible: false },
+            H2: { income_tax: -1000, payroll_tax: -1500, snap: 0, aca_ptc: 0, medicaid_eligible: false },
+            H3: { income_tax: -2000, payroll_tax: 0, snap: 0, aca_ptc: 0, medicaid_eligible: false },
+          },
+        },
+        {
+          id: "benefit",
+          label: "Benefit-focused",
+          predictions: {
+            H1: { income_tax: -2000, payroll_tax: -4000, snap: 0, aca_ptc: 0, medicaid_eligible: false },
+            H2: { income_tax: 0, payroll_tax: -1000, snap: 6000, aca_ptc: 8000, medicaid_eligible: true },
+            H3: { income_tax: -1000, payroll_tax: 0, snap: 2400, aca_ptc: 0, medicaid_eligible: true },
+          },
+        },
+      ];
+
+      const money = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
+      });
+
+      const fmtMoney = (v) => (v === 0 ? "$0" : money.format(v));
+      const fmtPct = (v) => `${(v * 100).toFixed(1)}%`;
+      const fmtWeight = (v) => v.toFixed(3);
+
+      const moneyClass = (v) =>
+        v > 0 ? "num-good" : v < 0 ? "num-bad" : "num-zero";
+
+      // The numeric value of a cell. Booleans encode as 0/1 so the same
+      // row-score formula works for them.
+      function asNumber(value) {
+        if (typeof value === "boolean") return value ? 1 : 0;
+        return value;
+      }
+
+      // Display string for a cell (booleans as "Eligible" / "Not eligible").
+      function fmtCellValue(variable, value) {
+        if (variable.kind === "binary") {
+          return value ? "Eligible" : "Not eligible";
+        }
+        return fmtMoney(value);
+      }
+
+      function cellValueClass(variable, value) {
+        if (variable.kind === "binary") {
+          return value ? "num-good" : "num-zero";
+        }
+        return moneyClass(value);
+      }
+
+      // |ref| for weighting. For amounts it's |ref|; for binary outputs it
+      // pulls from the paired value field (e.g. medicaid_value), which is
+      // PE's per-capita value of the program when eligible. The LLM is never
+      // graded on this value — only on the boolean.
+      function weightValue(variable, household) {
+        if (variable.kind === "binary") {
+          return Math.abs(household.reference[variable.valueField] ?? 0);
+        }
+        return Math.abs(household.reference[variable.id]);
+      }
+
+      // Row score with no $1,000 floor. Special-cases ref = 0 as binary
+      // (which makes the same formula handle eligibility flags naturally).
+      function rowScore(ref, pred) {
+        const r = asNumber(ref);
+        const p = asNumber(pred);
+        if (r === 0) return p === 0 ? 1 : 0;
+        return Math.max(0, 1 - Math.abs(p - r) / Math.abs(r));
+      }
+
+      function rowScoreForCell(variable, household, prediction) {
+        return rowScore(
+          household.reference[variable.id],
+          prediction[variable.id],
+        );
+      }
+
+      function householdAbsTotal(hh) {
+        return variables.reduce((s, v) => s + weightValue(v, hh), 0);
+      }
+
+      function impactWeights(hh) {
+        const total = householdAbsTotal(hh);
+        if (total === 0) {
+          return Object.fromEntries(
+            variables.map((v) => [v.id, 1 / variables.length]),
+          );
+        }
+        return Object.fromEntries(
+          variables.map((v) => [v.id, weightValue(v, hh) / total]),
+        );
+      }
+
+      function equalWeights() {
+        return Object.fromEntries(
+          variables.map((v) => [v.id, 1 / variables.length]),
+        );
+      }
+
+      function globalVariableWeights() {
+        const sums = Object.fromEntries(variables.map((v) => [v.id, 0]));
+        for (const hh of households) {
+          const w = impactWeights(hh);
+          for (const v of variables) sums[v.id] += w[v.id];
+        }
+        return Object.fromEntries(
+          variables.map((v) => [v.id, sums[v.id] / households.length]),
+        );
+      }
+
+      function budgetWeights() {
+        const totals = Object.fromEntries(variables.map((v) => [v.id, 0]));
+        let grand = 0;
+        for (const hh of households) {
+          for (const v of variables) {
+            const abs = weightValue(v, hh);
+            totals[v.id] += abs;
+            grand += abs;
+          }
+        }
+        if (grand === 0) return equalWeights();
+        return Object.fromEntries(
+          variables.map((v) => [v.id, totals[v.id] / grand]),
+        );
+      }
+
+      // Net-income reconstruction. Booleans contribute their paired
+      // per-capita value when "eligible" is true and $0 when false. The
+      // LLM's eligibility call decides whether that value is added; the
+      // value itself comes from PE and is shared by reference and prediction.
+      function netIncomeFromCells(household, values) {
+        return variables.reduce((s, v) => {
+          if (v.kind === "binary") {
+            return s + (values[v.id] ? household.reference[v.valueField] : 0);
+          }
+          return s + values[v.id];
+        }, 0);
+      }
+
+      function arithmeticMean(a, b) {
+        return (a + b) / 2;
+      }
+
+      function geometricMean(a, b) {
+        return Math.sqrt(a * b);
+      }
+
+      function harmonicMean(a, b) {
+        if (a + b === 0) return 0;
+        return (2 * a * b) / (a + b);
+      }
+
+      function minScore(a, b) {
+        return Math.min(a, b);
+      }
+
+      function netIncomeScore(model) {
+        const perHH = households.map((hh) => {
+          const ref = netIncomeFromCells(hh, hh.reference);
+          const pred = netIncomeFromCells(hh, model.predictions[hh.id]);
+          if (ref === 0) return pred === 0 ? 1 : 0;
+          return Math.max(0, 1 - Math.abs(pred - ref) / Math.abs(ref));
+        });
+        return perHH.reduce((s, v) => s + v, 0) / households.length;
+      }
+
+      function floorWeights(hh, floor = 0.3) {
+        const impact = impactWeights(hh);
+        const k = variables.length;
+        return Object.fromEntries(
+          variables.map((v) => [
+            v.id,
+            floor * (1 / k) + (1 - floor) * impact[v.id],
+          ]),
+        );
+      }
+
+      function householdScore(hh, model, weights) {
+        return variables.reduce((sum, v) => {
+          const ref = hh.reference[v.id];
+          const pred = model.predictions[hh.id][v.id];
+          return sum + weights[v.id] * rowScore(ref, pred);
+        }, 0);
+      }
+
+      function modelScore(model, weightsFor) {
+        const perHH = households.map((hh) =>
+          householdScore(hh, model, weightsFor(hh)),
+        );
+        return perHH.reduce((s, v) => s + v, 0) / households.length;
+      }
+
+      // Amount accuracy looks only at dollar cells whose reference is
+      // nonzero — "did the model get the magnitude roughly right when there
+      // was a real amount to predict?" Booleans aren't a dollar prediction,
+      // so they don't contribute to this score.
+      function amountAccuracy(model, globalW) {
+        const perHH = households.map((hh) => {
+          let num = 0;
+          let den = 0;
+          for (const v of variables) {
+            if (v.kind !== "amount") continue;
+            if (hh.reference[v.id] === 0) continue;
+            num += globalW[v.id] * rowScore(hh.reference[v.id], model.predictions[hh.id][v.id]);
+            den += globalW[v.id];
+          }
+          return den === 0 ? 1 : num / den;
+        });
+        return perHH.reduce((s, v) => s + v, 0) / households.length;
+      }
+
+      // Participation accuracy: did the model get the zero/positive call
+      // right? For dollar cells that means predicting $0 iff the reference
+      // is $0; for boolean cells it means matching the eligibility flag.
+      function participationAccuracy(model) {
+        let matches = 0;
+        let total = 0;
+        for (const hh of households) {
+          for (const v of variables) {
+            const ref = hh.reference[v.id];
+            const pred = model.predictions[hh.id][v.id];
+            if (v.kind === "binary") {
+              if (ref === pred) matches += 1;
+            } else {
+              const refZero = ref === 0;
+              const predZero = pred === 0;
+              if (refZero === predZero) matches += 1;
+            }
+            total += 1;
+          }
+        }
+        return matches / total;
+      }
+
+      function buildMatrixTable(rows, columns, getCell, caption) {
+        const head = `<thead><tr><th></th>${columns
+          .map((c) => `<th class="right">${c.label}</th>`)
+          .join("")}</tr></thead>`;
+        const body = `<tbody>${rows
+          .map(
+            (r) =>
+              `<tr><td><strong>${r.id}</strong> <span style="color:var(--muted)">${r.label}</span></td>${columns
+                .map((c) => `<td class="right mono">${getCell(r, c)}</td>`)
+                .join("")}</tr>`,
+          )
+          .join("")}</tbody>`;
+        const cap = caption ? `<caption>${caption}</caption>` : "";
+        return `<table>${cap}${head}${body}</table>`;
+      }
+
+      function refTable() {
+        return buildMatrixTable(
+          households,
+          variables,
+          (hh, v) => {
+            const val = hh.reference[v.id];
+            const label = fmtCellValue(v, val);
+            const cls = cellValueClass(v, val);
+            if (v.kind === "binary") {
+              const paired = hh.reference[v.valueField];
+              const valueNote =
+                paired > 0
+                  ? `<br><span style="font-size:11px;color:var(--muted-soft)">value ${fmtMoney(paired)}</span>`
+                  : "";
+              return `<span class="${cls}">${label}</span>${valueNote}`;
+            }
+            return `<span class="${cls}">${label}</span>`;
+          },
+          "Reference values (booleans show PE's paired per-capita value used only for weighting)",
+        );
+      }
+
+      function predictionsTable(model) {
+        return buildMatrixTable(
+          households,
+          variables,
+          (hh, v) => {
+            const val = model.predictions[hh.id][v.id];
+            return `<span class="${cellValueClass(v, val)}">${fmtCellValue(v, val)}</span>`;
+          },
+          `${model.label} predictions`,
+        );
+      }
+
+      function rowScoresTable(model) {
+        return buildMatrixTable(
+          households,
+          variables,
+          (hh, v) => {
+            const ref = hh.reference[v.id];
+            const pred = model.predictions[hh.id][v.id];
+            return fmtPct(rowScore(ref, pred));
+          },
+          `${model.label} row scores`,
+        );
+      }
+
+      function weightedScoreTable(weightsFor, caption) {
+        const cols = [...variables, { id: "_total", label: "Household score" }];
+        const head = `<thead><tr><th></th><th></th>${cols
+          .map((c) => `<th class="right">${c.label}</th>`)
+          .join("")}</tr></thead>`;
+        const rows = [];
+        for (const model of models) {
+          for (const hh of households) {
+            const w = weightsFor(hh);
+            const cellsForRow = variables.map((v) => {
+              const rs = rowScore(hh.reference[v.id], model.predictions[hh.id][v.id]);
+              const contrib = w[v.id] * rs;
+              return `<td class="right mono">${fmtPct(contrib)}<br><span style="font-size:11px;color:var(--muted-soft)">${fmtWeight(w[v.id])} × ${fmtPct(rs)}</span></td>`;
+            });
+            const total = householdScore(hh, model, w);
+            rows.push(
+              `<tr><td><strong>${model.label}</strong></td><td>${hh.id}</td>${cellsForRow.join("")}<td class="right mono"><strong>${fmtPct(total)}</strong></td></tr>`,
+            );
+          }
+          const ms = modelScore(model, weightsFor);
+          rows.push(
+            `<tr class="total"><td colspan="2">${model.label} — model score (mean of household scores)</td>${variables.map(() => "<td></td>").join("")}<td class="right mono">${fmtPct(ms)}</td></tr>`,
+          );
+        }
+        const cap = caption ? `<caption>${caption}</caption>` : "";
+        return `<table>${cap}${head}<tbody>${rows.join("")}</tbody></table>`;
+      }
+
+      function impactWeightsTable() {
+        return buildMatrixTable(
+          households,
+          variables,
+          (hh, v) => fmtWeight(impactWeights(hh)[v.id]),
+          "Per-household impact weights",
+        );
+      }
+
+      function globalWeightsTable() {
+        const w = globalVariableWeights();
+        const head = `<thead><tr>${variables.map((v) => `<th class="right">${v.label}</th>`).join("")}</tr></thead>`;
+        const body = `<tbody><tr>${variables.map((v) => `<td class="right mono">${fmtWeight(w[v.id])}</td>`).join("")}</tr></tbody>`;
+        return `<table><caption>Global variable weights (one row, applied to every household)</caption>${head}${body}</table>`;
+      }
+
+      function budgetWeightsTable() {
+        const w = budgetWeights();
+        const head = `<thead><tr>${variables.map((v) => `<th class="right">${v.label}</th>`).join("")}</tr></thead>`;
+        const body = `<tbody><tr>${variables.map((v) => `<td class="right mono">${fmtWeight(w[v.id])}</td>`).join("")}</tr></tbody>`;
+        return `<table><caption>Budget-weighted variable weights (shares of total absolute reference dollars)</caption>${head}${body}</table>`;
+      }
+
+      function combineTable(globalW) {
+        const tax = models[0];
+        const ben = models[1];
+        const aTax = amountAccuracy(tax, globalW);
+        const pTax = participationAccuracy(tax);
+        const aBen = amountAccuracy(ben, globalW);
+        const pBen = participationAccuracy(ben);
+        const options = [
+          { name: "Arithmetic mean", fn: arithmeticMean },
+          { name: "Geometric mean", fn: geometricMean },
+          { name: "Harmonic mean (F1)", fn: harmonicMean, recommended: true },
+          { name: "Minimum", fn: minScore },
+        ];
+        const head = `<thead><tr><th>Combine function</th><th class="right">Tax-focused S</th><th class="right">Benefit-focused S</th><th class="right">Winner</th></tr></thead>`;
+        const body = options
+          .map((o) => {
+            const tVal = o.fn(aTax, pTax);
+            const bVal = o.fn(aBen, pBen);
+            const winnerIdx = tVal > bVal ? 0 : bVal > tVal ? 1 : -1;
+            const winner = winnerIdx === -1 ? "tie" : models[winnerIdx].label;
+            const tag = o.recommended
+              ? ' <span class="pill good" style="font-size:9px;vertical-align:1px">Recommended</span>'
+              : "";
+            return `<tr><td>${o.name}${tag}</td><td class="right mono"${winnerIdx === 0 ? ' style="color:var(--good);font-weight:600"' : ""}>${fmtPct(tVal)}</td><td class="right mono"${winnerIdx === 1 ? ' style="color:var(--good);font-weight:600"' : ""}>${fmtPct(bVal)}</td><td class="right" style="color:var(--muted)">${winner}</td></tr>`;
+          })
+          .join("");
+        const inputs = `<tr style="background:var(--surface-soft)"><td><strong>Inputs (A, P)</strong></td><td class="right mono">${fmtPct(aTax)}, ${fmtPct(pTax)}</td><td class="right mono">${fmtPct(aBen)}, ${fmtPct(pBen)}</td><td></td></tr>`;
+        return `<table><caption>Tax-focused vs benefit-focused under each combine function</caption>${head}<tbody>${inputs}${body}</tbody></table>`;
+      }
+
+      function netIncomeTable() {
+        const head = `<thead><tr><th>Household</th><th class="right">Reference net</th>${models
+          .map((m) => `<th class="right">${m.label} predicted net</th>`)
+          .join("")}${models.map((m) => `<th class="right">${m.label} score</th>`).join("")}</tr></thead>`;
+
+        const body = households
+          .map((hh) => {
+            const refNet = netIncomeFromCells(hh, hh.reference);
+            const cells = models.map((m) => {
+              const predNet = netIncomeFromCells(hh, m.predictions[hh.id]);
+              const score =
+                refNet === 0
+                  ? predNet === 0
+                    ? 1
+                    : 0
+                  : Math.max(0, 1 - Math.abs(predNet - refNet) / Math.abs(refNet));
+              return { predNet, score };
+            });
+            return `<tr><td><strong>${hh.id}</strong> <span style="color:var(--muted)">${hh.label}</span></td><td class="right mono ${moneyClass(refNet)}">${fmtMoney(refNet)}</td>${cells
+              .map((c) => `<td class="right mono ${moneyClass(c.predNet)}">${fmtMoney(c.predNet)}</td>`)
+              .join("")}${cells.map((c) => `<td class="right mono">${fmtPct(c.score)}</td>`).join("")}</tr>`;
+          })
+          .join("");
+
+        const totalRow = `<tr class="total"><td colspan="${1 + models.length + 1}">Model score (mean across households)</td>${models
+          .map((m) => `<td class="right mono"><strong>${fmtPct(netIncomeScore(m))}</strong></td>`)
+          .join("")}</tr>`;
+
+        return `<table><caption>Net-income reconstruction</caption>${head}<tbody>${body}${totalRow}</tbody></table>`;
+      }
+
+      function twoScoreTable(globalW) {
+        const head = `<thead><tr><th></th><th class="right">Amount accuracy</th><th class="right">Participation accuracy</th></tr></thead>`;
+        const body = `<tbody>${models
+          .map(
+            (m) =>
+              `<tr><td><strong>${m.label}</strong></td><td class="right mono">${fmtPct(amountAccuracy(m, globalW))}</td><td class="right mono">${fmtPct(participationAccuracy(m))}</td></tr>`,
+          )
+          .join("")}</tbody>`;
+        return `<table><caption>Two-score breakdown</caption>${head}${body}</table>`;
+      }
+
+      function comparisonTable() {
+        const globalW = globalVariableWeights();
+        const budgetW = budgetWeights();
+        const rows = [
+          {
+            name: "Equal weights",
+            valueFor: (m) => modelScore(m, equalWeights),
+          },
+          {
+            name: "Per-household impact",
+            valueFor: (m) => modelScore(m, impactWeights),
+          },
+          {
+            name: "30% floor (current)",
+            valueFor: (m) => modelScore(m, (hh) => floorWeights(hh, 0.3)),
+          },
+          {
+            name: "Global variable weights",
+            valueFor: (m) => modelScore(m, () => globalW),
+            recommended: true,
+          },
+          {
+            name: "Amount accuracy (global w)",
+            valueFor: (m) => amountAccuracy(m, globalW),
+            breakdown: true,
+          },
+          {
+            name: "Participation accuracy",
+            valueFor: (m) => participationAccuracy(m),
+            breakdown: true,
+          },
+          {
+            name: "Harmonic mean of A and P",
+            valueFor: (m) =>
+              harmonicMean(amountAccuracy(m, globalW), participationAccuracy(m)),
+            combined: true,
+          },
+          {
+            name: "Arithmetic mean of A and P",
+            valueFor: (m) =>
+              arithmeticMean(amountAccuracy(m, globalW), participationAccuracy(m)),
+            combined: true,
+          },
+          {
+            name: "min(A, P)",
+            valueFor: (m) =>
+              minScore(amountAccuracy(m, globalW), participationAccuracy(m)),
+            combined: true,
+          },
+          {
+            name: "Budget-weighted",
+            valueFor: (m) => modelScore(m, () => budgetW),
+          },
+          {
+            name: "Net-income reconstruction",
+            valueFor: (m) => netIncomeScore(m),
+          },
+        ];
+
+        const head = `<thead><tr><th>Metric</th>${models.map((m) => `<th class="right">${m.label}</th>`).join("")}<th class="right">Winner</th></tr></thead>`;
+        const body = `<tbody>${rows
+          .map((r) => {
+            const vals = models.map((m) => r.valueFor(m));
+            const winnerIdx = vals[0] > vals[1] ? 0 : vals[1] > vals[0] ? 1 : -1;
+            const winner = winnerIdx === -1 ? "tie" : models[winnerIdx].label;
+            const tag = r.recommended
+              ? ' <span class="pill good" style="font-size:9px;vertical-align:1px">Recommended</span>'
+              : r.breakdown
+                ? ' <span class="pill neutral" style="font-size:9px;vertical-align:1px">Diagnostic</span>'
+                : r.combined
+                  ? ' <span class="pill neutral" style="font-size:9px;vertical-align:1px">Combine of A,P</span>'
+                  : "";
+            return `<tr><td>${r.name}${tag}</td>${vals
+              .map(
+                (v, i) =>
+                  `<td class="right mono"${i === winnerIdx ? ' style="color:var(--good);font-weight:600"' : ""}>${fmtPct(v)}</td>`,
+              )
+              .join("")}<td class="right" style="color:var(--muted)">${winner}</td></tr>`;
+          })
+          .join("")}</tbody>`;
+        return `<table class="leaderboard"><caption>Tax-focused vs benefit-focused under every option</caption>${head}${body}</table>`;
+      }
+
+      function render() {
+        document.getElementById("reference-table").innerHTML = refTable();
+        document.getElementById("model-tax-predictions").innerHTML =
+          predictionsTable(models[0]);
+        document.getElementById("model-benefit-predictions").innerHTML =
+          predictionsTable(models[1]);
+        document.getElementById("row-scores-tax").innerHTML = rowScoresTable(
+          models[0],
+        );
+        document.getElementById("row-scores-benefit").innerHTML = rowScoresTable(
+          models[1],
+        );
+        document.getElementById("equal-table").innerHTML = weightedScoreTable(
+          equalWeights,
+          "Equal weights",
+        );
+        document.getElementById("impact-weights-table").innerHTML =
+          impactWeightsTable();
+        document.getElementById("impact-table").innerHTML = weightedScoreTable(
+          impactWeights,
+          "Per-household impact weights",
+        );
+        document.getElementById("floor-table").innerHTML = weightedScoreTable(
+          (hh) => floorWeights(hh, 0.3),
+          "Weights with 30% floor",
+        );
+        document.getElementById("global-weights-table").innerHTML =
+          globalWeightsTable();
+        const globalW = globalVariableWeights();
+        document.getElementById("global-table").innerHTML = weightedScoreTable(
+          () => globalW,
+          "Global variable weights",
+        );
+        document.getElementById("two-score-table").innerHTML =
+          twoScoreTable(globalW);
+        document.getElementById("combine-table").innerHTML =
+          combineTable(globalW);
+        document.getElementById("budget-weights-table").innerHTML =
+          budgetWeightsTable();
+        const budgetW = budgetWeights();
+        document.getElementById("budget-table").innerHTML = weightedScoreTable(
+          () => budgetW,
+          "Budget-weighted variable weights",
+        );
+        document.getElementById("net-income-table").innerHTML = netIncomeTable();
+        document.getElementById("comparison-table").innerHTML =
+          comparisonTable();
+      }
+
+      render();
+    </script>
+  </body>
+</html>
