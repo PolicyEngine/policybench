@@ -9,7 +9,6 @@ import pandas as pd
 from policybench.config import (
     BINARY_PROGRAMS,
     HOUSEHOLD_IMPACT_SCORE_FLOOR,
-    RATE_PROGRAMS,
 )
 from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.prompts import make_no_tools_batch_prompt
@@ -130,19 +129,11 @@ def score_single_prediction(
     if metric_type == "binary" or variable in BINARY_PROGRAMS:
         return accuracy(y_true_arr, y_pred_arr)
 
-    if metric_type == "rate" or variable in RATE_PROGRAMS:
-        exact = exact_amount_match(
-            y_true_arr,
-            y_pred_arr,
-            absolute_tolerance=1e-4,
-        )
-    else:
-        exact = exact_amount_match(
-            y_true_arr,
-            y_pred_arr,
-            absolute_tolerance=1.0,
-        )
-
+    exact = exact_amount_match(
+        y_true_arr,
+        y_pred_arr,
+        absolute_tolerance=1.0,
+    )
     within_1pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.01)
     within_5pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.05)
     within_10pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.10)
@@ -514,23 +505,6 @@ def compute_metrics(
             row["within_5pct"] = accuracy_score
             row["within_10pct"] = accuracy_score
             row["score"] = accuracy_score
-        elif metric_type == "rate" or variable in RATE_PROGRAMS:
-            exact = (
-                exact_amount_match(y_true, y_pred, absolute_tolerance=1e-4) * coverage
-            )
-            within_1pct = within_tolerance(y_true, y_pred, tolerance=0.01) * coverage
-            within_5pct = within_tolerance(y_true, y_pred, tolerance=0.05) * coverage
-            within_10pct = within_tolerance(y_true, y_pred, tolerance=0.10) * coverage
-            row["mae"] = mean_absolute_error(y_true, y_pred)
-            row["mape"] = float("nan")
-            row["accuracy"] = float("nan")
-            row["exact"] = exact
-            row["within_1pct"] = within_1pct
-            row["within_5pct"] = within_5pct
-            row["within_10pct"] = within_10pct
-            row["score"] = float(
-                np.mean([exact, within_1pct, within_5pct, within_10pct])
-            )
         else:
             exact = (
                 exact_amount_match(y_true, y_pred, absolute_tolerance=1.0) * coverage

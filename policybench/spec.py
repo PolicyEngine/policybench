@@ -116,10 +116,6 @@ class OutputSpec:
         return self.metric_type == "binary"
 
     @property
-    def is_rate(self) -> bool:
-        return self.metric_type == "rate"
-
-    @property
     def is_budget_component(self) -> bool:
         return self.metric_type == "amount" and self.net_income_sign != 0
 
@@ -440,11 +436,4 @@ def binary_output_ids() -> list[str]:
     return sorted(
         {output.id for output in iter_output_specs() if output.metric_type == "binary"}
         | set(PERSON_ELIGIBILITY_OUTPUTS)
-    )
-
-
-def rate_output_ids() -> list[str]:
-    """Return all rate output ids across specs."""
-    return sorted(
-        {output.id for output in iter_output_specs() if output.metric_type == "rate"}
     )
