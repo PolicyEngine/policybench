@@ -1274,3 +1274,62 @@ class TestAmountAndParticipationAccuracy:
         assert out.loc[out["model"] == "m1", "participation_accuracy"].iloc[
             0
         ] == pytest.approx(1 / 3)
+
+
+class TestEqualAndAggregateScores:
+    """Equal-weight and aggregate-weight (budget) scoring as opt-in alternatives."""
+
+    def _ground_truth(self):
+        return pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1", "s2", "s2"],
+                "variable": [
+                    "federal_income_tax_before_refundable_credits",
+                    "snap",
+                    "federal_income_tax_before_refundable_credits",
+                    "snap",
+                ],
+                "value": [4000.0, 0.0, 1000.0, 6000.0],
+                "impact_weight": [pd.NA, pd.NA, pd.NA, pd.NA],
+            }
+        )
+
+    def _predictions(self):
+        # Perfect taxes, missed snap on s2
+        return pd.DataFrame(
+            {
+                "model": ["m1"] * 4,
+                "scenario_id": ["s1", "s1", "s2", "s2"],
+                "variable": [
+                    "federal_income_tax_before_refundable_credits",
+                    "snap",
+                    "federal_income_tax_before_refundable_credits",
+                    "snap",
+                ],
+                "prediction": [4000.0, 0.0, 1000.0, 0.0],
+            }
+        )
+
+    def test_equal_weight_score(self):
+        from policybench.analysis import equal_weight_scores_by_model
+
+        out = equal_weight_scores_by_model(self._ground_truth(), self._predictions())
+        # s1: tax=1.0, snap=1.0 -> 1.0; s2: tax=1.0, snap=0.0 -> 0.5; mean = 0.75
+        assert out.loc[out["model"] == "m1", "equal_score"].iloc[0] == pytest.approx(
+            0.75
+        )
+
+    def test_aggregate_weight_score(self):
+        from policybench.analysis import aggregate_weight_scores_by_model
+
+        out = aggregate_weight_scores_by_model(
+            self._ground_truth(), self._predictions()
+        )
+        # Total |ref| over scenarios: tax=4000+1000=5000; snap=0+6000=6000; grand=11000
+        # Weights: tax=5/11, snap=6/11
+        # s1: tax=1.0*5/11 + snap=1.0*6/11 = 1.0
+        # s2: tax=1.0*5/11 + snap=0.0*6/11 = 5/11
+        # Mean = (1.0 + 5/11) / 2 = (11/11 + 5/11) / 2 = 16/22 = 8/11 ≈ 0.7273
+        assert out.loc[out["model"] == "m1", "aggregate_score"].iloc[
+            0
+        ] == pytest.approx(8 / 11)
