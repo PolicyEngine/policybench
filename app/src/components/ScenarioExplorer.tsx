@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   getVariableLabel,
   isBinaryVariable,
@@ -157,9 +157,18 @@ export default function ScenarioExplorer({
       ? manualSelection.cell
       : defaultCell;
 
+  const detailCardRef = useRef<HTMLDivElement | null>(null);
+
   const setSelectedCell = (cell: { variable: string; model: string }) => {
     if (!resolvedScenarioId) return;
     setManualSelection({ scenarioId: resolvedScenarioId, cell });
+    // The detail card always renders, so its ref already points at the
+    // existing DOM node; scroll it into view directly so the click feels
+    // responsive even when the user is partway through a long table.
+    detailCardRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
   };
 
   if (!scenario || !resolvedScenarioId) return null;
@@ -516,6 +525,7 @@ export default function ScenarioExplorer({
       </div>
 
       <DetailCard
+        ref={detailCardRef}
         selectedCell={selectedCell}
         predictions={predictions}
         country={country}
@@ -525,20 +535,20 @@ export default function ScenarioExplorer({
   );
 }
 
-function DetailCard({
-  selectedCell,
-  predictions,
-  country,
-  currencySymbol,
-}: {
+type DetailCardProps = {
   selectedCell: { variable: string; model: string } | null;
   predictions: Record<string, Record<string, ScenarioPrediction>>;
   country: CountryCode;
   currencySymbol: "$" | "£";
-}) {
+};
+
+const DetailCard = React.forwardRef<HTMLDivElement, DetailCardProps>(function DetailCard(
+  { selectedCell, predictions, country, currencySymbol },
+  ref,
+) {
   if (!selectedCell) {
     return (
-      <div className="card mt-6 px-5 py-6 animate-fade-up">
+      <div ref={ref} className="card mt-6 px-5 py-6 animate-fade-up">
         <p className="text-sm text-text-secondary">
           Click any prediction cell above to see the reference value, the
           model&apos;s answer, the model&apos;s reasoning, and our review of
@@ -552,7 +562,7 @@ function DetailCard({
   const pred = predictions[variable]?.[model];
   if (!pred) {
     return (
-      <div className="card mt-6 px-5 py-6 animate-fade-up">
+      <div ref={ref} className="card mt-6 px-5 py-6 animate-fade-up">
         <p className="text-sm text-text-secondary">
           No data for {MODEL_LABELS[model] ?? model} on{" "}
           {getVariableLabel(variable, country)}.
@@ -601,7 +611,8 @@ function DetailCard({
 
   return (
     <div
-      className="card mt-6 px-5 py-5 animate-fade-up"
+      ref={ref}
+      className="card mt-6 px-5 py-5 scroll-mt-24 animate-fade-up"
       role="region"
       aria-label="Selected prediction detail"
     >
@@ -733,4 +744,4 @@ function DetailCard({
       )}
     </div>
   );
-}
+});
