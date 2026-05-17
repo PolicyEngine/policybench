@@ -1,4 +1,4 @@
-"""Generate written 'reference computation' narratives for each (scenario, variable) case.
+"""Reference-computation narratives for each (scenario, variable) case.
 
 For each case in the benchmark, we run the PolicyEngine simulation with the
 tracer on, prune the dependency tree to non-zero subtrees, and ask an LLM
@@ -13,10 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 import litellm
 import pandas as pd
@@ -26,7 +25,6 @@ from policybench.ground_truth import (
     get_us_situation_simulation_class,
 )
 from policybench.scenarios import scenario_from_dict
-
 
 REFERENCE_MODEL = "claude-sonnet-4-6"
 MAX_TOKENS = 500
@@ -70,8 +68,9 @@ def _is_zero(value) -> bool:
     return False
 
 
-def _render_trace(node, depth: int = 0, lines: list[str] | None = None,
-                  max_depth: int = 8) -> list[str]:
+def _render_trace(
+    node, depth: int = 0, lines: list[str] | None = None, max_depth: int = 8
+) -> list[str]:
     if lines is None:
         lines = []
     if depth > max_depth:
@@ -136,10 +135,27 @@ def _build_us_traces_for_scenario(
     return traces
 
 
-def _prompt(country: str, scenario_summary: str, variable: str,
-            pe_variable: str, reference_value: float, year: int,
-            trace_text: str) -> str:
-    return f"""You are summarizing how PolicyEngine derived a tax/benefit value for a benchmark household.
+def _prompt(
+    country: str,
+    scenario_summary: str,
+    variable: str,
+    pe_variable: str,
+    reference_value: float,
+    year: int,
+    trace_text: str,
+) -> str:
+    intro = (
+        "You are summarizing how PolicyEngine derived a tax/benefit value "
+        "for a benchmark household."
+    )
+    instructions = (
+        "Write a 3-5 sentence narrative explaining how PolicyEngine arrived "
+        "at this value. Reference the most important intermediate quantities "
+        "by name and amount. Be concrete and quantitative. Do not editorialize "
+        "about model performance; just describe the derivation. Plain prose, "
+        "no headers, no bullet lists."
+    )
+    return f"""{intro}
 
 VARIABLE: {variable} (PolicyEngine variable: {pe_variable})
 COUNTRY: {country.upper()}
@@ -152,7 +168,7 @@ PolicyEngine computation trace (indented dependency tree, non-zero nodes only):
 {trace_text}
 ```
 
-Write a 3-5 sentence narrative explaining how PolicyEngine arrived at this value. Reference the most important intermediate quantities by name and amount. Be concrete and quantitative. Do not editorialize about model performance; just describe the derivation. Plain prose, no headers, no bullet lists.
+{instructions}
 """
 
 
@@ -170,8 +186,11 @@ def _existing_keys(cache_path: Path) -> set[CaseKey]:
         return set()
     df = pd.read_csv(cache_path)
     return {
-        CaseKey(country=row["country"], scenario_id=row["scenario_id"],
-                variable=row["variable"])
+        CaseKey(
+            country=row["country"],
+            scenario_id=row["scenario_id"],
+            variable=row["variable"],
+        )
         for _, row in df.iterrows()
     }
 
@@ -188,8 +207,15 @@ async def _generate_one(
     trace_text: str,
 ) -> dict | None:
     async with semaphore:
-        prompt = _prompt(country, scenario_summary, variable, pe_variable,
-                         reference_value, year, trace_text)
+        prompt = _prompt(
+            country,
+            scenario_summary,
+            variable,
+            pe_variable,
+            reference_value,
+            year,
+            trace_text,
+        )
         try:
             response = await litellm.acompletion(
                 model=REFERENCE_MODEL,
@@ -219,8 +245,7 @@ async def _generate_one(
         }
 
 
-def _build_trace(country: str, scenario_json: str, variable: str,
-                 year: int) -> str:
+def _build_trace(country: str, scenario_json: str, variable: str, year: int) -> str:
     if country == "us":
         pe_variable = _pe_variable_for_output(variable, "us")
         return _build_us_trace(scenario_json, pe_variable, year)
@@ -293,9 +318,7 @@ def generate_country_explanations(
                 f"No annotation files for {country!r} under {annotations_dir}"
             )
         ann = pd.concat([pd.read_csv(f) for f in ann_files], ignore_index=True)
-        wrong_cases = set(
-            zip(ann["scenario_id"], ann["variable"])
-        )
+        wrong_cases = set(zip(ann["scenario_id"], ann["variable"]))
 
     existing = _existing_keys(output_path)
     scenarios_by_id = {row["scenario_id"]: row for _, row in scenarios_df.iterrows()}
@@ -317,14 +340,16 @@ def generate_country_explanations(
         if scenario_row is None:
             skipped_missing_scenario += 1
             continue
-        cases_by_scenario.setdefault(scenario_id, []).append((
-            key,
-            {
-                "scenario_row": scenario_row,
-                "variable": variable,
-                "reference_value": float(row["value"]),
-            },
-        ))
+        cases_by_scenario.setdefault(scenario_id, []).append(
+            (
+                key,
+                {
+                    "scenario_row": scenario_row,
+                    "variable": variable,
+                    "reference_value": float(row["value"]),
+                },
+            )
+        )
 
     todo: list[tuple[CaseKey, dict]] = []
     for scenario_id, scenario_cases in cases_by_scenario.items():
@@ -351,17 +376,17 @@ def generate_country_explanations(
                 traces[pe_variable] = error_text
         for key, payload in scenario_cases:
             pe_variable = pe_variable_map[payload["variable"]]
-            todo.append((
-                key,
-                {
-                    "scenario_summary": _scenario_summary(scenario_row),
-                    "pe_variable": pe_variable,
-                    "reference_value": payload["reference_value"],
-                    "trace_text": traces.get(
-                        pe_variable, "[trace unavailable]"
-                    ),
-                },
-            ))
+            todo.append(
+                (
+                    key,
+                    {
+                        "scenario_summary": _scenario_summary(scenario_row),
+                        "pe_variable": pe_variable,
+                        "reference_value": payload["reference_value"],
+                        "trace_text": traces.get(pe_variable, "[trace unavailable]"),
+                    },
+                )
+            )
             if limit is not None and len(todo) >= limit:
                 break
         if limit is not None and len(todo) >= limit:
@@ -369,7 +394,8 @@ def generate_country_explanations(
 
     print(
         f"{country}: {len(todo)} cases to generate "
-        f"({len(existing)} already cached, {skipped_missing_scenario} missing scenarios)"
+        f"({len(existing)} already cached, "
+        f"{skipped_missing_scenario} missing scenarios)"
     )
     if not todo:
         return output_path
@@ -384,7 +410,10 @@ def generate_country_explanations(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(output_path, index=False)
     errors = sum(1 for r in results if r.get("error"))
-    print(f"{country}: wrote {len(results)} new explanations ({errors} errors) to {output_path}")
+    print(
+        f"{country}: wrote {len(results)} new explanations "
+        f"({errors} errors) to {output_path}"
+    )
     return output_path
 
 
@@ -392,21 +421,37 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-dir", required=True,
-                        help="Full-run directory containing country subdirectories.")
-    parser.add_argument("--country", action="append", default=None,
-                        help="Country code (repeat to add).")
-    parser.add_argument("--output-dir",
-                        default="annotations/full_run_20260513_policyengine_4_4_4_nested_outputs",
-                        help="Destination directory for the explanations CSVs.")
+    parser.add_argument(
+        "--run-dir",
+        required=True,
+        help="Full-run directory containing country subdirectories.",
+    )
+    parser.add_argument(
+        "--country", action="append", default=None, help="Country code (repeat to add)."
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="annotations/full_run_20260513_policyengine_4_4_4_nested_outputs",
+        help="Destination directory for the explanations CSVs.",
+    )
     parser.add_argument("--year", type=int, default=DEFAULT_YEAR)
-    parser.add_argument("--only-wrong", action="store_true",
-                        help="Only generate for cases with at least one wrong prediction.")
-    parser.add_argument("--annotations-dir", default=None,
-                        help="Annotations directory (required with --only-wrong).")
+    parser.add_argument(
+        "--only-wrong",
+        action="store_true",
+        help="Only generate for cases with at least one wrong prediction.",
+    )
+    parser.add_argument(
+        "--annotations-dir",
+        default=None,
+        help="Annotations directory (required with --only-wrong).",
+    )
     parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY)
-    parser.add_argument("--limit", type=int, default=None,
-                        help="Cap the number of new cases generated per country (smoke test).")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Cap the number of new cases generated per country (smoke test).",
+    )
     args = parser.parse_args()
 
     run_dir = Path(args.run_dir)
