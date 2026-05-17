@@ -755,6 +755,7 @@ def _prediction_detail_rows(
                 "case_annotation",
                 "case_failure_sources",
                 "case_failure_subtypes",
+                "reference_explanation",
             ]
         )
 
@@ -770,6 +771,7 @@ def _prediction_detail_rows(
             "case_annotation",
             "case_failure_sources",
             "case_failure_subtypes",
+            "reference_explanation",
         ]
         if column in predictions.columns
     ]
@@ -798,6 +800,8 @@ def _prediction_detail_rows(
         merged["case_failure_sources"] = pd.NA
     if "case_failure_subtypes" not in merged.columns:
         merged["case_failure_subtypes"] = pd.NA
+    if "reference_explanation" not in merged.columns:
+        merged["reference_explanation"] = pd.NA
 
     merged["parsed"] = merged["prediction"].notna()
     merged["error"] = np.where(
@@ -1923,6 +1927,9 @@ def build_dashboard_payload(
         prediction_error = _clean_json_text(row.get("prediction_error"))
         if prediction_error:
             prediction_item["predictionError"] = prediction_error
+        reference_explanation = row.get("reference_explanation")
+        if isinstance(reference_explanation, str) and reference_explanation.strip():
+            prediction_item["referenceExplanation"] = reference_explanation.strip()
         variable_data[row["model"]] = prediction_item
 
     # Per-variable weights under each of the three weightings, exposed so the

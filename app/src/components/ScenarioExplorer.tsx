@@ -694,6 +694,21 @@ function DetailContent({
       <div className="mt-5 grid gap-5 md:grid-cols-2">
         <section>
           <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            PolicyEngine derivation
+          </div>
+          {pred.referenceExplanation ? (
+            <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
+              {pred.referenceExplanation}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-text-muted italic">
+              Reference computation narrative not yet generated for this case.
+            </p>
+          )}
+        </section>
+
+        <section>
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
             Model reasoning
           </div>
           {pred.explanation ? (
@@ -706,20 +721,18 @@ function DetailContent({
             </p>
           )}
         </section>
+      </div>
 
-        <section>
+      {(pred.annotation || auditTags.length > 0 || !correct) && (
+        <section className="mt-5 border-t border-border-subtle pt-4">
           <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-            Our review
+            Audit tags
           </div>
           {pred.annotation ? (
             <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
               {pred.annotation}
             </p>
-          ) : correct ? (
-            <p className="mt-2 text-sm text-success-text">
-              Correct &mdash; no audit needed.
-            </p>
-          ) : (
+          ) : correct ? null : (
             <p className="mt-2 text-sm text-text-muted italic">
               Not yet reviewed.
             </p>
@@ -737,7 +750,7 @@ function DetailContent({
             </div>
           )}
         </section>
-      </div>
+      )}
 
       {(pred.caseAnnotation || caseTags.length > 0) && (
         <section className="mt-5 border-t border-border-subtle pt-4">
