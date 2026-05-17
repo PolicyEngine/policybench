@@ -20,11 +20,7 @@ import {
   viewSupportsSelected,
   type SensitivityViewId,
 } from "../lib/sensitivity";
-import {
-  DEFAULT_DRAWS,
-  bootstrapIntervals,
-  viewToFilter,
-} from "../lib/bootstrap";
+import { DEFAULT_DRAWS, bootstrapIntervals } from "../lib/bootstrap";
 
 function Badge({
   children,
@@ -121,29 +117,28 @@ export default function ModelLeaderboard({
 }) {
   const isGlobal = selectedView === "global";
   const [sensitivityView, setSensitivityView] =
-    useState<SensitivityViewId>("main");
+    useState<SensitivityViewId>("household");
   const [showIntervals, setShowIntervals] = useState(false);
 
   const allRows = useMemo(() => buildAllRows(dashboard), [dashboard]);
 
-  // Some sensitivity slices have no rows in the selected country (e.g.
-  // "Binary only" has zero UK rows; "Binary only" on Global has zero UK
-  // rows so the global view cannot be a true cross-country score). In that
-  // case we fall back to the canonical Main view so the leaderboard still
-  // has a defensible ranking and surface a notice explaining why.
+  // Defensive: if a model's payload doesn't include the requested view (stale
+  // data.json), fall back to the canonical Household view so the leaderboard
+  // still has a defensible ranking.
   const sensitivityUnsupportedForView = useMemo(
     () =>
-      sensitivityView !== "main" &&
-      !viewSupportsSelected(allRows, sensitivityView, selectedView),
-    [allRows, selectedView, sensitivityView],
+      sensitivityView !== "household" &&
+      !viewSupportsSelected(dashboard, sensitivityView, selectedView),
+    [dashboard, selectedView, sensitivityView],
   );
   const effectiveView: SensitivityViewId = sensitivityUnsupportedForView
-    ? "main"
+    ? "household"
     : sensitivityView;
 
-  const sensitivityScores = useMemo(() => {
-    return modelScoresForView(allRows, effectiveView, selectedView);
-  }, [allRows, effectiveView, selectedView]);
+  const sensitivityScores = useMemo(
+    () => modelScoresForView(dashboard, effectiveView, selectedView),
+    [dashboard, effectiveView, selectedView],
+  );
 
   const sensitivityScoreByModel = useMemo(() => {
     const out = new Map<string, number>();
@@ -153,30 +148,26 @@ export default function ModelLeaderboard({
 
   const noTools = useMemo<ModelStat[]>(() => {
     const base = data.modelStats.filter((m) => m.condition === "no_tools");
-    if (effectiveView === "main") {
+    if (effectiveView === "household") {
       return [...base].sort((a, b) => b.score - a.score);
     }
-    // Reorder + replace score with the sensitivity-view score, dropping models
-    // that don't have a score under this slice.
+    // Replace the score with the selected view's precomputed value, drop
+    // models without one.
     return base
       .filter((m) => sensitivityScoreByModel.has(m.model))
       .map((m) => ({ ...m, score: sensitivityScoreByModel.get(m.model)! }))
       .sort((a, b) => b.score - a.score);
   }, [data, effectiveView, sensitivityScoreByModel]);
 
-  // Bootstrap intervals are off by default — they roughly triple the
-  // first-paint cost and are noise to most readers. Compute on-demand when
-  // the user opens the toggle. The Main view uses precomputed bounded
-  // scores, which do not have a browser-side bootstrap path yet.
+  // Bootstrap intervals are off by default and only available on the
+  // Household view (the row-level path drives them).
   const intervals = useMemo(() => {
     if (!showIntervals) return new Map();
-    if (effectiveView === "main") return new Map();
-    return bootstrapIntervals(
-      allRows,
-      selectedView,
-      viewToFilter(effectiveView),
-      { draws: DEFAULT_DRAWS, seed: 42 },
-    );
+    if (effectiveView !== "household") return new Map();
+    return bootstrapIntervals(allRows, selectedView, () => true, {
+      draws: DEFAULT_DRAWS,
+      seed: 42,
+    });
   }, [allRows, selectedView, effectiveView, showIntervals]);
 
   const pendingModels = useMemo<PendingModel[]>(() => {
@@ -257,16 +248,10 @@ export default function ModelLeaderboard({
           {SENSITIVITY_VIEWS.map((view) => {
             const isActive = sensitivityView === view.id;
             const supported =
-              view.id === "main" ||
-              viewSupportsSelected(allRows, view.id, selectedView);
+              view.id === "household" ||
+              viewSupportsSelected(dashboard, view.id, selectedView);
             const disabled = !supported;
-            const disabledTitleSuffix = isGlobal
-              ? " (not available for the Global view; switch to US or UK)"
-              : selectedView === "uk"
-                ? " (no UK rows under this slice; switch to US or Global)"
-                : selectedView === "us"
-                  ? " (no US rows under this slice; switch to UK or Global)"
-                  : "";
+            const disabledTitleSuffix = " (not available on this slice)";
             return (
               <button
                 key={view.id}
@@ -306,13 +291,13 @@ export default function ModelLeaderboard({
             type="checkbox"
             checked={showIntervals}
             onChange={(event) => setShowIntervals(event.target.checked)}
-            disabled={effectiveView === "main"}
+            disabled={effectiveView !== "household"}
             className="h-3.5 w-3.5 rounded border-border accent-primary-strong"
           />
           <span>
-            {effectiveView === "main"
-              ? "Intervals available on sensitivity views"
-              : "Show 95% intervals"}
+            {effectiveView === "household"
+              ? "Show 95% intervals"
+              : "Intervals available on the Household view"}
           </span>
         </label>
       </div>
@@ -324,17 +309,8 @@ export default function ModelLeaderboard({
           The &ldquo;{
             SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)?.label ??
               sensitivityView
-          }&rdquo; slice has no rows in {
-            isGlobal
-              ? "at least one country"
-              : selectedView === "uk"
-                ? "the UK"
-                : "the US"
-          }, so the leaderboard falls back to the Main view. {
-            isGlobal
-              ? "Switch to United States or United Kingdom to see this slice on a single country."
-              : "Switch to the other country to see this slice."
-          }
+          }&rdquo; view is not available on this slice; the leaderboard falls
+          back to the Household view.
         </p>
       )}
 

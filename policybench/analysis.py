@@ -327,6 +327,96 @@ def amount_accuracy_by_model(
     )
 
 
+def _weighted_household_scores(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+    weights: pd.Series,
+    per_household_normalize: bool = True,
+) -> pd.DataFrame:
+    """Helper: row_score * weight summed per household and averaged per model.
+
+    When ``per_household_normalize`` is True (default for the equal and
+    aggregate views), weights are renormalized within each scenario so that
+    a household's weights sum to 1 over the variables it actually has — this
+    keeps the score in [0, 1] regardless of how many of the benchmark's
+    variables apply to that scenario. The headline ``bounded_household_scores``
+    intentionally uses ``per_household_normalize=False`` so per-household
+    shares stay anchored to the bounded denominator and can sum to less than 1.
+    """
+    if ground_truth.empty or predictions.empty:
+        return pd.DataFrame(columns=["model", "score"])
+    models = sorted(predictions["model"].dropna().unique())
+    grid = (
+        ground_truth.assign(_k=1)
+        .merge(pd.DataFrame({"model": models, "_k": 1}), on="_k")
+        .drop(columns="_k")
+    )
+    merged = grid.merge(
+        predictions[["model", "scenario_id", "variable", "prediction"]],
+        on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+    merged["row_score"] = [
+        continuous_row_score(t, p)
+        for t, p in zip(merged["value"], merged["prediction"])
+    ]
+    merged["weight"] = merged["variable"].map(weights).fillna(0.0)
+    if per_household_normalize:
+        sums = merged.groupby(["model", "scenario_id"])["weight"].transform("sum")
+        merged["weight"] = np.where(sums > 0, merged["weight"] / sums, 0.0)
+    merged["weighted"] = merged["row_score"] * merged["weight"]
+    household = (
+        merged.groupby(["model", "scenario_id"])["weighted"]
+        .sum()
+        .rename("score")
+        .reset_index()
+    )
+    return household.groupby("model")["score"].mean().reset_index()
+
+
+def equal_weight_scores_by_model(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+) -> pd.DataFrame:
+    """Equal-output-weight scores: each variable gets weight 1/K, then per-row
+    scores are averaged within a household and households are averaged with
+    equal weight.
+    """
+    if ground_truth.empty or predictions.empty:
+        return pd.DataFrame(columns=["model", "equal_score"])
+    variables = ground_truth["variable"].drop_duplicates().tolist()
+    if not variables:
+        return pd.DataFrame(columns=["model", "equal_score"])
+    weights = pd.Series(1.0 / len(variables), index=variables)
+    out = _weighted_household_scores(ground_truth, predictions, weights)
+    return out.rename(columns={"score": "equal_score"})
+
+
+def aggregate_weight_scores_by_model(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+) -> pd.DataFrame:
+    """Budget-weighted (aggregate-impact) scores: each variable's weight is its
+    share of total absolute reference dollars across the benchmark. Booleans
+    contribute their paired ``impact_weight`` value when eligible.
+    """
+    if ground_truth.empty or predictions.empty:
+        return pd.DataFrame(columns=["model", "aggregate_score"])
+    gt = ground_truth.copy()
+    if "impact_weight" in gt.columns:
+        explicit = pd.to_numeric(gt["impact_weight"], errors="coerce").abs()
+        gt["abs_value"] = explicit.fillna(gt["value"].abs())
+    else:
+        gt["abs_value"] = gt["value"].abs()
+    totals = gt.groupby("variable")["abs_value"].sum()
+    grand = float(totals.sum())
+    if grand <= 0:
+        return pd.DataFrame(columns=["model", "aggregate_score"])
+    weights = totals / grand
+    out = _weighted_household_scores(ground_truth, predictions, weights)
+    return out.rename(columns={"score": "aggregate_score"})
+
+
 def participation_accuracy_by_model(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
@@ -947,9 +1037,14 @@ def analyze_no_tools(
         )
         amount_acc = amount_accuracy_by_model(ground_truth, predictions, market_income)
         participation_acc = participation_accuracy_by_model(ground_truth, predictions)
-        bounded_summary = bounded_summary.merge(
-            amount_acc, on="model", how="left"
-        ).merge(participation_acc, on="model", how="left")
+        equal_scores = equal_weight_scores_by_model(ground_truth, predictions)
+        aggregate_scores = aggregate_weight_scores_by_model(ground_truth, predictions)
+        bounded_summary = (
+            bounded_summary.merge(amount_acc, on="model", how="left")
+            .merge(participation_acc, on="model", how="left")
+            .merge(equal_scores, on="model", how="left")
+            .merge(aggregate_scores, on="model", how="left")
+        )
         global_weights = (
             bounded_global_variable_weights(ground_truth, market_income)
             .rename("global_weight")
@@ -963,6 +1058,8 @@ def analyze_no_tools(
                 "bounded_score",
                 "amount_accuracy",
                 "participation_accuracy",
+                "equal_score",
+                "aggregate_score",
             ]
         )
         global_weights = pd.DataFrame(columns=["variable", "global_weight"])
@@ -1566,6 +1663,8 @@ def build_dashboard_payload(
                 ("bounded_score", "bounded"),
                 ("amount_accuracy", "amount"),
                 ("participation_accuracy", "participation"),
+                ("equal_score", "equal"),
+                ("aggregate_score", "aggregate"),
             ):
                 value = bounded_row.get(column)
                 if value is not None and not pd.isna(value):
@@ -1698,6 +1797,10 @@ def build_dashboard_payload(
             item["amountAccuracy"] = bounded_entry["amount"]
         if "participation" in bounded_entry:
             item["participationAccuracy"] = bounded_entry["participation"]
+        if "equal" in bounded_entry:
+            item["equalScore"] = bounded_entry["equal"]
+        if "aggregate" in bounded_entry:
+            item["aggregateScore"] = bounded_entry["aggregate"]
         model_stats.append({k: v for k, v in item.items() if v is not None})
     model_stats.sort(key=lambda row: row["score"], reverse=True)
 
@@ -1887,6 +1990,27 @@ def build_global_dashboard_payload(country_payloads: dict[str, dict]) -> dict:
                 for country, row in rows.items()
                 if row.get("impactScore") is not None
             }
+        # Bounded score is the headline (mirrored in "score"); add the
+        # alternative weightings so the leaderboard can switch views.
+        for source_key, dest_key, country_key in (
+            ("boundedScore", "boundedScore", "boundedCountryScores"),
+            ("equalScore", "equalScore", "equalCountryScores"),
+            ("aggregateScore", "aggregateScore", "aggregateCountryScores"),
+            ("amountAccuracy", "amountAccuracy", "amountCountryScores"),
+            (
+                "participationAccuracy",
+                "participationAccuracy",
+                "participationCountryScores",
+            ),
+        ):
+            values = [row.get(source_key) for row in rows.values()]
+            if all(value is not None for value in values) and values:
+                item[dest_key] = _mean(values)
+                item[country_key] = {
+                    country: float(row[source_key])
+                    for country, row in rows.items()
+                    if row.get(source_key) is not None
+                }
         model_stats.append(item)
 
     model_stats.sort(key=lambda row: row["score"], reverse=True)

@@ -210,6 +210,16 @@ export type ModelStat = {
   outputGroupCountryScores?: Partial<Record<CountryCode, number>>;
   impactScore?: number;
   impactCountryScores?: Partial<Record<CountryCode, number>>;
+  boundedScore?: number;
+  boundedCountryScores?: Partial<Record<CountryCode, number>>;
+  amountAccuracy?: number;
+  amountCountryScores?: Partial<Record<CountryCode, number>>;
+  participationAccuracy?: number;
+  participationCountryScores?: Partial<Record<CountryCode, number>>;
+  equalScore?: number;
+  equalCountryScores?: Partial<Record<CountryCode, number>>;
+  aggregateScore?: number;
+  aggregateCountryScores?: Partial<Record<CountryCode, number>>;
 };
 
 export type ProgramStat = {

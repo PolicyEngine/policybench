@@ -1,6 +1,5 @@
 import type { CountryCode, ViewKey } from "../types";
 import type { ScoreRow } from "./scoring";
-import { type SensitivityViewId } from "./sensitivity";
 
 export const DEFAULT_DRAWS = 400;
 const GLOBAL_REQUIRED_COUNTRIES: readonly CountryCode[] = ["us", "uk"];
@@ -193,22 +192,3 @@ export function bootstrapIntervals(
   return out;
 }
 
-export function viewToFilter(
-  view: SensitivityViewId,
-): (row: ScoreRow) => boolean {
-  switch (view) {
-    case "main":
-    case "output_group":
-      return () => true;
-    case "amount_only":
-      return (row) => row.metricType === "amount";
-    case "binary_only":
-      return (row) => row.metricType === "binary";
-    case "positive_only":
-      return (row) => row.truth !== 0;
-    case "zero_only":
-      return (row) => row.truth === 0;
-    default:
-      return () => true;
-  }
-}

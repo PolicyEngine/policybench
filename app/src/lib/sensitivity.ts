@@ -2,6 +2,7 @@ import type {
   BenchData,
   CountryCode,
   DashboardBundle,
+  ModelStat,
   ViewKey,
 } from "../types";
 
@@ -13,13 +14,7 @@ import {
   type ScoreRow,
 } from "./scoring";
 
-export type SensitivityViewId =
-  | "main"
-  | "output_group"
-  | "amount_only"
-  | "binary_only"
-  | "positive_only"
-  | "zero_only";
+export type SensitivityViewId = "household" | "aggregate" | "equal";
 
 export type SensitivityView = {
   id: SensitivityViewId;
@@ -29,38 +24,41 @@ export type SensitivityView = {
 
 export const SENSITIVITY_VIEWS: SensitivityView[] = [
   {
-    id: "main",
-    label: "Main",
+    id: "household",
+    label: "Household",
     description:
-      "Bounded global variable weights; each variable's weight is the mean across households of |ref| / max(|household_net_income|, Σ|ref|), renormalized so the weights sum to one. Each household contributes equally to the final score.",
+      "Bounded global variable weights — each variable's weight is the mean across households of |ref| / max(|household_net_income|, Σ|ref|), renormalized so the weights sum to one. One household = one household, weight reflects each variable's net-income share.",
   },
   {
-    id: "output_group",
-    label: "Output groups",
+    id: "aggregate",
+    label: "Aggregate",
     description:
-      "Equal-weight average across output groups; preserves the earlier unweighted benchmark view.",
+      "Budget-weighted — each variable's weight is its share of total absolute reference dollars across the benchmark. Renormalized per household so the household score lands in [0, 1]. One dollar of impact = one dollar.",
   },
   {
-    id: "amount_only",
-    label: "Amount only",
-    description: "Drops binary coverage flags; ranks on amount outputs only.",
-  },
-  {
-    id: "binary_only",
-    label: "Binary only",
-    description: "Restricts to binary coverage outputs.",
-  },
-  {
-    id: "positive_only",
-    label: "Positive cases",
-    description: "Restricts to rows where the reference value is non-zero.",
-  },
-  {
-    id: "zero_only",
-    label: "Zero cases",
-    description: "Restricts to rows where the reference value is zero.",
+    id: "equal",
+    label: "Equal",
+    description:
+      "Equal weighting — each variable in a household contributes the same to that household's score. One output = one output, regardless of dollar magnitude.",
   },
 ];
+
+// Keys on each modelStat that hold the per-view score (0–100). The country
+// payload exposes ``boundedScore``/``aggregateScore``/``equalScore`` directly;
+// the global payload also exposes country-level breakdowns under
+// ``boundedCountryScores``/``aggregateCountryScores``/``equalCountryScores``
+// for the per-country country selector.
+const VIEW_TO_FIELD: Record<SensitivityViewId, keyof ModelStat> = {
+  household: "boundedScore",
+  aggregate: "aggregateScore",
+  equal: "equalScore",
+};
+
+const VIEW_TO_COUNTRY_FIELD: Record<SensitivityViewId, keyof ModelStat> = {
+  household: "boundedCountryScores",
+  aggregate: "aggregateCountryScores",
+  equal: "equalCountryScores",
+};
 
 export type ScenarioRow = {
   country: CountryCode;
@@ -70,6 +68,9 @@ export type ScenarioRow = {
   score: number;
 };
 
+// Build all per-cell scoring rows. Kept for the bootstrap intervals path —
+// the view selector now reads precomputed view scores from the dashboard
+// payload instead of re-aggregating row-level scores on the client.
 function buildRows(country: CountryCode, payload: BenchData): ScoreRow[] {
   const rows: ScoreRow[] = [];
   for (const [scenarioId, variableMap] of Object.entries(
@@ -111,146 +112,82 @@ export function buildAllRows(dashboard: DashboardBundle): ScoreRow[] {
   return rows;
 }
 
-function filterRows(rows: ScoreRow[], view: SensitivityViewId): ScoreRow[] {
-  switch (view) {
-    case "main":
-    case "output_group":
-      return rows;
-    case "amount_only":
-      return rows.filter((row) => row.metricType === "amount");
-    case "binary_only":
-      return rows.filter((row) => row.metricType === "binary");
-    case "positive_only":
-      return rows.filter((row) => row.truth !== 0);
-    case "zero_only":
-      return rows.filter((row) => row.truth === 0);
-    default:
-      return rows;
-  }
-}
-
-function aggregateGroupMean<T>(
-  rows: T[],
-  key: (row: T) => string,
-  value: (row: T) => number,
-): Record<string, number> {
-  const sums = new Map<string, { sum: number; count: number }>();
-  for (const row of rows) {
-    const k = key(row);
-    const v = value(row);
-    if (!Number.isFinite(v)) continue;
-    const cur = sums.get(k) ?? { sum: 0, count: 0 };
-    cur.sum += v;
-    cur.count += 1;
-    sums.set(k, cur);
-  }
-  const out: Record<string, number> = {};
-  for (const [k, { sum, count }] of sums) {
-    if (count > 0) out[k] = sum / count;
-  }
-  return out;
-}
-
 export type ModelScore = {
   model: string;
   score: number;
 };
 
-function scoresPerCountryModel(rows: ScoreRow[]): Map<
-  string,
-  Map<string, number>
-> {
-  // First reduce to (country, model, output_group) means.
-  const groupKey = (row: ScoreRow) =>
-    `${row.country}|${row.model}|${row.outputGroup}`;
-  const outputMeans = aggregateGroupMean(rows, groupKey, (row) => row.score * 100);
-  // Then average the output groups by (country, model).
-  const buckets = new Map<string, { sum: number; count: number }>();
-  for (const [k, mean] of Object.entries(outputMeans)) {
-    const [country, model] = k.split("|");
-    const bk = `${country}|${model}`;
-    const cur = buckets.get(bk) ?? { sum: 0, count: 0 };
-    cur.sum += mean;
-    cur.count += 1;
-    buckets.set(bk, cur);
-  }
-  // Reshape into Map<country, Map<model, score>>.
-  const out = new Map<string, Map<string, number>>();
-  for (const [bk, { sum, count }] of buckets) {
-    if (count === 0) continue;
-    const [country, model] = bk.split("|");
-    if (!out.has(country)) out.set(country, new Map());
-    out.get(country)!.set(model, sum / count);
-  }
-  return out;
+function readCountryScore(stat: ModelStat, view: SensitivityViewId): number | undefined {
+  const value = stat[VIEW_TO_FIELD[view]];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-/** Returns true if the active sensitivity slice has rows for every required country. */
-export function viewSupportsGlobal(
-  rows: ScoreRow[],
+function readGlobalCountryScores(
+  stat: ModelStat,
   view: SensitivityViewId,
-): boolean {
-  const filtered = filterRows(rows, view);
-  const present = new Set<CountryCode>();
-  for (const row of filtered) present.add(row.country);
-  return GLOBAL_REQUIRED_COUNTRIES.every((c) => present.has(c));
+): Record<string, number> | undefined {
+  const map = stat[VIEW_TO_COUNTRY_FIELD[view]];
+  if (!map || typeof map !== "object") return undefined;
+  return map as Record<string, number>;
 }
 
-/** Returns true if the active sensitivity slice has rows under the selected view. */
+/** Returns true if every model in the selected payload exposes a score for this view. */
 export function viewSupportsSelected(
-  rows: ScoreRow[],
+  dashboard: DashboardBundle,
   view: SensitivityViewId,
   selectedView: ViewKey,
 ): boolean {
-  if (view === "main") return true;
-  if (selectedView === "global") return viewSupportsGlobal(rows, view);
-  const filtered = filterRows(rows, view);
-  for (const row of filtered) {
-    if (row.country === selectedView) return true;
+  if (view === "household") return true;
+  const stats = pickModelStats(dashboard, selectedView);
+  if (!stats || stats.length === 0) return false;
+  return stats.every((stat) => {
+    if (selectedView === "global") {
+      const countryScores = readGlobalCountryScores(stat, view);
+      if (!countryScores) return false;
+      return GLOBAL_REQUIRED_COUNTRIES.every(
+        (c) => typeof countryScores[c] === "number",
+      );
+    }
+    return readCountryScore(stat, view) !== undefined;
+  });
+}
+
+function pickModelStats(
+  dashboard: DashboardBundle,
+  selectedView: ViewKey,
+): ModelStat[] | undefined {
+  if (selectedView === "global") {
+    return dashboard.global?.modelStats?.filter((m) => m.condition === "no_tools");
   }
-  return false;
+  return dashboard.countries[selectedView]?.modelStats?.filter(
+    (m) => m.condition === "no_tools",
+  );
 }
 
 export function modelScoresForView(
-  rows: ScoreRow[],
+  dashboard: DashboardBundle,
   view: SensitivityViewId,
   selectedView: ViewKey,
 ): ModelScore[] {
-  const filtered = filterRows(rows, view);
-  const perCountry = scoresPerCountryModel(filtered);
-  if (selectedView === "global") {
-    // Global score requires every required country to have rows under the
-    // active sensitivity slice. If any required country is missing (e.g.
-    // "Binary only" with no UK binary outputs), surface no rows so the
-    // leaderboard component can suppress or relabel the global view.
-    const haveAllRequired = GLOBAL_REQUIRED_COUNTRIES.every((c) =>
-      perCountry.has(c),
-    );
-    if (!haveAllRequired) return [];
-
-    const allModels = new Set<string>();
-    for (const c of GLOBAL_REQUIRED_COUNTRIES) {
-      for (const m of perCountry.get(c)?.keys() ?? []) allModels.add(m);
-    }
-    const out: ModelScore[] = [];
-    for (const model of allModels) {
-      const present: number[] = [];
-      for (const c of GLOBAL_REQUIRED_COUNTRIES) {
-        const s = perCountry.get(c)?.get(model);
-        if (s !== undefined && Number.isFinite(s)) present.push(s);
+  const stats = pickModelStats(dashboard, selectedView) ?? [];
+  const out: ModelScore[] = [];
+  for (const stat of stats) {
+    let score: number | undefined;
+    if (selectedView === "global") {
+      const countryScores = readGlobalCountryScores(stat, view);
+      if (countryScores) {
+        const values = GLOBAL_REQUIRED_COUNTRIES.map((c) => countryScores[c]).filter(
+          (v): v is number => typeof v === "number" && Number.isFinite(v),
+        );
+        if (values.length === GLOBAL_REQUIRED_COUNTRIES.length) {
+          score = values.reduce((a, b) => a + b, 0) / values.length;
+        }
       }
-      if (present.length === GLOBAL_REQUIRED_COUNTRIES.length) {
-        out.push({
-          model,
-          score: present.reduce((a, b) => a + b, 0) / present.length,
-        });
-      }
+    } else {
+      score = readCountryScore(stat, view);
     }
-    return out.sort((a, b) => b.score - a.score);
+    if (score === undefined) continue;
+    out.push({ model: stat.model, score });
   }
-  const map = perCountry.get(selectedView);
-  if (!map) return [];
-  return [...map.entries()]
-    .map(([model, score]) => ({ model, score }))
-    .sort((a, b) => b.score - a.score);
+  return out.sort((a, b) => b.score - a.score);
 }
