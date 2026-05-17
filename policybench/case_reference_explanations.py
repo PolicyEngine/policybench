@@ -162,6 +162,139 @@ def _build_us_traces_for_scenario(
     return traces
 
 
+class _UKContext:
+    """One-time setup for UK narrative generation.
+
+    The UK reference values are produced by the FRS-based microsimulation, not
+    a situation-based simulation, because UK ground-truth depends on the
+    dataset's benefit-unit and household relationships. To narrate using the
+    same numbers, we run the microsim once with the tracer on and slice each
+    trace node's vectorised array down to the rows that belong to a target
+    household — picking out the per-person, per-benunit, and per-household
+    values that contribute to the answer.
+    """
+
+    def __init__(self, year: int):
+        from policybench.ground_truth import make_uk_transfer_microsimulation
+        from policybench.scenarios import get_uk_dataset_path
+
+        self._period = str(year)
+        self._sim = make_uk_transfer_microsimulation(get_uk_dataset_path())
+
+        import pandas as _pd
+
+        self._person_hh = _pd.Series(
+            self._sim.calculate("person_household_id", self._period, unweighted=True)
+        ).astype(int)
+        self._person_bu = _pd.Series(
+            self._sim.calculate("person_benunit_id", self._period, unweighted=True)
+        ).astype(int)
+        self._bu_ids = _pd.Series(
+            self._sim.calculate("benunit_id", self._period, unweighted=True)
+        ).astype(int)
+        self._hh_ids = _pd.Series(
+            self._sim.calculate("household_id", self._period, unweighted=True)
+        ).astype(int)
+
+    def _masks_for(self, household_id: int) -> tuple:
+        person_mask = (self._person_hh == household_id).values
+        target_bu_ids = set(self._person_bu[person_mask].unique())
+        bu_mask = self._bu_ids.isin(target_bu_ids).values
+        hh_mask = (self._hh_ids == household_id).values
+        return person_mask, bu_mask, hh_mask
+
+    def traces_for_household(
+        self,
+        household_id: int,
+        pe_variables: list[str],
+    ) -> dict[str, str]:
+        person_mask, bu_mask, hh_mask = self._masks_for(household_id)
+        traces: dict[str, str] = {}
+        for pe_variable in pe_variables:
+            self._sim.trace = True
+            self._sim.tracer.trees.clear()
+            try:
+                self._sim.calculate(pe_variable, self._period, unweighted=True)
+            except Exception as exc:
+                traces[pe_variable] = (
+                    f"[trace unavailable: {type(exc).__name__}: {exc}]"
+                )
+                continue
+            tree = _find_target_tree(self._sim.tracer.trees, pe_variable)
+            if tree is None:
+                traces[pe_variable] = (
+                    f"[trace unavailable: no tree captured for {pe_variable}]"
+                )
+                continue
+            traces[pe_variable] = "\n".join(
+                _render_uk_trace(
+                    tree,
+                    person_mask=person_mask,
+                    bu_mask=bu_mask,
+                    hh_mask=hh_mask,
+                )
+            )
+        return traces
+
+
+def _slice_by_mask(
+    value,
+    person_mask,
+    bu_mask,
+    hh_mask,
+):
+    """Return the household-scoped slice of an OpenFisca trace value.
+
+    OpenFisca trace values are numpy arrays sized to the entity the variable
+    lives on (persons, benunits, or households). We pick the right mask by
+    length so the rendered trace shows only the rows the target household
+    contributed to.
+    """
+    if not hasattr(value, "__len__"):
+        return value
+    n = len(value)
+    if n == len(person_mask):
+        return value[person_mask]
+    if n == len(bu_mask):
+        return value[bu_mask]
+    if n == len(hh_mask):
+        return value[hh_mask]
+    # Fallback: keep the array as-is (rare; some variables live on entities
+    # we didn't enumerate).
+    return value
+
+
+def _render_uk_trace(
+    node,
+    *,
+    depth: int = 0,
+    lines: list | None = None,
+    max_depth: int = 8,
+    person_mask=None,
+    bu_mask=None,
+    hh_mask=None,
+):
+    if lines is None:
+        lines = []
+    if depth > max_depth:
+        return lines
+    sliced = _slice_by_mask(node.value, person_mask, bu_mask, hh_mask)
+    if depth > 1 and _is_zero(sliced):
+        return lines
+    lines.append("  " * depth + node.name + " = " + _value_repr(sliced))
+    for child in node.children:
+        _render_uk_trace(
+            child,
+            depth=depth + 1,
+            lines=lines,
+            max_depth=max_depth,
+            person_mask=person_mask,
+            bu_mask=bu_mask,
+            hh_mask=hh_mask,
+        )
+    return lines
+
+
 def _prompt(
     country: str,
     scenario_summary: str,
@@ -200,12 +333,16 @@ PolicyEngine computation trace (indented dependency tree, non-zero nodes only):
 
 
 def _scenario_summary(row: pd.Series) -> str:
-    return (
-        f"{row['state']}, {row['filing_status']}, "
-        f"{int(row['num_adults'])} adults, "
-        f"{int(row['num_children'])} children, "
-        f"household income ~${float(row['total_income']):,.0f}"
-    )
+    country = str(row.get("country", "us")).lower()
+    currency = "£" if country == "uk" else "$"
+    parts = [str(row["state"])]
+    filing_status = row.get("filing_status")
+    if isinstance(filing_status, str) and filing_status.strip():
+        parts.append(filing_status)
+    parts.append(f"{int(row['num_adults'])} adults")
+    parts.append(f"{int(row['num_children'])} children")
+    parts.append(f"household income ~{currency}{float(row['total_income']):,.0f}")
+    return ", ".join(parts)
 
 
 def _existing_keys(cache_path: Path) -> set[CaseKey]:
@@ -282,9 +419,18 @@ def _build_trace(country: str, scenario_json: str, variable: str, year: int) -> 
 
 
 def _resolve_pe_variable(country: str, variable: str) -> str:
-    if country == "us":
-        return _pe_variable_for_output(variable, "us")
-    return variable
+    return _pe_variable_for_output(variable, country)
+
+
+def _household_id_for_uk_scenario(scenario_row) -> int:
+    sc = json.loads(scenario_row["scenario_json"])
+    metadata = sc.get("metadata") or {}
+    if "household_id" not in metadata:
+        raise ValueError(
+            f"UK scenario {scenario_row['scenario_id']} is missing "
+            "metadata.household_id"
+        )
+    return int(metadata["household_id"])
 
 
 async def _run_batch(
@@ -378,6 +524,12 @@ def generate_country_explanations(
             )
         )
 
+    # UK narration shares one microsim across all scenarios; load lazily so
+    # US runs don't pay the cost.
+    uk_context: _UKContext | None = None
+    if country == "uk" and cases_by_scenario:
+        uk_context = _UKContext(year)
+
     todo: list[tuple[CaseKey, dict]] = []
     for scenario_id, scenario_cases in cases_by_scenario.items():
         scenario_row = scenario_cases[0][1]["scenario_row"]
@@ -392,9 +544,15 @@ def generate_country_explanations(
                     list(pe_variable_map.values()),
                     year,
                 )
+            elif country == "uk":
+                assert uk_context is not None
+                traces = uk_context.traces_for_household(
+                    _household_id_for_uk_scenario(scenario_row),
+                    list(pe_variable_map.values()),
+                )
             else:
                 raise NotImplementedError(
-                    f"Tracer is only wired for US at the moment; got {country!r}"
+                    f"Tracer is only wired for US/UK; got {country!r}"
                 )
         except Exception as exc:
             traces = {}
