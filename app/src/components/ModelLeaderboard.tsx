@@ -166,8 +166,8 @@ export default function ModelLeaderboard({
 
   // Bootstrap intervals are off by default — they roughly triple the
   // first-paint cost and are noise to most readers. Compute on-demand when
-  // the user opens the toggle. The Main view uses precomputed household-equal
-  // impact scores, which do not have a browser-side bootstrap path yet.
+  // the user opens the toggle. The Main view uses precomputed bounded
+  // scores, which do not have a browser-side bootstrap path yet.
   const intervals = useMemo(() => {
     if (!showIntervals) return new Map();
     if (effectiveView === "main") return new Map();
@@ -208,8 +208,8 @@ export default function ModelLeaderboard({
         style={{ animationDelay: "160ms" }}
       >
         {isGlobal
-          ? "Global scores are equal-weight averages of each model’s US and UK household-equal impact scores. They are not weighted by country population or household count."
-          : "Country scores give each household equal weight. Within a household, outputs receive a 30% equal-weight floor plus a 70% weight based on absolute reference impact."}
+          ? "Global scores are equal-weight averages of each model’s US and UK bounded scores. They are not weighted by country population or household count."
+          : "Country scores give each household equal weight. Each variable's weight is the mean across households of |ref| / max(|household_net_income|, Σ |ref|), renormalized so the global weights sum to one."}
         {pendingModels.length > 0 && (
           <>
             {" "}

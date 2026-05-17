@@ -309,48 +309,106 @@ def federal_state_joint_accuracy() -> pd.DataFrame:
 
 
 def impact_floor_sensitivity() -> pd.DataFrame:
-    """Top US/UK models under varying household-equal impact-score floors.
+    """Top global ranks under three weighting philosophies.
 
-    Uses the canonical ``policybench.analysis.household_equal_impact_scores``
-    over the committed snapshot reference-output and per-run prediction CSVs so
-    the table matches the same impact statistic used in
-    ``us_impact_summary_by_model.csv`` and ``uk_impact_summary_by_model.csv``.
+    Reports the top model under the headline metric (bounded global variable
+    weights derived from each household's `|ref| / max(|net income|, Σ |ref|)`
+    share, averaged across households and renormalized) alongside two opt-in
+    alternatives: equal weighting across outputs and budget-weighted (each
+    variable's share of total absolute reference dollars). All three use the
+    same continuous floor-free row score so the differences come from the
+    weighting choice alone.
     """
-    from policybench.analysis import household_equal_impact_scores
+    from policybench.analysis import (
+        bounded_household_scores,
+        continuous_row_score,
+        bounded_global_variable_weights,
+    )
 
     ground_truths = load_snapshot_ground_truth()
     predictions = load_snapshot_predictions(
         usecols=["model", "scenario_id", "variable", "prediction"]
     )
+    scenarios_by_country = {
+        country: pd.read_csv(
+            ROOT / IMPACT_SNAPSHOT_DIR
+            / f"runs/{country}_full_run_20260513_policyengine_4_4_4_nested_outputs/scenarios.csv"
+        )
+        for country in ["us", "uk"]
+    }
+    market_by_country = {
+        country: dict(
+            zip(
+                df["scenario_id"].astype(str),
+                pd.to_numeric(df["total_income"], errors="coerce").fillna(0.0),
+            )
+        )
+        for country, df in scenarios_by_country.items()
+    }
 
-    def country_table(floor_share: float) -> pd.DataFrame:
-        country_rows = []
-        for country in ["us", "uk"]:
-            scenarios = household_equal_impact_scores(
-                ground_truths[country],
-                predictions[country],
-                floor_share=floor_share,
+    def score_country(country: str, weight_kind: str) -> pd.DataFrame:
+        gt = ground_truths[country]
+        preds = predictions[country]
+        if weight_kind == "bounded":
+            scores = bounded_household_scores(gt, preds, market_by_country[country])
+            country_summary = scores.groupby("model")["score"].mean().reset_index()
+        else:
+            if weight_kind == "equal":
+                variables = gt["variable"].drop_duplicates().tolist()
+                weights = pd.Series(
+                    1.0 / len(variables), index=variables, name="weight"
+                )
+            else:  # budget-weighted
+                tmp = gt.copy()
+                if "impact_weight" in tmp.columns:
+                    iw = pd.to_numeric(tmp["impact_weight"], errors="coerce").abs()
+                    tmp["abs_value"] = iw.fillna(tmp["value"].abs())
+                else:
+                    tmp["abs_value"] = tmp["value"].abs()
+                totals = tmp.groupby("variable")["abs_value"].sum()
+                weights = totals / totals.sum() if totals.sum() > 0 else totals
+            grid = gt.assign(_k=1).merge(
+                pd.DataFrame({"model": sorted(preds["model"].unique()), "_k": 1}),
+                on="_k",
+            ).drop(columns="_k")
+            merged = grid.merge(
+                preds[["model", "scenario_id", "variable", "prediction"]],
+                on=["model", "scenario_id", "variable"],
+                how="left",
             )
-            if scenarios.empty:
-                continue
+            merged["row_score"] = [
+                continuous_row_score(t, p)
+                for t, p in zip(merged["value"], merged["prediction"])
+            ]
+            merged["weight"] = merged["variable"].map(weights).fillna(0.0)
+            merged["weighted"] = merged["row_score"] * merged["weight"]
+            household_scores = (
+                merged.groupby(["model", "scenario_id"])["weighted"]
+                .sum()
+                .rename("score")
+                .reset_index()
+            )
             country_summary = (
-                scenarios.groupby("model")["impact_score"].mean().reset_index()
+                household_scores.groupby("model")["score"].mean().reset_index()
             )
-            country_summary["score"] = country_summary["impact_score"] * 100
-            country_summary["country"] = country
-            country_rows.append(country_summary[["country", "model", "score"]])
-        if not country_rows:
-            return pd.DataFrame(columns=["country", "model", "score"])
-        return pd.concat(country_rows, ignore_index=True)
+        country_summary["score"] = country_summary["score"] * 100
+        country_summary["country"] = country
+        return country_summary[["country", "model", "score"]]
+
+    def country_table(weight_kind: str) -> pd.DataFrame:
+        return pd.concat(
+            [score_country(country, weight_kind) for country in ["us", "uk"]],
+            ignore_index=True,
+        )
 
     rows = []
-    for floor in [0.0, 0.1, 0.3, 0.5, 1.0]:
-        country_summary = country_table(floor)
-        # Skip floors where any required country is missing or fewer than three
-        # global rows are available, rather than relying on a single-country
-        # fallback inside global_scores or crashing on iloc out-of-bounds.
-        countries_present = set(country_summary["country"].unique())
-        if not {"us", "uk"} <= countries_present:
+    for label, weight_kind in [
+        ("Bounded (headline)", "bounded"),
+        ("Equal weights", "equal"),
+        ("Budget-weighted", "budget"),
+    ]:
+        country_summary = country_table(weight_kind)
+        if country_summary.empty:
             continue
         global_summary = global_scores(country_summary)
         if len(global_summary) < 3:
@@ -360,7 +418,7 @@ def impact_floor_sensitivity() -> pd.DataFrame:
         rank3 = global_summary.iloc[2]
         rows.append(
             {
-                "Floor": f"{floor:.1f}",
+                "Weighting": label,
                 "Rank 1": f"{rank1.model} ({rank1.score:.1f})",
                 "Rank 2": f"{rank2.model} ({rank2.score:.1f})",
                 "Rank 3": f"{rank3.model} ({rank3.score:.1f})",
@@ -482,9 +540,25 @@ def deviation_audit_summary_table() -> pd.DataFrame:
 
 
 def simple_baselines() -> pd.DataFrame:
-    from policybench.analysis import household_equal_impact_scores
+    from policybench.analysis import bounded_household_scores
 
     ground_truths = load_snapshot_ground_truth()
+    scenarios_by_country = {
+        country: pd.read_csv(
+            ROOT / IMPACT_SNAPSHOT_DIR
+            / f"runs/{country}_full_run_20260513_policyengine_4_4_4_nested_outputs/scenarios.csv"
+        )
+        for country in ground_truths
+    }
+    market_by_country = {
+        country: dict(
+            zip(
+                df["scenario_id"].astype(str),
+                pd.to_numeric(df["total_income"], errors="coerce").fillna(0.0),
+            )
+        )
+        for country, df in scenarios_by_country.items()
+    }
     baselines = []
     for name, predictor in [
         ("Always zero", lambda frame: np.zeros(len(frame))),
@@ -506,11 +580,12 @@ def simple_baselines() -> pd.DataFrame:
             predictions = frame[["scenario_id", "variable"]].copy()
             predictions["model"] = name
             predictions["prediction"] = predictor(frame)
-            household_scores = household_equal_impact_scores(
+            household_scores = bounded_household_scores(
                 ground_truth,
                 predictions,
+                market_by_country[country],
             )
-            country_score = household_scores["impact_score"].mean() * 100
+            country_score = household_scores["score"].mean() * 100
             country_rows.append(
                 {
                     "country": country,
@@ -610,14 +685,32 @@ def bootstrap_global_uncertainty(
     n_boot: int = 1000,
     top_n: int = 10,
 ) -> pd.DataFrame:
-    from policybench.analysis import household_equal_impact_scores
+    from policybench.analysis import bounded_household_scores
 
     ground_truths = load_snapshot_ground_truth()
     predictions = load_snapshot_predictions(
         usecols=["model", "scenario_id", "variable", "prediction"]
     )
+    scenarios_by_country = {
+        country: pd.read_csv(
+            ROOT / IMPACT_SNAPSHOT_DIR
+            / f"runs/{country}_full_run_20260513_policyengine_4_4_4_nested_outputs/scenarios.csv"
+        )
+        for country in ["us", "uk"]
+    }
+    market_by_country = {
+        country: dict(
+            zip(
+                df["scenario_id"].astype(str),
+                pd.to_numeric(df["total_income"], errors="coerce").fillna(0.0),
+            )
+        )
+        for country, df in scenarios_by_country.items()
+    }
     household_scores = {
-        country: household_equal_impact_scores(ground_truths[country], prediction)
+        country: bounded_household_scores(
+            ground_truths[country], prediction, market_by_country[country]
+        )
         for country, prediction in predictions.items()
     }
     scenario_ids = {
@@ -625,7 +718,7 @@ def bootstrap_global_uncertainty(
         for country, frame in household_scores.items()
     }
     country_frames = {
-        country: frame[["model", "scenario_id", "impact_score"]]
+        country: frame[["model", "scenario_id", "score"]]
         for country, frame in household_scores.items()
     }
     rng = np.random.default_rng(SEED)
@@ -641,10 +734,10 @@ def bootstrap_global_uncertainty(
                 how="left",
             )
             country_scores = (
-                sampled.groupby("model")["impact_score"].mean().reset_index()
+                sampled.groupby("model")["score"].mean().reset_index()
             )
             country_scores["country"] = country
-            country_scores["score"] = country_scores["impact_score"] * 100
+            country_scores["score"] = country_scores["score"] * 100
             country_score_frames.append(country_scores[["country", "model", "score"]])
         scores = global_scores(
             pd.concat(country_score_frames, ignore_index=True)
@@ -1058,17 +1151,17 @@ The primary leaderboard gives each country equal weight globally and each househ
 sensitivity
 ```
 
-The household-equal impact score weights each requested output row inside a household by a blend of an equal-weight floor and the absolute reference-impact share. The default uses a `0.3` floor. @tbl-impact-floor reports the top three global ranks under floors of `0.0`, `0.1`, `0.3`, `0.5`, and `1.0`. Floor `1.0` is equal-row weighting within each household; floor `0.0` is pure impact-share weighting. Rank stability across this range means the main view is not driven by the specific floor choice.
+The headline metric is a bounded global variable weight applied to a continuous row score. For each requested output and household, the row score is `max(0, 1 − |pred − ref| / |ref|)` when the reference is nonzero and `1{pred = 0}` when the reference is zero (which makes the same formula handle boolean eligibility flags naturally). Each variable's weight is the mean across all benchmark households of `|ref_ij| / max(|household_net_income_i|, Σ_k |ref_ik|)`, renormalized so the global weights sum to one. The `max(...)` denominator anchors per-household shares to net income when net income is the dominant flow and falls back to the gross tax-benefit flow only when programs cancel each other out, so a $1 benefit to a high-earner contributes essentially zero weight and per-household shares never exceed one. Booleans carry weight through PolicyEngine's paired per-capita value (for example `medicaid_value`), so eligibility calls are graded as accuracy but weighted by the dollar stake. @tbl-impact-floor compares the headline ranking against two opt-in alternatives shown for transparency: equal weighting (every output the same) and budget-weighted (each variable's share of total absolute reference dollars).
 
 ```{python}
 #| label: tbl-impact-floor
-#| tbl-cap: "Top global ranks under varying household-equal impact-score floors."
+#| tbl-cap: "Top global ranks under the bounded headline metric and two opt-in alternatives."
 impact_floor
 ```
 
 ### Sampling uncertainty
 
-The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes household-equal impact country scores, then recomputes the equal-country global score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after `{python} MODEL_RESPONSE_DATE` in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
+The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes the bounded global variable weights and per-country headline scores from the resampled sample, then recomputes the equal-country global score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after `{python} MODEL_RESPONSE_DATE` in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
 
 ```{python}
 #| label: tbl-bootstrap

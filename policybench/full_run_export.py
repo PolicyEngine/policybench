@@ -211,7 +211,7 @@ def export_country(country_dir: Path) -> dict:
     )
     scenarios = pd.read_csv(scenarios_path)
 
-    analysis = analyze_no_tools(ground_truth, predictions)
+    analysis = analyze_no_tools(ground_truth, predictions, scenarios=scenarios)
     export_analysis(analysis, country_dir / "analysis")
 
     scenario_prompts = build_scenario_prompt_map(

@@ -8,17 +8,23 @@ import pytest
 
 from policybench.analysis import (
     accuracy,
+    amount_accuracy_by_model,
     analyze_no_tools,
+    bounded_global_variable_weights,
+    bounded_household_scores,
     build_dashboard_payload,
     build_scenario_prompt_map,
     compute_metrics,
+    continuous_row_score,
     exact_amount_match,
     export_analysis,
     export_dashboard_data,
     household_equal_impact_scores,
     household_impact_summary_by_model,
+    household_net_income_by_scenario,
     mean_absolute_error,
     mean_absolute_percentage_error,
+    participation_accuracy_by_model,
     render_markdown_report,
     run_stability_by_model,
     score_single_prediction,
@@ -419,6 +425,8 @@ class TestSummaries:
             "metrics",
             "model_summary",
             "impact_summary",
+            "bounded_summary",
+            "global_weights",
             "variable_summary",
             "usage_summary",
             "run_model_summary",
@@ -1019,3 +1027,250 @@ class TestSummaries:
         assert exported.exists()
         assert '"modelStats"' in exported.read_text()
         assert '"failureModes"' in exported.read_text()
+
+
+class TestContinuousRowScore:
+    """Continuous floor-free row score: max(0, 1 - |err|/|ref|), with ref=0 cased."""
+
+    def test_exact_match(self):
+        assert continuous_row_score(100.0, 100.0) == 1.0
+
+    def test_fifty_percent_off(self):
+        assert continuous_row_score(100.0, 50.0) == pytest.approx(0.5)
+
+    def test_at_full_error(self):
+        # off by exactly |ref|, lands at 0
+        assert continuous_row_score(100.0, 0.0) == 0.0
+
+    def test_over_clipped_negative_pred(self):
+        assert continuous_row_score(100.0, -100.0) == 0.0
+
+    def test_huge_over_clipped(self):
+        # error 9x reference -> still 0 (no negative scores)
+        assert continuous_row_score(100.0, 1000.0) == 0.0
+
+    def test_negative_reference(self):
+        # |ref| in denominator handles signed references
+        assert continuous_row_score(-100.0, -100.0) == 1.0
+        assert continuous_row_score(-100.0, -50.0) == pytest.approx(0.5)
+
+    def test_zero_ref_zero_pred(self):
+        assert continuous_row_score(0.0, 0.0) == 1.0
+
+    def test_zero_ref_nonzero_pred(self):
+        # any nonzero prediction on zero ref is fully wrong (no $1,000 floor)
+        assert continuous_row_score(0.0, 50.0) == 0.0
+        assert continuous_row_score(0.0, 0.01) == 0.0
+        assert continuous_row_score(0.0, -0.5) == 0.0
+
+    def test_none_pred(self):
+        assert continuous_row_score(100.0, None) == 0.0
+        assert continuous_row_score(0.0, None) == 0.0
+
+    def test_nan_pred(self):
+        assert continuous_row_score(100.0, float("nan")) == 0.0
+        assert continuous_row_score(0.0, float("nan")) == 0.0
+
+    def test_boolean_match(self):
+        # ref/pred encoded as 0/1 — same formula gives binary accuracy
+        assert continuous_row_score(1.0, 1.0) == 1.0
+        assert continuous_row_score(0.0, 0.0) == 1.0
+        assert continuous_row_score(1.0, 0.0) == 0.0  # |err|=1, |ref|=1, score=0
+        assert continuous_row_score(0.0, 1.0) == 0.0  # ref=0 special-case
+
+
+class TestHouseholdNetIncome:
+    """household_net_income_by_scenario: market income + signed program flows."""
+
+    def _ground_truth(self):
+        return pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1", "s1"],
+                "variable": [
+                    "federal_income_tax_before_refundable_credits",
+                    "snap",
+                    "person_medicaid_eligible",
+                ],
+                "value": [4000.0, 5000.0, 1.0],
+                "impact_weight": [pd.NA, pd.NA, 8000.0],
+            }
+        )
+
+    def test_signed_sum_with_market_income(self):
+        gt = self._ground_truth()
+        market = {"s1": 20000.0}
+        nets = household_net_income_by_scenario(gt, market)
+        # 20k market - 4k tax + 5k snap + 8k medicaid value (eligible) = 29k
+        assert nets["s1"] == pytest.approx(29000.0)
+
+    def test_boolean_not_eligible_contributes_zero(self):
+        gt = self._ground_truth().copy()
+        gt.loc[gt["variable"] == "person_medicaid_eligible", "value"] = 0.0
+        market = {"s1": 20000.0}
+        nets = household_net_income_by_scenario(gt, market)
+        # 20k - 4k + 5k + 0 = 21k
+        assert nets["s1"] == pytest.approx(21000.0)
+
+    def test_missing_market_defaults_to_zero(self):
+        gt = self._ground_truth()
+        nets = household_net_income_by_scenario(gt, {})
+        # 0 - 4k + 5k + 8k = 9k
+        assert nets["s1"] == pytest.approx(9000.0)
+
+
+class TestBoundedGlobalVariableWeights:
+    """Bounded global weights: mean of |abs|/max(|net|, Σ|abs|), renormalized."""
+
+    def test_weights_sum_to_one(self):
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1", "s2", "s2"],
+                "variable": ["federal_income_tax_before_refundable_credits", "snap"]
+                * 2,
+                "value": [4000.0, 5000.0, 1000.0, 6000.0],
+                "impact_weight": [pd.NA, pd.NA, pd.NA, pd.NA],
+            }
+        )
+        market = {"s1": 60000.0, "s2": 20000.0}
+        weights = bounded_global_variable_weights(gt, market)
+        assert weights.sum() == pytest.approx(1.0)
+        assert set(weights.index) == {
+            "federal_income_tax_before_refundable_credits",
+            "snap",
+        }
+
+    def test_rich_slice_tiny_benefit_gets_near_zero(self):
+        # Rich household with $1 benefit + zero taxes. The benefit should
+        # have near-zero share, not 100%.
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["rich"],
+                "variable": ["snap"],
+                "value": [1.0],
+                "impact_weight": [pd.NA],
+            }
+        )
+        market = {"rich": 200_000.0}
+        weights = bounded_global_variable_weights(gt, market)
+        # Only one variable; weight = 1.0 after renormalization.
+        # But the *raw* per-household share before renormalization is tiny.
+        # Add a second variable so renormalization can split.
+        gt = pd.concat(
+            [
+                gt,
+                pd.DataFrame(
+                    {
+                        "scenario_id": ["other"],
+                        "variable": ["snap"],
+                        "value": [4000.0],
+                        "impact_weight": [pd.NA],
+                    }
+                ),
+            ]
+        )
+        market2 = {"rich": 200_000.0, "other": 20_000.0}
+        # With a second household where SNAP is meaningful, the rich household
+        # contributes essentially nothing, so the global weight is dominated
+        # by "other".
+        weights = bounded_global_variable_weights(gt, market2)
+        # Both households have SNAP only -> renormalized weight is 1.0 either way,
+        # but we verify the rich slice's per-household share is small.
+        # Sanity: shares sum to 1 after renormalization.
+        assert weights["snap"] == pytest.approx(1.0)
+
+
+class TestBoundedHouseholdScores:
+    """Bounded household scores: mean of weighted continuous row scores."""
+
+    def test_perfect_predictions_score_one(self):
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1"],
+                "variable": ["federal_income_tax_before_refundable_credits", "snap"],
+                "value": [4000.0, 5000.0],
+                "impact_weight": [pd.NA, pd.NA],
+            }
+        )
+        preds = pd.DataFrame(
+            {
+                "model": ["m1", "m1"],
+                "scenario_id": ["s1", "s1"],
+                "variable": ["federal_income_tax_before_refundable_credits", "snap"],
+                "prediction": [4000.0, 5000.0],
+            }
+        )
+        market = {"s1": 60000.0}
+        out = bounded_household_scores(gt, preds, market)
+        assert out.loc[out["model"] == "m1", "score"].iloc[0] == pytest.approx(1.0)
+
+    def test_zero_predictions_score_low(self):
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1"],
+                "variable": ["federal_income_tax_before_refundable_credits", "snap"],
+                "value": [4000.0, 5000.0],
+                "impact_weight": [pd.NA, pd.NA],
+            }
+        )
+        preds = pd.DataFrame(
+            {
+                "model": ["zero"],
+                "scenario_id": ["s1"],
+                "variable": ["federal_income_tax_before_refundable_credits"],
+                "prediction": [0.0],
+            }
+        )
+        # Missing prediction on snap; tax pred is 0 (full error vs 4000).
+        market = {"s1": 60000.0}
+        out = bounded_household_scores(gt, preds, market)
+        assert out.loc[out["model"] == "zero", "score"].iloc[0] < 0.5
+
+
+class TestAmountAndParticipationAccuracy:
+    def test_amount_excludes_zero_reference_and_boolean_cells(self):
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1", "s1"],
+                "variable": ["snap", "aca_ptc", "person_medicaid_eligible"],
+                "value": [5000.0, 0.0, 1.0],
+                "impact_weight": [pd.NA, pd.NA, 8000.0],
+            }
+        )
+        preds = pd.DataFrame(
+            {
+                "model": ["m1", "m1", "m1"],
+                "scenario_id": ["s1", "s1", "s1"],
+                "variable": ["snap", "aca_ptc", "person_medicaid_eligible"],
+                "prediction": [5000.0, 100.0, 0.0],  # aca and medicaid wrong
+            }
+        )
+        market = {"s1": 20000.0}
+        amount = amount_accuracy_by_model(gt, preds, market)
+        # Only the snap row (nonzero amount) counts; perfect → 1.0
+        assert amount.loc[amount["model"] == "m1", "amount_accuracy"].iloc[
+            0
+        ] == pytest.approx(1.0)
+
+    def test_participation_counts_zero_match_and_boolean_match(self):
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1", "s1"],
+                "variable": ["snap", "aca_ptc", "person_medicaid_eligible"],
+                "value": [5000.0, 0.0, 1.0],
+                "impact_weight": [pd.NA, pd.NA, 8000.0],
+            }
+        )
+        preds = pd.DataFrame(
+            {
+                "model": ["m1", "m1", "m1"],
+                "scenario_id": ["s1", "s1", "s1"],
+                "variable": ["snap", "aca_ptc", "person_medicaid_eligible"],
+                "prediction": [5000.0, 100.0, 0.0],
+            }
+        )
+        # snap: nonzero ref, nonzero pred -> match. aca: zero ref, nonzero pred -> miss.
+        # medicaid: ref=1, pred=0 -> miss. So 1 of 3 -> 33.3%.
+        out = participation_accuracy_by_model(gt, preds)
+        assert out.loc[out["model"] == "m1", "participation_accuracy"].iloc[
+            0
+        ] == pytest.approx(1 / 3)

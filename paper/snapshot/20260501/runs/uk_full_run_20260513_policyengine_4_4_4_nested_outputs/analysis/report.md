@@ -35,16 +35,36 @@ Total cost: `33.913` USD. Estimated total runtime: `473.1 min`.
 | grok-4.20 | 0.781 | 0.703 | 0.713 | 0.820 | 0.890 | n/a | 355.731 | 700 |
 | claude-opus-4.7 | 0.781 | 0.699 | 0.711 | 0.826 | 0.887 | n/a | 419.425 | 700 |
 | gemini-3-flash-preview | 0.768 | 0.704 | 0.714 | 0.799 | 0.853 | n/a | 460.365 | 700 |
-| grok-4.3 | 0.742 | 0.693 | 0.701 | 0.749 | 0.826 | n/a | 917.049 | 700 |
 | gemini-3.1-flash-lite-preview | 0.739 | 0.694 | 0.700 | 0.757 | 0.806 | n/a | 570.365 | 700 |
-| grok-4.1-fast | 0.736 | 0.707 | 0.714 | 0.753 | 0.771 | n/a | 1094.751 | 700 |
-| gpt-5.4-mini | 0.728 | 0.707 | 0.707 | 0.730 | 0.767 | n/a | 1001.798 | 700 |
+| grok-4.3 | 0.742 | 0.693 | 0.701 | 0.749 | 0.826 | n/a | 917.049 | 700 |
 | claude-haiku-4.5 | 0.723 | 0.701 | 0.701 | 0.734 | 0.754 | n/a | 1075.758 | 700 |
+| gpt-5.4-mini | 0.728 | 0.707 | 0.707 | 0.730 | 0.767 | n/a | 1001.798 | 700 |
+| grok-4.1-fast | 0.736 | 0.707 | 0.714 | 0.753 | 0.771 | n/a | 1094.751 | 700 |
 | gpt-5.4-nano | 0.692 | 0.686 | 0.686 | 0.696 | 0.701 | n/a | 1448.748 | 700 |
 
-## Household-equal impact score
+## Bounded global variable weights (headline)
 
-Households receive equal weight. Within each household, requested output rows get a blend of equal weighting and weighting by absolute reference impact.
+Households receive equal weight. The score is a weighted average of continuous row scores; each variable's weight is the mean across households of `|ref_ij| / max(|household_net_income_i|, sum_k |ref_ik|)`, renormalized so weights sum to 1.
+
+| model | bounded_score | amount_accuracy | participation_accuracy |
+| --- | ---: | ---: | ---: |
+| claude-haiku-4.5 | 0.733 | 0.454 | 0.929 |
+| claude-opus-4.7 | 0.886 | 0.788 | 0.969 |
+| claude-sonnet-4.6 | 0.896 | 0.800 | 0.973 |
+| gemini-3-flash-preview | 0.867 | 0.721 | 0.977 |
+| gemini-3.1-flash-lite-preview | 0.837 | 0.680 | 0.949 |
+| gemini-3.1-pro-preview | 0.903 | 0.802 | 0.977 |
+| gpt-5.4-mini | 0.707 | 0.370 | 0.901 |
+| gpt-5.4-nano | 0.660 | 0.346 | 0.900 |
+| gpt-5.5 | 0.903 | 0.817 | 0.987 |
+| grok-4.1-fast | 0.687 | 0.349 | 0.900 |
+| grok-4.20 | 0.893 | 0.787 | 0.977 |
+| grok-4.3 | 0.820 | 0.632 | 0.930 |
+
+
+## Household-equal impact score (30% floor — legacy)
+
+Retained for comparison with prior reports. Each requested output row gets a blend of equal weighting and weighting by absolute reference impact.
 
 | model | mean_impact_score | mean_household_score | mean_household_coverage | households |
 | --- | ---: | ---: | ---: | ---: |

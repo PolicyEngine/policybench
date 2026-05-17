@@ -113,6 +113,273 @@ def _std_or_nan(series: pd.Series) -> float:
     return float(values.std(ddof=1))
 
 
+def continuous_row_score(y_true: float, y_pred: float | None) -> float:
+    """Continuous, floor-free row score in [0, 1].
+
+    For a nonzero reference: ``max(0, 1 - |pred - ref| / |ref|)``.
+    For a zero reference: 1 if the prediction is exactly 0, else 0
+    (any nonzero prediction is fully wrong).
+
+    With this formulation booleans encoded as 0/1 fall out naturally:
+    a wrong eligibility call has |err| = 1 = |ref|, so the score is 0;
+    a right call has |err| = 0, score 1.
+    """
+    if y_pred is None:
+        return 0.0
+    try:
+        if pd.isna(y_pred):
+            return 0.0
+    except (TypeError, ValueError):
+        return 0.0
+    ref = float(y_true)
+    pred = float(y_pred)
+    if ref == 0.0:
+        return 1.0 if pred == 0.0 else 0.0
+    return max(0.0, 1.0 - abs(pred - ref) / abs(ref))
+
+
+def _signed_contributions(ground_truth: pd.DataFrame) -> pd.DataFrame:
+    """Compute the signed and absolute contribution of each cell to net income.
+
+    Adds three columns to a copy of the input:
+
+    - ``net_income_sign``: +1 for benefits / refundable credits, -1 for taxes.
+    - ``signed_contribution``: the signed dollar effect on net income.
+      Amount cells: ``value * net_income_sign``.
+      Binary cells with a paired ``impact_weight`` value:
+      ``value * impact_weight * net_income_sign``
+      (the paired value is added when the LLM predicts "eligible", $0
+      otherwise — for the reference, ``value`` is 1 if truly eligible).
+    - ``abs_contribution``: ``|signed_contribution|``. Used as ``|ref|``
+      in the bounded weighting denominator.
+    """
+    df = ground_truth.copy()
+    df["net_income_sign"] = df["variable"].map(net_income_sign_for_output)
+    if "impact_weight" in df.columns:
+        explicit = pd.to_numeric(df["impact_weight"], errors="coerce")
+    else:
+        explicit = pd.Series(pd.NA, index=df.index, dtype="Float64")
+    explicit_filled = explicit.fillna(1.0)
+    # For amount cells the multiplier is 1 (so signed = value*sign);
+    # for binary cells the multiplier is the paired dollar value (so signed
+    # = boolean * paired_value * sign, i.e. paired value when eligible).
+    df["signed_contribution"] = df["value"] * explicit_filled * df["net_income_sign"]
+    df["abs_contribution"] = df["signed_contribution"].abs()
+    return df
+
+
+def household_net_income_by_scenario(
+    ground_truth: pd.DataFrame,
+    market_income_by_scenario: dict[str, float] | pd.Series,
+) -> pd.Series:
+    """Net income per scenario: market income + signed program contributions.
+
+    Booleans contribute their paired per-capita value when eligible.
+    """
+    df = _signed_contributions(ground_truth)
+    signed_total = df.groupby("scenario_id")["signed_contribution"].sum()
+    market = pd.Series(market_income_by_scenario)
+    market = pd.to_numeric(market, errors="coerce").fillna(0.0)
+    market = market.reindex(signed_total.index, fill_value=0.0)
+    return market + signed_total
+
+
+def bounded_global_variable_weights(
+    ground_truth: pd.DataFrame,
+    market_income_by_scenario: dict[str, float] | pd.Series,
+) -> pd.Series:
+    """Bounded global variable weights.
+
+    Per household: ``share_ij = |ref_ij| / max(|net_income_i|, Σ_k |ref_ik|)``.
+    Global weight for variable j = mean of per-household shares across
+    households, then renormalized so weights sum to 1.
+
+    The ``max(...)`` denominator caps per-household shares at 1 (in the
+    cancellation case where taxes and benefits sum to more than net income)
+    and dwarfs tiny programs in high-earning households (so a $1 benefit
+    to a $200k household gets share ≈ 5e-6, not 100%).
+    """
+    df = _signed_contributions(ground_truth)
+    abs_total = df.groupby("scenario_id")["abs_contribution"].sum()
+    net_income = household_net_income_by_scenario(
+        ground_truth, market_income_by_scenario
+    )
+    denom = pd.concat([net_income.abs(), abs_total], axis=1).max(axis=1)
+    denom = denom.reindex(df["scenario_id"].values).values
+    shares = np.where(
+        denom > 0,
+        df["abs_contribution"].values / np.where(denom > 0, denom, 1.0),
+        0.0,
+    )
+    df["share"] = shares
+    # Average each variable's share across ALL scenarios in the benchmark, not
+    # just scenarios where the variable appears — otherwise a variable that
+    # applies only to households with a 6th child gets inflated weight because
+    # the denominator collapses to the handful of households that have one.
+    total_scenarios = df["scenario_id"].nunique()
+    raw = df.groupby("variable")["share"].sum() / max(total_scenarios, 1)
+    total = float(raw.sum())
+    if total <= 0:
+        return raw
+    return raw / total
+
+
+def bounded_household_scores(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+    market_income_by_scenario: dict[str, float] | pd.Series,
+) -> pd.DataFrame:
+    """Score each model using bounded global variable weights × continuous row score.
+
+    Returns one row per (model, scenario_id) with the household score,
+    plus the model-level mean.
+    """
+    if ground_truth.empty or predictions.empty:
+        return pd.DataFrame(columns=["model", "scenario_id", "score"])
+    weights = bounded_global_variable_weights(ground_truth, market_income_by_scenario)
+    models = sorted(predictions["model"].dropna().unique())
+    grid = (
+        ground_truth.assign(_k=1)
+        .merge(pd.DataFrame({"model": models, "_k": 1}), on="_k")
+        .drop(columns="_k")
+    )
+    merged = grid.merge(
+        predictions[["model", "scenario_id", "variable", "prediction"]],
+        on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+    merged["row_score"] = [
+        continuous_row_score(t, p)
+        for t, p in zip(merged["value"], merged["prediction"])
+    ]
+    merged["weight"] = merged["variable"].map(weights).fillna(0.0)
+    merged["weighted"] = merged["row_score"] * merged["weight"]
+    return (
+        merged.groupby(["model", "scenario_id"])["weighted"]
+        .sum()
+        .rename("score")
+        .reset_index()
+    )
+
+
+def amount_accuracy_by_model(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+    market_income_by_scenario: dict[str, float] | pd.Series,
+) -> pd.DataFrame:
+    """Amount accuracy: weighted continuous row score over dollar cells where ref ≠ 0.
+
+    Conditional on amount-type variables with nonzero references — booleans
+    and zero-ref dollar cells are excluded because amount accuracy is about
+    "did you get the magnitude roughly right", not "did you predict the
+    eligibility / zero call". Per-household weights are the global variable
+    weights from :func:`bounded_global_variable_weights`, renormalized within
+    each household across the eligible cells. Households are averaged with
+    equal weight.
+    """
+    if ground_truth.empty or predictions.empty:
+        return pd.DataFrame(columns=["model", "amount_accuracy"])
+    weights = bounded_global_variable_weights(ground_truth, market_income_by_scenario)
+    gt = ground_truth.copy()
+    gt["metric_type"] = gt["variable"].map(metric_type_for_output)
+    if "impact_weight" in gt.columns:
+        explicit = pd.to_numeric(gt["impact_weight"], errors="coerce")
+    else:
+        explicit = pd.Series(pd.NA, index=gt.index, dtype="Float64")
+    is_amount = (
+        (gt["metric_type"] != "binary")
+        & (~gt["variable"].isin(BINARY_PROGRAMS))
+        & explicit.isna()
+    )
+    amount_rows = gt[is_amount & (gt["value"].abs() > 0)]
+    models = sorted(predictions["model"].dropna().unique())
+    grid = (
+        amount_rows.assign(_k=1)
+        .merge(pd.DataFrame({"model": models, "_k": 1}), on="_k")
+        .drop(columns="_k")
+    )
+    merged = grid.merge(
+        predictions[["model", "scenario_id", "variable", "prediction"]],
+        on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+    merged["row_score"] = [
+        continuous_row_score(t, p)
+        for t, p in zip(merged["value"], merged["prediction"])
+    ]
+    merged["weight"] = merged["variable"].map(weights).fillna(0.0)
+    merged["weighted_score"] = merged["row_score"] * merged["weight"]
+    household_agg = merged.groupby(["model", "scenario_id"]).agg(
+        num=("weighted_score", "sum"),
+        den=("weight", "sum"),
+    )
+    household_agg["amount_accuracy"] = np.where(
+        household_agg["den"] > 0,
+        household_agg["num"]
+        / household_agg["den"].where(household_agg["den"] > 0, 1.0),
+        1.0,
+    )
+    return (
+        household_agg.reset_index()
+        .groupby("model")["amount_accuracy"]
+        .mean()
+        .reset_index()
+    )
+
+
+def participation_accuracy_by_model(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+) -> pd.DataFrame:
+    """Participation accuracy: cell-level binary check.
+
+    For amount cells: a match means ``(pred == 0)`` iff ``(ref == 0)``.
+    For boolean cells: a match means ``pred == ref`` exactly (encoded 0/1).
+    Reported as a fraction of all cells (across all scenarios and variables).
+    """
+    if ground_truth.empty or predictions.empty:
+        return pd.DataFrame(columns=["model", "participation_accuracy"])
+    gt = ground_truth.copy()
+    gt["metric_type"] = gt["variable"].map(metric_type_for_output)
+    if "impact_weight" in gt.columns:
+        explicit = pd.to_numeric(gt["impact_weight"], errors="coerce")
+    else:
+        explicit = pd.Series(pd.NA, index=gt.index, dtype="Float64")
+    gt["is_binary"] = (
+        (gt["metric_type"] == "binary")
+        | gt["variable"].isin(BINARY_PROGRAMS)
+        | explicit.notna()
+    )
+    models = sorted(predictions["model"].dropna().unique())
+    grid = (
+        gt.assign(_k=1)
+        .merge(pd.DataFrame({"model": models, "_k": 1}), on="_k")
+        .drop(columns="_k")
+    )
+    merged = grid.merge(
+        predictions[["model", "scenario_id", "variable", "prediction"]],
+        on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+
+    def _match(row):
+        ref = row["value"]
+        pred = row["prediction"]
+        if pred is None or pd.isna(pred):
+            return False
+        if row["is_binary"]:
+            return float(pred) == float(ref)
+        return (float(ref) == 0.0) == (float(pred) == 0.0)
+
+    merged["match"] = merged.apply(_match, axis=1)
+    return (
+        merged.groupby("model")["match"]
+        .mean()
+        .rename("participation_accuracy")
+        .reset_index()
+    )
+
+
 def score_single_prediction(
     variable: str,
     y_true: float,
@@ -635,9 +902,20 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
 def analyze_no_tools(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
+    scenarios: pd.DataFrame | None = None,
     repeated_predictions: pd.DataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Build the standard no-tools analysis tables."""
+    """Build the standard no-tools analysis tables.
+
+    Args:
+        ground_truth: reference outputs (scenario_id, variable, value, impact_weight).
+        predictions: model predictions (model, scenario_id, variable, prediction, ...).
+        scenarios: scenario metadata. If provided, supplies ``total_income`` per
+            scenario for the bounded-global-variable-weights metric. Without it,
+            market income defaults to $0 (which collapses the bounded
+            formulation to the simple shares-sum-to-1 version).
+        repeated_predictions: optional batch of repeat runs for stability metrics.
+    """
     metrics = compute_metrics(ground_truth, predictions)
     model_summary = summary_by_model(metrics)
     impact_summary = household_impact_summary_by_model(ground_truth, predictions)
@@ -645,16 +923,62 @@ def analyze_no_tools(
     run_stability = run_stability_by_model(run_model_summary)
     if not run_stability.empty:
         model_summary = model_summary.merge(run_stability, on="model", how="left")
-    model_summary = model_summary.sort_values(
-        "mean_score",
-        ascending=False,
+
+    market_income: dict[str, float] = {}
+    if (
+        scenarios is not None
+        and not scenarios.empty
+        and "total_income" in scenarios.columns
+    ):
+        market_income = dict(
+            zip(
+                scenarios["scenario_id"].astype(str),
+                pd.to_numeric(scenarios["total_income"], errors="coerce").fillna(0.0),
+            )
+        )
+
+    bounded_scores = bounded_household_scores(ground_truth, predictions, market_income)
+    if not bounded_scores.empty:
+        bounded_summary = (
+            bounded_scores.groupby("model")["score"]
+            .mean()
+            .rename("bounded_score")
+            .reset_index()
+        )
+        amount_acc = amount_accuracy_by_model(ground_truth, predictions, market_income)
+        participation_acc = participation_accuracy_by_model(ground_truth, predictions)
+        bounded_summary = bounded_summary.merge(
+            amount_acc, on="model", how="left"
+        ).merge(participation_acc, on="model", how="left")
+        global_weights = (
+            bounded_global_variable_weights(ground_truth, market_income)
+            .rename("global_weight")
+            .reset_index()
+        )
+        model_summary = model_summary.merge(bounded_summary, on="model", how="left")
+    else:
+        bounded_summary = pd.DataFrame(
+            columns=[
+                "model",
+                "bounded_score",
+                "amount_accuracy",
+                "participation_accuracy",
+            ]
+        )
+        global_weights = pd.DataFrame(columns=["variable", "global_weight"])
+
+    sort_column = (
+        "bounded_score" if "bounded_score" in model_summary.columns else "mean_score"
     )
+    model_summary = model_summary.sort_values(sort_column, ascending=False)
     variable_summary = summary_by_variable(metrics).sort_values("variable")
     usage_summary = usage_summary_by_model(predictions).sort_values("model")
     return {
         "metrics": metrics,
         "model_summary": model_summary,
         "impact_summary": impact_summary,
+        "bounded_summary": bounded_summary,
+        "global_weights": global_weights,
         "variable_summary": variable_summary,
         "usage_summary": usage_summary,
         "run_model_summary": run_model_summary,
@@ -833,14 +1157,41 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
         ]
     )
 
+    bounded_summary = analysis.get("bounded_summary")
+    if isinstance(bounded_summary, pd.DataFrame) and not bounded_summary.empty:
+        lines.extend(
+            [
+                "## Bounded global variable weights (headline)",
+                "",
+                "Households receive equal weight. The score is a weighted "
+                "average of continuous row scores; each variable's weight is "
+                "the mean across households of "
+                "`|ref_ij| / max(|household_net_income_i|, sum_k |ref_ik|)`, "
+                "renormalized so weights sum to 1.",
+                "",
+                "| model | bounded_score | amount_accuracy | participation_accuracy |",
+                "| --- | ---: | ---: | ---: |",
+            ]
+        )
+        for _, row in bounded_summary.iterrows():
+            lines.append(
+                "| "
+                f"{row['model']} | "
+                f"{_format_metric(row['bounded_score'])} | "
+                f"{_format_metric(row.get('amount_accuracy'))} | "
+                f"{_format_metric(row.get('participation_accuracy'))} |"
+            )
+
+        lines.extend(["", ""])
+
     if not impact_summary.empty:
         lines.extend(
             [
-                "## Household-equal impact score",
+                "## Household-equal impact score (30% floor — legacy)",
                 "",
-                "Households receive equal weight. Within each household, "
-                "requested output rows get a blend of equal weighting and "
-                "weighting by absolute reference impact.",
+                "Retained for comparison with prior reports. Each requested "
+                "output row gets a blend of equal weighting and weighting by "
+                "absolute reference impact.",
                 "",
                 "| model | mean_impact_score | mean_household_score "
                 "| mean_household_coverage | households |",
@@ -1203,6 +1554,24 @@ def build_dashboard_payload(
                 continue
             impact_by_model[str(model_name)] = float(score) * 100
 
+    bounded_summary = analysis.get("bounded_summary")
+    bounded_by_model: dict[str, dict[str, float]] = {}
+    if isinstance(bounded_summary, pd.DataFrame) and not bounded_summary.empty:
+        for _, bounded_row in bounded_summary.iterrows():
+            model_name = bounded_row.get("model")
+            if model_name is None:
+                continue
+            entry = {}
+            for column, key in (
+                ("bounded_score", "bounded"),
+                ("amount_accuracy", "amount"),
+                ("participation_accuracy", "participation"),
+            ):
+                value = bounded_row.get(column)
+                if value is not None and not pd.isna(value):
+                    entry[key] = float(value) * 100
+            bounded_by_model[str(model_name)] = entry
+
     model_stats = []
     for _, row in analysis["model_summary"].iterrows():
         output_group_score = _clean_json_number(
@@ -1211,8 +1580,15 @@ def build_dashboard_payload(
             else row["mean_score"]
         )
         impact_score = impact_by_model.get(str(row["model"]))
+        bounded_entry = bounded_by_model.get(str(row["model"]), {})
+        bounded_score = bounded_entry.get("bounded")
+        # Bounded global variable weights is the new headline. Fall back to the
+        # old 30%-floor impact score for backwards compatibility on legacy
+        # datasets, and finally to the equal-weight output-group score.
         primary_score = (
-            _clean_json_number(impact_score)
+            _clean_json_number(bounded_score)
+            if bounded_score is not None
+            else _clean_json_number(impact_score)
             if impact_score is not None
             else output_group_score
         )
@@ -1316,6 +1692,12 @@ def build_dashboard_payload(
             item["accuracy"] = float(row["mean_accuracy"] * 100)
         if impact_score is not None:
             item["impactScore"] = impact_score
+        if bounded_score is not None:
+            item["boundedScore"] = bounded_score
+        if "amount" in bounded_entry:
+            item["amountAccuracy"] = bounded_entry["amount"]
+        if "participation" in bounded_entry:
+            item["participationAccuracy"] = bounded_entry["participation"]
         model_stats.append({k: v for k, v in item.items() if v is not None})
     model_stats.sort(key=lambda row: row["score"], reverse=True)
 

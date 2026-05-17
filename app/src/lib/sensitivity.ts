@@ -32,7 +32,7 @@ export const SENSITIVITY_VIEWS: SensitivityView[] = [
     id: "main",
     label: "Main",
     description:
-      "Household-equal impact score; each household contributes equally, with within-household output weights based on reference impact.",
+      "Bounded global variable weights; each variable's weight is the mean across households of |ref| / max(|household_net_income|, Σ|ref|), renormalized so the weights sum to one. Each household contributes equally to the final score.",
   },
   {
     id: "output_group",

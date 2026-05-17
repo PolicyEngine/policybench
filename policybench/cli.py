@@ -856,15 +856,19 @@ def main():
         if args.runs_dir:
             repeated_predictions = load_repeated_predictions(args.runs_dir)
 
+        scenario_manifest_path = Path(args.scenario_manifest)
+        scenarios = None
+        if scenario_manifest_path.exists():
+            scenarios = pd.read_csv(scenario_manifest_path)
+
         analysis = analyze_no_tools(
             gt,
             no_tools,
+            scenarios=scenarios,
             repeated_predictions=repeated_predictions,
         )
         exported = export_analysis(analysis, args.output_dir)
-        scenario_manifest_path = Path(args.scenario_manifest)
-        if scenario_manifest_path.exists():
-            scenarios = pd.read_csv(scenario_manifest_path)
+        if scenarios is not None:
             manifest_ids = set(scenarios["scenario_id"])
             gt_ids = set(gt["scenario_id"])
             prediction_ids = set(no_tools["scenario_id"])
