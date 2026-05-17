@@ -1,5 +1,11 @@
 import { useMemo, useState } from "react";
-import { getVariableLabel, isBinaryVariable, type BenchData } from "../types";
+import {
+  getVariableLabel,
+  isBinaryVariable,
+  type BenchData,
+  type CountryCode,
+  type ScenarioPrediction,
+} from "../types";
 import { formatCurrency } from "../format";
 import {
   MODEL_LABELS,
@@ -7,7 +13,6 @@ import {
   getProviderForModel,
   getPredictionTextColor,
 } from "../modelMeta";
-import ExplanationTooltip from "./ExplanationTooltip";
 import ProviderMark from "./ProviderMark";
 
 function formatBoolean(value: number): string {
@@ -21,6 +26,42 @@ const FAILURE_SOURCE_LABELS: Record<string, string> = {
 function formatFailureLabel(value?: string): string | null {
   if (!value) return null;
   return FAILURE_SOURCE_LABELS[value] ?? value.replaceAll("_", " ");
+}
+
+function isPredictionCorrect(
+  pred: ScenarioPrediction,
+  truth: number,
+  isBinary: boolean,
+): boolean {
+  if (pred.prediction === null) return false;
+  if (pred.score !== undefined) return pred.score >= 100;
+  if (isBinary) return Math.round(pred.prediction) === Math.round(truth);
+  return (
+    Math.abs(pred.prediction - truth) <= Math.abs(truth) * 0.1 ||
+    (truth === 0 && Math.abs(pred.prediction) <= 1)
+  );
+}
+
+function describeError(
+  pred: ScenarioPrediction,
+  truth: number,
+  isBinary: boolean,
+  currencySymbol: "$" | "£",
+): string {
+  if (pred.prediction === null) return "no parseable prediction";
+  if (isBinary) {
+    return Math.round(pred.prediction) === Math.round(truth)
+      ? "matched"
+      : `predicted "${formatBoolean(Math.round(pred.prediction))}" instead of "${formatBoolean(Math.round(truth))}"`;
+  }
+  const error = pred.prediction - truth;
+  const sign = error > 0 ? "over" : "under";
+  const abs = Math.abs(error);
+  if (truth === 0) {
+    return `${formatCurrency(abs, currencySymbol)} ${sign} a reference of $0`;
+  }
+  const pct = Math.round((Math.abs(error) / Math.abs(truth)) * 100);
+  return `${formatCurrency(abs, currencySymbol)} ${sign} (${pct}% off)`;
 }
 
 function pickRandomScenario(
@@ -77,6 +118,49 @@ export default function ScenarioExplorer({
     }
     return MODEL_ORDER.filter((m) => unique.has(m));
   }, [predictions]);
+
+  // Compute a sensible default selection per scenario: first wrong-and-audited
+  // cell, falling back to first wrong, then first cell at all. The detail
+  // card opens on a useful example instead of an empty "Correct" panel.
+  const defaultCell = useMemo(() => {
+    let firstWrong: { variable: string; model: string } | null = null;
+    let firstWrongAudited: { variable: string; model: string } | null = null;
+    let firstAny: { variable: string; model: string } | null = null;
+    for (const v of variables) {
+      const varData = predictions[v] ?? {};
+      const truthVal = Object.values(varData)[0]?.groundTruth ?? 0;
+      const isBin = isBinaryVariable(v, country);
+      for (const m of models) {
+        const pred = varData[m];
+        if (!pred) continue;
+        if (!firstAny) firstAny = { variable: v, model: m };
+        if (pred.prediction === null) continue;
+        if (isPredictionCorrect(pred, truthVal, isBin)) continue;
+        if (!firstWrong) firstWrong = { variable: v, model: m };
+        if (pred.annotation && !firstWrongAudited) {
+          firstWrongAudited = { variable: v, model: m };
+        }
+      }
+    }
+    return firstWrongAudited ?? firstWrong ?? firstAny;
+  }, [variables, models, predictions, country]);
+
+  // Manual selections are scoped to the current scenario; switching scenarios
+  // falls back to the recomputed default without setting state from an effect.
+  const [manualSelection, setManualSelection] = useState<{
+    scenarioId: string;
+    cell: { variable: string; model: string };
+  } | null>(null);
+
+  const selectedCell =
+    manualSelection && manualSelection.scenarioId === resolvedScenarioId
+      ? manualSelection.cell
+      : defaultCell;
+
+  const setSelectedCell = (cell: { variable: string; model: string }) => {
+    if (!resolvedScenarioId) return;
+    setManualSelection({ scenarioId: resolvedScenarioId, cell });
+  };
 
   if (!scenario || !resolvedScenarioId) return null;
 
@@ -135,8 +219,9 @@ export default function ScenarioExplorer({
         className="text-text-secondary mt-3 max-w-2xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Inspect benchmark households, the exact prompt, model outputs, and the
-        model-provided explanation notes returned with each response.
+        Inspect benchmark households and the exact prompt sent to every model.
+        Click any prediction cell to see the model&apos;s reasoning and our
+        review of where it went wrong.
       </p>
 
       <div className="mt-8 flex flex-wrap items-end gap-4">
@@ -232,12 +317,12 @@ export default function ScenarioExplorer({
           </div>
           <p className="mt-2 text-sm text-text-secondary leading-relaxed">
             {explanationRows} of {totalPredictionRows} model-output rows for
-            this household include explanation text. These notes are returned
-            by the model and are not separately scored. {annotationRows} rows
-            include developer audit notes for incorrect predictions, and{" "}
-            {caseAnnotationRows} incorrect rows include case-level notes
-            comparing wrong models on the same household-output target. Hover
-            the note, audit, and case markers next to predictions to read them.
+            this household include explanation text returned by the model.{" "}
+            {annotationRows} rows include developer audit notes for incorrect
+            predictions, and {caseAnnotationRows} incorrect rows include
+            case-level notes comparing wrong models on the same
+            household-output target. Click a prediction cell to read them
+            below the table.
           </p>
           {Object.keys(failureSources).length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
@@ -363,54 +448,29 @@ export default function ScenarioExplorer({
                   </td>
                   {models.map((m) => {
                     const pred = varData[m];
-                    const auditLabel = formatFailureLabel(pred?.failureSource);
-                    const auditText = [
-                      auditLabel ? `Source: ${auditLabel}` : null,
-                      pred?.failureSubtype
-                        ? `Subtype: ${pred.failureSubtype.replaceAll("_", " ")}`
-                        : null,
-                      pred?.annotation ?? null,
-                    ]
-                      .filter(Boolean)
-                      .join("\n\n");
-                    const caseText = [
-                      pred?.caseFailureSources
-                        ? `Sources: ${pred.caseFailureSources
-                            .split(";")
-                            .map(formatFailureLabel)
-                            .join(", ")}`
-                        : null,
-                      pred?.caseFailureSubtypes
-                        ? `Subtypes: ${pred.caseFailureSubtypes
-                            .split(";")
-                            .map((value) => value.replaceAll("_", " "))
-                            .join(", ")}`
-                        : null,
-                      pred?.caseAnnotation ?? null,
-                    ]
-                      .filter(Boolean)
-                      .join("\n\n");
+                    const isSelected =
+                      selectedCell?.variable === v &&
+                      selectedCell?.model === m;
                     if (!pred || pred.prediction === null) {
-                      const missingNote =
-                        auditText ||
-                        caseText ||
-                        pred?.explanation ||
-                        pred?.predictionError;
                       return (
                         <td
                           key={m}
-                          className="py-2.5 px-3 text-right text-text-muted text-sm"
+                          className={`py-2.5 px-3 text-right text-text-muted text-sm align-top`}
                         >
-                          {missingNote ? (
-                            <div className="flex items-start justify-end gap-2">
-                              <span>--</span>
-                              <ExplanationTooltip explanation={missingNote}>
-                                note
-                              </ExplanationTooltip>
-                            </div>
-                          ) : (
-                            "--"
-                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedCell({ variable: v, model: m })
+                            }
+                            aria-pressed={isSelected}
+                            className={`w-full text-right rounded px-1.5 py-0.5 font-[family-name:var(--font-mono)] transition-colors ${
+                              isSelected
+                                ? "bg-primary-soft text-primary-strong"
+                                : "hover:bg-surface-soft"
+                            }`}
+                          >
+                            --
+                          </button>
                         </td>
                       );
                     }
@@ -419,45 +479,32 @@ export default function ScenarioExplorer({
                       ? formatBoolean(Math.round(pred.prediction))
                       : formatCurrency(pred.prediction, currencySymbol);
                     const predictionError = pred.error ?? pred.prediction - truth;
-
-                    const isCorrect =
-                      pred.score !== undefined
-                        ? pred.score >= 100
-                        : isBinary
-                          ? Math.round(pred.prediction) === Math.round(truth)
-                          : Math.abs(predictionError) <= Math.abs(truth) * 0.1 ||
-                            (truth === 0 && Math.abs(pred.prediction) <= 1);
+                    const correct = isPredictionCorrect(pred, truth, isBinary);
 
                     return (
                       <td
                         key={m}
                         className="py-2.5 px-3 text-right text-sm align-top"
-                        style={{
-                          color: isCorrect
-                            ? getPredictionTextColor(0, 1)
-                            : getPredictionTextColor(predictionError, truth),
-                        }}
                       >
-                        <div className="flex items-start justify-end gap-2">
-                          <div className="font-[family-name:var(--font-mono)]">
-                            {displayPred}
-                          </div>
-                          {pred.explanation && (
-                            <ExplanationTooltip explanation={pred.explanation}>
-                              note
-                            </ExplanationTooltip>
-                          )}
-                          {auditText && (
-                            <ExplanationTooltip explanation={auditText}>
-                              {auditLabel ? auditLabel.toLowerCase() : "audit"}
-                            </ExplanationTooltip>
-                          )}
-                          {caseText && (
-                            <ExplanationTooltip explanation={caseText}>
-                              case
-                            </ExplanationTooltip>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedCell({ variable: v, model: m })
+                          }
+                          aria-pressed={isSelected}
+                          className={`w-full text-right rounded px-1.5 py-0.5 font-[family-name:var(--font-mono)] transition-colors ${
+                            isSelected
+                              ? "bg-primary-soft ring-1 ring-primary-strong/40"
+                              : "hover:bg-surface-soft"
+                          }`}
+                          style={{
+                            color: correct
+                              ? getPredictionTextColor(0, 1)
+                              : getPredictionTextColor(predictionError, truth),
+                          }}
+                        >
+                          {displayPred}
+                        </button>
                       </td>
                     );
                   })}
@@ -467,6 +514,223 @@ export default function ScenarioExplorer({
           </tbody>
         </table>
       </div>
+
+      <DetailCard
+        selectedCell={selectedCell}
+        predictions={predictions}
+        country={country}
+        currencySymbol={currencySymbol}
+      />
+    </div>
+  );
+}
+
+function DetailCard({
+  selectedCell,
+  predictions,
+  country,
+  currencySymbol,
+}: {
+  selectedCell: { variable: string; model: string } | null;
+  predictions: Record<string, Record<string, ScenarioPrediction>>;
+  country: CountryCode;
+  currencySymbol: "$" | "£";
+}) {
+  if (!selectedCell) {
+    return (
+      <div className="card mt-6 px-5 py-6 animate-fade-up">
+        <p className="text-sm text-text-secondary">
+          Click any prediction cell above to see the reference value, the
+          model&apos;s answer, the model&apos;s reasoning, and our review of
+          where it went wrong.
+        </p>
+      </div>
+    );
+  }
+
+  const { variable, model } = selectedCell;
+  const pred = predictions[variable]?.[model];
+  if (!pred) {
+    return (
+      <div className="card mt-6 px-5 py-6 animate-fade-up">
+        <p className="text-sm text-text-secondary">
+          No data for {MODEL_LABELS[model] ?? model} on{" "}
+          {getVariableLabel(variable, country)}.
+        </p>
+      </div>
+    );
+  }
+
+  const isBinary = isBinaryVariable(variable, country);
+  const truth = pred.groundTruth;
+  const correct = isPredictionCorrect(pred, truth, isBinary);
+  const displayTruth = isBinary
+    ? formatBoolean(Math.round(truth))
+    : formatCurrency(truth, currencySymbol);
+  const displayPred =
+    pred.prediction === null
+      ? "—"
+      : isBinary
+        ? formatBoolean(Math.round(pred.prediction))
+        : formatCurrency(pred.prediction, currencySymbol);
+  const errorDescription = describeError(
+    pred,
+    truth,
+    isBinary,
+    currencySymbol,
+  );
+  const auditTags = [
+    formatFailureLabel(pred.failureSource),
+    pred.failureSubtype ? pred.failureSubtype.replaceAll("_", " ") : null,
+  ].filter(Boolean) as string[];
+  const caseTags = [
+    pred.caseFailureSources
+      ? pred.caseFailureSources
+          .split(";")
+          .map((source) => formatFailureLabel(source))
+          .filter(Boolean)
+          .join(", ")
+      : null,
+    pred.caseFailureSubtypes
+      ? pred.caseFailureSubtypes
+          .split(";")
+          .map((value) => value.replaceAll("_", " "))
+          .join(", ")
+      : null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <div
+      className="card mt-6 px-5 py-5 animate-fade-up"
+      role="region"
+      aria-label="Selected prediction detail"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            {getVariableLabel(variable, country)}
+          </div>
+          <div className="text-text text-base font-semibold mt-0.5 flex items-center gap-2">
+            <ProviderMark
+              provider={getProviderForModel(model)}
+              size={14}
+              className="flex-shrink-0"
+            />
+            {MODEL_LABELS[model] ?? model}
+          </div>
+        </div>
+        <span
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider ${
+            correct
+              ? "border-success/30 bg-success-soft text-success-text"
+              : "border-danger/30 bg-danger-soft text-danger-text"
+          }`}
+        >
+          {correct ? "Correct" : "Off"}
+        </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            Reference
+          </div>
+          <div className="font-[family-name:var(--font-mono)] text-lg mt-1 text-text">
+            {displayTruth}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            Prediction
+          </div>
+          <div className="font-[family-name:var(--font-mono)] text-lg mt-1 text-text">
+            {displayPred}
+          </div>
+        </div>
+        {!correct && (
+          <div className="col-span-2 sm:col-span-1">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+              Error
+            </div>
+            <div className="text-sm mt-1 text-text-secondary">
+              {errorDescription}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-5 grid gap-5 md:grid-cols-2">
+        <section>
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            Model reasoning
+          </div>
+          {pred.explanation ? (
+            <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
+              {pred.explanation}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-text-muted italic">
+              The model didn&apos;t return an explanation for this row.
+            </p>
+          )}
+        </section>
+
+        <section>
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            Our review
+          </div>
+          {pred.annotation ? (
+            <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
+              {pred.annotation}
+            </p>
+          ) : correct ? (
+            <p className="mt-2 text-sm text-success-text">
+              Correct &mdash; no audit needed.
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-text-muted italic">
+              Not yet reviewed.
+            </p>
+          )}
+          {auditTags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {auditTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-border-subtle bg-surface px-2 py-0.5 text-[10px] uppercase tracking-wider text-text-muted"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {(pred.caseAnnotation || caseTags.length > 0) && (
+        <section className="mt-5 border-t border-border-subtle pt-4">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            Cross-model note
+          </div>
+          {pred.caseAnnotation && (
+            <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
+              {pred.caseAnnotation}
+            </p>
+          )}
+          {caseTags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {caseTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-border-subtle bg-surface px-2 py-0.5 text-[10px] uppercase tracking-wider text-text-muted"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
