@@ -268,15 +268,14 @@ export default function Methodology({
           <code>max(0, 1 − |pred − ref| / |ref|)</code> when the reference is
           nonzero and matches exactly when the reference is zero; the same
           formula handles boolean eligibility flags naturally because
-          ref ∈ {"{0, 1}"} gives a 0/1 score directly. Each variable&apos;s weight
-          is the mean across all benchmark households of{" "}
-          <code>|ref| / max(|household_net_income|, Σ |ref|)</code>,
-          renormalized so the global weights sum to one. The{" "}
-          <code>max(...)</code> denominator anchors per-household shares to
-          net income when net income is the dominant flow and falls back to
-          the gross tax-benefit flow only when programs cancel each other
-          out, so a $1 benefit to a high-earner contributes essentially zero
-          weight and per-household shares never exceed one.
+          ref ∈ {"{0, 1}"} gives a 0/1 score directly. Each household&apos;s
+          per-variable share is{" "}
+          <code>|ref| / max(|household_net_income|, Σ |ref|)</code>, a value in
+          [0, 1] that&apos;s strictly less than one when net income dominates
+          the gross tax-benefit flow and equals one only when programs cancel
+          each other out. The mean of those shares across all benchmark
+          households is then renormalized so the global variable weights sum
+          to one, and those weights are applied to score every household.
           {country === "us"
             ? " Person-level eligibility flags like Medicaid carry weight through PolicyEngine's paired per-capita value (e.g. medicaid_value), so the LLM is graded only on the boolean call itself."
             : " Person-level eligibility flags carry weight through PolicyEngine's paired per-capita value, so the LLM is graded only on the boolean call itself."}

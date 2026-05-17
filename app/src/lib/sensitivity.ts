@@ -27,19 +27,19 @@ export const SENSITIVITY_VIEWS: SensitivityView[] = [
     id: "household",
     label: "Household",
     description:
-      "Bounded global variable weights — each variable's weight is the mean across households of |ref| / max(|household_net_income|, Σ|ref|), renormalized so the weights sum to one. One household = one household, weight reflects each variable's net-income share.",
+      "Bounded global variable weights — each variable's per-household share is |ref| / max(|household_net_income|, Σ|ref|) (a value in [0, 1] that's < 1 when net income dominates and = 1 only when programs cancel out). Those shares are averaged across households and the resulting global weights are renormalized to sum to one before being applied to score every household. One household = one household, weight reflects each variable's net-income share.",
   },
   {
     id: "aggregate",
     label: "Aggregate",
     description:
-      "Budget-weighted — each variable's weight is its share of total absolute reference dollars across the benchmark. Renormalized per household so the household score lands in [0, 1]. One dollar of impact = one dollar.",
+      "Budget-weighted — each variable's weight is its share of total absolute reference dollars across the benchmark, renormalized within each household so per-household weights sum to one. One dollar of impact = one dollar.",
   },
   {
     id: "equal",
     label: "Equal",
     description:
-      "Equal weighting — each variable in a household contributes the same to that household's score. One output = one output, regardless of dollar magnitude.",
+      "Equal weighting — each variable in a household contributes the same to that household's score (1/K within each household). One output = one output, regardless of dollar magnitude.",
   },
 ];
 
