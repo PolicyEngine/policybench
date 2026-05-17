@@ -5,7 +5,6 @@ from policybench.spec import (
     available_spec_ids,
     binary_output_ids,
     get_output_ids,
-    rate_output_ids,
 )
 
 # Tax year for all evaluations
@@ -68,9 +67,6 @@ PROGRAMS = US_HEADLINE_PROGRAMS
 
 # Binary (eligibility) variables -- evaluated with accuracy, not MAE
 BINARY_PROGRAMS = binary_output_ids()
-
-# Rate variables -- evaluated with absolute error, not percentage
-RATE_PROGRAMS = rate_output_ids()
 
 # Proposed impact-score floor. Each household gets equal overall weight, while
 # programs within a household receive a blend of equal weighting and weighting
