@@ -541,6 +541,13 @@
                   We use it only for weighting (it never enters the LLM's
                   prediction task).
                 </p>
+                <p>
+                  Each household also has a market income (earnings,
+                  investment income, etc.) that is given to the model as
+                  input rather than predicted. It enters the weighting
+                  formulas as part of <span class="key">household_net_income</span>
+                  in step 6, but never as a scored cell.
+                </p>
                 <div class="table-wrap" id="reference-table"></div>
               </div>
 
@@ -761,24 +768,48 @@
 
               <div class="card">
                 <div class="formula">
-                  <span class="comment">// Step 1: compute the household-impact share for each cell</span>
+                  <span class="comment">// Step 1: per-household denominator — whichever is larger between</span>
+                  <br />
+                  <span class="comment">//         net income and the gross tax-benefit flow.</span>
+                  <br />
+                  <span class="var">net_income</span><span class="op">_</span><span class="var">i</span>
+                  <span class="op">=</span>
+                  <span class="var">market_income</span><span class="op">_</span><span class="var">i</span>
+                  <span class="op">+</span>
+                  Σ<span class="op">_</span><span class="var">k</span>
+                  <span class="var">signed_contribution</span><span class="op">_</span><span class="var">ik</span>
+                  <br />
+                  <span class="var">denom</span><span class="op">_</span><span class="var">i</span>
+                  <span class="op">=</span>
+                  max(|<span class="var">net_income</span><span class="op">_</span><span class="var">i</span>|,
+                  Σ<span class="op">_</span><span class="var">k</span> |<span class="var">ref</span><span class="op">_</span><span class="var">ik</span>|)
+                  <br />
+                  <br />
+                  <span class="comment">// Step 2: per-household share for each variable</span>
                   <br />
                   <span class="var">share</span><span class="op">_</span><span class="var">ij</span>
                   <span class="op">=</span>
                   |<span class="var">ref</span><span class="op">_</span><span class="var">ij</span>|
                   <span class="op">/</span>
-                  Σ<span class="op">_</span><span class="var">k</span> |<span class="var">ref</span><span class="op">_</span><span class="var">ik</span>|
+                  <span class="var">denom</span><span class="op">_</span><span class="var">i</span>
                   <br />
                   <br />
-                  <span class="comment">// Step 2: average across households to get a fixed variable weight</span>
+                  <span class="comment">// Step 3: mean across households, then renormalize so weights sum to 1</span>
                   <br />
-                  <span class="var">weight</span><span class="op">_</span><span class="var">j</span>
+                  <span class="var">raw_j</span>
                   <span class="op">=</span>
                   mean<span class="op">_</span><span class="var">i</span>
                   <span class="var">share</span><span class="op">_</span><span class="var">ij</span>
                   <br />
+                  <span class="var">weight</span><span class="op">_</span><span class="var">j</span>
+                  <span class="op">=</span>
+                  <span class="var">raw_j</span>
+                  <span class="op">/</span>
+                  Σ<span class="op">_</span><span class="var">k</span>
+                  <span class="var">raw_k</span>
                   <br />
-                  <span class="comment">// Step 3: score each household with the same weights</span>
+                  <br />
+                  <span class="comment">// Step 4: score each household with the same weights, then average</span>
                   <br />
                   <span class="var">household_score</span><span class="op">_</span><span class="var">i</span>
                   <span class="op">=</span>
@@ -787,32 +818,69 @@
                   <span class="op">×</span>
                   <span class="var">row_score</span><span class="op">_</span><span class="var">ij</span>
                   <br />
-                  <br />
-                  <span class="comment">// Step 4: average across households (one household = one household)</span>
-                  <br />
                   <span class="var">model_score</span>
                   <span class="op">=</span>
                   mean<span class="op">_</span><span class="var">i</span>
                   <span class="var">household_score</span><span class="op">_</span><span class="var">i</span>
                 </div>
                 <p>
-                  The weights come from the data, not from a choice. Medicaid
-                  ends up with the largest weight because its paired
-                  per-capita value is large for the two households that have
-                  it — eligibility carries real dollar stakes. Income tax
-                  stays a big variable because it is sizeable for every
-                  household. SNAP and ACA PTC are smaller but non-trivial.
-                  Every household uses the same weights, so models can't
-                  exploit per-household quirks.
+                  The denominator is the key move. A naïve "share of total
+                  household activity" using <span class="key">Σ |ref|</span>
+                  alone would give a $1 benefit to a high-earning household
+                  100% weight in that household (it's the only thing in the
+                  numerator). The bounded denominator
+                  <span class="key">max(|net income|, Σ |ref|)</span> fixes
+                  this: when the household has substantial market income,
+                  net income is large and a $1 program becomes
+                  <span class="key">1 / net_income</span> &mdash; correctly
+                  dwarfed. When taxes and benefits cancel each other out and
+                  net income drops below the gross flow, the denominator
+                  falls back to <span class="key">Σ |ref|</span> so shares
+                  never sum past 1.
+                </p>
+                <p>
+                  Booleans like Medicaid eligibility carry weight through
+                  both ends: their <span class="key">|ref|</span> is
+                  PolicyEngine's paired per-capita value, and that same
+                  value contributes to net income when eligibility is true.
+                  The LLM is still graded only on the boolean call itself.
                 </p>
                 <div class="table-wrap" id="global-weights-table"></div>
                 <div class="table-wrap" id="global-table"></div>
                 <div class="verdict">
                   <span class="pill good">No arbitrary floor</span>
-                  <span class="pill good">Same weights for every household</span>
-                  <span class="pill good">Correct zeros still count</span>
+                  <span class="pill good">Stable under rich-slice-tiny-benefit</span>
+                  <span class="pill good">Bounded — per-household shares ≤ 1</span>
                   <span class="pill good">Derived from the benchmark, not chosen</span>
                 </div>
+              </div>
+
+              <div class="card">
+                <h3>Worked examples on realistic households</h3>
+                <p>
+                  Same formula applied to four representative households
+                  &mdash; low-income family, middle worker, retired renter,
+                  and high earner. The table shows market income, net
+                  income, denominator, and per-household shares. Note how
+                  programs get bigger shares for households that genuinely
+                  rely on them (Medicaid for the retired and low-income
+                  households, taxes for the high earner) and near-zero
+                  shares where they aren't a factor.
+                </p>
+                <div class="table-wrap" id="worked-shares-table"></div>
+                <p>
+                  Averaging across these four households and renormalizing
+                  gives this set of weights:
+                </p>
+                <div class="table-wrap" id="worked-weights-table"></div>
+                <p>
+                  The "share of net income that flowed through this program"
+                  reading is intuitive. Medicaid eligibility carries a
+                  meaningful weight because it shows up with sizeable paired
+                  values in two of the four households; ACA PTC carries
+                  smaller weight because only one household uses it. None
+                  of these numbers required a tunable parameter.
+                </p>
               </div>
             </section>
 
@@ -1196,18 +1264,26 @@
                 <div class="table-wrap" id="comparison-table"></div>
                 <p style="margin-top: 16px">
                   Recommendation: ship
-                  <strong>global variable weights</strong> as the headline
-                  ranking and the
-                  <strong>amount + participation breakdown</strong> as the
-                  diagnostic companion. If a column must be the combined
-                  A,P score, use the
-                  <strong>harmonic mean</strong> &mdash; it inherits the F1
-                  convention and reviewers won't ask you to justify the
-                  combine function. Drop the 30% floor &mdash; it is the only
+                  <strong>bounded global variable weights</strong>
+                  (denominator =
+                  <span class="key">max(|net income|, Σ |ref|)</span>) as
+                  the default headline ranking, paired with the
+                  <strong>amount + participation breakdown</strong> as
+                  diagnostics. If a single combined column is needed, use
+                  the <strong>harmonic mean</strong> of amount and
+                  participation. Drop the 30% floor &mdash; it's the only
                   option whose result moves when you change a number that
-                  isn't in the data. Keep net-income reconstruction available
-                  as a sanity check, and consider stratified breakdowns on the
-                  full benchmark.
+                  isn't in the data.
+                </p>
+                <p>
+                  Offer <strong>equal weights</strong> and
+                  <strong>budget-weighted</strong> as opt-in alternatives in
+                  the app and paper. Both are defensible and worth showing
+                  next to the headline so readers can see how the ranking
+                  shifts under different stated philosophies — one
+                  household = one household, versus one dollar = one
+                  dollar. Keep net-income reconstruction available as a
+                  sanity check.
                 </p>
               </div>
             </section>
@@ -1242,10 +1318,13 @@
         },
       ];
 
+      // Every household has a market_income value used for net-income
+      // computation but never scored — the LLM doesn't predict it.
       const households = [
         {
           id: "H1",
           label: "Worker, no benefits",
+          market_income: 60000,
           reference: {
             income_tax: -4000,
             payroll_tax: -5000,
@@ -1258,6 +1337,7 @@
         {
           id: "H2",
           label: "Low-income family",
+          market_income: 20000,
           reference: {
             income_tax: -1000,
             payroll_tax: -1500,
@@ -1270,6 +1350,7 @@
         {
           id: "H3",
           label: "Older renter",
+          market_income: 14000,
           reference: {
             income_tax: -2000,
             payroll_tax: 0,
@@ -1277,6 +1358,64 @@
             aca_ptc: 0,
             medicaid_eligible: true,
             medicaid_value: 9000,
+          },
+        },
+      ];
+
+      // Four realistic households used to demonstrate weights under the
+      // bounded-global formulation. They aren't scored — they exist to
+      // show how the weighting distributes weight in practice.
+      const exampleHouseholds = [
+        {
+          id: "E1",
+          label: "Low-income family with kids",
+          market_income: 20000,
+          reference: {
+            income_tax: 3000,
+            payroll_tax: -1530,
+            snap: 5000,
+            aca_ptc: 3000,
+            medicaid_eligible: true,
+            medicaid_value: 8000,
+          },
+        },
+        {
+          id: "E2",
+          label: "Middle-income single, no kids",
+          market_income: 60000,
+          reference: {
+            income_tax: -4500,
+            payroll_tax: -4590,
+            snap: 0,
+            aca_ptc: 0,
+            medicaid_eligible: false,
+            medicaid_value: 0,
+          },
+        },
+        {
+          id: "E3",
+          label: "Older renter on Medicaid",
+          market_income: 14000,
+          reference: {
+            income_tax: 0,
+            payroll_tax: 0,
+            snap: 2400,
+            aca_ptc: 0,
+            medicaid_eligible: true,
+            medicaid_value: 9000,
+          },
+        },
+        {
+          id: "E4",
+          label: "High earner, no benefits",
+          market_income: 200000,
+          reference: {
+            income_tax: -40000,
+            payroll_tax: -9900,
+            snap: 0,
+            aca_ptc: 0,
+            medicaid_eligible: false,
+            medicaid_value: 0,
           },
         },
       ];
@@ -1368,6 +1507,40 @@
         return variables.reduce((s, v) => s + weightValue(v, hh), 0);
       }
 
+      // Signed contribution of a variable to net income for this household.
+      // Amounts use the reference value directly. Booleans contribute the
+      // paired per-capita value when eligible, $0 when not eligible.
+      function signedContribution(variable, household) {
+        if (variable.kind === "binary") {
+          return household.reference[variable.id]
+            ? household.reference[variable.valueField] ?? 0
+            : 0;
+        }
+        return household.reference[variable.id];
+      }
+
+      // Household net income = market income + signed sum of all reference
+      // components (including the paired value for booleans when eligible).
+      function householdNetIncome(hh) {
+        const market = hh.market_income ?? 0;
+        const programs = variables.reduce(
+          (s, v) => s + signedContribution(v, hh),
+          0,
+        );
+        return market + programs;
+      }
+
+      // Bounded weighting denominator. We take whichever is larger between
+      // |household_net_income| and the sum of |contributions| from the
+      // tax/benefit components. The max(...) makes per-household shares
+      // sum to ≤ 1 in every case, including the cancellation edge case
+      // where taxes and benefits add up to more than net income.
+      function weightDenominator(hh) {
+        const net = householdNetIncome(hh);
+        const sumAbs = householdAbsTotal(hh);
+        return Math.max(Math.abs(net), sumAbs);
+      }
+
       function impactWeights(hh) {
         const total = householdAbsTotal(hh);
         if (total === 0) {
@@ -1380,13 +1553,33 @@
         );
       }
 
+      // Per-household share under the bounded formulation: each program's
+      // contribution divided by max(|net income|, Σ |contributions|).
+      // Shares sum to ≤ 1; the remainder represents household economic
+      // activity (typically market income) the tax/benefit programs don't
+      // touch.
+      function boundedHouseholdShares(hh) {
+        const denom = weightDenominator(hh);
+        if (denom === 0) {
+          return Object.fromEntries(variables.map((v) => [v.id, 0]));
+        }
+        return Object.fromEntries(
+          variables.map((v) => [v.id, weightValue(v, hh) / denom]),
+        );
+      }
+
       function equalWeights() {
         return Object.fromEntries(
           variables.map((v) => [v.id, 1 / variables.length]),
         );
       }
 
-      function globalVariableWeights() {
+      // Simpler global variable weights (per-household share = |ref|/Σ|ref|,
+      // averaged across households). Per-household shares always sum to 1,
+      // so a household receiving a tiny benefit and zero taxes gives that
+      // benefit 100% of its weight, inflating the global weight. Kept for
+      // comparison; the bounded version below is the recommended default.
+      function simpleGlobalVariableWeights() {
         const sums = Object.fromEntries(variables.map((v) => [v.id, 0]));
         for (const hh of households) {
           const w = impactWeights(hh);
@@ -1395,6 +1588,30 @@
         return Object.fromEntries(
           variables.map((v) => [v.id, sums[v.id] / households.length]),
         );
+      }
+
+      // Bounded global variable weights: each per-household share uses
+      // max(|net income|, Σ |contributions|) as denominator (so a $1
+      // benefit to a high earner is correctly dwarfed by their net
+      // income). Per-household sums vary in [0, 1]. We average across
+      // households then renormalize so the final weights sum to 1.
+      function boundedGlobalVariableWeights(hhList = households) {
+        const means = Object.fromEntries(variables.map((v) => [v.id, 0]));
+        for (const hh of hhList) {
+          const shares = boundedHouseholdShares(hh);
+          for (const v of variables) means[v.id] += shares[v.id];
+        }
+        for (const v of variables) means[v.id] /= hhList.length;
+        const total = Object.values(means).reduce((s, x) => s + x, 0);
+        if (total === 0) return means;
+        return Object.fromEntries(
+          variables.map((v) => [v.id, means[v.id] / total]),
+        );
+      }
+
+      // The recommended one — alias for the bounded version.
+      function globalVariableWeights() {
+        return boundedGlobalVariableWeights();
       }
 
       function budgetWeights() {
@@ -1538,25 +1755,40 @@
       }
 
       function refTable() {
-        return buildMatrixTable(
-          households,
-          variables,
-          (hh, v) => {
-            const val = hh.reference[v.id];
-            const label = fmtCellValue(v, val);
-            const cls = cellValueClass(v, val);
-            if (v.kind === "binary") {
-              const paired = hh.reference[v.valueField];
-              const valueNote =
-                paired > 0
-                  ? `<br><span style="font-size:11px;color:var(--muted-soft)">value ${fmtMoney(paired)}</span>`
-                  : "";
-              return `<span class="${cls}">${label}</span>${valueNote}`;
-            }
-            return `<span class="${cls}">${label}</span>`;
-          },
-          "Reference values (booleans show PE's paired per-capita value used only for weighting)",
-        );
+        const contextCol = {
+          id: "_market",
+          label: "Market income (context)",
+        };
+        const cols = [contextCol, ...variables];
+        const head = `<thead><tr><th></th>${cols
+          .map((c) => `<th class="right">${c.label}</th>`)
+          .join("")}</tr></thead>`;
+        const body = `<tbody>${households
+          .map((hh) => {
+            const cells = cols
+              .map((c) => {
+                if (c.id === "_market") {
+                  return `<td class="right mono num-zero">${fmtMoney(hh.market_income ?? 0)}</td>`;
+                }
+                const v = c;
+                const val = hh.reference[v.id];
+                const label = fmtCellValue(v, val);
+                const cls = cellValueClass(v, val);
+                if (v.kind === "binary") {
+                  const paired = hh.reference[v.valueField];
+                  const valueNote =
+                    paired > 0
+                      ? `<br><span style="font-size:11px;color:var(--muted-soft)">value ${fmtMoney(paired)}</span>`
+                      : "";
+                  return `<td class="right mono"><span class="${cls}">${label}</span>${valueNote}</td>`;
+                }
+                return `<td class="right mono"><span class="${cls}">${label}</span></td>`;
+              })
+              .join("");
+            return `<tr><td><strong>${hh.id}</strong> <span style="color:var(--muted)">${hh.label}</span></td>${cells}</tr>`;
+          })
+          .join("")}</tbody>`;
+        return `<table><caption>Reference values (booleans show PE's paired per-capita value used only for weighting; market income is given as input)</caption>${head}${body}</table>`;
       }
 
       function predictionsTable(model) {
@@ -1625,7 +1857,49 @@
         const w = globalVariableWeights();
         const head = `<thead><tr>${variables.map((v) => `<th class="right">${v.label}</th>`).join("")}</tr></thead>`;
         const body = `<tbody><tr>${variables.map((v) => `<td class="right mono">${fmtWeight(w[v.id])}</td>`).join("")}</tr></tbody>`;
-        return `<table><caption>Global variable weights (one row, applied to every household)</caption>${head}${body}</table>`;
+        return `<table><caption>Global variable weights (derived from the stylized 3-household example, applied to every household)</caption>${head}${body}</table>`;
+      }
+
+      function workedSharesTable(hhList) {
+        const cols = [
+          { label: "Household" },
+          { label: "Market income", right: true },
+          { label: "Net income", right: true },
+          { label: "Σ |contributions|", right: true },
+          { label: "Denominator", right: true },
+          ...variables.map((v) => ({ label: v.label, right: true })),
+          { label: "Σ shares", right: true },
+        ];
+        const head = `<thead><tr>${cols
+          .map((c) => `<th${c.right ? ' class="right"' : ""}>${c.label}</th>`)
+          .join("")}</tr></thead>`;
+        const body = hhList
+          .map((hh) => {
+            const shares = boundedHouseholdShares(hh);
+            const net = householdNetIncome(hh);
+            const sumAbs = householdAbsTotal(hh);
+            const denom = weightDenominator(hh);
+            const sumShares = Object.values(shares).reduce((s, x) => s + x, 0);
+            return `<tr>
+              <td><strong>${hh.id}</strong> <span style="color:var(--muted)">${hh.label}</span></td>
+              <td class="right mono">${fmtMoney(hh.market_income ?? 0)}</td>
+              <td class="right mono">${fmtMoney(Math.round(net))}</td>
+              <td class="right mono">${fmtMoney(Math.round(sumAbs))}</td>
+              <td class="right mono">${fmtMoney(Math.round(denom))}</td>
+              ${variables.map((v) => `<td class="right mono">${fmtPct(shares[v.id])}</td>`).join("")}
+              <td class="right mono"><strong>${fmtPct(sumShares)}</strong></td>
+            </tr>`;
+          })
+          .join("");
+        return `<table><caption>Per-household shares under the bounded formulation</caption>${head}<tbody>${body}</tbody></table>`;
+      }
+
+      function workedWeightsTable(hhList) {
+        const w = boundedGlobalVariableWeights(hhList);
+        const head = `<thead><tr>${variables.map((v) => `<th class="right">${v.label}</th>`).join("")}<th class="right">Σ</th></tr></thead>`;
+        const total = Object.values(w).reduce((s, x) => s + x, 0);
+        const body = `<tbody><tr>${variables.map((v) => `<td class="right mono">${fmtWeight(w[v.id])}</td>`).join("")}<td class="right mono"><strong>${fmtWeight(total)}</strong></td></tr></tbody>`;
+        return `<table><caption>Renormalized global weights from the four worked-example households</caption>${head}${body}</table>`;
       }
 
       function budgetWeightsTable() {
@@ -1818,6 +2092,10 @@
         );
         document.getElementById("global-weights-table").innerHTML =
           globalWeightsTable();
+        document.getElementById("worked-shares-table").innerHTML =
+          workedSharesTable(exampleHouseholds);
+        document.getElementById("worked-weights-table").innerHTML =
+          workedWeightsTable(exampleHouseholds);
         const globalW = globalVariableWeights();
         document.getElementById("global-table").innerHTML = weightedScoreTable(
           () => globalW,
