@@ -450,10 +450,15 @@ export default function ScenarioExplorer({
                   <td className="sticky left-0 z-10 bg-bg py-2.5 pl-3 pr-4 text-sm text-text-secondary border-r border-border-subtle">
                     {getVariableLabel(v, country)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-[family-name:var(--font-mono)] text-sm text-text">
-                    {isBinary
-                      ? formatBoolean(truth)
-                      : formatCurrency(truth, currencySymbol)}
+                  <td className="py-2.5 px-3 text-right font-[family-name:var(--font-mono)] text-sm text-text align-top">
+                    {/* Mirror the button padding (px-1.5 py-0.5) used in
+                        model cells so the Reference numerals share the same
+                        offset from the cell edge. */}
+                    <span className="inline-block px-1.5 py-0.5">
+                      {isBinary
+                        ? formatBoolean(truth)
+                        : formatCurrency(truth, currencySymbol)}
+                    </span>
                   </td>
                   {models.map((m) => {
                     const pred = varData[m];

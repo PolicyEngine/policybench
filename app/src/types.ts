@@ -322,6 +322,10 @@ export type PolicyEngineBundle = {
   bundled_certified_by?: string | null;
 };
 
+export type WeightingKey = "household" | "aggregate" | "equal";
+
+export type GlobalWeightsByView = Record<WeightingKey, Record<string, number>>;
+
 export type BenchData = {
   country: CountryCode;
   policyengineBundles?: Partial<Record<CountryCode, PolicyEngineBundle>>;
@@ -330,6 +334,7 @@ export type BenchData = {
   programStats: ProgramStat[];
   heatmap: HeatmapEntry[];
   scenarioPredictions: Record<string, ScenarioPredictionsByVariable>;
+  globalWeights?: GlobalWeightsByView;
   failureModes: FailureModesPayload;
 };
 

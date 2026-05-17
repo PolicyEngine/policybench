@@ -729,7 +729,12 @@ class TestSummaries:
             "programStats",
             "heatmap",
             "scenarioPredictions",
+            "globalWeights",
         }
+        # All three weighting views expose a per-variable map.
+        assert set(payload["globalWeights"]) == {"household", "aggregate", "equal"}
+        for view_weights in payload["globalWeights"].values():
+            assert isinstance(view_weights, dict)
         assert payload["country"] == "us"
         assert payload["scenarios"]["s1"]["country"] == "us"
         assert payload["scenarios"]["s1"]["filingStatus"] == "single"
