@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   getVariableLabel,
   isBinaryVariable,
@@ -119,34 +119,8 @@ export default function ScenarioExplorer({
     return MODEL_ORDER.filter((m) => unique.has(m));
   }, [predictions]);
 
-  // Compute a sensible default selection per scenario: first wrong-and-audited
-  // cell, falling back to first wrong, then first cell at all. The detail
-  // card opens on a useful example instead of an empty "Correct" panel.
-  const defaultCell = useMemo(() => {
-    let firstWrong: { variable: string; model: string } | null = null;
-    let firstWrongAudited: { variable: string; model: string } | null = null;
-    let firstAny: { variable: string; model: string } | null = null;
-    for (const v of variables) {
-      const varData = predictions[v] ?? {};
-      const truthVal = Object.values(varData)[0]?.groundTruth ?? 0;
-      const isBin = isBinaryVariable(v, country);
-      for (const m of models) {
-        const pred = varData[m];
-        if (!pred) continue;
-        if (!firstAny) firstAny = { variable: v, model: m };
-        if (pred.prediction === null) continue;
-        if (isPredictionCorrect(pred, truthVal, isBin)) continue;
-        if (!firstWrong) firstWrong = { variable: v, model: m };
-        if (pred.annotation && !firstWrongAudited) {
-          firstWrongAudited = { variable: v, model: m };
-        }
-      }
-    }
-    return firstWrongAudited ?? firstWrong ?? firstAny;
-  }, [variables, models, predictions, country]);
-
-  // Manual selections are scoped to the current scenario; switching scenarios
-  // falls back to the recomputed default without setting state from an effect.
+  // The detail modal opens on click. Selection is scoped to the current
+  // scenario so switching households doesn't carry the old cell over.
   const [manualSelection, setManualSelection] = useState<{
     scenarioId: string;
     cell: { variable: string; model: string };
@@ -155,20 +129,28 @@ export default function ScenarioExplorer({
   const selectedCell =
     manualSelection && manualSelection.scenarioId === resolvedScenarioId
       ? manualSelection.cell
-      : defaultCell;
+      : null;
 
-  const detailCardRef = useRef<HTMLDivElement | null>(null);
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+
+  // Drive the native <dialog> imperatively. showModal() gives us focus
+  // trapping, an inert background, ESC-to-close, and the ::backdrop
+  // pseudo-element for free; we just need to mirror our React state.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (selectedCell) {
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+    }
+  }, [selectedCell]);
+
+  const closeModal = () => setManualSelection(null);
 
   const setSelectedCell = (cell: { variable: string; model: string }) => {
     if (!resolvedScenarioId) return;
     setManualSelection({ scenarioId: resolvedScenarioId, cell });
-    // The detail card always renders, so its ref already points at the
-    // existing DOM node; scroll it into view directly so the click feels
-    // responsive even when the user is partway through a long table.
-    detailCardRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
   };
 
   if (!scenario || !resolvedScenarioId) return null;
@@ -529,45 +511,83 @@ export default function ScenarioExplorer({
         </table>
       </div>
 
-      <DetailCard
-        ref={detailCardRef}
+      <DetailDialog
+        ref={dialogRef}
         selectedCell={selectedCell}
         predictions={predictions}
         country={country}
         currencySymbol={currencySymbol}
+        onClose={closeModal}
       />
     </div>
   );
 }
 
-type DetailCardProps = {
+type DetailDialogProps = {
   selectedCell: { variable: string; model: string } | null;
   predictions: Record<string, Record<string, ScenarioPrediction>>;
   country: CountryCode;
   currencySymbol: "$" | "£";
+  onClose: () => void;
 };
 
-const DetailCard = React.forwardRef<HTMLDivElement, DetailCardProps>(function DetailCard(
-  { selectedCell, predictions, country, currencySymbol },
-  ref,
-) {
-  if (!selectedCell) {
-    return (
-      <div ref={ref} className="card mt-6 px-5 py-6 animate-fade-up">
-        <p className="text-sm text-text-secondary">
-          Click any prediction cell above to see the reference value, the
-          model&apos;s answer, the model&apos;s reasoning, and our review of
-          where it went wrong.
-        </p>
-      </div>
-    );
-  }
+const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
+  function DetailDialog(
+    { selectedCell, predictions, country, currencySymbol, onClose },
+    ref,
+  ) {
+    // Backdrop click: native <dialog> reports the click target as the dialog
+    // element itself when the user clicks the backdrop pseudo-element, so we
+    // can dismiss without an explicit overlay element.
+    const handleBackdropClick = (
+      event: React.MouseEvent<HTMLDialogElement>,
+    ) => {
+      if (event.target === event.currentTarget) onClose();
+    };
 
+    return (
+      <dialog
+        ref={ref}
+        onClose={onClose}
+        onClick={handleBackdropClick}
+        aria-label="Selected prediction detail"
+        className="mx-auto my-auto w-[min(720px,calc(100vw-2rem))] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 text-text shadow-xl backdrop:bg-text/40 backdrop:backdrop-blur-sm"
+      >
+        {selectedCell ? (
+          <DetailContent
+            selectedCell={selectedCell}
+            predictions={predictions}
+            country={country}
+            currencySymbol={currencySymbol}
+            onClose={onClose}
+          />
+        ) : null}
+      </dialog>
+    );
+  },
+);
+
+type DetailContentProps = {
+  selectedCell: { variable: string; model: string };
+  predictions: Record<string, Record<string, ScenarioPrediction>>;
+  country: CountryCode;
+  currencySymbol: "$" | "£";
+  onClose: () => void;
+};
+
+function DetailContent({
+  selectedCell,
+  predictions,
+  country,
+  currencySymbol,
+  onClose,
+}: DetailContentProps) {
   const { variable, model } = selectedCell;
   const pred = predictions[variable]?.[model];
   if (!pred) {
     return (
-      <div ref={ref} className="card mt-6 px-5 py-6 animate-fade-up">
+      <div className="relative px-5 py-6">
+        <DialogCloseButton onClose={onClose} />
         <p className="text-sm text-text-secondary">
           No data for {MODEL_LABELS[model] ?? model} on{" "}
           {getVariableLabel(variable, country)}.
@@ -615,13 +635,9 @@ const DetailCard = React.forwardRef<HTMLDivElement, DetailCardProps>(function De
   ].filter(Boolean) as string[];
 
   return (
-    <div
-      ref={ref}
-      className="card mt-6 px-5 py-5 scroll-mt-24 animate-fade-up"
-      role="region"
-      aria-label="Selected prediction detail"
-    >
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
+    <div className="relative px-5 py-5">
+      <DialogCloseButton onClose={onClose} />
+      <div className="flex flex-wrap items-baseline justify-between gap-3 pr-10">
         <div>
           <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
             {getVariableLabel(variable, country)}
@@ -749,4 +765,29 @@ const DetailCard = React.forwardRef<HTMLDivElement, DetailCardProps>(function De
       )}
     </div>
   );
-});
+}
+
+function DialogCloseButton({ onClose }: { onClose: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label="Close detail"
+      className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface text-text-secondary transition-colors hover:border-primary-strong/50 hover:text-text"
+    >
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 16 16"
+        width="12"
+        height="12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M4 4l8 8M12 4l-8 8" />
+      </svg>
+    </button>
+  );
+}
