@@ -15,12 +15,10 @@ import {
 import ProviderMark from "./ProviderMark";
 import {
   SENSITIVITY_VIEWS,
-  buildAllRows,
   modelScoresForView,
   viewSupportsSelected,
   type SensitivityViewId,
 } from "../lib/sensitivity";
-import { DEFAULT_DRAWS, bootstrapIntervals } from "../lib/bootstrap";
 
 function Badge({
   children,
@@ -118,9 +116,6 @@ export default function ModelLeaderboard({
   const isGlobal = selectedView === "global";
   const [sensitivityView, setSensitivityView] =
     useState<SensitivityViewId>("household");
-  const [showIntervals, setShowIntervals] = useState(false);
-
-  const allRows = useMemo(() => buildAllRows(dashboard), [dashboard]);
 
   // Defensive: if a model's payload doesn't include the requested view (stale
   // data.json), fall back to the canonical Household view so the leaderboard
@@ -158,17 +153,6 @@ export default function ModelLeaderboard({
       .map((m) => ({ ...m, score: sensitivityScoreByModel.get(m.model)! }))
       .sort((a, b) => b.score - a.score);
   }, [data, effectiveView, sensitivityScoreByModel]);
-
-  // Bootstrap intervals are off by default and only available on the
-  // Household view (the row-level path drives them).
-  const intervals = useMemo(() => {
-    if (!showIntervals) return new Map();
-    if (effectiveView !== "household") return new Map();
-    return bootstrapIntervals(allRows, selectedView, () => true, {
-      draws: DEFAULT_DRAWS,
-      seed: 42,
-    });
-  }, [allRows, selectedView, effectiveView, showIntervals]);
 
   const pendingModels = useMemo<PendingModel[]>(() => {
     const present = new Set(noTools.map((model) => model.model));
@@ -286,20 +270,6 @@ export default function ModelLeaderboard({
         <span className="text-[11px] text-text-muted">
           {activeView.description}
         </span>
-        <label className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-text-secondary">
-          <input
-            type="checkbox"
-            checked={showIntervals}
-            onChange={(event) => setShowIntervals(event.target.checked)}
-            disabled={effectiveView !== "household"}
-            className="h-3.5 w-3.5 rounded border-border accent-primary-strong"
-          />
-          <span>
-            {effectiveView === "household"
-              ? "Show 95% intervals"
-              : "Intervals available on the Household view"}
-          </span>
-        </label>
       </div>
       {sensitivityUnsupportedForView && (
         <p
@@ -348,19 +318,6 @@ export default function ModelLeaderboard({
             m.scoreRunStd,
             m.runCount
           );
-          const interval = intervals.get(m.model);
-          const rankRange =
-            interval && interval.rankLower !== interval.rankUpper
-              ? `Rank ${interval.rankLower}-${interval.rankUpper}`
-              : interval
-                ? `Rank ${interval.rankLower}`
-                : null;
-          const scoreRange = interval
-            ? `${interval.lower.toFixed(1)}-${interval.upper.toFixed(1)}`
-            : null;
-          const intervalAriaLabel = interval
-            ? `${rankRange} across bootstrap draws; 95% score interval ${interval.lower.toFixed(1)}% to ${interval.upper.toFixed(1)}%`
-            : undefined;
           return (
             <div
               key={m.model}
@@ -388,14 +345,6 @@ export default function ModelLeaderboard({
                     {!isGlobal && stabilityLabel && (
                       <div className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted">
                         {stabilityLabel}
-                      </div>
-                    )}
-                    {rankRange && (
-                      <div
-                        className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted"
-                        aria-label={intervalAriaLabel}
-                      >
-                        {rankRange} · 95% {scoreRange}
                       </div>
                     )}
                   </div>
@@ -439,15 +388,6 @@ export default function ModelLeaderboard({
                   <Badge variant={accColor(m.score)}>
                     {m.score.toFixed(1)}%
                   </Badge>
-                  {rankRange && (
-                    <div
-                      className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1"
-                      title="Household-resampling 95% interval (400 draws, seed 42)"
-                      aria-label={intervalAriaLabel}
-                    >
-                      {rankRange} · 95% {scoreRange}
-                    </div>
-                  )}
                   {!isGlobal && stabilityLabel && (
                     <div className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1">
                       {stabilityLabel}
