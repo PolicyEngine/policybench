@@ -392,6 +392,38 @@ def equal_weight_scores_by_model(
     return out.rename(columns={"score": "equal_score"})
 
 
+def aggregate_global_variable_weights(ground_truth: pd.DataFrame) -> pd.Series:
+    """Budget-weighted (aggregate-impact) per-variable weights.
+
+    Each variable's weight is its share of total absolute reference dollars
+    across the benchmark. Booleans contribute their paired ``impact_weight``
+    value when eligible.
+    """
+    if ground_truth.empty:
+        return pd.Series(dtype=float)
+    gt = ground_truth.copy()
+    if "impact_weight" in gt.columns:
+        explicit = pd.to_numeric(gt["impact_weight"], errors="coerce").abs()
+        gt["abs_value"] = explicit.fillna(gt["value"].abs())
+    else:
+        gt["abs_value"] = gt["value"].abs()
+    totals = gt.groupby("variable")["abs_value"].sum()
+    grand = float(totals.sum())
+    if grand <= 0:
+        return pd.Series(0.0, index=totals.index)
+    return totals / grand
+
+
+def equal_global_variable_weights(ground_truth: pd.DataFrame) -> pd.Series:
+    """Equal per-variable weights: ``1 / K`` across the benchmark's unique outputs."""
+    if ground_truth.empty:
+        return pd.Series(dtype=float)
+    variables = ground_truth["variable"].drop_duplicates().tolist()
+    if not variables:
+        return pd.Series(dtype=float)
+    return pd.Series(1.0 / len(variables), index=variables)
+
+
 def aggregate_weight_scores_by_model(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
@@ -402,17 +434,9 @@ def aggregate_weight_scores_by_model(
     """
     if ground_truth.empty or predictions.empty:
         return pd.DataFrame(columns=["model", "aggregate_score"])
-    gt = ground_truth.copy()
-    if "impact_weight" in gt.columns:
-        explicit = pd.to_numeric(gt["impact_weight"], errors="coerce").abs()
-        gt["abs_value"] = explicit.fillna(gt["value"].abs())
-    else:
-        gt["abs_value"] = gt["value"].abs()
-    totals = gt.groupby("variable")["abs_value"].sum()
-    grand = float(totals.sum())
-    if grand <= 0:
+    weights = aggregate_global_variable_weights(ground_truth)
+    if weights.empty:
         return pd.DataFrame(columns=["model", "aggregate_score"])
-    weights = totals / grand
     out = _weighted_household_scores(ground_truth, predictions, weights)
     return out.rename(columns={"score": "aggregate_score"})
 
@@ -1901,6 +1925,33 @@ def build_dashboard_payload(
             prediction_item["predictionError"] = prediction_error
         variable_data[row["model"]] = prediction_item
 
+    # Per-variable weights under each of the three weightings, exposed so the
+    # leaderboard can render a transparency table without recomputing on the
+    # client. ``household`` is the bounded global variable weights (mean of
+    # |ref| / max(|net|, Σ|ref|) across households, renormalized to sum to 1).
+    # ``aggregate`` is each variable's share of total absolute reference
+    # dollars across the benchmark (booleans use their paired ``impact_weight``
+    # value). ``equal`` is ``1 / K`` for every variable.
+    market_income_map: dict[str, float] = {}
+    if "total_income" in scenarios.columns:
+        market_income_map = dict(
+            zip(
+                scenarios["scenario_id"].astype(str),
+                pd.to_numeric(scenarios["total_income"], errors="coerce").fillna(0.0),
+            )
+        )
+
+    def _weights_dict(weights: pd.Series) -> dict[str, float]:
+        return {str(name): float(value) for name, value in weights.items()}
+
+    weights_payload = {
+        "household": _weights_dict(
+            bounded_global_variable_weights(ground_truth, market_income_map)
+        ),
+        "aggregate": _weights_dict(aggregate_global_variable_weights(ground_truth)),
+        "equal": _weights_dict(equal_global_variable_weights(ground_truth)),
+    }
+
     return {
         "country": payload_country,
         "policyengineBundles": policyengine_bundles_for_countries({payload_country}),
@@ -1909,6 +1960,7 @@ def build_dashboard_payload(
         "programStats": program_stats,
         "heatmap": heatmap,
         "scenarioPredictions": scenario_predictions,
+        "globalWeights": weights_payload,
         "failureModes": build_failure_modes_payload(
             ground_truth,
             predictions,

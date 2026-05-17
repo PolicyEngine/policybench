@@ -53,6 +53,19 @@ export function getProviderForModel(model: string): ProviderKey | null {
   return null;
 }
 
+// One frontier flagship per provider — used by the leaderboard's
+// "Frontier only" filter (default on) so the table stays scannable.
+export const FRONTIER_MODELS: readonly string[] = [
+  "claude-opus-4.7",
+  "gpt-5.5",
+  "grok-4.3",
+  "gemini-3.1-pro-preview",
+];
+
+export function isFrontierModel(model: string): boolean {
+  return FRONTIER_MODELS.includes(model);
+}
+
 const TEAL_500 = "var(--color-teal-500)";
 const TEAL_300 = "var(--color-teal-300)";
 const TEAL_400 = "var(--color-teal-400)";

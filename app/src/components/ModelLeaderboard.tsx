@@ -6,11 +6,14 @@ import type {
   ModelStat,
   ViewKey,
 } from "../types";
-import { VIEW_SHORT_LABELS } from "../types";
+import { VIEW_SHORT_LABELS, getVariableLabel } from "../types";
 import {
   MODEL_LABELS,
   MODEL_ORDER,
+  PROVIDER_LABELS,
   getProviderForModel,
+  isFrontierModel,
+  type ProviderKey,
 } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
 import {
@@ -116,6 +119,13 @@ export default function ModelLeaderboard({
   const isGlobal = selectedView === "global";
   const [sensitivityView, setSensitivityView] =
     useState<SensitivityViewId>("household");
+  // Default: frontier-only, no provider filter. The benchmark currently has
+  // 12 models; "frontier" narrows to one flagship per provider for a
+  // scannable top-line read.
+  const [frontierOnly, setFrontierOnly] = useState(true);
+  const [providerFilter, setProviderFilter] = useState<Set<ProviderKey>>(
+    () => new Set(),
+  );
 
   // Defensive: if a model's payload doesn't include the requested view (stale
   // data.json), fall back to the canonical Household view so the leaderboard
@@ -141,8 +151,19 @@ export default function ModelLeaderboard({
     return out;
   }, [sensitivityScores]);
 
+  const filterModel = (model: string): boolean => {
+    if (frontierOnly && !isFrontierModel(model)) return false;
+    if (providerFilter.size > 0) {
+      const provider = getProviderForModel(model);
+      if (!provider || !providerFilter.has(provider)) return false;
+    }
+    return true;
+  };
+
   const noTools = useMemo<ModelStat[]>(() => {
-    const base = data.modelStats.filter((m) => m.condition === "no_tools");
+    const base = data.modelStats
+      .filter((m) => m.condition === "no_tools")
+      .filter((m) => filterModel(m.model));
     if (effectiveView === "household") {
       return [...base].sort((a, b) => b.score - a.score);
     }
@@ -152,21 +173,45 @@ export default function ModelLeaderboard({
       .filter((m) => sensitivityScoreByModel.has(m.model))
       .map((m) => ({ ...m, score: sensitivityScoreByModel.get(m.model)! }))
       .sort((a, b) => b.score - a.score);
-  }, [data, effectiveView, sensitivityScoreByModel]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, effectiveView, sensitivityScoreByModel, frontierOnly, providerFilter]);
 
   const pendingModels = useMemo<PendingModel[]>(() => {
     const present = new Set(noTools.map((model) => model.model));
-    const configured = PENDING_MODELS[selectedView].filter(
-      (model) => !present.has(model.model)
-    );
+    const configured = PENDING_MODELS[selectedView]
+      .filter((model) => !present.has(model.model))
+      .filter((model) => filterModel(model.model));
     return [...configured].sort((a, b) => {
       const aIndex = MODEL_ORDER.indexOf(a.model as (typeof MODEL_ORDER)[number]);
       const bIndex = MODEL_ORDER.indexOf(b.model as (typeof MODEL_ORDER)[number]);
       return aIndex - bIndex;
     });
-  }, [noTools, selectedView]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noTools, selectedView, frontierOnly, providerFilter]);
 
   const activeView = SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)!;
+
+  // Per-variable weights table. Available on country payloads only; global
+  // (US + UK) is intentionally skipped because weights differ between
+  // countries and combining them would be misleading.
+  const weights = !isGlobal && "globalWeights" in data ? data.globalWeights : undefined;
+  const weightsCountry =
+    !isGlobal && "country" in data ? data.country : undefined;
+
+  const weightedVariables = useMemo(() => {
+    if (!weights) return [] as string[];
+    const all = new Set<string>();
+    for (const view of ["household", "aggregate", "equal"] as const) {
+      const map = weights[view];
+      if (map) Object.keys(map).forEach((v) => all.add(v));
+    }
+    const ranked = Array.from(all).map((v) => ({
+      v,
+      key: weights[effectiveView]?.[v] ?? 0,
+    }));
+    ranked.sort((a, b) => b.key - a.key);
+    return ranked.map((r) => r.v);
+  }, [weights, effectiveView]);
 
   return (
     <div>
@@ -215,14 +260,80 @@ export default function ModelLeaderboard({
       </aside>
 
       <div
-        className="mt-5 flex flex-wrap items-center gap-3 animate-fade-up"
+        className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3 animate-fade-up"
+        style={{ animationDelay: "190ms" }}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            id="leaderboard-filter-label"
+            className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+          >
+            Show
+          </span>
+          <button
+            type="button"
+            onClick={() => setFrontierOnly((v) => !v)}
+            aria-pressed={frontierOnly}
+            className={`rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
+              frontierOnly
+                ? "border-primary-strong bg-primary-strong text-white"
+                : "border-border bg-card text-text-secondary hover:text-text"
+            }`}
+            title="Show only one frontier flagship per provider (Opus 4.7, GPT-5.5, Grok 4.3, Gemini 3.1 Pro Preview)"
+          >
+            Frontier only
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            id="leaderboard-provider-label"
+            className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+          >
+            Provider
+          </span>
+          <div
+            role="group"
+            aria-labelledby="leaderboard-provider-label"
+            className="inline-flex flex-wrap items-center gap-1"
+          >
+            {(Object.keys(PROVIDER_LABELS) as ProviderKey[]).map((provider) => {
+              const isActive = providerFilter.has(provider);
+              return (
+                <button
+                  key={provider}
+                  type="button"
+                  onClick={() => {
+                    setProviderFilter((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(provider)) next.delete(provider);
+                      else next.add(provider);
+                      return next;
+                    });
+                  }}
+                  aria-pressed={isActive}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
+                    isActive
+                      ? "border-primary-strong bg-primary-soft text-primary-strong"
+                      : "border-border bg-card text-text-secondary hover:text-text"
+                  }`}
+                >
+                  {PROVIDER_LABELS[provider]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="mt-3 flex flex-wrap items-center gap-3 animate-fade-up"
         style={{ animationDelay: "200ms" }}
       >
         <span
           id="leaderboard-view-label"
           className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
         >
-          View
+          Weighting
         </span>
         <div
           role="group"
@@ -311,6 +422,25 @@ export default function ModelLeaderboard({
             {isGlobal ? "Country scores" : "MAE"}
           </div>
         </div>
+
+        {noTools.length === 0 && pendingModels.length === 0 && (
+          <div
+            role="status"
+            className="card px-4 py-6 text-center text-sm text-text-secondary animate-fade-up"
+          >
+            No models match these filters.{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setFrontierOnly(false);
+                setProviderFilter(new Set());
+              }}
+              className="text-primary-strong underline-offset-2 hover:underline"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
 
         {noTools.map((m, i) => {
           const stabilityLabel = fmtRunStability(
@@ -471,6 +601,98 @@ export default function ModelLeaderboard({
           </div>
         ))}
       </div>
+
+      {weights && weightedVariables.length > 0 && weightsCountry && (
+        <details
+          className="mt-8 group rounded-2xl border border-border bg-card/40 animate-fade-up"
+          style={{ animationDelay: "320ms" }}
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs text-text-secondary hover:text-text">
+            <span className="flex items-center gap-2">
+              <svg
+                aria-hidden
+                viewBox="0 0 12 12"
+                width="10"
+                height="10"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="transition-transform group-open:rotate-90"
+              >
+                <polyline points="4 2 8 6 4 10" />
+              </svg>
+              <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
+                Per-variable weights
+              </span>
+              <span className="text-text-muted">
+                {weightedVariables.length} variables, sorted by {activeView.label}
+              </span>
+            </span>
+          </summary>
+          <div className="overflow-x-auto border-t border-border-subtle">
+            <table className="min-w-full text-sm">
+              <thead className="bg-bg/40">
+                <tr>
+                  <th
+                    scope="col"
+                    className="px-4 py-2 text-left text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+                  >
+                    Variable
+                  </th>
+                  {(["household", "aggregate", "equal"] as const).map((key) => (
+                    <th
+                      key={key}
+                      scope="col"
+                      className={`px-4 py-2 text-right text-[10px] font-medium uppercase tracking-[0.14em] ${
+                        effectiveView === key
+                          ? "text-primary-strong"
+                          : "text-text-muted"
+                      }`}
+                    >
+                      {key === "household"
+                        ? "Household"
+                        : key === "aggregate"
+                          ? "Aggregate"
+                          : "Equal"}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {weightedVariables.map((variable) => (
+                  <tr
+                    key={variable}
+                    className="border-t border-border-subtle"
+                  >
+                    <td className="px-4 py-2 text-text-secondary">
+                      {getVariableLabel(variable, weightsCountry)}
+                    </td>
+                    {(["household", "aggregate", "equal"] as const).map(
+                      (key) => {
+                        const w = weights[key]?.[variable] ?? 0;
+                        return (
+                          <td
+                            key={key}
+                            className={`px-4 py-2 text-right font-[family-name:var(--font-mono)] ${
+                              effectiveView === key
+                                ? "text-text"
+                                : "text-text-secondary"
+                            }`}
+                          >
+                            {(w * 100).toFixed(2)}%
+                          </td>
+                        );
+                      },
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
     </div>
   );
 }
