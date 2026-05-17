@@ -40,13 +40,13 @@ class CaseKey:
     variable: str
 
 
-def _value_repr(value) -> str:
-    if hasattr(value, "__len__") and len(value):
-        item = value[0]
-    else:
-        item = value
+def _to_python(item):
     if hasattr(item, "item"):
-        item = item.item()
+        return item.item()
+    return item
+
+
+def _scalar_repr(item) -> str:
     if isinstance(item, bool):
         return "True" if item else "False"
     if isinstance(item, float):
@@ -54,13 +54,40 @@ def _value_repr(value) -> str:
     return str(item)
 
 
+def _value_repr(value) -> str:
+    # OpenFisca trace values are numpy arrays of length N (one entry per
+    # entity at the variable's level). Length-1 arrays collapse to a scalar
+    # — most tax-unit/household variables. Multi-entity arrays render as
+    # ``sum (per entity: a, b, ...)`` so the spouse's wages don't silently
+    # disappear when summarising a joint household.
+    if hasattr(value, "__len__") and not isinstance(value, (str, bytes)):
+        items = [_to_python(item) for item in value]
+        if len(items) == 0:
+            return "[]"
+        if len(items) == 1:
+            return _scalar_repr(items[0])
+        if all(
+            isinstance(item, (int, float)) and not isinstance(item, bool)
+            for item in items
+        ):
+            total = sum(items)
+            return (
+                _scalar_repr(total)
+                + " (per entity: "
+                + ", ".join(_scalar_repr(item) for item in items)
+                + ")"
+            )
+        return "[" + ", ".join(_scalar_repr(item) for item in items) + "]"
+    return _scalar_repr(_to_python(value))
+
+
 def _is_zero(value) -> bool:
-    if hasattr(value, "__len__") and len(value):
-        item = value[0]
-    else:
-        item = value
-    if hasattr(item, "item"):
-        item = item.item()
+    if hasattr(value, "__len__") and not isinstance(value, (str, bytes)):
+        items = [_to_python(item) for item in value]
+        if not items:
+            return True
+        return all(_is_zero(item) for item in items)
+    item = _to_python(value)
     if isinstance(item, bool):
         return item is False
     if isinstance(item, (int, float)):
