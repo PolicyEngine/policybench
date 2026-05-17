@@ -266,6 +266,10 @@ export type ScenarioPrediction = {
   caseFailureSources?: string;
   caseFailureSubtypes?: string;
   predictionError?: string;
+  // Agent-generated narrative of how PolicyEngine derived the truth value
+  // for this (scenario, variable) case. Same for every model — it
+  // describes the reference, not the prediction.
+  referenceExplanation?: string;
 };
 
 export type ScenarioPredictionsByVariable = Record<

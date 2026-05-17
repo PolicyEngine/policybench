@@ -143,6 +143,52 @@ def load_case_annotations(country_dir: Path) -> pd.DataFrame:
     return case_annotations
 
 
+def load_case_reference_explanations(country_dir: Path) -> pd.DataFrame:
+    """Load optional written 'reference computation' narratives for each case.
+
+    These are agent-generated narratives describing how PolicyEngine derived
+    the truth value for each ``(scenario_id, variable)`` case. The same text
+    applies to every model on that case — it's about the reference, not the
+    prediction.
+    """
+    country = country_dir.name
+    annotations_dir = country_dir.parent / "annotations"
+    committed_annotations_dir = Path("annotations") / country_dir.parent.name
+    filename = f"{country}_case_reference_explanations.csv"
+    files = sorted(annotations_dir.glob(filename))
+    if not files:
+        files = sorted(committed_annotations_dir.glob(filename))
+    columns = ["scenario_id", "variable", "reference_explanation"]
+    if not files:
+        return pd.DataFrame(columns=columns)
+
+    raw = pd.concat([pd.read_csv(path) for path in files], ignore_index=True)
+    if "explanation" not in raw.columns:
+        return pd.DataFrame(columns=columns)
+    explanations = raw[["scenario_id", "variable", "explanation"]].rename(
+        columns={"explanation": "reference_explanation"}
+    )
+    explanations = explanations[
+        explanations["reference_explanation"].astype("string").fillna("").str.strip()
+        != ""
+    ]
+    return explanations.drop_duplicates(["scenario_id", "variable"], keep="first")
+
+
+def merge_case_reference_explanations(
+    predictions: pd.DataFrame,
+    explanations: pd.DataFrame,
+) -> pd.DataFrame:
+    """Attach the per-case reference-computation narrative to prediction rows."""
+    if explanations.empty:
+        return predictions
+    if "reference_explanation" in predictions.columns:
+        predictions = predictions.drop(columns=["reference_explanation"])
+    return predictions.merge(
+        explanations, on=["scenario_id", "variable"], how="left"
+    )
+
+
 def merge_annotations(
     predictions: pd.DataFrame,
     annotations: pd.DataFrame,
@@ -208,6 +254,10 @@ def export_country(country_dir: Path) -> dict:
     predictions = merge_case_annotations(
         predictions,
         load_case_annotations(country_dir),
+    )
+    predictions = merge_case_reference_explanations(
+        predictions,
+        load_case_reference_explanations(country_dir),
     )
     scenarios = pd.read_csv(scenarios_path)
 
