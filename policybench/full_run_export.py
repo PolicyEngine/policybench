@@ -184,9 +184,7 @@ def merge_case_reference_explanations(
         return predictions
     if "reference_explanation" in predictions.columns:
         predictions = predictions.drop(columns=["reference_explanation"])
-    return predictions.merge(
-        explanations, on=["scenario_id", "variable"], how="left"
-    )
+    return predictions.merge(explanations, on=["scenario_id", "variable"], how="left")
 
 
 def merge_annotations(
