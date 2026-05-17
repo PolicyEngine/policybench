@@ -86,9 +86,9 @@ export default function Methodology({
         >
           The global leaderboard is a shared-model aggregate, not a separate
           benchmark. Each model’s global score is the equal-weight average of
-          its country-level household-equal impact scores across the included
-          countries, without reweighting by country population, household count,
-          or currency totals.
+          its country-level bounded scores across the included countries,
+          without reweighting by country population, household count, or
+          currency totals.
         </p>
 
         <div
@@ -263,20 +263,29 @@ export default function Methodology({
         </SectionCard>
 
         <SectionCard title="Scoring and weighting">
-          The public leaderboard uses a household-equal impact score. Each
-          household gets the same country-level weight. Within a household,
-          each output receives a 30% equal-weight floor plus a 70% weight
-          proportional to its absolute PolicyEngine reference contribution to
-          household resources. Person-level flags are scored at the person row,
-          with value-proxy impact weights where available. For amount outputs,
-          the row score averages exact-within-one-currency-unit
-          hit rate, within-1%, within-5%, and within-10% hit rates.
+          The public leaderboard uses bounded global variable weights. For each
+          household, the row score is{" "}
+          <code>max(0, 1 − |pred − ref| / |ref|)</code> when the reference is
+          nonzero and matches exactly when the reference is zero; the same
+          formula handles boolean eligibility flags naturally because
+          ref ∈ {"{0, 1}"} gives a 0/1 score directly. Each variable&apos;s weight
+          is the mean across all benchmark households of{" "}
+          <code>|ref| / max(|household_net_income|, Σ |ref|)</code>,
+          renormalized so the global weights sum to one. The{" "}
+          <code>max(...)</code> denominator anchors per-household shares to
+          net income when net income is the dominant flow and falls back to
+          the gross tax-benefit flow only when programs cancel each other
+          out, so a $1 benefit to a high-earner contributes essentially zero
+          weight and per-household shares never exceed one.
           {country === "us"
-            ? " Binary coverage flags like person-level Medicaid eligibility and school meal eligibility use exact accuracy."
-            : ""}
+            ? " Person-level eligibility flags like Medicaid carry weight through PolicyEngine's paired per-capita value (e.g. medicaid_value), so the LLM is graded only on the boolean call itself."
+            : " Person-level eligibility flags carry weight through PolicyEngine's paired per-capita value, so the LLM is graded only on the boolean call itself."}
           {" "}Missing or unparseable answers count as misses through the
-          coverage multiplier. Mean absolute error remains a secondary error
-          metric. The leaderboard is a point estimate on this fixed test set
+          coverage multiplier. The leaderboard reports the bounded score as
+          the headline plus amount and participation accuracy as diagnostic
+          companions; equal-weight and budget-weighted variants are reported
+          alongside for transparency. The leaderboard is a point estimate on
+          this fixed test set
           {hasRepeatedRuns
             ? "; when repeated runs are loaded, the app also shows run-to-run stability."
             : "."}
@@ -288,7 +297,7 @@ export default function Methodology({
           cases, zero-reference cases, and country-only results. In the
           equal-output-group view, person-level outputs are grouped by program
           before the country average. These checks are used to interpret rank
-          stability; they do not replace the public household-equal impact
+          stability; they do not replace the public bounded-score
           leaderboard.
         </SectionCard>
 

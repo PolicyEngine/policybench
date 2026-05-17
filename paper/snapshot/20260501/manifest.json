@@ -17,11 +17,11 @@
       "files": {
         "analysis/impact_summary_by_model.csv": "280b6e996f9f5c437e9a5b30c1c814d8d139b33c69782a0d9585b71c8dd54865",
         "analysis/metrics.csv": "67ff07b37d7fe2516c1453a1b8cf7ff15a37df219e954a80ac486f94a62d088c",
-        "analysis/report.md": "0612d8d9a2bb79b8e3e465ddaaddb2e36b90dc3051a9cd0dad37f06c31ab53be",
-        "analysis/summary_by_model.csv": "669631b13ccf6b483df9e1f082468c284c8c3f3df68dcf6f73b513eb28a76117",
+        "analysis/report.md": "840031d5936233e9ea02474a1322f480412edb41189db7311ac18bc2f2e2f66d",
+        "analysis/summary_by_model.csv": "7d30e4723fc417850a0f25925711c7e335668c443715592e9e40888952f6d14d",
         "analysis/summary_by_variable.csv": "a97f73edf7473018ee4481be7e3bc714618e48c846d9427be66f4faba3ce394c",
         "analysis/usage_summary.csv": "9124504feb192a1fe635022f9acecd7599996e61ffad6036fa16a6bad4335040",
-        "data.json": "7b97b5762236396007cf00918e27244e82ca62b567bf0ac725709e092e86fe68",
+        "data.json": "2bbbf83056810aa928ecf014c2b9f41c9dd40b51b5ffa6641e7085e34ea57f38",
         "predictions.csv.gz": "46c030a3d9cb3a2e90652f99bc741e32db7c4f2499018417e75497ecbada74f3",
         "reference_outputs.csv": "04febaadd091dfa7de97fcf71a8a52d3db2296ca98fe1c97f9be92c4bf1383ce",
         "reference_outputs.csv.meta.json": "4db925a1841ce8549d99e3e69cd5796dab3ca960da08a6108185f5cbc0190f8c",
@@ -35,11 +35,11 @@
       "files": {
         "analysis/impact_summary_by_model.csv": "37e1fba0d40f9edbc1493581ce0daf5cd413c0bc39b0d6a57f99c3f248a544b2",
         "analysis/metrics.csv": "7645e9ed00018a3e68c4ab935ccb42e5c0ce49539eee92c9c1d5e5bad19d4315",
-        "analysis/report.md": "1f078f644e251794a506454b25b2f2f3b1559fee464d3671bd9f9eccc1469338",
-        "analysis/summary_by_model.csv": "e0052a0ef269d24ba2147efc34cb3804c3f63d5588c24f0f4df49c712170c18f",
+        "analysis/report.md": "74ae0cd6bbef6c8257f8ee4c38718c0f4a4941a3db3eeffb13b71f6cdaf9e83f",
+        "analysis/summary_by_model.csv": "0eeb24f7230bcb2a4f5e119b1c5d915dcd69e52b3b4609f3643db5f270bdc501",
         "analysis/summary_by_variable.csv": "bc1117874633598cda8ac2c608d99b6bf5e34e8e8907256e8570702e24bc6e18",
         "analysis/usage_summary.csv": "a8f7f43ed996daf28ccbd3d8d514b86c90fca11146e66eb1fc86b9c08ff18b66",
-        "data.json": "af044b1f56e32ac61de4cf826767ef24b99cd50d6ca9865958a59d78f73b8c87",
+        "data.json": "9460575d41bc3f46a7a711b6b2b42553fc70ff32dea7d958eb84a014bcc34b85",
         "predictions.csv.gz": "34502eb863e0e67e149b852c9a9676032a105044ced5c97898d1d1f59b08013c",
         "reference_outputs.csv": "6286a238e54a0b948385a60a73f36a1aae3cb9bf6612fa28c530d0fd3e024aae",
         "reference_outputs.csv.meta.json": "5634984705ff8312936a2b57fdc339efef4747ee270949a2caa23a7d203da9e8",
@@ -59,14 +59,14 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "0413e1e668073149fe1fb6ccaed570d9b93b78386c30e6e99a8546e45cada775"
+      "sha256": "2add1fa942ef31ca5391b6bee98cef5f1e93aa3a5ba7c7fd5de4d828a318c827"
     },
     "web": {
       "path": "app/public/paper/web",
       "files": {
-        "figures/global_leaderboard.png": "47598e0743b819f9f21c3b5f74977dda3a6a49d389f6879ef5b8b5950676a128",
+        "figures/global_leaderboard.png": "526511477880573c4e7cae98e3d966eb400eecf7e44c807ddcd4a5d377ebcd6f",
         "figures/positive_zero_scatter.png": "b15332fdda92c8f23269937c90968fb50327186fb154bc29729264586dc463d5",
-        "index.html": "95fcd04e8ade084f12ba7b6b10fd3e1cdcecd66c13aa4d7cbb95df675cdb62bd",
+        "index.html": "4bf569b9cc112af33ea65db984ecd10a30663807555e273624849fd5c9b0bb44",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
