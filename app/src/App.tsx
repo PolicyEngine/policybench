@@ -31,6 +31,10 @@ const COUNTRY_NAV_ITEMS = [
 ] as const;
 
 const COUNTRY_ORDER: CountryCode[] = ["us", "uk"];
+const COUNTRY_ROUTE_HREFS: Record<CountryCode, string> = {
+  us: "/us",
+  uk: "/uk",
+};
 
 function getAvailableViews(dashboard: DashboardBundle): CountryCode[] {
   return COUNTRY_ORDER.filter((country) => dashboard.countries[country]);
@@ -62,34 +66,45 @@ function detectVisitorCountry(availableViews: readonly CountryCode[]): CountryCo
   return availableViews.includes("us") ? "us" : (availableViews[0] ?? "us");
 }
 
-export default function App() {
+export default function App({ initialView }: { initialView?: CountryCode } = {}) {
   const availableViews = useMemo(() => getAvailableViews(dashboard), []);
   // Default to the US benchmark, then switch UK visitors after mount when
   // timezone or browser language gives us a clear signal.
-  const initialView: CountryCode = availableViews.includes("us")
+  const defaultView: CountryCode = availableViews.includes("us")
     ? "us"
     : (availableViews[0] ?? "us");
-  const [selectedView, setSelectedView] = useState<CountryCode>(initialView);
+  const routeView =
+    initialView && availableViews.includes(initialView) ? initialView : null;
+  const [localView, setLocalView] = useState<CountryCode>(
+    routeView ?? defaultView,
+  );
+  const selectedView = routeView ?? localView;
   const [hasUserPickedView, setHasUserPickedView] = useState(false);
   const [selectedPrograms, setSelectedPrograms] = useState<Set<string>>(
     () => new Set(),
   );
+  const [activeNav, setActiveNav] = useState<string>("models");
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
+    if (routeView) return;
     if (hasUserPickedView) return;
     const detected = detectVisitorCountry(availableViews);
-    if (detected !== selectedView) {
-      setSelectedView(detected);
+    if (detected !== localView) {
+      setLocalView(detected);
     }
     // We only want this auto-pick to run once per session; further changes
     // come from the user clicking the country selector.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [activeNav, setActiveNav] = useState<string>("models");
-  const observerRef = useRef<IntersectionObserver | null>(null);
 
   const data = dashboard.countries[selectedView]!;
   const navItems = COUNTRY_NAV_ITEMS;
+  const viewHrefs = useMemo(() => {
+    return Object.fromEntries(
+      availableViews.map((view) => [view, COUNTRY_ROUTE_HREFS[view]]),
+    ) as Partial<Record<ViewKey, string>>;
+  }, [availableViews]);
 
   const programOptions = useMemo(() => buildProgramOptions(data), [data]);
 
@@ -126,7 +141,7 @@ export default function App() {
 
   const handleSelectView = (view: ViewKey) => {
     if (view === "global") return;
-    setSelectedView(view);
+    setLocalView(view);
     setHasUserPickedView(true);
     setActiveNav("models");
   };
@@ -183,6 +198,7 @@ export default function App() {
         dashboard={dashboard}
         data={data}
         availableViews={availableViews}
+        viewHrefs={viewHrefs}
         navItems={navItems}
         activeNav={activeNav}
       />

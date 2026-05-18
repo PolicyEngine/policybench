@@ -24,10 +24,12 @@ function ViewSelector({
   selectedView,
   onSelect,
   views,
+  viewHrefs,
 }: {
   selectedView: ViewKey;
   onSelect: (view: ViewKey) => void;
   views: ViewKey[];
+  viewHrefs?: Partial<Record<ViewKey, string>>;
 }) {
   return (
     <div
@@ -35,21 +37,40 @@ function ViewSelector({
       aria-label="Country view"
       className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-bg/80 p-1"
     >
-      {views.map((view) => (
-        <button
-          key={view}
-          type="button"
-          onClick={() => onSelect(view)}
-          aria-pressed={selectedView === view}
-          className={`rounded-full text-[11px] px-3 py-1.5 font-medium transition-colors ${
+      {views.map((view) => {
+        const href = viewHrefs?.[view];
+        const className = `rounded-full text-[11px] px-3 py-1.5 font-medium transition-colors ${
             selectedView === view
               ? "bg-primary-strong text-white"
               : "text-text-secondary hover:text-text"
-          }`}
-        >
-          {VIEW_LABELS[view]}
-        </button>
-      ))}
+          }`;
+
+        if (href) {
+          return (
+            <Link
+              key={view}
+              href={href}
+              onClick={() => onSelect(view)}
+              aria-current={selectedView === view ? "page" : undefined}
+              className={className}
+            >
+              {VIEW_LABELS[view]}
+            </Link>
+          );
+        }
+
+        return (
+          <button
+            key={view}
+            type="button"
+            onClick={() => onSelect(view)}
+            aria-pressed={selectedView === view}
+            className={className}
+          >
+            {VIEW_LABELS[view]}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -141,6 +162,7 @@ export type SiteHeaderProps = {
   selectedView?: ViewKey;
   onSelectView?: (view: ViewKey) => void;
   availableViews?: ViewKey[];
+  viewHrefs?: Partial<Record<ViewKey, string>>;
   actionLink?: HeaderActionLink;
   /**
    * Optional expanded content shown inside the sticky header. Use only with
@@ -163,6 +185,7 @@ export default function SiteHeader({
   selectedView,
   onSelectView,
   availableViews,
+  viewHrefs,
   actionLink,
   expandedContent,
   alwaysExpanded = false,
@@ -279,6 +302,7 @@ export default function SiteHeader({
                 selectedView={selectedView}
                 onSelect={onSelectView}
                 views={availableViews}
+                viewHrefs={viewHrefs}
               />
             </div>
           )}

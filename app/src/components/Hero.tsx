@@ -16,6 +16,7 @@ export default function Hero({
   availableViews,
   navItems,
   activeNav,
+  viewHrefs,
 }: {
   selectedView: ViewKey;
   onSelectView: (view: ViewKey) => void;
@@ -24,6 +25,7 @@ export default function Hero({
   availableViews: ViewKey[];
   navItems: readonly HeaderNavItem[];
   activeNav: string;
+  viewHrefs?: Partial<Record<ViewKey, string>>;
 }) {
   const isGlobal = selectedView === "global";
   const benchData = isGlobal ? null : (data as BenchData);
@@ -72,6 +74,7 @@ export default function Hero({
         selectedView={selectedView}
         onSelectView={onSelectView}
         availableViews={availableViews}
+        viewHrefs={viewHrefs}
         actionLink={{ label: "Paper", href: "/paper", type: "internal" }}
       />
 
