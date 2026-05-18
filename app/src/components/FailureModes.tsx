@@ -1,7 +1,6 @@
 import type {
   BenchData,
   FailureModesPayload,
-  HouseholdFailure,
   ProgramFailure,
 } from "../types";
 import { getVariableLabel } from "../types";
@@ -74,25 +73,10 @@ function ProgramCard({
   );
 }
 
-function HouseholdChip({ household }: { household: HouseholdFailure }) {
-  return (
-    <div className="rounded-2xl border border-border bg-surface px-4 py-3">
-      <div className="text-text text-sm">{household.label}</div>
-      <div className="mt-1 flex items-center justify-between gap-3 text-xs">
-        <span className="text-text-muted">{household.n.toLocaleString()} scored rows</span>
-        <span className="text-danger font-[family-name:var(--font-mono)]">
-          {formatPct(household.correctPct)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 export default function FailureModes({ data }: { data: BenchData }) {
   const country = data.country;
   const failureModes: FailureModesPayload = data.failureModes;
   const hardestPrograms = [...failureModes.programs].slice(0, 10);
-  const hardestHouseholds = [...failureModes.households].slice(0, 7);
 
   return (
     <div>
@@ -141,20 +125,6 @@ export default function FailureModes({ data }: { data: BenchData }) {
             <ProgramCard program={program} country={country} />
           </div>
         ))}
-      </div>
-
-      <div
-        className="mt-10 animate-fade-up"
-        style={{ animationDelay: "520ms" }}
-      >
-        <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-          Hardest household segments
-        </div>
-        <div className="mt-4 grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {hardestHouseholds.map((household) => (
-            <HouseholdChip key={household.label} household={household} />
-          ))}
-        </div>
       </div>
     </div>
   );
