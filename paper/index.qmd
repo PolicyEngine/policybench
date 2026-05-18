@@ -108,7 +108,9 @@ def prompt_payload_hash_prefix(country: str) -> str:
 
 def model_frame(country: str) -> pd.DataFrame:
     return pd.DataFrame(country_payload(country)["modelStats"]).sort_values(
-        "score",
+        # Sort by the exact-match rate — the deployability bar. The bounded
+        # `score` column is preserved for the secondary "Approximate" view.
+        "exact",
         ascending=False,
     )
 
@@ -126,15 +128,22 @@ def failure_frame(country: str) -> pd.DataFrame:
 def model_table(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
     cols = [
         "model",
-        "score",
         "exact",
         "within10pct",
+        "score",
         "nParsed",
         "n",
     ]
     subset = frame[cols].head(top_n).copy()
-    subset.columns = ["Model", "Score", "Exact", "Within 10%", "Parsed", "Total"]
-    for col in ["Score", "Exact", "Within 10%"]:
+    subset.columns = [
+        "Model",
+        "Exact %",
+        "Within 10%",
+        "Bounded score",
+        "Parsed",
+        "Total",
+    ]
+    for col in ["Exact %", "Within 10%", "Bounded score"]:
         subset[col] = subset[col].round(1)
     return subset
 
@@ -311,7 +320,7 @@ def federal_state_joint_accuracy() -> pd.DataFrame:
 def impact_floor_sensitivity() -> pd.DataFrame:
     """Top global ranks under three weighting philosophies.
 
-    Reports the top model under the headline metric (bounded global variable
+    Reports the top model under the bounded secondary metric (global variable
     weights derived from each household's `|ref| / max(|net income|, Σ |ref|)`
     share, averaged across households and renormalized) alongside two opt-in
     alternatives: equal weighting across outputs and budget-weighted (each
@@ -403,7 +412,7 @@ def impact_floor_sensitivity() -> pd.DataFrame:
 
     rows = []
     for label, weight_kind in [
-        ("Bounded (headline)", "bounded"),
+        ("Household-weighted (default)", "bounded"),
         ("Equal weights", "equal"),
         ("Budget-weighted", "budget"),
     ]:
@@ -787,7 +796,7 @@ def parsed_ratio(frame: pd.DataFrame, model_name: str) -> str:
 
 
 def top_model(frame: pd.DataFrame) -> pd.Series:
-    return frame.sort_values("score", ascending=False).iloc[0]
+    return frame.sort_values("exact", ascending=False).iloc[0]
 
 
 def top_model_snapshot_summary(
@@ -795,43 +804,45 @@ def top_model_snapshot_summary(
     uk_row: pd.Series,
     global_row: pd.Series,
 ) -> str:
+    metric = "exact-match %"
     if us_row.model == uk_row.model == global_row.model:
         return (
             f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-            f"{us_row.model} is top-scoring in the US, UK, and shared global "
-            f"views at {fmt_score(us_row.score)}, {fmt_score(uk_row.score)}, "
-            f"and {fmt_score(global_row.score)}, respectively."
+            f"{us_row.model} is top-scoring on {metric} in the US, UK, and "
+            f"shared global views at {fmt_score(us_row.exact)}, "
+            f"{fmt_score(uk_row.exact)}, and {fmt_score(global_row.exact)}, "
+            f"respectively."
         )
     if us_row.model == uk_row.model:
         return (
             f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-            f"{us_row.model} is top-scoring in both country tables at "
-            f"{fmt_score(us_row.score)} in the US and {fmt_score(uk_row.score)} "
-            f"in the UK, and the top shared global model is {global_row.model} "
-            f"at {fmt_score(global_row.score)}."
+            f"{us_row.model} is top-scoring on {metric} in both country tables "
+            f"at {fmt_score(us_row.exact)} in the US and "
+            f"{fmt_score(uk_row.exact)} in the UK, and the top shared global "
+            f"model is {global_row.model} at {fmt_score(global_row.exact)}."
         )
     if us_row.model == global_row.model:
         return (
             f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-            f"{us_row.model} is the top US and shared global model at "
-            f"{fmt_score(us_row.score)} and {fmt_score(global_row.score)}, "
+            f"{us_row.model} is the top US and shared global model on {metric} "
+            f"at {fmt_score(us_row.exact)} and {fmt_score(global_row.exact)}, "
             f"respectively, while the top UK model is {uk_row.model} at "
-            f"{fmt_score(uk_row.score)}."
+            f"{fmt_score(uk_row.exact)}."
         )
     if uk_row.model == global_row.model:
         return (
             f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-            f"{uk_row.model} is the top UK and shared global model at "
-            f"{fmt_score(uk_row.score)} and {fmt_score(global_row.score)}, "
+            f"{uk_row.model} is the top UK and shared global model on {metric} "
+            f"at {fmt_score(uk_row.exact)} and {fmt_score(global_row.exact)}, "
             f"respectively, while the top US model is {us_row.model} at "
-            f"{fmt_score(us_row.score)}."
+            f"{fmt_score(us_row.exact)}."
         )
     return (
         f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-        f"the top US model is {us_row.model} at {fmt_score(us_row.score)}, "
-        f"the top UK model is {uk_row.model} at {fmt_score(uk_row.score)}, "
-        f"and the top shared global model is {global_row.model} at "
-        f"{fmt_score(global_row.score)}."
+        f"the top US model on {metric} is {us_row.model} at "
+        f"{fmt_score(us_row.exact)}, the top UK model is {uk_row.model} at "
+        f"{fmt_score(uk_row.exact)}, and the top shared global model is "
+        f"{global_row.model} at {fmt_score(global_row.exact)}."
     )
 
 
@@ -967,15 +978,15 @@ uk_ranked = uk_model.reset_index(drop=True)
 global_ranked = global_model.reset_index(drop=True)
 
 us_top_three = [
-    f"{row.model} ({fmt_score(row.score)})"
+    f"{row.model} ({fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
     for row in us_ranked.head(3).itertuples()
 ]
 uk_top_three = [
-    f"{row.model} ({fmt_score(row.score)})"
+    f"{row.model} ({fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
     for row in uk_ranked.head(3).itertuples()
 ]
 global_top_three = [
-    f"{row.model} ({fmt_score(row.score)})"
+    f"{row.model} ({fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
     for row in global_ranked.head(3).itertuples()
 ]
 
@@ -996,7 +1007,7 @@ conclusion_snapshot_summary = country_top_sentence(us_top_model, uk_top_model)
 
 ## Abstract
 
-PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and scores outputs with a bounded `0-100` metric. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <https://policybench.org>.
+PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and reports two scores side by side: an exact-match rate (the deployability bar — predictions are graded only if they match the PolicyEngine reference to the dollar or to the eligibility flag) and a continuous bounded score that awards partial credit for close answers. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <https://policybench.org>.
 
 ## Introduction
 
@@ -1010,7 +1021,7 @@ This matters for public-facing calculators, analyst workflows, and tax-preparati
 
 The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem [@holzenberger2021sara]. LegalBench broadens this view and includes tax-oriented numeric tasks such as `sara_numeric` [@guha2023legalbench]. RuleArena evaluates rule-guided reasoning in regulation-style settings [@zhou2025rulearena], and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs [@taxcalcbench2025]. @shanahan2025vita report a similar split on the Volunteer Income Tax Assistance (VITA) test: models do better on tax knowledge questions than on open-ended calculation tasks.
 
-PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks [@cobbe2021training; @hendrycks2021math]. That norm is less natural for continuous-valued policy outputs, where being within 1 percent is closer than being off by an order of magnitude. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead [@zhou2025tempanswerqa]. PolicyBench follows that direction by combining exactness with near-miss thresholds rather than collapsing everything into exact match alone.
+PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks [@cobbe2021training; @hendrycks2021math]. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead [@zhou2025tempanswerqa]. PolicyBench treats this as a measurement design choice rather than a forced pick: it reports an exact-match rate as the primary deployability metric (a tax filer or benefits caseworker can't ship "close") and a bounded continuous score that awards partial credit for near-miss thresholds as a secondary tracking diagnostic.
 
 Finance-domain benchmarks provide another relevant precedent. FinQA and TAT-QA both show that realistic quantitative reasoning often requires combining structured numbers with domain knowledge rather than solving stylized school-math problems [@chen2021finqa; @zhu2021tatqa]. PolicyBench differs in that its reference outputs are generated by executable tax-benefit microsimulation rather than annotated document questions, but the underlying motivation is similar: domain-specific quantitative reasoning deserves dedicated evaluation.
 
@@ -1020,22 +1031,30 @@ Finally, PolicyBench depends on two infrastructure literatures that are not them
 
 PolicyBench asks models to predict all benchmark outputs for a household in a single structured response. One response per household reduces repeated prompt cost and keeps the task at the household-return level rather than turning it into a sequence of unrelated one-output calls.
 
-The benchmark uses a bounded `0-100` score. For amount variables, the score averages four hit rates:
+### Primary metric: exact match
+
+The primary metric is the exact-match rate: the share of requested outputs the model gets right to the dollar (or, for eligibility flags, to the boolean). This is the deployability bar — a tax filer, a benefit estimator, or a caseworker cannot ship "close." A prediction that is off by $50 is no more usable than one off by $500, because neither matches the bottom line a downstream system or a household needs. For currency amounts, "exact" means within `1` currency unit of the reference value after numeric parsing. For binary outputs, "exact" means the parsed 0/1 flag equals the reference flag.
+
+The exact-match rate is aggregated to a household score, then to a country score, then to a global score, with the same per-output weighting that the secondary bounded score uses (a blend of equal weighting and absolute-reference-impact share). Equal household weight within each country and equal country weight globally preserve comparability across scenarios and slices.
+
+### Secondary metric: bounded continuous score
+
+PolicyBench also reports a bounded `0-100` continuous score that awards partial credit for close-but-not-exact answers. This is informative for tracking conceptual progress year over year while exact rates remain low, and it captures the qualitative gap between a model that is consistently within 1% and one that is consistently off by 50%. For amount variables, the bounded score averages four nested hit rates:
 
 1. exact
 2. within 1%
 3. within 5%
 4. within 10%
 
-For binary outputs, the score is exact accuracy. This keeps `100` as the ceiling while still giving partial credit for near misses on amount outputs. PolicyBench also tracks mean absolute error and related error metrics, but those are secondary to the bounded score. This choice preserves exact-match comparability while avoiding the failure mode that recent numeric-evaluation papers have criticized [@zhou2025tempanswerqa].
+For binary outputs, the bounded score reduces to exact accuracy. Because the four thresholds are nested (exact $\subseteq$ within-1% $\subseteq$ within-5% $\subseteq$ within-10%), averaging their indicator functions is equivalent to assigning step credit by error band: predictions that match exactly receive 1.00, predictions inside 1% but not exact receive 0.75, predictions inside 5% but outside 1% receive 0.50, predictions inside 10% but outside 5% receive 0.25, and predictions outside 10% receive 0.00. The bounded score is therefore a partial-credit rule that rewards tighter agreement more than looser agreement, not an unweighted aggregate of independent hit rates.
 
-Because the four thresholds are nested (exact $\subseteq$ within-1% $\subseteq$ within-5% $\subseteq$ within-10%), averaging their indicator functions is equivalent to assigning step credit by error band: predictions that match exactly receive 1.00, predictions inside 1% but not exact receive 0.75, predictions inside 5% but outside 1% receive 0.50, predictions inside 10% but outside 5% receive 0.25, and predictions outside 10% receive 0.00. The score is therefore a partial-credit rule that rewards tighter agreement more than looser agreement, not an unweighted aggregate of independent hit rates.
+PolicyBench also tracks mean absolute error and related error metrics. These remain secondary diagnostics under both the primary exact-match metric and the bounded score. The two-metric design follows recent numeric-evaluation literature that questions pure exact-match scoring [@zhou2025tempanswerqa] without abandoning exactness as the production bar.
 
 All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026; UK outputs are annual amounts or annual eligibility indicators for fiscal year 2026-27. For currency amounts, the "exact" hit rate means within `1` currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same `1` currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as `0` or `1` eligibility flags and scored by exact classification accuracy. Missing or unparseable numeric answers receive zero score for that requested output.
 
 Aggregation proceeds in four steps. First, each household-output prediction receives a `0-100` score. Second, each household receives one model score: requested output rows are weighted inside the household by a blend of equal weighting and absolute PolicyEngine reference-impact share. Person-level coverage flags are scored at the person row, with value-proxy impact weights where available. Third, country scores average those household scores with equal household weight. Fourth, global scores average the US and UK country scores for models run in both countries. The global score is therefore an equal-country, household-equal summary for this benchmark sample, not a universally authoritative measure of tax-benefit competence. Equal-output-group scores and other alternative views are reported as sensitivity checks.
 
-The benchmark requires each model response to include numeric answers and one explanation per requested output. The headline score uses only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.
+The benchmark requires each model response to include numeric answers and one explanation per requested output. Both the exact-match rate and the bounded score use only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.
 
 Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are `0`, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output.
 
@@ -1133,7 +1152,7 @@ global_top
 
 ### Simple baselines
 
-Simple baselines help interpret score levels in a zero-heavy benchmark. @tbl-baselines reports an always-zero response and a median-reference-by-output response on the same frozen household sample. These are not model competitors; they show how much of the bounded score can be earned without household-specific policy calculation.
+Simple baselines help interpret score levels in a zero-heavy benchmark. @tbl-baselines reports an always-zero response and a median-reference-by-output response on the same frozen household sample. These are not model competitors; they show how much of either metric can be earned without household-specific policy calculation — and they make clear why the exact-match rate is not a trivial bar to clear above the always-zero baseline on positive-reference cases.
 
 ```{python}
 #| label: tbl-baselines
@@ -1151,17 +1170,17 @@ The primary leaderboard gives each country equal weight globally and each househ
 sensitivity
 ```
 
-The headline metric is a bounded global variable weight applied to a continuous row score. For each requested output and household, the row score is `max(0, 1 − |pred − ref| / |ref|)` when the reference is nonzero and `1{pred = 0}` when the reference is zero (which makes the same formula handle boolean eligibility flags naturally). Each variable's weight is the mean across all benchmark households of `|ref_ij| / max(|household_net_income_i|, Σ_k |ref_ik|)`, renormalized so the global weights sum to one. The `max(...)` denominator anchors per-household shares to net income when net income is the dominant flow and falls back to the gross tax-benefit flow only when programs cancel each other out, so a $1 benefit to a high-earner contributes essentially zero weight and per-household shares never exceed one. Booleans carry weight through PolicyEngine's paired per-capita value (for example `medicaid_value`), so eligibility calls are graded as accuracy but weighted by the dollar stake. @tbl-impact-floor compares the headline ranking against two opt-in alternatives shown for transparency: equal weighting (every output the same) and budget-weighted (each variable's share of total absolute reference dollars).
+The bounded score is a global-variable-weighted average of a continuous row score. For each requested output and household, the row score is `max(0, 1 − |pred − ref| / |ref|)` when the reference is nonzero and `1{pred = 0}` when the reference is zero (which makes the same formula handle boolean eligibility flags naturally). The exact-match rate uses the same weighting and aggregation but replaces the continuous row score with a strict indicator: `1{pred = ref}` to the dollar (or to the eligibility flag). Each variable's weight is the mean across all benchmark households of `|ref_ij| / max(|household_net_income_i|, Σ_k |ref_ik|)`, renormalized so the global weights sum to one. The `max(...)` denominator anchors per-household shares to net income when net income is the dominant flow and falls back to the gross tax-benefit flow only when programs cancel each other out, so a $1 benefit to a high-earner contributes essentially zero weight and per-household shares never exceed one. Booleans carry weight through PolicyEngine's paired per-capita value (for example `medicaid_value`), so eligibility calls are graded as accuracy but weighted by the dollar stake. @tbl-impact-floor compares the bounded-score ranking against two opt-in alternatives shown for transparency: equal weighting (every output the same) and budget-weighted (each variable's share of total absolute reference dollars).
 
 ```{python}
 #| label: tbl-impact-floor
-#| tbl-cap: "Top global ranks under the bounded headline metric and two opt-in alternatives."
+#| tbl-cap: "Top global ranks under the bounded secondary metric across three weightings (Household, Aggregate, Equal). The primary exact-match ranking is summarised in @tbl-global-top."
 impact_floor
 ```
 
 ### Sampling uncertainty
 
-The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws. It resamples households within each country, recomputes the bounded global variable weights and per-country headline scores from the resampled sample, then recomputes the equal-country global score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after `{python} MODEL_RESPONSE_DATE` in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
+The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws on the bounded secondary score; analogous exact-match intervals are not separately tabulated because the bounded-score bootstrap is the tighter test (the exact indicator is the leading hit-rate term inside the bounded score). The procedure resamples households within each country, recomputes the bounded global variable weights and per-country bounded scores from the resampled sample, then recomputes the equal-country global bounded score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after `{python} MODEL_RESPONSE_DATE` in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
 
 ```{python}
 #| label: tbl-bootstrap
@@ -1175,7 +1194,7 @@ The lowest-scoring US variables are multi-step tax quantities and sparse positiv
 
 ```{python}
 #| label: tbl-us-hardest
-#| tbl-cap: "Hardest US variables by bounded score."
+#| tbl-cap: "Hardest US variables by bounded score (the secondary metric, used here because exact-match rates on the hardest variables compress to single-digit percentages and don't discriminate well)."
 us_hardest
 ```
 
@@ -1183,7 +1202,7 @@ The same pattern appears in the UK run. Income tax and National Insurance are th
 
 ```{python}
 #| label: tbl-uk-hardest
-#| tbl-cap: "Hardest UK variables by bounded score."
+#| tbl-cap: "Hardest UK variables by bounded score (the secondary metric, used here because exact-match rates on the hardest variables compress to single-digit percentages and don't discriminate well)."
 uk_hardest
 ```
 
@@ -1229,7 +1248,7 @@ PolicyBench is not a substitute for a production tax-and-benefit calculator. Sev
 
 - output-contract reliability required a repair workflow, and the raw failed attempts are preserved separately from the repaired canonical prediction files
 - zero-heavy outputs require separate positive-case interpretation
-- the scoring rule is one benchmark view and should be checked against alternative metrics
+- the choice of primary metric (exact match) and secondary tracking metric (bounded score) is one benchmark view; both are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate
 - the global score is an equal-country, household-equal summary for models run in both countries, not a universal ranking of model quality
 - the public UK calibrated transfer dataset is not equivalent to enhanced Family Resources Survey quality and is not population-representative UK microdata
 - the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail
