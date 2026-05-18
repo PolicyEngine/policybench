@@ -119,11 +119,15 @@ export default function ModelLeaderboard({
   const isGlobal = selectedView === "global";
   const [sensitivityView, setSensitivityView] =
     useState<SensitivityViewId>("household");
-  // Headline scoring: "exact" defaults because policy/tax decisions need to
-  // be right to the dollar — a "close" answer isn't deployable. "approximate"
-  // is the bounded `max(0, 1 - |err|/|ref|)` score from the paper; useful for
-  // tracking year-over-year competency while exact rates remain low.
-  const [scoringMode, setScoringMode] = useState<"exact" | "approximate">("exact");
+  // Headline scoring: defaults to "exact" because policy/tax decisions need
+  // to be right to the dollar — a "close" answer isn't deployable.
+  // "within1pct" is the natural analyst bar where rounding and small-rate
+  // drift are acceptable. "approximate" is the bounded
+  // `max(0, 1 - |err|/|ref|)` score from the paper, useful for tracking
+  // conceptual progress year over year while exact rates remain low.
+  const [scoringMode, setScoringMode] = useState<
+    "exact" | "within1pct" | "approximate"
+  >("exact");
   // Default: frontier-only, no provider filter. The benchmark currently has
   // 12 models; "frontier" narrows to one flagship per provider for a
   // scannable top-line read.
@@ -165,12 +169,13 @@ export default function ModelLeaderboard({
     return true;
   };
 
-  // Compute weighted exact-match score for one model under the current
-  // weighting. Per-country payloads carry the heatmap (per-(model, variable)
-  // exact rates) and globalWeights needed for the weighted average; global
-  // view falls back to the simple unweighted mean stored on modelStat.exact
-  // because per-country exact breakdowns aren't surfaced in the global slice.
-  const exactScoreByModel = useMemo(() => {
+  // Compute weighted hit-rate for one model under the current weighting. We
+  // use this for both "exact" (uses heatmap.exact) and "within 1%" (uses
+  // heatmap.within1pct). Per-country payloads carry the heatmap and
+  // globalWeights needed for the weighted average; global view falls back to
+  // the simple unweighted mean on modelStat.exact / modelStat.within1pct
+  // because per-country breakdowns aren't surfaced in the global slice.
+  const hitRateByModel = (field: "exact" | "within1pct") => {
     const out = new Map<string, number>();
     if (isGlobal) return out;
     const country = data as BenchData;
@@ -179,11 +184,12 @@ export default function ModelLeaderboard({
     const totals = new Map<string, { num: number; den: number }>();
     for (const entry of country.heatmap ?? []) {
       if (entry.condition !== "no_tools") continue;
-      if (entry.exact === undefined) continue;
+      const value = entry[field];
+      if (value === undefined) continue;
       const w = weights[entry.variable];
       if (w === undefined) continue;
       const acc = totals.get(entry.model) ?? { num: 0, den: 0 };
-      acc.num += w * (entry.exact / 100);
+      acc.num += w * (value / 100);
       acc.den += w;
       totals.set(entry.model, acc);
     }
@@ -191,23 +197,39 @@ export default function ModelLeaderboard({
       if (den > 0) out.set(model, (num / den) * 100);
     }
     return out;
-  }, [data, effectiveView, isGlobal]);
+  };
+
+  const exactScoreByModel = useMemo(
+    () => hitRateByModel("exact"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, effectiveView, isGlobal],
+  );
+  const within1pctScoreByModel = useMemo(
+    () => hitRateByModel("within1pct"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, effectiveView, isGlobal],
+  );
 
   const noTools = useMemo<ModelStat[]>(() => {
     const base = data.modelStats
       .filter((m) => m.condition === "no_tools")
       .filter((m) => filterModel(m.model));
 
-    if (scoringMode === "exact") {
-      // Exact: percent of predictions that match to the dollar (or to the
-      // boolean for eligibility flags). Weighted average for per-country
-      // views; simple model.exact for the global view.
+    if (scoringMode === "exact" || scoringMode === "within1pct") {
+      // Exact: percent of predictions that match the reference to the dollar
+      // (or to the boolean for eligibility flags). Within-1%: the analyst
+      // bar — rounding and tiny rate drift are OK, but not material misses.
+      // Weighted by the active variable weighting for per-country views;
+      // simple model.exact / model.within1pct for the global view, which
+      // doesn't carry the heatmap.
+      const weighted =
+        scoringMode === "exact" ? exactScoreByModel : within1pctScoreByModel;
       return [...base]
         .map((m) => {
-          const exactWeighted = exactScoreByModel.get(m.model);
-          const exact =
-            exactWeighted !== undefined ? exactWeighted : (m.exact ?? 0);
-          return { ...m, score: exact };
+          const w = weighted.get(m.model);
+          const fallback =
+            scoringMode === "exact" ? (m.exact ?? 0) : (m.within1pct ?? 0);
+          return { ...m, score: w !== undefined ? w : fallback };
         })
         .sort((a, b) => b.score - a.score);
     }
@@ -227,6 +249,7 @@ export default function ModelLeaderboard({
     effectiveView,
     sensitivityScoreByModel,
     exactScoreByModel,
+    within1pctScoreByModel,
     scoringMode,
     frontierOnly,
     providerFilter,
@@ -404,6 +427,11 @@ export default function ModelLeaderboard({
                 "Percent of predictions that match the PolicyEngine reference to the dollar (or to the boolean for eligibility flags). Real-world policy decisions need this — close-but-not-right isn't deployable.",
               ],
               [
+                "within1pct",
+                "Within 1%",
+                "Percent of predictions within 1% of the reference. The analyst bar — rounding and small rate/parameter drift are tolerated, but material misses are not.",
+              ],
+              [
                 "approximate",
                 "Approximate",
                 "Bounded continuous score: max(0, 1 - |prediction - reference| / |reference|). Awards partial credit for close answers; useful for tracking conceptual progress while exact rates remain low.",
@@ -432,7 +460,9 @@ export default function ModelLeaderboard({
         <span className="text-[11px] text-text-muted">
           {scoringMode === "exact"
             ? "Percent matching to the dollar / boolean."
-            : "Bounded score: 1 − |err| / |ref|, clipped to [0, 1]."}
+            : scoringMode === "within1pct"
+              ? "Percent within 1% of reference (analyst tolerance)."
+              : "Bounded score: 1 − |err| / |ref|, clipped to [0, 1]."}
         </span>
       </div>
 
@@ -514,7 +544,13 @@ export default function ModelLeaderboard({
         className="mt-8 space-y-3"
       >
         <p className="sr-only" role="status">
-          {`${noTools.length} models, ranked by ${scoringMode === "exact" ? "exact-match" : `${activeView.label.toLowerCase()}-weighted bounded`} score (${
+          {`${noTools.length} models, ranked by ${
+            scoringMode === "exact"
+              ? "exact-match"
+              : scoringMode === "within1pct"
+                ? "within-1% hit rate"
+                : `${activeView.label.toLowerCase()}-weighted bounded`
+          } score (${
             isGlobal ? "global" : selectedView === "us" ? "United States" : "United Kingdom"
           })`}
         </p>
@@ -531,9 +567,13 @@ export default function ModelLeaderboard({
               ? isGlobal
                 ? "Global exact %"
                 : "Exact match %"
-              : isGlobal
-                ? "Global score"
-                : "Score"}
+              : scoringMode === "within1pct"
+                ? isGlobal
+                  ? "Global within 1%"
+                  : "Within 1%"
+                : isGlobal
+                  ? "Global score"
+                  : "Score"}
           </div>
           <div role="columnheader" className="col-span-3 text-right">
             {isGlobal ? "Country scores" : "MAE"}
