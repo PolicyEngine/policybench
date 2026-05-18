@@ -109,7 +109,7 @@ def prompt_payload_hash_prefix(country: str) -> str:
 def model_frame(country: str) -> pd.DataFrame:
     return pd.DataFrame(country_payload(country)["modelStats"]).sort_values(
         # Sort by the exact-match rate — the deployability bar. The bounded
-        # `score` column is preserved for the secondary "Approximate" view.
+        # `score` column is preserved for the secondary "Continuous" view.
         "exact",
         ascending=False,
     )
@@ -1037,9 +1037,15 @@ The primary metric is the exact-match rate: the share of requested outputs the m
 
 The exact-match rate is aggregated to a household score, then to a country score, then to a global score, with the same per-output weighting that the secondary bounded score uses (a blend of equal weighting and absolute-reference-impact share). Equal household weight within each country and equal country weight globally preserve comparability across scenarios and slices.
 
+### Tolerance variant: within 1%
+
+PolicyBench also reports a within-1% hit rate as a tolerance variant of the exact-match metric. It is intended as the analyst bar: a prediction that is off by less than 1 percent of the reference is unlikely to mislead a research or planning workflow, even if it is not directly shippable. For currency amounts, "within 1%" means `|pred − ref| ≤ 0.01 × |ref|` when the reference is nonzero and `|pred| ≤ 1` (i.e., the same dollar tolerance as the exact case) when the reference is zero. Binary outputs are scored identically to the exact-match metric because there is no rounding tolerance between 0 and 1.
+
+The within-1% hit rate uses the same per-output weighting as the exact-match metric. It is reported alongside exact match in the live leaderboard's Scoring toggle and in the table columns below; the manuscript leads with exact match because that is the deployability bar, but the within-1% column is the more discriminating ranking when frontier models are close to but not at the production bar.
+
 ### Secondary metric: bounded continuous score
 
-PolicyBench also reports a bounded `0-100` continuous score that awards partial credit for close-but-not-exact answers. This is informative for tracking conceptual progress year over year while exact rates remain low, and it captures the qualitative gap between a model that is consistently within 1% and one that is consistently off by 50%. For amount variables, the bounded score averages four nested hit rates:
+PolicyBench also reports a bounded `0-100` continuous score that awards smooth partial credit for close-but-not-exact answers. This is informative for tracking conceptual progress year over year while exact rates remain low, and it captures the qualitative gap between a model that is consistently within 1% and one that is consistently off by 50%. For amount variables, the bounded score averages four nested hit rates:
 
 1. exact
 2. within 1%

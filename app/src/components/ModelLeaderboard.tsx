@@ -122,11 +122,11 @@ export default function ModelLeaderboard({
   // Headline scoring: defaults to "exact" because policy/tax decisions need
   // to be right to the dollar — a "close" answer isn't deployable.
   // "within1pct" is the natural analyst bar where rounding and small-rate
-  // drift are acceptable. "approximate" is the bounded
+  // drift are acceptable. "continuous" is the bounded
   // `max(0, 1 - |err|/|ref|)` score from the paper, useful for tracking
   // conceptual progress year over year while exact rates remain low.
   const [scoringMode, setScoringMode] = useState<
-    "exact" | "within1pct" | "approximate"
+    "exact" | "within1pct" | "continuous"
   >("exact");
   // Default: frontier-only, no provider filter. The benchmark currently has
   // 12 models; "frontier" narrows to one flagship per provider for a
@@ -432,9 +432,9 @@ export default function ModelLeaderboard({
                 "Percent of predictions within 1% of the reference. The analyst bar — rounding and small rate/parameter drift are tolerated, but material misses are not.",
               ],
               [
-                "approximate",
-                "Approximate",
-                "Bounded continuous score: max(0, 1 - |prediction - reference| / |reference|). Awards partial credit for close answers; useful for tracking conceptual progress while exact rates remain low.",
+                "continuous",
+                "Continuous",
+                "Bounded continuous score: max(0, 1 - |prediction - reference| / |reference|), clipped to [0, 1], reducing to exact-match accuracy for boolean variables. Awards partial credit for close answers; useful for tracking conceptual progress while exact rates remain low.",
               ],
             ] as const
           ).map(([id, label, description]) => {

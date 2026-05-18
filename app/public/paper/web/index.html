@@ -114,6 +114,7 @@ div.csl-indent {
   <li><a href="#benchmark-design" id="toc-benchmark-design">Benchmark design</a>
   <ul>
   <li><a href="#primary-metric-exact-match" id="toc-primary-metric-exact-match">Primary metric: exact match</a></li>
+  <li><a href="#tolerance-variant-within-1" id="toc-tolerance-variant-within-1">Tolerance variant: within 1%</a></li>
   <li><a href="#secondary-metric-bounded-continuous-score" id="toc-secondary-metric-bounded-continuous-score">Secondary metric: bounded continuous score</a></li>
   <li><a href="#frozen-snapshot-and-open-set-status" id="toc-frozen-snapshot-and-open-set-status">Frozen snapshot and open-set status</a></li>
   </ul></li>
@@ -157,8 +158,11 @@ div.csl-indent {
 <h3 id="primary-metric-exact-match" class="anchored">Primary metric: exact match</h3>
 <p>The primary metric is the exact-match rate: the share of requested outputs the model gets right to the dollar (or, for eligibility flags, to the boolean). This is the deployability bar — a tax filer, a benefit estimator, or a caseworker cannot ship “close.” A prediction that is off by $50 is no more usable than one off by $500, because neither matches the bottom line a downstream system or a household needs. For currency amounts, “exact” means within <code>1</code> currency unit of the reference value after numeric parsing. For binary outputs, “exact” means the parsed 0/1 flag equals the reference flag.</p>
 <p>The exact-match rate is aggregated to a household score, then to a country score, then to a global score, with the same per-output weighting that the secondary bounded score uses (a blend of equal weighting and absolute-reference-impact share). Equal household weight within each country and equal country weight globally preserve comparability across scenarios and slices.</p>
+<h3 id="tolerance-variant-within-1" class="anchored">Tolerance variant: within 1%</h3>
+<p>PolicyBench also reports a within-1% hit rate as a tolerance variant of the exact-match metric. It is intended as the analyst bar: a prediction that is off by less than 1 percent of the reference is unlikely to mislead a research or planning workflow, even if it is not directly shippable. For currency amounts, “within 1%” means <code>|pred − ref| ≤ 0.01 × |ref|</code> when the reference is nonzero and <code>|pred| ≤ 1</code> (i.e., the same dollar tolerance as the exact case) when the reference is zero. Binary outputs are scored identically to the exact-match metric because there is no rounding tolerance between 0 and 1.</p>
+<p>The within-1% hit rate uses the same per-output weighting as the exact-match metric. It is reported alongside exact match in the live leaderboard’s Scoring toggle and in the table columns below; the manuscript leads with exact match because that is the deployability bar, but the within-1% column is the more discriminating ranking when frontier models are close to but not at the production bar.</p>
 <h3 id="secondary-metric-bounded-continuous-score" class="anchored">Secondary metric: bounded continuous score</h3>
-<p>PolicyBench also reports a bounded <code>0-100</code> continuous score that awards partial credit for close-but-not-exact answers. This is informative for tracking conceptual progress year over year while exact rates remain low, and it captures the qualitative gap between a model that is consistently within 1% and one that is consistently off by 50%. For amount variables, the bounded score averages four nested hit rates:</p>
+<p>PolicyBench also reports a bounded <code>0-100</code> continuous score that awards smooth partial credit for close-but-not-exact answers. This is informative for tracking conceptual progress year over year while exact rates remain low, and it captures the qualitative gap between a model that is consistently within 1% and one that is consistently off by 50%. For amount variables, the bounded score averages four nested hit rates:</p>
 <ol type="1">
 <li>exact</li>
 <li>within 1%</li>
