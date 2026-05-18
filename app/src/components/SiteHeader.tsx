@@ -208,7 +208,7 @@ export default function SiteHeader({
 
       {alwaysExpanded && (
         <div
-          className="absolute inset-x-0 top-0 h-[280px] bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--color-primary)_13%,transparent),transparent_58%)] pointer-events-none"
+          className="absolute inset-x-0 top-0 h-[280px] bg-[radial-gradient(ellipse_70%_100%_at_top,_color-mix(in_srgb,var(--color-primary)_13%,transparent)_0%,transparent_70%)] pointer-events-none"
         />
       )}
 
