@@ -119,6 +119,11 @@ export default function ModelLeaderboard({
   const isGlobal = selectedView === "global";
   const [sensitivityView, setSensitivityView] =
     useState<SensitivityViewId>("household");
+  // Headline scoring: "exact" defaults because policy/tax decisions need to
+  // be right to the dollar — a "close" answer isn't deployable. "approximate"
+  // is the bounded `max(0, 1 - |err|/|ref|)` score from the paper; useful for
+  // tracking year-over-year competency while exact rates remain low.
+  const [scoringMode, setScoringMode] = useState<"exact" | "approximate">("exact");
   // Default: frontier-only, no provider filter. The benchmark currently has
   // 12 models; "frontier" narrows to one flagship per provider for a
   // scannable top-line read.
@@ -160,10 +165,53 @@ export default function ModelLeaderboard({
     return true;
   };
 
+  // Compute weighted exact-match score for one model under the current
+  // weighting. Per-country payloads carry the heatmap (per-(model, variable)
+  // exact rates) and globalWeights needed for the weighted average; global
+  // view falls back to the simple unweighted mean stored on modelStat.exact
+  // because per-country exact breakdowns aren't surfaced in the global slice.
+  const exactScoreByModel = useMemo(() => {
+    const out = new Map<string, number>();
+    if (isGlobal) return out;
+    const country = data as BenchData;
+    const weights = country.globalWeights?.[effectiveView];
+    if (!weights) return out;
+    const totals = new Map<string, { num: number; den: number }>();
+    for (const entry of country.heatmap ?? []) {
+      if (entry.condition !== "no_tools") continue;
+      if (entry.exact === undefined) continue;
+      const w = weights[entry.variable];
+      if (w === undefined) continue;
+      const acc = totals.get(entry.model) ?? { num: 0, den: 0 };
+      acc.num += w * (entry.exact / 100);
+      acc.den += w;
+      totals.set(entry.model, acc);
+    }
+    for (const [model, { num, den }] of totals) {
+      if (den > 0) out.set(model, (num / den) * 100);
+    }
+    return out;
+  }, [data, effectiveView, isGlobal]);
+
   const noTools = useMemo<ModelStat[]>(() => {
     const base = data.modelStats
       .filter((m) => m.condition === "no_tools")
       .filter((m) => filterModel(m.model));
+
+    if (scoringMode === "exact") {
+      // Exact: percent of predictions that match to the dollar (or to the
+      // boolean for eligibility flags). Weighted average for per-country
+      // views; simple model.exact for the global view.
+      return [...base]
+        .map((m) => {
+          const exactWeighted = exactScoreByModel.get(m.model);
+          const exact =
+            exactWeighted !== undefined ? exactWeighted : (m.exact ?? 0);
+          return { ...m, score: exact };
+        })
+        .sort((a, b) => b.score - a.score);
+    }
+
     if (effectiveView === "household") {
       return [...base].sort((a, b) => b.score - a.score);
     }
@@ -174,7 +222,15 @@ export default function ModelLeaderboard({
       .map((m) => ({ ...m, score: sensitivityScoreByModel.get(m.model)! }))
       .sort((a, b) => b.score - a.score);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, effectiveView, sensitivityScoreByModel, frontierOnly, providerFilter]);
+  }, [
+    data,
+    effectiveView,
+    sensitivityScoreByModel,
+    exactScoreByModel,
+    scoringMode,
+    frontierOnly,
+    providerFilter,
+  ]);
 
   const pendingModels = useMemo<PendingModel[]>(() => {
     const present = new Set(noTools.map((model) => model.model));
@@ -327,6 +383,61 @@ export default function ModelLeaderboard({
 
       <div
         className="mt-3 flex flex-wrap items-center gap-3 animate-fade-up"
+        style={{ animationDelay: "195ms" }}
+      >
+        <span
+          id="leaderboard-scoring-label"
+          className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+        >
+          Scoring
+        </span>
+        <div
+          role="group"
+          aria-labelledby="leaderboard-scoring-label"
+          className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+        >
+          {(
+            [
+              [
+                "exact",
+                "Exact",
+                "Percent of predictions that match the PolicyEngine reference to the dollar (or to the boolean for eligibility flags). Real-world policy decisions need this — close-but-not-right isn't deployable.",
+              ],
+              [
+                "approximate",
+                "Approximate",
+                "Bounded continuous score: max(0, 1 - |prediction - reference| / |reference|). Awards partial credit for close answers; useful for tracking conceptual progress while exact rates remain low.",
+              ],
+            ] as const
+          ).map(([id, label, description]) => {
+            const isActive = scoringMode === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setScoringMode(id)}
+                aria-pressed={isActive}
+                title={description}
+                className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary-strong text-white"
+                    : "text-text-secondary hover:text-text"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[11px] text-text-muted">
+          {scoringMode === "exact"
+            ? "Percent matching to the dollar / boolean."
+            : "Bounded score: 1 − |err| / |ref|, clipped to [0, 1]."}
+        </span>
+      </div>
+
+      <div
+        className="mt-3 flex flex-wrap items-center gap-3 animate-fade-up"
         style={{ animationDelay: "200ms" }}
       >
         <span
@@ -403,7 +514,7 @@ export default function ModelLeaderboard({
         className="mt-8 space-y-3"
       >
         <p className="sr-only" role="status">
-          {`${noTools.length} models, ranked by ${activeView.label} score (${
+          {`${noTools.length} models, ranked by ${scoringMode === "exact" ? "exact-match" : `${activeView.label.toLowerCase()}-weighted bounded`} score (${
             isGlobal ? "global" : selectedView === "us" ? "United States" : "United Kingdom"
           })`}
         </p>
@@ -416,7 +527,13 @@ export default function ModelLeaderboard({
           <div role="columnheader" className="col-span-1">#</div>
           <div role="columnheader" className={isGlobal ? "col-span-5" : "col-span-5"}>Model</div>
           <div role="columnheader" className="col-span-3 text-right">
-            {isGlobal ? "Global score" : "Score"}
+            {scoringMode === "exact"
+              ? isGlobal
+                ? "Global exact %"
+                : "Exact match %"
+              : isGlobal
+                ? "Global score"
+                : "Score"}
           </div>
           <div role="columnheader" className="col-span-3 text-right">
             {isGlobal ? "Country scores" : "MAE"}
