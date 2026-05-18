@@ -10,8 +10,11 @@ import { formatCurrency } from "../format";
 import {
   MODEL_LABELS,
   MODEL_ORDER,
+  PROVIDER_LABELS,
   getProviderForModel,
   getPredictionTextColor,
+  isFrontierModel,
+  type ProviderKey,
 } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
 
@@ -111,13 +114,32 @@ export default function ScenarioExplorer({
 
   const variables = useMemo(() => Object.keys(predictions).sort(), [predictions]);
 
-  const models = useMemo(() => {
+  // Frontier-only narrows to one flagship per provider; provider chips
+  // multi-select. The scenario explorer table is wide (one column per model),
+  // so these filters live here rather than on the leaderboard.
+  const [frontierOnly, setFrontierOnly] = useState(true);
+  const [providerFilter, setProviderFilter] = useState<Set<ProviderKey>>(
+    () => new Set(),
+  );
+
+  const allModels = useMemo(() => {
     const unique = new Set<string>();
     for (const varData of Object.values(predictions)) {
       for (const m of Object.keys(varData)) unique.add(m);
     }
     return MODEL_ORDER.filter((m) => unique.has(m));
   }, [predictions]);
+
+  const models = useMemo(() => {
+    return allModels.filter((m) => {
+      if (frontierOnly && !isFrontierModel(m)) return false;
+      if (providerFilter.size > 0) {
+        const provider = getProviderForModel(m);
+        if (!provider || !providerFilter.has(provider)) return false;
+      }
+      return true;
+    });
+  }, [allModels, frontierOnly, providerFilter]);
 
   // The detail modal opens on click. Selection is scoped to the current
   // scenario so switching households doesn't carry the old cell over.
@@ -392,7 +414,73 @@ export default function ScenarioExplorer({
       )}
 
       <div
-        className="relative mt-6 overflow-x-auto animate-fade-up"
+        className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3 animate-fade-up"
+        style={{ animationDelay: "300ms" }}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            id="scenarios-filter-label"
+            className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+          >
+            Show
+          </span>
+          <button
+            type="button"
+            onClick={() => setFrontierOnly((v) => !v)}
+            aria-pressed={frontierOnly}
+            className={`rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
+              frontierOnly
+                ? "border-primary-strong bg-primary-strong text-white"
+                : "border-border bg-card text-text-secondary hover:text-text"
+            }`}
+            title="Show only one frontier flagship per provider (Opus 4.7, GPT-5.5, Grok 4.3, Gemini 3.1 Pro Preview)"
+          >
+            Frontier only
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            id="scenarios-provider-label"
+            className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+          >
+            Provider
+          </span>
+          <div
+            role="group"
+            aria-labelledby="scenarios-provider-label"
+            className="inline-flex flex-wrap items-center gap-1"
+          >
+            {(Object.keys(PROVIDER_LABELS) as ProviderKey[]).map((provider) => {
+              const isActive = providerFilter.has(provider);
+              return (
+                <button
+                  key={provider}
+                  type="button"
+                  onClick={() => {
+                    setProviderFilter((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(provider)) next.delete(provider);
+                      else next.add(provider);
+                      return next;
+                    });
+                  }}
+                  aria-pressed={isActive}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
+                    isActive
+                      ? "border-primary-strong bg-primary-soft text-primary-strong"
+                      : "border-border bg-card text-text-secondary hover:text-text"
+                  }`}
+                >
+                  {PROVIDER_LABELS[provider]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="relative mt-3 overflow-x-auto animate-fade-up"
         style={{ animationDelay: "320ms" }}
       >
         <table className="w-full border-collapse">
