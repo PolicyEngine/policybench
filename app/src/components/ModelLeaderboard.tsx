@@ -7,14 +7,7 @@ import type {
   ViewKey,
 } from "../types";
 import { VIEW_SHORT_LABELS, getVariableLabel } from "../types";
-import {
-  MODEL_LABELS,
-  MODEL_ORDER,
-  PROVIDER_LABELS,
-  getProviderForModel,
-  isFrontierModel,
-  type ProviderKey,
-} from "../modelMeta";
+import { MODEL_LABELS, MODEL_ORDER, getProviderForModel } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
 import {
   SENSITIVITY_VIEWS,
@@ -128,13 +121,6 @@ export default function ModelLeaderboard({
   const [scoringMode, setScoringMode] = useState<
     "exact" | "within1pct" | "continuous"
   >("exact");
-  // Default: frontier-only, no provider filter. The benchmark currently has
-  // 12 models; "frontier" narrows to one flagship per provider for a
-  // scannable top-line read.
-  const [frontierOnly, setFrontierOnly] = useState(true);
-  const [providerFilter, setProviderFilter] = useState<Set<ProviderKey>>(
-    () => new Set(),
-  );
 
   // Defensive: if a model's payload doesn't include the requested view (stale
   // data.json), fall back to the canonical Household view so the leaderboard
@@ -159,15 +145,6 @@ export default function ModelLeaderboard({
     for (const entry of sensitivityScores) out.set(entry.model, entry.score);
     return out;
   }, [sensitivityScores]);
-
-  const filterModel = (model: string): boolean => {
-    if (frontierOnly && !isFrontierModel(model)) return false;
-    if (providerFilter.size > 0) {
-      const provider = getProviderForModel(model);
-      if (!provider || !providerFilter.has(provider)) return false;
-    }
-    return true;
-  };
 
   // Compute weighted hit-rate for one model under the current weighting. We
   // use this for both "exact" (uses heatmap.exact) and "within 1%" (uses
@@ -211,9 +188,7 @@ export default function ModelLeaderboard({
   );
 
   const noTools = useMemo<ModelStat[]>(() => {
-    const base = data.modelStats
-      .filter((m) => m.condition === "no_tools")
-      .filter((m) => filterModel(m.model));
+    const base = data.modelStats.filter((m) => m.condition === "no_tools");
 
     if (scoringMode === "exact" || scoringMode === "within1pct") {
       // Exact: percent of predictions that match the reference to the dollar
@@ -243,7 +218,6 @@ export default function ModelLeaderboard({
       .filter((m) => sensitivityScoreByModel.has(m.model))
       .map((m) => ({ ...m, score: sensitivityScoreByModel.get(m.model)! }))
       .sort((a, b) => b.score - a.score);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     data,
     effectiveView,
@@ -251,22 +225,19 @@ export default function ModelLeaderboard({
     exactScoreByModel,
     within1pctScoreByModel,
     scoringMode,
-    frontierOnly,
-    providerFilter,
   ]);
 
   const pendingModels = useMemo<PendingModel[]>(() => {
     const present = new Set(noTools.map((model) => model.model));
-    const configured = PENDING_MODELS[selectedView]
-      .filter((model) => !present.has(model.model))
-      .filter((model) => filterModel(model.model));
+    const configured = PENDING_MODELS[selectedView].filter(
+      (model) => !present.has(model.model),
+    );
     return [...configured].sort((a, b) => {
       const aIndex = MODEL_ORDER.indexOf(a.model as (typeof MODEL_ORDER)[number]);
       const bIndex = MODEL_ORDER.indexOf(b.model as (typeof MODEL_ORDER)[number]);
       return aIndex - bIndex;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noTools, selectedView, frontierOnly, providerFilter]);
+  }, [noTools, selectedView]);
 
   const activeView = SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)!;
 
@@ -339,73 +310,7 @@ export default function ModelLeaderboard({
       </aside>
 
       <div
-        className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3 animate-fade-up"
-        style={{ animationDelay: "190ms" }}
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            id="leaderboard-filter-label"
-            className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
-          >
-            Show
-          </span>
-          <button
-            type="button"
-            onClick={() => setFrontierOnly((v) => !v)}
-            aria-pressed={frontierOnly}
-            className={`rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
-              frontierOnly
-                ? "border-primary-strong bg-primary-strong text-white"
-                : "border-border bg-card text-text-secondary hover:text-text"
-            }`}
-            title="Show only one frontier flagship per provider (Opus 4.7, GPT-5.5, Grok 4.3, Gemini 3.1 Pro Preview)"
-          >
-            Frontier only
-          </button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            id="leaderboard-provider-label"
-            className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
-          >
-            Provider
-          </span>
-          <div
-            role="group"
-            aria-labelledby="leaderboard-provider-label"
-            className="inline-flex flex-wrap items-center gap-1"
-          >
-            {(Object.keys(PROVIDER_LABELS) as ProviderKey[]).map((provider) => {
-              const isActive = providerFilter.has(provider);
-              return (
-                <button
-                  key={provider}
-                  type="button"
-                  onClick={() => {
-                    setProviderFilter((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(provider)) next.delete(provider);
-                      else next.add(provider);
-                      return next;
-                    });
-                  }}
-                  aria-pressed={isActive}
-                  className={`rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
-                    isActive
-                      ? "border-primary-strong bg-primary-soft text-primary-strong"
-                      : "border-border bg-card text-text-secondary hover:text-text"
-                  }`}
-                >
-                  {PROVIDER_LABELS[provider]}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="mt-3 flex flex-wrap items-center gap-3 animate-fade-up"
+        className="mt-5 flex flex-wrap items-center gap-3 animate-fade-up"
         style={{ animationDelay: "195ms" }}
       >
         <span
@@ -461,7 +366,7 @@ export default function ModelLeaderboard({
           {scoringMode === "exact"
             ? "Percent matching to the dollar / boolean."
             : scoringMode === "within1pct"
-              ? "Percent within 1% of reference (analyst tolerance)."
+              ? "Percent within 1% of reference."
               : "Bounded score: 1 − |err| / |ref|, clipped to [0, 1]."}
         </span>
       </div>
@@ -579,25 +484,6 @@ export default function ModelLeaderboard({
             {isGlobal ? "Country scores" : "MAE"}
           </div>
         </div>
-
-        {noTools.length === 0 && pendingModels.length === 0 && (
-          <div
-            role="status"
-            className="card px-4 py-6 text-center text-sm text-text-secondary animate-fade-up"
-          >
-            No models match these filters.{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setFrontierOnly(false);
-                setProviderFilter(new Set());
-              }}
-              className="text-primary-strong underline-offset-2 hover:underline"
-            >
-              Clear filters
-            </button>
-          </div>
-        )}
 
         {noTools.map((m, i) => {
           const stabilityLabel = fmtRunStability(
