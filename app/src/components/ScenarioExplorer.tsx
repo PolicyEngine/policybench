@@ -232,9 +232,8 @@ export default function ScenarioExplorer({
         className="text-text-secondary mt-3 max-w-2xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Inspect benchmark households and the exact prompt sent to every model.
-        Click any prediction cell to see the model&apos;s reasoning and our
-        review of where it went wrong.
+        Inspect benchmark households, reference outputs, model answers, and the
+        exact prompt sent to every model.
       </p>
 
       <div className="mt-8 flex flex-wrap items-end gap-4">
@@ -319,99 +318,6 @@ export default function ScenarioExplorer({
           </div>
         ))}
       </div>
-
-      {totalPredictionRows > 0 && (
-        <div
-          className="card px-5 py-4 mt-4 animate-fade-up"
-          style={{ animationDelay: "260ms" }}
-        >
-          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-            Explanation and audit coverage
-          </div>
-          <p className="mt-2 text-sm text-text-secondary leading-relaxed">
-            {explanationRows} of {totalPredictionRows} model-output rows for
-            this household include explanation text returned by the model.{" "}
-            {annotationRows} rows include developer audit notes for incorrect
-            predictions, and {caseAnnotationRows} incorrect rows include
-            case-level notes comparing wrong models on the same
-            household-output target. Click a prediction cell to read them
-            below the table.
-          </p>
-          {Object.keys(failureSources).length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {Object.entries(failureSources)
-                .sort((a, b) => b[1] - a[1])
-                .map(([source, count]) => (
-                  <span
-                    key={source}
-                    className="rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-[11px] text-text-secondary"
-                  >
-                    {formatFailureLabel(source)}: {count}
-                  </span>
-                ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {activePrompt && (
-        <details
-          className="card px-5 py-4 mt-6 animate-fade-up group"
-          style={{ animationDelay: "280ms" }}
-        >
-          <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-start gap-2">
-              <span
-                aria-hidden
-                className="mt-0.5 inline-block text-text-muted transition-transform group-open:rotate-90"
-              >
-                ▸
-              </span>
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                  Exact prompt
-                </div>
-                <div className="text-text text-sm mt-1">
-                  Full household batch contract for all benchmark outputs
-                </div>
-              </div>
-            </div>
-            <div className="text-text-muted text-xs">
-              Provider-specific structured-output transport, no external tool
-            </div>
-          </summary>
-
-          <div className="mt-4">
-            <div className="flex flex-wrap gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => setPromptFormat("tool")}
-                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                  promptFormat === "tool"
-                    ? "border-primary bg-primary-soft text-primary"
-                    : "border-border text-text-secondary hover:text-text"
-                }`}
-              >
-                Structured schema
-              </button>
-              <button
-                type="button"
-                onClick={() => setPromptFormat("json")}
-                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                  promptFormat === "json"
-                    ? "border-primary bg-primary-soft text-primary"
-                    : "border-border text-text-secondary hover:text-text"
-                }`}
-              >
-                JSON schema
-              </button>
-            </div>
-            <pre className="bg-surface rounded-lg border border-border-subtle p-3 text-xs text-text-secondary whitespace-pre-wrap leading-relaxed overflow-x-auto">
-              {promptFormat === "tool" ? activePrompt.tool : activePrompt.json}
-            </pre>
-          </div>
-        </details>
-      )}
 
       <div
         className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3 animate-fade-up"
@@ -547,13 +453,26 @@ export default function ScenarioExplorer({
                               setSelectedCell({ variable: v, model: m })
                             }
                             aria-pressed={isSelected}
-                            className={`w-full text-right rounded px-1.5 py-0.5 font-[family-name:var(--font-mono)] transition-colors ${
+                            className={`flex w-full items-center justify-end gap-1.5 rounded-md border px-2 py-1 text-right font-[family-name:var(--font-mono)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 ${
                               isSelected
-                                ? "bg-primary-soft text-primary-strong"
-                                : "hover:bg-surface-soft"
+                                ? "border-primary-strong/50 bg-primary-soft text-primary-strong"
+                                : "border-border-subtle bg-card/60 hover:border-primary-strong/40 hover:bg-surface-soft hover:text-text"
                             }`}
                           >
-                            --
+                            <span>--</span>
+                            <svg
+                              aria-hidden
+                              viewBox="0 0 12 12"
+                              className="h-3 w-3 opacity-60"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.6"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <circle cx="5" cy="5" r="3" />
+                              <path d="m7.2 7.2 2.3 2.3" />
+                            </svg>
                           </button>
                         </td>
                       );
@@ -576,10 +495,10 @@ export default function ScenarioExplorer({
                             setSelectedCell({ variable: v, model: m })
                           }
                           aria-pressed={isSelected}
-                          className={`w-full text-right rounded px-1.5 py-0.5 font-[family-name:var(--font-mono)] transition-colors ${
+                          className={`flex w-full items-center justify-end gap-1.5 rounded-md border px-2 py-1 text-right font-[family-name:var(--font-mono)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 ${
                             isSelected
-                              ? "bg-primary-soft ring-1 ring-primary-strong/40"
-                              : "hover:bg-surface-soft"
+                              ? "border-primary-strong/50 bg-primary-soft ring-1 ring-primary-strong/40"
+                              : "border-border-subtle bg-card/60 hover:border-primary-strong/40 hover:bg-surface-soft"
                           }`}
                           style={{
                             color: correct
@@ -587,7 +506,20 @@ export default function ScenarioExplorer({
                               : getPredictionTextColor(predictionError, truth),
                           }}
                         >
-                          {displayPred}
+                          <span>{displayPred}</span>
+                          <svg
+                            aria-hidden
+                            viewBox="0 0 12 12"
+                            className="h-3 w-3 opacity-60"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <circle cx="5" cy="5" r="3" />
+                            <path d="m7.2 7.2 2.3 2.3" />
+                          </svg>
                         </button>
                       </td>
                     );
@@ -598,6 +530,98 @@ export default function ScenarioExplorer({
           </tbody>
         </table>
       </div>
+
+      {totalPredictionRows > 0 && (
+        <div
+          className="card px-5 py-4 mt-6 animate-fade-up"
+          style={{ animationDelay: "340ms" }}
+        >
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            Explanation and audit coverage
+          </div>
+          <p className="mt-2 text-sm text-text-secondary leading-relaxed">
+            {explanationRows} of {totalPredictionRows} model-output rows for
+            this household include explanation text returned by the model.{" "}
+            {annotationRows} rows include developer audit notes for incorrect
+            predictions, and {caseAnnotationRows} incorrect rows include
+            case-level notes comparing wrong models on the same
+            household-output target.
+          </p>
+          {Object.keys(failureSources).length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Object.entries(failureSources)
+                .sort((a, b) => b[1] - a[1])
+                .map(([source, count]) => (
+                  <span
+                    key={source}
+                    className="rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-[11px] text-text-secondary"
+                  >
+                    {formatFailureLabel(source)}: {count}
+                  </span>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activePrompt && (
+        <details
+          className="card px-5 py-4 mt-4 animate-fade-up group"
+          style={{ animationDelay: "360ms" }}
+        >
+          <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <span
+                aria-hidden
+                className="mt-0.5 inline-block text-text-muted transition-transform group-open:rotate-90"
+              >
+                ▸
+              </span>
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                  Exact prompt
+                </div>
+                <div className="text-text text-sm mt-1">
+                  Full household batch contract for all benchmark outputs
+                </div>
+              </div>
+            </div>
+            <div className="text-text-muted text-xs">
+              Provider-specific structured-output transport, no external tool
+            </div>
+          </summary>
+
+          <div className="mt-4">
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setPromptFormat("tool")}
+                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                  promptFormat === "tool"
+                    ? "border-primary bg-primary-soft text-primary"
+                    : "border-border text-text-secondary hover:text-text"
+                }`}
+              >
+                Structured schema
+              </button>
+              <button
+                type="button"
+                onClick={() => setPromptFormat("json")}
+                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                  promptFormat === "json"
+                    ? "border-primary bg-primary-soft text-primary"
+                    : "border-border text-text-secondary hover:text-text"
+                }`}
+              >
+                JSON schema
+              </button>
+            </div>
+            <pre className="bg-surface rounded-lg border border-border-subtle p-3 text-xs text-text-secondary whitespace-pre-wrap leading-relaxed overflow-x-auto">
+              {promptFormat === "tool" ? activePrompt.tool : activePrompt.json}
+            </pre>
+          </div>
+        </details>
+      )}
 
       <DetailDialog
         ref={dialogRef}

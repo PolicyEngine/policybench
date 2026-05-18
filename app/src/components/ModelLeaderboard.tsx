@@ -411,8 +411,8 @@ export default function ModelLeaderboard({
         style={{ animationDelay: "160ms" }}
       >
         {isGlobal
-          ? "Global scores are equal-weight averages of each model’s US and UK bounded scores. They are not weighted by country population or household count."
-          : "Country scores give each household equal weight. Each variable's weight is the mean across households of |ref| / max(|household_net_income|, Σ |ref|), renormalized so the global weights sum to one."}
+          ? "Default ranking compares each model's exact answers across the US and UK benchmark slices."
+          : "Default ranking compares exact answers across all benchmark households, with one household counting as one household."}
         {pendingModels.length > 0 && (
           <>
             {" "}
@@ -441,202 +441,6 @@ export default function ModelLeaderboard({
           evaluation set.
         </p>
       </aside>
-
-      <div
-        className="mt-5 flex flex-wrap items-center gap-3 animate-fade-up"
-        style={{ animationDelay: "195ms" }}
-      >
-        <span
-          id="leaderboard-scoring-label"
-          className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
-        >
-          Scoring
-        </span>
-        <div
-          role="group"
-          aria-labelledby="leaderboard-scoring-label"
-          className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
-        >
-          {(
-            [
-              [
-                "exact",
-                "Exact",
-                "Percent of predictions that match the PolicyEngine reference to the dollar (or to the boolean for eligibility flags). Real-world policy decisions need this — close-but-not-right isn't deployable.",
-              ],
-              [
-                "within1pct",
-                "Within 1%",
-                "Percent of predictions within 1% of the reference. The analyst bar — rounding and small rate/parameter drift are tolerated, but material misses are not.",
-              ],
-              [
-                "continuous",
-                "Continuous",
-                "Bounded continuous score: max(0, 1 - |prediction - reference| / |reference|), clipped to [0, 1], reducing to exact-match accuracy for boolean variables. Awards partial credit for close answers; useful for tracking conceptual progress while exact rates remain low.",
-              ],
-            ] as const
-          ).map(([id, label, description]) => {
-            const isActive = scoringMode === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setScoringMode(id)}
-                aria-pressed={isActive}
-                title={description}
-                className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                  isActive
-                    ? "bg-primary-strong text-white"
-                    : "text-text-secondary hover:text-text"
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-        <span className="text-[11px] text-text-muted">
-          {scoringMode === "exact"
-            ? "Percent matching to the dollar / boolean."
-            : scoringMode === "within1pct"
-              ? "Percent within 1% of reference."
-              : "Bounded score: 1 − |err| / |ref|, clipped to [0, 1]."}
-        </span>
-      </div>
-
-      {!isGlobal && (
-        <div
-          className="mt-3 flex flex-wrap items-center gap-3 animate-fade-up"
-          style={{ animationDelay: "198ms" }}
-        >
-          <span
-            id="leaderboard-refcases-label"
-            className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
-          >
-            Reference cases
-          </span>
-          <div
-            role="group"
-            aria-labelledby="leaderboard-refcases-label"
-            className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
-          >
-            {(
-              [
-                [
-                  "all",
-                  "All",
-                  "Every (model, scenario, variable) cell in the benchmark slice.",
-                ],
-                [
-                  "positives",
-                  "Positives only",
-                  "Restrict to cases where the PolicyEngine reference is non-zero (e.g., the household actually receives the benefit or owes the tax). Reveals competence on cases that matter, especially on zero-heavy slices like UK.",
-                ],
-                [
-                  "zeros",
-                  "Zeros only",
-                  "Restrict to cases where the PolicyEngine reference is zero (no benefit, no tax). Measures eligibility hedging — does the model correctly say zero when it should?",
-                ],
-              ] as const
-            ).map(([id, label, description]) => {
-              const isActive = referenceFilter === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setReferenceFilter(id)}
-                  aria-pressed={isActive}
-                  title={description}
-                  className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                    isActive
-                      ? "bg-primary-strong text-white"
-                      : "text-text-secondary hover:text-text"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          <span className="text-[11px] text-text-muted">
-            {referenceFilter === "all"
-              ? "All reference cells."
-              : referenceFilter === "positives"
-                ? "Only cases where the reference is nonzero."
-                : "Only cases where the reference is zero."}
-          </span>
-        </div>
-      )}
-
-      <div
-        className="mt-3 flex flex-wrap items-center gap-3 animate-fade-up"
-        style={{ animationDelay: "200ms" }}
-      >
-        <span
-          id="leaderboard-view-label"
-          className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
-        >
-          Weighting
-        </span>
-        <div
-          role="group"
-          aria-labelledby="leaderboard-view-label"
-          className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
-        >
-          {SENSITIVITY_VIEWS.map((view) => {
-            const isActive = sensitivityView === view.id;
-            const supported =
-              view.id === "household" ||
-              viewSupportsSelected(dashboard, view.id, selectedView);
-            const disabled = !supported;
-            const disabledTitleSuffix = " (not available on this slice)";
-            return (
-              <button
-                key={view.id}
-                type="button"
-                aria-disabled={disabled || undefined}
-                onClick={(event) => {
-                  if (disabled) {
-                    event.preventDefault();
-                    return;
-                  }
-                  setSensitivityView(view.id);
-                }}
-                aria-pressed={disabled ? undefined : isActive}
-                className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                  isActive && !disabled
-                    ? "bg-primary-strong text-white"
-                    : disabled
-                      ? "cursor-not-allowed text-text-muted line-through"
-                      : "text-text-secondary hover:text-text"
-                }`}
-                title={
-                  disabled
-                    ? `${view.description}${disabledTitleSuffix}`
-                    : view.description
-                }
-              >
-                {view.label}
-              </button>
-            );
-          })}
-        </div>
-        <span className="text-[11px] text-text-muted">
-          {activeView.description}
-        </span>
-      </div>
-      {sensitivityUnsupportedForView && (
-        <p
-          className="mt-3 text-[11px] text-text-muted animate-fade-up"
-          style={{ animationDelay: "220ms" }}
-        >
-          The &ldquo;{
-            SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)?.label ??
-              sensitivityView
-          }&rdquo; view is not available on this slice; the leaderboard falls
-          back to the Household view.
-        </p>
-      )}
 
       <div
         role="region"
@@ -842,10 +646,226 @@ export default function ModelLeaderboard({
         ))}
       </div>
 
+      <details
+        className="mt-8 group rounded-2xl border border-border bg-card/40 animate-fade-up"
+        style={{ animationDelay: "320ms" }}
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs text-text-secondary hover:text-text">
+          <span className="flex min-w-0 items-center gap-2">
+            <svg
+              aria-hidden
+              viewBox="0 0 12 12"
+              width="10"
+              height="10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0 transition-transform group-open:rotate-90"
+            >
+              <polyline points="4 2 8 6 4 10" />
+            </svg>
+            <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
+              Adjust ranking
+            </span>
+            <span className="truncate text-text-muted">
+              Default: exact, all cases, household weights
+            </span>
+          </span>
+        </summary>
+
+        <div className="space-y-4 border-t border-border-subtle px-4 py-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span
+              id="leaderboard-scoring-label"
+              className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+            >
+              Scoring
+            </span>
+            <div
+              role="group"
+              aria-labelledby="leaderboard-scoring-label"
+              className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+            >
+              {(
+                [
+                  [
+                    "exact",
+                    "Exact",
+                    "Percent of predictions that match the PolicyEngine reference to the dollar (or to the boolean for eligibility flags). Real-world policy decisions need this — close-but-not-right isn't deployable.",
+                  ],
+                  [
+                    "within1pct",
+                    "Within 1%",
+                    "Percent of predictions within 1% of the reference. The analyst bar — rounding and small rate/parameter drift are tolerated, but material misses are not.",
+                  ],
+                  [
+                    "continuous",
+                    "Continuous",
+                    "Bounded continuous score: max(0, 1 - |prediction - reference| / |reference|), clipped to [0, 1], reducing to exact-match accuracy for boolean variables. Awards partial credit for close answers; useful for tracking conceptual progress while exact rates remain low.",
+                  ],
+                ] as const
+              ).map(([id, label, description]) => {
+                const isActive = scoringMode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setScoringMode(id)}
+                    aria-pressed={isActive}
+                    title={description}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                      isActive
+                        ? "bg-primary-strong text-white"
+                        : "text-text-secondary hover:text-text"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[11px] text-text-muted">
+              {scoringMode === "exact"
+                ? "Percent matching to the dollar / boolean."
+                : scoringMode === "within1pct"
+                  ? "Percent within 1% of reference."
+                  : "Bounded score: 1 - |err| / |ref|, clipped to [0, 1]."}
+            </span>
+          </div>
+
+          {!isGlobal && (
+            <div className="flex flex-wrap items-center gap-3">
+              <span
+                id="leaderboard-refcases-label"
+                className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+              >
+                Reference cases
+              </span>
+              <div
+                role="group"
+                aria-labelledby="leaderboard-refcases-label"
+                className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+              >
+                {(
+                  [
+                    [
+                      "all",
+                      "All",
+                      "Every (model, scenario, variable) cell in the benchmark slice.",
+                    ],
+                    [
+                      "positives",
+                      "Positives only",
+                      "Restrict to cases where the PolicyEngine reference is non-zero (e.g., the household actually receives the benefit or owes the tax). Reveals competence on cases that matter, especially on zero-heavy slices like UK.",
+                    ],
+                    [
+                      "zeros",
+                      "Zeros only",
+                      "Restrict to cases where the PolicyEngine reference is zero (no benefit, no tax). Measures eligibility hedging — does the model correctly say zero when it should?",
+                    ],
+                  ] as const
+                ).map(([id, label, description]) => {
+                  const isActive = referenceFilter === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setReferenceFilter(id)}
+                      aria-pressed={isActive}
+                      title={description}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                        isActive
+                          ? "bg-primary-strong text-white"
+                          : "text-text-secondary hover:text-text"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="text-[11px] text-text-muted">
+                {referenceFilter === "all"
+                  ? "All reference cells."
+                  : referenceFilter === "positives"
+                    ? "Only cases where the reference is nonzero."
+                    : "Only cases where the reference is zero."}
+              </span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <span
+              id="leaderboard-view-label"
+              className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+            >
+              Weighting
+            </span>
+            <div
+              role="group"
+              aria-labelledby="leaderboard-view-label"
+              className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+            >
+              {SENSITIVITY_VIEWS.map((view) => {
+                const isActive = sensitivityView === view.id;
+                const supported =
+                  view.id === "household" ||
+                  viewSupportsSelected(dashboard, view.id, selectedView);
+                const disabled = !supported;
+                const disabledTitleSuffix = " (not available on this slice)";
+                return (
+                  <button
+                    key={view.id}
+                    type="button"
+                    aria-disabled={disabled || undefined}
+                    onClick={(event) => {
+                      if (disabled) {
+                        event.preventDefault();
+                        return;
+                      }
+                      setSensitivityView(view.id);
+                    }}
+                    aria-pressed={disabled ? undefined : isActive}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                      isActive && !disabled
+                        ? "bg-primary-strong text-white"
+                        : disabled
+                          ? "cursor-not-allowed text-text-muted line-through"
+                          : "text-text-secondary hover:text-text"
+                    }`}
+                    title={
+                      disabled
+                        ? `${view.description}${disabledTitleSuffix}`
+                        : view.description
+                    }
+                  >
+                    {view.label}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[11px] text-text-muted">
+              {activeView.description}
+            </span>
+          </div>
+          {sensitivityUnsupportedForView && (
+            <p className="text-[11px] text-text-muted">
+              The &ldquo;{
+                SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)?.label ??
+                  sensitivityView
+              }&rdquo; view is not available on this slice; the leaderboard
+              falls back to the Household view.
+            </p>
+          )}
+        </div>
+      </details>
+
       {weights && weightedVariables.length > 0 && weightsCountry && (
         <details
-          className="mt-8 group rounded-2xl border border-border bg-card/40 animate-fade-up"
-          style={{ animationDelay: "320ms" }}
+          className="mt-4 group rounded-2xl border border-border bg-card/40 animate-fade-up"
+          style={{ animationDelay: "340ms" }}
         >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs text-text-secondary hover:text-text">
             <span className="flex items-center gap-2">

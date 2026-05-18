@@ -18,9 +18,9 @@ export type { DashboardBundle } from "./types";
 
 const COUNTRY_NAV_ITEMS = [
   { id: "models", label: "Models" },
+  { id: "programs", label: "Programs" },
   { id: "scenarios", label: "Scenarios" },
   { id: "failure-modes", label: "Failure" },
-  { id: "programs", label: "Programs" },
   { id: "methodology", label: "Method" },
 ] as const;
 
@@ -159,6 +159,11 @@ export default function App() {
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
+        <section id="programs" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
+          <ProgramHeatmap data={data} />
+        </section>
+
+        <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
         <section id="scenarios" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
           <ScenarioExplorer
             key={data.country}
@@ -172,11 +177,6 @@ export default function App() {
           className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
         >
           <FailureModes data={data} />
-        </section>
-
-        <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-        <section id="programs" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
-          <ProgramHeatmap data={data} />
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
