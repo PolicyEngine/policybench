@@ -8,10 +8,11 @@ import Methodology from "./components/Methodology";
 import ModelLeaderboard from "./components/ModelLeaderboard";
 import ProgramHeatmap from "./components/ProgramHeatmap";
 import ScenarioExplorer from "./components/ScenarioExplorer";
+import { filterExcludedOutputs } from "./lib/dashboardFilter";
 import type { CountryCode, DashboardBundle, ViewKey } from "./types";
 import { VIEW_LABELS } from "./types";
 
-const dashboard = rawData as DashboardBundle;
+const dashboard = filterExcludedOutputs(rawData as DashboardBundle);
 
 export type { DashboardBundle } from "./types";
 

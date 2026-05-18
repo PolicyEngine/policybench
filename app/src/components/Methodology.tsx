@@ -255,11 +255,8 @@ export default function Methodology({
           and coverage outputs that can plausibly be estimated from household
           facts. It excludes intermediate tax bases, payroll subcomponents, and
           outputs that mainly require unavailable history, restricted local
-          market data, or program take-up assignment. ACA Premium Tax Credit is
-          retained as a deliberate health-support output; when local benchmark
-          premiums are not listed, the model must estimate them from the
-          household facts. WIC is scored as person-level eligibility, not as a
-          dollar amount.
+          market data, or program take-up assignment. WIC is scored as
+          person-level eligibility, not as a dollar amount.
         </SectionCard>
 
         <SectionCard title="Scoring and weighting">

@@ -15,6 +15,7 @@ import {
   viewSupportsSelected,
   type SensitivityViewId,
 } from "../lib/sensitivity";
+import { outputGroupForVariable } from "../lib/scoring";
 
 function Badge({
   children,
@@ -99,6 +100,20 @@ const PENDING_MODELS: Record<ViewKey, PendingModel[]> = {
   ],
   uk: [],
 };
+
+function weightForVariable(
+  weights: Record<string, number>,
+  variable: string,
+): number | undefined {
+  if (weights[variable] !== undefined) return weights[variable];
+  let groupedWeight = 0;
+  for (const [weightVariable, weight] of Object.entries(weights)) {
+    if (outputGroupForVariable(weightVariable) === variable) {
+      groupedWeight += weight;
+    }
+  }
+  return groupedWeight > 0 ? groupedWeight : undefined;
+}
 
 export default function ModelLeaderboard({
   data,
@@ -242,7 +257,7 @@ export default function ModelLeaderboard({
         let num = 0;
         let den = 0;
         for (const [variable, rates] of byVar) {
-          const w = weights[variable];
+          const w = weightForVariable(weights, variable);
           if (w === undefined) continue;
           num += w * (rates[field] / 100);
           den += w;
@@ -263,7 +278,7 @@ export default function ModelLeaderboard({
       if (entry.condition !== "no_tools") continue;
       const value = entry[field];
       if (value === undefined) continue;
-      const w = weights[entry.variable];
+      const w = weightForVariable(weights, entry.variable);
       if (w === undefined) continue;
       const acc = totals.get(entry.model) ?? { num: 0, den: 0 };
       acc.num += w * (value / 100);

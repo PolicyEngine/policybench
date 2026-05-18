@@ -934,7 +934,7 @@ snapshot_provenance = pd.DataFrame(
         ["UK scenario-source SHA-256", UK_TRANSFER_ARTIFACT_SHA256],
         ["Households", "100 US and 100 UK"],
         ["Models", f"{len(global_model)} shared models"],
-        ["Output groups", "19 US and 7 UK"],
+        ["Output groups", "18 US and 7 UK"],
         ["Condition", "No tools, no web access, one structured response per household"],
         ["Response contract", "Numeric answer and non-empty explanation for every requested output"],
     ],
@@ -944,7 +944,6 @@ scope_rationale = pd.DataFrame(
     [
         ["Included", "Direct tax, credit, benefit, health-support, and coverage outputs that a household-facing model could plausibly be asked to estimate from household facts."],
         ["Excluded", "Intermediate tax bases, payroll subcomponents, and outputs that mainly require unavailable history, restricted local market data, restricted program-administration data, or take-up assignment rather than rule calculation."],
-        ["ACA Premium Tax Credit", "Retained as a deliberate health-support output; when local benchmark premiums are not listed, the model must estimate them from the household facts."],
         ["Binary coverage outputs", "Requested as 0/1 eligibility flags and scored as classification tasks; their dollar values are used only as impact-weight proxies, not as requested model outputs."],
         ["WIC", "The benchmark asks for person-level WIC eligibility. It does not ask models to estimate a WIC dollar amount."],
     ],
@@ -967,7 +966,7 @@ parse_repair_summary = pd.DataFrame(
         ["Parser repair", "The parser was extended to recover explicit `value` and non-empty `explanation` blocks from nested, escaped, or partially truncated provider JSON without scraping prose numbers."],
         ["Full-response retries", "Three bounded retry rounds targeted broken country-model-household responses and accepted only fully valid replacement responses."],
         ["Row-level repairs", "A final repair pass retried only rows still missing a parsed numeric value or non-empty explanation, using the same model, household, and output."],
-        ["Final parse coverage", "The repaired manuscript snapshot has zero missing parsed numeric values and zero missing explanations across all 34,656 model-output rows."],
+        ["Final parse coverage", "The repaired manuscript snapshot has zero missing parsed numeric values and zero missing explanations across all 33,456 model-output rows."],
         ["Preservation rule", "The snapshot retains response-retry and row-repair targets, attempts, accepted replacements, rejected rows, and merged prediction files."],
     ],
     columns=["Step", "Finding"],
@@ -1086,7 +1085,7 @@ model_runs
 
 The US benchmark is built from Enhanced Current Population Survey (CPS)-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit, single-family, single-Supplemental Poverty Measure (SPM)-unit structure with at least one adult and a supported filing status. The 2024 Enhanced CPS source contains 41,314 households; 30,173 (73.0%) pass the filter and form the eligible draw. The 27.0% excluded by the filter include multi-tax-unit households (e.g., adult roommates), multi-family households, multi-SPM-unit households, and households whose head reports a filing status outside the supported set. These excluded compositions are exactly the kind of cases where federal/state credit allocations and benefit-unit rules become hardest, so the eligible draw is a tractable subset rather than the full distribution of US households. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives. Filing status is not stated in the prompt; the reference computation infers it from tax-unit role flags. Models therefore see the same household facts that drive the reference filing-status assignment, but they do not receive that assignment as a label.
 
-The current US release evaluates 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), Affordable Care Act (ACA) premium tax credits, school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children's Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start.
+The current US release evaluates 18 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children's Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start.
 
 The output scope is intentionally narrower than the full PolicyEngine model. @tbl-scope-rationale summarizes the inclusion rule. The benchmark asks for WIC eligibility rather than a WIC dollar amount; WIC dollar values are used only as impact-weight proxies for coverage flags, not as requested model outputs.
 
