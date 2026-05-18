@@ -66,6 +66,23 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+function useMobileHeader() {
+  const [isMobileHeader, setIsMobileHeader] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobileHeader(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  return isMobileHeader;
+}
+
 function useScrollProgress(start: number, distance: number, enabled: boolean) {
   const [progress, setProgress] = useState(() =>
     enabled ? getScrollProgress(start, distance) : 0,
@@ -154,6 +171,7 @@ export default function SiteHeader({
   // the background covers text moving under the sticky bar, while the compact
   // brand/nav wait until the hero intro has cleared. These properties don't
   // affect layout, so they can't trigger the scroll-position feedback loop.
+  const isMobileHeader = useMobileHeader();
   const backgroundProgress = useScrollProgress(
     HEADER_BACKGROUND_REVEAL_START,
     HEADER_BACKGROUND_REVEAL_DISTANCE,
@@ -164,15 +182,17 @@ export default function SiteHeader({
     COMPACT_HEADER_REVEAL_DISTANCE,
     !alwaysExpanded,
   );
-  const bgOpacity = alwaysExpanded ? 1 : backgroundProgress;
-  const contentOpacity = alwaysExpanded ? 1 : compactContentProgress;
+  const bgOpacity = alwaysExpanded || isMobileHeader ? 1 : backgroundProgress;
+  const contentOpacity =
+    alwaysExpanded || isMobileHeader ? 1 : compactContentProgress;
   const contentVisible = alwaysExpanded || contentOpacity > 0.05;
 
   const showViewSelector =
     availableViews && availableViews.length > 0 && selectedView && onSelectView;
+  const headerPositionClass = alwaysExpanded ? "relative z-40" : "sticky top-0 z-40";
 
   return (
-    <header className="sticky top-0 z-40">
+    <header className={headerPositionClass}>
       <div
         className="pointer-events-none absolute inset-0 border-b backdrop-blur-md"
         style={{
@@ -194,13 +214,13 @@ export default function SiteHeader({
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
         <div
-          className={`flex items-center gap-3 ${
-            alwaysExpanded ? "pt-10 pb-4" : "py-3"
+          className={`flex flex-wrap items-center gap-2 sm:gap-3 ${
+            alwaysExpanded ? "pt-8 pb-4 sm:pt-10" : "py-2 sm:py-3"
           }`}
         >
           <Link
             href="/"
-            className="shrink-0 hover:opacity-80"
+            className="order-1 shrink-0 hover:opacity-80 sm:order-none"
             style={
               alwaysExpanded
                 ? undefined
@@ -223,14 +243,14 @@ export default function SiteHeader({
 
           {navItems.length > 0 && (
             <div
-              className="flex items-center"
+              className="order-last flex w-full min-w-0 items-center overflow-x-auto sm:order-none sm:w-auto sm:overflow-visible"
               style={{
                 opacity: contentOpacity,
                 pointerEvents: contentVisible ? "auto" : "none",
               }}
               aria-hidden={!contentVisible ? true : undefined}
             >
-              <div className="h-4 w-px bg-border shrink-0 mx-2" />
+              <div className="mx-2 hidden h-4 w-px shrink-0 bg-border sm:block" />
               <div className="flex min-w-max gap-0.5">
                 {navItems.map((item) => (
                   <a
@@ -238,7 +258,7 @@ export default function SiteHeader({
                     href={`#${item.id}`}
                     tabIndex={contentVisible ? 0 : -1}
                     aria-current={activeNav === item.id ? "true" : undefined}
-                    className={`px-2.5 py-2 text-[11px] font-medium tracking-wider uppercase border-b-2 sm:px-3 ${
+                    className={`border-b-2 px-2 py-2 text-[10px] font-medium uppercase tracking-[0.08em] sm:px-3 sm:text-[11px] sm:tracking-wider ${
                       activeNav === item.id
                         ? "border-primary-strong text-primary-strong"
                         : "border-transparent text-text-secondary hover:text-text"
@@ -251,18 +271,20 @@ export default function SiteHeader({
             </div>
           )}
 
-          <div className="flex-1" />
+          <div className="order-2 min-w-2 flex-1 sm:order-none" />
 
           {showViewSelector && (
-            <ViewSelector
-              selectedView={selectedView}
-              onSelect={onSelectView}
-              views={availableViews}
-            />
+            <div className="order-4 max-w-full sm:order-none">
+              <ViewSelector
+                selectedView={selectedView}
+                onSelect={onSelectView}
+                views={availableViews}
+              />
+            </div>
           )}
 
           {actionLink && (
-            <div>
+            <div className="order-3 shrink-0 sm:order-none">
               {actionLink.type === "external" ? (
                 <a
                   href={actionLink.href}
@@ -283,7 +305,7 @@ export default function SiteHeader({
 
           <a
             href="https://policyengine.org"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary transition-colors hover:border-primary-strong/40 hover:text-primary-strong"
+            className="order-5 hidden shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary transition-colors hover:border-primary-strong/40 hover:text-primary-strong md:inline-flex"
           >
             <span>by</span>
             <img

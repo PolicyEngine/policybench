@@ -118,7 +118,7 @@ export default function FailureModes({ data }: { data: BenchData }) {
         style={{ animationDelay: "240ms" }}
       >
         <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-          Read this carefully
+          How to read these cards
         </div>
         <p className="mt-3 text-sm leading-relaxed text-text-secondary">
           These cards are intentionally stricter than the aggregate leaderboard but
