@@ -121,6 +121,12 @@ export default function ModelLeaderboard({
   const [scoringMode, setScoringMode] = useState<
     "exact" | "within1pct" | "continuous"
   >("exact");
+  // Reference cases: All by default, but Positives is the right view when
+  // (e.g.) UK references are 71% £0 and Exact mode mostly measures
+  // "did you say £0?". Zeros surfaces the inverse — eligibility hedging.
+  const [referenceFilter, setReferenceFilter] = useState<
+    "all" | "positives" | "zeros"
+  >("all");
 
   // Defensive: if a model's payload doesn't include the requested view (stale
   // data.json), fall back to the canonical Household view so the leaderboard
@@ -146,18 +152,112 @@ export default function ModelLeaderboard({
     return out;
   }, [sensitivityScores]);
 
+  // When the user filters to "positives" or "zeros", the heatmap's pre-
+  // aggregated `exact`/`within1pct`/`score` columns aren't usable because
+  // they don't distinguish reference type. Recompute per-(model, variable)
+  // hit rates directly from `scenarioPredictions`. For "all" we leave this
+  // empty and fall through to the heatmap path.
+  const filteredHitRates = useMemo(() => {
+    const out = new Map<
+      string,
+      Map<string, { exact: number; within1pct: number; continuous: number }>
+    >();
+    if (isGlobal || referenceFilter === "all") return out;
+    const country = data as BenchData;
+    const stats = new Map<
+      string,
+      Map<
+        string,
+        { eh: number; wh: number; csum: number; n: number }
+      >
+    >();
+    for (const varMap of Object.values(country.scenarioPredictions ?? {})) {
+      for (const [variable, modelMap] of Object.entries(varMap)) {
+        for (const [model, pred] of Object.entries(modelMap)) {
+          if (pred.prediction === null) continue;
+          const truth = pred.groundTruth;
+          const isZeroRef = truth === 0;
+          if (referenceFilter === "positives" && isZeroRef) continue;
+          if (referenceFilter === "zeros" && !isZeroRef) continue;
+          const absErr = Math.abs(pred.prediction - truth);
+          const exactHit = absErr <= 1 ? 1 : 0;
+          const within1Hit = isZeroRef
+            ? exactHit
+            : absErr / Math.abs(truth) <= 0.01
+              ? 1
+              : 0;
+          const contScore = isZeroRef
+            ? exactHit
+            : Math.max(0, 1 - absErr / Math.abs(truth));
+          if (!stats.has(model)) stats.set(model, new Map());
+          const byVar = stats.get(model)!;
+          let acc = byVar.get(variable);
+          if (!acc) {
+            acc = { eh: 0, wh: 0, csum: 0, n: 0 };
+            byVar.set(variable, acc);
+          }
+          acc.eh += exactHit;
+          acc.wh += within1Hit;
+          acc.csum += contScore;
+          acc.n += 1;
+        }
+      }
+    }
+    for (const [model, byVar] of stats) {
+      const rates = new Map<
+        string,
+        { exact: number; within1pct: number; continuous: number }
+      >();
+      for (const [variable, a] of byVar) {
+        if (a.n === 0) continue;
+        rates.set(variable, {
+          exact: (a.eh / a.n) * 100,
+          within1pct: (a.wh / a.n) * 100,
+          continuous: (a.csum / a.n) * 100,
+        });
+      }
+      out.set(model, rates);
+    }
+    return out;
+  }, [data, isGlobal, referenceFilter]);
+
   // Compute weighted hit-rate for one model under the current weighting. We
   // use this for both "exact" (uses heatmap.exact) and "within 1%" (uses
-  // heatmap.within1pct). Per-country payloads carry the heatmap and
+  // heatmap.within1pct). When `referenceFilter` is on, we route through the
+  // recomputed `filteredHitRates`; otherwise we use the pre-aggregated
+  // heatmap columns. Per-country payloads carry the heatmap and
   // globalWeights needed for the weighted average; global view falls back to
   // the simple unweighted mean on modelStat.exact / modelStat.within1pct
   // because per-country breakdowns aren't surfaced in the global slice.
-  const hitRateByModel = (field: "exact" | "within1pct") => {
+  const hitRateByModel = (field: "exact" | "within1pct" | "continuous") => {
     const out = new Map<string, number>();
     if (isGlobal) return out;
     const country = data as BenchData;
     const weights = country.globalWeights?.[effectiveView];
     if (!weights) return out;
+
+    if (referenceFilter !== "all") {
+      // Recomputed per-(model, variable) hit rates: weight by globalWeights.
+      for (const [model, byVar] of filteredHitRates) {
+        let num = 0;
+        let den = 0;
+        for (const [variable, rates] of byVar) {
+          const w = weights[variable];
+          if (w === undefined) continue;
+          num += w * (rates[field] / 100);
+          den += w;
+        }
+        if (den > 0) out.set(model, (num / den) * 100);
+      }
+      return out;
+    }
+
+    if (field === "continuous") {
+      // For "all" + continuous, the precomputed sensitivity score is
+      // canonical; the caller uses it directly via sensitivityScoreByModel.
+      return out;
+    }
+
     const totals = new Map<string, { num: number; den: number }>();
     for (const entry of country.heatmap ?? []) {
       if (entry.condition !== "no_tools") continue;
@@ -179,12 +279,17 @@ export default function ModelLeaderboard({
   const exactScoreByModel = useMemo(
     () => hitRateByModel("exact"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, effectiveView, isGlobal],
+    [data, effectiveView, isGlobal, referenceFilter, filteredHitRates],
   );
   const within1pctScoreByModel = useMemo(
     () => hitRateByModel("within1pct"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, effectiveView, isGlobal],
+    [data, effectiveView, isGlobal, referenceFilter, filteredHitRates],
+  );
+  const filteredContinuousByModel = useMemo(
+    () => hitRateByModel("continuous"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, effectiveView, isGlobal, referenceFilter, filteredHitRates],
   );
 
   const noTools = useMemo<ModelStat[]>(() => {
@@ -209,6 +314,17 @@ export default function ModelLeaderboard({
         .sort((a, b) => b.score - a.score);
     }
 
+    // Continuous mode. When filtering to positives/zeros we use the
+    // recomputed weighted score; otherwise fall back to the precomputed
+    // bounded score (Household weighting) or the sensitivity view.
+    if (referenceFilter !== "all") {
+      return [...base]
+        .map((m) => ({
+          ...m,
+          score: filteredContinuousByModel.get(m.model) ?? 0,
+        }))
+        .sort((a, b) => b.score - a.score);
+    }
     if (effectiveView === "household") {
       return [...base].sort((a, b) => b.score - a.score);
     }
@@ -222,6 +338,8 @@ export default function ModelLeaderboard({
     data,
     effectiveView,
     sensitivityScoreByModel,
+    filteredContinuousByModel,
+    referenceFilter,
     exactScoreByModel,
     within1pctScoreByModel,
     scoringMode,
@@ -370,6 +488,70 @@ export default function ModelLeaderboard({
               : "Bounded score: 1 − |err| / |ref|, clipped to [0, 1]."}
         </span>
       </div>
+
+      {!isGlobal && (
+        <div
+          className="mt-3 flex flex-wrap items-center gap-3 animate-fade-up"
+          style={{ animationDelay: "198ms" }}
+        >
+          <span
+            id="leaderboard-refcases-label"
+            className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+          >
+            Reference cases
+          </span>
+          <div
+            role="group"
+            aria-labelledby="leaderboard-refcases-label"
+            className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+          >
+            {(
+              [
+                [
+                  "all",
+                  "All",
+                  "Every (model, scenario, variable) cell in the benchmark slice.",
+                ],
+                [
+                  "positives",
+                  "Positives only",
+                  "Restrict to cases where the PolicyEngine reference is non-zero (e.g., the household actually receives the benefit or owes the tax). Reveals competence on cases that matter, especially on zero-heavy slices like UK.",
+                ],
+                [
+                  "zeros",
+                  "Zeros only",
+                  "Restrict to cases where the PolicyEngine reference is zero (no benefit, no tax). Measures eligibility hedging — does the model correctly say zero when it should?",
+                ],
+              ] as const
+            ).map(([id, label, description]) => {
+              const isActive = referenceFilter === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setReferenceFilter(id)}
+                  aria-pressed={isActive}
+                  title={description}
+                  className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                    isActive
+                      ? "bg-primary-strong text-white"
+                      : "text-text-secondary hover:text-text"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <span className="text-[11px] text-text-muted">
+            {referenceFilter === "all"
+              ? "All reference cells."
+              : referenceFilter === "positives"
+                ? "Only cases where the reference is nonzero."
+                : "Only cases where the reference is zero."}
+          </span>
+        </div>
+      )}
 
       <div
         className="mt-3 flex flex-wrap items-center gap-3 animate-fade-up"
