@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type {
   BenchData,
   DashboardBundle,
@@ -9,13 +9,18 @@ import type {
 import { VIEW_SHORT_LABELS, getVariableLabel } from "../types";
 import { MODEL_LABELS, MODEL_ORDER, getProviderForModel } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
+import ProgramFilterDropdown from "./ProgramFilterDropdown";
+import {
+  programIsActive,
+  type ProgramOption,
+  weightedProgramScore,
+} from "../lib/programFilters";
 import {
   SENSITIVITY_VIEWS,
   modelScoresForView,
   viewSupportsSelected,
   type SensitivityViewId,
 } from "../lib/sensitivity";
-import { outputGroupForVariable } from "../lib/scoring";
 
 function Badge({
   children,
@@ -101,28 +106,26 @@ const PENDING_MODELS: Record<ViewKey, PendingModel[]> = {
   uk: [],
 };
 
-function weightForVariable(
-  weights: Record<string, number>,
-  variable: string,
-): number | undefined {
-  if (weights[variable] !== undefined) return weights[variable];
-  let groupedWeight = 0;
-  for (const [weightVariable, weight] of Object.entries(weights)) {
-    if (outputGroupForVariable(weightVariable) === variable) {
-      groupedWeight += weight;
-    }
-  }
-  return groupedWeight > 0 ? groupedWeight : undefined;
-}
-
 export default function ModelLeaderboard({
   data,
   selectedView,
   dashboard,
+  programOptions,
+  activeProgramIds,
+  activeProgramSummary,
+  onResetPrograms,
+  onToggleProgram,
+  onSelectOnlyProgram,
 }: {
   data: BenchData | GlobalBenchData;
   selectedView: ViewKey;
   dashboard: DashboardBundle;
+  programOptions: ProgramOption[];
+  activeProgramIds: Set<string>;
+  activeProgramSummary: string;
+  onResetPrograms: () => void;
+  onToggleProgram: (variable: string) => void;
+  onSelectOnlyProgram: (variable: string) => void;
 }) {
   const isGlobal = selectedView === "global";
   const [sensitivityView, setSensitivityView] =
@@ -142,7 +145,6 @@ export default function ModelLeaderboard({
   const [referenceFilter, setReferenceFilter] = useState<
     "all" | "positives" | "zeros"
   >("all");
-
   // Defensive: if a model's payload doesn't include the requested view (stale
   // data.json), fall back to the canonical Household view so the leaderboard
   // still has a defensible ranking.
@@ -167,6 +169,12 @@ export default function ModelLeaderboard({
     return out;
   }, [sensitivityScores]);
 
+  const isProgramActive = useCallback(
+    (variable: string) =>
+      isGlobal || programIsActive(activeProgramIds, variable),
+    [activeProgramIds, isGlobal],
+  );
+
   // When the user filters to "positives" or "zeros", the heatmap's pre-
   // aggregated `exact`/`within1pct`/`score` columns aren't usable because
   // they don't distinguish reference type. Recompute per-(model, variable)
@@ -188,6 +196,7 @@ export default function ModelLeaderboard({
     >();
     for (const varMap of Object.values(country.scenarioPredictions ?? {})) {
       for (const [variable, modelMap] of Object.entries(varMap)) {
+        if (!isProgramActive(variable)) continue;
         for (const [model, pred] of Object.entries(modelMap)) {
           if (pred.prediction === null) continue;
           const truth = pred.groundTruth;
@@ -234,7 +243,7 @@ export default function ModelLeaderboard({
       out.set(model, rates);
     }
     return out;
-  }, [data, isGlobal, referenceFilter]);
+  }, [data, isGlobal, referenceFilter, isProgramActive]);
 
   // Compute weighted hit-rate for one model under the current weighting. We
   // use this for both "exact" (uses heatmap.exact) and "within 1%" (uses
@@ -254,39 +263,31 @@ export default function ModelLeaderboard({
     if (referenceFilter !== "all") {
       // Recomputed per-(model, variable) hit rates: weight by globalWeights.
       for (const [model, byVar] of filteredHitRates) {
-        let num = 0;
-        let den = 0;
-        for (const [variable, rates] of byVar) {
-          const w = weightForVariable(weights, variable);
-          if (w === undefined) continue;
-          num += w * (rates[field] / 100);
-          den += w;
-        }
-        if (den > 0) out.set(model, (num / den) * 100);
+        const score = weightedProgramScore(
+          [...byVar].map(([variable, rates]) => ({
+            variable,
+            value: rates[field],
+          })),
+          weights,
+        );
+        if (score !== undefined) out.set(model, score);
       }
       return out;
     }
 
-    if (field === "continuous") {
-      // For "all" + continuous, the precomputed sensitivity score is
-      // canonical; the caller uses it directly via sensitivityScoreByModel.
-      return out;
-    }
-
-    const totals = new Map<string, { num: number; den: number }>();
+    const ratesByModel = new Map<string, { variable: string; value: number }[]>();
     for (const entry of country.heatmap ?? []) {
       if (entry.condition !== "no_tools") continue;
-      const value = entry[field];
+      if (!isProgramActive(entry.variable)) continue;
+      const value = field === "continuous" ? entry.score : entry[field];
       if (value === undefined) continue;
-      const w = weightForVariable(weights, entry.variable);
-      if (w === undefined) continue;
-      const acc = totals.get(entry.model) ?? { num: 0, den: 0 };
-      acc.num += w * (value / 100);
-      acc.den += w;
-      totals.set(entry.model, acc);
+      const rates = ratesByModel.get(entry.model) ?? [];
+      rates.push({ variable: entry.variable, value });
+      ratesByModel.set(entry.model, rates);
     }
-    for (const [model, { num, den }] of totals) {
-      if (den > 0) out.set(model, (num / den) * 100);
+    for (const [model, rates] of ratesByModel) {
+      const score = weightedProgramScore(rates, weights);
+      if (score !== undefined) out.set(model, score);
     }
     return out;
   };
@@ -294,18 +295,62 @@ export default function ModelLeaderboard({
   const exactScoreByModel = useMemo(
     () => hitRateByModel("exact"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, effectiveView, isGlobal, referenceFilter, filteredHitRates],
+    [
+      data,
+      effectiveView,
+      isGlobal,
+      referenceFilter,
+      filteredHitRates,
+      activeProgramIds,
+    ],
   );
   const within1pctScoreByModel = useMemo(
     () => hitRateByModel("within1pct"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, effectiveView, isGlobal, referenceFilter, filteredHitRates],
+    [
+      data,
+      effectiveView,
+      isGlobal,
+      referenceFilter,
+      filteredHitRates,
+      activeProgramIds,
+    ],
   );
   const filteredContinuousByModel = useMemo(
     () => hitRateByModel("continuous"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, effectiveView, isGlobal, referenceFilter, filteredHitRates],
+    [
+      data,
+      effectiveView,
+      isGlobal,
+      referenceFilter,
+      filteredHitRates,
+      activeProgramIds,
+    ],
   );
+
+  const selectedMaeByModel = useMemo(() => {
+    const out = new Map<string, number>();
+    if (isGlobal || !("scenarioPredictions" in data)) return out;
+    const totals = new Map<string, { sum: number; n: number }>();
+    for (const variableMap of Object.values(data.scenarioPredictions)) {
+      for (const [variable, modelMap] of Object.entries(variableMap)) {
+        if (!isProgramActive(variable)) continue;
+        for (const [model, row] of Object.entries(modelMap)) {
+          if (row.prediction === null || row.prediction === undefined) continue;
+          const acc = totals.get(model) ?? { sum: 0, n: 0 };
+          acc.sum += Math.abs(row.prediction - row.groundTruth);
+          acc.n += 1;
+          totals.set(model, acc);
+        }
+      }
+    }
+    for (const [model, { sum, n }] of totals) {
+      if (n > 0) out.set(model, sum / n);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, isGlobal, activeProgramIds]);
 
   const noTools = useMemo<ModelStat[]>(() => {
     const base = data.modelStats.filter((m) => m.condition === "no_tools");
@@ -324,19 +369,24 @@ export default function ModelLeaderboard({
           const w = weighted.get(m.model);
           const fallback =
             scoringMode === "exact" ? (m.exact ?? 0) : (m.within1pct ?? 0);
-          return { ...m, score: w !== undefined ? w : fallback };
+          return {
+            ...m,
+            score: w !== undefined ? w : fallback,
+            mae: selectedMaeByModel.get(m.model) ?? m.mae,
+          };
         })
         .sort((a, b) => b.score - a.score);
     }
 
-    // Continuous mode. When filtering to positives/zeros we use the
-    // recomputed weighted score; otherwise fall back to the precomputed
-    // bounded score (Household weighting) or the sensitivity view.
-    if (referenceFilter !== "all") {
+    // Continuous mode. Use the recomputed weighted score for country views so
+    // program filters renormalize the active program weights; otherwise fall
+    // back to the precomputed bounded score or global sensitivity view.
+    if (!isGlobal && filteredContinuousByModel.size > 0) {
       return [...base]
         .map((m) => ({
           ...m,
           score: filteredContinuousByModel.get(m.model) ?? 0,
+          mae: selectedMaeByModel.get(m.model) ?? m.mae,
         }))
         .sort((a, b) => b.score - a.score);
     }
@@ -354,10 +404,11 @@ export default function ModelLeaderboard({
     effectiveView,
     sensitivityScoreByModel,
     filteredContinuousByModel,
-    referenceFilter,
     exactScoreByModel,
     within1pctScoreByModel,
+    selectedMaeByModel,
     scoringMode,
+    isGlobal,
   ]);
 
   const pendingModels = useMemo<PendingModel[]>(() => {
@@ -386,7 +437,11 @@ export default function ModelLeaderboard({
     const all = new Set<string>();
     for (const view of ["household", "aggregate", "equal"] as const) {
       const map = weights[view];
-      if (map) Object.keys(map).forEach((v) => all.add(v));
+      if (map) {
+        Object.keys(map)
+          .filter(isProgramActive)
+          .forEach((v) => all.add(v));
+      }
     }
     const ranked = Array.from(all).map((v) => ({
       v,
@@ -394,7 +449,7 @@ export default function ModelLeaderboard({
     }));
     ranked.sort((a, b) => b.key - a.key);
     return ranked.map((r) => r.v);
-  }, [weights, effectiveView]);
+  }, [weights, effectiveView, isProgramActive]);
 
   return (
     <div>
@@ -441,6 +496,18 @@ export default function ModelLeaderboard({
           evaluation set.
         </p>
       </aside>
+
+      <ProgramFilterDropdown
+        options={isGlobal ? [] : programOptions}
+        activeProgramIds={activeProgramIds}
+        summary={activeProgramSummary}
+        description="Shared across model scoring, program breakdown, and scenarios. Scores use only selected outputs; selected weights rescale to 100%. MAE is the unweighted average absolute error across selected scenario cells."
+        onReset={onResetPrograms}
+        onToggle={onToggleProgram}
+        onSelectOnly={onSelectOnlyProgram}
+        className="mt-5"
+        animationDelay="190ms"
+      />
 
       <div
         role="region"

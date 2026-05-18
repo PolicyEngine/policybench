@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import rawData from "./data.json";
 import Hero from "./components/Hero";
 import FailureModes from "./components/FailureModes";
@@ -9,6 +9,12 @@ import ModelLeaderboard from "./components/ModelLeaderboard";
 import ProgramHeatmap from "./components/ProgramHeatmap";
 import ScenarioExplorer from "./components/ScenarioExplorer";
 import { filterExcludedOutputs } from "./lib/dashboardFilter";
+import {
+  buildProgramOptions,
+  resolveActiveProgramIds,
+  selectOnlyProgram as selectOnlyProgramFilter,
+  toggleProgramSelection,
+} from "./lib/programFilters";
 import type { CountryCode, DashboardBundle, ViewKey } from "./types";
 import { VIEW_LABELS } from "./types";
 
@@ -65,6 +71,9 @@ export default function App() {
     : (availableViews[0] ?? "us");
   const [selectedView, setSelectedView] = useState<CountryCode>(initialView);
   const [hasUserPickedView, setHasUserPickedView] = useState(false);
+  const [selectedPrograms, setSelectedPrograms] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     if (hasUserPickedView) return;
@@ -81,6 +90,40 @@ export default function App() {
 
   const data = dashboard.countries[selectedView]!;
   const navItems = COUNTRY_NAV_ITEMS;
+
+  const programOptions = useMemo(() => buildProgramOptions(data), [data]);
+
+  const programOptionIds = useMemo(
+    () => programOptions.map((option) => option.variable),
+    [programOptions],
+  );
+
+  const activeProgramIds = useMemo(() => {
+    return resolveActiveProgramIds(programOptionIds, selectedPrograms);
+  }, [programOptionIds, selectedPrograms]);
+
+  const activeProgramSummary =
+    activeProgramIds.size < programOptions.length
+      ? `${activeProgramIds.size} of ${programOptions.length} selected`
+      : `All ${programOptions.length} programs`;
+
+  const resetPrograms = useCallback(() => {
+    setSelectedPrograms(new Set());
+  }, []);
+
+  const toggleProgram = useCallback(
+    (variable: string) => {
+      setSelectedPrograms((previous) => {
+        return toggleProgramSelection(programOptionIds, previous, variable);
+      });
+    },
+    [programOptionIds],
+  );
+
+  const selectOnlyProgram = useCallback((variable: string) => {
+    setSelectedPrograms(selectOnlyProgramFilter(variable));
+  }, []);
+
   const handleSelectView = (view: ViewKey) => {
     if (view === "global") return;
     setSelectedView(view);
@@ -155,12 +198,26 @@ export default function App() {
             data={data}
             selectedView={selectedView}
             dashboard={dashboard}
+            programOptions={programOptions}
+            activeProgramIds={activeProgramIds}
+            activeProgramSummary={activeProgramSummary}
+            onResetPrograms={resetPrograms}
+            onToggleProgram={toggleProgram}
+            onSelectOnlyProgram={selectOnlyProgram}
           />
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
         <section id="programs" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
-          <ProgramHeatmap data={data} />
+          <ProgramHeatmap
+            data={data}
+            programOptions={programOptions}
+            activeProgramIds={activeProgramIds}
+            activeProgramSummary={activeProgramSummary}
+            onResetPrograms={resetPrograms}
+            onToggleProgram={toggleProgram}
+            onSelectOnlyProgram={selectOnlyProgram}
+          />
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
@@ -168,6 +225,12 @@ export default function App() {
           <ScenarioExplorer
             key={data.country}
             data={data}
+            programOptions={programOptions}
+            activeProgramIds={activeProgramIds}
+            activeProgramSummary={activeProgramSummary}
+            onResetPrograms={resetPrograms}
+            onToggleProgram={toggleProgram}
+            onSelectOnlyProgram={selectOnlyProgram}
           />
         </section>
 

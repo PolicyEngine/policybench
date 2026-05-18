@@ -6,6 +6,8 @@ import {
   getPerformanceSurfaceColor,
   getPerformanceTextColor,
 } from "../modelMeta";
+import { programIsActive, type ProgramOption } from "../lib/programFilters";
+import ProgramFilterDropdown from "./ProgramFilterDropdown";
 
 function getHeatmapScore(entry: HeatmapEntry): number {
   return entry.score ?? entry.within10pct ?? entry.accuracy ?? 0;
@@ -28,7 +30,23 @@ const SCORE_LEGEND = [
   { label: "90%+", score: 95 },
 ] as const;
 
-export default function ProgramHeatmap({ data }: { data: BenchData }) {
+export default function ProgramHeatmap({
+  data,
+  programOptions,
+  activeProgramIds,
+  activeProgramSummary,
+  onResetPrograms,
+  onToggleProgram,
+  onSelectOnlyProgram,
+}: {
+  data: BenchData;
+  programOptions: ProgramOption[];
+  activeProgramIds: Set<string>;
+  activeProgramSummary: string;
+  onResetPrograms: () => void;
+  onToggleProgram: (variable: string) => void;
+  onSelectOnlyProgram: (variable: string) => void;
+}) {
   const country = data.country;
   const { grid, variables } = useMemo(() => {
     // Build lookup: model+variable → bounded score
@@ -42,6 +60,7 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
     const varAcc: Record<string, number[]> = {};
     for (const h of data.heatmap) {
       if (h.condition !== "no_tools") continue;
+      if (!programIsActive(activeProgramIds, h.variable)) continue;
       if (!varAcc[h.variable]) varAcc[h.variable] = [];
       varAcc[h.variable].push(getHeatmapScore(h));
     }
@@ -52,7 +71,7 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
     });
 
     return { grid: lookup, variables };
-  }, [data]);
+  }, [activeProgramIds, data]);
 
   const models = MODEL_ORDER.filter((m) =>
     data.heatmap.some((h) => h.condition === "no_tools" && h.model === m),
@@ -86,8 +105,20 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
         binary coverage flags use exact accuracy.
       </p>
 
+      <ProgramFilterDropdown
+        options={programOptions}
+        activeProgramIds={activeProgramIds}
+        summary={activeProgramSummary}
+        description="Shared with model scoring and scenarios. The table shows only selected outputs; model scores rescale selected weights to 100%."
+        onReset={onResetPrograms}
+        onToggle={onToggleProgram}
+        onSelectOnly={onSelectOnlyProgram}
+        className="mt-6"
+        animationDelay="220ms"
+      />
+
       <div
-        className="relative mt-10 overflow-x-auto animate-fade-up"
+        className="relative mt-8 overflow-x-auto animate-fade-up"
         style={{ animationDelay: "240ms" }}
       >
         <table className="w-full border-collapse">

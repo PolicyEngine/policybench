@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   getVariableLabel,
   isBinaryVariable,
@@ -16,7 +22,9 @@ import {
   isFrontierModel,
   type ProviderKey,
 } from "../modelMeta";
+import { programIsActive, type ProgramOption } from "../lib/programFilters";
 import ProviderMark from "./ProviderMark";
+import ProgramFilterDropdown from "./ProgramFilterDropdown";
 
 function formatBoolean(value: number): string {
   return value === 1 ? "Yes" : "No";
@@ -85,8 +93,20 @@ function pickRandomScenario(
 
 export default function ScenarioExplorer({
   data,
+  programOptions,
+  activeProgramIds,
+  activeProgramSummary,
+  onResetPrograms,
+  onToggleProgram,
+  onSelectOnlyProgram,
 }: {
   data: BenchData;
+  programOptions: ProgramOption[];
+  activeProgramIds: Set<string>;
+  activeProgramSummary: string;
+  onResetPrograms: () => void;
+  onToggleProgram: (variable: string) => void;
+  onSelectOnlyProgram: (variable: string) => void;
 }) {
   const country = data.country;
   const [promptFormat, setPromptFormat] = useState<"tool" | "json">("tool");
@@ -112,7 +132,23 @@ export default function ScenarioExplorer({
     [data, resolvedScenarioId],
   );
 
-  const variables = useMemo(() => Object.keys(predictions).sort(), [predictions]);
+  const isProgramActive = useCallback(
+    (variable: string) => programIsActive(activeProgramIds, variable),
+    [activeProgramIds],
+  );
+
+  const variables = useMemo(
+    () => Object.keys(predictions).filter(isProgramActive).sort(),
+    [isProgramActive, predictions],
+  );
+
+  const filteredPredictions = useMemo(() => {
+    const out: Record<string, Record<string, ScenarioPrediction>> = {};
+    for (const variable of variables) {
+      out[variable] = predictions[variable] ?? {};
+    }
+    return out;
+  }, [predictions, variables]);
 
   // Frontier-only narrows to one flagship per provider; provider chips
   // multi-select. The scenario explorer table is wide (one column per model),
@@ -124,11 +160,11 @@ export default function ScenarioExplorer({
 
   const allModels = useMemo(() => {
     const unique = new Set<string>();
-    for (const varData of Object.values(predictions)) {
+    for (const varData of Object.values(filteredPredictions)) {
       for (const m of Object.keys(varData)) unique.add(m);
     }
     return MODEL_ORDER.filter((m) => unique.has(m));
-  }, [predictions]);
+  }, [filteredPredictions]);
 
   const models = useMemo(() => {
     return allModels.filter((m) => {
@@ -149,7 +185,9 @@ export default function ScenarioExplorer({
   } | null>(null);
 
   const selectedCell =
-    manualSelection && manualSelection.scenarioId === resolvedScenarioId
+    manualSelection &&
+    manualSelection.scenarioId === resolvedScenarioId &&
+    variables.includes(manualSelection.cell.variable)
       ? manualSelection.cell
       : null;
 
@@ -181,19 +219,21 @@ export default function ScenarioExplorer({
   const geographyLabel = country === "uk" ? "Region" : "State";
   const hasFilingStatus = !!scenario.filingStatus;
   const currencySymbol = country === "uk" ? "£" : "$";
-  const explanationRows = Object.values(predictions).reduce(
+  const explanationRows = Object.values(filteredPredictions).reduce(
     (sum, modelMap) =>
       sum +
       Object.values(modelMap).filter((entry) => !!entry.explanation).length,
     0,
   );
-  const annotationRows = Object.values(predictions).reduce(
+  const annotationRows = Object.values(filteredPredictions).reduce(
     (sum, modelMap) =>
       sum +
       Object.values(modelMap).filter((entry) => !!entry.annotation).length,
     0,
   );
-  const failureSources = Object.values(predictions).reduce<Record<string, number>>(
+  const failureSources = Object.values(filteredPredictions).reduce<
+    Record<string, number>
+  >(
     (counts, modelMap) => {
       for (const entry of Object.values(modelMap)) {
         if (!entry.failureSource) continue;
@@ -203,13 +243,13 @@ export default function ScenarioExplorer({
     },
     {},
   );
-  const caseAnnotationRows = Object.values(predictions).reduce(
+  const caseAnnotationRows = Object.values(filteredPredictions).reduce(
     (sum, modelMap) =>
       sum +
       Object.values(modelMap).filter((entry) => !!entry.caseAnnotation).length,
     0,
   );
-  const totalPredictionRows = Object.values(predictions).reduce(
+  const totalPredictionRows = Object.values(filteredPredictions).reduce(
     (sum, modelMap) => sum + Object.keys(modelMap).length,
     0,
   );
@@ -323,6 +363,17 @@ export default function ScenarioExplorer({
         className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3 animate-fade-up"
         style={{ animationDelay: "300ms" }}
       >
+        <div className="basis-full">
+          <ProgramFilterDropdown
+            options={programOptions}
+            activeProgramIds={activeProgramIds}
+            summary={activeProgramSummary}
+            description="Shared with model scoring and the program breakdown. Scenario rows show only selected outputs; the model column filter stays local to this table."
+            onReset={onResetPrograms}
+            onToggle={onToggleProgram}
+            onSelectOnly={onSelectOnlyProgram}
+          />
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <span
             id="scenarios-filter-label"
@@ -626,7 +677,7 @@ export default function ScenarioExplorer({
       <DetailDialog
         ref={dialogRef}
         selectedCell={selectedCell}
-        predictions={predictions}
+        predictions={filteredPredictions}
         country={country}
         currencySymbol={currencySymbol}
         onClose={closeModal}
