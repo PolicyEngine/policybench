@@ -26,7 +26,6 @@ US_HEADLINE = [
     "snap",
     "ssi",
     "tanf",
-    "premium_tax_credit",
     "person_wic_eligible",
     "person_medicaid_eligible",
     "person_chip_eligible",
@@ -51,7 +50,6 @@ def test_headline_uses_net_income_components_and_coverage_bools():
     assert by_id["state_refundable_credits"].net_income_sign == 1
     federal_before = by_id["federal_income_tax_before_refundable_credits"]
     federal_refundable = by_id["federal_refundable_credits"]
-    premium_tax_credit = by_id["premium_tax_credit"]
     assert federal_before.pe_variable == "income_tax_before_refundable_credits"
     assert federal_before.net_income_sign == -1
     assert federal_refundable.pe_variable == "income_tax_refundable_credits"
@@ -64,6 +62,11 @@ def test_headline_uses_net_income_components_and_coverage_bools():
     assert "EITC" in federal_refundable.prompt
     assert "refundable CTC" in federal_refundable.prompt
     assert "exclude the ACA Premium Tax Credit" in federal_refundable.prompt
+    excluded = {
+        output.id: output
+        for output in get_output_specs("us", "excluded_prompt_issue")
+    }
+    premium_tax_credit = excluded["premium_tax_credit"]
     assert premium_tax_credit.pe_variable == "premium_tax_credit"
     assert premium_tax_credit.role == "health"
     assert premium_tax_credit.net_income_sign == 1

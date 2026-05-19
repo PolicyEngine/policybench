@@ -4,8 +4,7 @@ import {
   getVariableLabel,
   VIEW_LABELS,
   type BenchData,
-  type GlobalBenchData,
-  type ViewKey,
+  type CountryCode,
 } from "../types";
 
 function StatCard({
@@ -56,108 +55,11 @@ function SectionCard({
 
 export default function Methodology({
   data,
-  selectedView,
 }: {
-  data: BenchData | GlobalBenchData;
-  selectedView: ViewKey;
+  data: BenchData;
+  selectedView: CountryCode;
 }) {
-  const isGlobal = selectedView === "global";
-
-  if (isGlobal) {
-    const globalData = data as GlobalBenchData;
-    const totalHouseholds = globalData.countrySummaries.reduce(
-      (sum, country) => sum + country.households,
-      0
-    );
-    const countryCount = globalData.countrySummaries.length;
-
-    return (
-      <div>
-        <div className="eyebrow mb-3 animate-fade-up">Methodology</div>
-        <h2
-          className="font-[family-name:var(--font-display)] text-4xl md:text-5xl text-text tracking-tight animate-fade-up"
-          style={{ animationDelay: "80ms" }}
-        >
-          How global scores work
-        </h2>
-        <p
-          className="text-text-secondary mt-3 max-w-3xl leading-relaxed animate-fade-up"
-          style={{ animationDelay: "160ms" }}
-        >
-          The global leaderboard is a shared-model aggregate, not a separate
-          benchmark. Each model’s global score is the equal-weight average of
-          its country-level bounded scores across the included countries,
-          without reweighting by country population, household count, or
-          currency totals.
-        </p>
-
-        <div
-          className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-10 animate-fade-up"
-          style={{ animationDelay: "240ms" }}
-        >
-          <StatCard
-            value={`${countryCount}`}
-            label="Country benchmarks"
-            accent="primary"
-          />
-          <StatCard
-            value={`${globalData.sharedModelCount}`}
-            label="Shared models"
-            accent="warning"
-          />
-          <StatCard
-            value={totalHouseholds.toLocaleString()}
-            label="Total households"
-            accent="info"
-          />
-          <StatCard value="2026/27" label="Policy period" accent="primary" />
-        </div>
-
-        <div className="grid lg:grid-cols-2 gap-4 mt-8">
-          <SectionCard title="Aggregation">
-            Only models with both country runs appear in the global table.
-            Their global score is the average of the bounded country scores,
-            rather than a country-population-weighted or currency-total-weighted
-            blend.
-          </SectionCard>
-
-          <SectionCard title="Interpretation">
-            This view answers a narrow question: which models travel best across
-            policy systems? It does not replace the country-specific leaderboards,
-            and it intentionally omits mean absolute error because dollars and
-            pounds are not directly comparable.
-          </SectionCard>
-        </div>
-
-        <div
-          className="card px-5 py-5 mt-8 animate-fade-up"
-          style={{ animationDelay: "320ms" }}
-        >
-          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-            Included country benchmarks
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {globalData.countrySummaries.map((summary) => (
-              <div
-                key={summary.key}
-                className="rounded-2xl border border-border bg-surface px-4 py-4"
-              >
-                <div className="text-text text-sm font-medium">
-                  {summary.label}
-                </div>
-                <div className="mt-2 text-xs leading-relaxed text-text-secondary">
-                  {summary.households.toLocaleString()} households,{" "}
-                  {summary.programs} outputs, {summary.models} evaluated models.
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const benchData = data as BenchData;
+  const benchData = data;
   const country = benchData.country;
   const noToolsModels = benchData.modelStats.filter(
     (m) => m.condition === "no_tools"
@@ -268,16 +170,21 @@ export default function Methodology({
           is retained as a displayed requested output, but currently receives
           zero default population-impact weight because the full Enhanced CPS
           source has no positive modeled local-income-tax records.
+          {country === "us"
+            ? " The source run also requested the ACA Premium Tax Credit, but explanation audits showed the prompt could be misleading when households lacked plan-specific Marketplace information, so it is preserved in raw responses and excluded from the scored leaderboard."
+            : ""}
         </SectionCard>
 
         <SectionCard title="Scoring and weighting">
-          The public leaderboard uses population household-impact weights. For
-          each household, the row score is{" "}
+          The public leaderboard ranks models by the within-1% hit rate using
+          population household-impact weights. For each household-output row,
+          the within-1% indicator is 1 when a currency answer is within 1% of
+          the PolicyEngine reference value, with a one-currency-unit tolerance
+          when the reference is zero. Binary eligibility flags require an exact
+          0/1 match. The secondary bounded score uses{" "}
           <code>max(0, 1 − |pred − ref| / |ref|)</code> when the reference is
-          nonzero and matches exactly when the reference is zero; the same
-          formula handles boolean eligibility flags naturally because
-          ref ∈ {"{0, 1}"} gives a 0/1 score directly. Each full source
-          household&apos;s per-output share is{" "}
+          nonzero and exact zero matches when the reference is zero. Each full
+          source household&apos;s per-output share is{" "}
           <code>|ref| / max(|household_net_income|, Σ |ref|)</code>, a value in
           [0, 1] that&apos;s strictly less than one when net income dominates
           the gross tax-benefit flow and equals one only when programs cancel
@@ -291,11 +198,12 @@ export default function Methodology({
             ? " Person-level eligibility flags like Medicaid carry weight through PolicyEngine's paired per-capita value (e.g. medicaid_value), so the LLM is graded only on the boolean call itself."
             : " Person-level eligibility flags carry weight through PolicyEngine's paired per-capita value, so the LLM is graded only on the boolean call itself."}
           {" "}Missing or unparseable answers count as misses through the
-          coverage multiplier. The leaderboard reports the bounded score as
-          the headline plus amount and participation accuracy as diagnostic
-          companions; equal-weight and budget-weighted variants are reported
-          alongside for transparency. The leaderboard is a point estimate on
-          this fixed test set
+          coverage multiplier. The leaderboard reports within-1% as the
+          headline, exact match as the deployability bar, and bounded score,
+          amount accuracy, and participation accuracy as diagnostic companions.
+          Equal-weight and budget-weighted variants are reported alongside for
+          transparency. The leaderboard is a point estimate on this fixed test
+          set
           {hasRepeatedRuns
             ? "; when repeated runs are loaded, the app also shows run-to-run stability."
             : "."}
@@ -307,7 +215,7 @@ export default function Methodology({
           cases, zero-reference cases, and country-only results. In the
           equal-output-group view, person-level outputs are grouped by program
           before the country average. These checks are used to interpret rank
-          stability; they do not replace the public bounded-score
+          stability; they do not replace the public within-1%
           leaderboard.
         </SectionCard>
 

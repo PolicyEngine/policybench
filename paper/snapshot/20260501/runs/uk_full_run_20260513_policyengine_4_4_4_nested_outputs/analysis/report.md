@@ -8,13 +8,15 @@ Top model: `gpt-5.5` with `mean_impact_score=0.503` (household-equal impact scor
 
 ## Usage
 
-Total cost: `33.913` USD. Estimated total runtime: `473.1 min`.
+Total cost: `33.913` USD. Estimated total runtime: `969.8 min`.
 
 | model | total_cost_usd | cost_rows_estimated | total_elapsed | total_tokens | reasoning_tokens | parsed_rows | total_rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | claude-haiku-4.5 | 2.252 | 700 | 31.7 min | 1422379.571 | 0.000 | 700 | 700 |
 | claude-opus-4.7 | 9.934 | 700 | 36.5 min | 1513476.000 | 0.000 | 700 | 700 |
 | claude-sonnet-4.6 | 8.423 | 700 | 89.5 min | 1475924.571 | 0.000 | 700 | 700 |
+| deepseek-v4-flash | n/a | 0 | 103.5 min | 507159.000 | 367307.000 | 700 | 700 |
+| deepseek-v4-pro | n/a | 0 | 393.1 min | 857339.000 | 705986.000 | 700 | 700 |
 | gemini-3-flash-preview | 0.273 | 700 | 6.4 min | 187808.000 | n/a | 700 | 700 |
 | gemini-3.1-flash-lite-preview | 0.253 | 700 | 8.7 min | 331897.286 | 30064.571 | 700 | 700 |
 | gemini-3.1-pro-preview | 2.071 | 700 | 23.0 min | 262786.143 | 100150.000 | 700 | 700 |
@@ -33,6 +35,8 @@ Total cost: `33.913` USD. Estimated total runtime: `473.1 min`.
 | gpt-5.5 | 0.806 | 0.707 | 0.757 | 0.847 | 0.914 | n/a | 245.595 | 700 |
 | grok-4.20 | 0.781 | 0.703 | 0.713 | 0.820 | 0.890 | n/a | 355.731 | 700 |
 | claude-sonnet-4.6 | 0.781 | 0.697 | 0.713 | 0.829 | 0.887 | n/a | 340.302 | 700 |
+| deepseek-v4-pro | 0.767 | 0.690 | 0.703 | 0.804 | 0.871 | n/a | 418.568 | 700 |
+| deepseek-v4-flash | 0.769 | 0.697 | 0.706 | 0.813 | 0.861 | n/a | 400.477 | 700 |
 | claude-opus-4.7 | 0.781 | 0.699 | 0.711 | 0.826 | 0.887 | n/a | 419.425 | 700 |
 | gemini-3-flash-preview | 0.768 | 0.704 | 0.714 | 0.799 | 0.853 | n/a | 460.365 | 700 |
 | gemini-3.1-flash-lite-preview | 0.739 | 0.694 | 0.700 | 0.757 | 0.806 | n/a | 570.365 | 700 |
@@ -51,6 +55,8 @@ Households receive equal weight. The score is a weighted average of continuous r
 | claude-haiku-4.5 | 0.737 | 0.446 | 0.929 |
 | claude-opus-4.7 | 0.889 | 0.782 | 0.969 |
 | claude-sonnet-4.6 | 0.896 | 0.795 | 0.973 |
+| deepseek-v4-flash | 0.891 | 0.793 | 0.974 |
+| deepseek-v4-pro | 0.894 | 0.798 | 0.969 |
 | gemini-3-flash-preview | 0.873 | 0.713 | 0.977 |
 | gemini-3.1-flash-lite-preview | 0.837 | 0.672 | 0.949 |
 | gemini-3.1-pro-preview | 0.911 | 0.801 | 0.977 |
@@ -73,6 +79,8 @@ Retained for comparison with prior reports. Each requested output row gets a ble
 | claude-sonnet-4.6 | 0.457 | 0.781 | 1.000 | 100 |
 | grok-4.20 | 0.451 | 0.781 | 1.000 | 100 |
 | claude-opus-4.7 | 0.451 | 0.781 | 1.000 | 100 |
+| deepseek-v4-pro | 0.448 | 0.767 | 1.000 | 100 |
+| deepseek-v4-flash | 0.433 | 0.769 | 1.000 | 100 |
 | gemini-3-flash-preview | 0.403 | 0.767 | 1.000 | 100 |
 | grok-4.3 | 0.377 | 0.742 | 1.000 | 100 |
 | gemini-3.1-flash-lite-preview | 0.367 | 0.739 | 1.000 | 100 |
@@ -87,10 +95,10 @@ Amount variables use the tolerance columns. Binary coverage flags use `mean_accu
 
 | variable | metric_type | mean_score | mean_exact | mean_within_1pct | mean_within_5pct | mean_within_10pct | mean_accuracy | mean_mae | total_n |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| capital_gains_tax | amount_tolerance | 0.926 | 0.918 | 0.921 | 0.929 | 0.936 | n/a | 501.838 | 1200 |
-| child_benefit | amount_tolerance | 0.771 | 0.631 | 0.654 | 0.877 | 0.922 | n/a | 103.165 | 1200 |
-| income_tax | amount_tolerance | 0.343 | 0.215 | 0.264 | 0.377 | 0.514 | n/a | 1964.871 | 1200 |
-| national_insurance | amount_tolerance | 0.537 | 0.443 | 0.439 | 0.569 | 0.695 | n/a | 382.069 | 1200 |
-| pension_credit | amount_tolerance | 0.931 | 0.931 | 0.931 | 0.931 | 0.932 | n/a | 477.209 | 1200 |
-| pip | amount_tolerance | 0.990 | 0.990 | 0.990 | 0.990 | 0.990 | n/a | 46.818 | 1200 |
-| universal_credit | amount_tolerance | 0.792 | 0.773 | 0.781 | 0.797 | 0.819 | n/a | 1349.409 | 1200 |
+| capital_gains_tax | amount_tolerance | 0.925 | 0.919 | 0.921 | 0.928 | 0.934 | n/a | 500.544 | 1400 |
+| child_benefit | amount_tolerance | 0.775 | 0.631 | 0.651 | 0.889 | 0.928 | n/a | 97.340 | 1400 |
+| income_tax | amount_tolerance | 0.351 | 0.214 | 0.266 | 0.389 | 0.536 | n/a | 1813.822 | 1400 |
+| national_insurance | amount_tolerance | 0.542 | 0.443 | 0.439 | 0.577 | 0.709 | n/a | 353.141 | 1400 |
+| pension_credit | amount_tolerance | 0.933 | 0.932 | 0.932 | 0.933 | 0.934 | n/a | 453.303 | 1400 |
+| pip | amount_tolerance | 0.982 | 0.982 | 0.982 | 0.982 | 0.982 | n/a | 91.710 | 1400 |
+| universal_credit | amount_tolerance | 0.794 | 0.774 | 0.782 | 0.799 | 0.823 | n/a | 1235.701 | 1400 |

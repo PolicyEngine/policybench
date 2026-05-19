@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from policybench.config import MODELS, SEED
-from policybench.analysis import build_global_dashboard_payload, score_single_prediction
+from policybench.analysis import score_single_prediction
 from policybench.spec import metric_type_for_output, parse_person_output
 
 pd.set_option("display.max_colwidth", None)
@@ -73,10 +73,7 @@ def load_frozen_dashboard() -> dict:
             ).read_text()
         ),
     }
-    return {
-        "countries": country_payloads,
-        "global": build_global_dashboard_payload(country_payloads),
-    }
+    return {"countries": country_payloads}
 
 
 dashboard = load_frozen_dashboard()
@@ -87,7 +84,7 @@ def file_hash_prefix(path: str) -> str:
 
 
 def bundle_version(country: str, key: str) -> str:
-    bundle = dashboard["global"]["policyengineBundles"][country]
+    bundle = country_payload(country)["policyengineBundles"][country]
     return str(bundle.get(key) or "not recorded")
 
 
@@ -224,15 +221,6 @@ def country_scores_from_rows(frame: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def global_scores(country_scores: pd.DataFrame) -> pd.DataFrame:
-    pivot = country_scores.pivot(index="model", columns="country", values="score")
-    if {"us", "uk"} <= set(pivot.columns):
-        pivot["score"] = pivot[["us", "uk"]].mean(axis=1)
-    else:
-        pivot["score"] = pivot.mean(axis=1)
-    return pivot[["score"]].reset_index().sort_values("score", ascending=False)
-
-
 def rank_cell(frame: pd.DataFrame, rank: int) -> str:
     row = frame.reset_index(drop=True).iloc[rank - 1]
     return f"{row.model} ({row.score:.1f})"
@@ -325,9 +313,10 @@ def federal_state_joint_accuracy() -> pd.DataFrame:
 
 
 def impact_floor_sensitivity() -> pd.DataFrame:
-    """Top global ranks under three weighting philosophies.
+    """Top country ranks under three weighting philosophies.
 
-    Reports the top model under the bounded secondary metric (global variable
+    Reports top models under the bounded secondary metric (population-derived
+    variable
     weights derived from each household's `|ref| / max(|net income|, Σ |ref|)`
     share, averaged across households and renormalized) alongside two opt-in
     alternatives: equal weighting across outputs and budget-weighted (each
@@ -404,20 +393,26 @@ def impact_floor_sensitivity() -> pd.DataFrame:
         country_summary = country_table(weight_kind)
         if country_summary.empty:
             continue
-        global_summary = global_scores(country_summary)
-        if len(global_summary) < 3:
-            continue
-        rank1 = global_summary.iloc[0]
-        rank2 = global_summary.iloc[1]
-        rank3 = global_summary.iloc[2]
-        rows.append(
-            {
-                "Weighting": label,
-                "Rank 1": f"{rank1.model} ({rank1.score:.1f})",
-                "Rank 2": f"{rank2.model} ({rank2.score:.1f})",
-                "Rank 3": f"{rank3.model} ({rank3.score:.1f})",
-            }
-        )
+        for country, country_label in [("us", "US"), ("uk", "UK")]:
+            ranked = (
+                country_summary[country_summary["country"] == country]
+                .sort_values("score", ascending=False)
+                .reset_index(drop=True)
+            )
+            if len(ranked) < 3:
+                continue
+            rank1 = ranked.iloc[0]
+            rank2 = ranked.iloc[1]
+            rank3 = ranked.iloc[2]
+            rows.append(
+                {
+                    "Country": country_label,
+                    "Weighting": label,
+                    "Rank 1": f"{rank1.model} ({rank1.score:.1f})",
+                    "Rank 2": f"{rank2.model} ({rank2.score:.1f})",
+                    "Rank 3": f"{rank3.model} ({rank3.score:.1f})",
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -589,7 +584,6 @@ def simple_baselines() -> pd.DataFrame:
                 }
             )
         country_scores = pd.DataFrame(country_rows)
-        global_score = global_scores(country_scores)["score"].iloc[0]
         us_score = country_scores.loc[country_scores["country"] == "us", "score"].iloc[
             0
         ]
@@ -599,68 +593,84 @@ def simple_baselines() -> pd.DataFrame:
         baselines.append(
             {
                 "Baseline": name,
-                "Global score": global_score,
                 "US score": us_score,
                 "UK score": uk_score,
             }
         )
     frame = pd.DataFrame(baselines)
-    for column in ["Global score", "US score", "UK score"]:
+    for column in ["US score", "UK score"]:
         frame[column] = frame[column].round(1)
     return frame
 
 
 def sensitivity_rows() -> pd.DataFrame:
     prediction_rows = flatten_predictions()
-    views = {
-        "Main household-equal impact score": global_model[
-            ["model", "score"]
-        ].sort_values("score", ascending=False),
-        "Equal-output-group score": global_scores(
-            country_scores_from_rows(prediction_rows)
-        ),
-        "Amount outputs only": global_scores(
-            country_scores_from_rows(
-                prediction_rows[prediction_rows["metric_type"] == "amount"]
-            )
-        ),
-        "Positive reference cases only": global_scores(
-            country_scores_from_rows(prediction_rows[prediction_rows["truth"] != 0])
-        ),
-        "Zero reference cases only": global_scores(
-            country_scores_from_rows(prediction_rows[prediction_rows["truth"] == 0])
-        ),
-        "US only": us_model[["model", "score"]].sort_values(
+
+    def country_slice(frame: pd.DataFrame, country: str) -> pd.DataFrame:
+        return frame[frame["country"] == country][["model", "score"]].sort_values(
             "score",
             ascending=False,
-        ),
-        "UK only": uk_model[["model", "score"]].sort_values(
-            "score",
-            ascending=False,
-        ),
-        "US binary coverage only": country_scores_from_rows(
-            prediction_rows[
-                (prediction_rows["country"] == "us")
-                & (prediction_rows["metric_type"] == "binary")
-            ]
-        )[["model", "score"]].sort_values("score", ascending=False),
-    }
-    rows = []
-    for view, frame in views.items():
-        rows.append(
-            {
-                "View": view,
-                "Rank 1": rank_cell(frame, 1),
-                "Rank 2": rank_cell(frame, 2),
-                "Rank 3": rank_cell(frame, 3),
-            }
         )
+
+    rows = []
+    for country, label, model in [("us", "US", us_model), ("uk", "UK", uk_model)]:
+        views = {
+            "Within-1% headline": model[["model", "within1pct"]]
+            .rename(columns={"within1pct": "score"})
+            .sort_values("score", ascending=False),
+            "Bounded score": model[["model", "score"]].sort_values(
+                "score",
+                ascending=False,
+            ),
+            "Equal-output-group score": country_slice(
+                country_scores_from_rows(prediction_rows),
+                country,
+            ),
+            "Amount outputs only": country_slice(
+                country_scores_from_rows(
+                    prediction_rows[
+                        (prediction_rows["country"] == country)
+                        & (prediction_rows["metric_type"] == "amount")
+                    ]
+                ),
+                country,
+            ),
+            "Positive reference cases only": country_slice(
+                country_scores_from_rows(
+                    prediction_rows[
+                        (prediction_rows["country"] == country)
+                        & (prediction_rows["truth"] != 0)
+                    ]
+                ),
+                country,
+            ),
+            "Zero reference cases only": country_slice(
+                country_scores_from_rows(
+                    prediction_rows[
+                        (prediction_rows["country"] == country)
+                        & (prediction_rows["truth"] == 0)
+                    ]
+                ),
+                country,
+            ),
+        }
+        for view, frame in views.items():
+            rows.append(
+                {
+                    "Country": label,
+                    "View": view,
+                    "Rank 1": rank_cell(frame, 1),
+                    "Rank 2": rank_cell(frame, 2),
+                    "Rank 3": rank_cell(frame, 3),
+                }
+            )
     return pd.DataFrame(rows)
 
 
 def model_run_table(top_n: int = 12) -> pd.DataFrame:
     rows = []
-    for model in global_model["model"].head(top_n):
+    shared_models = sorted(set(us_model["model"]) & set(uk_model["model"]))
+    for model in shared_models[:top_n]:
         us_row = us_model.loc[us_model["model"] == model].iloc[0]
         uk_row = uk_model.loc[uk_model["model"] == model].iloc[0]
         rows.append(
@@ -671,95 +681,6 @@ def model_run_table(top_n: int = 12) -> pd.DataFrame:
                 "UK parsed": f"{int(uk_row.nParsed):,}/{int(uk_row.n):,}",
                 "Structured output": "provider structured-output schema; no external tool",
                 "Decoding": "provider default; no model-specific prompt tuning",
-            }
-        )
-    return pd.DataFrame(rows)
-
-
-def bootstrap_global_uncertainty(
-    n_boot: int = 1000,
-    top_n: int = 10,
-) -> pd.DataFrame:
-    from policybench.analysis import bounded_household_scores
-
-    ground_truths = load_snapshot_ground_truth()
-    predictions = load_snapshot_predictions(
-        usecols=["model", "scenario_id", "variable", "prediction"]
-    )
-    scenarios_by_country = {
-        country: pd.read_csv(
-            ROOT / IMPACT_SNAPSHOT_DIR
-            / f"runs/{country}_full_run_20260513_policyengine_4_4_4_nested_outputs/scenarios.csv"
-        )
-        for country in ["us", "uk"]
-    }
-    market_by_country = {
-        country: dict(
-            zip(
-                df["scenario_id"].astype(str),
-                pd.to_numeric(df["total_income"], errors="coerce").fillna(0.0),
-            )
-        )
-        for country, df in scenarios_by_country.items()
-    }
-    household_scores = {
-        country: bounded_household_scores(
-            ground_truths[country],
-            prediction,
-            market_by_country[country],
-            country=country,
-        )
-        for country, prediction in predictions.items()
-    }
-    scenario_ids = {
-        country: sorted(frame["scenario_id"].unique().tolist())
-        for country, frame in household_scores.items()
-    }
-    country_frames = {
-        country: frame[["model", "scenario_id", "score"]]
-        for country, frame in household_scores.items()
-    }
-    rng = np.random.default_rng(SEED)
-    boot_frames = []
-    for draw in range(n_boot):
-        country_score_frames = []
-        for country, ids in scenario_ids.items():
-            sampled_ids = rng.choice(ids, size=len(ids), replace=True)
-            sampled_index = pd.DataFrame({"scenario_id": sampled_ids})
-            sampled = sampled_index.merge(
-                country_frames[country],
-                on="scenario_id",
-                how="left",
-            )
-            country_scores = (
-                sampled.groupby("model")["score"].mean().reset_index()
-            )
-            country_scores["country"] = country
-            country_scores["score"] = country_scores["score"] * 100
-            country_score_frames.append(country_scores[["country", "model", "score"]])
-        scores = global_scores(
-            pd.concat(country_score_frames, ignore_index=True)
-        ).reset_index(drop=True)
-        scores["rank"] = scores.index + 1
-        scores["draw"] = draw
-        boot_frames.append(scores)
-    boot = pd.concat(boot_frames, ignore_index=True)
-    point = global_model[["model", "score"]].head(top_n).copy()
-    rows = []
-    for row in point.itertuples():
-        samples = boot[boot["model"] == row.model]
-        rows.append(
-            {
-                "Model": row.model,
-                "Score": round(row.score, 1),
-                "95% bootstrap score interval": (
-                    f"{samples['score'].quantile(0.025):.1f}-"
-                    f"{samples['score'].quantile(0.975):.1f}"
-                ),
-                "Bootstrap rank range": (
-                    f"{int(samples['rank'].min())}-"
-                    f"{int(samples['rank'].max())}"
-                ),
             }
         )
     return pd.DataFrame(rows)
@@ -791,48 +712,20 @@ def top_model(frame: pd.DataFrame) -> pd.Series:
 def top_model_snapshot_summary(
     us_row: pd.Series,
     uk_row: pd.Series,
-    global_row: pd.Series,
 ) -> str:
     metric = "within-1%"
-    if us_row.model == uk_row.model == global_row.model:
-        return (
-            f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-            f"{us_row.model} is top-scoring on {metric} in the US, UK, and "
-            f"shared global views at {fmt_score(us_row.within1pct)}, "
-            f"{fmt_score(uk_row.within1pct)}, and "
-            f"{fmt_score(global_row.within1pct)}, respectively."
-        )
     if us_row.model == uk_row.model:
         return (
             f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
             f"{us_row.model} is top-scoring on {metric} in both country tables "
             f"at {fmt_score(us_row.within1pct)} in the US and "
-            f"{fmt_score(uk_row.within1pct)} in the UK, and the top shared "
-            f"global model is {global_row.model} at "
-            f"{fmt_score(global_row.within1pct)}."
-        )
-    if us_row.model == global_row.model:
-        return (
-            f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-            f"{us_row.model} is the top US and shared global model on {metric} "
-            f"at {fmt_score(us_row.within1pct)} and "
-            f"{fmt_score(global_row.within1pct)}, respectively, while the top "
-            f"UK model is {uk_row.model} at {fmt_score(uk_row.within1pct)}."
-        )
-    if uk_row.model == global_row.model:
-        return (
-            f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-            f"{uk_row.model} is the top UK and shared global model on {metric} "
-            f"at {fmt_score(uk_row.within1pct)} and "
-            f"{fmt_score(global_row.within1pct)}, respectively, while the top "
-            f"US model is {us_row.model} at {fmt_score(us_row.within1pct)}."
+            f"{fmt_score(uk_row.within1pct)} in the UK."
         )
     return (
         f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
         f"the top US model on {metric} is {us_row.model} at "
         f"{fmt_score(us_row.within1pct)}, the top UK model is {uk_row.model} "
-        f"at {fmt_score(uk_row.within1pct)}, and the top shared global model "
-        f"is {global_row.model} at {fmt_score(global_row.within1pct)}."
+        f"at {fmt_score(uk_row.within1pct)}."
     )
 
 
@@ -850,11 +743,7 @@ def country_top_sentence(us_row: pd.Series, uk_row: pd.Series) -> str:
 
 us_model = model_frame("us")
 uk_model = model_frame("uk")
-global_model = pd.DataFrame(dashboard["global"]["modelStats"]).sort_values(
-    # Match the country tables: within-1% is the headline ranking metric.
-    "within1pct",
-    ascending=False,
-)
+shared_model_count = len(set(us_model["model"]) & set(uk_model["model"]))
 us_var = variable_frame("us")
 uk_var = variable_frame("uk")
 us_failures = failure_frame("us")
@@ -863,7 +752,6 @@ uk_failures = failure_frame("uk")
 
 us_top = model_table(us_model)
 uk_top = model_table(uk_model)
-global_top = model_table(global_model, top_n=10)
 
 us_hardest = variable_hardest(us_var)
 uk_hardest = variable_hardest(uk_var)
@@ -871,7 +759,6 @@ us_positive_cases = positive_case_table(us_failures)
 uk_positive_cases = positive_case_table(uk_failures)
 sensitivity = sensitivity_rows()
 model_runs = model_run_table()
-bootstrap_uncertainty = bootstrap_global_uncertainty()
 baseline_summary = simple_baselines()
 federal_state_joint = federal_state_joint_accuracy()
 impact_floor = impact_floor_sensitivity()
@@ -924,7 +811,7 @@ snapshot_provenance = pd.DataFrame(
         ["UK scenario-source pinned commit", UK_TRANSFER_ARTIFACT_PINNED_COMMIT],
         ["UK scenario-source SHA-256", UK_TRANSFER_ARTIFACT_SHA256],
         ["Households", "100 US and 100 UK"],
-        ["Models", f"{len(global_model)} shared models"],
+        ["Models", f"{shared_model_count} shared models"],
         ["Output groups", "18 US and 7 UK"],
         ["Condition", "No tools, no web access, one structured response per household"],
         ["Response contract", "Numeric answer and non-empty explanation for every requested output"],
@@ -965,7 +852,6 @@ parse_repair_summary = pd.DataFrame(
 
 us_ranked = us_model.reset_index(drop=True)
 uk_ranked = uk_model.reset_index(drop=True)
-global_ranked = global_model.reset_index(drop=True)
 
 us_top_three = [
     f"{row.model} ({fmt_score(row.within1pct)} within-1%, "
@@ -977,24 +863,16 @@ uk_top_three = [
     f"{fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
     for row in uk_ranked.head(3).itertuples()
 ]
-global_top_three = [
-    f"{row.model} ({fmt_score(row.within1pct)} within-1%, "
-    f"{fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
-    for row in global_ranked.head(3).itertuples()
-]
 
 us_top_model = top_model(us_model)
 uk_top_model = top_model(uk_model)
-global_top_model = top_model(global_model)
 
 abstract_snapshot_summary = top_model_snapshot_summary(
     us_top_model,
     uk_top_model,
-    global_top_model,
 )
 us_top_three_summary = ranked_phrase(us_top_three)
 uk_top_three_summary = ranked_phrase(uk_top_three)
-global_top_three_summary = ranked_phrase(global_top_three)
 conclusion_snapshot_summary = country_top_sentence(us_top_model, uk_top_model)
 ```
 
@@ -1030,7 +908,7 @@ The primary headline metric is the within-1% hit rate: the share of requested ou
 
 Within-1% is the headline because the benchmark panels are zero-inflated. In the frozen manuscript snapshot, 71% of UK reference outputs and 82% of US reference outputs are exact zeros — most sampled households are not eligible for any given program, owe no capital gains tax, do not phase into a refundable credit, and so on. A model that hedges to zero on every requested output therefore earns full exact credit on every zero case, which compresses top-of-leaderboard exact-match rates near the share of zero cases the panel contains. In the UK panel this compression is severe: the top seven models in the manuscript snapshot are tied within 0.6 percentage points on exact match but span 4.6 percentage points on within-1%, because within-1% credits close-but-not-exact predictions on the 29% of positive-reference cases where rule comprehension is actually tested. Within-1% inherits the same one-currency-unit tolerance on zeros, so a hedging baseline gets no extra credit from the relaxed threshold; it is the partial credit on positive-reference cases that yields the discriminating signal.
 
-The within-1% rate is aggregated to a household score, then to a country score, then to a global score, with the same population-derived output weights that the secondary bounded score uses. Equal household weight within each country and equal country weight globally preserve comparability across scenarios and slices.
+The within-1% rate is aggregated to a household score and then to a country score, with the same population-derived output weights that the secondary bounded score uses. Equal household weight within each country preserves comparability across scenarios and slices. We report US and UK leaderboards separately rather than collapsing them into a combined cross-country rank.
 
 ### Deployability bar: exact match
 
@@ -1053,7 +931,7 @@ PolicyBench also tracks mean absolute error and related error metrics. These rem
 
 All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026; UK outputs are annual amounts or annual eligibility indicators for fiscal year 2026-27. For currency amounts, the "exact" hit rate means within `1` currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same `1` currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as `0` or `1` eligibility flags and scored by exact classification accuracy. Missing or unparseable numeric answers receive zero score for that requested output.
 
-Aggregation proceeds in four steps. First, each household-output prediction receives a `0-100` score. Second, each household receives one model score: requested output rows are weighted by output-group weights constructed from the full source microsimulation population, then renormalized within the household over outputs that are actually requested for that household. Person-level coverage flags are scored at the person row; their output-group weight is split across the relevant people in the household and is based on PolicyEngine value proxies where available. Third, country scores average those household scores with equal household weight. Fourth, global scores average the US and UK country scores for models run in both countries. The global score is therefore an equal-country, household-equal summary for this benchmark sample, not a universally authoritative measure of tax-benefit competence. Equal-output-group scores and other alternative views are reported as sensitivity checks.
+Aggregation proceeds in three steps. First, each household-output prediction receives a `0-100` score. Second, each household receives one model score: requested output rows are weighted by output-group weights constructed from the full source microsimulation population, then renormalized within the household over outputs that are actually requested for that household. Person-level coverage flags are scored at the person row; their output-group weight is split across the relevant people in the household and is based on PolicyEngine value proxies where available. Third, country scores average those household scores with equal household weight. The paper reports US and UK leaderboards separately rather than averaging them into a combined cross-country rank. Equal-output-group scores and other alternative views are reported as sensitivity checks.
 
 The benchmark requires each model response to include numeric answers and one explanation per requested output. Both the exact-match rate and the bounded score use only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.
 
@@ -1081,7 +959,7 @@ model_runs
 
 The US benchmark is built from Enhanced Current Population Survey (CPS)-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit, single-family, single-Supplemental Poverty Measure (SPM)-unit structure with at least one adult and a supported filing status. The 2024 Enhanced CPS source contains 41,314 households; 30,173 (73.0%) pass the filter and form the eligible draw. The 27.0% excluded by the filter include multi-tax-unit households (e.g., adult roommates), multi-family households, multi-SPM-unit households, and households whose head reports a filing status outside the supported set. These excluded compositions are exactly the kind of cases where federal/state credit allocations and benefit-unit rules become hardest, so the eligible draw is a tractable subset rather than the full distribution of US households. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives. Filing status is not stated in the prompt; the reference computation infers it from tax-unit role flags. Models therefore see the same household facts that drive the reference filing-status assignment, but they do not receive that assignment as a label.
 
-The current US release requests 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, the ACA Premium Tax Credit, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children's Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start. Local income tax is retained as a displayed requested output, but it receives zero default population-impact weight in this snapshot because the full Enhanced CPS source used for weighting has no positive modeled local-income-tax records.
+The current US release requests 18 scored output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children's Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start. The source run also requested the ACA Premium Tax Credit (PTC), but explanation audits showed that the prompt could be misleading when households lacked plan-specific Marketplace information. We therefore preserve those raw responses but exclude PTC from the canonical scored leaderboard until the prompt contract is revised. Local income tax is retained as a displayed requested output, but it receives zero default population-impact weight in this snapshot because the full Enhanced CPS source used for weighting has no positive modeled local-income-tax records.
 
 The output scope is intentionally narrower than the full PolicyEngine model. @tbl-scope-rationale summarizes the inclusion rule. The benchmark asks for WIC eligibility rather than a WIC dollar amount; WIC dollar values are used only as impact-weight proxies for coverage flags, not as requested model outputs.
 
@@ -1139,18 +1017,6 @@ The UK leaderboard for the frozen manuscript snapshot is shown in @tbl-uk-top. T
 uk_top
 ```
 
-### Global shared-model leaderboard
-
-The global leaderboard averages US and UK scores for the models that have been run in both countries. In the frozen manuscript snapshot, the top three are `{python} global_top_three_summary`. The global table is an equal-country summary for this two-country benchmark sample; it should be read alongside the country tables and sensitivity views rather than as a universally authoritative ordering.
-
-```{python}
-#| label: tbl-global-top
-#| tbl-cap: "Global shared-model leaderboard across US and UK runs."
-global_top
-```
-
-![Global shared-model leaderboard in the frozen manuscript snapshot.](figures/global_leaderboard.png){#fig-global-leaderboard fig-alt="Horizontal bar chart of global equal-country model scores in the frozen PolicyBench manuscript snapshot."}
-
 ### Simple baselines
 
 Simple baselines help interpret score levels in a zero-heavy benchmark. @tbl-baselines reports an always-zero response and a median-reference-by-output response on the same frozen household sample. These are not model competitors; they show how much of either metric can be earned without household-specific policy calculation — and they make clear that the within-1% headline and exact-match deployability bar are not trivial bars to clear above the always-zero baseline on positive-reference cases.
@@ -1163,7 +1029,7 @@ baseline_summary
 
 ### Sensitivity to benchmark view
 
-The primary leaderboard gives each country equal weight globally and each household equal weight within a country. @tbl-sensitivity reports several alternative views, including the older equal-output-group score. The top model is stable across several views, but lower ranks move across sensitivity views. The global score is therefore best read as a summary statistic whose interpretation depends on these checks.
+The primary leaderboard gives each household equal weight within each country. @tbl-sensitivity reports several alternative views, including the older equal-output-group score. The top model is stable across several country views, but lower ranks move across sensitivity views. Country scores are therefore best read with the weighting choice visible rather than collapsed into one cross-country ordering.
 
 ```{python}
 #| label: tbl-sensitivity
@@ -1175,18 +1041,8 @@ The bounded score is a global-output-weighted average of a continuous row score.
 
 ```{python}
 #| label: tbl-impact-floor
-#| tbl-cap: "Top global ranks under the bounded secondary metric across three weightings (Household, Aggregate, Equal). The primary exact-match ranking is summarised in @tbl-global-top."
+#| tbl-cap: "Top country ranks under the bounded secondary metric across three weightings (Household, Aggregate, Equal)."
 impact_floor
-```
-
-### Sampling uncertainty
-
-The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws on the bounded secondary score; analogous exact-match intervals are not separately tabulated because the bounded-score bootstrap is the tighter test (the exact indicator is the leading hit-rate term inside the bounded score). The procedure resamples households within each country, reuses the fixed full-population output weights, recomputes per-country bounded scores on each resample, then recomputes the equal-country global bounded score. The intervals therefore quantify uncertainty from the specific 100-household draw used here conditional on the fixed weighting artifact. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after `{python} MODEL_RESPONSE_DATE` in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
-
-```{python}
-#| label: tbl-bootstrap
-#| tbl-cap: "Household-resampling uncertainty for the global leaderboard."
-bootstrap_uncertainty
 ```
 
 ### Hardest benchmark targets
@@ -1250,7 +1106,7 @@ PolicyBench is not a substitute for a production tax-and-benefit calculator. Sev
 - output-contract reliability required a repair workflow, and the raw failed attempts are preserved separately from the repaired canonical prediction files
 - zero-heavy outputs require separate positive-case interpretation
 - the choice of primary metric (within-1%), deployability bar (exact match), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate
-- the global score is an equal-country, household-equal summary for models run in both countries, not a universal ranking of model quality
+- cross-country comparison is descriptive only; this snapshot reports separate US and UK leaderboards rather than a combined cross-country rank
 - the public UK calibrated transfer dataset is not equivalent to enhanced Family Resources Survey quality and is not population-representative UK microdata
 - the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail
 - the 100-household manuscript snapshot should be treated as a preview until larger frozen runs are published
@@ -1265,7 +1121,7 @@ PolicyBench shows a consistent pattern across both countries. Models often ident
 
 These results support a narrow conclusion: unaided frontier models still struggle to reproduce selected household-level microsimulation outputs under a structured public benchmark. They do not show that models cannot assist policy analysis, and they do not validate PolicyEngine outputs as administrative truth. They suggest that future evaluations should separate no-tool estimation, tool-using system design, and reference-output validation more explicitly.
 
-Next steps are to expand country coverage, increase frozen sample sizes, improve UK data provenance, and add protected or rotating evaluation sets so that public rankings are less exposed to open-set leakage. The benchmark should also continue reporting sensitivity views, because equal-country household-equal scores are useful summaries only when their weighting choices are visible.
+Next steps are to expand country coverage, increase frozen sample sizes, improve UK data provenance, and add protected or rotating evaluation sets so that public rankings are less exposed to open-set leakage. The benchmark should also continue reporting sensitivity views, because country scores are useful summaries only when their weighting choices are visible.
 
 ## Appendix A: Structured-output audit
 

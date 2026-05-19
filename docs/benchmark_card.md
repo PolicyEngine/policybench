@@ -130,14 +130,14 @@ Public prose should prefer:
 - `reference outputs`
 - `frozen snapshot`
 - `public calibrated transfer dataset`
-- `equal-country global summary`
+- separate country leaderboards
 
 Public prose should avoid:
 
 - unqualified `truth` language for reference outputs
 - `current best model` without a dated snapshot
 - `first public benchmark`
-- treating the global score as a universal model ranking
+- collapsing country scores into a universal model ranking
 
 ## Minimum reporting standard
 
@@ -150,7 +150,7 @@ Every public writeup should state:
 - the output set used
 - whether the claim refers to the live site or a frozen paper snapshot
 - whether UK results come from the public transfer dataset or a later artifact
-- whether global results are equal-country summaries or use another weighting
+- whether any cross-country comparison is descriptive or score-producing
 - sensitivity checks for at least amount-only, binary-only, positive-reference
   cases, zero-reference cases, country-only rankings, and household-equal
   impact scores when available

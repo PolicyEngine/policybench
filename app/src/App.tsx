@@ -8,17 +8,16 @@ import Methodology from "./components/Methodology";
 import ModelLeaderboard from "./components/ModelLeaderboard";
 import ProgramHeatmap from "./components/ProgramHeatmap";
 import ScenarioExplorer from "./components/ScenarioExplorer";
-import { filterExcludedOutputs } from "./lib/dashboardFilter";
 import {
   buildProgramOptions,
   resolveActiveProgramIds,
   selectOnlyProgram as selectOnlyProgramFilter,
   toggleProgramSelection,
 } from "./lib/programFilters";
-import type { CountryCode, DashboardBundle, ViewKey } from "./types";
+import type { CountryCode, DashboardBundle } from "./types";
 import { VIEW_LABELS } from "./types";
 
-const dashboard = filterExcludedOutputs(rawData as DashboardBundle);
+const dashboard = rawData as DashboardBundle;
 
 export type { DashboardBundle } from "./types";
 
@@ -124,8 +123,7 @@ export default function App() {
     setSelectedPrograms(selectOnlyProgramFilter(variable));
   }, []);
 
-  const handleSelectView = (view: ViewKey) => {
-    if (view === "global") return;
+  const handleSelectView = (view: CountryCode) => {
     setSelectedView(view);
     setHasUserPickedView(true);
     setActiveNav("models");
@@ -180,7 +178,6 @@ export default function App() {
       <Hero
         selectedView={selectedView}
         onSelectView={handleSelectView}
-        dashboard={dashboard}
         data={data}
         availableViews={availableViews}
         navItems={navItems}

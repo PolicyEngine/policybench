@@ -1,9 +1,4 @@
-import type {
-  BenchData,
-  DashboardBundle,
-  GlobalBenchData,
-  ViewKey,
-} from "../types";
+import type { BenchData, CountryCode } from "../types";
 import SiteHeader, { type HeaderNavItem } from "./SiteHeader";
 
 const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-14";
@@ -11,58 +6,32 @@ const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-14";
 export default function Hero({
   selectedView,
   onSelectView,
-  dashboard,
   data,
   availableViews,
   navItems,
   activeNav,
 }: {
-  selectedView: ViewKey;
-  onSelectView: (view: ViewKey) => void;
-  dashboard: DashboardBundle;
-  data: BenchData | GlobalBenchData;
-  availableViews: ViewKey[];
+  selectedView: CountryCode;
+  onSelectView: (view: CountryCode) => void;
+  data: BenchData;
+  availableViews: CountryCode[];
   navItems: readonly HeaderNavItem[];
   activeNav: string;
 }) {
-  const isGlobal = selectedView === "global";
-  const benchData = isGlobal ? null : (data as BenchData);
   const rankedNoTools = [...data.modelStats]
     .filter((m) => m.condition === "no_tools")
     .sort((a, b) => b.score - a.score);
-  const countryHouseholds = Object.values(dashboard.countries).map(
-    (country) => Object.keys(country?.scenarios ?? {}).length,
-  );
-  const totalHouseholds = countryHouseholds.reduce(
-    (sum, count) => sum + count,
-    0,
-  );
-  const countryCount = countryHouseholds.length;
 
-  const subtitle = isGlobal
-    ? `${(data as GlobalBenchData).sharedModelCount} frontier models across ${totalHouseholds.toLocaleString()} households in ${countryCount} countries.`
-    : `${rankedNoTools.length} models on ${Object.keys(benchData!.scenarios).length.toLocaleString()} households across ${benchData!.programStats.length} tax and benefit outputs.`;
+  const subtitle = `${rankedNoTools.length} models on ${Object.keys(data.scenarios).length.toLocaleString()} households across ${data.programStats.length} tax and benefit outputs.`;
 
-  const stats = isGlobal
-    ? [
-        { value: `${countryCount}`, label: "Countries" },
-        {
-          value: `${(data as GlobalBenchData).sharedModelCount}`,
-          label: "Models",
-        },
-        {
-          value: `${totalHouseholds.toLocaleString()}`,
-          label: "Households",
-        },
-      ]
-    : [
-        { value: `${rankedNoTools.length}`, label: "Models" },
-        {
-          value: `${Object.keys(benchData!.scenarios).length.toLocaleString()}`,
-          label: "Households",
-        },
-        { value: `${benchData!.programStats.length}`, label: "Outputs" },
-      ];
+  const stats = [
+    { value: `${rankedNoTools.length}`, label: "Models" },
+    {
+      value: `${Object.keys(data.scenarios).length.toLocaleString()}`,
+      label: "Households",
+    },
+    { value: `${data.programStats.length}`, label: "Outputs" },
+  ];
 
   return (
     <>

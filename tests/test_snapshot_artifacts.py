@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.analysis import build_global_dashboard_payload
 from policybench.annotation_validation import validate_snapshot_audit
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -122,10 +121,7 @@ def test_snapshot_prompt_payload_hashes_are_frozen_to_source_runs():
 def test_snapshot_source_run_payloads_match_scope():
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
     country_payloads = _snapshot_country_payloads(manifest)
-    dashboard = {
-        "countries": country_payloads,
-        "global": build_global_dashboard_payload(country_payloads),
-    }
+    dashboard = {"countries": country_payloads}
 
     for country, expected_households in manifest["scope"]["households"].items():
         country_payload = dashboard["countries"][country]
@@ -140,9 +136,16 @@ def test_snapshot_source_run_payloads_match_scope():
         assert scenarios["scenario_id"].nunique() == expected_households
         assert references["scenario_id"].nunique() == expected_households
 
-    shared_models = manifest["scope"]["models"]
-    assert len(dashboard["global"]["modelStats"]) == shared_models
-    assert dashboard["global"]["modelStats"][0]["model"] == "gpt-5.5"
+    expected_models = manifest["scope"]["models"]
+    for country in ("us", "uk"):
+        country_models = [
+            row
+            for row in dashboard["countries"][country]["modelStats"]
+            if row["condition"] == "no_tools"
+        ]
+        assert len(country_models) == expected_models
+        top_model = max(country_models, key=lambda row: row["within1pct"])
+        assert top_model["model"] == "gpt-5.5"
 
 
 def test_snapshot_copied_artifacts_match_source_runs():

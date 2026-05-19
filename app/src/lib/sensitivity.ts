@@ -3,10 +3,8 @@ import type {
   CountryCode,
   DashboardBundle,
   ModelStat,
-  ViewKey,
 } from "../types";
 
-const GLOBAL_REQUIRED_COUNTRIES: readonly CountryCode[] = ["us", "uk"];
 import {
   metricTypeForVariable,
   outputGroupForVariable,
@@ -43,21 +41,11 @@ export const SENSITIVITY_VIEWS: SensitivityView[] = [
   },
 ];
 
-// Keys on each modelStat that hold the per-view score (0–100). The country
-// payload exposes ``boundedScore``/``aggregateScore``/``equalScore`` directly;
-// the global payload also exposes country-level breakdowns under
-// ``boundedCountryScores``/``aggregateCountryScores``/``equalCountryScores``
-// for the per-country country selector.
+// Keys on each modelStat that hold the per-view score (0–100).
 const VIEW_TO_FIELD: Record<SensitivityViewId, keyof ModelStat> = {
   household: "boundedScore",
   aggregate: "aggregateScore",
   equal: "equalScore",
-};
-
-const VIEW_TO_COUNTRY_FIELD: Record<SensitivityViewId, keyof ModelStat> = {
-  household: "boundedCountryScores",
-  aggregate: "aggregateCountryScores",
-  equal: "equalCountryScores",
 };
 
 export type ScenarioRow = {
@@ -122,43 +110,22 @@ function readCountryScore(stat: ModelStat, view: SensitivityViewId): number | un
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function readGlobalCountryScores(
-  stat: ModelStat,
-  view: SensitivityViewId,
-): Record<string, number> | undefined {
-  const map = stat[VIEW_TO_COUNTRY_FIELD[view]];
-  if (!map || typeof map !== "object") return undefined;
-  return map as Record<string, number>;
-}
-
 /** Returns true if every model in the selected payload exposes a score for this view. */
 export function viewSupportsSelected(
   dashboard: DashboardBundle,
   view: SensitivityViewId,
-  selectedView: ViewKey,
+  selectedView: CountryCode,
 ): boolean {
   if (view === "household") return true;
   const stats = pickModelStats(dashboard, selectedView);
   if (!stats || stats.length === 0) return false;
-  return stats.every((stat) => {
-    if (selectedView === "global") {
-      const countryScores = readGlobalCountryScores(stat, view);
-      if (!countryScores) return false;
-      return GLOBAL_REQUIRED_COUNTRIES.every(
-        (c) => typeof countryScores[c] === "number",
-      );
-    }
-    return readCountryScore(stat, view) !== undefined;
-  });
+  return stats.every((stat) => readCountryScore(stat, view) !== undefined);
 }
 
 function pickModelStats(
   dashboard: DashboardBundle,
-  selectedView: ViewKey,
+  selectedView: CountryCode,
 ): ModelStat[] | undefined {
-  if (selectedView === "global") {
-    return dashboard.global?.modelStats?.filter((m) => m.condition === "no_tools");
-  }
   return dashboard.countries[selectedView]?.modelStats?.filter(
     (m) => m.condition === "no_tools",
   );
@@ -167,25 +134,12 @@ function pickModelStats(
 export function modelScoresForView(
   dashboard: DashboardBundle,
   view: SensitivityViewId,
-  selectedView: ViewKey,
+  selectedView: CountryCode,
 ): ModelScore[] {
   const stats = pickModelStats(dashboard, selectedView) ?? [];
   const out: ModelScore[] = [];
   for (const stat of stats) {
-    let score: number | undefined;
-    if (selectedView === "global") {
-      const countryScores = readGlobalCountryScores(stat, view);
-      if (countryScores) {
-        const values = GLOBAL_REQUIRED_COUNTRIES.map((c) => countryScores[c]).filter(
-          (v): v is number => typeof v === "number" && Number.isFinite(v),
-        );
-        if (values.length === GLOBAL_REQUIRED_COUNTRIES.length) {
-          score = values.reduce((a, b) => a + b, 0) / values.length;
-        }
-      }
-    } else {
-      score = readCountryScore(stat, view);
-    }
+    const score = readCountryScore(stat, view);
     if (score === undefined) continue;
     out.push({ model: stat.model, score });
   }

@@ -12,7 +12,6 @@ import pandas as pd
 from policybench.analysis import (
     analyze_no_tools,
     build_dashboard_payload,
-    build_global_dashboard_payload,
     build_scenario_prompt_map,
     export_analysis,
 )
@@ -20,6 +19,21 @@ from policybench.annotation_taxonomy import (
     validate_failure_source,
     validate_failure_subtype,
 )
+from policybench.spec import get_output_ids, output_group_id
+
+
+def _canonical_output_ids(country: str) -> set[str]:
+    return set(get_output_ids(country, "headline"))
+
+
+def _filter_to_canonical_outputs(frame: pd.DataFrame, country: str) -> pd.DataFrame:
+    """Drop source-run rows outside the canonical headline output scope."""
+    if frame.empty or "variable" not in frame.columns:
+        return frame
+    canonical = _canonical_output_ids(country)
+    return frame[
+        frame["variable"].map(output_group_id).isin(canonical)
+    ].reset_index(drop=True)
 
 
 def load_predictions(country_dir: Path) -> pd.DataFrame:
@@ -258,6 +272,13 @@ def export_country(country_dir: Path) -> dict:
         load_case_reference_explanations(country_dir),
     )
     scenarios = pd.read_csv(scenarios_path)
+    country = (
+        str(scenarios["country"].dropna().iloc[0]).lower()
+        if "country" in scenarios.columns and not scenarios["country"].dropna().empty
+        else country_dir.name.lower().split("_", 1)[0]
+    )
+    ground_truth = _filter_to_canonical_outputs(ground_truth, country)
+    predictions = _filter_to_canonical_outputs(predictions, country)
 
     analysis = analyze_no_tools(ground_truth, predictions, scenarios=scenarios)
     export_analysis(analysis, country_dir / "analysis")
@@ -290,10 +311,7 @@ def export_full_run(
     country_payloads = {
         country: export_country(run_path / country) for country in selected_countries
     }
-    combined_payload = {
-        "countries": country_payloads,
-        "global": build_global_dashboard_payload(country_payloads),
-    }
+    combined_payload = {"countries": country_payloads}
 
     run_payload_path = run_path / "data.json"
     run_payload_path.write_text(json.dumps(combined_payload), encoding="utf-8")

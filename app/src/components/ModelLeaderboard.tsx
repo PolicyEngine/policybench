@@ -2,19 +2,18 @@ import { useCallback, useMemo, useState } from "react";
 import type {
   BenchData,
   DashboardBundle,
-  GlobalBenchData,
   ModelStat,
-  ViewKey,
+  CountryCode,
 } from "../types";
-import { VIEW_SHORT_LABELS, getVariableLabel } from "../types";
+import { getVariableLabel } from "../types";
 import { MODEL_LABELS, MODEL_ORDER, getProviderForModel } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
 import { ProgramFilterPanel } from "./ProgramFilterDropdown";
 import {
   programIsActive,
   type ProgramOption,
-  weightedProgramScore,
 } from "../lib/programFilters";
+import { metricTypeForVariable, outputGroupForVariable } from "../lib/scoring";
 import {
   SENSITIVITY_VIEWS,
   modelScoresForView,
@@ -69,37 +68,12 @@ function fmtRunStability(
   return `${meanLabel} +/- ${std.toFixed(1)} over ${runCount} runs`;
 }
 
-function GlobalCountryScores({ model }: { model: ModelStat }) {
-  if (!model.countryScores) return null;
-  const entries = Object.entries(model.countryScores);
-  if (entries.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      {entries.map(([country, score]) => (
-        <span
-          key={country}
-          className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-1 text-[10px] font-medium tracking-wide uppercase text-text-secondary"
-        >
-          <span>{VIEW_SHORT_LABELS[country as keyof typeof VIEW_SHORT_LABELS]}</span>
-          <span className="font-[family-name:var(--font-mono)] text-text">
-            {score.toFixed(1)}%
-          </span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
 type PendingModel = {
   model: string;
   note: string;
 };
 
-const PENDING_MODELS: Record<ViewKey, PendingModel[]> = {
-  global: [
-    { model: "grok-4.20", note: "UK run in progress; US full run pending" },
-  ],
+const PENDING_MODELS: Record<CountryCode, PendingModel[]> = {
   us: [
     { model: "grok-4.20", note: "US full run pending" },
   ],
@@ -117,8 +91,8 @@ export default function ModelLeaderboard({
   onToggleProgram,
   onSelectOnlyProgram,
 }: {
-  data: BenchData | GlobalBenchData;
-  selectedView: ViewKey;
+  data: BenchData;
+  selectedView: CountryCode;
   dashboard: DashboardBundle;
   programOptions: ProgramOption[];
   activeProgramIds: Set<string>;
@@ -127,7 +101,6 @@ export default function ModelLeaderboard({
   onToggleProgram: (variable: string) => void;
   onSelectOnlyProgram: (variable: string) => void;
 }) {
-  const isGlobal = selectedView === "global";
   const [sensitivityView, setSensitivityView] =
     useState<SensitivityViewId>("household");
   // Headline scoring: defaults to "within1pct". On UK, ~71% of references
@@ -169,124 +142,106 @@ export default function ModelLeaderboard({
   }, [sensitivityScores]);
 
   const isProgramActive = useCallback(
-    (variable: string) =>
-      isGlobal || programIsActive(activeProgramIds, variable),
-    [activeProgramIds, isGlobal],
+    (variable: string) => programIsActive(activeProgramIds, variable),
+    [activeProgramIds],
   );
 
-  // When the user filters to "positives" or "zeros", the heatmap's pre-
-  // aggregated `exact`/`within1pct`/`score` columns aren't usable because
-  // they don't distinguish reference type. Recompute per-(model, variable)
-  // hit rates directly from `scenarioPredictions`. For "all" we leave this
-  // empty and fall through to the heatmap path.
-  const filteredHitRates = useMemo(() => {
-    const out = new Map<
-      string,
-      Map<string, { exact: number; within1pct: number; continuous: number }>
-    >();
-    if (isGlobal || referenceFilter === "all") return out;
-    const country = data as BenchData;
-    const stats = new Map<
-      string,
-      Map<
-        string,
-        { eh: number; wh: number; csum: number; n: number }
-      >
-    >();
-    for (const varMap of Object.values(country.scenarioPredictions ?? {})) {
-      for (const [variable, modelMap] of Object.entries(varMap)) {
-        if (!isProgramActive(variable)) continue;
-        for (const [model, pred] of Object.entries(modelMap)) {
-          if (pred.prediction === null) continue;
-          const truth = pred.groundTruth;
-          const isZeroRef = truth === 0;
-          if (referenceFilter === "positives" && isZeroRef) continue;
-          if (referenceFilter === "zeros" && !isZeroRef) continue;
-          const absErr = Math.abs(pred.prediction - truth);
-          const exactHit = absErr <= 1 ? 1 : 0;
-          const within1Hit = isZeroRef
-            ? exactHit
-            : absErr / Math.abs(truth) <= 0.01
-              ? 1
-              : 0;
-          const contScore = isZeroRef
-            ? exactHit
-            : Math.max(0, 1 - absErr / Math.abs(truth));
-          if (!stats.has(model)) stats.set(model, new Map());
-          const byVar = stats.get(model)!;
-          let acc = byVar.get(variable);
-          if (!acc) {
-            acc = { eh: 0, wh: 0, csum: 0, n: 0 };
-            byVar.set(variable, acc);
-          }
-          acc.eh += exactHit;
-          acc.wh += within1Hit;
-          acc.csum += contScore;
-          acc.n += 1;
-        }
-      }
+  function metricValue(
+    variable: string,
+    truth: number,
+    prediction: number | null | undefined,
+    field: "exact" | "within1pct" | "continuous",
+  ): number {
+    if (prediction === null || prediction === undefined || Number.isNaN(prediction)) {
+      return 0;
     }
-    for (const [model, byVar] of stats) {
-      const rates = new Map<
-        string,
-        { exact: number; within1pct: number; continuous: number }
-      >();
-      for (const [variable, a] of byVar) {
-        if (a.n === 0) continue;
-        rates.set(variable, {
-          exact: (a.eh / a.n) * 100,
-          within1pct: (a.wh / a.n) * 100,
-          continuous: (a.csum / a.n) * 100,
-        });
-      }
-      out.set(model, rates);
+    const isBinary = metricTypeForVariable(variable, data.country) === "binary";
+    if (isBinary) {
+      return Math.round(prediction) === Math.round(truth) ? 1 : 0;
     }
-    return out;
-  }, [data, isGlobal, referenceFilter, isProgramActive]);
+    const absErr = Math.abs(prediction - truth);
+    const exact = absErr <= 1 ? 1 : 0;
+    if (field === "exact") return exact;
+    if (field === "within1pct") {
+      return truth === 0 ? exact : absErr / Math.abs(truth) <= 0.01 ? 1 : 0;
+    }
+    return truth === 0
+      ? prediction === 0
+        ? 1
+        : 0
+      : Math.max(0, 1 - absErr / Math.abs(truth));
+  }
 
-  // Compute weighted hit-rate for one model under the current weighting. We
-  // use this for both "exact" (uses heatmap.exact) and "within 1%" (uses
-  // heatmap.within1pct). When `referenceFilter` is on, we route through the
-  // recomputed `filteredHitRates`; otherwise we use the pre-aggregated
-  // heatmap columns. Per-country payloads carry the heatmap and
-  // globalWeights needed for the weighted average; global view falls back to
-  // the simple unweighted mean on modelStat.exact / modelStat.within1pct
-  // because per-country breakdowns aren't surfaced in the global slice.
+  // Compute the selected metric from scenario rows, not heatmap averages. This
+  // mirrors Python's canonical scorer: split output-group weights across
+  // concrete rows in each household, renormalize within the household, then
+  // average households equally.
   const hitRateByModel = (field: "exact" | "within1pct" | "continuous") => {
     const out = new Map<string, number>();
-    if (isGlobal) return out;
-    const country = data as BenchData;
-    const weights = country.globalWeights?.[effectiveView];
+    const weights = data.globalWeights?.[effectiveView];
     if (!weights) return out;
 
-    if (referenceFilter !== "all") {
-      // Recomputed per-(model, variable) hit rates: weight by globalWeights.
-      for (const [model, byVar] of filteredHitRates) {
-        const score = weightedProgramScore(
-          [...byVar].map(([variable, rates]) => ({
-            variable,
-            value: rates[field],
-          })),
-          weights,
-        );
-        if (score !== undefined) out.set(model, score);
-      }
-      return out;
+    const groupedWeights = new Map<string, number>();
+    for (const [variable, weight] of Object.entries(weights)) {
+      const group = outputGroupForVariable(variable);
+      groupedWeights.set(group, (groupedWeights.get(group) ?? 0) + weight);
     }
 
-    const ratesByModel = new Map<string, { variable: string; value: number }[]>();
-    for (const entry of country.heatmap ?? []) {
-      if (entry.condition !== "no_tools") continue;
-      if (!isProgramActive(entry.variable)) continue;
-      const value = field === "continuous" ? entry.score : entry[field];
-      if (value === undefined) continue;
-      const rates = ratesByModel.get(entry.model) ?? [];
-      rates.push({ variable: entry.variable, value });
-      ratesByModel.set(entry.model, rates);
+    const sums = new Map<string, { score: number; households: number }>();
+    for (const variableMap of Object.values(data.scenarioPredictions ?? {})) {
+      const variables = Object.entries(variableMap).filter(([variable, modelMap]) => {
+        if (!isProgramActive(variable)) return false;
+        const first = Object.values(modelMap)[0];
+        if (!first) return false;
+        if (referenceFilter === "positives" && first.groundTruth === 0) return false;
+        if (referenceFilter === "zeros" && first.groundTruth !== 0) return false;
+        return groupedWeights.has(outputGroupForVariable(variable));
+      });
+      if (variables.length === 0) continue;
+
+      const groupCounts = new Map<string, number>();
+      for (const [variable] of variables) {
+        const group = outputGroupForVariable(variable);
+        groupCounts.set(group, (groupCounts.get(group) ?? 0) + 1);
+      }
+      const rawRowWeights = new Map<string, number>();
+      let denominator = 0;
+      for (const [variable] of variables) {
+        const group = outputGroupForVariable(variable);
+        const rawWeight =
+          (groupedWeights.get(group) ?? 0) / (groupCounts.get(group) ?? 1);
+        rawRowWeights.set(variable, rawWeight);
+        denominator += rawWeight;
+      }
+      if (denominator <= 0) continue;
+
+      const models = new Set<string>();
+      for (const [, modelMap] of variables) {
+        for (const model of Object.keys(modelMap)) models.add(model);
+      }
+      for (const model of models) {
+        let householdScore = 0;
+        for (const [variable, modelMap] of variables) {
+          const record = modelMap[model];
+          const rowWeight = (rawRowWeights.get(variable) ?? 0) / denominator;
+          householdScore +=
+            rowWeight *
+            metricValue(
+              variable,
+              record?.groundTruth ?? 0,
+              record?.prediction,
+              field,
+            );
+        }
+        const acc = sums.get(model) ?? { score: 0, households: 0 };
+        acc.score += householdScore;
+        acc.households += 1;
+        sums.set(model, acc);
+      }
     }
-    for (const [model, rates] of ratesByModel) {
-      const score = weightedProgramScore(rates, weights);
-      if (score !== undefined) out.set(model, score);
+
+    for (const [model, acc] of sums) {
+      if (acc.households > 0) out.set(model, (acc.score / acc.households) * 100);
     }
     return out;
   };
@@ -297,9 +252,7 @@ export default function ModelLeaderboard({
     [
       data,
       effectiveView,
-      isGlobal,
       referenceFilter,
-      filteredHitRates,
       activeProgramIds,
     ],
   );
@@ -309,9 +262,7 @@ export default function ModelLeaderboard({
     [
       data,
       effectiveView,
-      isGlobal,
       referenceFilter,
-      filteredHitRates,
       activeProgramIds,
     ],
   );
@@ -321,9 +272,7 @@ export default function ModelLeaderboard({
     [
       data,
       effectiveView,
-      isGlobal,
       referenceFilter,
-      filteredHitRates,
       activeProgramIds,
     ],
   );
@@ -335,9 +284,8 @@ export default function ModelLeaderboard({
       // Exact: percent of predictions that match the reference to the dollar
       // (or to the boolean for eligibility flags). Within-1%: the analyst
       // bar — rounding and tiny rate drift are OK, but not material misses.
-      // Weighted by the active variable weighting for per-country views;
-      // simple model.exact / model.within1pct for the global view, which
-      // doesn't carry the heatmap.
+      // Weighted by the active variable weighting and recomputed from
+      // scenario rows so program filters renormalize the active set.
       const weighted =
         scoringMode === "exact" ? exactScoreByModel : within1pctScoreByModel;
       return [...base]
@@ -354,9 +302,8 @@ export default function ModelLeaderboard({
     }
 
     // Continuous mode. Use the recomputed weighted score for country views so
-    // program filters renormalize the active program weights; otherwise fall
-    // back to the precomputed bounded score or global sensitivity view.
-    if (!isGlobal && filteredContinuousByModel.size > 0) {
+    // program filters renormalize the active program weights.
+    if (filteredContinuousByModel.size > 0) {
       return [...base]
         .map((m) => ({
           ...m,
@@ -381,7 +328,6 @@ export default function ModelLeaderboard({
     exactScoreByModel,
     within1pctScoreByModel,
     scoringMode,
-    isGlobal,
   ]);
 
   const pendingModels = useMemo<PendingModel[]>(() => {
@@ -416,16 +362,10 @@ export default function ModelLeaderboard({
       : referenceFilter === "positives"
         ? "positives only"
         : "zeros only";
-  const optionsSummary = isGlobal
-    ? `scoring: ${scoringLabel} · cases: ${referenceLabel}`
-    : `scoring: ${scoringLabel} · cases: ${referenceLabel} · weighting: ${activeView.label.toLowerCase()} · ${activeProgramSummary.toLowerCase()}`;
+  const optionsSummary = `scoring: ${scoringLabel} · cases: ${referenceLabel} · weighting: ${activeView.label.toLowerCase()} · ${activeProgramSummary.toLowerCase()}`;
 
-  // Per-variable weights table. Available on country payloads only; global
-  // (US + UK) is intentionally skipped because weights differ between
-  // countries and combining them would be misleading.
-  const weights = !isGlobal && "globalWeights" in data ? data.globalWeights : undefined;
-  const weightsCountry =
-    !isGlobal && "country" in data ? data.country : undefined;
+  const weights = data.globalWeights;
+  const weightsCountry = data.country;
 
   const weightedVariables = useMemo(() => {
     if (!weights) return [] as string[];
@@ -454,7 +394,7 @@ export default function ModelLeaderboard({
         className="font-[family-name:var(--font-display)] text-4xl md:text-5xl text-text tracking-tight animate-fade-up"
         style={{ animationDelay: "80ms" }}
       >
-        {isGlobal ? "Global rankings" : "Model rankings"}
+        Model rankings
       </h2>
       {pendingModels.length > 0 && (
         <p
@@ -480,7 +420,7 @@ export default function ModelLeaderboard({
                 ? "within-1% hit rate"
                 : `${activeView.label.toLowerCase()}-weighted bounded`
           } score (${
-            isGlobal ? "global" : selectedView === "us" ? "United States" : "United Kingdom"
+            selectedView === "us" ? "United States" : "United Kingdom"
           })`}
         </p>
         <div
@@ -488,30 +428,16 @@ export default function ModelLeaderboard({
           className="hidden gap-3 px-4 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium md:grid md:grid-cols-12"
         >
           <div role="columnheader" className="col-span-1">#</div>
-          <div
-            role="columnheader"
-            className={isGlobal ? "col-span-5" : "col-span-8"}
-          >
+          <div role="columnheader" className="col-span-8">
             Model
           </div>
           <div role="columnheader" className="col-span-3 text-right">
             {scoringMode === "exact"
-              ? isGlobal
-                ? "Global exact %"
-                : "Exact match %"
+              ? "Exact match %"
               : scoringMode === "within1pct"
-                ? isGlobal
-                  ? "Global within 1%"
-                  : "Within 1%"
-                : isGlobal
-                  ? "Global score"
-                  : "Score"}
+                ? "Within 1%"
+                : "Score"}
           </div>
-          {isGlobal && (
-            <div role="columnheader" className="col-span-3 text-right">
-              Country scores
-            </div>
-          )}
         </div>
 
         {noTools.map((m, i) => {
@@ -544,7 +470,7 @@ export default function ModelLeaderboard({
                         {MODEL_LABELS[m.model] || m.model}
                       </span>
                     </div>
-                    {!isGlobal && stabilityLabel && (
+                    {stabilityLabel && (
                       <div className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted">
                         {stabilityLabel}
                       </div>
@@ -554,14 +480,6 @@ export default function ModelLeaderboard({
                   <Badge variant={accColor(m.score)}>{m.score.toFixed(1)}%</Badge>
                 </div>
 
-                {isGlobal && (
-                  <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-                    <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
-                      Country scores
-                    </div>
-                    <GlobalCountryScores model={m} />
-                  </div>
-                )}
               </div>
 
               <div className="hidden items-center gap-3 md:grid md:grid-cols-12">
@@ -571,11 +489,7 @@ export default function ModelLeaderboard({
                   </span>
                 </div>
 
-                <div
-                  className={`${
-                    isGlobal ? "col-span-5" : "col-span-8"
-                  } flex items-center gap-2.5`}
-                >
+                <div className="col-span-8 flex items-center gap-2.5">
                   <ProviderMark
                     provider={getProviderForModel(m.model)}
                     size={14}
@@ -590,18 +504,12 @@ export default function ModelLeaderboard({
                   <Badge variant={accColor(m.score)}>
                     {m.score.toFixed(1)}%
                   </Badge>
-                  {!isGlobal && stabilityLabel && (
+                  {stabilityLabel && (
                     <div className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1">
                       {stabilityLabel}
                     </div>
                   )}
                 </div>
-
-                {isGlobal && (
-                  <div className="col-span-3 text-right">
-                    <GlobalCountryScores model={m} />
-                  </div>
-                )}
               </div>
             </div>
           );
@@ -645,11 +553,7 @@ export default function ModelLeaderboard({
                 </span>
               </div>
 
-              <div
-                className={`${
-                  isGlobal ? "col-span-5" : "col-span-8"
-                } flex flex-col gap-0.5`}
-              >
+              <div className="col-span-8 flex flex-col gap-0.5">
                 <div className="flex items-center gap-2.5">
                   <ProviderMark
                     provider={getProviderForModel(m.model)}
@@ -671,7 +575,6 @@ export default function ModelLeaderboard({
                 <Badge variant="warning">Pending</Badge>
               </div>
 
-              {isGlobal && <div className="col-span-3" aria-hidden />}
             </div>
           </div>
         ))}
@@ -707,7 +610,7 @@ export default function ModelLeaderboard({
         </summary>
 
         <div className="space-y-4 border-t border-border-subtle px-4 py-4">
-          {!isGlobal && programOptions.length > 0 && (
+          {programOptions.length > 0 && (
             <div>
               <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
                 Programs
@@ -784,8 +687,7 @@ export default function ModelLeaderboard({
             </span>
           </div>
 
-          {!isGlobal && (
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
               <span
                 id="leaderboard-refcases-label"
                 className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
@@ -842,8 +744,7 @@ export default function ModelLeaderboard({
                     ? "Only cases where the reference is nonzero."
                     : "Only cases where the reference is zero."}
               </span>
-            </div>
-          )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <span

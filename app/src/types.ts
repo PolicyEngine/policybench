@@ -4,10 +4,8 @@ export type PromptVariant = {
 };
 
 export type CountryCode = "us" | "uk";
-export type ViewKey = CountryCode | "global";
 
-export const VIEW_LABELS: Record<ViewKey, string> = {
-  global: "Global",
+export const VIEW_LABELS: Record<CountryCode, string> = {
   us: "United States",
   uk: "United Kingdom",
 };
@@ -340,22 +338,6 @@ export type BenchData = {
   failureModes: FailureModesPayload;
 };
 
-export type CountrySummary = {
-  key: CountryCode;
-  label: string;
-  households: number;
-  models: number;
-  programs: number;
-};
-
-export type GlobalBenchData = {
-  modelStats: ModelStat[];
-  countrySummaries: CountrySummary[];
-  sharedModelCount: number;
-  policyengineBundles?: Partial<Record<CountryCode, PolicyEngineBundle>>;
-};
-
 export type DashboardBundle = {
   countries: Partial<Record<CountryCode, BenchData>>;
-  global?: GlobalBenchData;
 };

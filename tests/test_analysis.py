@@ -32,6 +32,7 @@ from policybench.analysis import (
     summary_by_model,
     summary_by_variable,
     usage_summary_by_model,
+    weighted_hit_rate_scores_by_model,
     within_tolerance,
 )
 from policybench.config import (
@@ -1298,6 +1299,56 @@ class TestBoundedHouseholdScores:
         # values, which are already represented in the population-level group
         # weight.
         assert out.loc[out["model"] == "m1", "score"].iloc[0] == pytest.approx(0.7)
+
+    def test_weighted_hit_rates_are_household_normalized_and_binary_strict(
+        self,
+        monkeypatch,
+    ):
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1"],
+                "variable": ["income_tax", "head_medicaid_eligible"],
+                "value": [100.0, 1.0],
+                "impact_weight": [pd.NA, 9000.0],
+            }
+        )
+        preds = pd.DataFrame(
+            {
+                "model": ["m1", "m1"],
+                "scenario_id": ["s1", "s1"],
+                "variable": ["income_tax", "head_medicaid_eligible"],
+                "prediction": [100.0, 0.0],
+            }
+        )
+
+        def fake_population_weights(country, kind, output_groups):
+            assert country == "us"
+            assert kind == "household"
+            assert output_groups == ["income_tax", "person_medicaid_eligible"]
+            return pd.Series(
+                {
+                    "income_tax": 0.25,
+                    "person_medicaid_eligible": 0.75,
+                }
+            )
+
+        monkeypatch.setattr(
+            "policybench.analysis.matching_population_weight_series",
+            fake_population_weights,
+        )
+
+        out = weighted_hit_rate_scores_by_model(
+            gt,
+            preds,
+            {"s1": 20_000.0},
+            country="us",
+        )
+
+        row = out.loc[out["model"] == "m1"].iloc[0]
+        # The tax row is correct and the binary Medicaid row is wrong. A binary
+        # 1 -> 0 miss must score 0, not pass the amount-style $1 tolerance.
+        assert row["weighted_exact"] == pytest.approx(0.25)
+        assert row["weighted_within_1pct"] == pytest.approx(0.25)
 
     def test_zero_predictions_score_low(self):
         gt = pd.DataFrame(

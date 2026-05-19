@@ -142,6 +142,70 @@ def continuous_row_score(y_true: float, y_pred: float | None) -> float:
     return max(0.0, 1.0 - abs(pred - ref) / abs(ref))
 
 
+def row_hit_scores(
+    variable: str,
+    y_true: float,
+    y_pred: float | None,
+) -> dict[str, float]:
+    """Per-row exact/tolerance hit scores used by the headline rankings."""
+    if y_pred is None:
+        return {
+            "exact": 0.0,
+            "within_1pct": 0.0,
+            "within_5pct": 0.0,
+            "within_10pct": 0.0,
+            "threshold_score": 0.0,
+        }
+    try:
+        if pd.isna(y_pred):
+            return {
+                "exact": 0.0,
+                "within_1pct": 0.0,
+                "within_5pct": 0.0,
+                "within_10pct": 0.0,
+                "threshold_score": 0.0,
+            }
+    except (TypeError, ValueError):
+        return {
+            "exact": 0.0,
+            "within_1pct": 0.0,
+            "within_5pct": 0.0,
+            "within_10pct": 0.0,
+            "threshold_score": 0.0,
+        }
+
+    metric_type = metric_type_for_output(variable)
+    if metric_type == "binary" or variable in BINARY_PROGRAMS:
+        hit = float(round(float(y_pred)) == round(float(y_true)))
+        return {
+            "exact": hit,
+            "within_1pct": hit,
+            "within_5pct": hit,
+            "within_10pct": hit,
+            "threshold_score": hit,
+        }
+
+    y_true_arr = np.array([y_true], dtype=float)
+    y_pred_arr = np.array([y_pred], dtype=float)
+    exact = exact_amount_match(
+        y_true_arr,
+        y_pred_arr,
+        absolute_tolerance=1.0,
+    )
+    within_1pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.01)
+    within_5pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.05)
+    within_10pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.10)
+    return {
+        "exact": exact,
+        "within_1pct": within_1pct,
+        "within_5pct": within_5pct,
+        "within_10pct": within_10pct,
+        "threshold_score": float(
+            np.mean([exact, within_1pct, within_5pct, within_10pct])
+        ),
+    }
+
+
 def _signed_contributions(ground_truth: pd.DataFrame) -> pd.DataFrame:
     """Compute the signed and absolute contribution of each cell to net income.
 
@@ -325,6 +389,99 @@ def bounded_household_scores(
         .rename("score")
         .reset_index()
     )
+
+
+def weighted_hit_rate_scores_by_model(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+    market_income_by_scenario: dict[str, float] | pd.Series,
+    country: str | None = None,
+) -> pd.DataFrame:
+    """Household-equal exact and tolerance hit rates using population weights.
+
+    This is the canonical headline ranking path: output-group weights are
+    derived from the full source population, split across concrete rows inside
+    each household, renormalized within that household, and then averaged with
+    equal household weight.
+    """
+    columns = [
+        "model",
+        "weighted_exact",
+        "weighted_within_1pct",
+        "weighted_within_5pct",
+        "weighted_within_10pct",
+        "weighted_threshold_score",
+    ]
+    if ground_truth.empty or predictions.empty:
+        return pd.DataFrame(columns=columns)
+
+    weights = bounded_global_variable_weights(
+        ground_truth,
+        market_income_by_scenario,
+        country=country,
+    )
+    row_weights = _row_weights_for_ground_truth(ground_truth, weights)
+    models = sorted(predictions["model"].dropna().unique())
+    grid = (
+        ground_truth.assign(_k=1)
+        .merge(pd.DataFrame({"model": models, "_k": 1}), on="_k")
+        .drop(columns="_k")
+    )
+    merged = grid.merge(
+        predictions[["model", "scenario_id", "variable", "prediction"]],
+        on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+    scores = [
+        row_hit_scores(variable, y_true, y_pred)
+        for variable, y_true, y_pred in zip(
+            merged["variable"],
+            merged["value"],
+            merged["prediction"],
+            strict=True,
+        )
+    ]
+    for column in [
+        "exact",
+        "within_1pct",
+        "within_5pct",
+        "within_10pct",
+        "threshold_score",
+    ]:
+        merged[column] = [score[column] for score in scores]
+    merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
+    merged["weight"] = merged["weight"].fillna(0.0)
+    for column in [
+        "exact",
+        "within_1pct",
+        "within_5pct",
+        "within_10pct",
+        "threshold_score",
+    ]:
+        merged[f"weighted_{column}"] = merged[column] * merged["weight"]
+
+    household = (
+        merged.groupby(["model", "scenario_id"])[
+            [
+                "weighted_exact",
+                "weighted_within_1pct",
+                "weighted_within_5pct",
+                "weighted_within_10pct",
+                "weighted_threshold_score",
+            ]
+        ]
+        .sum()
+        .reset_index()
+    )
+    return household.groupby("model")[
+        [
+            "weighted_exact",
+            "weighted_within_1pct",
+            "weighted_within_5pct",
+            "weighted_within_10pct",
+            "weighted_threshold_score",
+        ]
+    ].mean().reset_index()
 
 
 def amount_accuracy_by_model(
@@ -605,25 +762,7 @@ def score_single_prediction(
     y_pred: float | None,
 ) -> float:
     """Score one prediction on the same 0-1 bounded scale used in aggregates."""
-    if y_pred is None or pd.isna(y_pred):
-        return 0.0
-
-    y_true_arr = np.array([y_true], dtype=float)
-    y_pred_arr = np.array([y_pred], dtype=float)
-
-    metric_type = metric_type_for_output(variable)
-    if metric_type == "binary" or variable in BINARY_PROGRAMS:
-        return accuracy(y_true_arr, y_pred_arr)
-
-    exact = exact_amount_match(
-        y_true_arr,
-        y_pred_arr,
-        absolute_tolerance=1.0,
-    )
-    within_1pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.01)
-    within_5pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.05)
-    within_10pct = within_tolerance(y_true_arr, y_pred_arr, tolerance=0.10)
-    return float(np.mean([exact, within_1pct, within_5pct, within_10pct]))
+    return row_hit_scores(variable, y_true, y_pred)["threshold_score"]
 
 
 def household_equal_impact_scores(
@@ -1181,6 +1320,12 @@ def analyze_no_tools(
             country=country,
         )
         participation_acc = participation_accuracy_by_model(ground_truth, predictions)
+        weighted_hit_rates = weighted_hit_rate_scores_by_model(
+            ground_truth,
+            predictions,
+            market_income,
+            country=country,
+        )
         equal_scores = equal_weight_scores_by_model(
             ground_truth,
             predictions,
@@ -1194,6 +1339,7 @@ def analyze_no_tools(
         bounded_summary = (
             bounded_summary.merge(amount_acc, on="model", how="left")
             .merge(participation_acc, on="model", how="left")
+            .merge(weighted_hit_rates, on="model", how="left")
             .merge(equal_scores, on="model", how="left")
             .merge(aggregate_scores, on="model", how="left")
         )
@@ -1823,6 +1969,11 @@ def build_dashboard_payload(
                 ("bounded_score", "bounded"),
                 ("amount_accuracy", "amount"),
                 ("participation_accuracy", "participation"),
+                ("weighted_exact", "exact"),
+                ("weighted_within_1pct", "within1pct"),
+                ("weighted_within_5pct", "within5pct"),
+                ("weighted_within_10pct", "within10pct"),
+                ("weighted_threshold_score", "threshold"),
                 ("equal_score", "equal"),
                 ("aggregate_score", "aggregate"),
             ):
@@ -1841,9 +1992,9 @@ def build_dashboard_payload(
         impact_score = impact_by_model.get(str(row["model"]))
         bounded_entry = bounded_by_model.get(str(row["model"]), {})
         bounded_score = bounded_entry.get("bounded")
-        # Bounded global variable weights is the new headline. Fall back to the
-        # old 30%-floor impact score for backwards compatibility on legacy
-        # datasets, and finally to the equal-weight output-group score.
+        # Keep the smooth bounded score as the secondary score field. The
+        # headline ranking columns (exact/within-1/within-5/within-10) are
+        # populated from the same household-normalized population weights.
         primary_score = (
             _clean_json_number(bounded_score)
             if bounded_score is not None
@@ -1857,17 +2008,23 @@ def build_dashboard_payload(
             "score": primary_score,
             "outputGroupScore": output_group_score,
             "exact": _clean_json_number(
-                row["mean_exact"] * 100
+                bounded_entry.get("exact")
+                if "exact" in bounded_entry
+                else row["mean_exact"] * 100
                 if not pd.isna(row["mean_exact"])
                 else row["mean_exact"]
             ),
             "within1pct": _clean_json_number(
-                row["mean_within_1pct"] * 100
+                bounded_entry.get("within1pct")
+                if "within1pct" in bounded_entry
+                else row["mean_within_1pct"] * 100
                 if not pd.isna(row["mean_within_1pct"])
                 else row["mean_within_1pct"]
             ),
             "within5pct": _clean_json_number(
-                row["mean_within_5pct"] * 100
+                bounded_entry.get("within5pct")
+                if "within5pct" in bounded_entry
+                else row["mean_within_5pct"] * 100
                 if not pd.isna(row["mean_within_5pct"])
                 else row["mean_within_5pct"]
             ),
@@ -1878,7 +2035,9 @@ def build_dashboard_payload(
                 else row["mean_mape"]
             ),
             "within10pct": _clean_json_number(
-                row["mean_within_10pct"] * 100
+                bounded_entry.get("within10pct")
+                if "within10pct" in bounded_entry
+                else row["mean_within_10pct"] * 100
                 if not pd.isna(row["mean_within_10pct"])
                 else row["mean_within_10pct"]
             ),
@@ -1962,7 +2121,10 @@ def build_dashboard_payload(
         if "aggregate" in bounded_entry:
             item["aggregateScore"] = bounded_entry["aggregate"]
         model_stats.append({k: v for k, v in item.items() if v is not None})
-    model_stats.sort(key=lambda row: row["score"], reverse=True)
+    model_stats.sort(
+        key=lambda row: (row.get("within1pct", row["score"]), row["score"]),
+        reverse=True,
+    )
 
     program_rows = []
     for variable, group in metrics.groupby("variable"):
@@ -2111,128 +2273,6 @@ def build_dashboard_payload(
             predictions,
             scenarios,
         ),
-    }
-
-
-COUNTRY_LABELS = {
-    "us": "United States",
-    "uk": "United Kingdom",
-}
-
-
-def build_global_dashboard_payload(country_payloads: dict[str, dict]) -> dict:
-    """Build a shared global leaderboard from multiple country payloads."""
-    no_tools_models_by_country: dict[str, dict[str, dict]] = {}
-    for country, payload in country_payloads.items():
-        no_tools_models_by_country[country] = {
-            row["model"]: row
-            for row in payload.get("modelStats", [])
-            if row.get("condition") == "no_tools"
-        }
-
-    common_models: set[str] = set()
-    for country_models in no_tools_models_by_country.values():
-        if not common_models:
-            common_models = set(country_models)
-        else:
-            common_models &= set(country_models)
-
-    def _mean(values: list[float | int | None]) -> float | None:
-        filtered = [float(value) for value in values if value is not None]
-        if not filtered:
-            return None
-        return float(np.mean(filtered))
-
-    model_stats = []
-    for model in sorted(common_models):
-        rows = {
-            country: country_models[model]
-            for country, country_models in no_tools_models_by_country.items()
-        }
-        primary_values = [row.get("score") for row in rows.values()]
-        output_group_values = [
-            row.get("outputGroupScore", row.get("score")) for row in rows.values()
-        ]
-        item = {
-            "model": model,
-            "condition": "no_tools",
-            "score": _mean(primary_values),
-            "outputGroupScore": _mean(output_group_values),
-            "exact": _mean([row.get("exact") for row in rows.values()]),
-            "within1pct": _mean([row.get("within1pct") for row in rows.values()]),
-            "within5pct": _mean([row.get("within5pct") for row in rows.values()]),
-            "within10pct": _mean([row.get("within10pct") for row in rows.values()]),
-            "coverage": _mean([row.get("coverage") for row in rows.values()]),
-            "n": int(sum(int(row.get("n", 0)) for row in rows.values())),
-            "nParsed": int(sum(int(row.get("nParsed", 0)) for row in rows.values())),
-            "countryScores": {
-                country: float(row["score"])
-                for country, row in rows.items()
-                if row.get("score") is not None
-            },
-            "outputGroupCountryScores": {
-                country: float(row["outputGroupScore"])
-                for country, row in rows.items()
-                if row.get("outputGroupScore") is not None
-            },
-        }
-        accuracy = _mean([row.get("accuracy") for row in rows.values()])
-        if accuracy is not None:
-            item["accuracy"] = accuracy
-        impact_values = [row.get("impactScore") for row in rows.values()]
-        if all(value is not None for value in impact_values) and impact_values:
-            item["impactScore"] = _mean(impact_values)
-            item["impactCountryScores"] = {
-                country: float(row["impactScore"])
-                for country, row in rows.items()
-                if row.get("impactScore") is not None
-            }
-        # Bounded score is the headline (mirrored in "score"); add the
-        # alternative weightings so the leaderboard can switch views.
-        for source_key, dest_key, country_key in (
-            ("boundedScore", "boundedScore", "boundedCountryScores"),
-            ("equalScore", "equalScore", "equalCountryScores"),
-            ("aggregateScore", "aggregateScore", "aggregateCountryScores"),
-            ("amountAccuracy", "amountAccuracy", "amountCountryScores"),
-            (
-                "participationAccuracy",
-                "participationAccuracy",
-                "participationCountryScores",
-            ),
-        ):
-            values = [row.get(source_key) for row in rows.values()]
-            if all(value is not None for value in values) and values:
-                item[dest_key] = _mean(values)
-                item[country_key] = {
-                    country: float(row[source_key])
-                    for country, row in rows.items()
-                    if row.get(source_key) is not None
-                }
-        model_stats.append(item)
-
-    model_stats.sort(key=lambda row: row["score"], reverse=True)
-
-    country_summaries = []
-    for country, payload in country_payloads.items():
-        country_summaries.append(
-            {
-                "key": country,
-                "label": COUNTRY_LABELS.get(country, country.upper()),
-                "households": len(payload.get("scenarios", {})),
-                "models": len(no_tools_models_by_country[country]),
-                "programs": len(payload.get("programStats", [])),
-            }
-        )
-
-    return {
-        "modelStats": model_stats,
-        "countrySummaries": country_summaries,
-        "sharedModelCount": len(common_models),
-        "policyengineBundles": {
-            country: payload.get("policyengineBundles", {}).get(country)
-            for country, payload in country_payloads.items()
-            if payload.get("policyengineBundles", {}).get(country) is not None
-        },
     }
 
 

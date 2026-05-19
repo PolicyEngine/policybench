@@ -9,8 +9,6 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from policybench.analysis import build_global_dashboard_payload
-
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_RUN_DIR = ROOT / "paper" / "snapshot" / "20260501" / "runs"
 US_RUN_LABEL = "us_full_run_20260513_policyengine_4_4_4_nested_outputs"
@@ -70,7 +68,6 @@ def _variable_label(variable_id: str) -> str:
         "snap": "SNAP",
         "ssi": "SSI",
         "tanf": "TANF",
-        "premium_tax_credit": "Premium tax credit",
         "free_school_meals_eligible": "Free school meals",
         "reduced_price_school_meals_eligible": "Reduced-price meals",
         "person_wic_eligible": "WIC",
@@ -88,61 +85,6 @@ def _variable_label(variable_id: str) -> str:
         "pip": "PIP",
     }
     return labels.get(variable_id, variable_id.replace("_", " ").title())
-
-
-def _global_leaderboard_svg(payload: dict[str, Any]) -> str:
-    models = payload.get("global", {}).get("modelStats", [])[:10]
-    width = 900
-    height = 120 + 44 * len(models)
-    left = 255
-    right = 50
-    chart_width = width - left - right
-    max_score = max((float(row.get("score", 0)) for row in models), default=100)
-    max_score = max(100.0, max_score)
-
-    rows = [
-        "<svg xmlns='http://www.w3.org/2000/svg' "
-        f"width='{width}' height='{height}' viewBox='0 0 {width} {height}'>",
-        "<rect width='100%' height='100%' fill='#f7fafc'/>",
-        (
-            "<text x='32' y='42' font-family='Arial, sans-serif' "
-            "font-size='24' font-weight='700' fill='#10231f'>"
-            "Global shared-model leaderboard</text>"
-        ),
-        (
-            "<text x='32' y='68' font-family='Arial, sans-serif' "
-            "font-size='13' fill='#52645f'>Equal-country household-equal "
-            "impact score, frozen 2026-05-15 scored snapshot</text>"
-        ),
-    ]
-    for index, row in enumerate(models):
-        score = float(row.get("score", 0))
-        y = 100 + index * 44
-        bar_width = chart_width * score / max_score
-        rows.extend(
-            [
-                (
-                    f"<text x='32' y='{y + 22}' font-family='Arial, sans-serif' "
-                    f"font-size='14' fill='#10231f'>"
-                    f"{_escape(_model_label(row['model']))}</text>"
-                ),
-                (
-                    f"<rect x='{left}' y='{y}' width='{chart_width}' height='24' "
-                    "rx='12' fill='#dcebe5'/>"
-                ),
-                (
-                    f"<rect x='{left}' y='{y}' width='{bar_width:.1f}' height='24' "
-                    "rx='12' fill='#2f8f6b'/>"
-                ),
-                (
-                    f"<text x='{left + chart_width + 12}' y='{y + 18}' "
-                    "font-family='Arial, sans-serif' font-size='13' "
-                    f"fill='#10231f'>{score:.1f}</text>"
-                ),
-            ]
-        )
-    rows.append("</svg>")
-    return "\n".join(rows)
 
 
 def _positive_zero_scatter_svg(payload: dict[str, Any]) -> str:
@@ -269,10 +211,7 @@ def load_frozen_dashboard() -> dict[str, Any]:
             (SNAPSHOT_RUN_DIR / UK_RUN_LABEL / "data.json").read_text(encoding="utf-8")
         ),
     }
-    return {
-        "countries": country_payloads,
-        "global": build_global_dashboard_payload(country_payloads),
-    }
+    return {"countries": country_payloads}
 
 
 def dashboard_summary(payload: dict[str, Any]) -> dict[str, object]:
@@ -287,7 +226,6 @@ def dashboard_summary(payload: dict[str, Any]) -> dict[str, object]:
             ),
         },
         "countries": sorted(countries),
-        "global_models": len(payload.get("global", {}).get("modelStats", [])),
         "country_models": {
             country: len(country_payload.get("modelStats", []))
             for country, country_payload in countries.items()
@@ -304,10 +242,6 @@ def main() -> None:
     payload = load_frozen_dashboard()
 
     generated_figures = {
-        "global_leaderboard": _write_svg_and_png(
-            "global_leaderboard",
-            _global_leaderboard_svg(payload),
-        ),
         "positive_zero_scatter": _write_svg_and_png(
             "positive_zero_scatter",
             _positive_zero_scatter_svg(payload),

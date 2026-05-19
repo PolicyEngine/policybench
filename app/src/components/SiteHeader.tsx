@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import type { ViewKey } from "../types";
+import type { CountryCode } from "../types";
 import { VIEW_LABELS } from "../types";
 
 export type HeaderNavItem = { id: string; label: string };
@@ -25,9 +25,9 @@ function ViewSelector({
   onSelect,
   views,
 }: {
-  selectedView: ViewKey;
-  onSelect: (view: ViewKey) => void;
-  views: ViewKey[];
+  selectedView: CountryCode;
+  onSelect: (view: CountryCode) => void;
+  views: CountryCode[];
 }) {
   return (
     <div
@@ -138,9 +138,9 @@ function useScrollProgress(start: number, distance: number, enabled: boolean) {
 export type SiteHeaderProps = {
   navItems?: readonly HeaderNavItem[];
   activeNav?: string;
-  selectedView?: ViewKey;
-  onSelectView?: (view: ViewKey) => void;
-  availableViews?: ViewKey[];
+  selectedView?: CountryCode;
+  onSelectView?: (view: CountryCode) => void;
+  availableViews?: CountryCode[];
   actionLink?: HeaderActionLink;
   /**
    * Optional expanded content shown inside the sticky header. Use only with
