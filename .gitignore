@@ -194,3 +194,5 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 app/.claude/
+.vercel
+.env*.local

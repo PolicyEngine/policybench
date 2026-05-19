@@ -63,8 +63,7 @@ def test_headline_uses_net_income_components_and_coverage_bools():
     assert "refundable CTC" in federal_refundable.prompt
     assert "exclude the ACA Premium Tax Credit" in federal_refundable.prompt
     excluded = {
-        output.id: output
-        for output in get_output_specs("us", "excluded_prompt_issue")
+        output.id: output for output in get_output_specs("us", "excluded_prompt_issue")
     }
     premium_tax_credit = excluded["premium_tax_credit"]
     assert premium_tax_credit.pe_variable == "premium_tax_credit"

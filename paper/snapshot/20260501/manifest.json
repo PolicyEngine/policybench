@@ -232,7 +232,7 @@
   },
   "population_weight_artifact": {
     "path": "policybench/population_weights.json",
-    "sha256": "2a8d108946fd42e6c1a9d163f5e90ed342b8750c06217fc80411eb8eb10de5a6",
+    "sha256": "31f603a8989f3784938de71854d5c3bf10a62baa33d6cdb85a3acbc726d54360",
     "note": "Output weights for the household and aggregate scoring views. US weights use the full Enhanced CPS; UK weights use the full enhanced FRS. These weights are fixed for scoring the 100-household snapshot."
   }
 }

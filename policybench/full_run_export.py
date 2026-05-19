@@ -31,9 +31,9 @@ def _filter_to_canonical_outputs(frame: pd.DataFrame, country: str) -> pd.DataFr
     if frame.empty or "variable" not in frame.columns:
         return frame
     canonical = _canonical_output_ids(country)
-    return frame[
-        frame["variable"].map(output_group_id).isin(canonical)
-    ].reset_index(drop=True)
+    return frame[frame["variable"].map(output_group_id).isin(canonical)].reset_index(
+        drop=True
+    )
 
 
 def load_predictions(country_dir: Path) -> pd.DataFrame:
