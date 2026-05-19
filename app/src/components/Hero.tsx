@@ -62,10 +62,7 @@ export default function Hero({
           </span>
 
           <p className="mt-5 text-text-secondary text-sm sm:text-base max-w-xl leading-relaxed">
-            {subtitle}{" "}
-            <span className="text-text-muted">
-              100% = predictions within 1% of the reference across the full benchmark.
-            </span>
+            {subtitle}
           </p>
 
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-4">
