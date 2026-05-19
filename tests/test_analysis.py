@@ -1183,6 +1183,39 @@ class TestBoundedGlobalVariableWeights:
         # Sanity: shares sum to 1 after renormalization.
         assert weights["snap"] == pytest.approx(1.0)
 
+    def test_country_population_weights_can_weight_zero_sample_output(
+        self,
+        monkeypatch,
+    ):
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1", "s2", "s2"],
+                "variable": ["income_tax", "pip"] * 2,
+                "value": [1000.0, 0.0, 2000.0, 0.0],
+                "impact_weight": [pd.NA, pd.NA, pd.NA, pd.NA],
+            }
+        )
+
+        def fake_population_weights(country, kind, output_groups):
+            assert country == "uk"
+            assert kind == "household"
+            assert output_groups == ["income_tax", "pip"]
+            return pd.Series({"income_tax": 0.8, "pip": 0.2})
+
+        monkeypatch.setattr(
+            "policybench.analysis.matching_population_weight_series",
+            fake_population_weights,
+        )
+
+        weights = bounded_global_variable_weights(
+            gt,
+            {"s1": 30_000.0, "s2": 40_000.0},
+            country="uk",
+        )
+
+        assert weights["pip"] == pytest.approx(0.2)
+        assert weights["income_tax"] == pytest.approx(0.8)
+
 
 class TestBoundedHouseholdScores:
     """Bounded household scores: mean of weighted continuous row scores."""
@@ -1207,6 +1240,64 @@ class TestBoundedHouseholdScores:
         market = {"s1": 60000.0}
         out = bounded_household_scores(gt, preds, market)
         assert out.loc[out["model"] == "m1", "score"].iloc[0] == pytest.approx(1.0)
+
+    def test_population_group_weights_split_across_person_outputs(
+        self,
+        monkeypatch,
+    ):
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1", "s1"],
+                "variable": [
+                    "income_tax",
+                    "head_medicaid_eligible",
+                    "spouse_medicaid_eligible",
+                ],
+                "value": [100.0, 1.0, 1.0],
+                "impact_weight": [pd.NA, 9000.0, 1000.0],
+            }
+        )
+        preds = pd.DataFrame(
+            {
+                "model": ["m1", "m1", "m1"],
+                "scenario_id": ["s1", "s1", "s1"],
+                "variable": [
+                    "income_tax",
+                    "head_medicaid_eligible",
+                    "spouse_medicaid_eligible",
+                ],
+                "prediction": [100.0, 0.0, 1.0],
+            }
+        )
+
+        def fake_population_weights(country, kind, output_groups):
+            assert country == "us"
+            assert kind == "household"
+            assert output_groups == ["income_tax", "person_medicaid_eligible"]
+            return pd.Series(
+                {
+                    "income_tax": 0.4,
+                    "person_medicaid_eligible": 0.6,
+                }
+            )
+
+        monkeypatch.setattr(
+            "policybench.analysis.matching_population_weight_series",
+            fake_population_weights,
+        )
+
+        out = bounded_household_scores(
+            gt,
+            preds,
+            {"s1": 20_000.0},
+            country="us",
+        )
+
+        # Medicaid's 0.6 group weight is split evenly across the two people
+        # in this household. It is not split by these rows' impact_weight
+        # values, which are already represented in the population-level group
+        # weight.
+        assert out.loc[out["model"] == "m1", "score"].iloc[0] == pytest.approx(0.7)
 
     def test_zero_predictions_score_low(self):
         gt = pd.DataFrame(

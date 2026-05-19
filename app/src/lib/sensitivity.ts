@@ -27,13 +27,13 @@ export const SENSITIVITY_VIEWS: SensitivityView[] = [
     id: "household",
     label: "Household",
     description:
-      "Bounded global variable weights — each variable's per-household share is |ref| / max(|household_net_income|, Σ|ref|) (a value in [0, 1] that's < 1 when net income dominates and = 1 only when programs cancel out). Those shares are averaged across households and the resulting global weights are renormalized to sum to one before being applied to score every household. One household = one household, weight reflects each variable's net-income share.",
+      "Population household-impact weights — each output group's share is |ref| / max(|household_net_income|, Σ|ref|) in the full source microsimulation population, averaged with household weights and renormalized before scoring each benchmark household. US weights use the full Enhanced CPS; UK weights use the full enhanced FRS.",
   },
   {
     id: "aggregate",
     label: "Aggregate",
     description:
-      "Budget-weighted — each variable's weight is its share of total absolute reference dollars across the benchmark, renormalized within each household so per-household weights sum to one. One dollar of impact = one dollar.",
+      "Budget-weighted — each output group's weight is its share of total absolute reference dollars in the full source microsimulation population, renormalized within each benchmark household. One dollar of impact = one dollar.",
   },
   {
     id: "equal",

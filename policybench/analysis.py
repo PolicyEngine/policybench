@@ -11,6 +11,10 @@ from policybench.config import (
     HOUSEHOLD_IMPACT_SCORE_FLOOR,
 )
 from policybench.policyengine_runtime import policyengine_bundles_for_countries
+from policybench.population_weights import (
+    matching_population_weight_series,
+    normalize_weights,
+)
 from policybench.prompts import make_no_tools_batch_prompt
 from policybench.scenarios import scenario_from_dict
 from policybench.spec import (
@@ -184,22 +188,79 @@ def household_net_income_by_scenario(
     return market + signed_total
 
 
+def _output_group_series(variables: pd.Series) -> pd.Series:
+    return variables.map(output_group_id)
+
+
+def _country_from_scenarios(scenarios: pd.DataFrame | None) -> str | None:
+    if (
+        scenarios is None
+        or scenarios.empty
+        or "country" not in scenarios.columns
+        or scenarios["country"].dropna().empty
+    ):
+        return None
+    countries = scenarios["country"].dropna().astype(str).str.lower().unique()
+    return str(countries[0]) if len(countries) == 1 else None
+
+
+def _output_groups_for_ground_truth(ground_truth: pd.DataFrame) -> list[str]:
+    if ground_truth.empty or "variable" not in ground_truth.columns:
+        return []
+    return list(dict.fromkeys(_output_group_series(ground_truth["variable"])))
+
+
+def _row_weights_for_ground_truth(
+    ground_truth: pd.DataFrame,
+    weights: pd.Series,
+    *,
+    normalize_per_scenario: bool = True,
+) -> pd.DataFrame:
+    """Expand output-group weights to concrete scenario-variable row weights."""
+    if ground_truth.empty:
+        return pd.DataFrame(columns=["scenario_id", "variable", "weight"])
+    rows = ground_truth[["scenario_id", "variable"]].drop_duplicates().copy()
+    rows["output_group"] = _output_group_series(rows["variable"])
+    rows["group_weight"] = rows["output_group"].map(weights).fillna(0.0)
+    counts = rows.groupby(["scenario_id", "output_group"])["variable"].transform(
+        "count"
+    )
+    rows["weight"] = np.where(counts > 0, rows["group_weight"] / counts, 0.0)
+    if normalize_per_scenario:
+        sums = rows.groupby("scenario_id")["weight"].transform("sum")
+        rows["weight"] = np.where(sums > 0, rows["weight"] / sums, 0.0)
+    return rows[["scenario_id", "variable", "weight"]]
+
+
 def bounded_global_variable_weights(
     ground_truth: pd.DataFrame,
     market_income_by_scenario: dict[str, float] | pd.Series,
+    country: str | None = None,
 ) -> pd.Series:
     """Bounded global variable weights.
 
-    Per household: ``share_ij = |ref_ij| / max(|net_income_i|, Σ_k |ref_ik|)``.
-    Global weight for variable j = mean of per-household shares across
-    households, then renormalized so weights sum to 1.
+    When a country is supplied and a population-weight artifact covers all
+    requested output groups, weights come from the full source microsimulation
+    population: full Enhanced CPS for the US and full enhanced FRS for the UK.
+    Otherwise, this falls back to computing the same formula on the supplied
+    benchmark rows.
 
     The ``max(...)`` denominator caps per-household shares at 1 (in the
     cancellation case where taxes and benefits sum to more than net income)
     and dwarfs tiny programs in high-earning households (so a $1 benefit
     to a $200k household gets share ≈ 5e-6, not 100%).
     """
+    output_groups = _output_groups_for_ground_truth(ground_truth)
+    population_weights = matching_population_weight_series(
+        country,
+        "household",
+        output_groups,
+    )
+    if population_weights is not None:
+        return population_weights
+
     df = _signed_contributions(ground_truth)
+    df["output_group"] = _output_group_series(df["variable"])
     abs_total = df.groupby("scenario_id")["abs_contribution"].sum()
     net_income = household_net_income_by_scenario(
         ground_truth, market_income_by_scenario
@@ -212,22 +273,20 @@ def bounded_global_variable_weights(
         0.0,
     )
     df["share"] = shares
-    # Average each variable's share across ALL scenarios in the benchmark, not
-    # just scenarios where the variable appears — otherwise a variable that
+    # Average each output group's share across ALL scenarios in the benchmark,
+    # not just scenarios where the group appears — otherwise an output that
     # applies only to households with a 6th child gets inflated weight because
     # the denominator collapses to the handful of households that have one.
     total_scenarios = df["scenario_id"].nunique()
-    raw = df.groupby("variable")["share"].sum() / max(total_scenarios, 1)
-    total = float(raw.sum())
-    if total <= 0:
-        return raw
-    return raw / total
+    raw = df.groupby("output_group")["share"].sum() / max(total_scenarios, 1)
+    return normalize_weights(raw)
 
 
 def bounded_household_scores(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
     market_income_by_scenario: dict[str, float] | pd.Series,
+    country: str | None = None,
 ) -> pd.DataFrame:
     """Score each model using bounded global variable weights × continuous row score.
 
@@ -236,7 +295,12 @@ def bounded_household_scores(
     """
     if ground_truth.empty or predictions.empty:
         return pd.DataFrame(columns=["model", "scenario_id", "score"])
-    weights = bounded_global_variable_weights(ground_truth, market_income_by_scenario)
+    weights = bounded_global_variable_weights(
+        ground_truth,
+        market_income_by_scenario,
+        country=country,
+    )
+    row_weights = _row_weights_for_ground_truth(ground_truth, weights)
     models = sorted(predictions["model"].dropna().unique())
     grid = (
         ground_truth.assign(_k=1)
@@ -252,7 +316,8 @@ def bounded_household_scores(
         continuous_row_score(t, p)
         for t, p in zip(merged["value"], merged["prediction"])
     ]
-    merged["weight"] = merged["variable"].map(weights).fillna(0.0)
+    merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
+    merged["weight"] = merged["weight"].fillna(0.0)
     merged["weighted"] = merged["row_score"] * merged["weight"]
     return (
         merged.groupby(["model", "scenario_id"])["weighted"]
@@ -266,6 +331,7 @@ def amount_accuracy_by_model(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
     market_income_by_scenario: dict[str, float] | pd.Series,
+    country: str | None = None,
 ) -> pd.DataFrame:
     """Amount accuracy: weighted continuous row score over dollar cells where ref ≠ 0.
 
@@ -279,7 +345,11 @@ def amount_accuracy_by_model(
     """
     if ground_truth.empty or predictions.empty:
         return pd.DataFrame(columns=["model", "amount_accuracy"])
-    weights = bounded_global_variable_weights(ground_truth, market_income_by_scenario)
+    weights = bounded_global_variable_weights(
+        ground_truth,
+        market_income_by_scenario,
+        country=country,
+    )
     gt = ground_truth.copy()
     gt["metric_type"] = gt["variable"].map(metric_type_for_output)
     if "impact_weight" in gt.columns:
@@ -292,6 +362,11 @@ def amount_accuracy_by_model(
         & explicit.isna()
     )
     amount_rows = gt[is_amount & (gt["value"].abs() > 0)]
+    row_weights = _row_weights_for_ground_truth(
+        amount_rows,
+        weights,
+        normalize_per_scenario=False,
+    )
     models = sorted(predictions["model"].dropna().unique())
     grid = (
         amount_rows.assign(_k=1)
@@ -307,7 +382,8 @@ def amount_accuracy_by_model(
         continuous_row_score(t, p)
         for t, p in zip(merged["value"], merged["prediction"])
     ]
-    merged["weight"] = merged["variable"].map(weights).fillna(0.0)
+    merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
+    merged["weight"] = merged["weight"].fillna(0.0)
     merged["weighted_score"] = merged["row_score"] * merged["weight"]
     household_agg = merged.groupby(["model", "scenario_id"]).agg(
         num=("weighted_score", "sum"),
@@ -335,16 +411,18 @@ def _weighted_household_scores(
 ) -> pd.DataFrame:
     """Helper: row_score * weight summed per household and averaged per model.
 
-    When ``per_household_normalize`` is True (default for the equal and
-    aggregate views), weights are renormalized within each scenario so that
-    a household's weights sum to 1 over the variables it actually has — this
-    keeps the score in [0, 1] regardless of how many of the benchmark's
-    variables apply to that scenario. The headline ``bounded_household_scores``
-    intentionally uses ``per_household_normalize=False`` so per-household
-    shares stay anchored to the bounded denominator and can sum to less than 1.
+    When ``per_household_normalize`` is True, weights are renormalized within
+    each scenario so that a household's weights sum to 1 over the variables it
+    actually has. This keeps the score in [0, 1] regardless of how many of the
+    benchmark's variables apply to that scenario.
     """
     if ground_truth.empty or predictions.empty:
         return pd.DataFrame(columns=["model", "score"])
+    row_weights = _row_weights_for_ground_truth(
+        ground_truth,
+        weights,
+        normalize_per_scenario=per_household_normalize,
+    )
     models = sorted(predictions["model"].dropna().unique())
     grid = (
         ground_truth.assign(_k=1)
@@ -360,10 +438,8 @@ def _weighted_household_scores(
         continuous_row_score(t, p)
         for t, p in zip(merged["value"], merged["prediction"])
     ]
-    merged["weight"] = merged["variable"].map(weights).fillna(0.0)
-    if per_household_normalize:
-        sums = merged.groupby(["model", "scenario_id"])["weight"].transform("sum")
-        merged["weight"] = np.where(sums > 0, merged["weight"] / sums, 0.0)
+    merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
+    merged["weight"] = merged["weight"].fillna(0.0)
     merged["weighted"] = merged["row_score"] * merged["weight"]
     household = (
         merged.groupby(["model", "scenario_id"])["weighted"]
@@ -377,6 +453,7 @@ def _weighted_household_scores(
 def equal_weight_scores_by_model(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
+    country: str | None = None,
 ) -> pd.DataFrame:
     """Equal-output-weight scores: each variable gets weight 1/K, then per-row
     scores are averaged within a household and households are averaged with
@@ -384,15 +461,26 @@ def equal_weight_scores_by_model(
     """
     if ground_truth.empty or predictions.empty:
         return pd.DataFrame(columns=["model", "equal_score"])
-    variables = ground_truth["variable"].drop_duplicates().tolist()
-    if not variables:
+    output_groups = _output_groups_for_ground_truth(ground_truth)
+    population_weights = matching_population_weight_series(
+        country,
+        "equal",
+        output_groups,
+    )
+    if population_weights is not None:
+        out = _weighted_household_scores(ground_truth, predictions, population_weights)
+        return out.rename(columns={"score": "equal_score"})
+    if not output_groups:
         return pd.DataFrame(columns=["model", "equal_score"])
-    weights = pd.Series(1.0 / len(variables), index=variables)
+    weights = pd.Series(1.0 / len(output_groups), index=output_groups)
     out = _weighted_household_scores(ground_truth, predictions, weights)
     return out.rename(columns={"score": "equal_score"})
 
 
-def aggregate_global_variable_weights(ground_truth: pd.DataFrame) -> pd.Series:
+def aggregate_global_variable_weights(
+    ground_truth: pd.DataFrame,
+    country: str | None = None,
+) -> pd.Series:
     """Budget-weighted (aggregate-impact) per-variable weights.
 
     Each variable's weight is its share of total absolute reference dollars
@@ -401,32 +489,49 @@ def aggregate_global_variable_weights(ground_truth: pd.DataFrame) -> pd.Series:
     """
     if ground_truth.empty:
         return pd.Series(dtype=float)
+    output_groups = _output_groups_for_ground_truth(ground_truth)
+    population_weights = matching_population_weight_series(
+        country,
+        "aggregate",
+        output_groups,
+    )
+    if population_weights is not None:
+        return population_weights
     gt = ground_truth.copy()
+    gt["output_group"] = _output_group_series(gt["variable"])
     if "impact_weight" in gt.columns:
         explicit = pd.to_numeric(gt["impact_weight"], errors="coerce").abs()
         gt["abs_value"] = explicit.fillna(gt["value"].abs())
     else:
         gt["abs_value"] = gt["value"].abs()
-    totals = gt.groupby("variable")["abs_value"].sum()
-    grand = float(totals.sum())
-    if grand <= 0:
-        return pd.Series(0.0, index=totals.index)
-    return totals / grand
+    totals = gt.groupby("output_group")["abs_value"].sum()
+    return normalize_weights(totals)
 
 
-def equal_global_variable_weights(ground_truth: pd.DataFrame) -> pd.Series:
+def equal_global_variable_weights(
+    ground_truth: pd.DataFrame,
+    country: str | None = None,
+) -> pd.Series:
     """Equal per-variable weights: ``1 / K`` across the benchmark's unique outputs."""
     if ground_truth.empty:
         return pd.Series(dtype=float)
-    variables = ground_truth["variable"].drop_duplicates().tolist()
-    if not variables:
+    output_groups = _output_groups_for_ground_truth(ground_truth)
+    population_weights = matching_population_weight_series(
+        country,
+        "equal",
+        output_groups,
+    )
+    if population_weights is not None:
+        return population_weights
+    if not output_groups:
         return pd.Series(dtype=float)
-    return pd.Series(1.0 / len(variables), index=variables)
+    return pd.Series(1.0 / len(output_groups), index=output_groups)
 
 
 def aggregate_weight_scores_by_model(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
+    country: str | None = None,
 ) -> pd.DataFrame:
     """Budget-weighted (aggregate-impact) scores: each variable's weight is its
     share of total absolute reference dollars across the benchmark. Booleans
@@ -434,7 +539,7 @@ def aggregate_weight_scores_by_model(
     """
     if ground_truth.empty or predictions.empty:
         return pd.DataFrame(columns=["model", "aggregate_score"])
-    weights = aggregate_global_variable_weights(ground_truth)
+    weights = aggregate_global_variable_weights(ground_truth, country=country)
     if weights.empty:
         return pd.DataFrame(columns=["model", "aggregate_score"])
     out = _weighted_household_scores(ground_truth, predictions, weights)
@@ -1054,8 +1159,14 @@ def analyze_no_tools(
                 pd.to_numeric(scenarios["total_income"], errors="coerce").fillna(0.0),
             )
         )
+    country = _country_from_scenarios(scenarios)
 
-    bounded_scores = bounded_household_scores(ground_truth, predictions, market_income)
+    bounded_scores = bounded_household_scores(
+        ground_truth,
+        predictions,
+        market_income,
+        country=country,
+    )
     if not bounded_scores.empty:
         bounded_summary = (
             bounded_scores.groupby("model")["score"]
@@ -1063,10 +1174,23 @@ def analyze_no_tools(
             .rename("bounded_score")
             .reset_index()
         )
-        amount_acc = amount_accuracy_by_model(ground_truth, predictions, market_income)
+        amount_acc = amount_accuracy_by_model(
+            ground_truth,
+            predictions,
+            market_income,
+            country=country,
+        )
         participation_acc = participation_accuracy_by_model(ground_truth, predictions)
-        equal_scores = equal_weight_scores_by_model(ground_truth, predictions)
-        aggregate_scores = aggregate_weight_scores_by_model(ground_truth, predictions)
+        equal_scores = equal_weight_scores_by_model(
+            ground_truth,
+            predictions,
+            country=country,
+        )
+        aggregate_scores = aggregate_weight_scores_by_model(
+            ground_truth,
+            predictions,
+            country=country,
+        )
         bounded_summary = (
             bounded_summary.merge(amount_acc, on="model", how="left")
             .merge(participation_acc, on="model", how="left")
@@ -1074,7 +1198,12 @@ def analyze_no_tools(
             .merge(aggregate_scores, on="model", how="left")
         )
         global_weights = (
-            bounded_global_variable_weights(ground_truth, market_income)
+            bounded_global_variable_weights(
+                ground_truth,
+                market_income,
+                country=country,
+            )
+            .rename_axis("variable")
             .rename("global_weight")
             .reset_index()
         )
@@ -1286,13 +1415,16 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
     if isinstance(bounded_summary, pd.DataFrame) and not bounded_summary.empty:
         lines.extend(
             [
-                "## Bounded global variable weights (headline)",
+                "## Population household-impact weights (headline)",
                 "",
                 "Households receive equal weight. The score is a weighted "
-                "average of continuous row scores; each variable's weight is "
-                "the mean across households of "
-                "`|ref_ij| / max(|household_net_income_i|, sum_k |ref_ik|)`, "
-                "renormalized so weights sum to 1.",
+                "average of continuous row scores. Canonical country reports "
+                "use full-population output-group weights: US weights come "
+                "from the full Enhanced CPS, UK weights from the full enhanced "
+                "FRS. Each output group's weight is the household-weighted "
+                "mean of "
+                "`|ref_ij| / max(|household_net_income_i|, sum_k |ref_ik|)` "
+                "in the source population, renormalized so weights sum to 1.",
                 "",
                 "| model | bounded_score | amount_accuracy | participation_accuracy |",
                 "| --- | ---: | ---: | ---: |",
@@ -1932,13 +2064,11 @@ def build_dashboard_payload(
             prediction_item["referenceExplanation"] = reference_explanation.strip()
         variable_data[row["model"]] = prediction_item
 
-    # Per-variable weights under each of the three weightings, exposed so the
+    # Output-group weights under each of the three weightings, exposed so the
     # leaderboard can render a transparency table without recomputing on the
-    # client. ``household`` is the bounded global variable weights (mean of
-    # |ref| / max(|net|, Σ|ref|) across households, renormalized to sum to 1).
-    # ``aggregate`` is each variable's share of total absolute reference
-    # dollars across the benchmark (booleans use their paired ``impact_weight``
-    # value). ``equal`` is ``1 / K`` for every variable.
+    # client. For canonical country payloads, ``household`` and ``aggregate``
+    # come from the full source microsimulation populations rather than the
+    # 100-household evaluation sample.
     market_income_map: dict[str, float] = {}
     if "total_income" in scenarios.columns:
         market_income_map = dict(
@@ -1953,10 +2083,18 @@ def build_dashboard_payload(
 
     weights_payload = {
         "household": _weights_dict(
-            bounded_global_variable_weights(ground_truth, market_income_map)
+            bounded_global_variable_weights(
+                ground_truth,
+                market_income_map,
+                country=payload_country,
+            )
         ),
-        "aggregate": _weights_dict(aggregate_global_variable_weights(ground_truth)),
-        "equal": _weights_dict(equal_global_variable_weights(ground_truth)),
+        "aggregate": _weights_dict(
+            aggregate_global_variable_weights(ground_truth, country=payload_country)
+        ),
+        "equal": _weights_dict(
+            equal_global_variable_weights(ground_truth, country=payload_country)
+        ),
     }
 
     return {
