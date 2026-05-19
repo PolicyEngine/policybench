@@ -1,4 +1,4 @@
-import { Anthropic, Google, OpenAI, XAI } from "@lobehub/icons";
+import { Anthropic, DeepSeek, Google, OpenAI, XAI } from "@lobehub/icons";
 import { PROVIDER_LABELS, type ProviderKey } from "../modelMeta";
 
 export default function ProviderMark({
@@ -33,6 +33,7 @@ export default function ProviderMark({
       className={`inline-flex items-center justify-center text-text ${className}`}
     >
       {provider === "anthropic" && <Anthropic size={size} color="currentColor" aria-hidden="true" />}
+      {provider === "deepseek" && <DeepSeek.Color size={size} aria-hidden="true" />}
       {provider === "google" && <Google.Color size={size} aria-hidden="true" />}
       {provider === "openai" && <OpenAI size={size} color="currentColor" aria-hidden="true" />}
       {provider === "xai" && <XAI size={size} color="currentColor" aria-hidden="true" />}

@@ -16,6 +16,8 @@ export const MODEL_ORDER = [
   "gemini-3.1-pro-preview",
   "gemini-3-flash-preview",
   "gemini-3.1-flash-lite-preview",
+  "deepseek-v4-pro",
+  "deepseek-v4-flash",
 ] as const;
 
 export const MODEL_LABELS: Record<string, string> = {
@@ -34,12 +36,20 @@ export const MODEL_LABELS: Record<string, string> = {
   "gemini-3.1-pro-preview": "Gemini 3.1 Pro Preview",
   "gemini-3-flash-preview": "Gemini 3 Flash Preview",
   "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash-Lite Preview",
+  "deepseek-v4-pro": "DeepSeek V4 Pro",
+  "deepseek-v4-flash": "DeepSeek V4 Flash",
 };
 
-export type ProviderKey = "anthropic" | "google" | "openai" | "xai";
+export type ProviderKey =
+  | "anthropic"
+  | "deepseek"
+  | "google"
+  | "openai"
+  | "xai";
 
 export const PROVIDER_LABELS: Record<ProviderKey, string> = {
   anthropic: "Anthropic",
+  deepseek: "DeepSeek",
   google: "Google",
   openai: "OpenAI",
   xai: "xAI",
@@ -47,6 +57,7 @@ export const PROVIDER_LABELS: Record<ProviderKey, string> = {
 
 export function getProviderForModel(model: string): ProviderKey | null {
   if (model.startsWith("claude-")) return "anthropic";
+  if (model.startsWith("deepseek-")) return "deepseek";
   if (model.startsWith("gemini-")) return "google";
   if (model.startsWith("gpt-")) return "openai";
   if (model.startsWith("grok-")) return "xai";
@@ -60,6 +71,7 @@ export const FRONTIER_MODELS: readonly string[] = [
   "gpt-5.5",
   "grok-4.3",
   "gemini-3.1-pro-preview",
+  "deepseek-v4-pro",
 ];
 
 export function isFrontierModel(model: string): boolean {
@@ -79,6 +91,8 @@ const SECONDARY_300 = "var(--color-gray-300)";
 const SECONDARY_400 = "var(--color-gray-400)";
 const SECONDARY_500 = "var(--color-gray-500)";
 const SECONDARY_700 = "var(--color-gray-700)";
+const BLUE_400 = "var(--color-blue-400)";
+const BLUE_700 = "var(--color-blue-700)";
 const INFO = "var(--color-info)";
 const WARNING = "var(--color-warning)";
 const ERROR = "var(--color-error)";
@@ -102,6 +116,8 @@ export const MODEL_COLORS: Record<string, string> = {
   "gemini-3.1-pro-preview": WARNING,
   "gemini-3-flash-preview": WARNING,
   "gemini-3.1-flash-lite-preview": WARNING,
+  "deepseek-v4-pro": BLUE_700,
+  "deepseek-v4-flash": BLUE_400,
 };
 
 function mixWithBackground(color: string, amount: number): string {
