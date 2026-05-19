@@ -238,6 +238,14 @@ export default function Methodology({
           instead of inferring it.
         </SectionCard>
 
+        <SectionCard title="Open-set status">
+          The public scenario explorer exposes prompts and PolicyEngine
+          reference outputs, so future model releases or fine-tunes could
+          learn from the released cases. Treat this leaderboard as a public
+          preview; protected held-out claims would require a separate
+          rotating evaluation set.
+        </SectionCard>
+
         <SectionCard title="Households">
           {country === "uk"
             ? "The UK benchmark samples one-benefit-unit households from the public UK calibrated transfer dataset with a fixed seed. That dataset maps benchmark-compatible US Enhanced CPS records into UK-facing inputs and recalibrates weights to selected UK targets. The prompt states the shared UK benefit-unit structure; nonzero promptable inputs are carried through into both the prompt and the PolicyEngine-UK input."

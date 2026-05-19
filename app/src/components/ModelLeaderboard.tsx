@@ -9,7 +9,7 @@ import type {
 import { VIEW_SHORT_LABELS, getVariableLabel } from "../types";
 import { MODEL_LABELS, MODEL_ORDER, getProviderForModel } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
-import ProgramFilterDropdown from "./ProgramFilterDropdown";
+import { ProgramFilterPanel } from "./ProgramFilterDropdown";
 import {
   programIsActive,
   type ProgramOption,
@@ -130,15 +130,14 @@ export default function ModelLeaderboard({
   const isGlobal = selectedView === "global";
   const [sensitivityView, setSensitivityView] =
     useState<SensitivityViewId>("household");
-  // Headline scoring: defaults to "exact" because policy/tax decisions need
-  // to be right to the dollar — a "close" answer isn't deployable.
-  // "within1pct" is the natural analyst bar where rounding and small-rate
-  // drift are acceptable. "continuous" is the bounded
-  // `max(0, 1 - |err|/|ref|)` score from the paper, useful for tracking
-  // conceptual progress year over year while exact rates remain low.
+  // Headline scoring: defaults to "within1pct". On UK, ~71% of references
+  // are £0 and Exact mode mostly measures "did you say £0?" — the
+  // within-1% bar restores meaningful separation. Exact remains a click
+  // away as the production-deployability bar; Continuous tracks
+  // conceptual progress year over year.
   const [scoringMode, setScoringMode] = useState<
     "exact" | "within1pct" | "continuous"
-  >("exact");
+  >("within1pct");
   // Reference cases: All by default, but Positives is the right view when
   // (e.g.) UK references are 71% £0 and Exact mode mostly measures
   // "did you say £0?". Zeros surfaces the inverse — eligibility hedging.
@@ -425,6 +424,28 @@ export default function ModelLeaderboard({
 
   const activeView = SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)!;
 
+  // "Exact" means "within one currency unit," and that unit is country-
+  // specific. Surface the right word in tooltips, captions, and the Options
+  // summary so the UK leaderboard doesn't read "to the dollar".
+  const isUK = selectedView === "uk";
+  const currencyUnit = isUK ? "pound" : "dollar";
+  const currencySymbol = isUK ? "£" : "$";
+  const scoringLabel =
+    scoringMode === "exact"
+      ? "exact"
+      : scoringMode === "within1pct"
+        ? "within 1%"
+        : "continuous";
+  const referenceLabel =
+    referenceFilter === "all"
+      ? "all cases"
+      : referenceFilter === "positives"
+        ? "positives only"
+        : "zeros only";
+  const optionsSummary = isGlobal
+    ? `scoring: ${scoringLabel} · cases: ${referenceLabel}`
+    : `scoring: ${scoringLabel} · cases: ${referenceLabel} · weighting: ${activeView.label.toLowerCase()} · ${activeProgramSummary.toLowerCase()}`;
+
   // Per-variable weights table. Available on country payloads only; global
   // (US + UK) is intentionally skipped because weights differ between
   // countries and combining them would be misleading.
@@ -461,53 +482,14 @@ export default function ModelLeaderboard({
       >
         {isGlobal ? "Global rankings" : "Model rankings"}
       </h2>
-      <p
-        className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
-        style={{ animationDelay: "160ms" }}
-      >
-        {isGlobal
-          ? "Default ranking compares each model's exact answers across the US and UK benchmark slices."
-          : "Default ranking compares exact answers across all benchmark households, with one household counting as one household."}
-        {pendingModels.length > 0 && (
-          <>
-            {" "}
-            Pending rows below mark models that are actively being added.
-          </>
-        )}
-      </p>
-
-      <aside
-        aria-labelledby="open-set-heading"
-        className="mt-5 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-xs text-text-secondary animate-fade-up"
-        style={{ animationDelay: "180ms" }}
-      >
-        <span
-          aria-hidden
-          className="mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-warning"
-        />
-        <p>
-          <strong id="open-set-heading" className="text-text">
-            Open-set leaderboard.
-          </strong>{" "}
-          The public scenario explorer exposes prompts and PolicyEngine
-          reference outputs, so future model releases or fine-tunes could
-          learn from the released cases. Treat this as a public preview;
-          protected held-out claims would require a separate rotating
-          evaluation set.
+      {pendingModels.length > 0 && (
+        <p
+          className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
+          style={{ animationDelay: "160ms" }}
+        >
+          Pending rows below mark models that are actively being added.
         </p>
-      </aside>
-
-      <ProgramFilterDropdown
-        options={isGlobal ? [] : programOptions}
-        activeProgramIds={activeProgramIds}
-        summary={activeProgramSummary}
-        description="Shared across model scoring, program breakdown, and scenarios. Scores use only selected outputs; selected weights rescale to 100%. MAE is the unweighted average absolute error across selected scenario cells."
-        onReset={onResetPrograms}
-        onToggle={onToggleProgram}
-        onSelectOnly={onSelectOnlyProgram}
-        className="mt-5"
-        animationDelay="190ms"
-      />
+      )}
 
       <div
         role="region"
@@ -734,15 +716,33 @@ export default function ModelLeaderboard({
               <polyline points="4 2 8 6 4 10" />
             </svg>
             <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
-              Adjust ranking
+              Options
             </span>
             <span className="truncate text-text-muted">
-              Default: exact, all cases, household weights
+              {optionsSummary}
             </span>
           </span>
         </summary>
 
         <div className="space-y-4 border-t border-border-subtle px-4 py-4">
+          {!isGlobal && programOptions.length > 0 && (
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
+                Programs
+              </div>
+              <div className="mt-2">
+                <ProgramFilterPanel
+                  options={programOptions}
+                  activeProgramIds={activeProgramIds}
+                  description="Filter restricts model scoring, the program breakdown table, and the scenario explorer to the selected outputs. Weights rescale to 100% over the active set; MAE averages absolute errors across active cells."
+                  onReset={onResetPrograms}
+                  onToggle={onToggleProgram}
+                  onSelectOnly={onSelectOnlyProgram}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
             <span
               id="leaderboard-scoring-label"
@@ -760,7 +760,7 @@ export default function ModelLeaderboard({
                   [
                     "exact",
                     "Exact",
-                    "Percent of predictions that match the PolicyEngine reference to the dollar (or to the boolean for eligibility flags). Real-world policy decisions need this — close-but-not-right isn't deployable.",
+                    `Percent of predictions that match the PolicyEngine reference within one ${currencyUnit} (eligibility flags match the boolean). Real-world policy decisions need this — close-but-not-right isn't deployable.`,
                   ],
                   [
                     "within1pct",
@@ -795,7 +795,7 @@ export default function ModelLeaderboard({
             </div>
             <span className="text-[11px] text-text-muted">
               {scoringMode === "exact"
-                ? "Percent matching to the dollar / boolean."
+                ? `Percent matching within ${currencySymbol}1.`
                 : scoringMode === "within1pct"
                   ? "Percent within 1% of reference."
                   : "Bounded score: 1 - |err| / |ref|, clipped to [0, 1]."}

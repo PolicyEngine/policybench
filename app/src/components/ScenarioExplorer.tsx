@@ -22,9 +22,7 @@ import {
   isFrontierModel,
   type ProviderKey,
 } from "../modelMeta";
-import { programIsActive, type ProgramOption } from "../lib/programFilters";
 import ProviderMark from "./ProviderMark";
-import ProgramFilterDropdown from "./ProgramFilterDropdown";
 
 function formatBoolean(value: number): string {
   return value === 1 ? "Yes" : "No";
@@ -93,20 +91,8 @@ function pickRandomScenario(
 
 export default function ScenarioExplorer({
   data,
-  programOptions,
-  activeProgramIds,
-  activeProgramSummary,
-  onResetPrograms,
-  onToggleProgram,
-  onSelectOnlyProgram,
 }: {
   data: BenchData;
-  programOptions: ProgramOption[];
-  activeProgramIds: Set<string>;
-  activeProgramSummary: string;
-  onResetPrograms: () => void;
-  onToggleProgram: (variable: string) => void;
-  onSelectOnlyProgram: (variable: string) => void;
 }) {
   const country = data.country;
   const [promptFormat, setPromptFormat] = useState<"tool" | "json">("tool");
@@ -132,23 +118,15 @@ export default function ScenarioExplorer({
     [data, resolvedScenarioId],
   );
 
-  const isProgramActive = useCallback(
-    (variable: string) => programIsActive(activeProgramIds, variable),
-    [activeProgramIds],
-  );
-
+  // Scenarios always show every benchmark output for the active household.
+  // The leaderboard's Options panel filters the *rankings* by program, but
+  // the scenario explorer is the place to inspect any cell — so the filter
+  // doesn't propagate here.
   const variables = useMemo(
-    () => Object.keys(predictions).filter(isProgramActive).sort(),
-    [isProgramActive, predictions],
+    () => Object.keys(predictions).sort(),
+    [predictions],
   );
-
-  const filteredPredictions = useMemo(() => {
-    const out: Record<string, Record<string, ScenarioPrediction>> = {};
-    for (const variable of variables) {
-      out[variable] = predictions[variable] ?? {};
-    }
-    return out;
-  }, [predictions, variables]);
+  const filteredPredictions = predictions;
 
   // Frontier-only narrows to one flagship per provider; provider chips
   // multi-select. The scenario explorer table is wide (one column per model),
@@ -330,34 +308,75 @@ export default function ScenarioExplorer({
         </div>
       </div>
 
-      <div
-        className={`card px-5 py-4 mt-6 grid grid-cols-2 gap-4 animate-fade-up ${
-          hasFilingStatus ? "md:grid-cols-5" : "md:grid-cols-4"
-        }`}
+      <details
+        className="card px-5 py-4 mt-6 animate-fade-up group"
         style={{ animationDelay: "240ms" }}
       >
-        {[
-          [geographyLabel, scenario.state],
-          ...(hasFilingStatus
-            ? [["Filing status", scenario.filingStatus as string]]
-            : []),
-          ["Adults", String(scenario.numAdults)],
-          ["Children", String(scenario.numChildren)],
-          [
-            "Income",
-            formatCurrency(scenario.totalIncome as number, currencySymbol),
-          ],
-        ].map(([label, value]) => (
-          <div key={label}>
-            <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-              {label}
-            </div>
-            <div className="text-text font-[family-name:var(--font-mono)] text-sm mt-0.5">
-              {value}
-            </div>
+        <summary className="cursor-pointer list-none">
+          <div
+            className={`grid grid-cols-2 gap-4 ${
+              hasFilingStatus ? "md:grid-cols-5" : "md:grid-cols-4"
+            }`}
+          >
+            {[
+              [geographyLabel, scenario.state],
+              ...(hasFilingStatus
+                ? [["Filing status", scenario.filingStatus as string]]
+                : []),
+              ["Adults", String(scenario.numAdults)],
+              ["Children", String(scenario.numChildren)],
+              [
+                "Income",
+                formatCurrency(scenario.totalIncome as number, currencySymbol),
+              ],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                  {label}
+                </div>
+                <div className="text-text font-[family-name:var(--font-mono)] text-sm mt-0.5">
+                  {value}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+          <div className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            <svg
+              aria-hidden
+              viewBox="0 0 12 12"
+              width="10"
+              height="10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="transition-transform group-open:rotate-90"
+            >
+              <polyline points="4 2 8 6 4 10" />
+            </svg>
+            <span className="group-open:hidden">Show full household facts</span>
+            <span className="hidden group-open:inline">Hide full household facts</span>
+          </div>
+        </summary>
+        {(() => {
+          const promptText = activePrompt?.tool ?? activePrompt?.json ?? "";
+          // The prompt always opens with "Household:" and ends the facts
+          // section before "Provide the following". Pull that block so users
+          // can see ages, individual incomes, assets, etc. without scrolling
+          // to the Exact prompt section.
+          const match = promptText.match(
+            /Household:[\s\S]*?(?=\n\nProvide the following|\nProvide the following|$)/,
+          );
+          const facts = match ? match[0].trim() : promptText.trim();
+          if (!facts) return null;
+          return (
+            <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface px-4 py-3 text-xs leading-relaxed text-text-secondary font-[family-name:var(--font-mono)]">
+              {facts}
+            </pre>
+          );
+        })()}
+      </details>
 
       <div
         className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3 animate-fade-up"
@@ -504,26 +523,13 @@ export default function ScenarioExplorer({
                               setSelectedCell({ variable: v, model: m })
                             }
                             aria-pressed={isSelected}
-                            className={`flex w-full items-center justify-end gap-1.5 rounded-md border px-2 py-1 text-right font-[family-name:var(--font-mono)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 ${
+                            className={`w-full rounded-md border px-2 py-1 text-right font-[family-name:var(--font-mono)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 ${
                               isSelected
                                 ? "border-primary-strong/50 bg-primary-soft text-primary-strong"
                                 : "border-border-subtle bg-card/60 hover:border-primary-strong/40 hover:bg-surface-soft hover:text-text"
                             }`}
                           >
-                            <span>--</span>
-                            <svg
-                              aria-hidden
-                              viewBox="0 0 12 12"
-                              className="h-3 w-3 opacity-60"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.6"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <circle cx="5" cy="5" r="3" />
-                              <path d="m7.2 7.2 2.3 2.3" />
-                            </svg>
+                            --
                           </button>
                         </td>
                       );
@@ -546,7 +552,7 @@ export default function ScenarioExplorer({
                             setSelectedCell({ variable: v, model: m })
                           }
                           aria-pressed={isSelected}
-                          className={`flex w-full items-center justify-end gap-1.5 rounded-md border px-2 py-1 text-right font-[family-name:var(--font-mono)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 ${
+                          className={`w-full rounded-md border px-2 py-1 text-right font-[family-name:var(--font-mono)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 ${
                             isSelected
                               ? "border-primary-strong/50 bg-primary-soft ring-1 ring-primary-strong/40"
                               : "border-border-subtle bg-card/60 hover:border-primary-strong/40 hover:bg-surface-soft"
@@ -557,20 +563,7 @@ export default function ScenarioExplorer({
                               : getPredictionTextColor(predictionError, truth),
                           }}
                         >
-                          <span>{displayPred}</span>
-                          <svg
-                            aria-hidden
-                            viewBox="0 0 12 12"
-                            className="h-3 w-3 opacity-60"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.6"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <circle cx="5" cy="5" r="3" />
-                            <path d="m7.2 7.2 2.3 2.3" />
-                          </svg>
+                          {displayPred}
                         </button>
                       </td>
                     );
