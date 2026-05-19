@@ -473,15 +473,19 @@ def weighted_hit_rate_scores_by_model(
         .sum()
         .reset_index()
     )
-    return household.groupby("model")[
-        [
-            "weighted_exact",
-            "weighted_within_1pct",
-            "weighted_within_5pct",
-            "weighted_within_10pct",
-            "weighted_threshold_score",
+    return (
+        household.groupby("model")[
+            [
+                "weighted_exact",
+                "weighted_within_1pct",
+                "weighted_within_5pct",
+                "weighted_within_10pct",
+                "weighted_threshold_score",
+            ]
         ]
-    ].mean().reset_index()
+        .mean()
+        .reset_index()
+    )
 
 
 def amount_accuracy_by_model(
