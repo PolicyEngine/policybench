@@ -222,16 +222,7 @@ export default function App() {
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
         <section id="scenarios" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
-          <ScenarioExplorer
-            key={data.country}
-            data={data}
-            programOptions={programOptions}
-            activeProgramIds={activeProgramIds}
-            activeProgramSummary={activeProgramSummary}
-            onResetPrograms={resetPrograms}
-            onToggleProgram={toggleProgram}
-            onSelectOnlyProgram={selectOnlyProgram}
-          />
+          <ScenarioExplorer key={data.country} data={data} />
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />

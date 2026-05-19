@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   getVariableLabel,
   isBinaryVariable,
@@ -170,6 +164,8 @@ export default function ScenarioExplorer({
       : null;
 
   const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const householdDialogRef = useRef<HTMLDialogElement | null>(null);
+  const [householdModalOpen, setHouseholdModalOpen] = useState(false);
 
   // Drive the native <dialog> imperatively. showModal() gives us focus
   // trapping, an inert background, ESC-to-close, and the ::backdrop
@@ -184,7 +180,22 @@ export default function ScenarioExplorer({
     }
   }, [selectedCell]);
 
+  useEffect(() => {
+    const dialog = householdDialogRef.current;
+    if (!dialog) return;
+    if (householdModalOpen) {
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+    }
+  }, [householdModalOpen]);
+
+  // The household-facts modal is reactive to the active scenario via its
+  // factsText prop, so picking a different household from the dropdown
+  // updates the modal in place rather than needing an explicit reset.
+
   const closeModal = () => setManualSelection(null);
+  const closeHouseholdModal = () => setHouseholdModalOpen(false);
 
   const setSelectedCell = (cell: { variable: string; model: string }) => {
     if (!resolvedScenarioId) return;
@@ -197,6 +208,19 @@ export default function ScenarioExplorer({
   const geographyLabel = country === "uk" ? "Region" : "State";
   const hasFilingStatus = !!scenario.filingStatus;
   const currencySymbol = country === "uk" ? "£" : "$";
+
+  // The prompt always opens with "Household:" and ends the facts section
+  // before "Provide the following". Pull that block so the household-facts
+  // modal can show ages, individual incomes, assets, etc. without surfacing
+  // the prompt scaffolding.
+  const householdFactsText = (() => {
+    const promptText = activePrompt?.tool ?? activePrompt?.json ?? "";
+    const match = promptText.match(
+      /Household:[\s\S]*?(?=\n\nProvide the following|\nProvide the following|$)/,
+    );
+    return match ? match[0].trim() : promptText.trim();
+  })();
+  const hasHouseholdFacts = householdFactsText.length > 0;
   const explanationRows = Object.values(filteredPredictions).reduce(
     (sum, modelMap) =>
       sum +
@@ -308,38 +332,46 @@ export default function ScenarioExplorer({
         </div>
       </div>
 
-      <details
-        className="card px-5 py-4 mt-6 animate-fade-up group"
+      <button
+        type="button"
+        onClick={() => hasHouseholdFacts && setHouseholdModalOpen(true)}
+        disabled={!hasHouseholdFacts}
+        className="card px-5 py-4 mt-6 w-full text-left animate-fade-up transition-colors hover:border-primary-strong/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 disabled:cursor-default disabled:hover:border-border"
         style={{ animationDelay: "240ms" }}
+        aria-label={
+          hasHouseholdFacts
+            ? "View full household facts"
+            : "Household summary"
+        }
       >
-        <summary className="cursor-pointer list-none">
-          <div
-            className={`grid grid-cols-2 gap-4 ${
-              hasFilingStatus ? "md:grid-cols-5" : "md:grid-cols-4"
-            }`}
-          >
-            {[
-              [geographyLabel, scenario.state],
-              ...(hasFilingStatus
-                ? [["Filing status", scenario.filingStatus as string]]
-                : []),
-              ["Adults", String(scenario.numAdults)],
-              ["Children", String(scenario.numChildren)],
-              [
-                "Income",
-                formatCurrency(scenario.totalIncome as number, currencySymbol),
-              ],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                  {label}
-                </div>
-                <div className="text-text font-[family-name:var(--font-mono)] text-sm mt-0.5">
-                  {value}
-                </div>
+        <div
+          className={`grid grid-cols-2 gap-4 ${
+            hasFilingStatus ? "md:grid-cols-5" : "md:grid-cols-4"
+          }`}
+        >
+          {[
+            [geographyLabel, scenario.state],
+            ...(hasFilingStatus
+              ? [["Filing status", scenario.filingStatus as string]]
+              : []),
+            ["Adults", String(scenario.numAdults)],
+            ["Children", String(scenario.numChildren)],
+            [
+              "Income",
+              formatCurrency(scenario.totalIncome as number, currencySymbol),
+            ],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                {label}
               </div>
-            ))}
-          </div>
+              <div className="text-text font-[family-name:var(--font-mono)] text-sm mt-0.5">
+                {value}
+              </div>
+            </div>
+          ))}
+        </div>
+        {hasHouseholdFacts && (
           <div className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
             <svg
               aria-hidden
@@ -351,48 +383,18 @@ export default function ScenarioExplorer({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="transition-transform group-open:rotate-90"
             >
               <polyline points="4 2 8 6 4 10" />
             </svg>
-            <span className="group-open:hidden">Show full household facts</span>
-            <span className="hidden group-open:inline">Hide full household facts</span>
+            <span>View full household facts</span>
           </div>
-        </summary>
-        {(() => {
-          const promptText = activePrompt?.tool ?? activePrompt?.json ?? "";
-          // The prompt always opens with "Household:" and ends the facts
-          // section before "Provide the following". Pull that block so users
-          // can see ages, individual incomes, assets, etc. without scrolling
-          // to the Exact prompt section.
-          const match = promptText.match(
-            /Household:[\s\S]*?(?=\n\nProvide the following|\nProvide the following|$)/,
-          );
-          const facts = match ? match[0].trim() : promptText.trim();
-          if (!facts) return null;
-          return (
-            <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface px-4 py-3 text-xs leading-relaxed text-text-secondary font-[family-name:var(--font-mono)]">
-              {facts}
-            </pre>
-          );
-        })()}
-      </details>
+        )}
+      </button>
 
       <div
         className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3 animate-fade-up"
         style={{ animationDelay: "300ms" }}
       >
-        <div className="basis-full">
-          <ProgramFilterDropdown
-            options={programOptions}
-            activeProgramIds={activeProgramIds}
-            summary={activeProgramSummary}
-            description="Shared with model scoring and the program breakdown. Scenario rows show only selected outputs; the model column filter stays local to this table."
-            onReset={onResetPrograms}
-            onToggle={onToggleProgram}
-            onSelectOnly={onSelectOnlyProgram}
-          />
-        </div>
         <div className="flex flex-wrap items-center gap-2">
           <span
             id="scenarios-filter-label"
@@ -675,9 +677,67 @@ export default function ScenarioExplorer({
         currencySymbol={currencySymbol}
         onClose={closeModal}
       />
+
+      <HouseholdDialog
+        ref={householdDialogRef}
+        scenarioLabel={resolvedScenarioId.replace("scenario_", "#")}
+        factsText={householdFactsText}
+        onClose={closeHouseholdModal}
+      />
     </div>
   );
 }
+
+type HouseholdDialogProps = {
+  scenarioLabel: string;
+  factsText: string;
+  onClose: () => void;
+};
+
+const HouseholdDialog = React.forwardRef<HTMLDialogElement, HouseholdDialogProps>(
+  function HouseholdDialog({ scenarioLabel, factsText, onClose }, ref) {
+    const handleBackdropClick = (
+      event: React.MouseEvent<HTMLDialogElement>,
+    ) => {
+      if (event.target === event.currentTarget) onClose();
+    };
+
+    return (
+      <dialog
+        ref={ref}
+        onClose={onClose}
+        onClick={handleBackdropClick}
+        aria-label="Full household facts"
+        className="mx-auto my-auto w-[min(960px,calc(100vw-2rem))] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 text-text shadow-xl backdrop:bg-text/40 backdrop:backdrop-blur-sm"
+      >
+        <div className="relative px-5 py-5">
+          <DialogCloseButton onClose={onClose} />
+          <div className="pr-10">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+              Household {scenarioLabel}
+            </div>
+            <div className="text-text text-base font-semibold mt-0.5">
+              Full household facts
+            </div>
+            <p className="mt-2 text-xs text-text-muted leading-relaxed">
+              Exactly the household section the models see at the top of the
+              prompt — verbatim, no summarization.
+            </p>
+          </div>
+          {factsText ? (
+            <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface px-4 py-3 text-xs leading-relaxed text-text-secondary font-[family-name:var(--font-mono)]">
+              {factsText}
+            </pre>
+          ) : (
+            <p className="mt-4 text-sm text-text-muted italic">
+              No prompt facts available for this household.
+            </p>
+          )}
+        </div>
+      </dialog>
+    );
+  },
+);
 
 type DetailDialogProps = {
   selectedCell: { variable: string; model: string } | null;
@@ -707,7 +767,7 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
         onClose={onClose}
         onClick={handleBackdropClick}
         aria-label="Selected prediction detail"
-        className="mx-auto my-auto w-[min(720px,calc(100vw-2rem))] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 text-text shadow-xl backdrop:bg-text/40 backdrop:backdrop-blur-sm"
+        className="mx-auto my-auto w-[min(960px,calc(100vw-2rem))] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 text-text shadow-xl backdrop:bg-text/40 backdrop:backdrop-blur-sm"
       >
         {selectedCell ? (
           <DetailContent
