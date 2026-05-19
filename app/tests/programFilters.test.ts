@@ -9,7 +9,7 @@ import {
 } from "../src/lib/programFilters";
 
 function assertClose(actual: number | undefined, expected: number): void {
-  assert.notEqual(actual, undefined);
+  assert.ok(actual !== undefined);
   assert.ok(Math.abs(actual - expected) < 1e-9);
 }
 

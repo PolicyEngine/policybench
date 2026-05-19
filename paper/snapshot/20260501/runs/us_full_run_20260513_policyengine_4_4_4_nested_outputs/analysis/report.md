@@ -31,8 +31,8 @@ Total cost: `74.888` USD. Estimated total runtime: `840.3 min`.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | gpt-5.5 | 0.896 | 0.868 | 0.881 | 0.909 | 0.925 | 0.968 | 134.793 | 2188 |
 | grok-4.20 | 0.889 | 0.868 | 0.872 | 0.895 | 0.919 | 0.977 | 175.147 | 2188 |
-| claude-sonnet-4.6 | 0.879 | 0.861 | 0.861 | 0.886 | 0.909 | 0.956 | 173.193 | 2188 |
 | gemini-3.1-pro-preview | 0.885 | 0.867 | 0.871 | 0.894 | 0.910 | 0.980 | 188.600 | 2188 |
+| claude-sonnet-4.6 | 0.879 | 0.861 | 0.861 | 0.886 | 0.909 | 0.956 | 173.193 | 2188 |
 | claude-opus-4.7 | 0.873 | 0.851 | 0.857 | 0.883 | 0.903 | 0.940 | 191.783 | 2188 |
 | gemini-3-flash-preview | 0.872 | 0.857 | 0.860 | 0.878 | 0.892 | 0.976 | 241.577 | 2188 |
 | grok-4.3 | 0.867 | 0.852 | 0.859 | 0.871 | 0.886 | 0.959 | 312.030 | 2188 |
@@ -42,24 +42,24 @@ Total cost: `74.888` USD. Estimated total runtime: `840.3 min`.
 | gpt-5.4-mini | 0.839 | 0.827 | 0.836 | 0.844 | 0.850 | 0.911 | 425.128 | 2188 |
 | gpt-5.4-nano | 0.813 | 0.804 | 0.806 | 0.817 | 0.823 | 0.917 | 577.647 | 2188 |
 
-## Bounded global variable weights (headline)
+## Population household-impact weights (headline)
 
-Households receive equal weight. The score is a weighted average of continuous row scores; each variable's weight is the mean across households of `|ref_ij| / max(|household_net_income_i|, sum_k |ref_ik|)`, renormalized so weights sum to 1.
+Households receive equal weight. The score is a weighted average of continuous row scores. Canonical country reports use full-population output-group weights: US weights come from the full Enhanced CPS, UK weights from the full enhanced FRS. Each output group's weight is the household-weighted mean of `|ref_ij| / max(|household_net_income_i|, sum_k |ref_ik|)` in the source population, renormalized so weights sum to 1.
 
 | model | bounded_score | amount_accuracy | participation_accuracy |
 | --- | ---: | ---: | ---: |
-| claude-haiku-4.5 | 0.726 | 0.547 | 0.898 |
-| claude-opus-4.7 | 0.803 | 0.745 | 0.938 |
-| claude-sonnet-4.6 | 0.815 | 0.732 | 0.956 |
-| gemini-3-flash-preview | 0.794 | 0.704 | 0.959 |
-| gemini-3.1-flash-lite-preview | 0.765 | 0.653 | 0.940 |
-| gemini-3.1-pro-preview | 0.813 | 0.737 | 0.969 |
-| gpt-5.4-mini | 0.717 | 0.470 | 0.897 |
-| gpt-5.4-nano | 0.662 | 0.424 | 0.888 |
-| gpt-5.5 | 0.832 | 0.805 | 0.970 |
-| grok-4.1-fast | 0.720 | 0.510 | 0.909 |
-| grok-4.20 | 0.819 | 0.753 | 0.970 |
-| grok-4.3 | 0.777 | 0.637 | 0.941 |
+| claude-haiku-4.5 | 0.821 | 0.553 | 0.898 |
+| claude-opus-4.7 | 0.900 | 0.749 | 0.938 |
+| claude-sonnet-4.6 | 0.916 | 0.738 | 0.956 |
+| gemini-3-flash-preview | 0.900 | 0.708 | 0.959 |
+| gemini-3.1-flash-lite-preview | 0.865 | 0.658 | 0.940 |
+| gemini-3.1-pro-preview | 0.919 | 0.742 | 0.969 |
+| gpt-5.4-mini | 0.812 | 0.474 | 0.897 |
+| gpt-5.4-nano | 0.741 | 0.431 | 0.888 |
+| gpt-5.5 | 0.935 | 0.807 | 0.970 |
+| grok-4.1-fast | 0.818 | 0.514 | 0.909 |
+| grok-4.20 | 0.924 | 0.756 | 0.970 |
+| grok-4.3 | 0.878 | 0.642 | 0.941 |
 
 
 ## Household-equal impact score (30% floor — legacy)

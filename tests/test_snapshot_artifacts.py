@@ -61,6 +61,12 @@ def test_snapshot_manifest_hashes_match_rendered_paper_artifacts():
         _assert_hash(web_dir / relative_path, expected_hash)
 
 
+def test_snapshot_manifest_hashes_match_population_weight_artifact():
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    artifact = manifest["population_weight_artifact"]
+    _assert_hash(ROOT / artifact["path"], artifact["sha256"])
+
+
 def test_snapshot_manifest_hashes_match_response_retry_artifacts():
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
     retry_artifacts = manifest["response_retry_artifacts"]

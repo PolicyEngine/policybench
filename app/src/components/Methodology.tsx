@@ -264,23 +264,29 @@ export default function Methodology({
           facts. It excludes intermediate tax bases, payroll subcomponents, and
           outputs that mainly require unavailable history, restricted local
           market data, or program take-up assignment. WIC is scored as
-          person-level eligibility, not as a dollar amount.
+          person-level eligibility, not as a dollar amount. Local income tax
+          is retained as a displayed requested output, but currently receives
+          zero default population-impact weight because the full Enhanced CPS
+          source has no positive modeled local-income-tax records.
         </SectionCard>
 
         <SectionCard title="Scoring and weighting">
-          The public leaderboard uses bounded global variable weights. For each
-          household, the row score is{" "}
+          The public leaderboard uses population household-impact weights. For
+          each household, the row score is{" "}
           <code>max(0, 1 − |pred − ref| / |ref|)</code> when the reference is
           nonzero and matches exactly when the reference is zero; the same
           formula handles boolean eligibility flags naturally because
-          ref ∈ {"{0, 1}"} gives a 0/1 score directly. Each household&apos;s
-          per-variable share is{" "}
+          ref ∈ {"{0, 1}"} gives a 0/1 score directly. Each full source
+          household&apos;s per-output share is{" "}
           <code>|ref| / max(|household_net_income|, Σ |ref|)</code>, a value in
           [0, 1] that&apos;s strictly less than one when net income dominates
           the gross tax-benefit flow and equals one only when programs cancel
-          each other out. The mean of those shares across all benchmark
-          households is then renormalized so the global variable weights sum
-          to one, and those weights are applied to score every household.
+          each other out. Those shares are averaged using calibrated household
+          weights in the full source population, then renormalized so the
+          output weights sum to one. US weights use the full Enhanced CPS; UK
+          weights use the full enhanced FRS. The weights are then applied to
+          the fixed benchmark households and renormalized within each household
+          over requested outputs.
           {country === "us"
             ? " Person-level eligibility flags like Medicaid carry weight through PolicyEngine's paired per-capita value (e.g. medicaid_value), so the LLM is graded only on the boolean call itself."
             : " Person-level eligibility flags carry weight through PolicyEngine's paired per-capita value, so the LLM is graded only on the boolean call itself."}

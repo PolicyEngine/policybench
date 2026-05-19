@@ -37,7 +37,7 @@ policybench = "policybench.cli:main"
 include = ["policybench*"]
 
 [tool.setuptools.package-data]
-policybench = ["benchmark_specs.json"]
+policybench = ["benchmark_specs.json", "population_weights.json"]
 
 [tool.ruff]
 line-length = 88

@@ -336,9 +336,9 @@ def impact_floor_sensitivity() -> pd.DataFrame:
     weighting choice alone.
     """
     from policybench.analysis import (
+        aggregate_weight_scores_by_model,
         bounded_household_scores,
-        continuous_row_score,
-        bounded_global_variable_weights,
+        equal_weight_scores_by_model,
     )
 
     ground_truths = load_snapshot_ground_truth()
@@ -366,47 +366,25 @@ def impact_floor_sensitivity() -> pd.DataFrame:
         gt = ground_truths[country]
         preds = predictions[country]
         if weight_kind == "bounded":
-            scores = bounded_household_scores(gt, preds, market_by_country[country])
+            scores = bounded_household_scores(
+                gt,
+                preds,
+                market_by_country[country],
+                country=country,
+            )
             country_summary = scores.groupby("model")["score"].mean().reset_index()
+        elif weight_kind == "equal":
+            country_summary = equal_weight_scores_by_model(
+                gt,
+                preds,
+                country=country,
+            ).rename(columns={"equal_score": "score"})
         else:
-            if weight_kind == "equal":
-                variables = gt["variable"].drop_duplicates().tolist()
-                weights = pd.Series(
-                    1.0 / len(variables), index=variables, name="weight"
-                )
-            else:  # budget-weighted
-                tmp = gt.copy()
-                if "impact_weight" in tmp.columns:
-                    iw = pd.to_numeric(tmp["impact_weight"], errors="coerce").abs()
-                    tmp["abs_value"] = iw.fillna(tmp["value"].abs())
-                else:
-                    tmp["abs_value"] = tmp["value"].abs()
-                totals = tmp.groupby("variable")["abs_value"].sum()
-                weights = totals / totals.sum() if totals.sum() > 0 else totals
-            grid = gt.assign(_k=1).merge(
-                pd.DataFrame({"model": sorted(preds["model"].unique()), "_k": 1}),
-                on="_k",
-            ).drop(columns="_k")
-            merged = grid.merge(
-                preds[["model", "scenario_id", "variable", "prediction"]],
-                on=["model", "scenario_id", "variable"],
-                how="left",
-            )
-            merged["row_score"] = [
-                continuous_row_score(t, p)
-                for t, p in zip(merged["value"], merged["prediction"])
-            ]
-            merged["weight"] = merged["variable"].map(weights).fillna(0.0)
-            merged["weighted"] = merged["row_score"] * merged["weight"]
-            household_scores = (
-                merged.groupby(["model", "scenario_id"])["weighted"]
-                .sum()
-                .rename("score")
-                .reset_index()
-            )
-            country_summary = (
-                household_scores.groupby("model")["score"].mean().reset_index()
-            )
+            country_summary = aggregate_weight_scores_by_model(
+                gt,
+                preds,
+                country=country,
+            ).rename(columns={"aggregate_score": "score"})
         country_summary["score"] = country_summary["score"] * 100
         country_summary["country"] = country
         return country_summary[["country", "model", "score"]]
@@ -600,6 +578,7 @@ def simple_baselines() -> pd.DataFrame:
                 ground_truth,
                 predictions,
                 market_by_country[country],
+                country=country,
             )
             country_score = household_scores["score"].mean() * 100
             country_rows.append(
@@ -725,7 +704,10 @@ def bootstrap_global_uncertainty(
     }
     household_scores = {
         country: bounded_household_scores(
-            ground_truths[country], prediction, market_by_country[country]
+            ground_truths[country],
+            prediction,
+            market_by_country[country],
+            country=country,
         )
         for country, prediction in predictions.items()
     }
@@ -1048,7 +1030,7 @@ The primary headline metric is the within-1% hit rate: the share of requested ou
 
 Within-1% is the headline because the benchmark panels are zero-inflated. In the frozen manuscript snapshot, 71% of UK reference outputs and 82% of US reference outputs are exact zeros — most sampled households are not eligible for any given program, owe no capital gains tax, do not phase into a refundable credit, and so on. A model that hedges to zero on every requested output therefore earns full exact credit on every zero case, which compresses top-of-leaderboard exact-match rates near the share of zero cases the panel contains. In the UK panel this compression is severe: the top seven models in the manuscript snapshot are tied within 0.6 percentage points on exact match but span 4.6 percentage points on within-1%, because within-1% credits close-but-not-exact predictions on the 29% of positive-reference cases where rule comprehension is actually tested. Within-1% inherits the same one-currency-unit tolerance on zeros, so a hedging baseline gets no extra credit from the relaxed threshold; it is the partial credit on positive-reference cases that yields the discriminating signal.
 
-The within-1% rate is aggregated to a household score, then to a country score, then to a global score, with the same per-output weighting that the secondary bounded score uses (a blend of equal weighting and absolute-reference-impact share). Equal household weight within each country and equal country weight globally preserve comparability across scenarios and slices.
+The within-1% rate is aggregated to a household score, then to a country score, then to a global score, with the same population-derived output weights that the secondary bounded score uses. Equal household weight within each country and equal country weight globally preserve comparability across scenarios and slices.
 
 ### Deployability bar: exact match
 
@@ -1071,7 +1053,7 @@ PolicyBench also tracks mean absolute error and related error metrics. These rem
 
 All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026; UK outputs are annual amounts or annual eligibility indicators for fiscal year 2026-27. For currency amounts, the "exact" hit rate means within `1` currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same `1` currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as `0` or `1` eligibility flags and scored by exact classification accuracy. Missing or unparseable numeric answers receive zero score for that requested output.
 
-Aggregation proceeds in four steps. First, each household-output prediction receives a `0-100` score. Second, each household receives one model score: requested output rows are weighted inside the household by a blend of equal weighting and absolute PolicyEngine reference-impact share. Person-level coverage flags are scored at the person row, with value-proxy impact weights where available. Third, country scores average those household scores with equal household weight. Fourth, global scores average the US and UK country scores for models run in both countries. The global score is therefore an equal-country, household-equal summary for this benchmark sample, not a universally authoritative measure of tax-benefit competence. Equal-output-group scores and other alternative views are reported as sensitivity checks.
+Aggregation proceeds in four steps. First, each household-output prediction receives a `0-100` score. Second, each household receives one model score: requested output rows are weighted by output-group weights constructed from the full source microsimulation population, then renormalized within the household over outputs that are actually requested for that household. Person-level coverage flags are scored at the person row; their output-group weight is split across the relevant people in the household and is based on PolicyEngine value proxies where available. Third, country scores average those household scores with equal household weight. Fourth, global scores average the US and UK country scores for models run in both countries. The global score is therefore an equal-country, household-equal summary for this benchmark sample, not a universally authoritative measure of tax-benefit competence. Equal-output-group scores and other alternative views are reported as sensitivity checks.
 
 The benchmark requires each model response to include numeric answers and one explanation per requested output. Both the exact-match rate and the bounded score use only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.
 
@@ -1099,7 +1081,7 @@ model_runs
 
 The US benchmark is built from Enhanced Current Population Survey (CPS)-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit, single-family, single-Supplemental Poverty Measure (SPM)-unit structure with at least one adult and a supported filing status. The 2024 Enhanced CPS source contains 41,314 households; 30,173 (73.0%) pass the filter and form the eligible draw. The 27.0% excluded by the filter include multi-tax-unit households (e.g., adult roommates), multi-family households, multi-SPM-unit households, and households whose head reports a filing status outside the supported set. These excluded compositions are exactly the kind of cases where federal/state credit allocations and benefit-unit rules become hardest, so the eligible draw is a tractable subset rather than the full distribution of US households. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives. Filing status is not stated in the prompt; the reference computation infers it from tax-unit role flags. Models therefore see the same household facts that drive the reference filing-status assignment, but they do not receive that assignment as a label.
 
-The current US release evaluates 18 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children's Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start.
+The current US release requests 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, the ACA Premium Tax Credit, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children's Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start. Local income tax is retained as a displayed requested output, but it receives zero default population-impact weight in this snapshot because the full Enhanced CPS source used for weighting has no positive modeled local-income-tax records.
 
 The output scope is intentionally narrower than the full PolicyEngine model. @tbl-scope-rationale summarizes the inclusion rule. The benchmark asks for WIC eligibility rather than a WIC dollar amount; WIC dollar values are used only as impact-weight proxies for coverage flags, not as requested model outputs.
 
@@ -1189,7 +1171,7 @@ The primary leaderboard gives each country equal weight globally and each househ
 sensitivity
 ```
 
-The bounded score is a global-variable-weighted average of a continuous row score. For each requested output and household, the row score is `max(0, 1 − |pred − ref| / |ref|)` when the reference is nonzero and `1{pred = 0}` when the reference is zero (which makes the same formula handle boolean eligibility flags naturally). The exact-match rate uses the same weighting and aggregation but replaces the continuous row score with a strict indicator: `1{pred = ref}` to the dollar (or to the eligibility flag). Each variable's weight is the mean across all benchmark households of `|ref_ij| / max(|household_net_income_i|, Σ_k |ref_ik|)`, renormalized so the global weights sum to one. The `max(...)` denominator anchors per-household shares to net income when net income is the dominant flow and falls back to the gross tax-benefit flow only when programs cancel each other out, so a $1 benefit to a high-earner contributes essentially zero weight and per-household shares never exceed one. Booleans carry weight through PolicyEngine's paired per-capita value (for example `medicaid_value`), so eligibility calls are graded as accuracy but weighted by the dollar stake. @tbl-impact-floor compares the bounded-score ranking against two opt-in alternatives shown for transparency: equal weighting (every output the same) and budget-weighted (each variable's share of total absolute reference dollars).
+The bounded score is a global-output-weighted average of a continuous row score. For each requested output and household, the row score is `max(0, 1 − |pred − ref| / |ref|)` when the reference is nonzero and `1{pred = 0}` when the reference is zero (which makes the same formula handle boolean eligibility flags naturally). The exact-match rate uses the same weighting and aggregation but replaces the continuous row score with a strict indicator: `1{pred = ref}` to the dollar (or to the eligibility flag). Each output group's default household-impact weight is computed from the full source microsimulation population: full PolicyEngine US Enhanced CPS for the US and full PolicyEngine UK enhanced FRS for the UK. For each source household, the share is `|ref_ij| / max(|household_net_income_i|, Σ_k |ref_ik|)`; shares are averaged with calibrated household weights and renormalized so output weights sum to one. The `max(...)` denominator anchors per-household shares to net income when net income is the dominant flow and falls back to the gross tax-benefit flow only when programs cancel each other out, so a $1 benefit to a high-earner contributes essentially zero weight and per-household shares never exceed one. Booleans carry weight through PolicyEngine's paired per-capita value (for example `medicaid_value`), so eligibility calls are graded as accuracy but weighted by the dollar stake. @tbl-impact-floor compares the bounded-score ranking against two opt-in alternatives shown for transparency: equal weighting (every output the same) and budget-weighted (each output's share of total absolute reference dollars in the same full source population).
 
 ```{python}
 #| label: tbl-impact-floor
@@ -1199,7 +1181,7 @@ impact_floor
 
 ### Sampling uncertainty
 
-The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws on the bounded secondary score; analogous exact-match intervals are not separately tabulated because the bounded-score bootstrap is the tighter test (the exact indicator is the leading hit-rate term inside the bounded score). The procedure resamples households within each country, recomputes the bounded global variable weights and per-country bounded scores from the resampled sample, then recomputes the equal-country global bounded score. The intervals therefore quantify uncertainty from the specific 100-household draw used here. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after `{python} MODEL_RESPONSE_DATE` in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
+The manuscript snapshot uses 100 households per country, so small score gaps should not be overinterpreted. @tbl-bootstrap reports a household-resampling bootstrap over the frozen sample using 1,000 percentile bootstrap draws on the bounded secondary score; analogous exact-match intervals are not separately tabulated because the bounded-score bootstrap is the tighter test (the exact indicator is the leading hit-rate term inside the bounded score). The procedure resamples households within each country, reuses the fixed full-population output weights, recomputes per-country bounded scores on each resample, then recomputes the equal-country global bounded score. The intervals therefore quantify uncertainty from the specific 100-household draw used here conditional on the fixed weighting artifact. They do not capture (i) prompt-template variance, since the manuscript uses a single template per country with no paraphrase resamples; (ii) decoding stochasticity, since each model's snapshot prediction is a single sample at the provider's default decoding settings; (iii) provider-side drift after `{python} MODEL_RESPONSE_DATE` in alias-resolved model weights; or (iv) reference-output uncertainty inside PolicyEngine. Total uncertainty over those sources is wider than the household-bootstrap intervals.
 
 ```{python}
 #| label: tbl-bootstrap

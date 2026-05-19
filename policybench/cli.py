@@ -460,6 +460,32 @@ def main():
         help="Only write the combined payload under the run directory",
     )
 
+    # Population weights
+    weight_parser = subparsers.add_parser(
+        "population-weights",
+        help="Regenerate full-population output weights",
+    )
+    weight_parser.add_argument(
+        "-o",
+        "--output",
+        default="policybench/population_weights.json",
+        help="Path for the generated population-weight artifact",
+    )
+    weight_parser.add_argument(
+        "--country",
+        action="append",
+        dest="countries",
+        choices=sorted(COUNTRY_PROGRAMS),
+        default=None,
+        help="Country to regenerate. Repeat to include multiple countries.",
+    )
+    weight_parser.add_argument(
+        "--year",
+        type=int,
+        default=None,
+        help="Tax year. Defaults to the configured benchmark tax year.",
+    )
+
     # Compare prompt modes
     compare_parser = subparsers.add_parser(
         "compare-prompt-modes",
@@ -787,6 +813,18 @@ def main():
             )
         except FileNotFoundError as exc:
             raise SystemExit(str(exc)) from exc
+
+    elif args.command == "population-weights":
+        from policybench.config import TAX_YEAR
+        from policybench.population_weights import write_population_weight_payload
+
+        year = TAX_YEAR if args.year is None else args.year
+        output = write_population_weight_payload(
+            args.output,
+            countries=args.countries,
+            year=year,
+        )
+        print(f"Population weights saved to {output}")
 
     elif args.command == "compare-prompt-modes":
         from policybench.prompt_mode_comparison import compare_prompt_modes
