@@ -22,7 +22,8 @@ export default function Hero({
     .filter((m) => m.condition === "no_tools")
     .sort((a, b) => b.score - a.score);
 
-  const subtitle = `${rankedNoTools.length} models on ${Object.keys(data.scenarios).length.toLocaleString()} households across ${data.programStats.length} tax and benefit outputs.`;
+  const subtitle =
+    "Testing how accurately language models calculate household taxes and benefits.";
 
   const stats = [
     { value: `${rankedNoTools.length}`, label: "Models" },
