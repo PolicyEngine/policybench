@@ -328,29 +328,6 @@ export default function ModelLeaderboard({
     ],
   );
 
-  const selectedMaeByModel = useMemo(() => {
-    const out = new Map<string, number>();
-    if (isGlobal || !("scenarioPredictions" in data)) return out;
-    const totals = new Map<string, { sum: number; n: number }>();
-    for (const variableMap of Object.values(data.scenarioPredictions)) {
-      for (const [variable, modelMap] of Object.entries(variableMap)) {
-        if (!isProgramActive(variable)) continue;
-        for (const [model, row] of Object.entries(modelMap)) {
-          if (row.prediction === null || row.prediction === undefined) continue;
-          const acc = totals.get(model) ?? { sum: 0, n: 0 };
-          acc.sum += Math.abs(row.prediction - row.groundTruth);
-          acc.n += 1;
-          totals.set(model, acc);
-        }
-      }
-    }
-    for (const [model, { sum, n }] of totals) {
-      if (n > 0) out.set(model, sum / n);
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, isGlobal, activeProgramIds]);
-
   const noTools = useMemo<ModelStat[]>(() => {
     const base = data.modelStats.filter((m) => m.condition === "no_tools");
 
@@ -371,7 +348,6 @@ export default function ModelLeaderboard({
           return {
             ...m,
             score: w !== undefined ? w : fallback,
-            mae: selectedMaeByModel.get(m.model) ?? m.mae,
           };
         })
         .sort((a, b) => b.score - a.score);
@@ -385,7 +361,6 @@ export default function ModelLeaderboard({
         .map((m) => ({
           ...m,
           score: filteredContinuousByModel.get(m.model) ?? 0,
-          mae: selectedMaeByModel.get(m.model) ?? m.mae,
         }))
         .sort((a, b) => b.score - a.score);
     }
@@ -405,7 +380,6 @@ export default function ModelLeaderboard({
     filteredContinuousByModel,
     exactScoreByModel,
     within1pctScoreByModel,
-    selectedMaeByModel,
     scoringMode,
     isGlobal,
   ]);
@@ -511,12 +485,15 @@ export default function ModelLeaderboard({
         </p>
         <div
           role="row"
-          className={`hidden gap-3 px-4 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium md:grid ${
-            isGlobal ? "md:grid-cols-12" : "md:grid-cols-12"
-          }`}
+          className="hidden gap-3 px-4 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium md:grid md:grid-cols-12"
         >
           <div role="columnheader" className="col-span-1">#</div>
-          <div role="columnheader" className={isGlobal ? "col-span-5" : "col-span-5"}>Model</div>
+          <div
+            role="columnheader"
+            className={isGlobal ? "col-span-5" : "col-span-8"}
+          >
+            Model
+          </div>
           <div role="columnheader" className="col-span-3 text-right">
             {scoringMode === "exact"
               ? isGlobal
@@ -530,9 +507,11 @@ export default function ModelLeaderboard({
                   ? "Global score"
                   : "Score"}
           </div>
-          <div role="columnheader" className="col-span-3 text-right">
-            {isGlobal ? "Country scores" : "MAE"}
-          </div>
+          {isGlobal && (
+            <div role="columnheader" className="col-span-3 text-right">
+              Country scores
+            </div>
+          )}
         </div>
 
         {noTools.map((m, i) => {
@@ -575,18 +554,14 @@ export default function ModelLeaderboard({
                   <Badge variant={accColor(m.score)}>{m.score.toFixed(1)}%</Badge>
                 </div>
 
-                <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-                  <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
-                    {isGlobal ? "Country scores" : "Avg abs error"}
-                  </div>
-                  {isGlobal ? (
-                    <GlobalCountryScores model={m} />
-                  ) : (
-                    <div className="font-[family-name:var(--font-mono)] text-sm text-info">
-                      ${Math.round(m.mae ?? 0).toLocaleString()}
+                {isGlobal && (
+                  <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+                    <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
+                      Country scores
                     </div>
-                  )}
-                </div>
+                    <GlobalCountryScores model={m} />
+                  </div>
+                )}
               </div>
 
               <div className="hidden items-center gap-3 md:grid md:grid-cols-12">
@@ -596,7 +571,11 @@ export default function ModelLeaderboard({
                   </span>
                 </div>
 
-                <div className="col-span-5 flex items-center gap-2.5">
+                <div
+                  className={`${
+                    isGlobal ? "col-span-5" : "col-span-8"
+                  } flex items-center gap-2.5`}
+                >
                   <ProviderMark
                     provider={getProviderForModel(m.model)}
                     size={14}
@@ -618,15 +597,11 @@ export default function ModelLeaderboard({
                   )}
                 </div>
 
-                <div className="col-span-3 text-right">
-                  {isGlobal ? (
+                {isGlobal && (
+                  <div className="col-span-3 text-right">
                     <GlobalCountryScores model={m} />
-                  ) : (
-                    <div className="font-[family-name:var(--font-mono)] text-sm text-info">
-                      ${Math.round(m.mae ?? 0).toLocaleString()}
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -670,26 +645,33 @@ export default function ModelLeaderboard({
                 </span>
               </div>
 
-              <div className="col-span-5 flex items-center gap-2.5">
-                <ProviderMark
-                  provider={getProviderForModel(m.model)}
-                  size={14}
-                  className="flex-shrink-0"
-                />
-                <span className="text-text font-medium text-sm">
-                  {MODEL_LABELS[m.model] || m.model}
-                </span>
+              <div
+                className={`${
+                  isGlobal ? "col-span-5" : "col-span-8"
+                } flex flex-col gap-0.5`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <ProviderMark
+                    provider={getProviderForModel(m.model)}
+                    size={14}
+                    className="flex-shrink-0"
+                  />
+                  <span className="text-text font-medium text-sm">
+                    {MODEL_LABELS[m.model] || m.model}
+                  </span>
+                </div>
+                {m.note && (
+                  <div className="pl-6 text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                    {m.note}
+                  </div>
+                )}
               </div>
 
               <div className="col-span-3 text-right">
                 <Badge variant="warning">Pending</Badge>
               </div>
 
-              <div className="col-span-3 text-right">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                  {m.note}
-                </div>
-              </div>
+              {isGlobal && <div className="col-span-3" aria-hidden />}
             </div>
           </div>
         ))}
@@ -734,7 +716,7 @@ export default function ModelLeaderboard({
                 <ProgramFilterPanel
                   options={programOptions}
                   activeProgramIds={activeProgramIds}
-                  description="Filter restricts model scoring, the program breakdown table, and the scenario explorer to the selected outputs. Weights rescale to 100% over the active set; MAE averages absolute errors across active cells."
+                  description="Filter restricts model scoring, the program breakdown table, and the scenario explorer to the selected outputs. Weights rescale to 100% over the active set."
                   onReset={onResetPrograms}
                   onToggle={onToggleProgram}
                   onSelectOnly={onSelectOnlyProgram}
