@@ -6,7 +6,8 @@ import {
   getPerformanceSurfaceColor,
   getPerformanceTextColor,
 } from "../modelMeta";
-import { getVariableExplainer } from "../variableExplainers";
+import { programIsActive, type ProgramOption } from "../lib/programFilters";
+import ProgramFilterDropdown from "./ProgramFilterDropdown";
 
 function getHeatmapScore(entry: HeatmapEntry): number {
   return entry.score ?? entry.within10pct ?? entry.accuracy ?? 0;
@@ -20,7 +21,32 @@ function textColor(pct: number): string {
   return getPerformanceTextColor(pct);
 }
 
-export default function ProgramHeatmap({ data }: { data: BenchData }) {
+const SCORE_LEGEND = [
+  { label: "<50%", score: 45 },
+  { label: "50-59%", score: 55 },
+  { label: "60-69%", score: 65 },
+  { label: "70-79%", score: 75 },
+  { label: "80-89%", score: 85 },
+  { label: "90%+", score: 95 },
+] as const;
+
+export default function ProgramHeatmap({
+  data,
+  programOptions,
+  activeProgramIds,
+  activeProgramSummary,
+  onResetPrograms,
+  onToggleProgram,
+  onSelectOnlyProgram,
+}: {
+  data: BenchData;
+  programOptions: ProgramOption[];
+  activeProgramIds: Set<string>;
+  activeProgramSummary: string;
+  onResetPrograms: () => void;
+  onToggleProgram: (variable: string) => void;
+  onSelectOnlyProgram: (variable: string) => void;
+}) {
   const country = data.country;
   const { grid, variables } = useMemo(() => {
     // Build lookup: model+variable → bounded score
@@ -34,6 +60,7 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
     const varAcc: Record<string, number[]> = {};
     for (const h of data.heatmap) {
       if (h.condition !== "no_tools") continue;
+      if (!programIsActive(activeProgramIds, h.variable)) continue;
       if (!varAcc[h.variable]) varAcc[h.variable] = [];
       varAcc[h.variable].push(getHeatmapScore(h));
     }
@@ -44,7 +71,7 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
     });
 
     return { grid: lookup, variables };
-  }, [data]);
+  }, [activeProgramIds, data]);
 
   const models = MODEL_ORDER.filter((m) =>
     data.heatmap.some((h) => h.condition === "no_tools" && h.model === m),
@@ -78,8 +105,20 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
         binary coverage flags use exact accuracy.
       </p>
 
+      <ProgramFilterDropdown
+        options={programOptions}
+        activeProgramIds={activeProgramIds}
+        summary={activeProgramSummary}
+        description="Shared with model scoring and scenarios. The table shows only selected outputs; model scores rescale selected weights to 100%."
+        onReset={onResetPrograms}
+        onToggle={onToggleProgram}
+        onSelectOnly={onSelectOnlyProgram}
+        className="mt-6"
+        animationDelay="220ms"
+      />
+
       <div
-        className="relative mt-10 overflow-x-auto animate-fade-up"
+        className="relative mt-8 overflow-x-auto animate-fade-up"
         style={{ animationDelay: "240ms" }}
       >
         <table className="w-full border-collapse">
@@ -141,110 +180,25 @@ export default function ProgramHeatmap({ data }: { data: BenchData }) {
         </table>
       </div>
 
-      {/* Legend */}
       <div
         role="list"
         aria-label="Score color scale: cells color-code each row's percent score; the printed percentage in the cell is the source of truth"
-        className="flex items-center gap-6 mt-6 text-[10px] uppercase tracking-[0.14em] text-text-muted"
+        className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] uppercase tracking-[0.14em] text-text-muted"
       >
         <span className="sr-only">
           Cells use color as a redundant cue; the percentage shown in each
           cell is the actual benchmark score.
         </span>
-        <div role="listitem" className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className="w-3 h-3 rounded"
-            style={{ backgroundColor: cellColor(40) }}
-          />
-          &lt;50%
-        </div>
-        <div role="listitem" className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className="w-3 h-3 rounded"
-            style={{ backgroundColor: cellColor(60) }}
-          />
-          50–70%
-        </div>
-        <div role="listitem" className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className="w-3 h-3 rounded"
-            style={{ backgroundColor: cellColor(75) }}
-          />
-          70–80%
-        </div>
-        <div role="listitem" className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className="w-3 h-3 rounded"
-            style={{ backgroundColor: cellColor(92) }}
-          />
-          90%+
-        </div>
-      </div>
-
-      <div className="mt-10">
-        <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-          What the error reads show
-        </div>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-text-secondary">
-          These expanders summarize recurring miss patterns from direct reads of
-          model answers and explanations, paired with the benchmark scores
-          above. They are intentionally narrower than the leaderboard summaries:
-          the goal is to say what the evidence supports, not more.
-        </p>
-
-        <div className="mt-5 space-y-3">
-          {variables.map((variable) => {
-            const explainer = getVariableExplainer(country, variable);
-            const avg = averageScores[variable];
-            return (
-              <details
-                key={variable}
-                className="card px-5 py-4 open:border-primary/30 group"
-              >
-                <summary className="flex cursor-pointer list-none items-start justify-between gap-4">
-                  <div className="min-w-0 flex items-start gap-2">
-                    <span
-                      aria-hidden
-                      className="mt-0.5 inline-block text-text-muted transition-transform group-open:rotate-90"
-                    >
-                      ▸
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-text text-sm font-medium">
-                        {getVariableLabel(variable, country)}
-                      </div>
-                      <p className="mt-1 text-sm leading-relaxed text-text-secondary">
-                        {explainer?.summary ??
-                          "This target combines multiple policy rules, and errors usually come from positive cases rather than zero cases."}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="shrink-0 rounded-full border border-border bg-surface px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                    Avg {avg.toFixed(0)}%
-                  </div>
-                </summary>
-
-                <div className="mt-4 border-t border-border-subtle pt-4">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                    Common misses
-                  </div>
-                  <ul className="mt-3 space-y-2 text-sm leading-relaxed text-text-secondary">
-                    {(explainer?.bullets ?? []).map((bullet) => (
-                      <li key={bullet} className="flex gap-2">
-                        <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
-                        <span>{bullet}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </details>
-            );
-          })}
-        </div>
+        {SCORE_LEGEND.map(({ label, score }) => (
+          <div key={label} role="listitem" className="flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="h-3 w-3 rounded"
+              style={{ backgroundColor: cellColor(score) }}
+            />
+            {label}
+          </div>
+        ))}
       </div>
     </div>
   );

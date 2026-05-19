@@ -8,7 +8,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --max-warnings=0"
+    "lint": "eslint . --max-warnings=0",
+    "test": "bun test tests"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.4",

@@ -1425,12 +1425,12 @@ def test_default_models_include_new_provider_variants():
     assert MODELS["grok-4.3"] == "xai/grok-4.3"
 
 
-def test_deepseek_models_are_experimental_not_default():
-    """DeepSeek remains manually runnable, but not a public/default model."""
-    assert "deepseek-v4-pro" not in MODELS
-    assert "deepseek-v4-flash" not in MODELS
-    assert EXPERIMENTAL_MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
-    assert EXPERIMENTAL_MODELS["deepseek-v4-flash"] == "deepseek/deepseek-v4-flash"
+def test_deepseek_models_are_public_defaults():
+    """DeepSeek graduated from the experimental shelf to the public roster."""
+    assert MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
+    assert MODELS["deepseek-v4-flash"] == "deepseek/deepseek-v4-flash"
+    assert "deepseek-v4-pro" not in EXPERIMENTAL_MODELS
+    assert "deepseek-v4-flash" not in EXPERIMENTAL_MODELS
     assert RUNNABLE_MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
 
 

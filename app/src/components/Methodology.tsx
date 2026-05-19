@@ -238,6 +238,14 @@ export default function Methodology({
           instead of inferring it.
         </SectionCard>
 
+        <SectionCard title="Open-set status">
+          The public scenario explorer exposes prompts and PolicyEngine
+          reference outputs, so future model releases or fine-tunes could
+          learn from the released cases. Treat this leaderboard as a public
+          preview; protected held-out claims would require a separate
+          rotating evaluation set.
+        </SectionCard>
+
         <SectionCard title="Households">
           {country === "uk"
             ? "The UK benchmark samples one-benefit-unit households from the public UK calibrated transfer dataset with a fixed seed. That dataset maps benchmark-compatible US Enhanced CPS records into UK-facing inputs and recalibrates weights to selected UK targets. The prompt states the shared UK benefit-unit structure; nonzero promptable inputs are carried through into both the prompt and the PolicyEngine-UK input."
@@ -255,11 +263,8 @@ export default function Methodology({
           and coverage outputs that can plausibly be estimated from household
           facts. It excludes intermediate tax bases, payroll subcomponents, and
           outputs that mainly require unavailable history, restricted local
-          market data, or program take-up assignment. ACA Premium Tax Credit is
-          retained as a deliberate health-support output; when local benchmark
-          premiums are not listed, the model must estimate them from the
-          household facts. WIC is scored as person-level eligibility, not as a
-          dollar amount.
+          market data, or program take-up assignment. WIC is scored as
+          person-level eligibility, not as a dollar amount.
         </SectionCard>
 
         <SectionCard title="Scoring and weighting">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import rawData from "./data.json";
 import Hero from "./components/Hero";
 import FailureModes from "./components/FailureModes";
@@ -8,42 +8,38 @@ import Methodology from "./components/Methodology";
 import ModelLeaderboard from "./components/ModelLeaderboard";
 import ProgramHeatmap from "./components/ProgramHeatmap";
 import ScenarioExplorer from "./components/ScenarioExplorer";
-import type { BenchData, CountryCode, DashboardBundle, ViewKey } from "./types";
+import { filterExcludedOutputs } from "./lib/dashboardFilter";
+import {
+  buildProgramOptions,
+  resolveActiveProgramIds,
+  selectOnlyProgram as selectOnlyProgramFilter,
+  toggleProgramSelection,
+} from "./lib/programFilters";
+import type { CountryCode, DashboardBundle, ViewKey } from "./types";
 import { VIEW_LABELS } from "./types";
 
-const dashboard = rawData as DashboardBundle;
+const dashboard = filterExcludedOutputs(rawData as DashboardBundle);
 
 export type { DashboardBundle } from "./types";
 
 const COUNTRY_NAV_ITEMS = [
   { id: "models", label: "Models" },
+  { id: "programs", label: "Programs" },
   { id: "scenarios", label: "Scenarios" },
   { id: "failure-modes", label: "Failure" },
-  { id: "programs", label: "Programs" },
-  { id: "methodology", label: "Method" },
-] as const;
-
-const GLOBAL_NAV_ITEMS = [
-  { id: "models", label: "Models" },
   { id: "methodology", label: "Method" },
 ] as const;
 
 const COUNTRY_ORDER: CountryCode[] = ["us", "uk"];
 
-function getAvailableViews(dashboard: DashboardBundle): ViewKey[] {
-  const countryViews = COUNTRY_ORDER.filter((country) => dashboard.countries[country]);
-  if (dashboard.global?.modelStats.length && countryViews.length > 1) {
-    return ["global", ...countryViews];
-  }
-  return countryViews;
+function getAvailableViews(dashboard: DashboardBundle): CountryCode[] {
+  return COUNTRY_ORDER.filter((country) => dashboard.countries[country]);
 }
 
-/** Map IANA timezone or BCP-47 language to a benchmark country, when we can tell. */
-function detectVisitorCountry(
-  availableViews: readonly ViewKey[],
-): CountryCode | null {
+/** Default UK visitors to the UK benchmark; everyone else starts on the US benchmark. */
+function detectVisitorCountry(availableViews: readonly CountryCode[]): CountryCode {
   if (typeof window === "undefined" || typeof navigator === "undefined") {
-    return null;
+    return availableViews.includes("us") ? "us" : (availableViews[0] ?? "us");
   }
   let timezone = "";
   try {
@@ -53,11 +49,6 @@ function detectVisitorCountry(
   }
   const langs = (navigator.languages ?? [navigator.language ?? ""])
     .map((value) => value.toLowerCase());
-  const matchesUS =
-    timezone.startsWith("America/") ||
-    timezone === "Pacific/Honolulu" ||
-    timezone === "Pacific/Pago_Pago" ||
-    langs.some((lang) => lang === "en-us" || lang.endsWith("-us"));
   const matchesUK =
     timezone === "Europe/London" ||
     timezone === "Europe/Belfast" ||
@@ -67,26 +58,27 @@ function detectVisitorCountry(
     langs.some((lang) =>
       ["en-gb", "cy-gb", "gd-gb", "en-uk"].includes(lang),
     );
-  if (matchesUS && availableViews.includes("us")) return "us";
   if (matchesUK && availableViews.includes("uk")) return "uk";
-  return null;
+  return availableViews.includes("us") ? "us" : (availableViews[0] ?? "us");
 }
 
 export default function App() {
   const availableViews = useMemo(() => getAvailableViews(dashboard), []);
-  // Default to the global leaderboard. After mount we try to switch to the
-  // visitor's country (US or UK) when we can detect it from timezone or
-  // navigator.language; if neither matches we stay on Global.
-  const initialView: ViewKey = availableViews.includes("global")
-    ? "global"
-    : (availableViews[0] ?? "global");
-  const [selectedView, setSelectedView] = useState<ViewKey>(initialView);
+  // Default to the US benchmark, then switch UK visitors after mount when
+  // timezone or browser language gives us a clear signal.
+  const initialView: CountryCode = availableViews.includes("us")
+    ? "us"
+    : (availableViews[0] ?? "us");
+  const [selectedView, setSelectedView] = useState<CountryCode>(initialView);
   const [hasUserPickedView, setHasUserPickedView] = useState(false);
+  const [selectedPrograms, setSelectedPrograms] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     if (hasUserPickedView) return;
     const detected = detectVisitorCountry(availableViews);
-    if (detected && detected !== selectedView) {
+    if (detected !== selectedView) {
       setSelectedView(detected);
     }
     // We only want this auto-pick to run once per session; further changes
@@ -96,12 +88,44 @@ export default function App() {
   const [activeNav, setActiveNav] = useState<string>("models");
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  const isGlobal = selectedView === "global";
-  const data = isGlobal
-    ? dashboard.global!
-    : dashboard.countries[selectedView as CountryCode]!;
-  const navItems = isGlobal ? GLOBAL_NAV_ITEMS : COUNTRY_NAV_ITEMS;
+  const data = dashboard.countries[selectedView]!;
+  const navItems = COUNTRY_NAV_ITEMS;
+
+  const programOptions = useMemo(() => buildProgramOptions(data), [data]);
+
+  const programOptionIds = useMemo(
+    () => programOptions.map((option) => option.variable),
+    [programOptions],
+  );
+
+  const activeProgramIds = useMemo(() => {
+    return resolveActiveProgramIds(programOptionIds, selectedPrograms);
+  }, [programOptionIds, selectedPrograms]);
+
+  const activeProgramSummary =
+    activeProgramIds.size < programOptions.length
+      ? `${activeProgramIds.size} of ${programOptions.length} selected`
+      : `All ${programOptions.length} programs`;
+
+  const resetPrograms = useCallback(() => {
+    setSelectedPrograms(new Set());
+  }, []);
+
+  const toggleProgram = useCallback(
+    (variable: string) => {
+      setSelectedPrograms((previous) => {
+        return toggleProgramSelection(programOptionIds, previous, variable);
+      });
+    },
+    [programOptionIds],
+  );
+
+  const selectOnlyProgram = useCallback((variable: string) => {
+    setSelectedPrograms(selectOnlyProgramFilter(variable));
+  }, []);
+
   const handleSelectView = (view: ViewKey) => {
+    if (view === "global") return;
     setSelectedView(view);
     setHasUserPickedView(true);
     setActiveNav("models");
@@ -139,19 +163,10 @@ export default function App() {
   );
 
   const footerCopy = useMemo(() => {
-    if (isGlobal) {
-      const totalHouseholds = Object.values(dashboard.countries).reduce(
-        (sum, country) => sum + Object.keys(country?.scenarios ?? {}).length,
-        0
-      );
-      const countryCount = Object.keys(dashboard.countries).length;
-      return `PolicyBench — global leaderboard across ${dashboard.global?.sharedModelCount ?? 0} shared frontier models, ${countryCount} country benchmarks, and ${totalHouseholds.toLocaleString()} households.`;
-    }
-
-    const countryData = data as BenchData;
+    const countryData = data;
     const scoredRows = noToolsModels.reduce((sum, model) => sum + model.n, 0);
     return `PolicyBench — ${VIEW_LABELS[countryData.country]} benchmark with ${scoredRows.toLocaleString()} scored outputs across ${noToolsModels.length} frontier models, ${countryData.programStats.length} programs, and ${Object.keys(countryData.scenarios).length} household scenarios.`;
-  }, [data, isGlobal, noToolsModels]);
+  }, [data, noToolsModels]);
 
   return (
     <div className="min-h-screen bg-void">
@@ -183,33 +198,40 @@ export default function App() {
             data={data}
             selectedView={selectedView}
             dashboard={dashboard}
+            programOptions={programOptions}
+            activeProgramIds={activeProgramIds}
+            activeProgramSummary={activeProgramSummary}
+            onResetPrograms={resetPrograms}
+            onToggleProgram={toggleProgram}
+            onSelectOnlyProgram={selectOnlyProgram}
           />
         </section>
 
-        {!isGlobal && (
-          <>
-            <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-            <section id="scenarios" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
-              <ScenarioExplorer
-                key={(data as BenchData).country}
-                data={data as BenchData}
-              />
-            </section>
+        <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
+        <section id="programs" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
+          <ProgramHeatmap
+            data={data}
+            programOptions={programOptions}
+            activeProgramIds={activeProgramIds}
+            activeProgramSummary={activeProgramSummary}
+            onResetPrograms={resetPrograms}
+            onToggleProgram={toggleProgram}
+            onSelectOnlyProgram={selectOnlyProgram}
+          />
+        </section>
 
-            <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-            <section
-              id="failure-modes"
-              className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
-            >
-              <FailureModes data={data as BenchData} />
-            </section>
+        <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
+        <section id="scenarios" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
+          <ScenarioExplorer key={data.country} data={data} />
+        </section>
 
-            <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-            <section id="programs" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
-              <ProgramHeatmap data={data as BenchData} />
-            </section>
-          </>
-        )}
+        <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
+        <section
+          id="failure-modes"
+          className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
+        >
+          <FailureModes data={data} />
+        </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
         <section id="methodology" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">

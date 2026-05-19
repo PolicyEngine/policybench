@@ -112,7 +112,15 @@ export default function ScenarioExplorer({
     [data, resolvedScenarioId],
   );
 
-  const variables = useMemo(() => Object.keys(predictions).sort(), [predictions]);
+  // Scenarios always show every benchmark output for the active household.
+  // The leaderboard's Options panel filters the *rankings* by program, but
+  // the scenario explorer is the place to inspect any cell — so the filter
+  // doesn't propagate here.
+  const variables = useMemo(
+    () => Object.keys(predictions).sort(),
+    [predictions],
+  );
+  const filteredPredictions = predictions;
 
   // Frontier-only narrows to one flagship per provider; provider chips
   // multi-select. The scenario explorer table is wide (one column per model),
@@ -124,11 +132,11 @@ export default function ScenarioExplorer({
 
   const allModels = useMemo(() => {
     const unique = new Set<string>();
-    for (const varData of Object.values(predictions)) {
+    for (const varData of Object.values(filteredPredictions)) {
       for (const m of Object.keys(varData)) unique.add(m);
     }
     return MODEL_ORDER.filter((m) => unique.has(m));
-  }, [predictions]);
+  }, [filteredPredictions]);
 
   const models = useMemo(() => {
     return allModels.filter((m) => {
@@ -149,11 +157,15 @@ export default function ScenarioExplorer({
   } | null>(null);
 
   const selectedCell =
-    manualSelection && manualSelection.scenarioId === resolvedScenarioId
+    manualSelection &&
+    manualSelection.scenarioId === resolvedScenarioId &&
+    variables.includes(manualSelection.cell.variable)
       ? manualSelection.cell
       : null;
 
   const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const householdDialogRef = useRef<HTMLDialogElement | null>(null);
+  const [householdModalOpen, setHouseholdModalOpen] = useState(false);
 
   // Drive the native <dialog> imperatively. showModal() gives us focus
   // trapping, an inert background, ESC-to-close, and the ::backdrop
@@ -168,7 +180,22 @@ export default function ScenarioExplorer({
     }
   }, [selectedCell]);
 
+  useEffect(() => {
+    const dialog = householdDialogRef.current;
+    if (!dialog) return;
+    if (householdModalOpen) {
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+    }
+  }, [householdModalOpen]);
+
+  // The household-facts modal is reactive to the active scenario via its
+  // factsText prop, so picking a different household from the dropdown
+  // updates the modal in place rather than needing an explicit reset.
+
   const closeModal = () => setManualSelection(null);
+  const closeHouseholdModal = () => setHouseholdModalOpen(false);
 
   const setSelectedCell = (cell: { variable: string; model: string }) => {
     if (!resolvedScenarioId) return;
@@ -181,19 +208,34 @@ export default function ScenarioExplorer({
   const geographyLabel = country === "uk" ? "Region" : "State";
   const hasFilingStatus = !!scenario.filingStatus;
   const currencySymbol = country === "uk" ? "£" : "$";
-  const explanationRows = Object.values(predictions).reduce(
+
+  // The prompt always opens with "Household:" and ends the facts section
+  // before "Provide the following". Pull that block so the household-facts
+  // modal can show ages, individual incomes, assets, etc. without surfacing
+  // the prompt scaffolding.
+  const householdFactsText = (() => {
+    const promptText = activePrompt?.tool ?? activePrompt?.json ?? "";
+    const match = promptText.match(
+      /Household:[\s\S]*?(?=\n\nProvide the following|\nProvide the following|$)/,
+    );
+    return match ? match[0].trim() : promptText.trim();
+  })();
+  const hasHouseholdFacts = householdFactsText.length > 0;
+  const explanationRows = Object.values(filteredPredictions).reduce(
     (sum, modelMap) =>
       sum +
       Object.values(modelMap).filter((entry) => !!entry.explanation).length,
     0,
   );
-  const annotationRows = Object.values(predictions).reduce(
+  const annotationRows = Object.values(filteredPredictions).reduce(
     (sum, modelMap) =>
       sum +
       Object.values(modelMap).filter((entry) => !!entry.annotation).length,
     0,
   );
-  const failureSources = Object.values(predictions).reduce<Record<string, number>>(
+  const failureSources = Object.values(filteredPredictions).reduce<
+    Record<string, number>
+  >(
     (counts, modelMap) => {
       for (const entry of Object.values(modelMap)) {
         if (!entry.failureSource) continue;
@@ -203,13 +245,13 @@ export default function ScenarioExplorer({
     },
     {},
   );
-  const caseAnnotationRows = Object.values(predictions).reduce(
+  const caseAnnotationRows = Object.values(filteredPredictions).reduce(
     (sum, modelMap) =>
       sum +
       Object.values(modelMap).filter((entry) => !!entry.caseAnnotation).length,
     0,
   );
-  const totalPredictionRows = Object.values(predictions).reduce(
+  const totalPredictionRows = Object.values(filteredPredictions).reduce(
     (sum, modelMap) => sum + Object.keys(modelMap).length,
     0,
   );
@@ -232,9 +274,8 @@ export default function ScenarioExplorer({
         className="text-text-secondary mt-3 max-w-2xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Inspect benchmark households and the exact prompt sent to every model.
-        Click any prediction cell to see the model&apos;s reasoning and our
-        review of where it went wrong.
+        Inspect benchmark households, reference outputs, model answers, and the
+        exact prompt sent to every model.
       </p>
 
       <div className="mt-8 flex flex-wrap items-end gap-4">
@@ -291,127 +332,64 @@ export default function ScenarioExplorer({
         </div>
       </div>
 
-      <div
-        className={`card px-5 py-4 mt-6 grid grid-cols-2 gap-4 animate-fade-up ${
-          hasFilingStatus ? "md:grid-cols-5" : "md:grid-cols-4"
-        }`}
+      <button
+        type="button"
+        onClick={() => hasHouseholdFacts && setHouseholdModalOpen(true)}
+        disabled={!hasHouseholdFacts}
+        className="card px-5 py-4 mt-6 w-full text-left animate-fade-up transition-colors hover:border-primary-strong/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 disabled:cursor-default disabled:hover:border-border"
         style={{ animationDelay: "240ms" }}
+        aria-label={
+          hasHouseholdFacts
+            ? "View full household facts"
+            : "Household summary"
+        }
       >
-        {[
-          [geographyLabel, scenario.state],
-          ...(hasFilingStatus
-            ? [["Filing status", scenario.filingStatus as string]]
-            : []),
-          ["Adults", String(scenario.numAdults)],
-          ["Children", String(scenario.numChildren)],
-          [
-            "Income",
-            formatCurrency(scenario.totalIncome as number, currencySymbol),
-          ],
-        ].map(([label, value]) => (
-          <div key={label}>
-            <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-              {label}
-            </div>
-            <div className="text-text font-[family-name:var(--font-mono)] text-sm mt-0.5">
-              {value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {totalPredictionRows > 0 && (
         <div
-          className="card px-5 py-4 mt-4 animate-fade-up"
-          style={{ animationDelay: "260ms" }}
+          className={`grid grid-cols-2 gap-4 ${
+            hasFilingStatus ? "md:grid-cols-5" : "md:grid-cols-4"
+          }`}
         >
-          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-            Explanation and audit coverage
-          </div>
-          <p className="mt-2 text-sm text-text-secondary leading-relaxed">
-            {explanationRows} of {totalPredictionRows} model-output rows for
-            this household include explanation text returned by the model.{" "}
-            {annotationRows} rows include developer audit notes for incorrect
-            predictions, and {caseAnnotationRows} incorrect rows include
-            case-level notes comparing wrong models on the same
-            household-output target. Click a prediction cell to read them
-            below the table.
-          </p>
-          {Object.keys(failureSources).length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {Object.entries(failureSources)
-                .sort((a, b) => b[1] - a[1])
-                .map(([source, count]) => (
-                  <span
-                    key={source}
-                    className="rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-[11px] text-text-secondary"
-                  >
-                    {formatFailureLabel(source)}: {count}
-                  </span>
-                ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {activePrompt && (
-        <details
-          className="card px-5 py-4 mt-6 animate-fade-up group"
-          style={{ animationDelay: "280ms" }}
-        >
-          <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-start gap-2">
-              <span
-                aria-hidden
-                className="mt-0.5 inline-block text-text-muted transition-transform group-open:rotate-90"
-              >
-                ▸
-              </span>
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                  Exact prompt
-                </div>
-                <div className="text-text text-sm mt-1">
-                  Full household batch contract for all benchmark outputs
-                </div>
+          {[
+            [geographyLabel, scenario.state],
+            ...(hasFilingStatus
+              ? [["Filing status", scenario.filingStatus as string]]
+              : []),
+            ["Adults", String(scenario.numAdults)],
+            ["Children", String(scenario.numChildren)],
+            [
+              "Income",
+              formatCurrency(scenario.totalIncome as number, currencySymbol),
+            ],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                {label}
+              </div>
+              <div className="text-text font-[family-name:var(--font-mono)] text-sm mt-0.5">
+                {value}
               </div>
             </div>
-            <div className="text-text-muted text-xs">
-              Provider-specific structured-output transport, no external tool
-            </div>
-          </summary>
-
-          <div className="mt-4">
-            <div className="flex flex-wrap gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => setPromptFormat("tool")}
-                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                  promptFormat === "tool"
-                    ? "border-primary bg-primary-soft text-primary"
-                    : "border-border text-text-secondary hover:text-text"
-                }`}
-              >
-                Structured schema
-              </button>
-              <button
-                type="button"
-                onClick={() => setPromptFormat("json")}
-                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                  promptFormat === "json"
-                    ? "border-primary bg-primary-soft text-primary"
-                    : "border-border text-text-secondary hover:text-text"
-                }`}
-              >
-                JSON schema
-              </button>
-            </div>
-            <pre className="bg-surface rounded-lg border border-border-subtle p-3 text-xs text-text-secondary whitespace-pre-wrap leading-relaxed overflow-x-auto">
-              {promptFormat === "tool" ? activePrompt.tool : activePrompt.json}
-            </pre>
+          ))}
+        </div>
+        {hasHouseholdFacts && (
+          <div className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            <svg
+              aria-hidden
+              viewBox="0 0 12 12"
+              width="10"
+              height="10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="4 2 8 6 4 10" />
+            </svg>
+            <span>View full household facts</span>
           </div>
-        </details>
-      )}
+        )}
+      </button>
 
       <div
         className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3 animate-fade-up"
@@ -547,10 +525,10 @@ export default function ScenarioExplorer({
                               setSelectedCell({ variable: v, model: m })
                             }
                             aria-pressed={isSelected}
-                            className={`w-full text-right rounded px-1.5 py-0.5 font-[family-name:var(--font-mono)] transition-colors ${
+                            className={`w-full rounded-md border px-2 py-1 text-right font-[family-name:var(--font-mono)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 ${
                               isSelected
-                                ? "bg-primary-soft text-primary-strong"
-                                : "hover:bg-surface-soft"
+                                ? "border-primary-strong/50 bg-primary-soft text-primary-strong"
+                                : "border-border-subtle bg-card/60 hover:border-primary-strong/40 hover:bg-surface-soft hover:text-text"
                             }`}
                           >
                             --
@@ -576,10 +554,10 @@ export default function ScenarioExplorer({
                             setSelectedCell({ variable: v, model: m })
                           }
                           aria-pressed={isSelected}
-                          className={`w-full text-right rounded px-1.5 py-0.5 font-[family-name:var(--font-mono)] transition-colors ${
+                          className={`w-full rounded-md border px-2 py-1 text-right font-[family-name:var(--font-mono)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 ${
                             isSelected
-                              ? "bg-primary-soft ring-1 ring-primary-strong/40"
-                              : "hover:bg-surface-soft"
+                              ? "border-primary-strong/50 bg-primary-soft ring-1 ring-primary-strong/40"
+                              : "border-border-subtle bg-card/60 hover:border-primary-strong/40 hover:bg-surface-soft"
                           }`}
                           style={{
                             color: correct
@@ -599,17 +577,167 @@ export default function ScenarioExplorer({
         </table>
       </div>
 
+      {totalPredictionRows > 0 && (
+        <div
+          className="card px-5 py-4 mt-6 animate-fade-up"
+          style={{ animationDelay: "340ms" }}
+        >
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            Explanation and audit coverage
+          </div>
+          <p className="mt-2 text-sm text-text-secondary leading-relaxed">
+            {explanationRows} of {totalPredictionRows} model-output rows for
+            this household include explanation text returned by the model.{" "}
+            {annotationRows} rows include developer audit notes for incorrect
+            predictions, and {caseAnnotationRows} incorrect rows include
+            case-level notes comparing wrong models on the same
+            household-output target.
+          </p>
+          {Object.keys(failureSources).length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Object.entries(failureSources)
+                .sort((a, b) => b[1] - a[1])
+                .map(([source, count]) => (
+                  <span
+                    key={source}
+                    className="rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-[11px] text-text-secondary"
+                  >
+                    {formatFailureLabel(source)}: {count}
+                  </span>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activePrompt && (
+        <details
+          className="card px-5 py-4 mt-4 animate-fade-up group"
+          style={{ animationDelay: "360ms" }}
+        >
+          <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <span
+                aria-hidden
+                className="mt-0.5 inline-block text-text-muted transition-transform group-open:rotate-90"
+              >
+                ▸
+              </span>
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                  Exact prompt
+                </div>
+                <div className="text-text text-sm mt-1">
+                  Full household batch contract for all benchmark outputs
+                </div>
+              </div>
+            </div>
+            <div className="text-text-muted text-xs">
+              Provider-specific structured-output transport, no external tool
+            </div>
+          </summary>
+
+          <div className="mt-4">
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setPromptFormat("tool")}
+                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                  promptFormat === "tool"
+                    ? "border-primary bg-primary-soft text-primary"
+                    : "border-border text-text-secondary hover:text-text"
+                }`}
+              >
+                Structured schema
+              </button>
+              <button
+                type="button"
+                onClick={() => setPromptFormat("json")}
+                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                  promptFormat === "json"
+                    ? "border-primary bg-primary-soft text-primary"
+                    : "border-border text-text-secondary hover:text-text"
+                }`}
+              >
+                JSON schema
+              </button>
+            </div>
+            <pre className="bg-surface rounded-lg border border-border-subtle p-3 text-xs text-text-secondary whitespace-pre-wrap leading-relaxed overflow-x-auto">
+              {promptFormat === "tool" ? activePrompt.tool : activePrompt.json}
+            </pre>
+          </div>
+        </details>
+      )}
+
       <DetailDialog
         ref={dialogRef}
         selectedCell={selectedCell}
-        predictions={predictions}
+        predictions={filteredPredictions}
         country={country}
         currencySymbol={currencySymbol}
         onClose={closeModal}
       />
+
+      <HouseholdDialog
+        ref={householdDialogRef}
+        scenarioLabel={resolvedScenarioId.replace("scenario_", "#")}
+        factsText={householdFactsText}
+        onClose={closeHouseholdModal}
+      />
     </div>
   );
 }
+
+type HouseholdDialogProps = {
+  scenarioLabel: string;
+  factsText: string;
+  onClose: () => void;
+};
+
+const HouseholdDialog = React.forwardRef<HTMLDialogElement, HouseholdDialogProps>(
+  function HouseholdDialog({ scenarioLabel, factsText, onClose }, ref) {
+    const handleBackdropClick = (
+      event: React.MouseEvent<HTMLDialogElement>,
+    ) => {
+      if (event.target === event.currentTarget) onClose();
+    };
+
+    return (
+      <dialog
+        ref={ref}
+        onClose={onClose}
+        onClick={handleBackdropClick}
+        aria-label="Full household facts"
+        className="mx-auto my-auto w-[min(960px,calc(100vw-2rem))] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 text-text shadow-xl backdrop:bg-text/40 backdrop:backdrop-blur-sm"
+      >
+        <div className="relative px-5 py-5">
+          <DialogCloseButton onClose={onClose} />
+          <div className="pr-10">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+              Household {scenarioLabel}
+            </div>
+            <div className="text-text text-base font-semibold mt-0.5">
+              Full household facts
+            </div>
+            <p className="mt-2 text-xs text-text-muted leading-relaxed">
+              Exactly the household section the models see at the top of the
+              prompt — verbatim, no summarization.
+            </p>
+          </div>
+          {factsText ? (
+            <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-border-subtle bg-surface px-4 py-3 text-xs leading-relaxed text-text-secondary font-[family-name:var(--font-mono)]">
+              {factsText}
+            </pre>
+          ) : (
+            <p className="mt-4 text-sm text-text-muted italic">
+              No prompt facts available for this household.
+            </p>
+          )}
+        </div>
+      </dialog>
+    );
+  },
+);
 
 type DetailDialogProps = {
   selectedCell: { variable: string; model: string } | null;
@@ -639,7 +767,7 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
         onClose={onClose}
         onClick={handleBackdropClick}
         aria-label="Selected prediction detail"
-        className="mx-auto my-auto w-[min(720px,calc(100vw-2rem))] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 text-text shadow-xl backdrop:bg-text/40 backdrop:backdrop-blur-sm"
+        className="mx-auto my-auto w-[min(960px,calc(100vw-2rem))] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 text-text shadow-xl backdrop:bg-text/40 backdrop:backdrop-blur-sm"
       >
         {selectedCell ? (
           <DetailContent

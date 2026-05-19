@@ -19,15 +19,7 @@ const US_EXPLAINERS: Record<string, VariableExplainer> = {
       "This target captures the refundable federal credit side of the income-tax calculation.",
     bullets: [
       "It includes EITC and refundable portions of credits such as refundable CTC when applicable.",
-      "It excludes the ACA Premium Tax Credit, which is outside the benchmark federal income-tax target.",
-    ],
-  },
-  premium_tax_credit: {
-    summary:
-      "This target captures ACA Marketplace premium assistance as a health-related resource, separate from federal income-tax credits.",
-    bullets: [
-      "It depends on Marketplace eligibility, disqualifying health coverage such as affordable employer coverage, ACA MAGI, and the local second-lowest-cost silver plan premium.",
-      "Marketplace plan facts are phrased as selected-plan information a household might know, while the local benchmark premium usually still has to be estimated.",
+      "It keeps refundable income-tax credits separate from the nonrefundable-credit target.",
     ],
   },
   snap: {

@@ -525,7 +525,7 @@
             <section id="setup" class="step">
               <h2><span class="step-num">1</span>The setup</h2>
               <p class="sub">
-                Three households, five outputs (four dollar amounts plus one
+                Three households, four outputs (three dollar amounts plus one
                 eligibility flag), two models. Every step on this page uses
                 the same numbers.
               </p>
@@ -656,9 +656,9 @@
 
               <div class="card">
                 <p>
-                  Average the five row scores into a household score, then
+                  Average the four row scores into a household score, then
                   average the household scores into a model score. Each output
-                  gets a weight of 1/5 in every household.
+                  gets a weight of 1/4 in every household.
                 </p>
                 <div class="table-wrap" id="equal-table"></div>
                 <div class="verdict">
@@ -695,7 +695,7 @@
                 <p>
                   Now an output gets weight in proportion to its dollar size
                   for that household. A $5,000 income tax line carries more
-                  weight than a $500 ACA premium tax credit.
+                  weight than a $500 benefit line.
                 </p>
                 <div class="table-wrap" id="impact-weights-table"></div>
                 <div class="table-wrap" id="impact-table"></div>
@@ -877,9 +877,8 @@
                   The "share of net income that flowed through this program"
                   reading is intuitive. Medicaid eligibility carries a
                   meaningful weight because it shows up with sizeable paired
-                  values in two of the four households; ACA PTC carries
-                  smaller weight because only one household uses it. None
-                  of these numbers required a tunable parameter.
+                  values in two of the four households. None of these numbers
+                  required a tunable parameter.
                 </p>
               </div>
             </section>
@@ -1309,7 +1308,6 @@
         { id: "income_tax", label: "Income tax", kind: "amount" },
         { id: "payroll_tax", label: "Payroll tax", kind: "amount" },
         { id: "snap", label: "SNAP", kind: "amount" },
-        { id: "aca_ptc", label: "ACA PTC", kind: "amount" },
         {
           id: "medicaid_eligible",
           label: "Medicaid eligibility",
@@ -1329,7 +1327,6 @@
             income_tax: -4000,
             payroll_tax: -5000,
             snap: 0,
-            aca_ptc: 0,
             medicaid_eligible: false,
             medicaid_value: 0,
           },
@@ -1342,7 +1339,6 @@
             income_tax: -1000,
             payroll_tax: -1500,
             snap: 6000,
-            aca_ptc: 8000,
             medicaid_eligible: true,
             medicaid_value: 6000,
           },
@@ -1355,7 +1351,6 @@
             income_tax: -2000,
             payroll_tax: 0,
             snap: 2400,
-            aca_ptc: 0,
             medicaid_eligible: true,
             medicaid_value: 9000,
           },
@@ -1374,7 +1369,6 @@
             income_tax: 3000,
             payroll_tax: -1530,
             snap: 5000,
-            aca_ptc: 3000,
             medicaid_eligible: true,
             medicaid_value: 8000,
           },
@@ -1387,7 +1381,6 @@
             income_tax: -4500,
             payroll_tax: -4590,
             snap: 0,
-            aca_ptc: 0,
             medicaid_eligible: false,
             medicaid_value: 0,
           },
@@ -1400,7 +1393,6 @@
             income_tax: 0,
             payroll_tax: 0,
             snap: 2400,
-            aca_ptc: 0,
             medicaid_eligible: true,
             medicaid_value: 9000,
           },
@@ -1413,7 +1405,6 @@
             income_tax: -40000,
             payroll_tax: -9900,
             snap: 0,
-            aca_ptc: 0,
             medicaid_eligible: false,
             medicaid_value: 0,
           },
@@ -1425,18 +1416,18 @@
           id: "tax",
           label: "Tax-focused",
           predictions: {
-            H1: { income_tax: -4000, payroll_tax: -5000, snap: 0, aca_ptc: 0, medicaid_eligible: false },
-            H2: { income_tax: -1000, payroll_tax: -1500, snap: 0, aca_ptc: 0, medicaid_eligible: false },
-            H3: { income_tax: -2000, payroll_tax: 0, snap: 0, aca_ptc: 0, medicaid_eligible: false },
+            H1: { income_tax: -4000, payroll_tax: -5000, snap: 0, medicaid_eligible: false },
+            H2: { income_tax: -1000, payroll_tax: -1500, snap: 0, medicaid_eligible: false },
+            H3: { income_tax: -2000, payroll_tax: 0, snap: 0, medicaid_eligible: false },
           },
         },
         {
           id: "benefit",
           label: "Benefit-focused",
           predictions: {
-            H1: { income_tax: -2000, payroll_tax: -4000, snap: 0, aca_ptc: 0, medicaid_eligible: false },
-            H2: { income_tax: 0, payroll_tax: -1000, snap: 6000, aca_ptc: 8000, medicaid_eligible: true },
-            H3: { income_tax: -1000, payroll_tax: 0, snap: 2400, aca_ptc: 0, medicaid_eligible: true },
+            H1: { income_tax: -2000, payroll_tax: -4000, snap: 0, medicaid_eligible: false },
+            H2: { income_tax: 0, payroll_tax: -1000, snap: 6000, medicaid_eligible: true },
+            H3: { income_tax: -1000, payroll_tax: 0, snap: 2400, medicaid_eligible: true },
           },
         },
       ];

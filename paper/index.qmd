@@ -108,9 +108,14 @@ def prompt_payload_hash_prefix(country: str) -> str:
 
 def model_frame(country: str) -> pd.DataFrame:
     return pd.DataFrame(country_payload(country)["modelStats"]).sort_values(
-        # Sort by the exact-match rate — the deployability bar. The bounded
-        # `score` column is preserved for the secondary "Continuous" view.
-        "exact",
+        # Sort by the within-1% hit rate — the primary headline metric.
+        # Zero-inflated samples (notably the UK panel, where 71% of reference
+        # outputs are exact zeros) compress exact-match rates near the share
+        # of zero cases a hedging model can predict, so within-1% is the
+        # more discriminating headline. Exact match is preserved as the
+        # deployability-bar column; the bounded score is the secondary
+        # continuous view.
+        "within1pct",
         ascending=False,
     )
 
@@ -128,6 +133,7 @@ def failure_frame(country: str) -> pd.DataFrame:
 def model_table(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
     cols = [
         "model",
+        "within1pct",
         "exact",
         "within10pct",
         "score",
@@ -137,27 +143,28 @@ def model_table(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
     subset = frame[cols].head(top_n).copy()
     subset.columns = [
         "Model",
+        "Within 1% %",
         "Exact %",
         "Within 10%",
         "Bounded score",
         "Parsed",
         "Total",
     ]
-    for col in ["Exact %", "Within 10%", "Bounded score"]:
+    for col in ["Within 1% %", "Exact %", "Within 10%", "Bounded score"]:
         subset[col] = subset[col].round(1)
     return subset
 
 
 def variable_hardest(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
-    cols = ["variable", "score", "exact", "within10pct"]
+    cols = ["variable", "score", "within1pct", "exact", "within10pct"]
     subset = (
         frame[cols]
         .sort_values("score")
         .head(top_n)
         .copy()
     )
-    subset.columns = ["Variable", "Score", "Exact", "Within 10%"]
-    for col in ["Score", "Exact", "Within 10%"]:
+    subset.columns = ["Variable", "Score", "Within 1%", "Exact", "Within 10%"]
+    for col in ["Score", "Within 1%", "Exact", "Within 10%"]:
         subset[col] = subset[col].round(1)
     return subset
 
@@ -796,7 +803,7 @@ def parsed_ratio(frame: pd.DataFrame, model_name: str) -> str:
 
 
 def top_model(frame: pd.DataFrame) -> pd.Series:
-    return frame.sort_values("exact", ascending=False).iloc[0]
+    return frame.sort_values("within1pct", ascending=False).iloc[0]
 
 
 def top_model_snapshot_summary(
@@ -804,45 +811,46 @@ def top_model_snapshot_summary(
     uk_row: pd.Series,
     global_row: pd.Series,
 ) -> str:
-    metric = "exact-match %"
+    metric = "within-1%"
     if us_row.model == uk_row.model == global_row.model:
         return (
             f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
             f"{us_row.model} is top-scoring on {metric} in the US, UK, and "
-            f"shared global views at {fmt_score(us_row.exact)}, "
-            f"{fmt_score(uk_row.exact)}, and {fmt_score(global_row.exact)}, "
-            f"respectively."
+            f"shared global views at {fmt_score(us_row.within1pct)}, "
+            f"{fmt_score(uk_row.within1pct)}, and "
+            f"{fmt_score(global_row.within1pct)}, respectively."
         )
     if us_row.model == uk_row.model:
         return (
             f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
             f"{us_row.model} is top-scoring on {metric} in both country tables "
-            f"at {fmt_score(us_row.exact)} in the US and "
-            f"{fmt_score(uk_row.exact)} in the UK, and the top shared global "
-            f"model is {global_row.model} at {fmt_score(global_row.exact)}."
+            f"at {fmt_score(us_row.within1pct)} in the US and "
+            f"{fmt_score(uk_row.within1pct)} in the UK, and the top shared "
+            f"global model is {global_row.model} at "
+            f"{fmt_score(global_row.within1pct)}."
         )
     if us_row.model == global_row.model:
         return (
             f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
             f"{us_row.model} is the top US and shared global model on {metric} "
-            f"at {fmt_score(us_row.exact)} and {fmt_score(global_row.exact)}, "
-            f"respectively, while the top UK model is {uk_row.model} at "
-            f"{fmt_score(uk_row.exact)}."
+            f"at {fmt_score(us_row.within1pct)} and "
+            f"{fmt_score(global_row.within1pct)}, respectively, while the top "
+            f"UK model is {uk_row.model} at {fmt_score(uk_row.within1pct)}."
         )
     if uk_row.model == global_row.model:
         return (
             f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
             f"{uk_row.model} is the top UK and shared global model on {metric} "
-            f"at {fmt_score(uk_row.exact)} and {fmt_score(global_row.exact)}, "
-            f"respectively, while the top US model is {us_row.model} at "
-            f"{fmt_score(us_row.exact)}."
+            f"at {fmt_score(uk_row.within1pct)} and "
+            f"{fmt_score(global_row.within1pct)}, respectively, while the top "
+            f"US model is {us_row.model} at {fmt_score(us_row.within1pct)}."
         )
     return (
         f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
         f"the top US model on {metric} is {us_row.model} at "
-        f"{fmt_score(us_row.exact)}, the top UK model is {uk_row.model} at "
-        f"{fmt_score(uk_row.exact)}, and the top shared global model is "
-        f"{global_row.model} at {fmt_score(global_row.exact)}."
+        f"{fmt_score(us_row.within1pct)}, the top UK model is {uk_row.model} "
+        f"at {fmt_score(uk_row.within1pct)}, and the top shared global model "
+        f"is {global_row.model} at {fmt_score(global_row.within1pct)}."
     )
 
 
@@ -861,7 +869,8 @@ def country_top_sentence(us_row: pd.Series, uk_row: pd.Series) -> str:
 us_model = model_frame("us")
 uk_model = model_frame("uk")
 global_model = pd.DataFrame(dashboard["global"]["modelStats"]).sort_values(
-    "score",
+    # Match the country tables: within-1% is the headline ranking metric.
+    "within1pct",
     ascending=False,
 )
 us_var = variable_frame("us")
@@ -934,7 +943,7 @@ snapshot_provenance = pd.DataFrame(
         ["UK scenario-source SHA-256", UK_TRANSFER_ARTIFACT_SHA256],
         ["Households", "100 US and 100 UK"],
         ["Models", f"{len(global_model)} shared models"],
-        ["Output groups", "19 US and 7 UK"],
+        ["Output groups", "18 US and 7 UK"],
         ["Condition", "No tools, no web access, one structured response per household"],
         ["Response contract", "Numeric answer and non-empty explanation for every requested output"],
     ],
@@ -944,7 +953,6 @@ scope_rationale = pd.DataFrame(
     [
         ["Included", "Direct tax, credit, benefit, health-support, and coverage outputs that a household-facing model could plausibly be asked to estimate from household facts."],
         ["Excluded", "Intermediate tax bases, payroll subcomponents, and outputs that mainly require unavailable history, restricted local market data, restricted program-administration data, or take-up assignment rather than rule calculation."],
-        ["ACA Premium Tax Credit", "Retained as a deliberate health-support output; when local benchmark premiums are not listed, the model must estimate them from the household facts."],
         ["Binary coverage outputs", "Requested as 0/1 eligibility flags and scored as classification tasks; their dollar values are used only as impact-weight proxies, not as requested model outputs."],
         ["WIC", "The benchmark asks for person-level WIC eligibility. It does not ask models to estimate a WIC dollar amount."],
     ],
@@ -967,7 +975,7 @@ parse_repair_summary = pd.DataFrame(
         ["Parser repair", "The parser was extended to recover explicit `value` and non-empty `explanation` blocks from nested, escaped, or partially truncated provider JSON without scraping prose numbers."],
         ["Full-response retries", "Three bounded retry rounds targeted broken country-model-household responses and accepted only fully valid replacement responses."],
         ["Row-level repairs", "A final repair pass retried only rows still missing a parsed numeric value or non-empty explanation, using the same model, household, and output."],
-        ["Final parse coverage", "The repaired manuscript snapshot has zero missing parsed numeric values and zero missing explanations across all 34,656 model-output rows."],
+        ["Final parse coverage", "The repaired manuscript snapshot has zero missing parsed numeric values and zero missing explanations across all 33,456 model-output rows."],
         ["Preservation rule", "The snapshot retains response-retry and row-repair targets, attempts, accepted replacements, rejected rows, and merged prediction files."],
     ],
     columns=["Step", "Finding"],
@@ -978,15 +986,18 @@ uk_ranked = uk_model.reset_index(drop=True)
 global_ranked = global_model.reset_index(drop=True)
 
 us_top_three = [
-    f"{row.model} ({fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
+    f"{row.model} ({fmt_score(row.within1pct)} within-1%, "
+    f"{fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
     for row in us_ranked.head(3).itertuples()
 ]
 uk_top_three = [
-    f"{row.model} ({fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
+    f"{row.model} ({fmt_score(row.within1pct)} within-1%, "
+    f"{fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
     for row in uk_ranked.head(3).itertuples()
 ]
 global_top_three = [
-    f"{row.model} ({fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
+    f"{row.model} ({fmt_score(row.within1pct)} within-1%, "
+    f"{fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
     for row in global_ranked.head(3).itertuples()
 ]
 
@@ -1007,7 +1018,7 @@ conclusion_snapshot_summary = country_top_sentence(us_top_model, uk_top_model)
 
 ## Abstract
 
-PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and reports two scores side by side: an exact-match rate (the deployability bar — predictions are graded only if they match the PolicyEngine reference to the dollar or to the eligibility flag) and a continuous bounded score that awards partial credit for close answers. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <https://policybench.org>.
+PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and reports three nested scores: a within-1% hit rate as the headline ranking metric, an exact-match rate as the deployability bar (predictions are graded only if they match the PolicyEngine reference to the dollar or to the eligibility flag), and a continuous bounded score that awards partial credit for close answers. The headline metric is within-1% rather than exact match because the panels are zero-inflated — 71% of UK reference outputs and 82% of US reference outputs are exact zeros — which compresses top-of-leaderboard exact-match rates near the share of zero cases a hedging model can predict and makes within-1% the more discriminating ranking on the positive-reference cases that drive quality differences. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <https://policybench.org>.
 
 ## Introduction
 
@@ -1021,7 +1032,7 @@ This matters for public-facing calculators, analyst workflows, and tax-preparati
 
 The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem [@holzenberger2021sara]. LegalBench broadens this view and includes tax-oriented numeric tasks such as `sara_numeric` [@guha2023legalbench]. RuleArena evaluates rule-guided reasoning in regulation-style settings [@zhou2025rulearena], and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs [@taxcalcbench2025]. @shanahan2025vita report a similar split on the Volunteer Income Tax Assistance (VITA) test: models do better on tax knowledge questions than on open-ended calculation tasks.
 
-PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks [@cobbe2021training; @hendrycks2021math]. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead [@zhou2025tempanswerqa]. PolicyBench treats this as a measurement design choice rather than a forced pick: it reports an exact-match rate as the primary deployability metric (a tax filer or benefits caseworker can't ship "close") and a bounded continuous score that awards partial credit for near-miss thresholds as a secondary tracking diagnostic.
+PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks [@cobbe2021training; @hendrycks2021math]. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead [@zhou2025tempanswerqa]. PolicyBench treats this as a measurement design choice rather than a forced pick: it leads with a within-1% hit rate as the headline ranking metric, retains the exact-match rate as the deployability bar (a tax filer or benefits caseworker can't ship "close"), and reports a bounded continuous score that awards partial credit for near-miss thresholds as a secondary tracking diagnostic. The headline choice is driven by zero inflation in the benchmark panels — particularly in the UK, where 71% of reference outputs are exact zeros — which compresses exact-match leaderboards near the share of zero cases a hedging model can predict and gives within-1% more ranking power on the positive-reference cases.
 
 Finance-domain benchmarks provide another relevant precedent. FinQA and TAT-QA both show that realistic quantitative reasoning often requires combining structured numbers with domain knowledge rather than solving stylized school-math problems [@chen2021finqa; @zhu2021tatqa]. PolicyBench differs in that its reference outputs are generated by executable tax-benefit microsimulation rather than annotated document questions, but the underlying motivation is similar: domain-specific quantitative reasoning deserves dedicated evaluation.
 
@@ -1031,17 +1042,19 @@ Finally, PolicyBench depends on two infrastructure literatures that are not them
 
 PolicyBench asks models to predict all benchmark outputs for a household in a single structured response. One response per household reduces repeated prompt cost and keeps the task at the household-return level rather than turning it into a sequence of unrelated one-output calls.
 
-### Primary metric: exact match
+### Primary metric: within 1%
 
-The primary metric is the exact-match rate: the share of requested outputs the model gets right to the dollar (or, for eligibility flags, to the boolean). This is the deployability bar — a tax filer, a benefit estimator, or a caseworker cannot ship "close." A prediction that is off by $50 is no more usable than one off by $500, because neither matches the bottom line a downstream system or a household needs. For currency amounts, "exact" means within `1` currency unit of the reference value after numeric parsing. For binary outputs, "exact" means the parsed 0/1 flag equals the reference flag.
+The primary headline metric is the within-1% hit rate: the share of requested outputs the model gets within one percent of the PolicyEngine reference value. For currency amounts, "within 1%" means `|pred − ref| ≤ 0.01 × |ref|` when the reference is nonzero and `|pred| ≤ 1` (the same one-currency-unit absolute tolerance used by exact match) when the reference is zero. Binary outputs are scored identically to the exact-match metric, since there is no rounding tolerance between 0 and 1.
 
-The exact-match rate is aggregated to a household score, then to a country score, then to a global score, with the same per-output weighting that the secondary bounded score uses (a blend of equal weighting and absolute-reference-impact share). Equal household weight within each country and equal country weight globally preserve comparability across scenarios and slices.
+Within-1% is the headline because the benchmark panels are zero-inflated. In the frozen manuscript snapshot, 71% of UK reference outputs and 82% of US reference outputs are exact zeros — most sampled households are not eligible for any given program, owe no capital gains tax, do not phase into a refundable credit, and so on. A model that hedges to zero on every requested output therefore earns full exact credit on every zero case, which compresses top-of-leaderboard exact-match rates near the share of zero cases the panel contains. In the UK panel this compression is severe: the top seven models in the manuscript snapshot are tied within 0.6 percentage points on exact match but span 4.6 percentage points on within-1%, because within-1% credits close-but-not-exact predictions on the 29% of positive-reference cases where rule comprehension is actually tested. Within-1% inherits the same one-currency-unit tolerance on zeros, so a hedging baseline gets no extra credit from the relaxed threshold; it is the partial credit on positive-reference cases that yields the discriminating signal.
 
-### Tolerance variant: within 1%
+The within-1% rate is aggregated to a household score, then to a country score, then to a global score, with the same per-output weighting that the secondary bounded score uses (a blend of equal weighting and absolute-reference-impact share). Equal household weight within each country and equal country weight globally preserve comparability across scenarios and slices.
 
-PolicyBench also reports a within-1% hit rate as a tolerance variant of the exact-match metric. It is intended as the analyst bar: a prediction that is off by less than 1 percent of the reference is unlikely to mislead a research or planning workflow, even if it is not directly shippable. For currency amounts, "within 1%" means `|pred − ref| ≤ 0.01 × |ref|` when the reference is nonzero and `|pred| ≤ 1` (i.e., the same dollar tolerance as the exact case) when the reference is zero. Binary outputs are scored identically to the exact-match metric because there is no rounding tolerance between 0 and 1.
+### Deployability bar: exact match
 
-The within-1% hit rate uses the same per-output weighting as the exact-match metric. It is reported alongside exact match in the live leaderboard's Scoring toggle and in the table columns below; the manuscript leads with exact match because that is the deployability bar, but the within-1% column is the more discriminating ranking when frontier models are close to but not at the production bar.
+PolicyBench retains the exact-match rate as the deployability bar: the share of requested outputs the model gets right to the dollar (or, for eligibility flags, to the boolean). A tax filer, a benefit estimator, or a caseworker cannot ship "close" — a prediction off by $50 is no more usable than one off by $500, because neither matches the bottom line a downstream system or a household needs. For currency amounts, "exact" means within `1` currency unit of the reference value after numeric parsing. For binary outputs, "exact" means the parsed 0/1 flag equals the reference flag.
+
+The exact-match rate uses the same per-output weighting as the primary within-1% metric. It is reported alongside the headline in every leaderboard table and remains the bar a production-facing system must clear. We report it as the deployability bar rather than the headline ranking because in zero-inflated panels it is dominated by zero-case behavior and discriminates less well between models that understand the policy rules and models that simply hedge to zero.
 
 ### Secondary metric: bounded continuous score
 
@@ -1054,7 +1067,7 @@ PolicyBench also reports a bounded `0-100` continuous score that awards smooth p
 
 For binary outputs, the bounded score reduces to exact accuracy. Because the four thresholds are nested (exact $\subseteq$ within-1% $\subseteq$ within-5% $\subseteq$ within-10%), averaging their indicator functions is equivalent to assigning step credit by error band: predictions that match exactly receive 1.00, predictions inside 1% but not exact receive 0.75, predictions inside 5% but outside 1% receive 0.50, predictions inside 10% but outside 5% receive 0.25, and predictions outside 10% receive 0.00. The bounded score is therefore a partial-credit rule that rewards tighter agreement more than looser agreement, not an unweighted aggregate of independent hit rates.
 
-PolicyBench also tracks mean absolute error and related error metrics. These remain secondary diagnostics under both the primary exact-match metric and the bounded score. The two-metric design follows recent numeric-evaluation literature that questions pure exact-match scoring [@zhou2025tempanswerqa] without abandoning exactness as the production bar.
+PolicyBench also tracks mean absolute error and related error metrics. These remain secondary diagnostics under the primary within-1% metric, the deployability-bar exact-match rate, and the bounded score. The three-metric design follows recent numeric-evaluation literature that questions pure exact-match scoring [@zhou2025tempanswerqa] without abandoning exactness as the production bar.
 
 All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026; UK outputs are annual amounts or annual eligibility indicators for fiscal year 2026-27. For currency amounts, the "exact" hit rate means within `1` currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same `1` currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as `0` or `1` eligibility flags and scored by exact classification accuracy. Missing or unparseable numeric answers receive zero score for that requested output.
 
@@ -1086,7 +1099,7 @@ model_runs
 
 The US benchmark is built from Enhanced Current Population Survey (CPS)-derived households using PolicyEngine US. The sampled households are filtered to keep a single-tax-unit, single-family, single-Supplemental Poverty Measure (SPM)-unit structure with at least one adult and a supported filing status. The 2024 Enhanced CPS source contains 41,314 households; 30,173 (73.0%) pass the filter and form the eligible draw. The 27.0% excluded by the filter include multi-tax-unit households (e.g., adult roommates), multi-family households, multi-SPM-unit households, and households whose head reports a filing status outside the supported set. These excluded compositions are exactly the kind of cases where federal/state credit allocations and benefit-unit rules become hardest, so the eligible draw is a tractable subset rather than the full distribution of US households. Prompts include nonzero promptable raw inputs across relevant entities rather than a hand-curated summary, so the models see many of the same facts the simulator receives. Filing status is not stated in the prompt; the reference computation infers it from tax-unit role flags. Models therefore see the same household facts that drive the reference filing-status assignment, but they do not receive that assignment as a label.
 
-The current US release evaluates 19 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), Affordable Care Act (ACA) premium tax credits, school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children's Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start.
+The current US release evaluates 18 output groups spanning federal income tax, refundable credits, payroll and self-employment tax, state and local income tax, Supplemental Nutrition Assistance Program (SNAP), Supplemental Security Income (SSI), Temporary Assistance for Needy Families (TANF), school-meal eligibility, and person-level coverage eligibility for the Special Supplemental Nutrition Program for Women, Infants, and Children (WIC), Medicaid, the Children's Health Insurance Program (CHIP), Medicare, Head Start, and Early Head Start.
 
 The output scope is intentionally narrower than the full PolicyEngine model. @tbl-scope-rationale summarizes the inclusion rule. The benchmark asks for WIC eligibility rather than a WIC dollar amount; WIC dollar values are used only as impact-weight proxies for coverage flags, not as requested model outputs.
 
@@ -1158,7 +1171,7 @@ global_top
 
 ### Simple baselines
 
-Simple baselines help interpret score levels in a zero-heavy benchmark. @tbl-baselines reports an always-zero response and a median-reference-by-output response on the same frozen household sample. These are not model competitors; they show how much of either metric can be earned without household-specific policy calculation — and they make clear why the exact-match rate is not a trivial bar to clear above the always-zero baseline on positive-reference cases.
+Simple baselines help interpret score levels in a zero-heavy benchmark. @tbl-baselines reports an always-zero response and a median-reference-by-output response on the same frozen household sample. These are not model competitors; they show how much of either metric can be earned without household-specific policy calculation — and they make clear that the within-1% headline and exact-match deployability bar are not trivial bars to clear above the always-zero baseline on positive-reference cases.
 
 ```{python}
 #| label: tbl-baselines
@@ -1200,7 +1213,7 @@ The lowest-scoring US variables are multi-step tax quantities and sparse positiv
 
 ```{python}
 #| label: tbl-us-hardest
-#| tbl-cap: "Hardest US variables by bounded score (the secondary metric, used here because exact-match rates on the hardest variables compress to single-digit percentages and don't discriminate well)."
+#| tbl-cap: "Hardest US variables by bounded score (the secondary tracking metric, used here because both exact-match and within-1% rates on the hardest variables compress to single-digit percentages and don't discriminate well)."
 us_hardest
 ```
 
@@ -1208,7 +1221,7 @@ The same pattern appears in the UK run. Income tax and National Insurance are th
 
 ```{python}
 #| label: tbl-uk-hardest
-#| tbl-cap: "Hardest UK variables by bounded score (the secondary metric, used here because exact-match rates on the hardest variables compress to single-digit percentages and don't discriminate well)."
+#| tbl-cap: "Hardest UK variables by bounded score (the secondary tracking metric, used here because both exact-match and within-1% rates on the hardest variables compress to single-digit percentages and don't discriminate well)."
 uk_hardest
 ```
 
@@ -1254,7 +1267,7 @@ PolicyBench is not a substitute for a production tax-and-benefit calculator. Sev
 
 - output-contract reliability required a repair workflow, and the raw failed attempts are preserved separately from the repaired canonical prediction files
 - zero-heavy outputs require separate positive-case interpretation
-- the choice of primary metric (exact match) and secondary tracking metric (bounded score) is one benchmark view; both are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate
+- the choice of primary metric (within-1%), deployability bar (exact match), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate
 - the global score is an equal-country, household-equal summary for models run in both countries, not a universal ranking of model quality
 - the public UK calibrated transfer dataset is not equivalent to enhanced Family Resources Survey quality and is not population-representative UK microdata
 - the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail

@@ -94,7 +94,7 @@ export default function Hero({
           <p className="mt-5 text-text-secondary text-sm sm:text-base max-w-xl leading-relaxed">
             {subtitle}{" "}
             <span className="text-text-muted">
-              100% = exact answers across the full benchmark.
+              100% = predictions within 1% of the reference across the full benchmark.
             </span>
           </p>
 

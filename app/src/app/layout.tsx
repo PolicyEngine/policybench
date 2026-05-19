@@ -8,6 +8,14 @@ export const metadata: Metadata = {
   },
   description:
     "Benchmarking no-tools policy calculation across frontier models.",
+  icons: {
+    icon: [
+      {
+        url: "/assets/policyengine-mark.svg",
+        type: "image/svg+xml",
+      },
+    ],
+  },
 };
 
 export default function RootLayout({

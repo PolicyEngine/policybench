@@ -27,7 +27,6 @@ const US_VARIABLE_LABELS: Record<string, string> = {
   snap: "SNAP",
   ssi: "SSI",
   tanf: "TANF",
-  premium_tax_credit: "ACA Premium Tax Credit",
   free_school_meals_eligible: "Free school meals eligibility",
   reduced_price_school_meals_eligible:
     "Reduced-price school meals eligibility",
@@ -64,7 +63,6 @@ const US_VARIABLE_CATEGORIES: Record<string, string> = {
   snap: "Benefits",
   ssi: "Benefits",
   tanf: "Benefits",
-  premium_tax_credit: "Health",
   free_school_meals_eligible: "Coverage",
   reduced_price_school_meals_eligible: "Coverage",
   person_wic_eligible: "Coverage",

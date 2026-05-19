@@ -1,14 +1,20 @@
+import { useMemo } from "react";
 import type {
   BenchData,
   FailureModesPayload,
-  HouseholdFailure,
+  HeatmapEntry,
   ProgramFailure,
 } from "../types";
 import { getVariableLabel } from "../types";
+import { getVariableExplainer } from "../variableExplainers";
 
 function formatPct(value?: number | null) {
   if (value == null || Number.isNaN(value)) return "n/a";
   return `${value.toFixed(1)}%`;
+}
+
+function getHeatmapScore(entry: HeatmapEntry): number {
+  return entry.score ?? entry.within10pct ?? entry.accuracy ?? 0;
 }
 
 function StatLine({
@@ -74,15 +80,91 @@ function ProgramCard({
   );
 }
 
-function HouseholdChip({ household }: { household: HouseholdFailure }) {
+function ErrorReadPatterns({
+  data,
+  variables,
+}: {
+  data: BenchData;
+  variables: string[];
+}) {
+  const averageScores = useMemo(() => {
+    const valuesByVariable: Record<string, number[]> = {};
+    for (const entry of data.heatmap) {
+      if (entry.condition !== "no_tools" || !variables.includes(entry.variable)) {
+        continue;
+      }
+      if (!valuesByVariable[entry.variable]) valuesByVariable[entry.variable] = [];
+      valuesByVariable[entry.variable].push(getHeatmapScore(entry));
+    }
+    return Object.fromEntries(
+      Object.entries(valuesByVariable).map(([variable, values]) => [
+        variable,
+        values.reduce((sum, value) => sum + value, 0) / values.length,
+      ]),
+    );
+  }, [data.heatmap, variables]);
+
   return (
-    <div className="rounded-2xl border border-border bg-surface px-4 py-3">
-      <div className="text-text text-sm">{household.label}</div>
-      <div className="mt-1 flex items-center justify-between gap-3 text-xs">
-        <span className="text-text-muted">{household.n.toLocaleString()} scored rows</span>
-        <span className="text-danger font-[family-name:var(--font-mono)]">
-          {formatPct(household.correctPct)}
-        </span>
+    <div className="mt-10">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+        What the error reads show
+      </div>
+      <p className="mt-3 max-w-3xl text-sm leading-relaxed text-text-secondary">
+        These expanders summarize recurring miss patterns from direct reads of
+        model answers and explanations. They sit here with failure modes because
+        they describe why the low-scoring program slices break.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {variables.map((variable) => {
+          const explainer = getVariableExplainer(data.country, variable);
+          const avg = averageScores[variable];
+          return (
+            <details
+              key={variable}
+              className="card px-5 py-4 open:border-primary/30 group"
+            >
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-4">
+                <div className="min-w-0 flex items-start gap-2">
+                  <span
+                    aria-hidden
+                    className="mt-0.5 inline-block text-text-muted transition-transform group-open:rotate-90"
+                  >
+                    ▸
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-text text-sm font-medium">
+                      {getVariableLabel(variable, data.country)}
+                    </div>
+                    <p className="mt-1 text-sm leading-relaxed text-text-secondary">
+                      {explainer?.summary ??
+                        "This target combines multiple policy rules, and errors usually come from positive cases rather than zero cases."}
+                    </p>
+                  </div>
+                </div>
+                {avg !== undefined && (
+                  <div className="shrink-0 rounded-full border border-border bg-surface px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                    Avg {avg.toFixed(0)}%
+                  </div>
+                )}
+              </summary>
+
+              <div className="mt-4 border-t border-border-subtle pt-4">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                  Common misses
+                </div>
+                <ul className="mt-3 space-y-2 text-sm leading-relaxed text-text-secondary">
+                  {(explainer?.bullets ?? []).map((bullet) => (
+                    <li key={bullet} className="flex gap-2">
+                      <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
+                      <span>{bullet}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </details>
+          );
+        })}
       </div>
     </div>
   );
@@ -92,7 +174,7 @@ export default function FailureModes({ data }: { data: BenchData }) {
   const country = data.country;
   const failureModes: FailureModesPayload = data.failureModes;
   const hardestPrograms = [...failureModes.programs].slice(0, 10);
-  const hardestHouseholds = [...failureModes.households].slice(0, 7);
+  const errorReadVariables = hardestPrograms.map((program) => program.variable);
 
   return (
     <div>
@@ -118,7 +200,7 @@ export default function FailureModes({ data }: { data: BenchData }) {
         style={{ animationDelay: "240ms" }}
       >
         <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-          Read this carefully
+          How to read these cards
         </div>
         <p className="mt-3 text-sm leading-relaxed text-text-secondary">
           These cards are intentionally stricter than the aggregate leaderboard but
@@ -143,19 +225,7 @@ export default function FailureModes({ data }: { data: BenchData }) {
         ))}
       </div>
 
-      <div
-        className="mt-10 animate-fade-up"
-        style={{ animationDelay: "520ms" }}
-      >
-        <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-          Hardest household segments
-        </div>
-        <div className="mt-4 grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {hardestHouseholds.map((household) => (
-            <HouseholdChip key={household.label} household={household} />
-          ))}
-        </div>
-      </div>
+      <ErrorReadPatterns data={data} variables={errorReadVariables} />
     </div>
   );
 }

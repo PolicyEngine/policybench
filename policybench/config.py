@@ -38,14 +38,13 @@ MODELS = {
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
+    "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
+    "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
 }
 
 # Models that can be invoked manually for probes, but are excluded from default
 # runs and public leaderboard metadata until they are stable enough to finish.
-EXPERIMENTAL_MODELS = {
-    "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
-    "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
-}
+EXPERIMENTAL_MODELS: dict[str, str] = {}
 
 RUNNABLE_MODELS = {
     **MODELS,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type {
   BenchData,
   DashboardBundle,
@@ -9,6 +9,12 @@ import type {
 import { VIEW_SHORT_LABELS, getVariableLabel } from "../types";
 import { MODEL_LABELS, MODEL_ORDER, getProviderForModel } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
+import { ProgramFilterPanel } from "./ProgramFilterDropdown";
+import {
+  programIsActive,
+  type ProgramOption,
+  weightedProgramScore,
+} from "../lib/programFilters";
 import {
   SENSITIVITY_VIEWS,
   modelScoresForView,
@@ -104,30 +110,40 @@ export default function ModelLeaderboard({
   data,
   selectedView,
   dashboard,
+  programOptions,
+  activeProgramIds,
+  activeProgramSummary,
+  onResetPrograms,
+  onToggleProgram,
+  onSelectOnlyProgram,
 }: {
   data: BenchData | GlobalBenchData;
   selectedView: ViewKey;
   dashboard: DashboardBundle;
+  programOptions: ProgramOption[];
+  activeProgramIds: Set<string>;
+  activeProgramSummary: string;
+  onResetPrograms: () => void;
+  onToggleProgram: (variable: string) => void;
+  onSelectOnlyProgram: (variable: string) => void;
 }) {
   const isGlobal = selectedView === "global";
   const [sensitivityView, setSensitivityView] =
     useState<SensitivityViewId>("household");
-  // Headline scoring: defaults to "exact" because policy/tax decisions need
-  // to be right to the dollar — a "close" answer isn't deployable.
-  // "within1pct" is the natural analyst bar where rounding and small-rate
-  // drift are acceptable. "continuous" is the bounded
-  // `max(0, 1 - |err|/|ref|)` score from the paper, useful for tracking
-  // conceptual progress year over year while exact rates remain low.
+  // Headline scoring: defaults to "within1pct". On UK, ~71% of references
+  // are £0 and Exact mode mostly measures "did you say £0?" — the
+  // within-1% bar restores meaningful separation. Exact remains a click
+  // away as the production-deployability bar; Continuous tracks
+  // conceptual progress year over year.
   const [scoringMode, setScoringMode] = useState<
     "exact" | "within1pct" | "continuous"
-  >("exact");
+  >("within1pct");
   // Reference cases: All by default, but Positives is the right view when
   // (e.g.) UK references are 71% £0 and Exact mode mostly measures
   // "did you say £0?". Zeros surfaces the inverse — eligibility hedging.
   const [referenceFilter, setReferenceFilter] = useState<
     "all" | "positives" | "zeros"
   >("all");
-
   // Defensive: if a model's payload doesn't include the requested view (stale
   // data.json), fall back to the canonical Household view so the leaderboard
   // still has a defensible ranking.
@@ -152,6 +168,12 @@ export default function ModelLeaderboard({
     return out;
   }, [sensitivityScores]);
 
+  const isProgramActive = useCallback(
+    (variable: string) =>
+      isGlobal || programIsActive(activeProgramIds, variable),
+    [activeProgramIds, isGlobal],
+  );
+
   // When the user filters to "positives" or "zeros", the heatmap's pre-
   // aggregated `exact`/`within1pct`/`score` columns aren't usable because
   // they don't distinguish reference type. Recompute per-(model, variable)
@@ -173,6 +195,7 @@ export default function ModelLeaderboard({
     >();
     for (const varMap of Object.values(country.scenarioPredictions ?? {})) {
       for (const [variable, modelMap] of Object.entries(varMap)) {
+        if (!isProgramActive(variable)) continue;
         for (const [model, pred] of Object.entries(modelMap)) {
           if (pred.prediction === null) continue;
           const truth = pred.groundTruth;
@@ -219,7 +242,7 @@ export default function ModelLeaderboard({
       out.set(model, rates);
     }
     return out;
-  }, [data, isGlobal, referenceFilter]);
+  }, [data, isGlobal, referenceFilter, isProgramActive]);
 
   // Compute weighted hit-rate for one model under the current weighting. We
   // use this for both "exact" (uses heatmap.exact) and "within 1%" (uses
@@ -239,39 +262,31 @@ export default function ModelLeaderboard({
     if (referenceFilter !== "all") {
       // Recomputed per-(model, variable) hit rates: weight by globalWeights.
       for (const [model, byVar] of filteredHitRates) {
-        let num = 0;
-        let den = 0;
-        for (const [variable, rates] of byVar) {
-          const w = weights[variable];
-          if (w === undefined) continue;
-          num += w * (rates[field] / 100);
-          den += w;
-        }
-        if (den > 0) out.set(model, (num / den) * 100);
+        const score = weightedProgramScore(
+          [...byVar].map(([variable, rates]) => ({
+            variable,
+            value: rates[field],
+          })),
+          weights,
+        );
+        if (score !== undefined) out.set(model, score);
       }
       return out;
     }
 
-    if (field === "continuous") {
-      // For "all" + continuous, the precomputed sensitivity score is
-      // canonical; the caller uses it directly via sensitivityScoreByModel.
-      return out;
-    }
-
-    const totals = new Map<string, { num: number; den: number }>();
+    const ratesByModel = new Map<string, { variable: string; value: number }[]>();
     for (const entry of country.heatmap ?? []) {
       if (entry.condition !== "no_tools") continue;
-      const value = entry[field];
+      if (!isProgramActive(entry.variable)) continue;
+      const value = field === "continuous" ? entry.score : entry[field];
       if (value === undefined) continue;
-      const w = weights[entry.variable];
-      if (w === undefined) continue;
-      const acc = totals.get(entry.model) ?? { num: 0, den: 0 };
-      acc.num += w * (value / 100);
-      acc.den += w;
-      totals.set(entry.model, acc);
+      const rates = ratesByModel.get(entry.model) ?? [];
+      rates.push({ variable: entry.variable, value });
+      ratesByModel.set(entry.model, rates);
     }
-    for (const [model, { num, den }] of totals) {
-      if (den > 0) out.set(model, (num / den) * 100);
+    for (const [model, rates] of ratesByModel) {
+      const score = weightedProgramScore(rates, weights);
+      if (score !== undefined) out.set(model, score);
     }
     return out;
   };
@@ -279,18 +294,62 @@ export default function ModelLeaderboard({
   const exactScoreByModel = useMemo(
     () => hitRateByModel("exact"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, effectiveView, isGlobal, referenceFilter, filteredHitRates],
+    [
+      data,
+      effectiveView,
+      isGlobal,
+      referenceFilter,
+      filteredHitRates,
+      activeProgramIds,
+    ],
   );
   const within1pctScoreByModel = useMemo(
     () => hitRateByModel("within1pct"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, effectiveView, isGlobal, referenceFilter, filteredHitRates],
+    [
+      data,
+      effectiveView,
+      isGlobal,
+      referenceFilter,
+      filteredHitRates,
+      activeProgramIds,
+    ],
   );
   const filteredContinuousByModel = useMemo(
     () => hitRateByModel("continuous"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, effectiveView, isGlobal, referenceFilter, filteredHitRates],
+    [
+      data,
+      effectiveView,
+      isGlobal,
+      referenceFilter,
+      filteredHitRates,
+      activeProgramIds,
+    ],
   );
+
+  const selectedMaeByModel = useMemo(() => {
+    const out = new Map<string, number>();
+    if (isGlobal || !("scenarioPredictions" in data)) return out;
+    const totals = new Map<string, { sum: number; n: number }>();
+    for (const variableMap of Object.values(data.scenarioPredictions)) {
+      for (const [variable, modelMap] of Object.entries(variableMap)) {
+        if (!isProgramActive(variable)) continue;
+        for (const [model, row] of Object.entries(modelMap)) {
+          if (row.prediction === null || row.prediction === undefined) continue;
+          const acc = totals.get(model) ?? { sum: 0, n: 0 };
+          acc.sum += Math.abs(row.prediction - row.groundTruth);
+          acc.n += 1;
+          totals.set(model, acc);
+        }
+      }
+    }
+    for (const [model, { sum, n }] of totals) {
+      if (n > 0) out.set(model, sum / n);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, isGlobal, activeProgramIds]);
 
   const noTools = useMemo<ModelStat[]>(() => {
     const base = data.modelStats.filter((m) => m.condition === "no_tools");
@@ -309,19 +368,24 @@ export default function ModelLeaderboard({
           const w = weighted.get(m.model);
           const fallback =
             scoringMode === "exact" ? (m.exact ?? 0) : (m.within1pct ?? 0);
-          return { ...m, score: w !== undefined ? w : fallback };
+          return {
+            ...m,
+            score: w !== undefined ? w : fallback,
+            mae: selectedMaeByModel.get(m.model) ?? m.mae,
+          };
         })
         .sort((a, b) => b.score - a.score);
     }
 
-    // Continuous mode. When filtering to positives/zeros we use the
-    // recomputed weighted score; otherwise fall back to the precomputed
-    // bounded score (Household weighting) or the sensitivity view.
-    if (referenceFilter !== "all") {
+    // Continuous mode. Use the recomputed weighted score for country views so
+    // program filters renormalize the active program weights; otherwise fall
+    // back to the precomputed bounded score or global sensitivity view.
+    if (!isGlobal && filteredContinuousByModel.size > 0) {
       return [...base]
         .map((m) => ({
           ...m,
           score: filteredContinuousByModel.get(m.model) ?? 0,
+          mae: selectedMaeByModel.get(m.model) ?? m.mae,
         }))
         .sort((a, b) => b.score - a.score);
     }
@@ -339,10 +403,11 @@ export default function ModelLeaderboard({
     effectiveView,
     sensitivityScoreByModel,
     filteredContinuousByModel,
-    referenceFilter,
     exactScoreByModel,
     within1pctScoreByModel,
+    selectedMaeByModel,
     scoringMode,
+    isGlobal,
   ]);
 
   const pendingModels = useMemo<PendingModel[]>(() => {
@@ -359,6 +424,28 @@ export default function ModelLeaderboard({
 
   const activeView = SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)!;
 
+  // "Exact" means "within one currency unit," and that unit is country-
+  // specific. Surface the right word in tooltips, captions, and the Options
+  // summary so the UK leaderboard doesn't read "to the dollar".
+  const isUK = selectedView === "uk";
+  const currencyUnit = isUK ? "pound" : "dollar";
+  const currencySymbol = isUK ? "£" : "$";
+  const scoringLabel =
+    scoringMode === "exact"
+      ? "exact"
+      : scoringMode === "within1pct"
+        ? "within 1%"
+        : "continuous";
+  const referenceLabel =
+    referenceFilter === "all"
+      ? "all cases"
+      : referenceFilter === "positives"
+        ? "positives only"
+        : "zeros only";
+  const optionsSummary = isGlobal
+    ? `scoring: ${scoringLabel} · cases: ${referenceLabel}`
+    : `scoring: ${scoringLabel} · cases: ${referenceLabel} · weighting: ${activeView.label.toLowerCase()} · ${activeProgramSummary.toLowerCase()}`;
+
   // Per-variable weights table. Available on country payloads only; global
   // (US + UK) is intentionally skipped because weights differ between
   // countries and combining them would be misleading.
@@ -371,7 +458,11 @@ export default function ModelLeaderboard({
     const all = new Set<string>();
     for (const view of ["household", "aggregate", "equal"] as const) {
       const map = weights[view];
-      if (map) Object.keys(map).forEach((v) => all.add(v));
+      if (map) {
+        Object.keys(map)
+          .filter(isProgramActive)
+          .forEach((v) => all.add(v));
+      }
     }
     const ranked = Array.from(all).map((v) => ({
       v,
@@ -379,7 +470,7 @@ export default function ModelLeaderboard({
     }));
     ranked.sort((a, b) => b.key - a.key);
     return ranked.map((r) => r.v);
-  }, [weights, effectiveView]);
+  }, [weights, effectiveView, isProgramActive]);
 
   return (
     <div>
@@ -391,235 +482,12 @@ export default function ModelLeaderboard({
       >
         {isGlobal ? "Global rankings" : "Model rankings"}
       </h2>
-      <p
-        className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
-        style={{ animationDelay: "160ms" }}
-      >
-        {isGlobal
-          ? "Global scores are equal-weight averages of each model’s US and UK bounded scores. They are not weighted by country population or household count."
-          : "Country scores give each household equal weight. Each variable's weight is the mean across households of |ref| / max(|household_net_income|, Σ |ref|), renormalized so the global weights sum to one."}
-        {pendingModels.length > 0 && (
-          <>
-            {" "}
-            Pending rows below mark models that are actively being added.
-          </>
-        )}
-      </p>
-
-      <aside
-        aria-labelledby="open-set-heading"
-        className="mt-5 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-xs text-text-secondary animate-fade-up"
-        style={{ animationDelay: "180ms" }}
-      >
-        <span
-          aria-hidden
-          className="mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-warning"
-        />
-        <p>
-          <strong id="open-set-heading" className="text-text">
-            Open-set leaderboard.
-          </strong>{" "}
-          The public scenario explorer exposes prompts and PolicyEngine
-          reference outputs, so future model releases or fine-tunes could
-          learn from the released cases. Treat this as a public preview;
-          protected held-out claims would require a separate rotating
-          evaluation set.
-        </p>
-      </aside>
-
-      <div
-        className="mt-5 flex flex-wrap items-center gap-3 animate-fade-up"
-        style={{ animationDelay: "195ms" }}
-      >
-        <span
-          id="leaderboard-scoring-label"
-          className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
-        >
-          Scoring
-        </span>
-        <div
-          role="group"
-          aria-labelledby="leaderboard-scoring-label"
-          className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
-        >
-          {(
-            [
-              [
-                "exact",
-                "Exact",
-                "Percent of predictions that match the PolicyEngine reference to the dollar (or to the boolean for eligibility flags). Real-world policy decisions need this — close-but-not-right isn't deployable.",
-              ],
-              [
-                "within1pct",
-                "Within 1%",
-                "Percent of predictions within 1% of the reference. The analyst bar — rounding and small rate/parameter drift are tolerated, but material misses are not.",
-              ],
-              [
-                "continuous",
-                "Continuous",
-                "Bounded continuous score: max(0, 1 - |prediction - reference| / |reference|), clipped to [0, 1], reducing to exact-match accuracy for boolean variables. Awards partial credit for close answers; useful for tracking conceptual progress while exact rates remain low.",
-              ],
-            ] as const
-          ).map(([id, label, description]) => {
-            const isActive = scoringMode === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setScoringMode(id)}
-                aria-pressed={isActive}
-                title={description}
-                className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                  isActive
-                    ? "bg-primary-strong text-white"
-                    : "text-text-secondary hover:text-text"
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-        <span className="text-[11px] text-text-muted">
-          {scoringMode === "exact"
-            ? "Percent matching to the dollar / boolean."
-            : scoringMode === "within1pct"
-              ? "Percent within 1% of reference."
-              : "Bounded score: 1 − |err| / |ref|, clipped to [0, 1]."}
-        </span>
-      </div>
-
-      {!isGlobal && (
-        <div
-          className="mt-3 flex flex-wrap items-center gap-3 animate-fade-up"
-          style={{ animationDelay: "198ms" }}
-        >
-          <span
-            id="leaderboard-refcases-label"
-            className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
-          >
-            Reference cases
-          </span>
-          <div
-            role="group"
-            aria-labelledby="leaderboard-refcases-label"
-            className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
-          >
-            {(
-              [
-                [
-                  "all",
-                  "All",
-                  "Every (model, scenario, variable) cell in the benchmark slice.",
-                ],
-                [
-                  "positives",
-                  "Positives only",
-                  "Restrict to cases where the PolicyEngine reference is non-zero (e.g., the household actually receives the benefit or owes the tax). Reveals competence on cases that matter, especially on zero-heavy slices like UK.",
-                ],
-                [
-                  "zeros",
-                  "Zeros only",
-                  "Restrict to cases where the PolicyEngine reference is zero (no benefit, no tax). Measures eligibility hedging — does the model correctly say zero when it should?",
-                ],
-              ] as const
-            ).map(([id, label, description]) => {
-              const isActive = referenceFilter === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setReferenceFilter(id)}
-                  aria-pressed={isActive}
-                  title={description}
-                  className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                    isActive
-                      ? "bg-primary-strong text-white"
-                      : "text-text-secondary hover:text-text"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          <span className="text-[11px] text-text-muted">
-            {referenceFilter === "all"
-              ? "All reference cells."
-              : referenceFilter === "positives"
-                ? "Only cases where the reference is nonzero."
-                : "Only cases where the reference is zero."}
-          </span>
-        </div>
-      )}
-
-      <div
-        className="mt-3 flex flex-wrap items-center gap-3 animate-fade-up"
-        style={{ animationDelay: "200ms" }}
-      >
-        <span
-          id="leaderboard-view-label"
-          className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
-        >
-          Weighting
-        </span>
-        <div
-          role="group"
-          aria-labelledby="leaderboard-view-label"
-          className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
-        >
-          {SENSITIVITY_VIEWS.map((view) => {
-            const isActive = sensitivityView === view.id;
-            const supported =
-              view.id === "household" ||
-              viewSupportsSelected(dashboard, view.id, selectedView);
-            const disabled = !supported;
-            const disabledTitleSuffix = " (not available on this slice)";
-            return (
-              <button
-                key={view.id}
-                type="button"
-                aria-disabled={disabled || undefined}
-                onClick={(event) => {
-                  if (disabled) {
-                    event.preventDefault();
-                    return;
-                  }
-                  setSensitivityView(view.id);
-                }}
-                aria-pressed={disabled ? undefined : isActive}
-                className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                  isActive && !disabled
-                    ? "bg-primary-strong text-white"
-                    : disabled
-                      ? "cursor-not-allowed text-text-muted line-through"
-                      : "text-text-secondary hover:text-text"
-                }`}
-                title={
-                  disabled
-                    ? `${view.description}${disabledTitleSuffix}`
-                    : view.description
-                }
-              >
-                {view.label}
-              </button>
-            );
-          })}
-        </div>
-        <span className="text-[11px] text-text-muted">
-          {activeView.description}
-        </span>
-      </div>
-      {sensitivityUnsupportedForView && (
+      {pendingModels.length > 0 && (
         <p
-          className="mt-3 text-[11px] text-text-muted animate-fade-up"
-          style={{ animationDelay: "220ms" }}
+          className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
+          style={{ animationDelay: "160ms" }}
         >
-          The &ldquo;{
-            SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)?.label ??
-              sensitivityView
-          }&rdquo; view is not available on this slice; the leaderboard falls
-          back to the Household view.
+          Pending rows below mark models that are actively being added.
         </p>
       )}
 
@@ -827,10 +695,244 @@ export default function ModelLeaderboard({
         ))}
       </div>
 
+      <details
+        className="mt-8 group rounded-2xl border border-border bg-card/40 animate-fade-up"
+        style={{ animationDelay: "320ms" }}
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs text-text-secondary hover:text-text">
+          <span className="flex min-w-0 items-center gap-2">
+            <svg
+              aria-hidden
+              viewBox="0 0 12 12"
+              width="10"
+              height="10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0 transition-transform group-open:rotate-90"
+            >
+              <polyline points="4 2 8 6 4 10" />
+            </svg>
+            <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
+              Options
+            </span>
+            <span className="truncate text-text-muted">
+              {optionsSummary}
+            </span>
+          </span>
+        </summary>
+
+        <div className="space-y-4 border-t border-border-subtle px-4 py-4">
+          {!isGlobal && programOptions.length > 0 && (
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
+                Programs
+              </div>
+              <div className="mt-2">
+                <ProgramFilterPanel
+                  options={programOptions}
+                  activeProgramIds={activeProgramIds}
+                  description="Filter restricts model scoring, the program breakdown table, and the scenario explorer to the selected outputs. Weights rescale to 100% over the active set; MAE averages absolute errors across active cells."
+                  onReset={onResetPrograms}
+                  onToggle={onToggleProgram}
+                  onSelectOnly={onSelectOnlyProgram}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <span
+              id="leaderboard-scoring-label"
+              className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+            >
+              Scoring
+            </span>
+            <div
+              role="group"
+              aria-labelledby="leaderboard-scoring-label"
+              className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+            >
+              {(
+                [
+                  [
+                    "exact",
+                    "Exact",
+                    `Percent of predictions that match the PolicyEngine reference within one ${currencyUnit} (eligibility flags match the boolean). Real-world policy decisions need this — close-but-not-right isn't deployable.`,
+                  ],
+                  [
+                    "within1pct",
+                    "Within 1%",
+                    "Percent of predictions within 1% of the reference. The analyst bar — rounding and small rate/parameter drift are tolerated, but material misses are not.",
+                  ],
+                  [
+                    "continuous",
+                    "Continuous",
+                    "Bounded continuous score: max(0, 1 - |prediction - reference| / |reference|), clipped to [0, 1], reducing to exact-match accuracy for boolean variables. Awards partial credit for close answers; useful for tracking conceptual progress while exact rates remain low.",
+                  ],
+                ] as const
+              ).map(([id, label, description]) => {
+                const isActive = scoringMode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setScoringMode(id)}
+                    aria-pressed={isActive}
+                    title={description}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                      isActive
+                        ? "bg-primary-strong text-white"
+                        : "text-text-secondary hover:text-text"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[11px] text-text-muted">
+              {scoringMode === "exact"
+                ? `Percent matching within ${currencySymbol}1.`
+                : scoringMode === "within1pct"
+                  ? "Percent within 1% of reference."
+                  : "Bounded score: 1 - |err| / |ref|, clipped to [0, 1]."}
+            </span>
+          </div>
+
+          {!isGlobal && (
+            <div className="flex flex-wrap items-center gap-3">
+              <span
+                id="leaderboard-refcases-label"
+                className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+              >
+                Reference cases
+              </span>
+              <div
+                role="group"
+                aria-labelledby="leaderboard-refcases-label"
+                className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+              >
+                {(
+                  [
+                    [
+                      "all",
+                      "All",
+                      "Every (model, scenario, variable) cell in the benchmark slice.",
+                    ],
+                    [
+                      "positives",
+                      "Positives only",
+                      "Restrict to cases where the PolicyEngine reference is non-zero (e.g., the household actually receives the benefit or owes the tax). Reveals competence on cases that matter, especially on zero-heavy slices like UK.",
+                    ],
+                    [
+                      "zeros",
+                      "Zeros only",
+                      "Restrict to cases where the PolicyEngine reference is zero (no benefit, no tax). Measures eligibility hedging — does the model correctly say zero when it should?",
+                    ],
+                  ] as const
+                ).map(([id, label, description]) => {
+                  const isActive = referenceFilter === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setReferenceFilter(id)}
+                      aria-pressed={isActive}
+                      title={description}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                        isActive
+                          ? "bg-primary-strong text-white"
+                          : "text-text-secondary hover:text-text"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="text-[11px] text-text-muted">
+                {referenceFilter === "all"
+                  ? "All reference cells."
+                  : referenceFilter === "positives"
+                    ? "Only cases where the reference is nonzero."
+                    : "Only cases where the reference is zero."}
+              </span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <span
+              id="leaderboard-view-label"
+              className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+            >
+              Weighting
+            </span>
+            <div
+              role="group"
+              aria-labelledby="leaderboard-view-label"
+              className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+            >
+              {SENSITIVITY_VIEWS.map((view) => {
+                const isActive = sensitivityView === view.id;
+                const supported =
+                  view.id === "household" ||
+                  viewSupportsSelected(dashboard, view.id, selectedView);
+                const disabled = !supported;
+                const disabledTitleSuffix = " (not available on this slice)";
+                return (
+                  <button
+                    key={view.id}
+                    type="button"
+                    aria-disabled={disabled || undefined}
+                    onClick={(event) => {
+                      if (disabled) {
+                        event.preventDefault();
+                        return;
+                      }
+                      setSensitivityView(view.id);
+                    }}
+                    aria-pressed={disabled ? undefined : isActive}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                      isActive && !disabled
+                        ? "bg-primary-strong text-white"
+                        : disabled
+                          ? "cursor-not-allowed text-text-muted line-through"
+                          : "text-text-secondary hover:text-text"
+                    }`}
+                    title={
+                      disabled
+                        ? `${view.description}${disabledTitleSuffix}`
+                        : view.description
+                    }
+                  >
+                    {view.label}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[11px] text-text-muted">
+              {activeView.description}
+            </span>
+          </div>
+          {sensitivityUnsupportedForView && (
+            <p className="text-[11px] text-text-muted">
+              The &ldquo;{
+                SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)?.label ??
+                  sensitivityView
+              }&rdquo; view is not available on this slice; the leaderboard
+              falls back to the Household view.
+            </p>
+          )}
+        </div>
+      </details>
+
       {weights && weightedVariables.length > 0 && weightsCountry && (
         <details
-          className="mt-8 group rounded-2xl border border-border bg-card/40 animate-fade-up"
-          style={{ animationDelay: "320ms" }}
+          className="mt-4 group rounded-2xl border border-border bg-card/40 animate-fade-up"
+          style={{ animationDelay: "340ms" }}
         >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs text-text-secondary hover:text-text">
             <span className="flex items-center gap-2">
