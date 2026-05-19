@@ -142,9 +142,11 @@ def _series_by_household(
     values: np.ndarray,
     household_ids: pd.Series,
 ) -> pd.Series:
-    return pd.Series(np.asarray(values, dtype=float), index=household_ids).groupby(
-        level=0
-    ).sum()
+    return (
+        pd.Series(np.asarray(values, dtype=float), index=household_ids)
+        .groupby(level=0)
+        .sum()
+    )
 
 
 def _us_population_contributions(year: int) -> dict[str, Any]:
@@ -257,12 +259,16 @@ def _aggregate_uk_to_households(
             sim.calculate(variable, period, map_to="benunit", unweighted=True),
             dtype=float,
         )
-        return pd.DataFrame(
-            {
-                "value": values.to_numpy(),
-                "household_id": benunit_households.reindex(benunit_ids).to_numpy(),
-            }
-        ).groupby("household_id")["value"].sum()
+        return (
+            pd.DataFrame(
+                {
+                    "value": values.to_numpy(),
+                    "household_id": benunit_households.reindex(benunit_ids).to_numpy(),
+                }
+            )
+            .groupby("household_id")["value"]
+            .sum()
+        )
     if entity_key == "household":
         values = pd.Series(
             sim.calculate(variable, period, map_to="household", unweighted=True),
@@ -282,21 +288,31 @@ def _uk_population_contributions(year: int) -> dict[str, Any]:
     household_ids = pd.Series(
         sim.calculate("household_id", period, map_to="household", unweighted=True)
     ).astype(int)
-    household_weight = pd.Series(
-        sim.calculate("household_weight", period, map_to="household", unweighted=True),
-        index=household_ids,
-        dtype=float,
-    ).groupby(level=0).sum()
-    household_net_income = pd.Series(
-        sim.calculate(
-            "household_net_income",
-            period,
-            map_to="household",
-            unweighted=True,
-        ),
-        index=household_ids,
-        dtype=float,
-    ).groupby(level=0).sum()
+    household_weight = (
+        pd.Series(
+            sim.calculate(
+                "household_weight", period, map_to="household", unweighted=True
+            ),
+            index=household_ids,
+            dtype=float,
+        )
+        .groupby(level=0)
+        .sum()
+    )
+    household_net_income = (
+        pd.Series(
+            sim.calculate(
+                "household_net_income",
+                period,
+                map_to="household",
+                unweighted=True,
+            ),
+            index=household_ids,
+            dtype=float,
+        )
+        .groupby(level=0)
+        .sum()
+    )
     person_household_ids = pd.Series(
         sim.calculate("person_household_id", period, map_to="person", unweighted=True)
     ).astype(int)
