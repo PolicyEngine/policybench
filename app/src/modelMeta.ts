@@ -37,7 +37,7 @@ export const MODEL_LABELS: Record<string, string> = {
   "gemini-3.1-pro-preview": "Gemini 3.1 Pro Preview",
   "gemini-3.5-flash": "Gemini 3.5 Flash",
   "gemini-3-flash-preview": "Gemini 3 Flash Preview",
-  "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash-Lite Preview",
+  "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash Lite Preview",
   "deepseek-v4-pro": "DeepSeek V4 Pro",
   "deepseek-v4-flash": "DeepSeek V4 Flash",
 };

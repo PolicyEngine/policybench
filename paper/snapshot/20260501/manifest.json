@@ -59,7 +59,7 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "710112bcf5a0d7fb87ca98dbefe3049c89183b43105c4a37ba2eec6fd436ca17"
+      "sha256": "8e9d876e697102054e78b0194bbfcb43386f5c1f69842ac792600883d5dcc257"
     },
     "web": {
       "path": "app/public/paper/web",
