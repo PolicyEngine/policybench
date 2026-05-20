@@ -141,7 +141,7 @@ div.csl-indent {
   </ul>
 </nav>
 <h2 id="abstract" class="anchored">Abstract</h2>
-<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and reports three complementary scores: a within-1% hit rate as the headline ranking metric, an exact-match rate as the deployability bar (predictions are graded only if they match the PolicyEngine reference to the dollar or to the eligibility flag), and a continuous bounded score that awards partial credit for close answers. The headline metric is within-1% rather than exact match because the panels are zero-inflated — 71% of UK reference outputs and 82% of US reference outputs are exact zeros — which compresses top-of-leaderboard exact-match rates near the share of zero cases a hedging model can predict and makes within-1% the more discriminating ranking on the positive-reference cases that drive quality differences. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-05-20), gpt-5.5 is top-scoring on within-1% in both country tables at 79.4 in the US and 59.0 in the UK. In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
+<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. The benchmark covers the United States and the United Kingdom, uses sampled US Enhanced Current Population Survey (CPS)-derived scenarios and a public UK calibrated transfer dataset, and reports three complementary scores: a within-1% hit rate as the headline ranking metric, an exact-match rate as the deployability bar (predictions are graded only if they match the PolicyEngine reference to the dollar or to the eligibility flag), and a continuous bounded score that awards partial credit for close answers. The headline metric is within-1% rather than exact match because the panels are zero-inflated — 71% of UK reference outputs and 82% of US reference outputs are exact zeros — which compresses top-of-leaderboard exact-match rates near the share of zero cases a hedging model can predict and makes within-1% the more discriminating ranking on the positive-reference cases that drive quality differences. The manuscript snapshot is a 100-household-per-country public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-05-20), GPT 5.5 is top-scoring on within-1% in both country tables at 79.4 in the US and 59.0 in the UK. In both countries, multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
 <h2 id="introduction" class="anchored">Introduction</h2>
 <p>Household tax-and-benefit estimation sits between arithmetic and policy discussion. Each case has numeric labels, but generating those labels requires filing status, household composition, income concepts, program thresholds, and jurisdiction-specific rules. PolicyBench measures whether models can map household records to those outputs.</p>
 <p>Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>, while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.</p>
@@ -403,6 +403,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 <tr class="header" style="text-align: right;">
 <th data-quarto-table-cell-role="th"></th>
 <th data-quarto-table-cell-role="th">Model</th>
+<th data-quarto-table-cell-role="th">PolicyBench ID</th>
 <th data-quarto-table-cell-role="th">Provider ID</th>
 <th data-quarto-table-cell-role="th">US parsed</th>
 <th data-quarto-table-cell-role="th">UK parsed</th>
@@ -413,6 +414,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 <tbody>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
+<td>Claude Haiku 4.5</td>
 <td>claude-haiku-4.5</td>
 <td>claude-haiku-4-5-20251001</td>
 <td>2,088/2,088</td>
@@ -422,6 +424,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
+<td>Claude Opus 4.7</td>
 <td>claude-opus-4.7</td>
 <td>claude-opus-4-7</td>
 <td>2,088/2,088</td>
@@ -431,6 +434,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
+<td>Claude Sonnet 4.6</td>
 <td>claude-sonnet-4.6</td>
 <td>claude-sonnet-4-6</td>
 <td>2,088/2,088</td>
@@ -440,6 +444,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
+<td>Gemini 3 Flash Preview</td>
 <td>gemini-3-flash-preview</td>
 <td>gemini/gemini-3-flash-preview</td>
 <td>2,088/2,088</td>
@@ -449,6 +454,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
+<td>Gemini 3.1 Flash Lite Preview</td>
 <td>gemini-3.1-flash-lite-preview</td>
 <td>gemini/gemini-3.1-flash-lite-preview</td>
 <td>2,088/2,088</td>
@@ -458,6 +464,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
+<td>Gemini 3.1 Pro Preview</td>
 <td>gemini-3.1-pro-preview</td>
 <td>gemini/gemini-3.1-pro-preview</td>
 <td>2,088/2,088</td>
@@ -467,6 +474,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
+<td>Gemini 3.5 Flash</td>
 <td>gemini-3.5-flash</td>
 <td>gemini/gemini-3.5-flash</td>
 <td>2,088/2,088</td>
@@ -476,6 +484,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
+<td>GPT 5.4 mini</td>
 <td>gpt-5.4-mini</td>
 <td>gpt-5.4-mini</td>
 <td>2,088/2,088</td>
@@ -485,6 +494,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">8</th>
+<td>GPT 5.4 nano</td>
 <td>gpt-5.4-nano</td>
 <td>gpt-5.4-nano</td>
 <td>2,088/2,088</td>
@@ -494,6 +504,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">9</th>
+<td>GPT 5.5</td>
 <td>gpt-5.5</td>
 <td>gpt-5.5</td>
 <td>2,088/2,088</td>
@@ -503,6 +514,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">10</th>
+<td>Grok 4.1 Fast</td>
 <td>grok-4.1-fast</td>
 <td>xai/grok-4-1-fast-non-reasoning</td>
 <td>2,088/2,088</td>
@@ -512,8 +524,19 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">11</th>
+<td>Grok 4.20</td>
 <td>grok-4.20</td>
 <td>xai/grok-4.20-reasoning</td>
+<td>2,088/2,088</td>
+<td>700/700</td>
+<td>provider structured-output schema; no external tool</td>
+<td>provider default; no model-specific prompt tuning</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">12</th>
+<td>Grok 4.3</td>
+<td>grok-4.3</td>
+<td>xai/grok-4.3</td>
 <td>2,088/2,088</td>
 <td>700/700</td>
 <td>provider structured-output schema; no external tool</td>
@@ -746,7 +769,7 @@ Table&nbsp;5: Exhaustive annotation coverage for scored misses in the frozen sna
 </div>
 <h2 id="results" class="anchored">Results</h2>
 <h3 id="united-states-leaderboard" class="anchored">United States leaderboard</h3>
-<p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;6</a>. The top three models in that snapshot are gpt-5.5 (79.4 within-1%, 76.9 exact, 93.5 bounded), grok-4.20 (77.6 within-1%, 76.7 exact, 92.3 bounded), and gemini-3.1-pro-preview (76.9 within-1%, 75.7 exact, 91.8 bounded).</p>
+<p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;6</a>. The top three models in that snapshot are GPT 5.5 (79.4 within-1%, 76.9 exact, 93.5 bounded), Grok 4.20 (77.6 within-1%, 76.7 exact, 92.3 bounded), and Gemini 3.1 Pro Preview (76.9 within-1%, 75.7 exact, 91.8 bounded).</p>
 <div class="cell" data-execution_count="7">
 <div id="tbl-us-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="7">
 <figure class="quarto-float quarto-float-tbl">
@@ -786,7 +809,7 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot.
 <tbody>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
-<td>gpt-5.5</td>
+<td>GPT 5.5</td>
 <td>79.4</td>
 <td>76.9</td>
 <td>88.9</td>
@@ -796,7 +819,7 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
-<td>grok-4.20</td>
+<td>Grok 4.20</td>
 <td>77.6</td>
 <td>76.7</td>
 <td>87.4</td>
@@ -806,7 +829,7 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
-<td>gemini-3.1-pro-preview</td>
+<td>Gemini 3.1 Pro Preview</td>
 <td>76.9</td>
 <td>75.7</td>
 <td>84.6</td>
@@ -816,7 +839,7 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>claude-sonnet-4.6</td>
+<td>Claude Sonnet 4.6</td>
 <td>76.8</td>
 <td>76.6</td>
 <td>86.6</td>
@@ -826,7 +849,7 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>gemini-3-flash-preview</td>
+<td>Gemini 3 Flash Preview</td>
 <td>76.2</td>
 <td>75.3</td>
 <td>83.9</td>
@@ -844,7 +867,7 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot.
 </div>
 </div>
 <h3 id="united-kingdom-leaderboard" class="anchored">United Kingdom leaderboard</h3>
-<p>The UK leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-uk-top" class="quarto-xref">Table&nbsp;7</a>. The top three models in that snapshot are gpt-5.5 (59.0 within-1%, 53.1 exact, 90.9 bounded), gemini-3.1-pro-preview (57.1 within-1%, 53.0 exact, 91.1 bounded), and claude-sonnet-4.6 (56.5 within-1%, 52.3 exact, 89.6 bounded).</p>
+<p>The UK leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-uk-top" class="quarto-xref">Table&nbsp;7</a>. The top three models in that snapshot are GPT 5.5 (59.0 within-1%, 53.1 exact, 90.9 bounded), Gemini 3.1 Pro Preview (57.1 within-1%, 53.0 exact, 91.1 bounded), and Claude Sonnet 4.6 (56.5 within-1%, 52.3 exact, 89.6 bounded).</p>
 <div class="cell" data-execution_count="8">
 <div id="tbl-uk-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="8">
 <figure class="quarto-float quarto-float-tbl">
@@ -884,7 +907,7 @@ Table&nbsp;7: Top UK benchmark models in the frozen manuscript snapshot.
 <tbody>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
-<td>gpt-5.5</td>
+<td>GPT 5.5</td>
 <td>59.0</td>
 <td>53.1</td>
 <td>82.4</td>
@@ -894,7 +917,7 @@ Table&nbsp;7: Top UK benchmark models in the frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
-<td>gemini-3.1-pro-preview</td>
+<td>Gemini 3.1 Pro Preview</td>
 <td>57.1</td>
 <td>53.0</td>
 <td>82.2</td>
@@ -904,7 +927,7 @@ Table&nbsp;7: Top UK benchmark models in the frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
-<td>claude-sonnet-4.6</td>
+<td>Claude Sonnet 4.6</td>
 <td>56.5</td>
 <td>52.3</td>
 <td>78.2</td>
@@ -914,7 +937,7 @@ Table&nbsp;7: Top UK benchmark models in the frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>gemini-3.5-flash</td>
+<td>Gemini 3.5 Flash</td>
 <td>56.2</td>
 <td>52.4</td>
 <td>77.8</td>
@@ -924,7 +947,7 @@ Table&nbsp;7: Top UK benchmark models in the frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>grok-4.20</td>
+<td>Grok 4.20</td>
 <td>55.7</td>
 <td>52.8</td>
 <td>80.9</td>
@@ -1038,97 +1061,97 @@ Table&nbsp;9: Leaderboard sensitivity to alternative scoring views.
 <th data-quarto-table-cell-role="th">0</th>
 <td>US</td>
 <td>Within-1% headline</td>
-<td>gpt-5.5 (79.4)</td>
-<td>grok-4.20 (77.6)</td>
-<td>gemini-3.1-pro-preview (76.9)</td>
+<td>GPT 5.5 (79.4)</td>
+<td>Grok 4.20 (77.6)</td>
+<td>Gemini 3.1 Pro Preview (76.9)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>US</td>
 <td>Bounded score</td>
-<td>gpt-5.5 (93.5)</td>
-<td>grok-4.20 (92.3)</td>
-<td>gemini-3.1-pro-preview (91.8)</td>
+<td>GPT 5.5 (93.5)</td>
+<td>Grok 4.20 (92.3)</td>
+<td>Gemini 3.1 Pro Preview (91.8)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>US</td>
 <td>Equal-output-group score</td>
-<td>gpt-5.5 (95.1)</td>
-<td>gemini-3.1-pro-preview (94.6)</td>
-<td>grok-4.20 (94.5)</td>
+<td>GPT 5.5 (95.1)</td>
+<td>Gemini 3.1 Pro Preview (94.6)</td>
+<td>Grok 4.20 (94.5)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>US</td>
 <td>Amount outputs only</td>
-<td>gpt-5.5 (93.8)</td>
-<td>grok-4.20 (92.0)</td>
-<td>gemini-3.1-pro-preview (92.0)</td>
+<td>GPT 5.5 (93.8)</td>
+<td>Grok 4.20 (92.0)</td>
+<td>Gemini 3.1 Pro Preview (92.0)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>US</td>
 <td>Positive reference cases only</td>
-<td>claude-opus-4.7 (76.7)</td>
-<td>gpt-5.5 (76.2)</td>
-<td>gemini-3.5-flash (75.9)</td>
+<td>Claude Opus 4.7 (76.7)</td>
+<td>GPT 5.5 (76.2)</td>
+<td>Gemini 3.5 Flash (75.9)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
 <td>US</td>
 <td>Zero reference cases only</td>
-<td>gemini-3.1-pro-preview (98.9)</td>
-<td>grok-4.20 (98.6)</td>
-<td>gpt-5.5 (98.3)</td>
+<td>Gemini 3.1 Pro Preview (98.9)</td>
+<td>Grok 4.20 (98.6)</td>
+<td>GPT 5.5 (98.3)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
 <td>UK</td>
 <td>Within-1% headline</td>
-<td>gpt-5.5 (59.0)</td>
-<td>gemini-3.1-pro-preview (57.1)</td>
-<td>claude-sonnet-4.6 (56.5)</td>
+<td>GPT 5.5 (59.0)</td>
+<td>Gemini 3.1 Pro Preview (57.1)</td>
+<td>Claude Sonnet 4.6 (56.5)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
 <td>UK</td>
 <td>Bounded score</td>
-<td>gemini-3.1-pro-preview (91.1)</td>
-<td>gpt-5.5 (90.9)</td>
-<td>grok-4.20 (90.0)</td>
+<td>Gemini 3.1 Pro Preview (91.1)</td>
+<td>GPT 5.5 (90.9)</td>
+<td>Grok 4.20 (90.0)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">8</th>
 <td>UK</td>
 <td>Equal-output-group score</td>
-<td>gpt-5.5 (95.4)</td>
-<td>gemini-3.1-pro-preview (94.5)</td>
-<td>claude-sonnet-4.6 (93.9)</td>
+<td>GPT 5.5 (95.4)</td>
+<td>Gemini 3.1 Pro Preview (94.5)</td>
+<td>Claude Sonnet 4.6 (93.9)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">9</th>
 <td>UK</td>
 <td>Amount outputs only</td>
-<td>gpt-5.5 (95.4)</td>
-<td>gemini-3.1-pro-preview (94.5)</td>
-<td>claude-sonnet-4.6 (93.9)</td>
+<td>GPT 5.5 (95.4)</td>
+<td>Gemini 3.1 Pro Preview (94.5)</td>
+<td>Claude Sonnet 4.6 (93.9)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">10</th>
 <td>UK</td>
 <td>Positive reference cases only</td>
-<td>gpt-5.5 (79.2)</td>
-<td>claude-sonnet-4.6 (75.0)</td>
-<td>gemini-3.5-flash (71.2)</td>
+<td>GPT 5.5 (79.2)</td>
+<td>Claude Sonnet 4.6 (75.0)</td>
+<td>Gemini 3.5 Flash (71.2)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">11</th>
 <td>UK</td>
 <td>Zero reference cases only</td>
-<td>gemini-3-flash-preview (99.2)</td>
-<td>grok-4.1-fast (99.2)</td>
-<td>gpt-5.5 (98.8)</td>
+<td>Gemini 3 Flash Preview (99.2)</td>
+<td>Grok 4.1 Fast (99.2)</td>
+<td>GPT 5.5 (98.8)</td>
 </tr>
 </tbody>
 </table>
@@ -1179,49 +1202,49 @@ Table&nbsp;10: Top country ranks under the bounded secondary metric across three
 <th data-quarto-table-cell-role="th">0</th>
 <td>US</td>
 <td>Household-weighted (default)</td>
-<td>gpt-5.5 (93.5)</td>
-<td>grok-4.20 (92.3)</td>
-<td>gemini-3.1-pro-preview (91.8)</td>
+<td>GPT 5.5 (93.5)</td>
+<td>Grok 4.20 (92.3)</td>
+<td>Gemini 3.1 Pro Preview (91.8)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>UK</td>
 <td>Household-weighted (default)</td>
-<td>gemini-3.1-pro-preview (91.1)</td>
-<td>gpt-5.5 (90.9)</td>
-<td>grok-4.20 (90.0)</td>
+<td>Gemini 3.1 Pro Preview (91.1)</td>
+<td>GPT 5.5 (90.9)</td>
+<td>Grok 4.20 (90.0)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>US</td>
 <td>Equal weights</td>
-<td>gpt-5.5 (95.1)</td>
-<td>grok-4.20 (94.5)</td>
-<td>gemini-3.1-pro-preview (94.3)</td>
+<td>GPT 5.5 (95.1)</td>
+<td>Grok 4.20 (94.5)</td>
+<td>Gemini 3.1 Pro Preview (94.3)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>UK</td>
 <td>Equal weights</td>
-<td>gpt-5.5 (95.4)</td>
-<td>gemini-3.1-pro-preview (94.5)</td>
-<td>claude-sonnet-4.6 (93.9)</td>
+<td>GPT 5.5 (95.4)</td>
+<td>Gemini 3.1 Pro Preview (94.5)</td>
+<td>Claude Sonnet 4.6 (93.9)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>US</td>
 <td>Budget-weighted</td>
-<td>gpt-5.5 (91.0)</td>
-<td>claude-opus-4.7 (87.9)</td>
-<td>claude-sonnet-4.6 (86.2)</td>
+<td>GPT 5.5 (91.0)</td>
+<td>Claude Opus 4.7 (87.9)</td>
+<td>Claude Sonnet 4.6 (86.2)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
 <td>UK</td>
 <td>Budget-weighted</td>
-<td>gemini-3.1-pro-preview (89.4)</td>
-<td>gpt-5.5 (89.0)</td>
-<td>claude-opus-4.7 (88.3)</td>
+<td>Gemini 3.1 Pro Preview (89.4)</td>
+<td>GPT 5.5 (89.0)</td>
+<td>Claude Opus 4.7 (88.3)</td>
 </tr>
 </tbody>
 </table>
@@ -1647,91 +1670,91 @@ Table&nbsp;15: US within-10% accuracy on federal vs state refundable credits and
 <tbody>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">9</th>
-<td>gpt-5.5</td>
+<td>GPT 5.5</td>
 <td>94.0</td>
 <td>82.0</td>
 <td>77.0</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
-<td>gemini-3.1-pro-preview</td>
+<td>Gemini 3.1 Pro Preview</td>
 <td>88.0</td>
 <td>83.0</td>
 <td>76.0</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">11</th>
-<td>grok-4.20</td>
+<td>Grok 4.20</td>
 <td>88.0</td>
 <td>83.0</td>
 <td>76.0</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
-<td>claude-opus-4.7</td>
+<td>Claude Opus 4.7</td>
 <td>87.0</td>
 <td>78.0</td>
 <td>71.0</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
-<td>claude-sonnet-4.6</td>
+<td>Claude Sonnet 4.6</td>
 <td>87.0</td>
 <td>80.0</td>
 <td>71.0</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">8</th>
-<td>gpt-5.4-nano</td>
+<td>GPT 5.4 nano</td>
 <td>79.0</td>
 <td>81.0</td>
 <td>71.0</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
-<td>gemini-3.5-flash</td>
+<td>Gemini 3.5 Flash</td>
 <td>78.0</td>
 <td>81.0</td>
 <td>69.0</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
-<td>gemini-3-flash-preview</td>
+<td>Gemini 3 Flash Preview</td>
 <td>77.0</td>
 <td>81.0</td>
 <td>66.0</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
-<td>gemini-3.1-flash-lite-preview</td>
+<td>Gemini 3.1 Flash Lite Preview</td>
 <td>75.0</td>
 <td>81.0</td>
 <td>66.0</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">12</th>
-<td>grok-4.3</td>
+<td>Grok 4.3</td>
 <td>75.0</td>
 <td>81.0</td>
 <td>66.0</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">7</th>
-<td>gpt-5.4-mini</td>
+<td>GPT 5.4 mini</td>
 <td>73.0</td>
 <td>81.0</td>
 <td>65.0</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">0</th>
-<td>claude-haiku-4.5</td>
+<td>Claude Haiku 4.5</td>
 <td>70.0</td>
 <td>81.0</td>
 <td>62.0</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">10</th>
-<td>grok-4.1-fast</td>
+<td>Grok 4.1 Fast</td>
 <td>65.0</td>
 <td>81.0</td>
 <td>57.0</td>
@@ -1761,7 +1784,7 @@ Table&nbsp;15: US within-10% accuracy on federal vs state refundable credits and
 </ul>
 <p>The current paper is therefore an evaluation of model performance under a specific structured-output benchmark, not a general certification of tax or benefit competence.</p>
 <h2 id="conclusion" class="anchored">Conclusion</h2>
-<p>PolicyBench shows a consistent pattern across both countries. Models often identify non-applicability, but positive tax and benefit amounts remain difficult, especially for multi-step income tax, payroll tax, National Insurance, and positive benefit cases. In the frozen manuscript snapshot, gpt-5.5 is the top-scoring model in both the US and UK.</p>
+<p>PolicyBench shows a consistent pattern across both countries. Models often identify non-applicability, but positive tax and benefit amounts remain difficult, especially for multi-step income tax, payroll tax, National Insurance, and positive benefit cases. In the frozen manuscript snapshot, GPT 5.5 is the top-scoring model in both the US and UK.</p>
 <p>These results support a narrow conclusion: unaided frontier models still struggle to reproduce selected household-level microsimulation outputs under a structured public benchmark. They do not show that models cannot assist policy analysis, and they do not validate PolicyEngine outputs as administrative truth. They suggest that future evaluations should separate no-tool estimation, tool-using system design, and reference-output validation more explicitly.</p>
 <p>Next steps are to expand country coverage, increase frozen sample sizes, improve UK data provenance, and add protected or rotating evaluation sets so that public rankings are less exposed to open-set leakage. The benchmark should also continue reporting sensitivity views, because country scores are useful summaries only when their weighting choices are visible.</p>
 <h2 id="appendix-a-structured-output-audit" class="anchored">Appendix A: Structured-output audit</h2>

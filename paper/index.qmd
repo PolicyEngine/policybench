@@ -83,6 +83,26 @@ def load_frozen_dashboard() -> dict:
 
 dashboard = load_frozen_dashboard()
 
+MODEL_DISPLAY_NAMES = {
+    "claude-haiku-4.5": "Claude Haiku 4.5",
+    "claude-opus-4.7": "Claude Opus 4.7",
+    "claude-sonnet-4.6": "Claude Sonnet 4.6",
+    "gemini-3-flash-preview": "Gemini 3 Flash Preview",
+    "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash Lite Preview",
+    "gemini-3.1-pro-preview": "Gemini 3.1 Pro Preview",
+    "gemini-3.5-flash": "Gemini 3.5 Flash",
+    "gpt-5.4-mini": "GPT 5.4 mini",
+    "gpt-5.4-nano": "GPT 5.4 nano",
+    "gpt-5.5": "GPT 5.5",
+    "grok-4.1-fast": "Grok 4.1 Fast",
+    "grok-4.20": "Grok 4.20",
+    "grok-4.3": "Grok 4.3",
+}
+
+
+def model_display_name(model_id: str) -> str:
+    return MODEL_DISPLAY_NAMES.get(str(model_id), str(model_id))
+
 
 def file_hash_prefix(path: str) -> str:
     return hashlib.sha256((ROOT / path).read_bytes()).hexdigest()[:12]
@@ -143,6 +163,7 @@ def model_table(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
         "n",
     ]
     subset = frame[cols].head(top_n).copy()
+    subset["model"] = subset["model"].map(model_display_name)
     subset.columns = [
         "Model",
         "Within 1% %",
@@ -228,7 +249,7 @@ def country_scores_from_rows(frame: pd.DataFrame) -> pd.DataFrame:
 
 def rank_cell(frame: pd.DataFrame, rank: int) -> str:
     row = frame.reset_index(drop=True).iloc[rank - 1]
-    return f"{row.model} ({row.score:.1f})"
+    return f"{model_display_name(row.model)} ({row.score:.1f})"
 
 
 def snapshot_run_paths() -> dict[str, Path]:
@@ -323,6 +344,7 @@ def federal_state_joint_accuracy() -> pd.DataFrame:
     summary["fed_hit"] = (summary["fed_hit"] * 100).round(1)
     summary["state_hit"] = (summary["state_hit"] * 100).round(1)
     summary["both_hit"] = (summary["both_hit"] * 100).round(1)
+    summary["model"] = summary["model"].map(model_display_name)
     summary.columns = [
         "Model",
         "Federal within 10%",
@@ -428,9 +450,9 @@ def impact_floor_sensitivity() -> pd.DataFrame:
                 {
                     "Country": country_label,
                     "Weighting": label,
-                    "Rank 1": f"{rank1.model} ({rank1.score:.1f})",
-                    "Rank 2": f"{rank2.model} ({rank2.score:.1f})",
-                    "Rank 3": f"{rank3.model} ({rank3.score:.1f})",
+                    "Rank 1": f"{model_display_name(rank1.model)} ({rank1.score:.1f})",
+                    "Rank 2": f"{model_display_name(rank2.model)} ({rank2.score:.1f})",
+                    "Rank 3": f"{model_display_name(rank3.model)} ({rank3.score:.1f})",
                 }
             )
     return pd.DataFrame(rows)
@@ -687,7 +709,7 @@ def sensitivity_rows() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def model_run_table(top_n: int = 12) -> pd.DataFrame:
+def model_run_table(top_n: int | None = None) -> pd.DataFrame:
     rows = []
     shared_models = sorted(set(us_model["model"]) & set(uk_model["model"]))
     for model in shared_models[:top_n]:
@@ -695,7 +717,8 @@ def model_run_table(top_n: int = 12) -> pd.DataFrame:
         uk_row = uk_model.loc[uk_model["model"] == model].iloc[0]
         rows.append(
             {
-                "Model": model,
+                "Model": model_display_name(model),
+                "PolicyBench ID": model,
                 "Provider ID": MODELS.get(model, "not in default registry"),
                 "US parsed": f"{int(us_row.nParsed):,}/{int(us_row.n):,}",
                 "UK parsed": f"{int(uk_row.nParsed):,}/{int(uk_row.n):,}",
@@ -737,14 +760,14 @@ def top_model_snapshot_summary(
     if us_row.model == uk_row.model:
         return (
             f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-            f"{us_row.model} is top-scoring on {metric} in both country tables "
+            f"{model_display_name(us_row.model)} is top-scoring on {metric} in both country tables "
             f"at {fmt_score(us_row.within1pct)} in the US and "
             f"{fmt_score(uk_row.within1pct)} in the UK."
         )
     return (
         f"In the frozen snapshot used for this manuscript ({SNAPSHOT_DATE}), "
-        f"the top US model on {metric} is {us_row.model} at "
-        f"{fmt_score(us_row.within1pct)}, the top UK model is {uk_row.model} "
+        f"the top US model on {metric} is {model_display_name(us_row.model)} at "
+        f"{fmt_score(us_row.within1pct)}, the top UK model is {model_display_name(uk_row.model)} "
         f"at {fmt_score(uk_row.within1pct)}."
     )
 
@@ -752,12 +775,12 @@ def top_model_snapshot_summary(
 def country_top_sentence(us_row: pd.Series, uk_row: pd.Series) -> str:
     if us_row.model == uk_row.model:
         return (
-            f"In the frozen manuscript snapshot, {us_row.model} is the "
+            f"In the frozen manuscript snapshot, {model_display_name(us_row.model)} is the "
             "top-scoring model in both the US and UK."
         )
     return (
-        f"In the frozen manuscript snapshot, {us_row.model} is the top-scoring "
-        f"US model and {uk_row.model} is the top-scoring UK model."
+        f"In the frozen manuscript snapshot, {model_display_name(us_row.model)} is the top-scoring "
+        f"US model and {model_display_name(uk_row.model)} is the top-scoring UK model."
     )
 
 
@@ -882,12 +905,12 @@ us_ranked = us_model.reset_index(drop=True)
 uk_ranked = uk_model.reset_index(drop=True)
 
 us_top_three = [
-    f"{row.model} ({fmt_score(row.within1pct)} within-1%, "
+    f"{model_display_name(row.model)} ({fmt_score(row.within1pct)} within-1%, "
     f"{fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
     for row in us_ranked.head(3).itertuples()
 ]
 uk_top_three = [
-    f"{row.model} ({fmt_score(row.within1pct)} within-1%, "
+    f"{model_display_name(row.model)} ({fmt_score(row.within1pct)} within-1%, "
     f"{fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
     for row in uk_ranked.head(3).itertuples()
 ]
