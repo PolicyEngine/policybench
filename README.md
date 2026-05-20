@@ -33,11 +33,13 @@ person-level eligibility, not as a dollar amount.
 ## Programs evaluated
 
 The current public release covers selected federal taxes, credits, benefits,
-health-related support, coverage labels, and state-tax outputs in the US, plus
-selected tax and transfer outputs in the UK. US federal income tax is scored as
-a compact decomposition: tax after nonrefundable credits and before refundable
-credits, plus refundable federal credits excluding the ACA Premium Tax Credit.
-The ACA Premium Tax Credit is scored separately as a health-related output.
+coverage labels, and state-tax outputs in the US, plus selected tax and transfer
+outputs in the UK. US federal income tax is scored as a compact decomposition:
+tax after nonrefundable credits and before refundable credits, plus refundable
+federal credits excluding the ACA Premium Tax Credit. The May 2026 source run
+requested ACA Premium Tax Credit responses, but they are excluded from the
+canonical scored leaderboard because explanation audits showed prompt ambiguity
+without plan-specific Marketplace information.
 
 ## Quick start
 

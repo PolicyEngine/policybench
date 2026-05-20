@@ -101,15 +101,15 @@ export default function ProgramHeatmap({
         style={{ animationDelay: "160ms" }}
       >
         Bounded score by program and model (AI alone, without tools). Dollar
-        targets average exact, within-1%, within-5%, and within-10% hit rates;
-        binary coverage flags use exact accuracy.
+        targets use continuous relative-error partial credit; binary coverage
+        flags use exact accuracy.
       </p>
 
       <ProgramFilterDropdown
         options={programOptions}
         activeProgramIds={activeProgramIds}
         summary={activeProgramSummary}
-        description="Shared with model scoring and scenarios. The table shows only selected outputs; model scores rescale selected weights to 100%."
+        description="Shared with model scoring. The scenario explorer remains unfiltered so each household's full prompt stays visible. The table shows only selected outputs; model scores rescale selected weights to 100%."
         onReset={onResetPrograms}
         onToggle={onToggleProgram}
         onSelectOnly={onSelectOnlyProgram}

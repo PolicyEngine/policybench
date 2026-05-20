@@ -9,7 +9,7 @@ from typing import Sequence
 
 import pandas as pd
 
-from policybench.analysis import score_single_prediction
+from policybench.analysis import binary_flag, threshold_score_single_prediction
 from policybench.annotation_taxonomy import infer_failure_category
 from policybench.full_run_export import load_annotations, load_predictions
 from policybench.spec import metric_type_for_output
@@ -109,7 +109,7 @@ def wrong_prediction_rows(country_dir: Path) -> pd.DataFrame:
     predictions = load_predictions(country_dir)
     merged = _expected_prediction_rows(reference, predictions)
     merged["score"] = [
-        score_single_prediction(variable, truth, prediction)
+        threshold_score_single_prediction(variable, truth, prediction)
         for variable, truth, prediction in zip(
             merged["variable"],
             merged["value"],
@@ -162,7 +162,12 @@ def _format_value(value: float, country: str, variable: str) -> str:
     if pd.isna(value):
         return "missing"
     if metric_type_for_output(variable) == "binary":
-        return "Yes" if round(float(value)) == 1 else "No"
+        flag = binary_flag(value)
+        if flag == 1:
+            return "Yes"
+        if flag == 0:
+            return "No"
+        return f"invalid flag ({float(value):g})"
     if country == "us":
         return f"${float(value):,.2f}"
     return f"GBP {float(value):,.2f}"

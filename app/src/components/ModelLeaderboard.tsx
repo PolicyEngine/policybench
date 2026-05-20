@@ -13,7 +13,11 @@ import {
   programIsActive,
   type ProgramOption,
 } from "../lib/programFilters";
-import { metricTypeForVariable, outputGroupForVariable } from "../lib/scoring";
+import {
+  binaryFlag,
+  metricTypeForVariable,
+  outputGroupForVariable,
+} from "../lib/scoring";
 import {
   SENSITIVITY_VIEWS,
   modelScoresForView,
@@ -157,7 +161,13 @@ export default function ModelLeaderboard({
     }
     const isBinary = metricTypeForVariable(variable, data.country) === "binary";
     if (isBinary) {
-      return Math.round(prediction) === Math.round(truth) ? 1 : 0;
+      const predictionFlag = binaryFlag(prediction);
+      const truthFlag = binaryFlag(truth);
+      return predictionFlag !== null &&
+        truthFlag !== null &&
+        predictionFlag === truthFlag
+        ? 1
+        : 0;
     }
     const absErr = Math.abs(prediction - truth);
     const exact = absErr <= 1 ? 1 : 0;
@@ -619,7 +629,7 @@ export default function ModelLeaderboard({
                 <ProgramFilterPanel
                   options={programOptions}
                   activeProgramIds={activeProgramIds}
-                  description="Filter restricts model scoring, the program breakdown table, and the scenario explorer to the selected outputs. Weights rescale to 100% over the active set."
+                  description="Filter restricts model scoring and the program breakdown table to the selected outputs. The scenario explorer remains unfiltered so each household's full prompt stays visible. Weights rescale to 100% over the active set."
                   onReset={onResetPrograms}
                   onToggle={onToggleProgram}
                   onSelectOnly={onSelectOnlyProgram}
@@ -655,7 +665,7 @@ export default function ModelLeaderboard({
                   [
                     "continuous",
                     "Continuous",
-                    "Bounded continuous score: max(0, 1 - |prediction - reference| / |reference|), clipped to [0, 1], reducing to exact-match accuracy for boolean variables. Awards partial credit for close answers; useful for tracking conceptual progress while exact rates remain low.",
+                    "Bounded score: amount outputs use max(0, 1 - |prediction - reference| / |reference|), clipped to [0, 1], with exact-zero handling when the reference is zero; boolean variables require exact 0/1 matching. Awards partial credit for close amount answers; useful for tracking conceptual progress while exact rates remain low.",
                   ],
                 ] as const
               ).map(([id, label, description]) => {
@@ -683,7 +693,7 @@ export default function ModelLeaderboard({
                 ? `Percent matching within ${currencySymbol}1.`
                 : scoringMode === "within1pct"
                   ? "Percent within 1% of reference."
-                  : "Bounded score: 1 - |err| / |ref|, clipped to [0, 1]."}
+                  : "Bounded score: relative-error partial credit for amounts; exact 0/1 matching for booleans."}
             </span>
           </div>
 

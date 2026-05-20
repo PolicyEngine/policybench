@@ -180,20 +180,24 @@ export default function Methodology({
           population household-impact weights. For each household-output row,
           the within-1% indicator is 1 when a currency answer is within 1% of
           the PolicyEngine reference value, with a one-currency-unit tolerance
-          when the reference is zero. Binary eligibility flags require an exact
-          0/1 match. The secondary bounded score uses{" "}
+          when the reference is zero. Binary eligibility flags are requested as
+          integer 0/1 outputs and require exact 0/1 matching. The secondary
+          bounded score uses{" "}
           <code>max(0, 1 − |pred − ref| / |ref|)</code> when the reference is
-          nonzero and exact zero matches when the reference is zero. Each full
-          source household&apos;s per-output share is{" "}
+          nonzero and exact zero matches when the reference is zero for amount
+          outputs, and the same exact 0/1 rule for binary outputs.
+          Each full source household&apos;s per-output share is{" "}
           <code>|ref| / max(|household_net_income|, Σ |ref|)</code>, a value in
           [0, 1] that&apos;s strictly less than one when net income dominates
           the gross tax-benefit flow and equals one only when programs cancel
           each other out. Those shares are averaged using calibrated household
-          weights in the full source population, then renormalized so the
+          weights in the full weighting population, then renormalized so the
           output weights sum to one. US weights use the full Enhanced CPS; UK
-          weights use the full enhanced FRS. The weights are then applied to
-          the fixed benchmark households and renormalized within each household
-          over requested outputs.
+          weights use the full enhanced FRS. This weighting source is separate
+          from the UK benchmark scenarios, which use the public calibrated
+          transfer dataset. The weights are then applied to the fixed benchmark
+          households and renormalized within each household over requested
+          outputs.
           {country === "us"
             ? " Person-level eligibility flags like Medicaid carry weight through PolicyEngine's paired per-capita value (e.g. medicaid_value), so the LLM is graded only on the boolean call itself."
             : " Person-level eligibility flags carry weight through PolicyEngine's paired per-capita value, so the LLM is graded only on the boolean call itself."}

@@ -165,13 +165,13 @@ def _build_us_traces_for_scenario(
 class _UKContext:
     """One-time setup for UK narrative generation.
 
-    The UK reference values are produced by the FRS-based microsimulation, not
-    a situation-based simulation, because UK ground-truth depends on the
-    dataset's benefit-unit and household relationships. To narrate using the
-    same numbers, we run the microsim once with the tracer on and slice each
-    trace node's vectorised array down to the rows that belong to a target
-    household — picking out the per-person, per-benunit, and per-household
-    values that contribute to the answer.
+    The UK reference values are produced by the public calibrated transfer
+    dataset microsimulation, not a situation-based simulation, because UK
+    reference outputs depend on the dataset's benefit-unit and household
+    relationships. To narrate using the same numbers, we run the microsim once
+    with the tracer on and slice each trace node's vectorised array down to the
+    rows that belong to a target household — picking out the per-person,
+    per-benunit, and per-household values that contribute to the answer.
     """
 
     def __init__(self, year: int):

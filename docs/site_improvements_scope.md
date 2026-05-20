@@ -34,7 +34,7 @@ honest open-set warning beyond the paper.
 open-set. The site does not. A casual visitor reads the leaderboard as a
 held-out evaluation. A small banner near the leaderboard header (`Sources
 released publicly. Open-set leaderboard — see methodology.`) plus a
-snapshot date pill (`Snapshot 2026-05-14`) close that gap.
+snapshot date pill (`Snapshot 2026-05-20`) close that gap.
 
 **Where.** `app/src/components/Hero.tsx` — add an `<OpenSetBadge />` next
 to the title or under the subtitle. `app/src/components/ModelLeaderboard.tsx`

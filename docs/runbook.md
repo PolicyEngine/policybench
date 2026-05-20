@@ -235,7 +235,11 @@ Then run verification before committing or deploying.
 
 ```bash
 uv run pytest -q
-cd app && npm run lint && npm run build
+cd app
+bun install --frozen-lockfile
+bun run lint
+bun test tests
+bun run build
 ```
 
 ## 7. Progress and Cost Check

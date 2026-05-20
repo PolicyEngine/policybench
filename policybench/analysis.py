@@ -38,12 +38,30 @@ def mean_absolute_percentage_error(y_true: np.ndarray, y_pred: np.ndarray) -> fl
     return float(np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])))
 
 
+def binary_flag(value: float) -> int | None:
+    """Return a valid parsed binary flag, or None for contract violations."""
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return None
+    if numeric_value == 0.0:
+        return 0
+    if numeric_value == 1.0:
+        return 1
+    return None
+
+
 def accuracy(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """Compute accuracy for binary predictions."""
-    # Round predictions to 0 or 1
-    y_pred_binary = np.round(y_pred).astype(int)
-    y_true_binary = np.round(y_true).astype(int)
-    return float(np.mean(y_true_binary == y_pred_binary))
+    matches = [
+        pred_flag is not None and true_flag is not None and pred_flag == true_flag
+        for true_flag, pred_flag in zip(
+            (binary_flag(value) for value in y_true),
+            (binary_flag(value) for value in y_pred),
+            strict=False,
+        )
+    ]
+    return float(np.mean(matches))
 
 
 def exact_amount_match(
@@ -142,6 +160,18 @@ def continuous_row_score(y_true: float, y_pred: float | None) -> float:
     return max(0.0, 1.0 - abs(pred - ref) / abs(ref))
 
 
+def bounded_row_score(variable: str, y_true: float, y_pred: float | None) -> float:
+    """Variable-aware bounded row score.
+
+    Amount outputs use the continuous relative-error score. Binary outputs use
+    exact 0/1 matching; non-0/1 numeric answers violate the response contract
+    and receive no credit.
+    """
+    if metric_type_for_output(variable) == "binary" or variable in BINARY_PROGRAMS:
+        return row_hit_scores(variable, y_true, y_pred)["exact"]
+    return continuous_row_score(y_true, y_pred)
+
+
 def row_hit_scores(
     variable: str,
     y_true: float,
@@ -176,7 +206,11 @@ def row_hit_scores(
 
     metric_type = metric_type_for_output(variable)
     if metric_type == "binary" or variable in BINARY_PROGRAMS:
-        hit = float(round(float(y_pred)) == round(float(y_true)))
+        true_flag = binary_flag(y_true)
+        pred_flag = binary_flag(y_pred)
+        hit = float(
+            true_flag is not None and pred_flag is not None and pred_flag == true_flag
+        )
         return {
             "exact": hit,
             "within_1pct": hit,
@@ -377,8 +411,13 @@ def bounded_household_scores(
         how="left",
     )
     merged["row_score"] = [
-        continuous_row_score(t, p)
-        for t, p in zip(merged["value"], merged["prediction"])
+        bounded_row_score(variable, t, p)
+        for variable, t, p in zip(
+            merged["variable"],
+            merged["value"],
+            merged["prediction"],
+            strict=True,
+        )
     ]
     merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
     merged["weight"] = merged["weight"].fillna(0.0)
@@ -540,8 +579,13 @@ def amount_accuracy_by_model(
         how="left",
     )
     merged["row_score"] = [
-        continuous_row_score(t, p)
-        for t, p in zip(merged["value"], merged["prediction"])
+        bounded_row_score(variable, t, p)
+        for variable, t, p in zip(
+            merged["variable"],
+            merged["value"],
+            merged["prediction"],
+            strict=True,
+        )
     ]
     merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
     merged["weight"] = merged["weight"].fillna(0.0)
@@ -596,8 +640,13 @@ def _weighted_household_scores(
         how="left",
     )
     merged["row_score"] = [
-        continuous_row_score(t, p)
-        for t, p in zip(merged["value"], merged["prediction"])
+        bounded_row_score(variable, t, p)
+        for variable, t, p in zip(
+            merged["variable"],
+            merged["value"],
+            merged["prediction"],
+            strict=True,
+        )
     ]
     merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
     merged["weight"] = merged["weight"].fillna(0.0)
@@ -714,7 +763,8 @@ def participation_accuracy_by_model(
     """Participation accuracy: cell-level binary check.
 
     For amount cells: a match means ``(pred == 0)`` iff ``(ref == 0)``.
-    For boolean cells: a match means ``pred == ref`` exactly (encoded 0/1).
+    For boolean cells: a match means the parsed prediction is exactly the same
+    0/1 flag as the reference.
     Reported as a fraction of all cells (across all scenarios and variables).
     """
     if ground_truth.empty or predictions.empty:
@@ -748,7 +798,13 @@ def participation_accuracy_by_model(
         if pred is None or pd.isna(pred):
             return False
         if row["is_binary"]:
-            return float(pred) == float(ref)
+            pred_flag = binary_flag(pred)
+            ref_flag = binary_flag(ref)
+            return (
+                pred_flag is not None
+                and ref_flag is not None
+                and pred_flag == ref_flag
+            )
         return (float(ref) == 0.0) == (float(pred) == 0.0)
 
     merged["match"] = merged.apply(_match, axis=1)
@@ -765,7 +821,16 @@ def score_single_prediction(
     y_true: float,
     y_pred: float | None,
 ) -> float:
-    """Score one prediction on the same 0-1 bounded scale used in aggregates."""
+    """Score one prediction using the bounded continuous row score."""
+    return bounded_row_score(variable, y_true, y_pred)
+
+
+def threshold_score_single_prediction(
+    variable: str,
+    y_true: float,
+    y_pred: float | None,
+) -> float:
+    """Average exact and tolerance hit indicators for one prediction."""
     return row_hit_scores(variable, y_true, y_pred)["threshold_score"]
 
 
@@ -997,6 +1062,12 @@ def _prediction_detail_rows(
                 "parsed",
                 "error",
                 "score",
+                "bounded_score",
+                "threshold_score",
+                "exact",
+                "within_1pct",
+                "within_5pct",
+                "within_10pct",
                 "annotation",
                 "failure_source",
                 "failure_subtype",
@@ -1057,8 +1128,25 @@ def _prediction_detail_rows(
         merged["prediction"] - merged["value"],
         np.nan,
     )
-    merged["score"] = [
-        score_single_prediction(variable, y_true, y_pred)
+    hit_scores = [
+        row_hit_scores(variable, y_true, y_pred)
+        for variable, y_true, y_pred in zip(
+            merged["variable"],
+            merged["value"],
+            merged["prediction"],
+            strict=True,
+        )
+    ]
+    for column in [
+        "exact",
+        "within_1pct",
+        "within_5pct",
+        "within_10pct",
+        "threshold_score",
+    ]:
+        merged[column] = [score[column] for score in hit_scores]
+    merged["bounded_score"] = [
+        bounded_row_score(variable, y_true, y_pred)
         for variable, y_true, y_pred in zip(
             merged["variable"],
             merged["value"],
@@ -1120,6 +1208,7 @@ def compute_metrics(
             row["within_1pct"] = 0.0
             row["within_5pct"] = 0.0
             row["within_10pct"] = 0.0
+            row["threshold_score"] = 0.0
             row["score"] = 0.0
             rows.append(row)
             continue
@@ -1137,6 +1226,7 @@ def compute_metrics(
             row["within_1pct"] = accuracy_score
             row["within_5pct"] = accuracy_score
             row["within_10pct"] = accuracy_score
+            row["threshold_score"] = accuracy_score
             row["score"] = accuracy_score
         else:
             exact = (
@@ -1152,9 +1242,17 @@ def compute_metrics(
             row["within_1pct"] = within_1pct
             row["within_5pct"] = within_5pct
             row["within_10pct"] = within_10pct
-            row["score"] = float(
+            row["threshold_score"] = float(
                 np.mean([exact, within_1pct, within_5pct, within_10pct])
             )
+            row["score"] = float(
+                np.mean(
+                    [
+                        bounded_row_score(variable, truth, pred)
+                        for truth, pred in zip(y_true, y_pred, strict=True)
+                    ]
+                )
+            ) * coverage
 
         rows.append(row)
 
@@ -1170,6 +1268,7 @@ def summary_by_model(metrics: pd.DataFrame) -> pd.DataFrame:
             mean_exact=("exact", "mean"),
             mean_within_1pct=("within_1pct", "mean"),
             mean_within_5pct=("within_5pct", "mean"),
+            mean_threshold_score=("threshold_score", "mean"),
             mean_mae=("mae", "mean"),
             mean_mape=("mape", "mean"),
             mean_within_10pct=("within_10pct", "mean"),
@@ -1191,6 +1290,7 @@ def summary_by_variable(metrics: pd.DataFrame) -> pd.DataFrame:
             mean_exact=("exact", "mean"),
             mean_within_1pct=("within_1pct", "mean"),
             mean_within_5pct=("within_5pct", "mean"),
+            mean_threshold_score=("threshold_score", "mean"),
             mean_mae=("mae", "mean"),
             mean_mape=("mape", "mean"),
             mean_within_10pct=("within_10pct", "mean"),
@@ -1419,15 +1519,22 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
     ]
 
     if not model_summary.empty:
-        primary_summary = impact_summary if not impact_summary.empty else model_summary
-        top_model = primary_summary.iloc[0]
-        if not impact_summary.empty:
+        top_model = model_summary.iloc[0]
+        if "bounded_score" in top_model.index and not pd.isna(
+            top_model.get("bounded_score")
+        ):
             headline = (
                 f"Top model: `{top_model['model']}` with "
-                f"`mean_impact_score="
-                f"{_format_metric(top_model['mean_impact_score'])}` "
-                "(household-equal impact score)."
+                f"`bounded_score={_format_metric(top_model['bounded_score'])}`"
             )
+            if "weighted_within_1pct" in top_model.index and not pd.isna(
+                top_model.get("weighted_within_1pct")
+            ):
+                headline += (
+                    f" and `within_1pct="
+                    f"{_format_metric(top_model['weighted_within_1pct'])}`"
+                )
+            headline += "."
         else:
             headline = (
                 f"Top model: `{top_model['model']}` with "
@@ -1568,13 +1675,18 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
                 "## Population household-impact weights (headline)",
                 "",
                 "Households receive equal weight. The score is a weighted "
-                "average of continuous row scores. Canonical country reports "
-                "use full-population output-group weights: US weights come "
+                "average of row scores: relative-error partial credit for "
+                "amount outputs and exact 0/1 matching for binary outputs. "
+                "Canonical country reports use full-population "
+                "output-group weights: US weights come "
                 "from the full Enhanced CPS, UK weights from the full enhanced "
                 "FRS. Each output group's weight is the household-weighted "
                 "mean of "
                 "`|ref_ij| / max(|household_net_income_i|, sum_k |ref_ik|)` "
-                "in the source population, renormalized so weights sum to 1.",
+                "in the full weighting population, renormalized so weights "
+                "sum to 1. This weighting source is separate from the UK "
+                "benchmark scenario source, which remains the public calibrated "
+                "transfer dataset.",
                 "",
                 "| model | bounded_score | amount_accuracy | participation_accuracy |",
                 "| --- | ---: | ---: | ---: |",
@@ -1793,7 +1905,11 @@ def _row_is_correct(row: pd.Series) -> bool:
         metric_type_for_output(row["variable"]) == "binary"
         or row["variable"] in BINARY_PROGRAMS
     ):
-        return bool(round(row["prediction"]) == round(row["value"]))
+        pred_flag = binary_flag(row["prediction"])
+        ref_flag = binary_flag(row["value"])
+        return bool(
+            pred_flag is not None and ref_flag is not None and pred_flag == ref_flag
+        )
     if row["value"] == 0:
         return bool(abs(row["prediction"]) <= 1.0)
     return bool(abs(row["prediction"] - row["value"]) / abs(row["value"]) <= 0.10)
@@ -2138,6 +2254,7 @@ def build_dashboard_payload(
             "exact": float(group["exact"].mean() * 100),
             "within1pct": float(group["within_1pct"].mean() * 100),
             "within5pct": float(group["within_5pct"].mean() * 100),
+            "thresholdScore": float(group["threshold_score"].mean() * 100),
             "mae": float(group["mae"].mean()),
             "n": int(group["n"].sum()),
             "nParsed": int(group["n_parsed"].sum()),
@@ -2167,6 +2284,7 @@ def build_dashboard_payload(
             "exact": float(row["exact"] * 100),
             "within1pct": float(row["within_1pct"] * 100),
             "within5pct": float(row["within_5pct"] * 100),
+            "thresholdScore": float(row["threshold_score"] * 100),
             "mae": float(row["mae"]),
             "n": int(row["n"]),
             "nParsed": int(row["n_parsed"]),
@@ -2187,7 +2305,13 @@ def build_dashboard_payload(
             "groundTruth": _clean_json_number(row["value"]),
             "error": _clean_json_number(row["error"]),
             "parsed": bool(row["parsed"]),
-            "score": _clean_json_number(row["score"] * 100),
+            "score": _clean_json_number(row["bounded_score"] * 100),
+            "boundedScore": _clean_json_number(row["bounded_score"] * 100),
+            "thresholdScore": _clean_json_number(row["threshold_score"] * 100),
+            "exact": _clean_json_number(row["exact"] * 100),
+            "within1pct": _clean_json_number(row["within_1pct"] * 100),
+            "within5pct": _clean_json_number(row["within_5pct"] * 100),
+            "within10pct": _clean_json_number(row["within_10pct"] * 100),
         }
         explanation = row.get("explanation")
         if isinstance(explanation, str) and explanation.strip():
@@ -2205,21 +2329,21 @@ def build_dashboard_payload(
         if (
             isinstance(case_annotation, str)
             and case_annotation.strip()
-            and row["score"] < 1
+            and row["threshold_score"] < 1
         ):
             prediction_item["caseAnnotation"] = case_annotation.strip()
         case_failure_sources = row.get("case_failure_sources")
         if (
             isinstance(case_failure_sources, str)
             and case_failure_sources.strip()
-            and row["score"] < 1
+            and row["threshold_score"] < 1
         ):
             prediction_item["caseFailureSources"] = case_failure_sources.strip()
         case_failure_subtypes = row.get("case_failure_subtypes")
         if (
             isinstance(case_failure_subtypes, str)
             and case_failure_subtypes.strip()
-            and row["score"] < 1
+            and row["threshold_score"] < 1
         ):
             prediction_item["caseFailureSubtypes"] = case_failure_subtypes.strip()
         prediction_error = _clean_json_text(row.get("prediction_error"))

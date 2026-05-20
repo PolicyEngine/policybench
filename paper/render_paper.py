@@ -250,7 +250,7 @@ def main() -> None:
         raise SystemExit(
             "Missing PolicyEngine design tokens. Checked "
             f"{', '.join(str(path) for path in DESIGN_SYSTEM_TOKEN_CANDIDATES)}. "
-            "Run `bun install` in app first."
+            "Run `bun install --frozen-lockfile` in app first."
         )
     copy_if_exists(design_system_tokens, PAPER_DIR / "pe-tokens.css")
 

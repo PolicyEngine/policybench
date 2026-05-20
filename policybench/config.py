@@ -36,6 +36,7 @@ MODELS = {
     "gpt-5.4-mini": "gpt-5.4-mini",
     "gpt-5.4-nano": "gpt-5.4-nano",
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
+    "gemini-3.5-flash": "gemini/gemini-3.5-flash",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",

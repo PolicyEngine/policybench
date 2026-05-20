@@ -19,7 +19,7 @@ type ProgramFilterDropdownProps = SharedProps & {
  *
  * Used directly inside the leaderboard's unified "Options" disclosure, and
  * wrapped in a standalone `<details>` by ``ProgramFilterDropdown`` for the
- * heatmap and scenario sections.
+ * program heatmap.
  */
 export function ProgramFilterPanel({
   options,
@@ -85,9 +85,9 @@ export function ProgramFilterPanel({
 
 /** Standalone disclosure around ``ProgramFilterPanel``.
  *
- * Used in the program heatmap and scenario explorer, where the program filter
- * is the only adjustable control. The leaderboard collapses this into its
- * unified "Options" disclosure instead.
+ * Used in the program heatmap, where the program filter is the only adjustable
+ * control. The leaderboard collapses this into its unified "Options"
+ * disclosure instead.
  */
 export default function ProgramFilterDropdown({
   options,

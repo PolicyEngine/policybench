@@ -5,8 +5,10 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from policybench.annotation_validation import validate_snapshot_audit
+from policybench.spec import output_group_id
 
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
@@ -30,6 +32,14 @@ def test_snapshot_manifest_hashes_match_committed_artifacts():
     assert artifacts
     for filename, expected_hash in artifacts.items():
         _assert_hash(SNAPSHOT_DIR / filename, expected_hash)
+
+
+def test_snapshot_manifest_hashes_match_top_level_files():
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    files = manifest["files"]
+    assert files
+    for artifact in files:
+        _assert_hash(SNAPSHOT_DIR / artifact["path"], artifact["sha256"])
 
 
 def test_snapshot_manifest_hashes_match_source_run_artifacts():
@@ -96,6 +106,85 @@ def _snapshot_country_payloads(manifest: dict) -> dict[str, dict]:
         run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
         payloads[country] = json.loads((run_dir / "data.json").read_text())
     return payloads
+
+
+def test_committed_app_payload_matches_frozen_source_run_export():
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    expected_payload = {"countries": _snapshot_country_payloads(manifest)}
+    app_payload = json.loads((ROOT / "app" / "src" / "data.json").read_text())
+
+    assert app_payload == expected_payload
+
+
+def _aggregate_scenario_metric(country_payload: dict, metric: str) -> dict[str, float]:
+    """Mirror the app/Python household-normalized row aggregation."""
+    output_weights = country_payload["globalWeights"]["household"]
+    grouped_weights = {}
+    for variable, weight in output_weights.items():
+        group = output_group_id(variable)
+        grouped_weights[group] = grouped_weights.get(group, 0.0) + weight
+    totals: dict[str, dict[str, float]] = {}
+    for variable_map in country_payload["scenarioPredictions"].values():
+        variables = [
+            (variable, model_map)
+            for variable, model_map in variable_map.items()
+            if output_group_id(variable) in grouped_weights
+        ]
+        group_counts: dict[str, int] = {}
+        for variable, _ in variables:
+            group = output_group_id(variable)
+            group_counts[group] = group_counts.get(group, 0) + 1
+        raw_row_weights = {}
+        denominator = 0.0
+        for variable, _ in variables:
+            group = output_group_id(variable)
+            raw_weight = grouped_weights[group] / group_counts[group]
+            raw_row_weights[variable] = raw_weight
+            denominator += raw_weight
+        if denominator <= 0:
+            continue
+
+        models = {model for _, model_map in variables for model in model_map}
+        for model in models:
+            household_score = 0.0
+            for variable, model_map in variables:
+                row = model_map[model]
+                household_score += (
+                    raw_row_weights[variable] / denominator
+                ) * row[metric]
+            entry = totals.setdefault(model, {"score": 0.0, "households": 0.0})
+            entry["score"] += household_score
+            entry["households"] += 1
+
+    return {
+        model: entry["score"] / entry["households"]
+        for model, entry in totals.items()
+    }
+
+
+def test_scenario_row_scores_reproduce_committed_model_stats():
+    app_payload = json.loads((ROOT / "app" / "src" / "data.json").read_text())
+
+    metric_pairs = {
+        "score": "score",
+        "exact": "exact",
+        "within1pct": "within1pct",
+        "within5pct": "within5pct",
+        "within10pct": "within10pct",
+    }
+    for country_payload in app_payload["countries"].values():
+        model_stats = {
+            row["model"]: row
+            for row in country_payload["modelStats"]
+            if row["condition"] == "no_tools"
+        }
+        for row_metric, model_metric in metric_pairs.items():
+            aggregated = _aggregate_scenario_metric(country_payload, row_metric)
+            for model, score in aggregated.items():
+                assert score == pytest.approx(
+                    model_stats[model][model_metric],
+                    abs=1e-9,
+                )
 
 
 def _prompt_payload_sha256(country_payload: dict) -> str:
@@ -166,12 +255,12 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_wrong_rows = {
-        "us": 3_752,
-        "uk": 2_524,
+        "us": 4_039,
+        "uk": 2_732,
     }
     expected_sources = {
-        "us": {"llm_error": 3_752},
-        "uk": {"llm_error": 2_524},
+        "us": {"llm_error": 4_039},
+        "uk": {"llm_error": 2_732},
     }
 
     for country in ["us", "uk"]:

@@ -10,7 +10,7 @@ PolicyBench evaluates whether frontier language models can estimate household
 tax and benefit outputs from household facts without tools. The canonical
 manuscript is maintained in [`paper/index.qmd`](https://github.com/PolicyEngine/policybench/blob/main/paper/index.qmd)
 and rendered to [`app/public/paper/policybench.pdf`](https://policybench.org/paper/policybench.pdf)
-and [`app/public/paper/web/`](https://policybench.org/paper/).
+and [`app/public/paper/web/`](https://policybench.org/paper/web/).
 
 This documentation site is a thin index for operational material that does
 not belong in the manuscript:

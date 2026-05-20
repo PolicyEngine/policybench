@@ -12,6 +12,12 @@ export type ScoreRow = {
   score: number;
 };
 
+export function binaryFlag(value: number): 0 | 1 | null {
+  if (value === 0) return 0;
+  if (value === 1) return 1;
+  return null;
+}
+
 const PERSON_OUTPUT_PREFIXES = [
   "head",
   "spouse",
@@ -62,17 +68,6 @@ export function metricTypeForVariable(
   return "amount";
 }
 
-function within(truth: number, prediction: number, tolerance: number): number {
-  if (truth === 0) {
-    return Math.abs(prediction) <= 1.0 ? 1 : 0;
-  }
-  return Math.abs(prediction - truth) / Math.abs(truth) <= tolerance ? 1 : 0;
-}
-
-function exactAmount(truth: number, prediction: number): number {
-  return Math.abs(prediction - truth) <= 1.0 ? 1 : 0;
-}
-
 export function scorePrediction(
   variable: string,
   country: CountryCode,
@@ -84,13 +79,16 @@ export function scorePrediction(
   }
   const metricType = metricTypeForVariable(variable, country);
   if (metricType === "binary") {
-    return Math.round(prediction) === Math.round(truth) ? 1 : 0;
+    const predictionFlag = binaryFlag(prediction);
+    const truthFlag = binaryFlag(truth);
+    return predictionFlag !== null &&
+      truthFlag !== null &&
+      predictionFlag === truthFlag
+      ? 1
+      : 0;
   }
-  const exact = exactAmount(truth, prediction);
-  const w1 = within(truth, prediction, 0.01);
-  const w5 = within(truth, prediction, 0.05);
-  const w10 = within(truth, prediction, 0.1);
-  return (exact + w1 + w5 + w10) / 4;
+  if (truth === 0) return prediction === 0 ? 1 : 0;
+  return Math.max(0, 1 - Math.abs(prediction - truth) / Math.abs(truth));
 }
 
 // Touch the prefix/suffix tables so a future test can verify coverage.

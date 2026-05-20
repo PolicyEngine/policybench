@@ -12,6 +12,7 @@ from policybench.analysis import (
     analyze_no_tools,
     bounded_global_variable_weights,
     bounded_household_scores,
+    bounded_row_score,
     build_dashboard_payload,
     build_scenario_prompt_map,
     compute_metrics,
@@ -31,6 +32,7 @@ from policybench.analysis import (
     summarize_runs_by_model,
     summary_by_model,
     summary_by_variable,
+    threshold_score_single_prediction,
     usage_summary_by_model,
     weighted_hit_rate_scores_by_model,
     within_tolerance,
@@ -107,9 +109,25 @@ class TestBasicMetrics:
         assert exact_amount_match(y_true, y_pred) == pytest.approx(2 / 3)
 
     def test_score_single_prediction_uses_bounded_amount_score(self):
-        assert score_single_prediction("income_tax", 100.0, 100.5) == pytest.approx(1.0)
-        assert score_single_prediction("income_tax", 100.0, 104.0) == pytest.approx(0.5)
+        assert score_single_prediction("income_tax", 100.0, 100.5) == pytest.approx(
+            0.995
+        )
+        assert score_single_prediction("income_tax", 100.0, 104.0) == pytest.approx(
+            0.96
+        )
         assert score_single_prediction("income_tax", 100.0, None) == 0.0
+        assert threshold_score_single_prediction(
+            "income_tax",
+            100.0,
+            104.0,
+        ) == pytest.approx(0.5)
+
+    def test_bounded_row_score_requires_exact_binary_flags(self):
+        assert bounded_row_score("head_medicaid_eligible", 1.0, 1.0) == 1.0
+        assert bounded_row_score("head_medicaid_eligible", 1.0, 0.6) == 0.0
+        assert bounded_row_score("head_medicaid_eligible", 1.0, 0.5) == 0.0
+        assert bounded_row_score("head_medicaid_eligible", 0.0, 0.5) == 0.0
+        assert bounded_row_score("head_medicaid_eligible", 1.0, 0.4) == 0.0
 
 
 class TestComputeMetrics:
@@ -252,7 +270,7 @@ class TestComputeMetrics:
         assert eitc_row["coverage"] == 0.0
         assert eitc_row["score"] == 0.0
 
-    def test_compute_metrics_score_averages_thresholds(self):
+    def test_compute_metrics_score_uses_bounded_continuous_score(self):
         ground_truth_df = pd.DataFrame(
             {
                 "scenario_id": ["s1", "s2", "s3", "s4"],
@@ -276,7 +294,8 @@ class TestComputeMetrics:
         assert row["within_1pct"] == pytest.approx(0.5)
         assert row["within_5pct"] == pytest.approx(0.75)
         assert row["within_10pct"] == pytest.approx(0.75)
-        assert row["score"] == pytest.approx(0.625)
+        assert row["threshold_score"] == pytest.approx(0.625)
+        assert row["score"] == pytest.approx((1 + 0.995 + 0.96 + 0.88) / 4)
 
 
 class TestSummaries:
@@ -290,6 +309,7 @@ class TestSummaries:
                 "exact": [0.3, 0.6, 0.2, 0.3],
                 "within_1pct": [0.4, 0.7, 0.3, 0.4],
                 "within_5pct": [0.6, 0.8, 0.4, 0.5],
+                "threshold_score": [0.45, 0.75, 0.35, 0.50],
                 "mae": [500.0, 300.0, 1000.0, 800.0],
                 "mape": [0.10, 0.05, 0.20, 0.15],
                 "accuracy": [float("nan")] * 4,
@@ -743,10 +763,30 @@ class TestSummaries:
         assert "score" in payload["modelStats"][0]
         assert "within10pctRunMean" not in payload["modelStats"][0]
         assert payload["heatmap"][0]["condition"] == "no_tools"
+        income_program = next(
+            row
+            for row in payload["programStats"]
+            if row["variable"] == "income_tax"
+        )
+        assert income_program["score"] == pytest.approx(92.5)
+        assert income_program["thresholdScore"] == pytest.approx(37.5)
+        income_heatmap = next(
+            row for row in payload["heatmap"] if row["variable"] == "income_tax"
+        )
+        assert income_heatmap["score"] == pytest.approx(92.5)
+        assert income_heatmap["thresholdScore"] == pytest.approx(37.5)
         assert (
             payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]["prediction"]
             == 110.0
         )
+        scored = payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]
+        assert scored["score"] == pytest.approx(90.0)
+        assert scored["boundedScore"] == pytest.approx(90.0)
+        assert scored["thresholdScore"] == pytest.approx(25.0)
+        assert scored["exact"] == 0.0
+        assert scored["within1pct"] == 0.0
+        assert scored["within5pct"] == 0.0
+        assert scored["within10pct"] == 100.0
         assert (
             payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]["explanation"]
             == "brief note"
@@ -829,14 +869,21 @@ class TestSummaries:
         assert parsed["parsed"] is True
         assert parsed["prediction"] == 100.0
         assert parsed["score"] == 100.0
+        assert parsed["boundedScore"] == 100.0
+        assert parsed["thresholdScore"] == 100.0
+        assert parsed["exact"] == 100.0
         assert unparseable["parsed"] is False
         assert unparseable["prediction"] is None
         assert unparseable["error"] is None
         assert unparseable["score"] == 0.0
+        assert unparseable["boundedScore"] == 0.0
+        assert unparseable["thresholdScore"] == 0.0
         assert unparseable["predictionError"] == "could not parse numeric answer"
         assert missing["parsed"] is False
         assert missing["prediction"] is None
         assert missing["score"] == 0.0
+        assert missing["boundedScore"] == 0.0
+        assert missing["thresholdScore"] == 0.0
 
     def test_analyze_no_tools_merges_run_stability(self):
         ground_truth_df = pd.DataFrame(
@@ -1421,6 +1468,35 @@ class TestAmountAndParticipationAccuracy:
         assert out.loc[out["model"] == "m1", "participation_accuracy"].iloc[
             0
         ] == pytest.approx(1 / 3)
+
+    def test_participation_requires_exact_binary_flags(self):
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s1"],
+                "variable": [
+                    "person_medicaid_eligible",
+                    "person_chip_eligible",
+                ],
+                "value": [1.0, 0.0],
+                "impact_weight": [8000.0, 5000.0],
+            }
+        )
+        preds = pd.DataFrame(
+            {
+                "model": ["m1", "m1"],
+                "scenario_id": ["s1", "s1"],
+                "variable": [
+                    "person_medicaid_eligible",
+                    "person_chip_eligible",
+                ],
+                "prediction": [1.0, 0.5],
+            }
+        )
+
+        out = participation_accuracy_by_model(gt, preds)
+        assert out.loc[out["model"] == "m1", "participation_accuracy"].iloc[
+            0
+        ] == pytest.approx(0.5)
 
 
 class TestEqualAndAggregateScores:

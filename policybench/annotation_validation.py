@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.analysis import score_single_prediction
+from policybench.analysis import threshold_score_single_prediction
 from policybench.annotation_taxonomy import (
     validate_failure_source,
     validate_failure_subtype,
@@ -47,7 +47,7 @@ def wrong_prediction_rows_from_frames(
     """Return all model-target rows whose benchmark score is below full credit."""
     merged = _expected_prediction_rows(reference, predictions)
     merged["score"] = [
-        score_single_prediction(variable, truth, prediction)
+        threshold_score_single_prediction(variable, truth, prediction)
         for variable, truth, prediction in zip(
             merged["variable"],
             merged["value"],

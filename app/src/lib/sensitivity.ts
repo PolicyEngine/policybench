@@ -25,13 +25,13 @@ export const SENSITIVITY_VIEWS: SensitivityView[] = [
     id: "household",
     label: "Household",
     description:
-      "Population household-impact weights — each output group's share is |ref| / max(|household_net_income|, Σ|ref|) in the full source microsimulation population, averaged with household weights and renormalized before scoring each benchmark household. US weights use the full Enhanced CPS; UK weights use the full enhanced FRS.",
+      "Population household-impact weights — each output group's share is |ref| / max(|household_net_income|, Σ|ref|) in the full weighting population, averaged with household weights and renormalized before scoring each benchmark household. US weights use the full Enhanced CPS; UK weights use the full enhanced FRS. The UK benchmark scenarios themselves still come from the public calibrated transfer dataset.",
   },
   {
     id: "aggregate",
     label: "Aggregate",
     description:
-      "Budget-weighted — each output group's weight is its share of total absolute reference dollars in the full source microsimulation population, renormalized within each benchmark household. One dollar of impact = one dollar.",
+      "Budget-weighted — each output group's weight is its share of total absolute reference dollars in the full weighting population, renormalized within each benchmark household. One dollar of impact = one dollar.",
   },
   {
     id: "equal",

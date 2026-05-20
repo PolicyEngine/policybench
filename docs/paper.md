@@ -12,13 +12,13 @@ It builds against:
   scenarios, reference outputs, impact summaries, frozen run-level dashboard
   exports under `runs/`, the rendered PDF/web manuscript hashes, and the
   `manifest.json` provenance index.
-- `app/src/data.json` — the live site export. It may change after the
-  manuscript snapshot and is not the source for the paper tables or figures.
+- `app/src/data.json` — the live site export. In this snapshot it is required
+  to equal the committed source-run dashboard exports under `runs/`.
 
 ## Rendered outputs
 
 - PDF: [`app/public/paper/policybench.pdf`](https://policybench.org/paper/policybench.pdf)
-- Web: [`app/public/paper/web/`](https://policybench.org/paper/)
+- Web: [`app/public/paper/web/`](https://policybench.org/paper/web/)
 - Both rendered artefacts are sha256-pinned in
   `paper/snapshot/20260501/manifest.json` under `rendered_paper_artifacts`.
 

@@ -1,0 +1,10 @@
+# The Vercel project root is configured as app/. Upload only the app subtree
+# when deploying from the repository root; otherwise local benchmark caches and
+# result artifacts can make the upload several GB.
+*
+!app
+!app/
+!app/**
+app/.next/
+app/.vercel/
+app/node_modules/

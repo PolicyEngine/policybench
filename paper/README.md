@@ -12,7 +12,7 @@ Suggested workflow:
 1. Install app dependencies if `app/node_modules` is absent:
 
    ```bash
-   cd app && bun install && cd ..
+   cd app && bun install --frozen-lockfile && cd ..
    ```
 
 2. Render the manuscript:
@@ -27,8 +27,8 @@ Notes:
   `app/node_modules/@policyengine/design-system/dist/tokens.css`.
 - The manuscript tables and figures read from the frozen source run exports
   under `paper/snapshot/20260501/runs/`.
-- `app/src/data.json` is the live site export and is not the frozen manuscript
-  source.
+- `app/src/data.json` is the live site export. For this snapshot it must match
+  the committed source-run dashboard exports under `paper/snapshot/20260501/runs/`.
 - Frozen manuscript inputs that need to be versioned live under
   `paper/snapshot/`. Keep that directory committed with the manuscript.
 - `paper/render_paper.py` generates temporary figures internally, copies the

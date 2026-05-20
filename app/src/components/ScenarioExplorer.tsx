@@ -16,9 +16,11 @@ import {
   isFrontierModel,
   type ProviderKey,
 } from "../modelMeta";
+import { binaryFlag } from "../lib/scoring";
 import ProviderMark from "./ProviderMark";
 
-function formatBoolean(value: number): string {
+function formatBoolean(value: 0 | 1 | null): string {
+  if (value === null) return "Invalid";
   return value === 1 ? "Yes" : "No";
 }
 
@@ -37,8 +39,17 @@ function isPredictionCorrect(
   isBinary: boolean,
 ): boolean {
   if (pred.prediction === null) return false;
-  if (pred.score !== undefined) return pred.score >= 100;
-  if (isBinary) return Math.round(pred.prediction) === Math.round(truth);
+  if (pred.exact !== undefined) return pred.exact >= 100;
+  if (pred.thresholdScore !== undefined) return pred.thresholdScore >= 100;
+  if (isBinary) {
+    const predictionFlag = binaryFlag(pred.prediction);
+    const truthFlag = binaryFlag(truth);
+    return (
+      predictionFlag !== null &&
+      truthFlag !== null &&
+      predictionFlag === truthFlag
+    );
+  }
   return (
     Math.abs(pred.prediction - truth) <= Math.abs(truth) * 0.1 ||
     (truth === 0 && Math.abs(pred.prediction) <= 1)
@@ -53,9 +64,13 @@ function describeError(
 ): string {
   if (pred.prediction === null) return "no parseable prediction";
   if (isBinary) {
-    return Math.round(pred.prediction) === Math.round(truth)
+    const predictionFlag = binaryFlag(pred.prediction);
+    const truthFlag = binaryFlag(truth);
+    return predictionFlag !== null &&
+      truthFlag !== null &&
+      predictionFlag === truthFlag
       ? "matched"
-      : `predicted "${formatBoolean(Math.round(pred.prediction))}" instead of "${formatBoolean(Math.round(truth))}"`;
+      : `predicted "${formatBoolean(predictionFlag)}" instead of "${formatBoolean(truthFlag)}"`;
   }
   const error = pred.prediction - truth;
   const sign = error > 0 ? "over" : "under";
@@ -504,7 +519,7 @@ export default function ScenarioExplorer({
                         offset from the cell edge. */}
                     <span className="inline-block px-1.5 py-0.5">
                       {isBinary
-                        ? formatBoolean(truth)
+                        ? formatBoolean(binaryFlag(truth))
                         : formatCurrency(truth, currencySymbol)}
                     </span>
                   </td>
@@ -538,7 +553,7 @@ export default function ScenarioExplorer({
                     }
 
                     const displayPred = isBinary
-                      ? formatBoolean(Math.round(pred.prediction))
+                      ? formatBoolean(binaryFlag(pred.prediction))
                       : formatCurrency(pred.prediction, currencySymbol);
                     const predictionError = pred.error ?? pred.prediction - truth;
                     const correct = isPredictionCorrect(pred, truth, isBinary);
@@ -816,13 +831,13 @@ function DetailContent({
   const truth = pred.groundTruth;
   const correct = isPredictionCorrect(pred, truth, isBinary);
   const displayTruth = isBinary
-    ? formatBoolean(Math.round(truth))
+    ? formatBoolean(binaryFlag(truth))
     : formatCurrency(truth, currencySymbol);
   const displayPred =
     pred.prediction === null
       ? "—"
       : isBinary
-        ? formatBoolean(Math.round(pred.prediction))
+        ? formatBoolean(binaryFlag(pred.prediction))
         : formatCurrency(pred.prediction, currencySymbol);
   const errorDescription = describeError(
     pred,

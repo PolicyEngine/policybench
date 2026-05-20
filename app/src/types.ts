@@ -224,6 +224,7 @@ export type ProgramStat = {
   exact?: number;
   within1pct?: number;
   within5pct?: number;
+  thresholdScore?: number;
   mae: number;
   n: number;
   nParsed: number;
@@ -241,6 +242,7 @@ export type HeatmapEntry = {
   exact?: number;
   within1pct?: number;
   within5pct?: number;
+  thresholdScore?: number;
   mae: number;
   n: number;
   nParsed: number;
@@ -254,6 +256,12 @@ export type ScenarioPrediction = {
   error: number | null;
   groundTruth: number;
   score?: number;
+  boundedScore?: number;
+  thresholdScore?: number;
+  exact?: number;
+  within1pct?: number;
+  within5pct?: number;
+  within10pct?: number;
   explanation?: string;
   annotation?: string;
   failureSource?: string;
