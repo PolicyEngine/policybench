@@ -194,7 +194,7 @@ def _extract_provider_fingerprint(response) -> dict:
     """Capture the provider response id, system fingerprint, and resolved model.
 
     These fields make it possible to audit which underlying model build a
-    provider routed an alias to (e.g. ``claude-opus-4-7`` resolving to a
+    provider routed an alias to (e.g. ``claude-opus-4-8`` resolving to a
     dated weights revision). Providers that do not report a particular field
     return ``None`` for that field.
     """

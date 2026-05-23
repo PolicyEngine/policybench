@@ -9,7 +9,6 @@ scenario_000,local_income_tax,0.0,
 scenario_000,snap,0.0,
 scenario_000,ssi,0.0,
 scenario_000,tanf,0.0,
-scenario_000,premium_tax_credit,0.0,
 scenario_000,head_wic_eligible,0.0,0.0
 scenario_000,spouse_wic_eligible,0.0,0.0
 scenario_000,head_medicaid_eligible,0.0,0.0
@@ -30,7 +29,6 @@ scenario_001,local_income_tax,0.0,
 scenario_001,snap,0.0,
 scenario_001,ssi,0.0,
 scenario_001,tanf,0.0,
-scenario_001,premium_tax_credit,0.0,
 scenario_001,head_wic_eligible,0.0,0.0
 scenario_001,spouse_wic_eligible,0.0,0.0
 scenario_001,head_medicaid_eligible,0.0,0.0
@@ -43,7 +41,7 @@ scenario_001,free_school_meals_eligible,0.0,0.0
 scenario_001,reduced_price_school_meals_eligible,0.0,0.0
 scenario_002,federal_income_tax_before_refundable_credits,46044.875,
 scenario_002,federal_refundable_credits,0.0,
-scenario_002,payroll_tax,26935.15625,
+scenario_002,payroll_tax,30463.126953125,
 scenario_002,self_employment_tax,0.0,
 scenario_002,state_income_tax_before_refundable_credits,0.0,
 scenario_002,state_refundable_credits,0.0,
@@ -51,7 +49,6 @@ scenario_002,local_income_tax,0.0,
 scenario_002,snap,0.0,
 scenario_002,ssi,0.0,
 scenario_002,tanf,0.0,
-scenario_002,premium_tax_credit,0.0,
 scenario_002,head_wic_eligible,0.0,0.0
 scenario_002,spouse_wic_eligible,0.0,0.0
 scenario_002,dependent1_wic_eligible,0.0,0.0
@@ -72,7 +69,7 @@ scenario_002,free_school_meals_eligible,0.0,0.0
 scenario_002,reduced_price_school_meals_eligible,0.0,0.0
 scenario_003,federal_income_tax_before_refundable_credits,53453.59765625,
 scenario_003,federal_refundable_credits,0.0,
-scenario_003,payroll_tax,15714.25390625,
+scenario_003,payroll_tax,15984.0,
 scenario_003,self_employment_tax,0.0,
 scenario_003,state_income_tax_before_refundable_credits,0.0,
 scenario_003,state_refundable_credits,0.0,
@@ -80,7 +77,6 @@ scenario_003,local_income_tax,0.0,
 scenario_003,snap,0.0,
 scenario_003,ssi,0.0,
 scenario_003,tanf,0.0,
-scenario_003,premium_tax_credit,0.0,
 scenario_003,head_wic_eligible,0.0,0.0
 scenario_003,head_medicaid_eligible,0.0,0.0
 scenario_003,head_chip_eligible,0.0,0.0
@@ -89,7 +85,7 @@ scenario_003,free_school_meals_eligible,0.0,0.0
 scenario_003,reduced_price_school_meals_eligible,0.0,0.0
 scenario_004,federal_income_tax_before_refundable_credits,9085.5703125,
 scenario_004,federal_refundable_credits,0.0,
-scenario_004,payroll_tax,7790.6123046875,
+scenario_004,payroll_tax,9119.240234375,
 scenario_004,self_employment_tax,4128.5732421875,
 scenario_004,state_income_tax_before_refundable_credits,5409.326171875,
 scenario_004,state_refundable_credits,0.0,
@@ -97,7 +93,6 @@ scenario_004,local_income_tax,0.0,
 scenario_004,snap,0.0,
 scenario_004,ssi,0.0,
 scenario_004,tanf,0.0,
-scenario_004,premium_tax_credit,0.0,
 scenario_004,head_wic_eligible,0.0,0.0
 scenario_004,spouse_wic_eligible,0.0,0.0
 scenario_004,dependent1_wic_eligible,0.0,0.0
@@ -122,7 +117,6 @@ scenario_005,local_income_tax,0.0,
 scenario_005,snap,3596.039794921875,
 scenario_005,ssi,0.0,
 scenario_005,tanf,0.0,
-scenario_005,premium_tax_credit,0.0,
 scenario_005,head_wic_eligible,0.0,0.0
 scenario_005,head_medicaid_eligible,1.0,6439.109375
 scenario_005,head_chip_eligible,0.0,0.0
@@ -139,7 +133,6 @@ scenario_006,local_income_tax,0.0,
 scenario_006,snap,0.0,
 scenario_006,ssi,0.0,
 scenario_006,tanf,0.0,
-scenario_006,premium_tax_credit,0.0,
 scenario_006,head_wic_eligible,0.0,0.0
 scenario_006,spouse_wic_eligible,0.0,0.0
 scenario_006,child1_wic_eligible,0.0,0.0
@@ -166,7 +159,6 @@ scenario_007,local_income_tax,0.0,
 scenario_007,snap,0.0,
 scenario_007,ssi,0.0,
 scenario_007,tanf,0.0,
-scenario_007,premium_tax_credit,0.0,
 scenario_007,head_wic_eligible,0.0,0.0
 scenario_007,head_medicaid_eligible,0.0,0.0
 scenario_007,head_chip_eligible,0.0,0.0
@@ -175,7 +167,7 @@ scenario_007,free_school_meals_eligible,0.0,0.0
 scenario_007,reduced_price_school_meals_eligible,0.0,0.0
 scenario_008,federal_income_tax_before_refundable_credits,0.0,
 scenario_008,federal_refundable_credits,7506.2451171875,
-scenario_008,payroll_tax,4285.07861328125,
+scenario_008,payroll_tax,4314.60009765625,
 scenario_008,self_employment_tax,0.0,
 scenario_008,state_income_tax_before_refundable_credits,1342.4464111328125,
 scenario_008,state_refundable_credits,0.0,
@@ -183,7 +175,6 @@ scenario_008,local_income_tax,0.0,
 scenario_008,snap,0.0,
 scenario_008,ssi,0.0,
 scenario_008,tanf,0.0,
-scenario_008,premium_tax_credit,0.0,
 scenario_008,head_wic_eligible,0.0,0.0
 scenario_008,spouse_wic_eligible,0.0,0.0
 scenario_008,child1_wic_eligible,1.0,723.1546020507812
@@ -216,7 +207,6 @@ scenario_009,local_income_tax,0.0,
 scenario_009,snap,5340.8896484375,
 scenario_009,ssi,0.0,
 scenario_009,tanf,0.0,
-scenario_009,premium_tax_credit,0.0,
 scenario_009,head_wic_eligible,0.0,0.0
 scenario_009,spouse_wic_eligible,0.0,0.0
 scenario_009,child1_wic_eligible,1.0,723.1546020507812
@@ -243,7 +233,6 @@ scenario_010,local_income_tax,0.0,
 scenario_010,snap,0.0,
 scenario_010,ssi,0.0,
 scenario_010,tanf,0.0,
-scenario_010,premium_tax_credit,0.0,
 scenario_010,head_wic_eligible,0.0,0.0
 scenario_010,spouse_wic_eligible,0.0,0.0
 scenario_010,dependent1_wic_eligible,0.0,0.0
@@ -268,7 +257,6 @@ scenario_011,local_income_tax,0.0,
 scenario_011,snap,1112.217041015625,
 scenario_011,ssi,0.0,
 scenario_011,tanf,0.0,
-scenario_011,premium_tax_credit,0.0,
 scenario_011,head_wic_eligible,0.0,0.0
 scenario_011,spouse_wic_eligible,0.0,0.0
 scenario_011,head_medicaid_eligible,1.0,22373.060546875
@@ -289,7 +277,6 @@ scenario_012,local_income_tax,0.0,
 scenario_012,snap,0.0,
 scenario_012,ssi,0.0,
 scenario_012,tanf,0.0,
-scenario_012,premium_tax_credit,0.0,
 scenario_012,head_wic_eligible,0.0,0.0
 scenario_012,child1_wic_eligible,0.0,0.0
 scenario_012,head_medicaid_eligible,0.0,0.0
@@ -304,7 +291,7 @@ scenario_012,free_school_meals_eligible,0.0,0.0
 scenario_012,reduced_price_school_meals_eligible,1.0,1003.27294921875
 scenario_013,federal_income_tax_before_refundable_credits,6363.0947265625,
 scenario_013,federal_refundable_credits,0.0,
-scenario_013,payroll_tax,8632.435546875,
+scenario_013,payroll_tax,8721.0,
 scenario_013,self_employment_tax,0.0,
 scenario_013,state_income_tax_before_refundable_credits,1883.072021484375,
 scenario_013,state_refundable_credits,0.0,
@@ -312,7 +299,6 @@ scenario_013,local_income_tax,0.0,
 scenario_013,snap,0.0,
 scenario_013,ssi,0.0,
 scenario_013,tanf,0.0,
-scenario_013,premium_tax_credit,0.0,
 scenario_013,head_wic_eligible,0.0,0.0
 scenario_013,spouse_wic_eligible,0.0,0.0
 scenario_013,child1_wic_eligible,0.0,0.0
@@ -339,7 +325,6 @@ scenario_014,local_income_tax,0.0,
 scenario_014,snap,287.68316650390625,
 scenario_014,ssi,0.0,
 scenario_014,tanf,0.0,
-scenario_014,premium_tax_credit,0.0,
 scenario_014,head_wic_eligible,0.0,0.0
 scenario_014,head_medicaid_eligible,0.0,0.0
 scenario_014,head_chip_eligible,0.0,0.0
@@ -348,7 +333,7 @@ scenario_014,free_school_meals_eligible,0.0,0.0
 scenario_014,reduced_price_school_meals_eligible,0.0,0.0
 scenario_015,federal_income_tax_before_refundable_credits,9858.5048828125,
 scenario_015,federal_refundable_credits,0.0,
-scenario_015,payroll_tax,8144.19775390625,
+scenario_015,payroll_tax,9945.0,
 scenario_015,self_employment_tax,0.0,
 scenario_015,state_income_tax_before_refundable_credits,5848.564453125,
 scenario_015,state_refundable_credits,0.0,
@@ -356,7 +341,6 @@ scenario_015,local_income_tax,0.0,
 scenario_015,snap,0.0,
 scenario_015,ssi,0.0,
 scenario_015,tanf,0.0,
-scenario_015,premium_tax_credit,0.0,
 scenario_015,head_wic_eligible,0.0,0.0
 scenario_015,spouse_wic_eligible,0.0,0.0
 scenario_015,head_medicaid_eligible,0.0,0.0
@@ -377,7 +361,6 @@ scenario_016,local_income_tax,0.0,
 scenario_016,snap,0.0,
 scenario_016,ssi,0.0,
 scenario_016,tanf,0.0,
-scenario_016,premium_tax_credit,0.0,
 scenario_016,head_wic_eligible,0.0,0.0
 scenario_016,head_medicaid_eligible,0.0,0.0
 scenario_016,head_chip_eligible,0.0,0.0
@@ -394,7 +377,6 @@ scenario_017,local_income_tax,0.0,
 scenario_017,snap,2073.888916015625,
 scenario_017,ssi,0.0,
 scenario_017,tanf,0.0,
-scenario_017,premium_tax_credit,0.0,
 scenario_017,head_wic_eligible,0.0,0.0
 scenario_017,spouse_wic_eligible,0.0,0.0
 scenario_017,dependent1_wic_eligible,0.0,0.0
@@ -419,7 +401,6 @@ scenario_018,local_income_tax,0.0,
 scenario_018,snap,0.0,
 scenario_018,ssi,0.0,
 scenario_018,tanf,0.0,
-scenario_018,premium_tax_credit,0.0,
 scenario_018,head_wic_eligible,0.0,0.0
 scenario_018,spouse_wic_eligible,0.0,0.0
 scenario_018,head_medicaid_eligible,0.0,0.0
@@ -440,7 +421,6 @@ scenario_019,local_income_tax,0.0,
 scenario_019,snap,0.0,
 scenario_019,ssi,0.0,
 scenario_019,tanf,0.0,
-scenario_019,premium_tax_credit,0.0,
 scenario_019,head_wic_eligible,0.0,0.0
 scenario_019,spouse_wic_eligible,0.0,0.0
 scenario_019,head_medicaid_eligible,0.0,0.0
@@ -461,7 +441,6 @@ scenario_020,local_income_tax,0.0,
 scenario_020,snap,0.0,
 scenario_020,ssi,0.0,
 scenario_020,tanf,0.0,
-scenario_020,premium_tax_credit,20680.478515625,
 scenario_020,head_wic_eligible,0.0,0.0
 scenario_020,head_medicaid_eligible,0.0,0.0
 scenario_020,head_chip_eligible,0.0,0.0
@@ -478,7 +457,6 @@ scenario_021,local_income_tax,0.0,
 scenario_021,snap,0.0,
 scenario_021,ssi,0.0,
 scenario_021,tanf,0.0,
-scenario_021,premium_tax_credit,0.0,
 scenario_021,head_wic_eligible,0.0,0.0
 scenario_021,child1_wic_eligible,0.0,0.0
 scenario_021,head_medicaid_eligible,0.0,0.0
@@ -501,7 +479,6 @@ scenario_022,local_income_tax,0.0,
 scenario_022,snap,1751.9398193359375,
 scenario_022,ssi,11928.0,
 scenario_022,tanf,0.0,
-scenario_022,premium_tax_credit,0.0,
 scenario_022,head_wic_eligible,0.0,0.0
 scenario_022,head_medicaid_eligible,1.0,22373.060546875
 scenario_022,head_chip_eligible,0.0,0.0
@@ -518,7 +495,6 @@ scenario_023,local_income_tax,0.0,
 scenario_023,snap,3596.039794921875,
 scenario_023,ssi,0.0,
 scenario_023,tanf,0.0,
-scenario_023,premium_tax_credit,0.0,
 scenario_023,head_wic_eligible,0.0,0.0
 scenario_023,head_medicaid_eligible,1.0,7227.64208984375
 scenario_023,head_chip_eligible,0.0,0.0
@@ -535,7 +511,6 @@ scenario_024,local_income_tax,0.0,
 scenario_024,snap,0.0,
 scenario_024,ssi,0.0,
 scenario_024,tanf,0.0,
-scenario_024,premium_tax_credit,0.0,
 scenario_024,head_wic_eligible,0.0,0.0
 scenario_024,head_medicaid_eligible,0.0,0.0
 scenario_024,head_chip_eligible,0.0,0.0
@@ -552,7 +527,6 @@ scenario_025,local_income_tax,0.0,
 scenario_025,snap,0.0,
 scenario_025,ssi,0.0,
 scenario_025,tanf,0.0,
-scenario_025,premium_tax_credit,2466.910888671875,
 scenario_025,head_wic_eligible,0.0,0.0
 scenario_025,head_medicaid_eligible,0.0,0.0
 scenario_025,head_chip_eligible,0.0,0.0
@@ -561,7 +535,7 @@ scenario_025,free_school_meals_eligible,0.0,0.0
 scenario_025,reduced_price_school_meals_eligible,0.0,0.0
 scenario_026,federal_income_tax_before_refundable_credits,17440.994140625,
 scenario_026,federal_refundable_credits,0.0,
-scenario_026,payroll_tax,10932.0908203125,
+scenario_026,payroll_tax,12732.8935546875,
 scenario_026,self_employment_tax,0.0,
 scenario_026,state_income_tax_before_refundable_credits,6639.125,
 scenario_026,state_refundable_credits,0.0,
@@ -569,7 +543,6 @@ scenario_026,local_income_tax,0.0,
 scenario_026,snap,0.0,
 scenario_026,ssi,0.0,
 scenario_026,tanf,0.0,
-scenario_026,premium_tax_credit,0.0,
 scenario_026,head_wic_eligible,0.0,0.0
 scenario_026,spouse_wic_eligible,0.0,0.0
 scenario_026,head_medicaid_eligible,0.0,0.0
@@ -590,7 +563,6 @@ scenario_027,local_income_tax,0.0,
 scenario_027,snap,0.0,
 scenario_027,ssi,0.0,
 scenario_027,tanf,0.0,
-scenario_027,premium_tax_credit,0.0,
 scenario_027,head_wic_eligible,0.0,0.0
 scenario_027,spouse_wic_eligible,0.0,0.0
 scenario_027,child1_wic_eligible,0.0,0.0
@@ -609,7 +581,7 @@ scenario_027,free_school_meals_eligible,0.0,0.0
 scenario_027,reduced_price_school_meals_eligible,0.0,0.0
 scenario_028,federal_income_tax_before_refundable_credits,7116.2744140625,
 scenario_028,federal_refundable_credits,0.0,
-scenario_028,payroll_tax,7597.4287109375,
+scenario_028,payroll_tax,7833.60009765625,
 scenario_028,self_employment_tax,0.0,
 scenario_028,state_income_tax_before_refundable_credits,3381.419677734375,
 scenario_028,state_refundable_credits,0.0,
@@ -617,7 +589,6 @@ scenario_028,local_income_tax,0.0,
 scenario_028,snap,0.0,
 scenario_028,ssi,0.0,
 scenario_028,tanf,0.0,
-scenario_028,premium_tax_credit,0.0,
 scenario_028,head_wic_eligible,0.0,0.0
 scenario_028,spouse_wic_eligible,0.0,0.0
 scenario_028,head_medicaid_eligible,0.0,0.0
@@ -638,7 +609,6 @@ scenario_029,local_income_tax,0.0,
 scenario_029,snap,0.0,
 scenario_029,ssi,0.0,
 scenario_029,tanf,0.0,
-scenario_029,premium_tax_credit,0.0,
 scenario_029,head_wic_eligible,0.0,0.0
 scenario_029,spouse_wic_eligible,0.0,0.0
 scenario_029,head_medicaid_eligible,0.0,0.0
@@ -650,7 +620,7 @@ scenario_029,spouse_medicare_eligible,1.0,5285.2001953125
 scenario_029,free_school_meals_eligible,0.0,0.0
 scenario_029,reduced_price_school_meals_eligible,0.0,0.0
 scenario_030,federal_income_tax_before_refundable_credits,0.0,
-scenario_030,federal_refundable_credits,12206.0,
+scenario_030,federal_refundable_credits,2218.5,
 scenario_030,payroll_tax,2595.5,
 scenario_030,self_employment_tax,0.0,
 scenario_030,state_income_tax_before_refundable_credits,0.0,
@@ -659,7 +629,6 @@ scenario_030,local_income_tax,0.0,
 scenario_030,snap,7548.0537109375,
 scenario_030,ssi,0.0,
 scenario_030,tanf,9008.0009765625,
-scenario_030,premium_tax_credit,0.0,
 scenario_030,head_wic_eligible,0.0,0.0
 scenario_030,spouse_wic_eligible,0.0,0.0
 scenario_030,child1_wic_eligible,0.0,0.0
@@ -698,7 +667,6 @@ scenario_031,local_income_tax,0.0,
 scenario_031,snap,0.0,
 scenario_031,ssi,0.0,
 scenario_031,tanf,0.0,
-scenario_031,premium_tax_credit,0.0,
 scenario_031,head_wic_eligible,0.0,0.0
 scenario_031,head_medicaid_eligible,0.0,0.0
 scenario_031,head_chip_eligible,0.0,0.0
@@ -715,7 +683,6 @@ scenario_032,local_income_tax,0.0,
 scenario_032,snap,0.0,
 scenario_032,ssi,0.0,
 scenario_032,tanf,0.0,
-scenario_032,premium_tax_credit,0.0,
 scenario_032,head_wic_eligible,0.0,0.0
 scenario_032,child1_wic_eligible,0.0,0.0
 scenario_032,child2_wic_eligible,0.0,0.0
@@ -736,7 +703,7 @@ scenario_032,free_school_meals_eligible,0.0,0.0
 scenario_032,reduced_price_school_meals_eligible,0.0,0.0
 scenario_033,federal_income_tax_before_refundable_credits,40283.734375,
 scenario_033,federal_refundable_credits,0.0,
-scenario_033,payroll_tax,21948.244140625,
+scenario_033,payroll_tax,23400.0,
 scenario_033,self_employment_tax,0.0,
 scenario_033,state_income_tax_before_refundable_credits,10058.8125,
 scenario_033,state_refundable_credits,0.0,
@@ -744,7 +711,6 @@ scenario_033,local_income_tax,0.0,
 scenario_033,snap,0.0,
 scenario_033,ssi,0.0,
 scenario_033,tanf,0.0,
-scenario_033,premium_tax_credit,0.0,
 scenario_033,head_wic_eligible,0.0,0.0
 scenario_033,spouse_wic_eligible,0.0,0.0
 scenario_033,dependent1_wic_eligible,0.0,0.0
@@ -775,7 +741,6 @@ scenario_034,local_income_tax,0.0,
 scenario_034,snap,0.0,
 scenario_034,ssi,0.0,
 scenario_034,tanf,0.0,
-scenario_034,premium_tax_credit,0.0,
 scenario_034,head_wic_eligible,0.0,0.0
 scenario_034,spouse_wic_eligible,0.0,0.0
 scenario_034,head_medicaid_eligible,0.0,0.0
@@ -796,7 +761,6 @@ scenario_035,local_income_tax,0.0,
 scenario_035,snap,3070.61767578125,
 scenario_035,ssi,0.0,
 scenario_035,tanf,0.0,
-scenario_035,premium_tax_credit,0.0,
 scenario_035,head_wic_eligible,0.0,0.0
 scenario_035,spouse_wic_eligible,0.0,0.0
 scenario_035,head_medicaid_eligible,1.0,7166.52587890625
@@ -817,7 +781,6 @@ scenario_036,local_income_tax,0.0,
 scenario_036,snap,0.0,
 scenario_036,ssi,0.0,
 scenario_036,tanf,0.0,
-scenario_036,premium_tax_credit,0.0,
 scenario_036,head_wic_eligible,0.0,0.0
 scenario_036,head_medicaid_eligible,0.0,0.0
 scenario_036,head_chip_eligible,0.0,0.0
@@ -834,7 +797,6 @@ scenario_037,local_income_tax,0.0,
 scenario_037,snap,0.0,
 scenario_037,ssi,0.0,
 scenario_037,tanf,0.0,
-scenario_037,premium_tax_credit,0.0,
 scenario_037,head_wic_eligible,0.0,0.0
 scenario_037,head_medicaid_eligible,0.0,0.0
 scenario_037,head_chip_eligible,0.0,0.0
@@ -851,7 +813,6 @@ scenario_038,local_income_tax,0.0,
 scenario_038,snap,0.0,
 scenario_038,ssi,0.0,
 scenario_038,tanf,0.0,
-scenario_038,premium_tax_credit,0.0,
 scenario_038,head_wic_eligible,0.0,0.0
 scenario_038,head_medicaid_eligible,0.0,0.0
 scenario_038,head_chip_eligible,0.0,0.0
@@ -868,7 +829,6 @@ scenario_039,local_income_tax,0.0,
 scenario_039,snap,0.0,
 scenario_039,ssi,0.0,
 scenario_039,tanf,0.0,
-scenario_039,premium_tax_credit,0.0,
 scenario_039,head_wic_eligible,0.0,0.0
 scenario_039,head_medicaid_eligible,0.0,0.0
 scenario_039,head_chip_eligible,0.0,0.0
@@ -885,7 +845,6 @@ scenario_040,local_income_tax,0.0,
 scenario_040,snap,0.0,
 scenario_040,ssi,0.0,
 scenario_040,tanf,0.0,
-scenario_040,premium_tax_credit,0.0,
 scenario_040,head_wic_eligible,0.0,0.0
 scenario_040,head_medicaid_eligible,0.0,0.0
 scenario_040,head_chip_eligible,0.0,0.0
@@ -902,7 +861,6 @@ scenario_041,local_income_tax,0.0,
 scenario_041,snap,0.0,
 scenario_041,ssi,0.0,
 scenario_041,tanf,0.0,
-scenario_041,premium_tax_credit,0.0,
 scenario_041,head_wic_eligible,0.0,0.0
 scenario_041,head_medicaid_eligible,0.0,0.0
 scenario_041,head_chip_eligible,0.0,0.0
@@ -919,7 +877,6 @@ scenario_042,local_income_tax,0.0,
 scenario_042,snap,0.0,
 scenario_042,ssi,0.0,
 scenario_042,tanf,0.0,
-scenario_042,premium_tax_credit,0.0,
 scenario_042,head_wic_eligible,0.0,0.0
 scenario_042,child1_wic_eligible,0.0,0.0
 scenario_042,child2_wic_eligible,0.0,0.0
@@ -948,7 +905,6 @@ scenario_043,local_income_tax,0.0,
 scenario_043,snap,0.0,
 scenario_043,ssi,0.0,
 scenario_043,tanf,0.0,
-scenario_043,premium_tax_credit,0.0,
 scenario_043,head_wic_eligible,0.0,0.0
 scenario_043,head_medicaid_eligible,0.0,0.0
 scenario_043,head_chip_eligible,0.0,0.0
@@ -965,7 +921,6 @@ scenario_044,local_income_tax,0.0,
 scenario_044,snap,0.0,
 scenario_044,ssi,0.0,
 scenario_044,tanf,0.0,
-scenario_044,premium_tax_credit,0.0,
 scenario_044,head_wic_eligible,0.0,0.0
 scenario_044,spouse_wic_eligible,0.0,0.0
 scenario_044,head_medicaid_eligible,0.0,0.0
@@ -986,7 +941,6 @@ scenario_045,local_income_tax,0.0,
 scenario_045,snap,5813.8173828125,
 scenario_045,ssi,0.0,
 scenario_045,tanf,0.0,
-scenario_045,premium_tax_credit,0.0,
 scenario_045,head_wic_eligible,0.0,0.0
 scenario_045,child1_wic_eligible,0.0,0.0
 scenario_045,head_medicaid_eligible,1.0,5523.4521484375
@@ -1001,7 +955,7 @@ scenario_045,free_school_meals_eligible,1.0,1130.9622802734375
 scenario_045,reduced_price_school_meals_eligible,0.0,0.0
 scenario_046,federal_income_tax_before_refundable_credits,15871.859375,
 scenario_046,federal_refundable_credits,0.0,
-scenario_046,payroll_tax,12418.802734375,
+scenario_046,payroll_tax,12622.5,
 scenario_046,self_employment_tax,0.0,
 scenario_046,state_income_tax_before_refundable_credits,6172.78955078125,
 scenario_046,state_refundable_credits,0.0,
@@ -1009,7 +963,6 @@ scenario_046,local_income_tax,0.0,
 scenario_046,snap,0.0,
 scenario_046,ssi,0.0,
 scenario_046,tanf,0.0,
-scenario_046,premium_tax_credit,0.0,
 scenario_046,head_wic_eligible,0.0,0.0
 scenario_046,spouse_wic_eligible,0.0,0.0
 scenario_046,child1_wic_eligible,0.0,0.0
@@ -1036,7 +989,6 @@ scenario_047,local_income_tax,0.0,
 scenario_047,snap,329.93975830078125,
 scenario_047,ssi,0.0,
 scenario_047,tanf,0.0,
-scenario_047,premium_tax_credit,4635.42578125,
 scenario_047,head_wic_eligible,0.0,0.0
 scenario_047,head_medicaid_eligible,0.0,0.0
 scenario_047,head_chip_eligible,0.0,0.0
@@ -1053,7 +1005,6 @@ scenario_048,local_income_tax,0.0,
 scenario_048,snap,0.0,
 scenario_048,ssi,0.0,
 scenario_048,tanf,0.0,
-scenario_048,premium_tax_credit,0.0,
 scenario_048,head_wic_eligible,0.0,0.0
 scenario_048,head_medicaid_eligible,0.0,0.0
 scenario_048,head_chip_eligible,0.0,0.0
@@ -1070,7 +1021,6 @@ scenario_049,local_income_tax,0.0,
 scenario_049,snap,0.0,
 scenario_049,ssi,0.0,
 scenario_049,tanf,0.0,
-scenario_049,premium_tax_credit,0.0,
 scenario_049,head_wic_eligible,0.0,0.0
 scenario_049,spouse_wic_eligible,0.0,0.0
 scenario_049,head_medicaid_eligible,0.0,0.0
@@ -1083,7 +1033,7 @@ scenario_049,free_school_meals_eligible,0.0,0.0
 scenario_049,reduced_price_school_meals_eligible,0.0,0.0
 scenario_050,federal_income_tax_before_refundable_credits,17759.0,
 scenario_050,federal_refundable_credits,0.0,
-scenario_050,payroll_tax,12827.8720703125,
+scenario_050,payroll_tax,13005.0,
 scenario_050,self_employment_tax,0.0,
 scenario_050,state_income_tax_before_refundable_credits,4369.80810546875,
 scenario_050,state_refundable_credits,0.0,
@@ -1091,7 +1041,6 @@ scenario_050,local_income_tax,0.0,
 scenario_050,snap,0.0,
 scenario_050,ssi,0.0,
 scenario_050,tanf,0.0,
-scenario_050,premium_tax_credit,0.0,
 scenario_050,head_wic_eligible,0.0,0.0
 scenario_050,spouse_wic_eligible,0.0,0.0
 scenario_050,child1_wic_eligible,0.0,0.0
@@ -1118,7 +1067,6 @@ scenario_051,local_income_tax,0.0,
 scenario_051,snap,1986.8399658203125,
 scenario_051,ssi,0.0,
 scenario_051,tanf,0.0,
-scenario_051,premium_tax_credit,0.0,
 scenario_051,head_wic_eligible,0.0,0.0
 scenario_051,head_medicaid_eligible,0.0,0.0
 scenario_051,head_chip_eligible,0.0,0.0
@@ -1135,7 +1083,6 @@ scenario_052,local_income_tax,0.0,
 scenario_052,snap,0.0,
 scenario_052,ssi,0.0,
 scenario_052,tanf,0.0,
-scenario_052,premium_tax_credit,0.0,
 scenario_052,head_wic_eligible,0.0,0.0
 scenario_052,spouse_wic_eligible,0.0,0.0
 scenario_052,head_medicaid_eligible,0.0,0.0
@@ -1156,7 +1103,6 @@ scenario_053,local_income_tax,0.0,
 scenario_053,snap,8244.544921875,
 scenario_053,ssi,0.0,
 scenario_053,tanf,0.0,
-scenario_053,premium_tax_credit,0.0,
 scenario_053,head_wic_eligible,0.0,0.0
 scenario_053,child1_wic_eligible,0.0,0.0
 scenario_053,child2_wic_eligible,0.0,0.0
@@ -1191,7 +1137,6 @@ scenario_054,local_income_tax,0.0,
 scenario_054,snap,0.0,
 scenario_054,ssi,0.0,
 scenario_054,tanf,0.0,
-scenario_054,premium_tax_credit,0.0,
 scenario_054,head_wic_eligible,0.0,0.0
 scenario_054,head_medicaid_eligible,0.0,0.0
 scenario_054,head_chip_eligible,0.0,0.0
@@ -1208,7 +1153,6 @@ scenario_055,local_income_tax,0.0,
 scenario_055,snap,15246.9052734375,
 scenario_055,ssi,0.0,
 scenario_055,tanf,0.0,
-scenario_055,premium_tax_credit,0.0,
 scenario_055,head_wic_eligible,0.0,0.0
 scenario_055,spouse_wic_eligible,0.0,0.0
 scenario_055,child1_wic_eligible,0.0,0.0
@@ -1265,7 +1209,6 @@ scenario_056,local_income_tax,0.0,
 scenario_056,snap,6588.7177734375,
 scenario_056,ssi,0.0,
 scenario_056,tanf,0.0,
-scenario_056,premium_tax_credit,0.0,
 scenario_056,head_wic_eligible,0.0,0.0
 scenario_056,spouse_wic_eligible,0.0,0.0
 scenario_056,head_medicaid_eligible,0.0,0.0
@@ -1286,7 +1229,6 @@ scenario_057,local_income_tax,0.0,
 scenario_057,snap,0.0,
 scenario_057,ssi,0.0,
 scenario_057,tanf,0.0,
-scenario_057,premium_tax_credit,0.0,
 scenario_057,head_wic_eligible,0.0,0.0
 scenario_057,spouse_wic_eligible,0.0,0.0
 scenario_057,head_medicaid_eligible,0.0,0.0
@@ -1307,7 +1249,6 @@ scenario_058,local_income_tax,0.0,
 scenario_058,snap,6588.7177734375,
 scenario_058,ssi,0.0,
 scenario_058,tanf,0.0,
-scenario_058,premium_tax_credit,0.0,
 scenario_058,head_wic_eligible,0.0,0.0
 scenario_058,spouse_wic_eligible,0.0,0.0
 scenario_058,head_medicaid_eligible,0.0,0.0
@@ -1328,7 +1269,6 @@ scenario_059,local_income_tax,0.0,
 scenario_059,snap,0.0,
 scenario_059,ssi,0.0,
 scenario_059,tanf,0.0,
-scenario_059,premium_tax_credit,0.0,
 scenario_059,head_wic_eligible,0.0,0.0
 scenario_059,head_medicaid_eligible,0.0,0.0
 scenario_059,head_chip_eligible,0.0,0.0
@@ -1345,7 +1285,6 @@ scenario_060,local_income_tax,0.0,
 scenario_060,snap,6588.7177734375,
 scenario_060,ssi,0.0,
 scenario_060,tanf,0.0,
-scenario_060,premium_tax_credit,0.0,
 scenario_060,head_wic_eligible,0.0,0.0
 scenario_060,child1_wic_eligible,0.0,0.0
 scenario_060,head_medicaid_eligible,1.0,4631.06787109375
@@ -1368,7 +1307,6 @@ scenario_061,local_income_tax,0.0,
 scenario_061,snap,9472.7900390625,
 scenario_061,ssi,0.0,
 scenario_061,tanf,0.0,
-scenario_061,premium_tax_credit,0.0,
 scenario_061,head_wic_eligible,0.0,0.0
 scenario_061,child1_wic_eligible,0.0,0.0
 scenario_061,child2_wic_eligible,1.0,723.1546020507812
@@ -1397,7 +1335,6 @@ scenario_062,local_income_tax,0.0,
 scenario_062,snap,0.0,
 scenario_062,ssi,0.0,
 scenario_062,tanf,0.0,
-scenario_062,premium_tax_credit,0.0,
 scenario_062,head_wic_eligible,0.0,0.0
 scenario_062,spouse_wic_eligible,0.0,0.0
 scenario_062,child1_wic_eligible,0.0,0.0
@@ -1424,7 +1361,6 @@ scenario_063,local_income_tax,0.0,
 scenario_063,snap,0.0,
 scenario_063,ssi,0.0,
 scenario_063,tanf,0.0,
-scenario_063,premium_tax_credit,0.0,
 scenario_063,head_wic_eligible,0.0,0.0
 scenario_063,head_medicaid_eligible,0.0,0.0
 scenario_063,head_chip_eligible,0.0,0.0
@@ -1433,7 +1369,7 @@ scenario_063,free_school_meals_eligible,0.0,0.0
 scenario_063,reduced_price_school_meals_eligible,0.0,0.0
 scenario_064,federal_income_tax_before_refundable_credits,27021.107421875,
 scenario_064,federal_refundable_credits,0.0,
-scenario_064,payroll_tax,7894.33984375,
+scenario_064,payroll_tax,8032.5,
 scenario_064,self_employment_tax,21194.32421875,
 scenario_064,state_income_tax_before_refundable_credits,12158.79296875,
 scenario_064,state_refundable_credits,0.0,
@@ -1441,7 +1377,6 @@ scenario_064,local_income_tax,0.0,
 scenario_064,snap,0.0,
 scenario_064,ssi,0.0,
 scenario_064,tanf,0.0,
-scenario_064,premium_tax_credit,0.0,
 scenario_064,head_wic_eligible,0.0,0.0
 scenario_064,spouse_wic_eligible,0.0,0.0
 scenario_064,child1_wic_eligible,0.0,0.0
@@ -1468,7 +1403,6 @@ scenario_065,local_income_tax,0.0,
 scenario_065,snap,0.0,
 scenario_065,ssi,0.0,
 scenario_065,tanf,0.0,
-scenario_065,premium_tax_credit,0.0,
 scenario_065,head_wic_eligible,0.0,0.0
 scenario_065,spouse_wic_eligible,0.0,0.0
 scenario_065,head_medicaid_eligible,0.0,0.0
@@ -1489,7 +1423,6 @@ scenario_066,local_income_tax,0.0,
 scenario_066,snap,287.68316650390625,
 scenario_066,ssi,0.0,
 scenario_066,tanf,0.0,
-scenario_066,premium_tax_credit,45149.19921875,
 scenario_066,head_wic_eligible,0.0,0.0
 scenario_066,spouse_wic_eligible,0.0,0.0
 scenario_066,head_medicaid_eligible,0.0,0.0
@@ -1510,7 +1443,6 @@ scenario_067,local_income_tax,0.0,
 scenario_067,snap,0.0,
 scenario_067,ssi,0.0,
 scenario_067,tanf,0.0,
-scenario_067,premium_tax_credit,0.0,
 scenario_067,head_wic_eligible,0.0,0.0
 scenario_067,head_medicaid_eligible,0.0,0.0
 scenario_067,head_chip_eligible,0.0,0.0
@@ -1527,7 +1459,6 @@ scenario_068,local_income_tax,0.0,
 scenario_068,snap,0.0,
 scenario_068,ssi,0.0,
 scenario_068,tanf,0.0,
-scenario_068,premium_tax_credit,0.0,
 scenario_068,head_wic_eligible,0.0,0.0
 scenario_068,head_medicaid_eligible,0.0,0.0
 scenario_068,head_chip_eligible,0.0,0.0
@@ -1544,7 +1475,6 @@ scenario_069,local_income_tax,0.0,
 scenario_069,snap,0.0,
 scenario_069,ssi,0.0,
 scenario_069,tanf,0.0,
-scenario_069,premium_tax_credit,0.0,
 scenario_069,head_wic_eligible,0.0,0.0
 scenario_069,head_medicaid_eligible,0.0,0.0
 scenario_069,head_chip_eligible,0.0,0.0
@@ -1561,7 +1491,6 @@ scenario_070,local_income_tax,0.0,
 scenario_070,snap,5715.2900390625,
 scenario_070,ssi,0.0,
 scenario_070,tanf,3048.0,
-scenario_070,premium_tax_credit,0.0,
 scenario_070,head_wic_eligible,0.0,0.0
 scenario_070,spouse_wic_eligible,0.0,0.0
 scenario_070,child1_wic_eligible,0.0,0.0
@@ -1586,9 +1515,8 @@ scenario_071,state_income_tax_before_refundable_credits,0.0,
 scenario_071,state_refundable_credits,0.0,
 scenario_071,local_income_tax,0.0,
 scenario_071,snap,2500.73974609375,
-scenario_071,ssi,7438.0,
+scenario_071,ssi,7438.00146484375,
 scenario_071,tanf,0.0,
-scenario_071,premium_tax_credit,0.0,
 scenario_071,head_wic_eligible,0.0,0.0
 scenario_071,head_medicaid_eligible,1.0,13231.8837890625
 scenario_071,head_chip_eligible,0.0,0.0
@@ -1605,7 +1533,6 @@ scenario_072,local_income_tax,0.0,
 scenario_072,snap,0.0,
 scenario_072,ssi,0.0,
 scenario_072,tanf,0.0,
-scenario_072,premium_tax_credit,0.0,
 scenario_072,head_wic_eligible,0.0,0.0
 scenario_072,spouse_wic_eligible,0.0,0.0
 scenario_072,head_medicaid_eligible,0.0,0.0
@@ -1626,7 +1553,6 @@ scenario_073,local_income_tax,0.0,
 scenario_073,snap,3512.089599609375,
 scenario_073,ssi,0.0,
 scenario_073,tanf,0.0,
-scenario_073,premium_tax_credit,0.0,
 scenario_073,head_wic_eligible,0.0,0.0
 scenario_073,spouse_wic_eligible,0.0,0.0
 scenario_073,child1_wic_eligible,1.0,722.9943237304688
@@ -1653,7 +1579,6 @@ scenario_074,local_income_tax,0.0,
 scenario_074,snap,0.0,
 scenario_074,ssi,0.0,
 scenario_074,tanf,0.0,
-scenario_074,premium_tax_credit,0.0,
 scenario_074,head_wic_eligible,0.0,0.0
 scenario_074,spouse_wic_eligible,0.0,0.0
 scenario_074,head_medicaid_eligible,0.0,0.0
@@ -1674,7 +1599,6 @@ scenario_075,local_income_tax,0.0,
 scenario_075,snap,0.0,
 scenario_075,ssi,0.0,
 scenario_075,tanf,0.0,
-scenario_075,premium_tax_credit,0.0,
 scenario_075,head_wic_eligible,0.0,0.0
 scenario_075,head_medicaid_eligible,0.0,0.0
 scenario_075,head_chip_eligible,0.0,0.0
@@ -1691,7 +1615,6 @@ scenario_076,local_income_tax,0.0,
 scenario_076,snap,0.0,
 scenario_076,ssi,0.0,
 scenario_076,tanf,0.0,
-scenario_076,premium_tax_credit,0.0,
 scenario_076,head_wic_eligible,0.0,0.0
 scenario_076,spouse_wic_eligible,0.0,0.0
 scenario_076,head_medicaid_eligible,0.0,0.0
@@ -1712,7 +1635,6 @@ scenario_077,local_income_tax,0.0,
 scenario_077,snap,1719.5399169921875,
 scenario_077,ssi,0.0,
 scenario_077,tanf,0.0,
-scenario_077,premium_tax_credit,0.0,
 scenario_077,head_wic_eligible,0.0,0.0
 scenario_077,head_medicaid_eligible,1.0,20507.61328125
 scenario_077,head_chip_eligible,0.0,0.0
@@ -1729,7 +1651,6 @@ scenario_078,local_income_tax,0.0,
 scenario_078,snap,0.0,
 scenario_078,ssi,0.0,
 scenario_078,tanf,0.0,
-scenario_078,premium_tax_credit,0.0,
 scenario_078,head_wic_eligible,0.0,0.0
 scenario_078,spouse_wic_eligible,0.0,0.0
 scenario_078,head_medicaid_eligible,0.0,0.0
@@ -1750,7 +1671,6 @@ scenario_079,local_income_tax,0.0,
 scenario_079,snap,0.0,
 scenario_079,ssi,0.0,
 scenario_079,tanf,0.0,
-scenario_079,premium_tax_credit,5724.27587890625,
 scenario_079,head_wic_eligible,0.0,0.0
 scenario_079,head_medicaid_eligible,0.0,0.0
 scenario_079,head_chip_eligible,0.0,0.0
@@ -1759,7 +1679,7 @@ scenario_079,free_school_meals_eligible,0.0,0.0
 scenario_079,reduced_price_school_meals_eligible,0.0,0.0
 scenario_080,federal_income_tax_before_refundable_credits,20442.376953125,
 scenario_080,federal_refundable_credits,0.0,
-scenario_080,payroll_tax,14104.2431640625,
+scenario_080,payroll_tax,14458.5,
 scenario_080,self_employment_tax,0.0,
 scenario_080,state_income_tax_before_refundable_credits,6047.169921875,
 scenario_080,state_refundable_credits,0.0,
@@ -1767,7 +1687,6 @@ scenario_080,local_income_tax,0.0,
 scenario_080,snap,0.0,
 scenario_080,ssi,0.0,
 scenario_080,tanf,0.0,
-scenario_080,premium_tax_credit,0.0,
 scenario_080,head_wic_eligible,0.0,0.0
 scenario_080,spouse_wic_eligible,0.0,0.0
 scenario_080,head_medicaid_eligible,0.0,0.0
@@ -1788,7 +1707,6 @@ scenario_081,local_income_tax,0.0,
 scenario_081,snap,1755.5399169921875,
 scenario_081,ssi,0.0,
 scenario_081,tanf,0.0,
-scenario_081,premium_tax_credit,0.0,
 scenario_081,head_wic_eligible,0.0,0.0
 scenario_081,head_medicaid_eligible,1.0,7166.52587890625
 scenario_081,head_chip_eligible,0.0,0.0
@@ -1797,15 +1715,14 @@ scenario_081,free_school_meals_eligible,0.0,0.0
 scenario_081,reduced_price_school_meals_eligible,0.0,0.0
 scenario_082,federal_income_tax_before_refundable_credits,5648.5029296875,
 scenario_082,federal_refundable_credits,0.0,
-scenario_082,payroll_tax,9284.744140625,
+scenario_082,payroll_tax,9639.0,
 scenario_082,self_employment_tax,0.0,
-scenario_082,state_income_tax_before_refundable_credits,4530.2998046875,
+scenario_082,state_income_tax_before_refundable_credits,3936.29052734375,
 scenario_082,state_refundable_credits,0.0,
 scenario_082,local_income_tax,0.0,
 scenario_082,snap,0.0,
 scenario_082,ssi,0.0,
 scenario_082,tanf,0.0,
-scenario_082,premium_tax_credit,0.0,
 scenario_082,head_wic_eligible,0.0,0.0
 scenario_082,spouse_wic_eligible,0.0,0.0
 scenario_082,child1_wic_eligible,0.0,0.0
@@ -1830,7 +1747,7 @@ scenario_082,free_school_meals_eligible,0.0,0.0
 scenario_082,reduced_price_school_meals_eligible,0.0,0.0
 scenario_083,federal_income_tax_before_refundable_credits,7074.8671875,
 scenario_083,federal_refundable_credits,0.0,
-scenario_083,payroll_tax,5914.76220703125,
+scenario_083,payroll_tax,6139.125,
 scenario_083,self_employment_tax,0.0,
 scenario_083,state_income_tax_before_refundable_credits,2408.141845703125,
 scenario_083,state_refundable_credits,0.0,
@@ -1838,7 +1755,6 @@ scenario_083,local_income_tax,0.0,
 scenario_083,snap,0.0,
 scenario_083,ssi,0.0,
 scenario_083,tanf,0.0,
-scenario_083,premium_tax_credit,0.0,
 scenario_083,head_wic_eligible,0.0,0.0
 scenario_083,head_medicaid_eligible,0.0,0.0
 scenario_083,head_chip_eligible,0.0,0.0
@@ -1855,7 +1771,6 @@ scenario_084,local_income_tax,0.0,
 scenario_084,snap,0.0,
 scenario_084,ssi,0.0,
 scenario_084,tanf,0.0,
-scenario_084,premium_tax_credit,0.0,
 scenario_084,head_wic_eligible,0.0,0.0
 scenario_084,spouse_wic_eligible,0.0,0.0
 scenario_084,head_medicaid_eligible,0.0,0.0
@@ -1868,7 +1783,7 @@ scenario_084,free_school_meals_eligible,0.0,0.0
 scenario_084,reduced_price_school_meals_eligible,0.0,0.0
 scenario_085,federal_income_tax_before_refundable_credits,14368.291015625,
 scenario_085,federal_refundable_credits,0.0,
-scenario_085,payroll_tax,11148.4765625,
+scenario_085,payroll_tax,12010.5,
 scenario_085,self_employment_tax,0.0,
 scenario_085,state_income_tax_before_refundable_credits,4968.11865234375,
 scenario_085,state_refundable_credits,0.0,
@@ -1876,7 +1791,6 @@ scenario_085,local_income_tax,0.0,
 scenario_085,snap,0.0,
 scenario_085,ssi,0.0,
 scenario_085,tanf,0.0,
-scenario_085,premium_tax_credit,0.0,
 scenario_085,head_wic_eligible,0.0,0.0
 scenario_085,spouse_wic_eligible,0.0,0.0
 scenario_085,head_medicaid_eligible,0.0,0.0
@@ -1889,7 +1803,7 @@ scenario_085,free_school_meals_eligible,0.0,0.0
 scenario_085,reduced_price_school_meals_eligible,0.0,0.0
 scenario_086,federal_income_tax_before_refundable_credits,5279.5703125,
 scenario_086,federal_refundable_credits,0.0,
-scenario_086,payroll_tax,4993.537109375,
+scenario_086,payroll_tax,5217.205078125,
 scenario_086,self_employment_tax,0.0,
 scenario_086,state_income_tax_before_refundable_credits,2796.40869140625,
 scenario_086,state_refundable_credits,0.0,
@@ -1897,7 +1811,6 @@ scenario_086,local_income_tax,0.0,
 scenario_086,snap,0.0,
 scenario_086,ssi,0.0,
 scenario_086,tanf,0.0,
-scenario_086,premium_tax_credit,0.0,
 scenario_086,head_wic_eligible,0.0,0.0
 scenario_086,head_medicaid_eligible,0.0,0.0
 scenario_086,head_chip_eligible,0.0,0.0
@@ -1914,7 +1827,6 @@ scenario_087,local_income_tax,0.0,
 scenario_087,snap,0.0,
 scenario_087,ssi,0.0,
 scenario_087,tanf,0.0,
-scenario_087,premium_tax_credit,0.0,
 scenario_087,head_wic_eligible,0.0,0.0
 scenario_087,head_medicaid_eligible,0.0,0.0
 scenario_087,head_chip_eligible,0.0,0.0
@@ -1931,7 +1843,6 @@ scenario_088,local_income_tax,0.0,
 scenario_088,snap,0.0,
 scenario_088,ssi,0.0,
 scenario_088,tanf,0.0,
-scenario_088,premium_tax_credit,0.0,
 scenario_088,head_wic_eligible,0.0,0.0
 scenario_088,spouse_wic_eligible,0.0,0.0
 scenario_088,child1_wic_eligible,0.0,0.0
@@ -1950,7 +1861,7 @@ scenario_088,free_school_meals_eligible,0.0,0.0
 scenario_088,reduced_price_school_meals_eligible,0.0,0.0
 scenario_089,federal_income_tax_before_refundable_credits,0.0,
 scenario_089,federal_refundable_credits,7527.609375,
-scenario_089,payroll_tax,3288.989013671875,
+scenario_089,payroll_tax,3442.5,
 scenario_089,self_employment_tax,0.0,
 scenario_089,state_income_tax_before_refundable_credits,0.0,
 scenario_089,state_refundable_credits,0.0,
@@ -1958,7 +1869,6 @@ scenario_089,local_income_tax,0.0,
 scenario_089,snap,0.0,
 scenario_089,ssi,0.0,
 scenario_089,tanf,0.0,
-scenario_089,premium_tax_credit,5901.70361328125,
 scenario_089,head_wic_eligible,0.0,0.0
 scenario_089,spouse_wic_eligible,0.0,0.0
 scenario_089,child1_wic_eligible,0.0,0.0
@@ -1983,7 +1893,7 @@ scenario_089,free_school_meals_eligible,0.0,0.0
 scenario_089,reduced_price_school_meals_eligible,1.0,1003.27294921875
 scenario_090,federal_income_tax_before_refundable_credits,8705.52734375,
 scenario_090,federal_refundable_credits,0.0,
-scenario_090,payroll_tax,8917.5244140625,
+scenario_090,payroll_tax,10165.0615234375,
 scenario_090,self_employment_tax,0.0,
 scenario_090,state_income_tax_before_refundable_credits,4688.4755859375,
 scenario_090,state_refundable_credits,0.0,
@@ -1991,7 +1901,6 @@ scenario_090,local_income_tax,0.0,
 scenario_090,snap,0.0,
 scenario_090,ssi,0.0,
 scenario_090,tanf,0.0,
-scenario_090,premium_tax_credit,0.0,
 scenario_090,head_wic_eligible,0.0,0.0
 scenario_090,spouse_wic_eligible,0.0,0.0
 scenario_090,head_medicaid_eligible,0.0,0.0
@@ -2012,7 +1921,6 @@ scenario_091,local_income_tax,0.0,
 scenario_091,snap,0.0,
 scenario_091,ssi,0.0,
 scenario_091,tanf,0.0,
-scenario_091,premium_tax_credit,0.0,
 scenario_091,head_wic_eligible,0.0,0.0
 scenario_091,spouse_wic_eligible,0.0,0.0
 scenario_091,head_medicaid_eligible,0.0,0.0
@@ -2033,7 +1941,6 @@ scenario_092,local_income_tax,0.0,
 scenario_092,snap,0.0,
 scenario_092,ssi,0.0,
 scenario_092,tanf,0.0,
-scenario_092,premium_tax_credit,0.0,
 scenario_092,head_wic_eligible,0.0,0.0
 scenario_092,spouse_wic_eligible,0.0,0.0
 scenario_092,head_medicaid_eligible,0.0,0.0
@@ -2046,7 +1953,7 @@ scenario_092,free_school_meals_eligible,0.0,0.0
 scenario_092,reduced_price_school_meals_eligible,0.0,0.0
 scenario_093,federal_income_tax_before_refundable_credits,10858.0400390625,
 scenario_093,federal_refundable_credits,0.0,
-scenario_093,payroll_tax,7961.66064453125,
+scenario_093,payroll_tax,9173.9287109375,
 scenario_093,self_employment_tax,0.0,
 scenario_093,state_income_tax_before_refundable_credits,4009.395263671875,
 scenario_093,state_refundable_credits,0.0,
@@ -2054,7 +1961,6 @@ scenario_093,local_income_tax,0.0,
 scenario_093,snap,0.0,
 scenario_093,ssi,0.0,
 scenario_093,tanf,0.0,
-scenario_093,premium_tax_credit,0.0,
 scenario_093,head_wic_eligible,0.0,0.0
 scenario_093,head_medicaid_eligible,0.0,0.0
 scenario_093,head_chip_eligible,0.0,0.0
@@ -2071,7 +1977,6 @@ scenario_094,local_income_tax,0.0,
 scenario_094,snap,0.0,
 scenario_094,ssi,0.0,
 scenario_094,tanf,0.0,
-scenario_094,premium_tax_credit,0.0,
 scenario_094,head_wic_eligible,0.0,0.0
 scenario_094,spouse_wic_eligible,0.0,0.0
 scenario_094,head_medicaid_eligible,0.0,0.0
@@ -2092,7 +1997,6 @@ scenario_095,local_income_tax,0.0,
 scenario_095,snap,0.0,
 scenario_095,ssi,0.0,
 scenario_095,tanf,0.0,
-scenario_095,premium_tax_credit,0.0,
 scenario_095,head_wic_eligible,0.0,0.0
 scenario_095,head_medicaid_eligible,0.0,0.0
 scenario_095,head_chip_eligible,0.0,0.0
@@ -2109,7 +2013,6 @@ scenario_096,local_income_tax,0.0,
 scenario_096,snap,3596.039794921875,
 scenario_096,ssi,0.0,
 scenario_096,tanf,0.0,
-scenario_096,premium_tax_credit,0.0,
 scenario_096,head_wic_eligible,0.0,0.0
 scenario_096,head_medicaid_eligible,1.0,6439.109375
 scenario_096,head_chip_eligible,0.0,0.0
@@ -2126,7 +2029,6 @@ scenario_097,local_income_tax,0.0,
 scenario_097,snap,0.0,
 scenario_097,ssi,0.0,
 scenario_097,tanf,0.0,
-scenario_097,premium_tax_credit,0.0,
 scenario_097,head_wic_eligible,0.0,0.0
 scenario_097,child1_wic_eligible,0.0,0.0
 scenario_097,child2_wic_eligible,0.0,0.0
@@ -2155,7 +2057,6 @@ scenario_098,local_income_tax,0.0,
 scenario_098,snap,0.0,
 scenario_098,ssi,0.0,
 scenario_098,tanf,0.0,
-scenario_098,premium_tax_credit,0.0,
 scenario_098,head_wic_eligible,0.0,0.0
 scenario_098,spouse_wic_eligible,0.0,0.0
 scenario_098,head_medicaid_eligible,0.0,0.0
@@ -2176,7 +2077,6 @@ scenario_099,local_income_tax,0.0,
 scenario_099,snap,0.0,
 scenario_099,ssi,0.0,
 scenario_099,tanf,0.0,
-scenario_099,premium_tax_credit,0.0,
 scenario_099,head_wic_eligible,0.0,0.0
 scenario_099,spouse_wic_eligible,0.0,0.0
 scenario_099,head_medicaid_eligible,0.0,0.0

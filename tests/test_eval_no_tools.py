@@ -1420,6 +1420,7 @@ def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario)
 
 def test_default_models_include_new_provider_variants():
     """Keep newly added provider variants addressable by stable local names."""
+    assert MODELS["claude-opus-4.8"] == "claude-opus-4-8"
     assert MODELS["grok-4.3"] == "xai/grok-4.3"
 
 
@@ -1464,7 +1465,7 @@ def test_completion_budget_scales_with_output_count():
         > 256
     )
     assert (
-        _completion_controls("claude-opus-4-7", variables=["income_tax"])[
+        _completion_controls("claude-opus-4-8", variables=["income_tax"])[
             "max_completion_tokens"
         ]
         == 4096
@@ -1480,7 +1481,7 @@ def test_completion_budget_scales_with_output_count():
 def test_claude_explanation_runs_use_single_output_chunks():
     """Claude providers can omit outputs in larger chunks, so keep them small."""
     assert _required_explanation_chunk_size("claude-sonnet-4-6", True) == 1
-    assert _required_explanation_chunk_size("claude-opus-4-7", True) == 1
+    assert _required_explanation_chunk_size("claude-opus-4-8", True) == 1
     assert _required_explanation_chunk_size("gpt-5.5", True) == 3
     assert _required_explanation_chunk_size("claude-sonnet-4-6", False) is None
 

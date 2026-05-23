@@ -1,11 +1,12 @@
 """Household scenario generation for PolicyBench."""
 
+import copy
 import hashlib
 import json
 import os
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -583,6 +584,59 @@ def scenario_from_dict(data: dict[str, Any]) -> Scenario:
         source_dataset=str(data.get("source_dataset", "enhanced_cps")),
         metadata=dict(data.get("metadata", {})),
     )
+
+
+def remove_unsupported_us_inputs(
+    scenarios: list[Scenario],
+    variable_names: set[str] | frozenset[str] | None = None,
+) -> tuple[list[Scenario], list[str]]:
+    """Return calculation scenarios with inputs absent from PE-US removed.
+
+    Frozen scenario manifests can outlive PolicyEngine-US input variables. The
+    public scenario CSVs should stay frozen, but reference-output recomputation
+    against newer PE-US releases must drop removed raw inputs before building a
+    situation.
+    """
+    if variable_names is None:
+        from policybench.policyengine_runtime import get_us_variable_names
+
+        variable_names = get_us_variable_names()
+
+    dropped: set[str] = set()
+
+    def filter_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+        filtered = {}
+        for key, value in inputs.items():
+            if key in variable_names:
+                filtered[key] = copy.deepcopy(value)
+            else:
+                dropped.add(key)
+        return filtered
+
+    sanitized = []
+    for scenario in scenarios:
+        if scenario.country != "us":
+            sanitized.append(scenario)
+            continue
+
+        sanitized.append(
+            replace(
+                scenario,
+                adults=[
+                    replace(person, inputs=filter_inputs(person.inputs))
+                    for person in scenario.adults
+                ],
+                children=[
+                    replace(person, inputs=filter_inputs(person.inputs))
+                    for person in scenario.children
+                ],
+                tax_unit_inputs=filter_inputs(scenario.tax_unit_inputs),
+                spm_unit_inputs=filter_inputs(scenario.spm_unit_inputs),
+                household_inputs=filter_inputs(scenario.household_inputs),
+            )
+        )
+
+    return sanitized, sorted(dropped)
 
 
 def load_enhanced_cps_person_frame() -> tuple[pd.DataFrame, int]:

@@ -19,9 +19,7 @@
 
   --color-text: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
-  /* Was --text-tertiary (#94A3B8) which fails 4.5:1 on white at small sizes.
-     Use the brand gray-600 from ui-kit (#4B5563, 8.59:1). */
-  --color-text-muted: var(--color-gray-600);
+  --color-text-muted: var(--text-tertiary);
   --color-text-muted-light: var(--text-tertiary);
 
   --color-primary: var(--primary);

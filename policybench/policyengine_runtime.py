@@ -324,6 +324,15 @@ def get_us_situation_simulation_class():
     return Simulation
 
 
+@lru_cache(maxsize=1)
+def get_us_variable_names() -> frozenset[str]:
+    """Return the installed PE-US variable registry names."""
+    policyengine_release_bundle("us")
+    from policyengine_us import CountryTaxBenefitSystem
+
+    return frozenset(CountryTaxBenefitSystem().variables)
+
+
 def make_us_microsimulation(**kwargs):
     """Create a PE-US Microsimulation with runtime provenance attached."""
     from policyengine_us import Microsimulation

@@ -8,12 +8,15 @@ import pytest
 import policybench.scenarios as scenarios_module
 from policybench.scenarios import (
     SUPPORTED_FILING_STATUSES,
+    Person,
+    Scenario,
     _eligible_uk_households,
     _is_geographic_defined_for,
     generate_scenarios,
     get_promptable_input_specs,
     load_excluded_household_ids,
     load_scenarios_from_manifest,
+    remove_unsupported_us_inputs,
     scenario_manifest,
     scenarios_from_cps_frame,
     scenarios_from_uk_frames,
@@ -931,6 +934,56 @@ def test_load_excluded_household_ids_from_manifest_json(tmp_path):
     ).to_csv(manifest_path, index=False)
 
     assert load_excluded_household_ids(manifest_path) == {101, 205}
+
+
+def test_remove_unsupported_us_inputs_keeps_frozen_scenario_unchanged():
+    scenario = Scenario(
+        id="scenario_000",
+        country="us",
+        state="CA",
+        filing_status="single",
+        adults=[
+            Person(
+                name="head",
+                age=40,
+                employment_income=25_000,
+                inputs={
+                    "hourly_wage": 20,
+                    "removed_person_input": 1,
+                },
+            )
+        ],
+        tax_unit_inputs={"takes_up_eitc": True},
+        spm_unit_inputs={
+            "pre_subsidy_rent": 12_000,
+            "removed_spm_input": 5,
+        },
+        household_inputs={"removed_household_input": 1},
+        year=2026,
+    )
+
+    sanitized, dropped = remove_unsupported_us_inputs(
+        [scenario],
+        variable_names=frozenset(
+            {
+                "hourly_wage",
+                "takes_up_eitc",
+                "pre_subsidy_rent",
+            }
+        ),
+    )
+
+    assert dropped == [
+        "removed_household_input",
+        "removed_person_input",
+        "removed_spm_input",
+    ]
+    assert sanitized[0].adults[0].inputs == {"hourly_wage": 20}
+    assert sanitized[0].spm_unit_inputs == {"pre_subsidy_rent": 12_000}
+    assert sanitized[0].household_inputs == {}
+    assert scenario.adults[0].inputs["removed_person_input"] == 1
+    assert scenario.spm_unit_inputs["removed_spm_input"] == 5
+    assert scenario.household_inputs["removed_household_input"] == 1
 
 
 def test_scenario_manifest_exports_summary_fields(sample_person_frame):
