@@ -764,9 +764,7 @@ class TestSummaries:
         assert "within10pctRunMean" not in payload["modelStats"][0]
         assert payload["heatmap"][0]["condition"] == "no_tools"
         income_program = next(
-            row
-            for row in payload["programStats"]
-            if row["variable"] == "income_tax"
+            row for row in payload["programStats"] if row["variable"] == "income_tax"
         )
         assert income_program["score"] == pytest.approx(92.5)
         assert income_program["thresholdScore"] == pytest.approx(37.5)

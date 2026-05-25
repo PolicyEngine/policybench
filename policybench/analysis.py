@@ -801,9 +801,7 @@ def participation_accuracy_by_model(
             pred_flag = binary_flag(pred)
             ref_flag = binary_flag(ref)
             return (
-                pred_flag is not None
-                and ref_flag is not None
-                and pred_flag == ref_flag
+                pred_flag is not None and ref_flag is not None and pred_flag == ref_flag
             )
         return (float(ref) == 0.0) == (float(pred) == 0.0)
 
@@ -1245,14 +1243,17 @@ def compute_metrics(
             row["threshold_score"] = float(
                 np.mean([exact, within_1pct, within_5pct, within_10pct])
             )
-            row["score"] = float(
-                np.mean(
-                    [
-                        bounded_row_score(variable, truth, pred)
-                        for truth, pred in zip(y_true, y_pred, strict=True)
-                    ]
+            row["score"] = (
+                float(
+                    np.mean(
+                        [
+                            bounded_row_score(variable, truth, pred)
+                            for truth, pred in zip(y_true, y_pred, strict=True)
+                        ]
+                    )
                 )
-            ) * coverage
+                * coverage
+            )
 
         rows.append(row)
 

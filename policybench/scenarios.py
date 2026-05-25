@@ -90,6 +90,7 @@ EXCLUDED_INPUT_VARIABLES = {
     "employer_quarterly_payroll_expense_override",
     "employer_state_unemployment_tax_rate_override",
     "has_itin",
+    "has_champva_health_coverage_at_interview",
     "has_marketplace_health_coverage",
     "has_marketplace_health_coverage_at_interview",
     "has_medicaid_health_coverage_at_interview",
@@ -218,6 +219,31 @@ MONETARY_INCOME_FIELDS = {
     "veterans_benefits",
     "workers_compensation",
     "long_term_capital_gains",
+}
+
+# These fields represent costs, premiums, balances, or expenses that cannot be
+# negative in ordinary household facts. Some survey/imputation artifacts encode
+# negative values; omit those rather than asking models to reason from impossible
+# prompt facts. Loss-like income fields, such as rental or partnership income,
+# remain promptable when negative.
+NONNEGATIVE_PROMPT_INPUTS = {
+    "auto_loan_balance",
+    "auto_loan_interest",
+    "charitable_cash_donations",
+    "charitable_non_cash_donations",
+    "deductible_mortgage_interest",
+    "employer_sponsored_insurance_premiums",
+    "first_home_mortgage_balance",
+    "first_home_mortgage_interest",
+    "health_insurance_premiums_without_medicare_part_b",
+    "home_mortgage_interest",
+    "household_vehicles_value",
+    "medicare_part_b_premiums",
+    "other_health_insurance_premiums",
+    "other_medical_expenses",
+    "over_the_counter_health_expenses",
+    "pre_subsidy_rent",
+    "real_estate_taxes",
 }
 
 BASE_CPS_COLUMNS = {
@@ -1056,6 +1082,8 @@ def _extract_entity_inputs(
             continue
 
         value = float(row[spec.output_name])
+        if spec.output_name in NONNEGATIVE_PROMPT_INPUTS and value < 0:
+            continue
         if (
             spec.default_value is not None
             and abs(value - float(spec.default_value)) <= 1e-6
