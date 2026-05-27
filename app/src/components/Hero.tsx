@@ -3,6 +3,22 @@ import SiteHeader, { type HeaderNavItem } from "./SiteHeader";
 
 const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-20";
 
+function PreReleaseBanner() {
+  return (
+    <div className="border-y border-warning/30 bg-warning-soft/90">
+      <div className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3 text-sm text-text sm:flex-row sm:items-center sm:px-6">
+        <span className="font-[family-name:var(--font-mono)] text-[11px] font-semibold uppercase tracking-[0.12em] text-warning-text">
+          Pre-release
+        </span>
+        <span className="text-text-secondary">
+          These results are provisional. We plan to rerun PolicyBench with
+          updated data and improved prompts before the final release.
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function Hero({
   selectedView,
   onSelectView,
@@ -44,6 +60,7 @@ export default function Hero({
         availableViews={availableViews}
         actionLink={{ label: "Paper", href: "/paper", type: "internal" }}
       />
+      <PreReleaseBanner />
 
       <section
         aria-labelledby="hero-title"
