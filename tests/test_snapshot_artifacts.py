@@ -149,16 +149,15 @@ def _aggregate_scenario_metric(country_payload: dict, metric: str) -> dict[str, 
             household_score = 0.0
             for variable, model_map in variables:
                 row = model_map[model]
-                household_score += (
-                    raw_row_weights[variable] / denominator
-                ) * row[metric]
+                household_score += (raw_row_weights[variable] / denominator) * row[
+                    metric
+                ]
             entry = totals.setdefault(model, {"score": 0.0, "households": 0.0})
             entry["score"] += household_score
             entry["households"] += 1
 
     return {
-        model: entry["score"] / entry["households"]
-        for model, entry in totals.items()
+        model: entry["score"] / entry["households"] for model, entry in totals.items()
     }
 
 
