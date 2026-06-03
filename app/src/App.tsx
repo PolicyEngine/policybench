@@ -61,6 +61,19 @@ function detectVisitorCountry(availableViews: readonly CountryCode[]): CountryCo
   return availableViews.includes("us") ? "us" : (availableViews[0] ?? "us");
 }
 
+/** Explicit country override from the URL, e.g. ?country=uk or ?view=us. */
+function countryFromQuery(
+  availableViews: readonly CountryCode[],
+): CountryCode | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const raw = (params.get("country") ?? params.get("view") ?? "").toLowerCase();
+  if ((raw === "uk" || raw === "us") && availableViews.includes(raw as CountryCode)) {
+    return raw as CountryCode;
+  }
+  return null;
+}
+
 export default function App() {
   const availableViews = useMemo(() => getAvailableViews(dashboard), []);
   // Default to the US benchmark, then switch UK visitors after mount when
@@ -76,9 +89,15 @@ export default function App() {
 
   useEffect(() => {
     if (hasUserPickedView) return;
-    const detected = detectVisitorCountry(availableViews);
-    if (detected !== selectedView) {
-      setSelectedView(detected);
+    // An explicit ?country= override wins and locks the view; otherwise fall
+    // back to timezone/language auto-detection.
+    const fromUrl = countryFromQuery(availableViews);
+    const next = fromUrl ?? detectVisitorCountry(availableViews);
+    if (next !== selectedView) {
+      setSelectedView(next);
+    }
+    if (fromUrl) {
+      setHasUserPickedView(true);
     }
     // We only want this auto-pick to run once per session; further changes
     // come from the user clicking the country selector.
@@ -127,6 +146,12 @@ export default function App() {
     setSelectedView(view);
     setHasUserPickedView(true);
     setActiveNav("models");
+    // Keep the URL in sync so the current view is shareable/embeddable.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("country", view);
+      window.history.replaceState(null, "", url);
+    }
   };
 
   useEffect(() => {
