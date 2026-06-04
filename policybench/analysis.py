@@ -8,6 +8,7 @@ import pandas as pd
 
 from policybench.config import (
     BINARY_PROGRAMS,
+    SEED,
 )
 from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.population_weights import (
@@ -523,6 +524,153 @@ def weighted_hit_rate_scores_by_model(
         ]
         .mean()
         .reset_index()
+    )
+
+
+def household_headline_scores(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+    market_income_by_scenario: dict[str, float] | pd.Series,
+    country: str | None = None,
+    *,
+    metric: str = "within_1pct",
+) -> pd.DataFrame:
+    """Per-(model, scenario) household hit score for a single headline metric.
+
+    This is the household-level building block of
+    :func:`weighted_hit_rate_scores_by_model`: output-group weights come from the
+    full source population, are split across the concrete rows inside each
+    household and renormalized within that household, then combined with the
+    per-row hit indicator for ``metric``. Averaging the returned ``score`` across
+    scenarios with equal household weight reproduces the model-level headline
+    rate; keeping it at household granularity is what lets callers resample
+    households for a bootstrap confidence interval.
+
+    ``metric`` is one of the keys returned by :func:`row_hit_scores`
+    (``exact``, ``within_1pct``, ``within_5pct``, ``within_10pct``,
+    ``threshold_score``).
+    """
+    columns = ["model", "scenario_id", "score"]
+    if ground_truth.empty or predictions.empty:
+        return pd.DataFrame(columns=columns)
+    weights = bounded_global_variable_weights(
+        ground_truth,
+        market_income_by_scenario,
+        country=country,
+    )
+    row_weights = _row_weights_for_ground_truth(ground_truth, weights)
+    models = sorted(predictions["model"].dropna().unique())
+    grid = (
+        ground_truth.assign(_k=1)
+        .merge(pd.DataFrame({"model": models, "_k": 1}), on="_k")
+        .drop(columns="_k")
+    )
+    merged = grid.merge(
+        predictions[["model", "scenario_id", "variable", "prediction"]],
+        on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+    merged["hit"] = [
+        row_hit_scores(variable, y_true, y_pred)[metric]
+        for variable, y_true, y_pred in zip(
+            merged["variable"],
+            merged["value"],
+            merged["prediction"],
+            strict=True,
+        )
+    ]
+    merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
+    merged["weight"] = merged["weight"].fillna(0.0)
+    merged["weighted"] = merged["hit"] * merged["weight"]
+    return (
+        merged.groupby(["model", "scenario_id"])["weighted"]
+        .sum()
+        .rename("score")
+        .reset_index()
+    )
+
+
+def bootstrap_headline_cis(
+    ground_truth: pd.DataFrame,
+    predictions: pd.DataFrame,
+    market_income_by_scenario: dict[str, float] | pd.Series,
+    country: str | None = None,
+    *,
+    metric: str = "within_1pct",
+    n_boot: int = 2000,
+    seed: int = SEED,
+    ci: float = 0.95,
+) -> pd.DataFrame:
+    """Bootstrap confidence intervals for the household-equal headline metric.
+
+    The benchmark scores each model as the mean over households of a
+    population-weighted within-household hit rate. With only ~100 households the
+    sampling uncertainty on that mean is non-trivial, so this resamples the
+    households (scenarios) with replacement ``n_boot`` times — the resampling
+    unit is the household, carried with its full output vector so
+    within-household output correlations are preserved — and reports percentile
+    intervals.
+
+    The same resampled household set is used for every model in each replicate
+    (a paired bootstrap), so the replicate-level ranks are comparable and the
+    reported rank range reflects genuine ordering uncertainty.
+
+    This is a reporting helper for the manuscript; the leaderboard/app render
+    point estimates only.
+
+    Returns one row per model with ``model``, ``point``, ``lo``, ``hi`` (all in
+    [0, 1] like the other scorers), the point-estimate ``rank`` (1 = best), and
+    the percentile ``rank_lo`` / ``rank_hi``, sorted by ``point`` descending.
+    """
+    columns = ["model", "point", "lo", "hi", "rank", "rank_lo", "rank_hi"]
+    household = household_headline_scores(
+        ground_truth,
+        predictions,
+        market_income_by_scenario,
+        country=country,
+        metric=metric,
+    )
+    if household.empty:
+        return pd.DataFrame(columns=columns)
+
+    wide = household.pivot(index="scenario_id", columns="model", values="score").fillna(
+        0.0
+    )
+    models = list(wide.columns)
+    scores = wide.to_numpy()  # (n_households, n_models)
+    n = scores.shape[0]
+    point = scores.mean(axis=0)
+
+    lower_q = (1.0 - ci) / 2.0
+    upper_q = 1.0 - lower_q
+    rng = np.random.default_rng(seed)
+    draws = rng.integers(0, n, size=(n_boot, n))
+    replicate_means = scores[draws].mean(axis=1)  # (n_boot, n_models)
+    lo = np.quantile(replicate_means, lower_q, axis=0)
+    hi = np.quantile(replicate_means, upper_q, axis=0)
+
+    # Rank within each replicate (1 = best). Counting only strictly-greater
+    # competitors makes ties share the better rank.
+    replicate_ranks = (
+        replicate_means[:, None, :] > replicate_means[:, :, None] + 1e-12
+    ).sum(axis=2) + 1
+    point_rank = (point[None, :] > point[:, None] + 1e-12).sum(axis=1) + 1
+    rank_lo = np.quantile(replicate_ranks, lower_q, axis=0)
+    rank_hi = np.quantile(replicate_ranks, upper_q, axis=0)
+
+    out = pd.DataFrame(
+        {
+            "model": models,
+            "point": point,
+            "lo": lo,
+            "hi": hi,
+            "rank": point_rank.astype(int),
+            "rank_lo": np.floor(rank_lo).astype(int),
+            "rank_hi": np.ceil(rank_hi).astype(int),
+        }
+    )
+    return out.sort_values(["point", "model"], ascending=[False, True]).reset_index(
+        drop=True
     )
 
 

@@ -10,6 +10,7 @@ from policybench.analysis import (
     accuracy,
     amount_accuracy_by_model,
     analyze_no_tools,
+    bootstrap_headline_cis,
     bounded_global_variable_weights,
     bounded_household_scores,
     bounded_row_score,
@@ -1460,3 +1461,90 @@ class TestEqualAndAggregateScores:
         assert out.loc[out["model"] == "m1", "aggregate_score"].iloc[
             0
         ] == pytest.approx(8 / 11)
+
+
+class TestBootstrapHeadlineCIs:
+    """Household-resampling bootstrap CIs for the headline metric (paper only)."""
+
+    def _inputs(self):
+        ground_truth = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s2", "s3", "s4"],
+                "variable": ["income_tax"] * 4,
+                "value": [1000.0, 2000.0, 3000.0, 4000.0],
+            }
+        )
+        predictions = pd.DataFrame(
+            {
+                # good: exact everywhere; mixed: right on s1/s2, wrong on s3/s4;
+                # bad: wrong everywhere (>1% off).
+                "model": ["good"] * 4 + ["mixed"] * 4 + ["bad"] * 4,
+                "scenario_id": ["s1", "s2", "s3", "s4"] * 3,
+                "variable": ["income_tax"] * 12,
+                "prediction": [
+                    1000.0,
+                    2000.0,
+                    3000.0,
+                    4000.0,
+                    1000.0,
+                    2000.0,
+                    9999.0,
+                    9999.0,
+                    9999.0,
+                    9999.0,
+                    9999.0,
+                    9999.0,
+                ],
+            }
+        )
+        market = {"s1": 0.0, "s2": 0.0, "s3": 0.0, "s4": 0.0}
+        return ground_truth, predictions, market
+
+    def test_point_matches_weighted_hit_rate(self):
+        gt, preds, market = self._inputs()
+        cis = bootstrap_headline_cis(gt, preds, market, n_boot=200, seed=42)
+        hit = weighted_hit_rate_scores_by_model(gt, preds, market)
+        for _, row in cis.iterrows():
+            expected = hit.loc[
+                hit["model"] == row["model"], "weighted_within_1pct"
+            ].iloc[0]
+            assert row["point"] == pytest.approx(expected)
+        points = dict(zip(cis["model"], cis["point"]))
+        assert points["good"] == pytest.approx(1.0)
+        assert points["mixed"] == pytest.approx(0.5)
+        assert points["bad"] == pytest.approx(0.0)
+
+    def test_ci_brackets_point_and_is_ordered(self):
+        gt, preds, market = self._inputs()
+        cis = bootstrap_headline_cis(gt, preds, market, n_boot=500, seed=1)
+        for _, row in cis.iterrows():
+            assert row["lo"] <= row["point"] <= row["hi"]
+        assert list(cis["point"]) == sorted(cis["point"], reverse=True)
+        assert list(cis["model"]) == ["good", "mixed", "bad"]
+        assert list(cis["rank"]) == [1, 2, 3]
+        for _, row in cis.iterrows():
+            assert row["rank_lo"] <= row["rank"] <= row["rank_hi"]
+
+    def test_zero_width_for_constant_model_and_positive_for_varying(self):
+        gt, preds, market = self._inputs()
+        cis = bootstrap_headline_cis(gt, preds, market, n_boot=500, seed=7)
+        width = {row["model"]: row["hi"] - row["lo"] for _, row in cis.iterrows()}
+        # good (all 1.0) and bad (all 0.0) cannot change under resampling.
+        assert width["good"] == pytest.approx(0.0)
+        assert width["bad"] == pytest.approx(0.0)
+        # mixed varies household-to-household, so the CI has positive width.
+        assert width["mixed"] > 0.0
+
+    def test_reproducible_with_seed(self):
+        gt, preds, market = self._inputs()
+        a = bootstrap_headline_cis(gt, preds, market, n_boot=300, seed=123)
+        b = bootstrap_headline_cis(gt, preds, market, n_boot=300, seed=123)
+        pd.testing.assert_frame_equal(a, b)
+
+    def test_exact_metric_supported(self):
+        gt, preds, market = self._inputs()
+        cis = bootstrap_headline_cis(
+            gt, preds, market, metric="exact", n_boot=100, seed=3
+        )
+        assert set(cis["model"]) == {"good", "mixed", "bad"}
+        assert cis.loc[cis["model"] == "good", "point"].iloc[0] == pytest.approx(1.0)
