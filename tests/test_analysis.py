@@ -1524,6 +1524,12 @@ class TestBootstrapHeadlineCIs:
         assert list(cis["rank"]) == [1, 2, 3]
         for _, row in cis.iterrows():
             assert row["rank_lo"] <= row["rank"] <= row["rank_hi"]
+        # good scores 1.0 on every household, so no resample can rank it below
+        # first: a deterministic rank with zero range. (bad is not symmetric --
+        # mixed can resample to all-zero and tie it, so bad's rank_lo may be 2.)
+        by_model = cis.set_index("model")
+        assert by_model.loc["good", "rank_lo"] == by_model.loc["good", "rank_hi"] == 1
+        assert by_model.loc["bad", "rank_hi"] == 3
 
     def test_zero_width_for_constant_model_and_positive_for_varying(self):
         gt, preds, market = self._inputs()

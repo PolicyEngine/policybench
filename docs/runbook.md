@@ -235,7 +235,7 @@ Pass `--source-predictions` the latest merged file — the Section 5 response-re
 output if that ran, otherwise the per-model `predictions.csv`. Use
 `--prepare-only` to count broken rows without model calls, `--max-rows` for smoke
 tests, and repeated `--model` flags to restrict targets. Each round writes
-`target_rows.csv`, `row_repair_attempts.csv.gz`,
+`target_rows.csv`, `row_repair_attempts.csv`,
 `accepted_row_repair_rows.csv.gz`, and `merged_predictions.csv.gz`; point the
 Section 6 export at the final `merged_predictions.csv.gz`.
 
