@@ -123,6 +123,7 @@ for country in us uk; do
     --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
     --output-dir "$RUN_DIR/$country" \
     --model gemini-3.1-pro-preview \
+    --model gemini-3.5-flash \
     --model gemini-3-flash-preview \
     --model gemini-3.1-flash-lite-preview \
     --chunk-size 5 \
@@ -142,13 +143,18 @@ The current default non-Claude model set is:
 grok-4.3
 grok-4.20
 grok-4.1-fast
-  gpt-5.5
-  gpt-5.4-mini
-  gpt-5.4-nano
+gpt-5.5
+gpt-5.4-mini
+gpt-5.4-nano
 gemini-3.1-pro-preview
+gemini-3.5-flash
 gemini-3-flash-preview
 gemini-3.1-flash-lite-preview
 ```
+
+`config.MODELS` may also include newer models (e.g. DeepSeek) added after the
+frozen manuscript snapshot; add them to the appropriate provider group when
+running a fresh batch.
 
 The runner skips complete chunks and rewrites per-model merged CSVs on resume.
 Provider transport, timeout, rate-limit, server, authentication, and
@@ -205,6 +211,33 @@ Each retry directory writes:
 Use `--prepare-only` to estimate retry scope without model calls. Use repeated
 `--model` flags for targeted later rounds when an earlier round shows that some
 models have near-zero retry yield.
+
+## 5b. Repair Individual Broken Rows
+
+Full-response retries (Section 5) replace an entire `(country, model,
+household)` response. Some individual output rows can still be missing a parsed
+value or explanation after retries converge. `repair-failed-rows` targets those
+rows in isolation and leaves the rest of each response untouched. The
+manuscript's Appendix A reports the yield from this step, so it is part of
+reproducing the frozen snapshot.
+
+```bash
+uv run policybench repair-failed-rows \
+  --country us \
+  --source-predictions "$RUN_DIR/us/response_retries/round_1/merged_predictions.csv.gz" \
+  --scenario-manifest "$RUN_DIR/us/scenarios.csv" \
+  --output-dir "$RUN_DIR/us/row_repairs/round_1" \
+  --attempts-per-row 3 \
+  --parallel 4
+```
+
+Pass `--source-predictions` the latest merged file — the Section 5 response-retry
+output if that ran, otherwise the per-model `predictions.csv`. Use
+`--prepare-only` to count broken rows without model calls, `--max-rows` for smoke
+tests, and repeated `--model` flags to restrict targets. Each round writes
+`target_rows.csv`, `row_repair_attempts.csv.gz`,
+`accepted_row_repair_rows.csv.gz`, and `merged_predictions.csv.gz`; point the
+Section 6 export at the final `merged_predictions.csv.gz`.
 
 ## 6. Merge and Export
 

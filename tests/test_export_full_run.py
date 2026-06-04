@@ -230,3 +230,22 @@ def test_merge_case_annotations_attaches_notes_to_prediction_rows() -> None:
     assert merged["case_annotation"].tolist() == ["Shared case note."]
     assert merged["case_failure_sources"].tolist() == ["llm_error"]
     assert merged["case_failure_subtypes"].tolist() == ["thresholds_rates"]
+
+
+def test_available_countries_detects_only_populated_dirs(tmp_path):
+    from policybench.full_run_export import _available_countries
+
+    (tmp_path / "us").mkdir()
+    (tmp_path / "us" / "reference_outputs.csv").write_text("scenario_id\n")
+    (tmp_path / "uk").mkdir()  # empty -> not a runnable country dir
+
+    assert _available_countries(tmp_path) == ["us"]
+
+
+def test_export_full_run_errors_clearly_when_no_country_dirs(tmp_path):
+    import pytest
+
+    from policybench.full_run_export import export_full_run
+
+    with pytest.raises(FileNotFoundError, match="No country subdirectory"):
+        export_full_run(tmp_path, skip_app_data=True)

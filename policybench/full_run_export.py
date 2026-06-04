@@ -298,6 +298,21 @@ def export_country(country_dir: Path) -> dict:
     return payload
 
 
+def _available_countries(run_path: Path) -> list[str]:
+    """Country subdirectories under a run dir that contain run artifacts."""
+    found = []
+    for country in ("us", "uk"):
+        country_dir = run_path / country
+        if country_dir.is_dir() and (
+            (country_dir / "reference_outputs.csv").exists()
+            or (country_dir / "by_model").is_dir()
+            or (country_dir / "predictions.csv").exists()
+            or (country_dir / "predictions.csv.gz").exists()
+        ):
+            found.append(country)
+    return found
+
+
 def export_full_run(
     run_dir: str | Path,
     countries: Sequence[str] | None = None,
@@ -306,7 +321,16 @@ def export_full_run(
 ) -> dict:
     """Export per-country and combined frontend artifacts from a full run."""
     run_path = Path(run_dir)
-    selected_countries = list(countries or ["us", "uk"])
+    if countries:
+        selected_countries = list(countries)
+    else:
+        selected_countries = _available_countries(run_path)
+        if not selected_countries:
+            raise FileNotFoundError(
+                f"No country subdirectory with run artifacts found under "
+                f"{run_path}. Expected one of us/, uk/ containing "
+                "reference_outputs.csv, by_model/, or predictions.csv[.gz]."
+            )
 
     country_payloads = {
         country: export_country(run_path / country) for country in selected_countries
