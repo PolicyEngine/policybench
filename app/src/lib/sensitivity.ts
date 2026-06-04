@@ -1,16 +1,8 @@
 import type {
-  BenchData,
   CountryCode,
   DashboardBundle,
   ModelStat,
 } from "../types";
-
-import {
-  metricTypeForVariable,
-  outputGroupForVariable,
-  scorePrediction,
-  type ScoreRow,
-} from "./scoring";
 
 export type SensitivityViewId = "household" | "aggregate" | "equal";
 
@@ -47,58 +39,6 @@ const VIEW_TO_FIELD: Record<SensitivityViewId, keyof ModelStat> = {
   aggregate: "aggregateScore",
   equal: "equalScore",
 };
-
-export type ScenarioRow = {
-  country: CountryCode;
-  scenarioId: string;
-  outputGroup: string;
-  model: string;
-  score: number;
-};
-
-// Build all per-cell scoring rows. Kept for the bootstrap intervals path —
-// the view selector now reads precomputed view scores from the dashboard
-// payload instead of re-aggregating row-level scores on the client.
-function buildRows(country: CountryCode, payload: BenchData): ScoreRow[] {
-  const rows: ScoreRow[] = [];
-  for (const [scenarioId, variableMap] of Object.entries(
-    payload.scenarioPredictions,
-  )) {
-    for (const [variable, modelMap] of Object.entries(variableMap)) {
-      const outputGroup = outputGroupForVariable(variable);
-      const metricType = metricTypeForVariable(variable, country);
-      for (const [model, record] of Object.entries(modelMap)) {
-        rows.push({
-          country,
-          scenarioId,
-          variable,
-          outputGroup,
-          model,
-          truth: record.groundTruth,
-          prediction: record.prediction,
-          metricType,
-          score: scorePrediction(
-            variable,
-            country,
-            record.groundTruth,
-            record.prediction,
-          ),
-        });
-      }
-    }
-  }
-  return rows;
-}
-
-export function buildAllRows(dashboard: DashboardBundle): ScoreRow[] {
-  const rows: ScoreRow[] = [];
-  for (const country of ["us", "uk"] as CountryCode[]) {
-    const payload = dashboard.countries[country];
-    if (!payload) continue;
-    rows.push(...buildRows(country, payload));
-  }
-  return rows;
-}
 
 export type ModelScore = {
   model: string;

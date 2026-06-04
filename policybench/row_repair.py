@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 from policybench.chunked_eval import model_requires_serial_execution
-from policybench.config import RUNNABLE_MODELS
+from policybench.config import MODELS
 from policybench.eval_no_tools import is_infrastructure_error_text, run_single_no_tools
 from policybench.reparse_predictions import reparse_predictions_frame
 from policybench.scenarios import load_scenarios_from_manifest
@@ -219,14 +219,14 @@ def repair_prediction_row(
     require_explanations: bool = True,
 ) -> tuple[dict, list[dict]]:
     """Retry one model-scenario-variable row and return best row plus attempts."""
-    if model not in RUNNABLE_MODELS:
-        valid = ", ".join(sorted(RUNNABLE_MODELS))
+    if model not in MODELS:
+        valid = ", ".join(sorted(MODELS))
         raise ValueError(f"Unknown model '{model}'. Valid models: {valid}.")
     if attempts_per_row <= 0:
         raise ValueError("attempts_per_row must be positive.")
 
     attempts = []
-    model_id = RUNNABLE_MODELS[model]
+    model_id = MODELS[model]
     for attempt in range(1, attempts_per_row + 1):
         try:
             result = run_single_no_tools(

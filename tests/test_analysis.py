@@ -10,6 +10,7 @@ from policybench.analysis import (
     accuracy,
     amount_accuracy_by_model,
     analyze_no_tools,
+    bootstrap_headline_cis,
     bounded_global_variable_weights,
     bounded_household_scores,
     bounded_row_score,
@@ -20,8 +21,6 @@ from policybench.analysis import (
     exact_amount_match,
     export_analysis,
     export_dashboard_data,
-    household_equal_impact_scores,
-    household_impact_summary_by_model,
     household_net_income_by_scenario,
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -336,91 +335,6 @@ class TestSummaries:
         assert abs(it["mean_score"].iloc[0] - 0.475) < 1e-10
         assert abs(it["mean_mae"].iloc[0] - 750.0) < 1e-10
 
-    def test_household_equal_impact_scores_keep_households_equally_weighted(self):
-        ground_truth_df = pd.DataFrame(
-            {
-                "scenario_id": ["s1", "s1", "s2", "s2"],
-                "variable": ["income_tax", "snap", "income_tax", "snap"],
-                "value": [100.0, 0.0, 10_000.0, 0.0],
-            }
-        )
-        predictions_df = pd.DataFrame(
-            {
-                "model": ["model_a"] * 4,
-                "scenario_id": ["s1", "s1", "s2", "s2"],
-                "variable": ["income_tax", "snap", "income_tax", "snap"],
-                "prediction": [100.0, 50.0, 0.0, 0.0],
-            }
-        )
-
-        household_scores = household_equal_impact_scores(
-            ground_truth_df,
-            predictions_df,
-            floor_share=0.3,
-        ).sort_values("scenario_id")
-
-        assert household_scores["impact_score"].tolist() == pytest.approx([0.85, 0.15])
-
-        summary = household_impact_summary_by_model(
-            ground_truth_df,
-            predictions_df,
-            floor_share=0.3,
-        )
-        row = summary.iloc[0]
-        assert row["mean_impact_score"] == pytest.approx(0.5)
-        assert row["mean_household_coverage"] == pytest.approx(1.0)
-        assert row["households"] == 2
-
-    def test_household_equal_impact_scores_use_uniform_weights_when_all_zero(self):
-        ground_truth_df = pd.DataFrame(
-            {
-                "scenario_id": ["s1", "s1"],
-                "variable": ["snap", "ssi"],
-                "value": [0.0, 0.0],
-            }
-        )
-        predictions_df = pd.DataFrame(
-            {
-                "model": ["model_a", "model_a"],
-                "scenario_id": ["s1", "s1"],
-                "variable": ["snap", "ssi"],
-                "prediction": [0.0, 10.0],
-            }
-        )
-
-        household_scores = household_equal_impact_scores(
-            ground_truth_df,
-            predictions_df,
-            floor_share=0.3,
-        )
-        assert household_scores.iloc[0]["impact_score"] == pytest.approx(0.5)
-
-    def test_household_equal_impact_scores_use_explicit_impact_weight(self):
-        ground_truth_df = pd.DataFrame(
-            {
-                "scenario_id": ["s1", "s1"],
-                "variable": ["income_tax", "adult1_medicaid_eligible"],
-                "value": [100.0, 1.0],
-                "impact_weight": [None, 900.0],
-            }
-        )
-        predictions_df = pd.DataFrame(
-            {
-                "model": ["model_a", "model_a"],
-                "scenario_id": ["s1", "s1"],
-                "variable": ["income_tax", "adult1_medicaid_eligible"],
-                "prediction": [100.0, 0.0],
-            }
-        )
-
-        household_scores = household_equal_impact_scores(
-            ground_truth_df,
-            predictions_df,
-            floor_share=0.0,
-        )
-
-        assert household_scores.iloc[0]["impact_score"] == pytest.approx(0.1)
-
     def test_get_programs_supports_current_sets(self):
         assert get_programs("us", "headline") == US_HEADLINE_PROGRAMS
         assert get_programs("uk", "headline") == UK_HEADLINE_PROGRAMS
@@ -445,7 +359,6 @@ class TestSummaries:
         assert set(analysis) == {
             "metrics",
             "model_summary",
-            "impact_summary",
             "bounded_summary",
             "global_weights",
             "variable_summary",
@@ -455,7 +368,6 @@ class TestSummaries:
         }
         assert len(analysis["metrics"]) == 1
         assert len(analysis["model_summary"]) == 1
-        assert len(analysis["impact_summary"]) == 1
         assert len(analysis["variable_summary"]) == 1
         assert len(analysis["usage_summary"]) == 1
         assert analysis["run_model_summary"].empty
@@ -530,7 +442,6 @@ class TestSummaries:
         analysis = {
             "metrics": metrics_df,
             "model_summary": summary_by_model(metrics_df),
-            "impact_summary": pd.DataFrame(),
             "variable_summary": summary_by_variable(metrics_df),
             "usage_summary": pd.DataFrame(
                 {
@@ -576,7 +487,6 @@ class TestSummaries:
                 mae_run_mean=[400.0, 900.0],
                 mae_run_std=[20.0, 30.0],
             ),
-            "impact_summary": pd.DataFrame(),
             "variable_summary": summary_by_variable(metrics_df),
             "usage_summary": pd.DataFrame(),
             "run_model_summary": pd.DataFrame(
@@ -621,7 +531,6 @@ class TestSummaries:
         analysis = {
             "metrics": metrics_df,
             "model_summary": summary_by_model(metrics_df),
-            "impact_summary": pd.DataFrame(),
             "variable_summary": summary_by_variable(metrics_df),
             "usage_summary": pd.DataFrame(
                 {
@@ -680,7 +589,6 @@ class TestSummaries:
         assert set(exported) == {
             "metrics",
             "model_summary",
-            "impact_summary",
             "variable_summary",
             "usage_summary",
             "report",
@@ -689,7 +597,6 @@ class TestSummaries:
         }
         assert exported["metrics"].exists()
         assert exported["model_summary"].exists()
-        assert exported["impact_summary"].exists()
         assert exported["variable_summary"].exists()
         assert exported["usage_summary"].exists()
         assert exported["report"].exists()
@@ -1554,3 +1461,96 @@ class TestEqualAndAggregateScores:
         assert out.loc[out["model"] == "m1", "aggregate_score"].iloc[
             0
         ] == pytest.approx(8 / 11)
+
+
+class TestBootstrapHeadlineCIs:
+    """Household-resampling bootstrap CIs for the headline metric (paper only)."""
+
+    def _inputs(self):
+        ground_truth = pd.DataFrame(
+            {
+                "scenario_id": ["s1", "s2", "s3", "s4"],
+                "variable": ["income_tax"] * 4,
+                "value": [1000.0, 2000.0, 3000.0, 4000.0],
+            }
+        )
+        predictions = pd.DataFrame(
+            {
+                # good: exact everywhere; mixed: right on s1/s2, wrong on s3/s4;
+                # bad: wrong everywhere (>1% off).
+                "model": ["good"] * 4 + ["mixed"] * 4 + ["bad"] * 4,
+                "scenario_id": ["s1", "s2", "s3", "s4"] * 3,
+                "variable": ["income_tax"] * 12,
+                "prediction": [
+                    1000.0,
+                    2000.0,
+                    3000.0,
+                    4000.0,
+                    1000.0,
+                    2000.0,
+                    9999.0,
+                    9999.0,
+                    9999.0,
+                    9999.0,
+                    9999.0,
+                    9999.0,
+                ],
+            }
+        )
+        market = {"s1": 0.0, "s2": 0.0, "s3": 0.0, "s4": 0.0}
+        return ground_truth, predictions, market
+
+    def test_point_matches_weighted_hit_rate(self):
+        gt, preds, market = self._inputs()
+        cis = bootstrap_headline_cis(gt, preds, market, n_boot=200, seed=42)
+        hit = weighted_hit_rate_scores_by_model(gt, preds, market)
+        for _, row in cis.iterrows():
+            expected = hit.loc[
+                hit["model"] == row["model"], "weighted_within_1pct"
+            ].iloc[0]
+            assert row["point"] == pytest.approx(expected)
+        points = dict(zip(cis["model"], cis["point"]))
+        assert points["good"] == pytest.approx(1.0)
+        assert points["mixed"] == pytest.approx(0.5)
+        assert points["bad"] == pytest.approx(0.0)
+
+    def test_ci_brackets_point_and_is_ordered(self):
+        gt, preds, market = self._inputs()
+        cis = bootstrap_headline_cis(gt, preds, market, n_boot=500, seed=1)
+        for _, row in cis.iterrows():
+            assert row["lo"] <= row["point"] <= row["hi"]
+        assert list(cis["point"]) == sorted(cis["point"], reverse=True)
+        assert list(cis["model"]) == ["good", "mixed", "bad"]
+        assert list(cis["rank"]) == [1, 2, 3]
+        for _, row in cis.iterrows():
+            assert row["rank_lo"] <= row["rank"] <= row["rank_hi"]
+        # good scores 1.0 on every household, so no resample can rank it below
+        # first: a deterministic rank with zero range. (bad is not symmetric --
+        # mixed can resample to all-zero and tie it, so bad's rank_lo may be 2.)
+        by_model = cis.set_index("model")
+        assert by_model.loc["good", "rank_lo"] == by_model.loc["good", "rank_hi"] == 1
+        assert by_model.loc["bad", "rank_hi"] == 3
+
+    def test_zero_width_for_constant_model_and_positive_for_varying(self):
+        gt, preds, market = self._inputs()
+        cis = bootstrap_headline_cis(gt, preds, market, n_boot=500, seed=7)
+        width = {row["model"]: row["hi"] - row["lo"] for _, row in cis.iterrows()}
+        # good (all 1.0) and bad (all 0.0) cannot change under resampling.
+        assert width["good"] == pytest.approx(0.0)
+        assert width["bad"] == pytest.approx(0.0)
+        # mixed varies household-to-household, so the CI has positive width.
+        assert width["mixed"] > 0.0
+
+    def test_reproducible_with_seed(self):
+        gt, preds, market = self._inputs()
+        a = bootstrap_headline_cis(gt, preds, market, n_boot=300, seed=123)
+        b = bootstrap_headline_cis(gt, preds, market, n_boot=300, seed=123)
+        pd.testing.assert_frame_equal(a, b)
+
+    def test_exact_metric_supported(self):
+        gt, preds, market = self._inputs()
+        cis = bootstrap_headline_cis(
+            gt, preds, market, metric="exact", n_boot=100, seed=3
+        )
+        assert set(cis["model"]) == {"good", "mixed", "bad"}
+        assert cis.loc[cis["model"] == "good", "point"].iloc[0] == pytest.approx(1.0)

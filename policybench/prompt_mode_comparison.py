@@ -57,29 +57,6 @@ def _model_comparison(
     ).sort_values("mean_score_delta_single_minus_multi", ascending=False)
 
 
-def _impact_comparison(
-    multi_analysis: dict[str, pd.DataFrame],
-    single_analysis: dict[str, pd.DataFrame],
-) -> pd.DataFrame:
-    multi = multi_analysis.get("impact_summary", pd.DataFrame())
-    single = single_analysis.get("impact_summary", pd.DataFrame())
-    if multi.empty or single.empty:
-        return pd.DataFrame()
-    return _merge_with_delta(
-        multi,
-        single,
-        keys=["model"],
-        value_columns=[
-            "mean_impact_score",
-            "mean_household_score",
-            "mean_household_coverage",
-            "households",
-            "total_variables",
-            "parsed_variables",
-        ],
-    ).sort_values("mean_impact_score_delta_single_minus_multi", ascending=False)
-
-
 def _variable_comparison(
     multi_analysis: dict[str, pd.DataFrame],
     single_analysis: dict[str, pd.DataFrame],
@@ -148,7 +125,6 @@ def _markdown_table(frame: pd.DataFrame, columns: list[str]) -> str:
 
 def _render_report(
     model_comparison: pd.DataFrame,
-    impact_comparison: pd.DataFrame,
     usage_comparison: pd.DataFrame,
 ) -> str:
     lines = [
@@ -171,23 +147,6 @@ def _render_report(
                         "mean_score_delta_single_minus_multi",
                         "mean_coverage_multi",
                         "mean_coverage_single",
-                    ],
-                ),
-                "",
-            ]
-        )
-    if not impact_comparison.empty:
-        lines.extend(
-            [
-                "## Impact Score Deltas",
-                "",
-                _markdown_table(
-                    impact_comparison,
-                    [
-                        "model",
-                        "mean_impact_score_multi",
-                        "mean_impact_score_single",
-                        "mean_impact_score_delta_single_minus_multi",
                     ],
                 ),
                 "",
@@ -233,16 +192,14 @@ def compare_prompt_modes(
     single_analysis = analyze_no_tools(ground_truth, single)
 
     model_comparison = _model_comparison(multi_analysis, single_analysis)
-    impact_comparison = _impact_comparison(multi_analysis, single_analysis)
     variable_comparison = _variable_comparison(multi_analysis, single_analysis)
     usage_comparison = _usage_comparison(multi_analysis, single_analysis)
 
     _write_frame(model_comparison, destination / "model_comparison.csv")
-    _write_frame(impact_comparison, destination / "impact_comparison.csv")
     _write_frame(variable_comparison, destination / "variable_comparison.csv")
     _write_frame(usage_comparison, destination / "usage_comparison.csv")
     (destination / "report.md").write_text(
-        _render_report(model_comparison, impact_comparison, usage_comparison),
+        _render_report(model_comparison, usage_comparison),
         encoding="utf-8",
     )
 

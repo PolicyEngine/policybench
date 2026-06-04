@@ -1060,3 +1060,16 @@ def test_scenarios_from_uk_frames_use_employment_income_leaf(sample_uk_frames):
     london = next(s for s in scenarios if s.state == "LONDON")
     assert london.adults[0].employment_income == 42_000.0
     assert "employment_income_before_lsr" not in london.adults[0].inputs
+
+
+def test_sample_household_ids_requires_enough_positive_weight():
+    from policybench.scenarios import _sample_household_ids
+
+    # Three eligible households but only one has positive sampling weight;
+    # requesting two must raise a clear error, not numpy's cryptic
+    # "Fewer non-zero entries in p than size".
+    eligible = pd.DataFrame(
+        {"household_id": [1, 2, 3], "household_weight": [5.0, 0.0, 0.0]}
+    )
+    with pytest.raises(ValueError, match="positive sampling weight"):
+        _sample_household_ids(eligible, n=2, seed=0)

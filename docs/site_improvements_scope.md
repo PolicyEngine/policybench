@@ -58,15 +58,15 @@ already present.
 is the cleaner path because it keeps the client small and the math
 canonical.
 
-### 1.3 Bootstrap-rank intervals next to model scores
-**Why.** The paper computes household-resampling 95% intervals and
-rank-ranges. The site shows a single point estimate. Rendering the rank
-range (`Rank 2 (CI: 1–4)`) tempers overinterpretation of small gaps.
-
-**Where.** `ModelLeaderboard.tsx`. Pre-compute in
-`analysis.build_dashboard_payload` so the client just renders.
-
-**Effort.** One to two days.
+### 1.3 Uncertainty stays in the paper, not the site (decided)
+**Decision.** The paper reports household-resampling 95% intervals and
+rank ranges on the headline within-1% metric (see its Uncertainty section,
+backed by `analysis.bootstrap_headline_cis`). The public site and leaderboard
+intentionally render point estimates only. The benchmark sample — not run-to-run
+model variation — is the dominant source of uncertainty, and surfacing intervals
+in the tool would invite over-reading and imply a precision the interface cannot
+caveat. No site change; the prior `data.json` bootstrap-interval scaffolding has
+been removed.
 
 ### 1.4 Per-model deep-dive page
 **Why.** A provider team wanting to audit `gpt-5.4-mini` has no entry

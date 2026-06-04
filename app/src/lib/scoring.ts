@@ -18,33 +18,6 @@ export function binaryFlag(value: number): 0 | 1 | null {
   return null;
 }
 
-const PERSON_OUTPUT_PREFIXES = [
-  "head",
-  "spouse",
-  "adult1",
-  "adult2",
-  "adult3",
-  "adult4",
-  "adult5",
-  "child1",
-  "child2",
-  "child3",
-  "child4",
-  "child5",
-  "dependent1",
-  "dependent2",
-  "dependent3",
-] as const;
-
-const PERSON_OUTPUT_SUFFIXES = [
-  "wic",
-  "medicaid",
-  "chip",
-  "medicare",
-  "head_start",
-  "early_head_start",
-] as const;
-
 export function outputGroupForVariable(variable: string): string {
   const match = variable.match(
     /^(head|spouse|adult\d+|child\d+|dependent\d+)_(wic|medicaid|chip|medicare|head_start|early_head_start)_eligible$/,
@@ -90,9 +63,3 @@ export function scorePrediction(
   if (truth === 0) return prediction === 0 ? 1 : 0;
   return Math.max(0, 1 - Math.abs(prediction - truth) / Math.abs(truth));
 }
-
-// Touch the prefix/suffix tables so a future test can verify coverage.
-export const PERSON_OUTPUT_PREFIX_LIST: readonly string[] =
-  PERSON_OUTPUT_PREFIXES;
-export const PERSON_OUTPUT_SUFFIX_LIST: readonly string[] =
-  PERSON_OUTPUT_SUFFIXES;

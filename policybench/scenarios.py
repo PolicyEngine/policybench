@@ -997,6 +997,13 @@ def _sample_household_ids(
     weights = np.where(weights > 0, weights, 0.0)
     probabilities = None
     if weights.sum() > 0:
+        positive = int((weights > 0).sum())
+        if positive < n:
+            raise ValueError(
+                f"Requested {n} scenarios, but only {positive} source households "
+                "have positive sampling weight (weighted sampling without "
+                "replacement needs at least n positive-weight households)."
+            )
         probabilities = weights / weights.sum()
 
     sampled = rng.choice(

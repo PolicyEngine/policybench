@@ -73,10 +73,6 @@ export default function Methodology({
   const scenarioCount = Object.keys(benchData.scenarios).length;
   const scoredPoints =
     noToolsModels[0]?.n ?? scenarioCount * benchData.programStats.length;
-  const hasRepeatedRuns = noToolsModels.some(
-    (model) => (model.runCount ?? 0) > 1
-  );
-
   const householdsLabel =
     country === "uk" ? "UK transfer households" : "Enhanced CPS households";
   const referenceOutputSource =
@@ -207,10 +203,7 @@ export default function Methodology({
           amount accuracy, and participation accuracy as diagnostic companions.
           Equal-weight and budget-weighted variants are reported alongside for
           transparency. The leaderboard is a point estimate on this fixed test
-          set
-          {hasRepeatedRuns
-            ? "; when repeated runs are loaded, the app also shows run-to-run stability."
-            : "."}
+          set.
         </SectionCard>
 
         <SectionCard title="Sensitivity checks">

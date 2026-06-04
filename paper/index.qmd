@@ -152,7 +152,20 @@ def failure_frame(country: str) -> pd.DataFrame:
     return pd.DataFrame(country_payload(country)["failureModes"]["programs"])
 
 
-def model_table(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
+def _format_ci(row: pd.Series) -> str:
+    return f"{row['lo'] * 100:.1f}–{row['hi'] * 100:.1f}"
+
+
+def _format_rank_range(row: pd.Series) -> str:
+    lo, hi = int(row["rank_lo"]), int(row["rank_hi"])
+    return str(int(row["rank"])) if lo == hi else f"{lo}–{hi}"
+
+
+def model_table(
+    frame: pd.DataFrame,
+    cis: pd.DataFrame | None = None,
+    top_n: int = 5,
+) -> pd.DataFrame:
     cols = [
         "model",
         "within1pct",
@@ -163,6 +176,18 @@ def model_table(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
         "n",
     ]
     subset = frame[cols].head(top_n).copy()
+    ci_strings: list[str] = []
+    rank_strings: list[str] = []
+    if cis is not None and not cis.empty:
+        ci_lookup = cis.set_index("model")
+        for model_id in subset["model"]:
+            if model_id in ci_lookup.index:
+                row = ci_lookup.loc[model_id]
+                ci_strings.append(_format_ci(row))
+                rank_strings.append(_format_rank_range(row))
+            else:
+                ci_strings.append("")
+                rank_strings.append("")
     subset["model"] = subset["model"].map(model_display_name)
     subset.columns = [
         "Model",
@@ -175,6 +200,9 @@ def model_table(frame: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
     ]
     for col in ["Within 1% %", "Exact %", "Within 10%", "Bounded score"]:
         subset[col] = subset[col].round(1)
+    if ci_strings:
+        subset.insert(2, "Within 1% 95% CI", ci_strings)
+        subset.insert(3, "Within-1% rank", rank_strings)
     return subset
 
 
@@ -290,6 +318,55 @@ def load_snapshot_predictions(
     }
 
 
+def snapshot_market_by_country() -> dict[str, dict[str, float]]:
+    """Market income (total_income) per scenario for each snapshot country."""
+    markets = {}
+    for country, run_dir in snapshot_run_paths().items():
+        scenarios = pd.read_csv(run_dir / "scenarios.csv")
+        markets[country] = dict(
+            zip(
+                scenarios["scenario_id"].astype(str),
+                pd.to_numeric(scenarios["total_income"], errors="coerce").fillna(0.0),
+            )
+        )
+    return markets
+
+
+def headline_cis_by_country(
+    metric: str = "within_1pct",
+    n_boot: int = 10_000,
+) -> dict[str, pd.DataFrame]:
+    """Household-resampling bootstrap CIs for the headline metric, per country.
+
+    Computed from the frozen snapshot's per-household predictions, so the paper
+    reports uncertainty without rerunning any model. The leaderboard and app
+    show point estimates only.
+    """
+    from policybench.analysis import bootstrap_headline_cis
+
+    ground_truths = load_snapshot_ground_truth()
+    predictions = load_snapshot_predictions(
+        usecols=["model", "scenario_id", "variable", "prediction"]
+    )
+    markets = snapshot_market_by_country()
+    cis = {}
+    for country in ["us", "uk"]:
+        gt = ground_truths[country].copy()
+        gt["scenario_id"] = gt["scenario_id"].astype(str)
+        preds = predictions[country].copy()
+        preds["scenario_id"] = preds["scenario_id"].astype(str)
+        cis[country] = bootstrap_headline_cis(
+            gt,
+            preds,
+            markets[country],
+            country=country,
+            metric=metric,
+            n_boot=n_boot,
+            seed=SEED,
+        )
+    return cis
+
+
 def federal_state_joint_accuracy() -> pd.DataFrame:
     """Within-10% accuracy for federal vs state refundable credits and the joint."""
     predictions = country_payload("us")["scenarioPredictions"]
@@ -354,7 +431,7 @@ def federal_state_joint_accuracy() -> pd.DataFrame:
     return summary
 
 
-def impact_floor_sensitivity() -> pd.DataFrame:
+def weighting_sensitivity() -> pd.DataFrame:
     """Top country ranks under three weighting philosophies.
 
     Reports top models under the bounded secondary metric (population-derived
@@ -363,7 +440,7 @@ def impact_floor_sensitivity() -> pd.DataFrame:
     share, averaged across households and renormalized) alongside two opt-in
     alternatives: equal weighting across outputs and budget-weighted (each
     variable's share of total absolute reference dollars). All three use the
-    same continuous floor-free row score so the differences come from the
+    same continuous bounded row score so the differences come from the
     weighting choice alone.
     """
     from policybench.analysis import (
@@ -792,9 +869,10 @@ uk_var = variable_frame("uk")
 us_failures = failure_frame("us")
 uk_failures = failure_frame("uk")
 
+headline_cis = headline_cis_by_country()
 
-us_top = model_table(us_model)
-uk_top = model_table(uk_model)
+us_top = model_table(us_model, headline_cis["us"])
+uk_top = model_table(uk_model, headline_cis["uk"])
 
 us_hardest = variable_hardest(us_var)
 uk_hardest = variable_hardest(uk_var)
@@ -804,7 +882,7 @@ sensitivity = sensitivity_rows()
 model_runs = model_run_table()
 baseline_summary = simple_baselines()
 federal_state_joint = federal_state_joint_accuracy()
-impact_floor = impact_floor_sensitivity()
+weighting_sensitivity_table = weighting_sensitivity()
 retry_round_summary = retry_round_summary_table()
 row_repair_summary = row_repair_summary_table()
 deviation_audit_summary = deviation_audit_summary_table()
@@ -904,14 +982,34 @@ parse_repair_summary = pd.DataFrame(
 us_ranked = us_model.reset_index(drop=True)
 uk_ranked = uk_model.reset_index(drop=True)
 
+
+def _ci_phrase(country: str, model_id: str) -> str:
+    cis = headline_cis[country]
+    match = cis.loc[cis["model"] == model_id]
+    if match.empty:
+        return ""
+    return f", 95% CI {_format_ci(match.iloc[0])}"
+
+
+def ci_overlap_summary(country: str) -> str:
+    cis = headline_cis[country].sort_values("point", ascending=False)
+    leader = cis.iloc[0]
+    overlap = int((cis.iloc[1:]["hi"] >= leader["lo"]).sum())
+    others = len(cis) - 1
+    return (
+        f"{overlap} of the other {others} models have a within-1% 95% interval "
+        "that overlaps the leader's"
+    )
+
+
 us_top_three = [
-    f"{model_display_name(row.model)} ({fmt_score(row.within1pct)} within-1%, "
-    f"{fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
+    f"{model_display_name(row.model)} ({fmt_score(row.within1pct)} within-1%"
+    f"{_ci_phrase('us', row.model)}; {fmt_score(row.exact)} exact)"
     for row in us_ranked.head(3).itertuples()
 ]
 uk_top_three = [
-    f"{model_display_name(row.model)} ({fmt_score(row.within1pct)} within-1%, "
-    f"{fmt_score(row.exact)} exact, {fmt_score(row.score)} bounded)"
+    f"{model_display_name(row.model)} ({fmt_score(row.within1pct)} within-1%"
+    f"{_ci_phrase('uk', row.model)}; {fmt_score(row.exact)} exact)"
     for row in uk_ranked.head(3).itertuples()
 ]
 
@@ -1047,7 +1145,7 @@ The US leaderboard for the frozen manuscript snapshot is shown in @tbl-us-top. T
 
 ```{python}
 #| label: tbl-us-top
-#| tbl-cap: "Top US benchmark models in the frozen manuscript snapshot."
+#| tbl-cap: "Top US benchmark models in the frozen manuscript snapshot. Within-1% 95% CIs and rank ranges are household-resampling bootstrap intervals (see Uncertainty)."
 us_top
 ```
 
@@ -1057,9 +1155,15 @@ The UK leaderboard for the frozen manuscript snapshot is shown in @tbl-uk-top. T
 
 ```{python}
 #| label: tbl-uk-top
-#| tbl-cap: "Top UK benchmark models in the frozen manuscript snapshot."
+#| tbl-cap: "Top UK benchmark models in the frozen manuscript snapshot. Within-1% 95% CIs and rank ranges are household-resampling bootstrap intervals (see Uncertainty)."
 uk_top
 ```
+
+### Uncertainty
+
+Each leaderboard score is a mean over a sample of 100 households per country, so the rankings carry sampling uncertainty. We quantify it with a household-level bootstrap: the 100 households are resampled with replacement 10,000 times, and each model's population-weighted within-1% rate is recomputed on every resample. The resampling unit is the household, carried with its full output vector, so within-household correlations across outputs are preserved. The same resampled set is used for every model in each replicate (a paired bootstrap), so the rank ranges in @tbl-us-top and @tbl-uk-top reflect genuine ordering uncertainty rather than independent per-model noise.
+
+Sampling uncertainty is substantial at this sample size. In the US snapshot `{python} ci_overlap_summary('us')`; in the UK snapshot `{python} ci_overlap_summary('uk')`. Small differences in the leaderboard ordering should therefore be read as ties rather than as a strict ranking, and the rank-range column makes the set of plausible positions explicit. These intervals are a manuscript artifact: the public leaderboard and app report point estimates only, because the benchmark sample, not run-to-run model variation, is the dominant source of uncertainty here.
 
 ### Simple baselines
 
@@ -1081,12 +1185,12 @@ The primary leaderboard gives each household equal weight within each country. @
 sensitivity
 ```
 
-The bounded score is a global-output-weighted average of row scores. Amount outputs use `max(0, 1 − |pred − ref| / |ref|)` when the reference is nonzero and `1{pred = 0}` when the reference is zero. Binary outputs use exact 0/1 matching. The exact-match rate uses the same weighting and aggregation but replaces the amount row score with a strict indicator: `1{pred = ref}` to the dollar. Each output group's default household-impact weight is computed from a full weighting population, not from the 100 benchmark households: full PolicyEngine US Enhanced CPS for the US and full PolicyEngine UK enhanced FRS for the UK. This weighting source is separate from the UK benchmark scenario source, which remains the public calibrated transfer dataset. For each source household, the share is `|ref_ij| / max(|household_net_income_i|, Σ_k |ref_ik|)`; shares are averaged with calibrated household weights and renormalized so output weights sum to one. The `max(...)` denominator anchors per-household shares to net income when net income is the dominant flow and falls back to the gross tax-benefit flow only when programs cancel each other out, so a $1 benefit to a high-earner contributes essentially zero weight and per-household shares never exceed one. Booleans carry weight through PolicyEngine's paired per-capita value (for example `medicaid_value`), so eligibility calls are graded as accuracy but weighted by the dollar stake. @tbl-impact-floor compares the bounded-score ranking against two opt-in alternatives shown for transparency: equal weighting (every output the same) and budget-weighted (each output's share of total absolute reference dollars in the same full weighting population).
+The bounded score is a global-output-weighted average of row scores. Amount outputs use `max(0, 1 − |pred − ref| / |ref|)` when the reference is nonzero and `1{pred = 0}` when the reference is zero. Binary outputs use exact 0/1 matching. The exact-match rate uses the same weighting and aggregation but replaces the amount row score with a strict indicator: `1{pred = ref}` to the dollar. Each output group's default household-impact weight is computed from a full weighting population, not from the 100 benchmark households: full PolicyEngine US Enhanced CPS for the US and full PolicyEngine UK enhanced FRS for the UK. This weighting source is separate from the UK benchmark scenario source, which remains the public calibrated transfer dataset. For each source household, the share is `|ref_ij| / max(|household_net_income_i|, Σ_k |ref_ik|)`; shares are averaged with calibrated household weights and renormalized so output weights sum to one. The `max(...)` denominator anchors per-household shares to net income when net income is the dominant flow and falls back to the gross tax-benefit flow only when programs cancel each other out, so a $1 benefit to a high-earner contributes essentially zero weight and per-household shares never exceed one. Booleans carry weight through PolicyEngine's paired per-capita value (for example `medicaid_value`), so eligibility calls are graded as accuracy but weighted by the dollar stake. @tbl-weighting-sensitivity compares the bounded-score ranking against two opt-in alternatives shown for transparency: equal weighting (every output the same) and budget-weighted (each output's share of total absolute reference dollars in the same full weighting population).
 
 ```{python}
-#| label: tbl-impact-floor
-#| tbl-cap: "Top country ranks under the bounded secondary metric across three weightings (Household, Aggregate, Equal)."
-impact_floor
+#| label: tbl-weighting-sensitivity
+#| tbl-cap: "Top country ranks under the bounded secondary metric across three weightings (household, equal, budget)."
+weighting_sensitivity_table
 ```
 
 ### Hardest benchmark targets

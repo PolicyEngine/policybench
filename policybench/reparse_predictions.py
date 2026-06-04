@@ -188,9 +188,12 @@ def reparse_predictions_frame(
 ) -> pd.DataFrame:
     """Return predictions with missing values repaired from raw responses.
 
-    Existing parsed values are treated as observed provider outputs and are not
-    cleared just because a later parser cannot interpret a provider-specific raw
-    response representation.
+    Existing parsed values are not cleared merely because a later parser cannot
+    interpret a provider-specific raw representation. They can still change when
+    ``include_explanations`` is set: the response contract's terminal
+    ``value = X`` explanation line is re-applied as canonical (see
+    ``_enforce_explanation_value_contract``), so a stored value that disagrees
+    with its explanation's terminal value is replaced by the latter.
     """
     reparsed = predictions.copy()
     if "explanation" not in reparsed.columns:

@@ -8,6 +8,7 @@ import {
 } from "../types";
 import { formatCurrency } from "../format";
 import {
+  FRONTIER_MODELS,
   MODEL_LABELS,
   MODEL_ORDER,
   PROVIDER_LABELS,
@@ -76,7 +77,7 @@ function describeError(
   const sign = error > 0 ? "over" : "under";
   const abs = Math.abs(error);
   if (truth === 0) {
-    return `${formatCurrency(abs, currencySymbol)} ${sign} a reference of $0`;
+    return `${formatCurrency(abs, currencySymbol)} ${sign} a reference of ${currencySymbol}0`;
   }
   const pct = Math.round((Math.abs(error) / Math.abs(truth)) * 100);
   return `${formatCurrency(abs, currencySymbol)} ${sign} (${pct}% off)`;
@@ -426,7 +427,7 @@ export default function ScenarioExplorer({
                 ? "border-primary-strong bg-primary-strong text-white"
                 : "border-border bg-card text-text-secondary hover:text-text"
             }`}
-            title="Show only one frontier flagship per provider (Opus 4.7, GPT-5.5, Grok 4.3, Gemini 3.1 Pro Preview)"
+            title={`Show only one frontier flagship per provider (${FRONTIER_MODELS.map((m) => MODEL_LABELS[m] ?? m).join(", ")})`}
           >
             Frontier only
           </button>

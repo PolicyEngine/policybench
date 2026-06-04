@@ -32,10 +32,28 @@ policybench reference-outputs -n 1000 --seed 42 --country uk --program-set headl
   -o "$RUN_DIR/uk/reference_outputs.csv" \
   --scenario-manifest-output "$RUN_DIR/uk/scenarios.csv"
 
+# Claude models MUST run serially (--parallel 1 --model-parallel 1): the
+# main-thread wall timeout and one-output-per-request contract are not
+# thread-safe. Running Claude with --parallel > 1 aborts. See docs/runbook.md
+# for the canonical, provider-grouped procedure.
 for country in us uk; do
-  for model in claude-opus-4.7 claude-sonnet-4.6 claude-haiku-4.5 \
-    grok-4.3 grok-4.20 grok-4.1-fast gpt-5.5 gpt-5.4-mini gpt-5.4-nano \
-    gemini-3.1-pro-preview gemini-3-flash-preview \
+  for model in claude-opus-4.7 claude-sonnet-4.6 claude-haiku-4.5; do
+    policybench eval-no-tools-chunked \
+      --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
+      --output-dir "$RUN_DIR/$country/no_tools_chunked" \
+      --country "$country" \
+      --model "$model" \
+      --program-set headline \
+      --chunk-size 50 \
+      --parallel 1 \
+      --model-parallel 1
+  done
+done
+
+# Non-Claude models can run with higher concurrency.
+for country in us uk; do
+  for model in grok-4.3 grok-4.20 grok-4.1-fast gpt-5.5 gpt-5.4-mini gpt-5.4-nano \
+    gemini-3.1-pro-preview gemini-3.5-flash gemini-3-flash-preview \
     gemini-3.1-flash-lite-preview; do
     policybench eval-no-tools-chunked \
       --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
@@ -66,7 +84,6 @@ scratch directory before launching the 1,000-household batch.
 - `results/local/analysis/metrics.csv`
 - `results/local/analysis/summary_by_model.csv`
 - `results/local/analysis/summary_by_variable.csv`
-- `results/local/analysis/impact_summary_by_model.csv`
 - `results/local/analysis/usage_summary.csv`
 - `results/local/analysis/report.md`
 
