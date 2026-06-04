@@ -161,3 +161,32 @@ def test_unknown_spec_errors_are_clear():
         parse_program_set("v9_headline")
 
     assert find_output_spec("not_a_real_output") is None
+
+
+def test_every_headline_output_id_resolves_no_silent_fallback():
+    """Guard against silent mis-scoring after a model/microdata bump.
+
+    ``metric_type_for_output`` / ``net_income_sign_for_output`` fall back to
+    ``"amount"`` / ``+1`` for unknown ids, so a renamed or removed PolicyEngine
+    variable would be scored as a positive dollar amount instead of raising.
+    Every benchmark output id must resolve to a real spec or a person-level
+    template.
+    """
+    from policybench.spec import (
+        get_output_ids,
+        is_person_output_template,
+        parse_person_output,
+    )
+
+    for country in ("us", "uk"):
+        for output_id in get_output_ids(country, "headline"):
+            resolved = (
+                find_output_spec(output_id, country=country) is not None
+                or is_person_output_template(output_id)
+                or parse_person_output(output_id) is not None
+            )
+            assert resolved, (
+                f"{country}/{output_id} resolves to neither a benchmark spec nor "
+                "a person template; it would silently score as a default +1 "
+                "amount. Update benchmark_specs.json or the program set."
+            )

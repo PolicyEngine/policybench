@@ -36,7 +36,7 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
-MAX_RETRIES = 2
+MAX_ATTEMPTS = 2
 RETRY_BASE_DELAY = 2
 REQUEST_TIMEOUT_SECONDS = _env_int("POLICYBENCH_REQUEST_TIMEOUT_SECONDS", 20)
 GEMINI_PRO_REQUEST_TIMEOUT_SECONDS = _env_int(
@@ -975,7 +975,15 @@ def _enforce_explanation_value_contract(
     explanations: dict[str, str | None],
     variables: list[str],
 ) -> tuple[dict[str, float | None], dict[str, str | None]]:
-    """Use the required terminal explanation value as the canonical parsed value."""
+    """Use the required terminal explanation value as the canonical parsed value.
+
+    The response contract requires every explanation to end with a ``value = X``
+    line. That terminal value is canonical: when it disagrees with the separately
+    parsed structured/tool value, the explanation trailer wins and replaces the
+    structured value; a structured value whose explanation has no usable trailer
+    drops the explanation rather than the value. This override applies to every
+    scored row — it is a deliberate, load-bearing choice, not a fill-only step.
+    """
     checked_predictions = dict(predictions)
     checked_explanations = dict(explanations)
     for variable in variables:
@@ -987,6 +995,7 @@ def _enforce_explanation_value_contract(
             checked_explanations[variable] = None
             continue
         prediction = checked_predictions.get(variable)
+        # Trailer is canonical: override a missing OR disagreeing structured value.
         if prediction is None or not _numeric_values_match(
             prediction, explanation_value
         ):
@@ -1361,7 +1370,7 @@ def _request_predictions_once(
         )
         request_fn = completion
 
-    for attempt in range(MAX_RETRIES):
+    for attempt in range(MAX_ATTEMPTS):
         try:
             started_at = time.perf_counter()
             response = _run_request_with_wall_timeout(request_fn, request_kwargs)
@@ -1409,7 +1418,7 @@ def _request_predictions_once(
                 ),
             }
         except Exception as e:
-            if attempt == MAX_RETRIES - 1 or not _should_retry(e):
+            if attempt == MAX_ATTEMPTS - 1 or not _should_retry(e):
                 raise
             delay = RETRY_BASE_DELAY * (2**attempt)
             print(f"  Retry {attempt + 1}: {e!r:.60s}... {delay}s")
@@ -1851,7 +1860,8 @@ def run_no_tools_eval(
 ) -> pd.DataFrame:
     """Run the AI-alone evaluation across all models.
 
-    If output_path is provided, saves incrementally every 100 rows.
+    If output_path is provided, saves incrementally every
+    ``CHECKPOINT_EVERY_ROWS`` rows.
 
     Returns DataFrame with columns:
         model, scenario_id, variable, prediction, explanation, raw_response,

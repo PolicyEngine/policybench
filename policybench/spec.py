@@ -311,8 +311,9 @@ def parse_person_output(
 ) -> tuple[str, str, dict[str, str]] | None:
     """Parse a concrete person-level output id.
 
-    Returns `(person_name, template_id, template)` for ids such as
-    `head_medicaid_eligible` or `child1_employee_medicare_tax`.
+    Returns `(person_name, template_id, template)` for ids built from a person
+    name and an eligibility suffix, such as `head_medicaid_eligible` or
+    `child1_wic_eligible`.
     """
     templates = sorted(
         PERSON_OUTPUTS.items(),

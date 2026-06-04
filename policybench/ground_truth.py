@@ -19,13 +19,6 @@ from policybench.spec import (
     parse_person_output,
 )
 
-# These benchmark variables are binary labels derived from PolicyEngine outputs
-# that are naturally person-level or dollar-valued.
-DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES = {
-    "free_school_meals_eligible",
-    "reduced_price_school_meals_eligible",
-}
-
 
 @dataclass(frozen=True)
 class _USScenarioEntityIndex:
@@ -51,8 +44,6 @@ def _aggregation_for_output(variable: str, country: str) -> str:
     output = find_output_spec(variable, country=country)
     if output is not None:
         return output.aggregation
-    if variable in DERIVED_HOUSEHOLD_BOOLEAN_VARIABLES:
-        return "any_positive"
     return "sum"
 
 
@@ -164,10 +155,8 @@ def _extract_impact_weight(
     """Convert an auxiliary PolicyEngine result into an impact-score weight."""
     output = find_output_spec(variable, country=country)
     if (
-        output is not None
-        and output.metric_type == "binary"
-        or _aggregation_for_output(variable, country) == "any_positive"
-    ):
+        output is not None and output.metric_type == "binary"
+    ) or _aggregation_for_output(variable, country) == "any_positive":
         try:
             if len(value_result) == len(weight_result):
                 weight_result = weight_result * (value_result > 0)
