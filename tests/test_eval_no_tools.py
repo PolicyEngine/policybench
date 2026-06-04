@@ -1424,7 +1424,7 @@ def test_default_models_include_new_provider_variants():
 
 
 def test_deepseek_models_are_public_defaults():
-    """DeepSeek graduated from the experimental shelf to the public roster."""
+    """DeepSeek V4 models are public default models in MODELS."""
     assert MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
     assert MODELS["deepseek-v4-flash"] == "deepseek/deepseek-v4-flash"
 
