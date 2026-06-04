@@ -6,7 +6,7 @@ import type {
   CountryCode,
 } from "../types";
 import { getVariableLabel } from "../types";
-import { MODEL_LABELS, MODEL_ORDER, getProviderForModel } from "../modelMeta";
+import { MODEL_LABELS, getProviderForModel } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
 import { ProgramFilterPanel } from "./ProgramFilterDropdown";
 import {
@@ -56,33 +56,6 @@ function accColor(pct: number): "success" | "primary" | "warning" | "danger" {
   if (pct >= 50) return "warning";
   return "danger";
 }
-
-function fmtRunStability(
-  mean?: number,
-  std?: number,
-  runCount?: number
-): string | null {
-  if (runCount == null || runCount <= 1 || mean == null || Number.isNaN(mean)) {
-    return null;
-  }
-  const meanLabel = `${mean.toFixed(1)}%`;
-  if (std == null || Number.isNaN(std)) {
-    return `${meanLabel} over ${runCount} runs`;
-  }
-  return `${meanLabel} +/- ${std.toFixed(1)} over ${runCount} runs`;
-}
-
-type PendingModel = {
-  model: string;
-  note: string;
-};
-
-const PENDING_MODELS: Record<CountryCode, PendingModel[]> = {
-  us: [
-    { model: "grok-4.20", note: "US full run pending" },
-  ],
-  uk: [],
-};
 
 export default function ModelLeaderboard({
   data,
@@ -340,18 +313,6 @@ export default function ModelLeaderboard({
     scoringMode,
   ]);
 
-  const pendingModels = useMemo<PendingModel[]>(() => {
-    const present = new Set(noTools.map((model) => model.model));
-    const configured = PENDING_MODELS[selectedView].filter(
-      (model) => !present.has(model.model),
-    );
-    return [...configured].sort((a, b) => {
-      const aIndex = MODEL_ORDER.indexOf(a.model as (typeof MODEL_ORDER)[number]);
-      const bIndex = MODEL_ORDER.indexOf(b.model as (typeof MODEL_ORDER)[number]);
-      return aIndex - bIndex;
-    });
-  }, [noTools, selectedView]);
-
   const activeView = SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)!;
 
   // "Exact" means "within one currency unit," and that unit is country-
@@ -406,15 +367,6 @@ export default function ModelLeaderboard({
       >
         Model rankings
       </h2>
-      {pendingModels.length > 0 && (
-        <p
-          className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
-          style={{ animationDelay: "160ms" }}
-        >
-          Pending rows below mark models that are actively being added.
-        </p>
-      )}
-
       <div
         role="region"
         aria-labelledby="leaderboard-heading"
@@ -450,13 +402,7 @@ export default function ModelLeaderboard({
           </div>
         </div>
 
-        {noTools.map((m, i) => {
-          const stabilityLabel = fmtRunStability(
-            m.scoreRunMean,
-            m.scoreRunStd,
-            m.runCount
-          );
-          return (
+        {noTools.map((m, i) => (
             <div
               key={m.model}
               role="row"
@@ -480,11 +426,6 @@ export default function ModelLeaderboard({
                         {MODEL_LABELS[m.model] || m.model}
                       </span>
                     </div>
-                    {stabilityLabel && (
-                      <div className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted">
-                        {stabilityLabel}
-                      </div>
-                    )}
                   </div>
 
                   <Badge variant={accColor(m.score)}>{m.score.toFixed(1)}%</Badge>
@@ -514,80 +455,11 @@ export default function ModelLeaderboard({
                   <Badge variant={accColor(m.score)}>
                     {m.score.toFixed(1)}%
                   </Badge>
-                  {stabilityLabel && (
-                    <div className="text-[10px] text-text-muted font-[family-name:var(--font-mono)] mt-1">
-                      {stabilityLabel}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
-          );
-        })}
+          ))}
 
-        {pendingModels.map((m, i) => (
-          <div
-            key={`pending-${m.model}`}
-            className="rounded-2xl border border-dashed border-border bg-card/50 px-4 py-4 animate-fade-up opacity-80"
-            style={{ animationDelay: `${240 + (noTools.length + i) * 80}ms` }}
-          >
-            <div className="md:hidden">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-text-muted font-[family-name:var(--font-mono)] text-sm">
-                      -
-                    </span>
-                    <ProviderMark
-                      provider={getProviderForModel(m.model)}
-                      size={14}
-                      className="flex-shrink-0"
-                    />
-                    <span className="truncate text-sm font-medium text-text">
-                      {MODEL_LABELS[m.model] || m.model}
-                    </span>
-                  </div>
-                  <div className="mt-1 pl-6 text-[10px] font-[family-name:var(--font-mono)] text-text-muted">
-                    {m.note}
-                  </div>
-                </div>
-
-                <Badge variant="warning">Pending</Badge>
-              </div>
-            </div>
-
-            <div className="hidden items-center gap-3 md:grid md:grid-cols-12">
-              <div className="col-span-1">
-                <span className="text-text-muted font-[family-name:var(--font-mono)] text-sm">
-                  -
-                </span>
-              </div>
-
-              <div className="col-span-8 flex flex-col gap-0.5">
-                <div className="flex items-center gap-2.5">
-                  <ProviderMark
-                    provider={getProviderForModel(m.model)}
-                    size={14}
-                    className="flex-shrink-0"
-                  />
-                  <span className="text-text font-medium text-sm">
-                    {MODEL_LABELS[m.model] || m.model}
-                  </span>
-                </div>
-                {m.note && (
-                  <div className="pl-6 text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                    {m.note}
-                  </div>
-                )}
-              </div>
-
-              <div className="col-span-3 text-right">
-                <Badge variant="warning">Pending</Badge>
-              </div>
-
-            </div>
-          </div>
-        ))}
       </div>
 
       <details

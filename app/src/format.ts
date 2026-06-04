@@ -12,6 +12,3 @@ export function formatCurrency(
   return rounded < 0 ? `-${currencySymbol}${abs}` : `${currencySymbol}${abs}`;
 }
 
-export function formatDollars(value: number): string {
-  return formatCurrency(value, "$");
-}
