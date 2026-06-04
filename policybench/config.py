@@ -43,15 +43,6 @@ MODELS = {
     "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
 }
 
-# Models that can be invoked manually for probes, but are excluded from default
-# runs and public leaderboard metadata until they are stable enough to finish.
-EXPERIMENTAL_MODELS: dict[str, str] = {}
-
-RUNNABLE_MODELS = {
-    **MODELS,
-    **EXPERIMENTAL_MODELS,
-}
-
 # Current output set. The benchmark contains signed household net-income
 # components plus coverage booleans with explicit impact weights.
 US_HEADLINE_PROGRAMS = get_output_ids("us", "headline")

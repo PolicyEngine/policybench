@@ -3,7 +3,7 @@
 import pytest
 
 from policybench.cli import _parse_models, _parse_programs, _slice_scenarios
-from policybench.config import MODELS, PROGRAMS, RUNNABLE_MODELS
+from policybench.config import MODELS, PROGRAMS
 
 
 def test_parse_models_defaults_to_full_set():
@@ -12,10 +12,8 @@ def test_parse_models_defaults_to_full_set():
 
 
 def test_parse_models_selects_subset():
-    # _parse_models validates and returns from RUNNABLE_MODELS (MODELS plus any
-    # EXPERIMENTAL_MODELS), so assert against that to avoid a latent divergence.
-    name = next(iter(RUNNABLE_MODELS))
-    assert _parse_models([name]) == {name: RUNNABLE_MODELS[name]}
+    name = next(iter(MODELS))
+    assert _parse_models([name]) == {name: MODELS[name]}
 
 
 def test_parse_models_unknown_raises():

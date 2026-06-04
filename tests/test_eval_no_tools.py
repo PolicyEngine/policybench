@@ -10,9 +10,7 @@ import pytest
 
 from policybench.config import (
     COUNTRY_PROGRAMS,
-    EXPERIMENTAL_MODELS,
     MODELS,
-    RUNNABLE_MODELS,
 )
 from policybench.eval_no_tools import (
     RequestWallTimeoutError,
@@ -1363,7 +1361,7 @@ def test_run_single_no_tools_supports_deepseek_json_contract(
     result = run_single_no_tools(
         mini_scenario,
         "income_tax",
-        RUNNABLE_MODELS["deepseek-v4-pro"],
+        MODELS["deepseek-v4-pro"],
     )
 
     assert result["prediction"] == 2400.0
@@ -1429,9 +1427,6 @@ def test_deepseek_models_are_public_defaults():
     """DeepSeek graduated from the experimental shelf to the public roster."""
     assert MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
     assert MODELS["deepseek-v4-flash"] == "deepseek/deepseek-v4-flash"
-    assert "deepseek-v4-pro" not in EXPERIMENTAL_MODELS
-    assert "deepseek-v4-flash" not in EXPERIMENTAL_MODELS
-    assert RUNNABLE_MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
 
 
 def test_request_wall_timeout_exceeds_provider_timeout():
