@@ -20,8 +20,6 @@ from policybench.analysis import (
     exact_amount_match,
     export_analysis,
     export_dashboard_data,
-    household_equal_impact_scores,
-    household_impact_summary_by_model,
     household_net_income_by_scenario,
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -336,91 +334,6 @@ class TestSummaries:
         assert abs(it["mean_score"].iloc[0] - 0.475) < 1e-10
         assert abs(it["mean_mae"].iloc[0] - 750.0) < 1e-10
 
-    def test_household_equal_impact_scores_keep_households_equally_weighted(self):
-        ground_truth_df = pd.DataFrame(
-            {
-                "scenario_id": ["s1", "s1", "s2", "s2"],
-                "variable": ["income_tax", "snap", "income_tax", "snap"],
-                "value": [100.0, 0.0, 10_000.0, 0.0],
-            }
-        )
-        predictions_df = pd.DataFrame(
-            {
-                "model": ["model_a"] * 4,
-                "scenario_id": ["s1", "s1", "s2", "s2"],
-                "variable": ["income_tax", "snap", "income_tax", "snap"],
-                "prediction": [100.0, 50.0, 0.0, 0.0],
-            }
-        )
-
-        household_scores = household_equal_impact_scores(
-            ground_truth_df,
-            predictions_df,
-            floor_share=0.3,
-        ).sort_values("scenario_id")
-
-        assert household_scores["impact_score"].tolist() == pytest.approx([0.85, 0.15])
-
-        summary = household_impact_summary_by_model(
-            ground_truth_df,
-            predictions_df,
-            floor_share=0.3,
-        )
-        row = summary.iloc[0]
-        assert row["mean_impact_score"] == pytest.approx(0.5)
-        assert row["mean_household_coverage"] == pytest.approx(1.0)
-        assert row["households"] == 2
-
-    def test_household_equal_impact_scores_use_uniform_weights_when_all_zero(self):
-        ground_truth_df = pd.DataFrame(
-            {
-                "scenario_id": ["s1", "s1"],
-                "variable": ["snap", "ssi"],
-                "value": [0.0, 0.0],
-            }
-        )
-        predictions_df = pd.DataFrame(
-            {
-                "model": ["model_a", "model_a"],
-                "scenario_id": ["s1", "s1"],
-                "variable": ["snap", "ssi"],
-                "prediction": [0.0, 10.0],
-            }
-        )
-
-        household_scores = household_equal_impact_scores(
-            ground_truth_df,
-            predictions_df,
-            floor_share=0.3,
-        )
-        assert household_scores.iloc[0]["impact_score"] == pytest.approx(0.5)
-
-    def test_household_equal_impact_scores_use_explicit_impact_weight(self):
-        ground_truth_df = pd.DataFrame(
-            {
-                "scenario_id": ["s1", "s1"],
-                "variable": ["income_tax", "adult1_medicaid_eligible"],
-                "value": [100.0, 1.0],
-                "impact_weight": [None, 900.0],
-            }
-        )
-        predictions_df = pd.DataFrame(
-            {
-                "model": ["model_a", "model_a"],
-                "scenario_id": ["s1", "s1"],
-                "variable": ["income_tax", "adult1_medicaid_eligible"],
-                "prediction": [100.0, 0.0],
-            }
-        )
-
-        household_scores = household_equal_impact_scores(
-            ground_truth_df,
-            predictions_df,
-            floor_share=0.0,
-        )
-
-        assert household_scores.iloc[0]["impact_score"] == pytest.approx(0.1)
-
     def test_get_programs_supports_current_sets(self):
         assert get_programs("us", "headline") == US_HEADLINE_PROGRAMS
         assert get_programs("uk", "headline") == UK_HEADLINE_PROGRAMS
@@ -445,7 +358,6 @@ class TestSummaries:
         assert set(analysis) == {
             "metrics",
             "model_summary",
-            "impact_summary",
             "bounded_summary",
             "global_weights",
             "variable_summary",
@@ -455,7 +367,6 @@ class TestSummaries:
         }
         assert len(analysis["metrics"]) == 1
         assert len(analysis["model_summary"]) == 1
-        assert len(analysis["impact_summary"]) == 1
         assert len(analysis["variable_summary"]) == 1
         assert len(analysis["usage_summary"]) == 1
         assert analysis["run_model_summary"].empty
@@ -530,7 +441,6 @@ class TestSummaries:
         analysis = {
             "metrics": metrics_df,
             "model_summary": summary_by_model(metrics_df),
-            "impact_summary": pd.DataFrame(),
             "variable_summary": summary_by_variable(metrics_df),
             "usage_summary": pd.DataFrame(
                 {
@@ -576,7 +486,6 @@ class TestSummaries:
                 mae_run_mean=[400.0, 900.0],
                 mae_run_std=[20.0, 30.0],
             ),
-            "impact_summary": pd.DataFrame(),
             "variable_summary": summary_by_variable(metrics_df),
             "usage_summary": pd.DataFrame(),
             "run_model_summary": pd.DataFrame(
@@ -621,7 +530,6 @@ class TestSummaries:
         analysis = {
             "metrics": metrics_df,
             "model_summary": summary_by_model(metrics_df),
-            "impact_summary": pd.DataFrame(),
             "variable_summary": summary_by_variable(metrics_df),
             "usage_summary": pd.DataFrame(
                 {
@@ -680,7 +588,6 @@ class TestSummaries:
         assert set(exported) == {
             "metrics",
             "model_summary",
-            "impact_summary",
             "variable_summary",
             "usage_summary",
             "report",
@@ -689,7 +596,6 @@ class TestSummaries:
         }
         assert exported["metrics"].exists()
         assert exported["model_summary"].exists()
-        assert exported["impact_summary"].exists()
         assert exported["variable_summary"].exists()
         assert exported["usage_summary"].exists()
         assert exported["report"].exists()

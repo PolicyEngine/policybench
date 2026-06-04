@@ -354,7 +354,7 @@ def federal_state_joint_accuracy() -> pd.DataFrame:
     return summary
 
 
-def impact_floor_sensitivity() -> pd.DataFrame:
+def weighting_sensitivity() -> pd.DataFrame:
     """Top country ranks under three weighting philosophies.
 
     Reports top models under the bounded secondary metric (population-derived
@@ -363,7 +363,7 @@ def impact_floor_sensitivity() -> pd.DataFrame:
     share, averaged across households and renormalized) alongside two opt-in
     alternatives: equal weighting across outputs and budget-weighted (each
     variable's share of total absolute reference dollars). All three use the
-    same continuous floor-free row score so the differences come from the
+    same continuous bounded row score so the differences come from the
     weighting choice alone.
     """
     from policybench.analysis import (
@@ -804,7 +804,7 @@ sensitivity = sensitivity_rows()
 model_runs = model_run_table()
 baseline_summary = simple_baselines()
 federal_state_joint = federal_state_joint_accuracy()
-impact_floor = impact_floor_sensitivity()
+weighting_sensitivity_table = weighting_sensitivity()
 retry_round_summary = retry_round_summary_table()
 row_repair_summary = row_repair_summary_table()
 deviation_audit_summary = deviation_audit_summary_table()
@@ -1081,12 +1081,12 @@ The primary leaderboard gives each household equal weight within each country. @
 sensitivity
 ```
 
-The bounded score is a global-output-weighted average of row scores. Amount outputs use `max(0, 1 − |pred − ref| / |ref|)` when the reference is nonzero and `1{pred = 0}` when the reference is zero. Binary outputs use exact 0/1 matching. The exact-match rate uses the same weighting and aggregation but replaces the amount row score with a strict indicator: `1{pred = ref}` to the dollar. Each output group's default household-impact weight is computed from a full weighting population, not from the 100 benchmark households: full PolicyEngine US Enhanced CPS for the US and full PolicyEngine UK enhanced FRS for the UK. This weighting source is separate from the UK benchmark scenario source, which remains the public calibrated transfer dataset. For each source household, the share is `|ref_ij| / max(|household_net_income_i|, Σ_k |ref_ik|)`; shares are averaged with calibrated household weights and renormalized so output weights sum to one. The `max(...)` denominator anchors per-household shares to net income when net income is the dominant flow and falls back to the gross tax-benefit flow only when programs cancel each other out, so a $1 benefit to a high-earner contributes essentially zero weight and per-household shares never exceed one. Booleans carry weight through PolicyEngine's paired per-capita value (for example `medicaid_value`), so eligibility calls are graded as accuracy but weighted by the dollar stake. @tbl-impact-floor compares the bounded-score ranking against two opt-in alternatives shown for transparency: equal weighting (every output the same) and budget-weighted (each output's share of total absolute reference dollars in the same full weighting population).
+The bounded score is a global-output-weighted average of row scores. Amount outputs use `max(0, 1 − |pred − ref| / |ref|)` when the reference is nonzero and `1{pred = 0}` when the reference is zero. Binary outputs use exact 0/1 matching. The exact-match rate uses the same weighting and aggregation but replaces the amount row score with a strict indicator: `1{pred = ref}` to the dollar. Each output group's default household-impact weight is computed from a full weighting population, not from the 100 benchmark households: full PolicyEngine US Enhanced CPS for the US and full PolicyEngine UK enhanced FRS for the UK. This weighting source is separate from the UK benchmark scenario source, which remains the public calibrated transfer dataset. For each source household, the share is `|ref_ij| / max(|household_net_income_i|, Σ_k |ref_ik|)`; shares are averaged with calibrated household weights and renormalized so output weights sum to one. The `max(...)` denominator anchors per-household shares to net income when net income is the dominant flow and falls back to the gross tax-benefit flow only when programs cancel each other out, so a $1 benefit to a high-earner contributes essentially zero weight and per-household shares never exceed one. Booleans carry weight through PolicyEngine's paired per-capita value (for example `medicaid_value`), so eligibility calls are graded as accuracy but weighted by the dollar stake. @tbl-weighting-sensitivity compares the bounded-score ranking against two opt-in alternatives shown for transparency: equal weighting (every output the same) and budget-weighted (each output's share of total absolute reference dollars in the same full weighting population).
 
 ```{python}
-#| label: tbl-impact-floor
-#| tbl-cap: "Top country ranks under the bounded secondary metric across three weightings (Household, Aggregate, Equal)."
-impact_floor
+#| label: tbl-weighting-sensitivity
+#| tbl-cap: "Top country ranks under the bounded secondary metric across three weightings (household, equal, budget)."
+weighting_sensitivity_table
 ```
 
 ### Hardest benchmark targets

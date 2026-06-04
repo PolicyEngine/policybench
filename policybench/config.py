@@ -68,11 +68,6 @@ PROGRAMS = US_HEADLINE_PROGRAMS
 # Binary (eligibility) variables -- evaluated with accuracy, not MAE
 BINARY_PROGRAMS = binary_output_ids()
 
-# Proposed impact-score floor. Each household gets equal overall weight, while
-# programs within a household receive a blend of equal weighting and weighting
-# by absolute contribution to household net income.
-HOUSEHOLD_IMPACT_SCORE_FLOOR = 0.3
-
 # Number of scenarios to generate
 NUM_SCENARIOS = 100
 

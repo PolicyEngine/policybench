@@ -66,7 +66,6 @@ scratch directory before launching the 1,000-household batch.
 - `results/local/analysis/metrics.csv`
 - `results/local/analysis/summary_by_model.csv`
 - `results/local/analysis/summary_by_variable.csv`
-- `results/local/analysis/impact_summary_by_model.csv`
 - `results/local/analysis/usage_summary.csv`
 - `results/local/analysis/report.md`
 

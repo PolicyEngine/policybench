@@ -25,10 +25,10 @@ household-facing outputs that contribute to household net income. PolicyEngine
 variables may be native to lower-level entities, but benchmark outputs are
 either expanded to people shown in the prompt or aggregated to the household
 before scoring. Coverage outputs are binary flags in the headline ranking; the
-separate household-equal impact score uses PolicyEngine value proxies to give
-those flags a dollar-scale weight. Intermediate tax bases and payroll
-subcomponents are excluded from the headline ranking. WIC is requested as
-person-level eligibility, not as a dollar amount.
+secondary weighted views use PolicyEngine value proxies to give those flags a
+dollar-scale weight. Intermediate tax bases and payroll subcomponents are
+excluded from the headline ranking. WIC is requested as person-level
+eligibility, not as a dollar amount.
 
 ## Programs evaluated
 

@@ -204,8 +204,6 @@ export type ModelStat = {
   countryScores?: Partial<Record<CountryCode, number>>;
   outputGroupScore?: number;
   outputGroupCountryScores?: Partial<Record<CountryCode, number>>;
-  impactScore?: number;
-  impactCountryScores?: Partial<Record<CountryCode, number>>;
   boundedScore?: number;
   boundedCountryScores?: Partial<Record<CountryCode, number>>;
   amountAccuracy?: number;

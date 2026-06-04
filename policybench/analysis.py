@@ -8,7 +8,6 @@ import pandas as pd
 
 from policybench.config import (
     BINARY_PROGRAMS,
-    HOUSEHOLD_IMPACT_SCORE_FLOOR,
 )
 from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.population_weights import (
@@ -832,166 +831,6 @@ def threshold_score_single_prediction(
     return row_hit_scores(variable, y_true, y_pred)["threshold_score"]
 
 
-def household_equal_impact_scores(
-    ground_truth: pd.DataFrame,
-    predictions: pd.DataFrame,
-    floor_share: float = HOUSEHOLD_IMPACT_SCORE_FLOOR,
-) -> pd.DataFrame:
-    """Score models by equal household weight and within-household dollar impact.
-
-    Each household contributes equally to the final metric. Within a household,
-    each requested output row gets a blended weight:
-
-    - `floor_share / K` equal-weight floor
-    - `(1 - floor_share)` times its absolute reference-value share
-
-    This keeps small or zero-value components from disappearing while still
-    giving more weight to larger resource components within a household.
-    """
-    if floor_share < 0 or floor_share > 1:
-        raise ValueError("floor_share must be between 0 and 1.")
-
-    if ground_truth.empty or predictions.empty or "model" not in predictions.columns:
-        return pd.DataFrame(
-            columns=[
-                "model",
-                "scenario_id",
-                "impact_score",
-                "equal_weight_score",
-                "coverage",
-                "parsed_variables",
-                "total_variables",
-                "floor_share",
-            ]
-        )
-
-    models = pd.DataFrame({"model": sorted(predictions["model"].dropna().unique())})
-    if models.empty:
-        return pd.DataFrame(
-            columns=[
-                "model",
-                "scenario_id",
-                "impact_score",
-                "equal_weight_score",
-                "coverage",
-                "parsed_variables",
-                "total_variables",
-                "floor_share",
-            ]
-        )
-
-    expected = ground_truth.assign(_join_key=1).merge(
-        models.assign(_join_key=1),
-        on="_join_key",
-    )
-    expected = expected.drop(columns="_join_key")
-
-    merged = expected.merge(
-        predictions[["model", "scenario_id", "variable", "prediction"]],
-        on=["model", "scenario_id", "variable"],
-        how="left",
-    )
-
-    base_weights = ground_truth.copy()
-    base_weights["net_income_sign"] = base_weights["variable"].map(
-        net_income_sign_for_output
-    )
-    default_abs_value = (base_weights["value"] * base_weights["net_income_sign"]).abs()
-    if "impact_weight" in base_weights.columns:
-        explicit_weight = pd.to_numeric(
-            base_weights["impact_weight"],
-            errors="coerce",
-        ).abs()
-        base_weights["abs_value"] = explicit_weight.fillna(default_abs_value)
-    else:
-        base_weights["abs_value"] = default_abs_value
-    base_weights["total_variables"] = base_weights.groupby("scenario_id")[
-        "variable"
-    ].transform("size")
-    base_weights["abs_total"] = base_weights.groupby("scenario_id")[
-        "abs_value"
-    ].transform("sum")
-    base_weights["weight"] = np.where(
-        base_weights["abs_total"] > 0,
-        floor_share / base_weights["total_variables"]
-        + (1 - floor_share) * base_weights["abs_value"] / base_weights["abs_total"],
-        1 / base_weights["total_variables"],
-    )
-
-    merged = merged.merge(
-        base_weights[["scenario_id", "variable", "weight", "total_variables"]],
-        on=["scenario_id", "variable"],
-        how="left",
-    )
-
-    merged["row_score"] = [
-        score_single_prediction(variable, y_true, y_pred)
-        for variable, y_true, y_pred in zip(
-            merged["variable"],
-            merged["value"],
-            merged["prediction"],
-        )
-    ]
-    merged["weighted_row_score"] = merged["row_score"] * merged["weight"]
-
-    household_scores = (
-        merged.groupby(["model", "scenario_id"])
-        .agg(
-            impact_score=("weighted_row_score", "sum"),
-            equal_weight_score=("row_score", "mean"),
-            parsed_variables=("prediction", lambda s: int(s.notna().sum())),
-            total_variables=("total_variables", "first"),
-        )
-        .reset_index()
-    )
-    household_scores["coverage"] = (
-        household_scores["parsed_variables"] / household_scores["total_variables"]
-    )
-    household_scores["floor_share"] = floor_share
-    return household_scores
-
-
-def household_impact_summary_by_model(
-    ground_truth: pd.DataFrame,
-    predictions: pd.DataFrame,
-    floor_share: float = HOUSEHOLD_IMPACT_SCORE_FLOOR,
-) -> pd.DataFrame:
-    """Aggregate household-equal impact scores by model."""
-    household_scores = household_equal_impact_scores(
-        ground_truth,
-        predictions,
-        floor_share=floor_share,
-    )
-    if household_scores.empty:
-        return pd.DataFrame(
-            columns=[
-                "model",
-                "mean_impact_score",
-                "mean_household_score",
-                "mean_household_coverage",
-                "households",
-                "total_variables",
-                "parsed_variables",
-                "floor_share",
-            ]
-        )
-
-    return (
-        household_scores.groupby("model")
-        .agg(
-            mean_impact_score=("impact_score", "mean"),
-            mean_household_score=("equal_weight_score", "mean"),
-            mean_household_coverage=("coverage", "mean"),
-            households=("scenario_id", "nunique"),
-            total_variables=("total_variables", "sum"),
-            parsed_variables=("parsed_variables", "sum"),
-            floor_share=("floor_share", "first"),
-        )
-        .reset_index()
-        .sort_values("mean_impact_score", ascending=False)
-    )
-
-
 def run_stability_by_model(run_model_summary: pd.DataFrame) -> pd.DataFrame:
     """Aggregate repeated-run stability metrics by model."""
     if run_model_summary.empty:
@@ -1385,7 +1224,6 @@ def analyze_no_tools(
     """
     metrics = compute_metrics(ground_truth, predictions)
     model_summary = summary_by_model(metrics)
-    impact_summary = household_impact_summary_by_model(ground_truth, predictions)
     run_model_summary = summarize_runs_by_model(ground_truth, repeated_predictions)
     run_stability = run_stability_by_model(run_model_summary)
     if not run_stability.empty:
@@ -1481,7 +1319,6 @@ def analyze_no_tools(
     return {
         "metrics": metrics,
         "model_summary": model_summary,
-        "impact_summary": impact_summary,
         "bounded_summary": bounded_summary,
         "global_weights": global_weights,
         "variable_summary": variable_summary,
@@ -1506,7 +1343,6 @@ def _format_seconds(value: float) -> str:
 def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
     """Render a compact markdown report from analysis tables."""
     model_summary = analysis["model_summary"]
-    impact_summary = analysis.get("impact_summary", pd.DataFrame())
     variable_summary = analysis["variable_summary"]
     usage_summary = analysis.get("usage_summary", pd.DataFrame())
     run_stability = analysis.get("run_stability", pd.DataFrame())
@@ -1703,36 +1539,6 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
             )
 
         lines.extend(["", ""])
-
-    if not impact_summary.empty:
-        lines.extend(
-            [
-                "## Household-equal impact score (30% floor — legacy)",
-                "",
-                "Retained for comparison with prior reports. Each requested "
-                "output row gets a blend of equal weighting and weighting by "
-                "absolute reference impact.",
-                "",
-                "| model | mean_impact_score | mean_household_score "
-                "| mean_household_coverage | households |",
-                "| --- | ---: | ---: | ---: | ---: |",
-            ]
-        )
-        for _, row in impact_summary.iterrows():
-            lines.append(
-                "| "
-                f"{row['model']} | "
-                f"{_format_metric(row['mean_impact_score'])} | "
-                f"{_format_metric(row['mean_household_score'])} | "
-                f"{_format_metric(row['mean_household_coverage'])} | "
-                f"{int(row['households'])} |"
-            )
-
-        lines.extend(
-            [
-                "",
-            ]
-        )
 
     lines.extend(
         [
@@ -2068,16 +1874,6 @@ def build_dashboard_payload(
                 item["prompt"] = first_prompt
         scenario_payload[row["scenario_id"]] = item
 
-    impact_summary = analysis.get("impact_summary")
-    impact_by_model: dict[str, float] = {}
-    if isinstance(impact_summary, pd.DataFrame) and not impact_summary.empty:
-        for _, impact_row in impact_summary.iterrows():
-            model_name = impact_row.get("model")
-            score = impact_row.get("mean_impact_score")
-            if model_name is None or pd.isna(score):
-                continue
-            impact_by_model[str(model_name)] = float(score) * 100
-
     bounded_summary = analysis.get("bounded_summary")
     bounded_by_model: dict[str, dict[str, float]] = {}
     if isinstance(bounded_summary, pd.DataFrame) and not bounded_summary.empty:
@@ -2110,7 +1906,6 @@ def build_dashboard_payload(
             if not pd.isna(row["mean_score"])
             else row["mean_score"]
         )
-        impact_score = impact_by_model.get(str(row["model"]))
         bounded_entry = bounded_by_model.get(str(row["model"]), {})
         bounded_score = bounded_entry.get("bounded")
         # Keep the smooth bounded score as the secondary score field. The
@@ -2119,8 +1914,6 @@ def build_dashboard_payload(
         primary_score = (
             _clean_json_number(bounded_score)
             if bounded_score is not None
-            else _clean_json_number(impact_score)
-            if impact_score is not None
             else output_group_score
         )
         item = {
@@ -2229,8 +2022,6 @@ def build_dashboard_payload(
         }
         if not pd.isna(row["mean_accuracy"]):
             item["accuracy"] = float(row["mean_accuracy"] * 100)
-        if impact_score is not None:
-            item["impactScore"] = impact_score
         if bounded_score is not None:
             item["boundedScore"] = bounded_score
         if "amount" in bounded_entry:
@@ -2472,17 +2263,12 @@ def export_analysis(
 
     metrics_path = output_path / "metrics.csv"
     model_summary_path = output_path / "summary_by_model.csv"
-    impact_summary_path = output_path / "impact_summary_by_model.csv"
     variable_summary_path = output_path / "summary_by_variable.csv"
     usage_summary_path = output_path / "usage_summary.csv"
     report_path = output_path / "report.md"
 
     analysis["metrics"].to_csv(metrics_path, index=False)
     analysis["model_summary"].to_csv(model_summary_path, index=False)
-    analysis.get("impact_summary", pd.DataFrame()).to_csv(
-        impact_summary_path,
-        index=False,
-    )
     analysis["variable_summary"].to_csv(variable_summary_path, index=False)
     analysis["usage_summary"].to_csv(usage_summary_path, index=False)
     report_path.write_text(render_markdown_report(analysis), encoding="utf-8")
@@ -2490,7 +2276,6 @@ def export_analysis(
     exported = {
         "metrics": metrics_path,
         "model_summary": model_summary_path,
-        "impact_summary": impact_summary_path,
         "variable_summary": variable_summary_path,
         "usage_summary": usage_summary_path,
         "report": report_path,
