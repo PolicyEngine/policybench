@@ -661,6 +661,41 @@ def test_aggregate_net_worth_input_is_not_preserved():
     assert "net_worth" not in scenario.household_inputs
 
 
+def test_impossible_negative_cost_inputs_are_not_preserved():
+    """Negative cost/premium artifacts should not appear as household facts."""
+    scenario = scenarios_from_cps_frame(
+        pd.DataFrame(
+            [
+                {
+                    "person_id": 1,
+                    "household_id": 1,
+                    "tax_unit_id": 1,
+                    "spm_unit_id": 1,
+                    "family_id": 1,
+                    "household_weight": 1.0,
+                    "state_code": "PA",
+                    "filing_status": "SINGLE",
+                    "age": 35,
+                    "employment_income": 50_000.0,
+                    "has_champva_health_coverage_at_interview": True,
+                    "other_health_insurance_premiums": -5_000.0,
+                    "other_medical_expenses": -100.0,
+                    "partnership_s_corp_income": -2_000.0,
+                    "is_tax_unit_head": True,
+                }
+            ]
+        ),
+        n=1,
+        seed=0,
+    )[0]
+
+    head = scenario.adults[0].inputs
+    assert "has_champva_health_coverage_at_interview" not in head
+    assert "other_health_insurance_premiums" not in head
+    assert "other_medical_expenses" not in head
+    assert head["partnership_s_corp_income"] == -2_000.0
+
+
 def test_formula_overtime_premium_is_not_prompted_or_sent_to_policyengine():
     scenario = scenarios_from_cps_frame(
         pd.DataFrame(

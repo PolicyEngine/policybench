@@ -119,7 +119,7 @@
                         "id": "premium_tax_credit",
                         "pe_variable": "premium_tax_credit",
                         "label": "ACA Premium Tax Credit",
-                        "prompt": "annual ACA Premium Tax Credit amount for Marketplace health insurance premium assistance. Use any listed Marketplace plan information as what the household knows about the plan they selected. Estimate any needed local Marketplace benchmark premium from the household facts if it is not provided. If no selected Marketplace plan information is listed, assume the selected plan costs about the same as the local benchmark Silver plan. Return 0 if the household is ineligible or does not receive Marketplace premium assistance",
+                        "prompt": "annual ACA Premium Tax Credit amount for Marketplace health insurance premium assistance. For this output, assume Marketplace enrollment and credit take-up if the household is ACA-eligible; do not return 0 merely because Marketplace enrollment, the local benchmark premium, or a selected-plan premium is not listed. Use any listed Marketplace plan information as what the household knows about the plan they selected. Estimate any needed local Marketplace benchmark premium from the household facts if it is not provided. If no selected Marketplace plan information is listed, assume the selected plan costs about the same as the local benchmark Silver plan. Return 0 only if the household is ineligible for Marketplace premium assistance under ACA rules or listed facts show disqualifying coverage",
                         "metric_type": "amount",
                         "role": "health",
                         "output_set": "excluded_prompt_issue",

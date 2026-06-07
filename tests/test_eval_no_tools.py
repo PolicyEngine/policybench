@@ -644,10 +644,12 @@ def test_premium_tax_credit_prompt_places_ptc_in_health(mini_scenario):
     prompt_lower = prompt.lower()
     assert "aca premium tax credit" in prompt_lower
     assert "marketplace health insurance premium assistance" in prompt_lower
+    assert "assume marketplace enrollment and credit take-up" in prompt_lower
+    assert "do not return 0 merely because marketplace enrollment" in prompt_lower
     assert "what the household knows about the plan they selected" in prompt_lower
     assert "benchmark premium" in prompt_lower
     assert "selected plan costs about the same" in prompt_lower
-    assert "return 0 if" in prompt_lower
+    assert "return 0 only if" in prompt_lower
 
 
 def test_compact_tax_breakdown_prompts_are_explicit(mini_scenario):
@@ -1488,6 +1490,12 @@ def test_claude_explanation_runs_use_single_output_chunks():
 def test_gpt_55_uses_longer_full_output_timeout():
     """GPT-5.5 needs the longer frontier-model timeout on full prompts."""
     assert _request_timeout_seconds("gpt-5.5") == 60
+
+
+def test_claude_models_use_longer_timeout():
+    """Claude explanation calls can exceed the generic 20s request timeout."""
+    assert _request_timeout_seconds("claude-sonnet-4.6") == 90
+    assert _request_timeout_seconds("claude-opus-4.7") == 90
 
 
 def test_xai_models_use_longer_timeout():
