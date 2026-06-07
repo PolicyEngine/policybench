@@ -87,10 +87,31 @@ def policyengine_release_bundle(country: str) -> dict[str, Any]:
     model_package_name = MODEL_PACKAGES[country]
     installed_model_version = metadata.version(model_package_name)
     installed_model_direct_url = _package_direct_url_or_none(model_package_name)
+    raw_manifest = _load_raw_policyengine_manifest(country)
     bundled_model_version = _bundled_model_version_from_policyengine_metadata(
         country,
         model_package_name,
     )
+    if bundled_model_version is None:
+        bundled_model_version = _bundled_model_version_from_raw_manifest(
+            raw_manifest,
+            model_package_name,
+        )
+    if _raw_manifest_matches_installed_model(
+        raw_manifest,
+        model_package_name,
+        installed_model_version,
+    ):
+        return _policyengine_metadata_from_raw_manifest(
+            country=country,
+            installed_policyengine_version=installed_policyengine_version,
+            model_package_name=model_package_name,
+            installed_model_version=installed_model_version,
+            installed_model_direct_url=installed_model_direct_url,
+            bundled_model_version=bundled_model_version,
+            raw_manifest=raw_manifest,
+        )
+
     manifest = None
     if bundled_model_version == installed_model_version:
         manifest = _load_policyengine_manifest(country)
@@ -103,7 +124,7 @@ def policyengine_release_bundle(country: str) -> dict[str, Any]:
             installed_model_version=installed_model_version,
             installed_model_direct_url=installed_model_direct_url,
             bundled_model_version=bundled_model_version,
-            raw_manifest=_load_raw_policyengine_manifest(country),
+            raw_manifest=raw_manifest,
         )
 
     model_matches_bundle = installed_model_version == bundled_model_version
@@ -174,6 +195,28 @@ def policyengine_release_bundle(country: str) -> dict[str, Any]:
     }
 
 
+def _bundled_model_version_from_raw_manifest(
+    raw_manifest: dict[str, Any] | None,
+    model_package_name: str,
+) -> str | None:
+    model_package = (raw_manifest or {}).get("model_package") or {}
+    if model_package.get("name") != model_package_name:
+        return None
+    version = model_package.get("version")
+    return str(version) if version is not None else None
+
+
+def _raw_manifest_matches_installed_model(
+    raw_manifest: dict[str, Any] | None,
+    model_package_name: str,
+    installed_model_version: str,
+) -> bool:
+    return (
+        _bundled_model_version_from_raw_manifest(raw_manifest, model_package_name)
+        == installed_model_version
+    )
+
+
 def _bundled_model_version_from_policyengine_metadata(
     country: str,
     model_package_name: str,
@@ -192,6 +235,51 @@ def _bundled_model_version_from_policyengine_metadata(
         if match:
             return match.group(1)
     return None
+
+
+def _policyengine_metadata_from_raw_manifest(
+    *,
+    country: str,
+    installed_policyengine_version: str | None,
+    model_package_name: str,
+    installed_model_version: str,
+    installed_model_direct_url: dict[str, Any] | None,
+    bundled_model_version: str | None,
+    raw_manifest: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Build runtime metadata directly from policyengine.py's bundled JSON."""
+    raw_manifest = raw_manifest or {}
+    data_package = raw_manifest.get("data_package") or {}
+    certification = raw_manifest.get("certification") or {}
+    certified_artifact = raw_manifest.get("certified_data_artifact") or {}
+    compatibility_basis = certification.get("compatibility_basis")
+    certifier = certification.get("certified_by")
+    return {
+        "bundle_id": raw_manifest.get("bundle_id"),
+        "country_id": raw_manifest.get("country_id", country),
+        "policyengine_version": installed_policyengine_version,
+        "bundled_policyengine_version": raw_manifest.get("policyengine_version"),
+        "model_package": model_package_name,
+        "model_version": installed_model_version,
+        "model_direct_url": installed_model_direct_url,
+        "bundled_model_version": bundled_model_version,
+        "model_version_source": "policyengine.py bundle",
+        "model_matches_policyengine_bundle": True,
+        "data_package": data_package.get("name", DATA_PACKAGES[country]),
+        "data_version": data_package.get("version"),
+        "default_dataset": raw_manifest.get("default_dataset"),
+        "default_dataset_uri": _default_dataset_uri_from_raw_manifest(raw_manifest),
+        "certified_data_build_id": certification.get("data_build_id")
+        or certified_artifact.get("build_id"),
+        "certified_data_artifact_sha256": certified_artifact.get("sha256"),
+        "data_build_model_version": certification.get("built_with_model_version"),
+        "data_build_model_git_sha": certification.get("built_with_model_git_sha"),
+        "data_build_fingerprint": certification.get("data_build_fingerprint"),
+        "compatibility_basis": compatibility_basis,
+        "bundled_compatibility_basis": compatibility_basis,
+        "certified_by": certifier,
+        "bundled_certified_by": certifier,
+    }
 
 
 def _package_version_or_none(package_name: str) -> str | None:

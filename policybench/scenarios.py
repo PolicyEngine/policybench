@@ -87,6 +87,7 @@ EXCLUDED_INPUT_VARIABLES = {
     "county_fips",
     "family_id",
     "filing_status",
+    "fsla_overtime_premium",
     "employer_quarterly_payroll_expense_override",
     "employer_state_unemployment_tax_rate_override",
     "has_itin",
