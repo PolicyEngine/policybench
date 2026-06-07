@@ -254,12 +254,12 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_wrong_rows = {
-        "us": 4_039,
-        "uk": 2_732,
+        "us": 3_859,
+        "uk": 2_666,
     }
     expected_sources = {
-        "us": {"llm_error": 4_039},
-        "uk": {"llm_error": 2_732},
+        "us": {"llm_error": 3_859},
+        "uk": {"llm_error": 2_666},
     }
 
     for country in ["us", "uk"]:

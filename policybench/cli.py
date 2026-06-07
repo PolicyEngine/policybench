@@ -682,14 +682,23 @@ def main():
     if args.command == "reference-outputs":
         from policybench.ground_truth import calculate_ground_truth
         from policybench.policyengine_runtime import runtime_metadata_for_country
-        from policybench.scenarios import get_uk_dataset_path, scenario_manifest
+        from policybench.scenarios import (
+            get_uk_dataset_path,
+            remove_unsupported_us_inputs,
+            scenario_manifest,
+        )
 
         scenarios, scenario_manifest_input = _load_reference_scenarios(args)
         programs = _parse_programs(
             args.programs,
             get_programs(args.country, args.program_set),
         )
-        df = calculate_ground_truth(scenarios, programs=programs)
+        calculation_scenarios, dropped_removed_inputs = (
+            remove_unsupported_us_inputs(scenarios)
+            if args.country == "us"
+            else (scenarios, [])
+        )
+        df = calculate_ground_truth(calculation_scenarios, programs=programs)
         _ensure_parent_dir(args.output)
         df.to_csv(args.output, index=False)
         _ensure_parent_dir(args.scenario_manifest_output)
@@ -713,6 +722,14 @@ def main():
                 source_dataset_path=source_dataset_path,
             ),
         }
+        if dropped_removed_inputs:
+            metadata["local_compatibility_adjustment"] = {
+                "dropped_removed_inputs": dropped_removed_inputs,
+                "reason": (
+                    "The frozen scenario manifest includes input variables that "
+                    "the installed PolicyEngine-US no longer defines."
+                ),
+            }
         _write_metadata(args.output, metadata)
         _write_metadata(
             args.scenario_manifest_output,

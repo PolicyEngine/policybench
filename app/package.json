@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@lobehub/icons": "^5.2.0",
-    "@policyengine/ui-kit": "^0.9.0",
+    "@policyengine/ui-kit": "github:PolicyEngine/policyengine-ui-kit#2ccd93c48745361afa4b3c2e9b1df92a7a5c1429",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   }

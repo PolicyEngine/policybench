@@ -8,13 +8,12 @@ import {
 } from "../types";
 import { formatCurrency } from "../format";
 import {
-  FRONTIER_MODELS,
   MODEL_LABELS,
   MODEL_ORDER,
   PROVIDER_LABELS,
+  getFrontierModelsForAvailable,
   getProviderForModel,
   getPredictionTextColor,
-  isFrontierModel,
   type ProviderKey,
 } from "../modelMeta";
 import { binaryFlag } from "../lib/scoring";
@@ -153,17 +152,25 @@ export default function ScenarioExplorer({
     }
     return MODEL_ORDER.filter((m) => unique.has(m));
   }, [filteredPredictions]);
+  const frontierModels = useMemo(
+    () => getFrontierModelsForAvailable(allModels),
+    [allModels],
+  );
+  const frontierModelNames = useMemo(
+    () => [...frontierModels].map((m) => MODEL_LABELS[m] ?? m).join(", "),
+    [frontierModels],
+  );
 
   const models = useMemo(() => {
     return allModels.filter((m) => {
-      if (frontierOnly && !isFrontierModel(m)) return false;
+      if (frontierOnly && !frontierModels.has(m)) return false;
       if (providerFilter.size > 0) {
         const provider = getProviderForModel(m);
         if (!provider || !providerFilter.has(provider)) return false;
       }
       return true;
     });
-  }, [allModels, frontierOnly, providerFilter]);
+  }, [allModels, frontierModels, frontierOnly, providerFilter]);
 
   // The detail modal opens on click. Selection is scoped to the current
   // scenario so switching households doesn't carry the old cell over.
@@ -427,7 +434,7 @@ export default function ScenarioExplorer({
                 ? "border-primary-strong bg-primary-strong text-white"
                 : "border-border bg-card text-text-secondary hover:text-text"
             }`}
-            title={`Show only one frontier flagship per provider (${FRONTIER_MODELS.map((m) => MODEL_LABELS[m] ?? m).join(", ")})`}
+            title={`Show only one frontier flagship per provider (${frontierModelNames})`}
           >
             Frontier only
           </button>

@@ -4,6 +4,7 @@
 // can keep the runtime values out of the JS bundle.
 
 export const MODEL_ORDER = [
+  "claude-opus-4.8",
   "claude-opus-4.7",
   "claude-sonnet-4.6",
   "claude-haiku-4.5",
@@ -22,6 +23,7 @@ export const MODEL_ORDER = [
 ] as const;
 
 export const MODEL_LABELS: Record<string, string> = {
+  "claude-opus-4.8": "Claude Opus 4.8",
   "claude-opus-4.7": "Claude Opus 4.7",
   "claude-haiku-4.5": "Claude Haiku 4.5",
   "claude-sonnet-4.6": "Claude Sonnet 4.6",
@@ -63,18 +65,40 @@ export function getProviderForModel(model: string): ProviderKey | null {
   return null;
 }
 
-// One frontier flagship per provider — used by the leaderboard's
-// "Frontier only" filter (default on) so the table stays scannable.
+// One current frontier flagship per provider. The scenario explorer can fall
+// back to legacy flagships for older embedded result files.
 export const FRONTIER_MODELS: readonly string[] = [
-  "claude-opus-4.7",
+  "claude-opus-4.8",
   "gpt-5.5",
   "grok-4.3",
   "gemini-3.1-pro-preview",
   "deepseek-v4-pro",
 ];
 
+const LEGACY_FRONTIER_FALLBACKS = new Map<ProviderKey, readonly string[]>([
+  ["anthropic", ["claude-opus-4.7"]],
+]);
+
 export function isFrontierModel(model: string): boolean {
   return FRONTIER_MODELS.includes(model);
+}
+
+export function getFrontierModelsForAvailable(
+  models: readonly string[],
+): Set<string> {
+  const available = new Set(models);
+  const selected = new Set(FRONTIER_MODELS.filter((model) => available.has(model)));
+  const selectedProviders = new Set(
+    [...selected].map(getProviderForModel).filter((provider) => provider !== null),
+  );
+
+  for (const [provider, fallbacks] of LEGACY_FRONTIER_FALLBACKS) {
+    if (selectedProviders.has(provider)) continue;
+    const fallback = fallbacks.find((model) => available.has(model));
+    if (fallback) selected.add(fallback);
+  }
+
+  return selected;
 }
 
 const TEAL_400 = "var(--color-teal-400)";
