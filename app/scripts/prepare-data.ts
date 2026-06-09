@@ -2,7 +2,7 @@
  * Build-time split of src/data.json.
  *
  * Emits:
- *   - src/data.summary.json          bundled with the app (no free text)
+ *   - src/data-summary.json          bundled with the app (no free text)
  *   - public/data/explanations-*.json fetched lazily by the scenario explorer
  *
  * Runs before `next dev` and `next build` (see package.json). Outputs are
