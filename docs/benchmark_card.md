@@ -107,6 +107,45 @@ open-set benchmark with possible leakage from released cases into future model
 behavior or benchmark-specific prompting. Future protected leaderboard claims
 require a separate held-out or rotating evaluation set.
 
+## Protected split
+
+`policybench reference-outputs --private-fraction <f> --split-seed <n>`
+reserves a deterministic subset of sampled households for a private
+evaluation split. Public files keep their standard names, so every existing
+consumer is unaffected; the private split goes to sibling
+`reference_outputs-private.csv` / `scenarios-private.csv` files (with
+`.meta.json` sidecars recording `split`, `private_fraction`, and
+`split_seed`). Membership is a pure function of the scenario id and the split
+seed, so regeneration reproduces the same partition regardless of sampling
+order.
+
+Discipline for private files:
+
+- Never commit them, publish them, or pass them to dashboard exports. Only
+  aggregate scores from the private split may be released.
+- Run evaluations on the private split by passing the private manifest
+  explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
+  analyze commands need no other changes.
+- Activation is a snapshot decision: the current 2026-05-20 snapshot predates
+  the split and remains fully public. The first snapshot that reports
+  protected scores should state both splits' sizes and the split seed's
+  custody (who can regenerate membership).
+- Prompt canaries (unique strings embedded in private-split prompts to detect
+  future training contamination) are planned for the same snapshot that
+  activates the split, since adding them changes prompt text and therefore
+  benchmark identity.
+
+## Evaluation conditions
+
+The benchmark currently has one condition, `no_tools`. That label is attached
+at dashboard-export time (`build_dashboard_payload` in
+`policybench/analysis.py`), not carried through run artifacts: prediction
+CSVs have no condition column, and the eval loop does not parameterize it.
+Adding a second condition (web search, tool-assisted) therefore requires
+threading a `condition` field through run storage and analysis before the
+export — tracked as part of the run-store cutover — rather than new UI work;
+the site's types and leaderboard already filter on `condition`.
+
 ## Country data paths
 
 ### United States
