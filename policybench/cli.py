@@ -684,6 +684,52 @@ def main():
         help="Optional directory of repeated-run CSVs for stability analysis",
     )
 
+    # Defined inline (not via policybench.runstore) so building the parser
+    # never imports pandas; the dispatch below imports lazily like every
+    # other subcommand.
+    runstore_parser = subparsers.add_parser(
+        "runstore",
+        help="Additive SQLite run store (import/export/status).",
+    )
+    runstore_sub = runstore_parser.add_subparsers(dest="runstore_command")
+    runstore_import_parser = runstore_sub.add_parser(
+        "import", help="Import a run directory's predictions.csv into a SQLite db."
+    )
+    runstore_import_parser.add_argument(
+        "--run-dir",
+        required=True,
+        help="Run directory containing predictions.csv[.gz] (and sidecars).",
+    )
+    runstore_import_parser.add_argument(
+        "--db",
+        default=None,
+        help="Output SQLite path (default: <run-dir>/run.db).",
+    )
+    runstore_import_parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Run id to assign (default: inferred from CSV or run-dir name).",
+    )
+    runstore_export_parser = runstore_sub.add_parser(
+        "export", help="Export a run's predictions back to CSV (byte-identical)."
+    )
+    runstore_export_parser.add_argument("--db", required=True, help="SQLite db path.")
+    runstore_export_parser.add_argument(
+        "--run-id", required=True, help="Run id to export."
+    )
+    runstore_export_parser.add_argument(
+        "-o", "--output", required=True, help="Destination CSV (.gz to compress)."
+    )
+    runstore_status_parser = runstore_sub.add_parser(
+        "status", help="Show counts by model/status and the missing-case count."
+    )
+    runstore_status_parser.add_argument("--db", required=True, help="SQLite db path.")
+    runstore_status_parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Run id (default: the only run, if the db holds exactly one).",
+    )
+
     args = parser.parse_args()
 
     # Enable disk cache for ordinary eval calls. Contract-failure retry/repair
@@ -1024,6 +1070,11 @@ def main():
         print("\n=== Exported Artifacts ===")
         for name, path in exported.items():
             print(f"{name}: {path}")
+
+    elif args.command == "runstore":
+        from policybench.runstore import run_runstore_command
+
+        run_runstore_command(args)
 
     else:
         parser.print_help()
