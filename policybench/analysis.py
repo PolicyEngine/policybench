@@ -10,6 +10,7 @@ from policybench.config import (
     BINARY_PROGRAMS,
     SEED,
 )
+from policybench.dashboard_schema import dump_dashboard_payload
 from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.population_weights import (
     matching_population_weight_series,
@@ -2352,7 +2353,13 @@ def export_dashboard_data(
     output_path: str | Path,
     scenario_prompts: dict[str, dict[str, dict[str, str]]] | None = None,
 ) -> Path:
-    """Write the frontend dashboard payload to disk."""
+    """Write the frontend dashboard payload to disk.
+
+    The app always consumes the combined ``{"countries": {...}}`` shape, so a
+    single-country analysis is wrapped under its country key — writing the
+    bare bench object here is how an unloadable ``app/src/data.json`` gets
+    produced.
+    """
     dashboard_path = Path(output_path)
     dashboard_path.parent.mkdir(parents=True, exist_ok=True)
     payload = build_dashboard_payload(
@@ -2362,7 +2369,11 @@ def export_dashboard_data(
         scenarios,
         scenario_prompts=scenario_prompts,
     )
-    dashboard_path.write_text(json.dumps(payload), encoding="utf-8")
+    combined = {"countries": {payload["country"]: payload}}
+    dashboard_path.write_text(
+        dump_dashboard_payload(combined, source=str(dashboard_path)),
+        encoding="utf-8",
+    )
     return dashboard_path
 
 
