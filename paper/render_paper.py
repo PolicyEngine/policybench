@@ -220,14 +220,25 @@ def main() -> None:
     if quarto is None:
         raise SystemExit(
             "Quarto is not installed. Install it first, then rerun "
-            "`./.venv/bin/python paper/render_paper.py`."
+            "`uv run python paper/render_paper.py`."
         )
 
     env = dict(os.environ)
     tex_bin = Path("/Library/TeX/texbin")
     if tex_bin.exists():
         env["PATH"] = f"{tex_bin}:{env.get('PATH', '')}"
+    # Pin the Jupyter engine to the invoking virtualenv so the render always
+    # executes this checkout's policybench. QUARTO_PYTHON selects the
+    # interpreter; QUARTO_PYTHON alone is not enough because Quarto resolves the
+    # `python3` kernel by name and a user-level kernelspec
+    # (~/Library/Jupyter/kernels/python3) can shadow the venv's own kernel and
+    # point at an unrelated checkout. JUPYTER_PREFER_ENV_PATH=1 makes Jupyter
+    # search the venv's share/jupyter ahead of the user directory, so the
+    # `python3` kernelspec resolves to this venv. On a clean machine (e.g. CI)
+    # the venv kernelspec wins anyway; setting it here keeps every invocation
+    # hermetic.
     env["QUARTO_PYTHON"] = sys.executable
+    env["JUPYTER_PREFER_ENV_PATH"] = "1"
 
     snapshot_runs = ROOT / "paper" / "snapshot" / "20260501" / "runs"
     if not snapshot_runs.exists():

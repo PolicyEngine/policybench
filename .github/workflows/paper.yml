@@ -1,0 +1,58 @@
+name: Paper
+
+# Proves the manuscript renders from a clean, hermetic environment: the render
+# always executes the invoking virtualenv's policybench (no reliance on a
+# user-level Jupyter kernelspec). Gated to paper/code/dependency changes so the
+# heavier quarto render does not run on unrelated pushes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "paper/**"
+      - "policybench/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/paper.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "paper/**"
+      - "policybench/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/paper.yml"
+
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install uv
+      - run: uv sync --locked --extra dev --extra docs
+      - uses: quarto-dev/quarto-actions/setup@v2
+      # rsvg-convert (librsvg2-bin) converts the generated SVG figure to the PNG
+      # that the manuscript embeds. Without it generate_figures.py emits only the
+      # SVG and the render fails on the missing figures/positive_zero_scatter.png.
+      - name: Install rsvg-convert
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin
+      # Pin the Jupyter engine to this venv's python. QUARTO_PYTHON selects the
+      # interpreter; JUPYTER_PREFER_ENV_PATH=1 makes Jupyter resolve the `python3`
+      # kernel from the venv's share/jupyter (not a shadowing user kernelspec), so
+      # the render executes this checkout's policybench. The render fails the job
+      # if any notebook cell errors. HTML only — PDF/TeX is skipped in CI. Output
+      # goes to paper/out (gitignored); nothing rendered is committed.
+      - name: Render paper (HTML only)
+        env:
+          JUPYTER_PREFER_ENV_PATH: "1"
+        run: |
+          QUARTO_PYTHON="$(uv run python -c 'import sys; print(sys.executable)')"
+          export QUARTO_PYTHON
+          uv run python paper/generate_figures.py
+          cd paper
+          uv run quarto render index.qmd \
+            --to html \
+            --output-dir out/ci-web \
+            --execute-daemon 0
