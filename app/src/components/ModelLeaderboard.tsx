@@ -13,11 +13,7 @@ import {
   programIsActive,
   type ProgramOption,
 } from "../lib/programFilters";
-import {
-  binaryFlag,
-  metricTypeForVariable,
-  outputGroupForVariable,
-} from "../lib/scoring";
+import { canonicalScoreByModel } from "../lib/canonicalScore";
 import {
   SENSITIVITY_VIEWS,
   modelScoresForView,
@@ -123,111 +119,21 @@ export default function ModelLeaderboard({
     [activeProgramIds],
   );
 
-  function metricValue(
-    variable: string,
-    truth: number,
-    prediction: number | null | undefined,
-    field: "exact" | "within1pct" | "continuous",
-  ): number {
-    if (prediction === null || prediction === undefined || Number.isNaN(prediction)) {
-      return 0;
-    }
-    const isBinary = metricTypeForVariable(variable, data.country) === "binary";
-    if (isBinary) {
-      const predictionFlag = binaryFlag(prediction);
-      const truthFlag = binaryFlag(truth);
-      return predictionFlag !== null &&
-        truthFlag !== null &&
-        predictionFlag === truthFlag
-        ? 1
-        : 0;
-    }
-    const absErr = Math.abs(prediction - truth);
-    const exact = absErr <= 1 ? 1 : 0;
-    if (field === "exact") return exact;
-    if (field === "within1pct") {
-      return truth === 0 ? exact : absErr / Math.abs(truth) <= 0.01 ? 1 : 0;
-    }
-    return truth === 0
-      ? prediction === 0
-        ? 1
-        : 0
-      : Math.max(0, 1 - absErr / Math.abs(truth));
-  }
-
-  // Compute the selected metric from scenario rows, not heatmap averages. This
-  // mirrors Python's canonical scorer: split output-group weights across
-  // concrete rows in each household, renormalize within the household, then
-  // average households equally.
-  const hitRateByModel = (field: "exact" | "within1pct" | "continuous") => {
-    const out = new Map<string, number>();
-    const weights = data.globalWeights?.[effectiveView];
-    if (!weights) return out;
-
-    const groupedWeights = new Map<string, number>();
-    for (const [variable, weight] of Object.entries(weights)) {
-      const group = outputGroupForVariable(variable);
-      groupedWeights.set(group, (groupedWeights.get(group) ?? 0) + weight);
-    }
-
-    const sums = new Map<string, { score: number; households: number }>();
-    for (const variableMap of Object.values(data.scenarioPredictions ?? {})) {
-      const variables = Object.entries(variableMap).filter(([variable, modelMap]) => {
-        if (!isProgramActive(variable)) return false;
-        const first = Object.values(modelMap)[0];
-        if (!first) return false;
-        if (referenceFilter === "positives" && first.groundTruth === 0) return false;
-        if (referenceFilter === "zeros" && first.groundTruth !== 0) return false;
-        return groupedWeights.has(outputGroupForVariable(variable));
-      });
-      if (variables.length === 0) continue;
-
-      const groupCounts = new Map<string, number>();
-      for (const [variable] of variables) {
-        const group = outputGroupForVariable(variable);
-        groupCounts.set(group, (groupCounts.get(group) ?? 0) + 1);
-      }
-      const rawRowWeights = new Map<string, number>();
-      let denominator = 0;
-      for (const [variable] of variables) {
-        const group = outputGroupForVariable(variable);
-        const rawWeight =
-          (groupedWeights.get(group) ?? 0) / (groupCounts.get(group) ?? 1);
-        rawRowWeights.set(variable, rawWeight);
-        denominator += rawWeight;
-      }
-      if (denominator <= 0) continue;
-
-      const models = new Set<string>();
-      for (const [, modelMap] of variables) {
-        for (const model of Object.keys(modelMap)) models.add(model);
-      }
-      for (const model of models) {
-        let householdScore = 0;
-        for (const [variable, modelMap] of variables) {
-          const record = modelMap[model];
-          const rowWeight = (rawRowWeights.get(variable) ?? 0) / denominator;
-          householdScore +=
-            rowWeight *
-            metricValue(
-              variable,
-              record?.groundTruth ?? 0,
-              record?.prediction,
-              field,
-            );
-        }
-        const acc = sums.get(model) ?? { score: 0, households: 0 };
-        acc.score += householdScore;
-        acc.households += 1;
-        sums.set(model, acc);
-      }
-    }
-
-    for (const [model, acc] of sums) {
-      if (acc.households > 0) out.set(model, (acc.score / acc.households) * 100);
-    }
-    return out;
-  };
+  // Compute the selected metric from scenario rows, not heatmap averages. The
+  // algorithm lives in the React-free `canonicalScore` module so it can be
+  // verified against the Python canonical scorer in CI (see
+  // app/tests/canonicalScore.test.ts). It mirrors Python's scorer: split
+  // output-group weights across concrete rows in each household, renormalize
+  // within the household, then average households equally.
+  const hitRateByModel = (field: "exact" | "within1pct" | "continuous") =>
+    canonicalScoreByModel({
+      scenarioPredictions: data.scenarioPredictions,
+      weights: data.globalWeights?.[effectiveView],
+      country: data.country,
+      activeProgramIds,
+      referenceFilter,
+      field,
+    });
 
   const exactScoreByModel = useMemo(
     () => hitRateByModel("exact"),

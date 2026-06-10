@@ -730,6 +730,26 @@ def main():
         help="Run id (default: the only run, if the db holds exactly one).",
     )
 
+    scorer_vectors_parser = subparsers.add_parser(
+        "export-scorer-vectors",
+        help=(
+            "Regenerate the cross-language scorer parity fixture consumed by "
+            "app/tests/canonicalScore.test.ts"
+        ),
+    )
+    scorer_vectors_parser.add_argument(
+        "-o",
+        "--output",
+        default="app/tests/fixtures/scorer_vectors.json",
+        help="Path for the generated parity fixture",
+    )
+    scorer_vectors_parser.add_argument(
+        "--seed",
+        type=int,
+        default=20260610,
+        help="Deterministic RNG seed for the fixture",
+    )
+
     args = parser.parse_args()
 
     # Enable disk cache for ordinary eval calls. Contract-failure retry/repair
@@ -1075,6 +1095,13 @@ def main():
         from policybench.runstore import run_runstore_command
 
         run_runstore_command(args)
+
+    elif args.command == "export-scorer-vectors":
+        from policybench.scorer_vectors import write_scorer_vectors
+
+        output = write_scorer_vectors(args.output, seed=args.seed)
+        size_kb = output.stat().st_size / 1024
+        print(f"Scorer parity vectors saved to {output} ({size_kb:.1f} KB)")
 
     else:
         parser.print_help()
