@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 const manuscriptPaths = {
   pdf: "/paper/policybench.pdf",
-  web: "/paper/web/index.html?v=20260520-gemini35",
+  web: "/paper/web/index.html?v=20260609-vals-related-work",
 };
 const ssrnUrl = process.env.NEXT_PUBLIC_POLICYBENCH_SSRN_URL;
 

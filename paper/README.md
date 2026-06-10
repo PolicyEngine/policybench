@@ -25,6 +25,13 @@ Notes:
 - This scaffold assumes `quarto` and the app dependencies are installed
   separately. The renderer reads PolicyEngine design-system tokens from
   `app/node_modules/@policyengine/design-system/dist/tokens.css`.
+- The render venv needs the `policybench` package (editable, from the same
+  checkout being rendered) plus `ipykernel`, `nbformat`, and `nbclient`, and a
+  Jupyter kernelspec named `policybench-paper` pointing at that venv's Python
+  (`python -m ipykernel install --user --name policybench-paper`). A kernelspec
+  that points at a different checkout's venv renders that checkout's
+  `policybench` code instead — set `JUPYTER_PATH` to a scratch kernels
+  directory to override per render.
 - The manuscript tables and figures read from the frozen source run exports
   under `paper/snapshot/20260501/runs/`.
 - `app/src/data.json` is the live site export. For this snapshot it must match
