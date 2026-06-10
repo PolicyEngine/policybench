@@ -662,6 +662,10 @@ def main():
         help="Optional directory of repeated-run CSVs for stability analysis",
     )
 
+    from policybench.runstore import add_runstore_subparser
+
+    add_runstore_subparser(subparsers)
+
     args = parser.parse_args()
 
     # Enable disk cache for ordinary eval calls. Contract-failure retry/repair
@@ -955,6 +959,11 @@ def main():
         print("\n=== Exported Artifacts ===")
         for name, path in exported.items():
             print(f"{name}: {path}")
+
+    elif args.command == "runstore":
+        from policybench.runstore import run_runstore_command
+
+        run_runstore_command(args)
 
     else:
         parser.print_help()
