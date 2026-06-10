@@ -19,14 +19,25 @@ Design notes
 ------------
 The on-disk ``predictions.csv`` is the contract. It is emitted by pandas via
 ``DataFrame.to_csv(index=False)`` and consumed by ``pandas.read_csv`` (see
-``eval_no_tools.py`` and ``analysis.py``). Empirically, reading that CSV and
-re-emitting it with the same call is byte-identical even on the full 240 MB
-snapshot, because pandas round-trips floats by repr, writes ``True``/``False``
-for booleans, and writes empty strings for ``NaN``. The only subtlety is dtype:
-an all-empty column reads back as ``float64`` (all-``NaN``), a mixed column as
-``object``. We therefore persist, per run, the exact ordered column list and the
-pandas emit-dtype of each column (``output_set_json``), and on export rebuild
-each column with that dtype so the re-emitted bytes match.
+``eval_no_tools.py`` and ``analysis.py``). To guarantee a byte-identical export
+on any platform, the store keeps the **exact source text of every cell** and
+emits it verbatim, so no float is ever parsed-then-reformatted on the
+round-trip. This matters because both halves of a float round-trip are
+platform-dependent: pandas' default CSV parser (``xstrtod``) is fast but lossy
+and lands on different doubles on different builds, and sqlite renders
+REAL->TEXT with a version-dependent precision. (An earlier float-based approach
+passed on macOS but produced ``2297.333333333333`` instead of
+``2297.3333333333335`` on the Linux CI for exactly this reason.)
+
+Concretely: response-level columns are stashed as their exact strings under
+``responses.usage_json["_csv"]``; prediction/explanation source text is stashed
+under ``predictions.extra_json`` as ``_raw_*``. The typed columns
+(``prediction`` REAL, ``responses.cost_usd``/``latency_s``, ``usage_json``
+tokens) remain for querying. Export prefers the verbatim strings and emits those
+columns as ``object`` dtype so ``to_csv`` writes them as-is. Remaining typed
+columns are rebuilt to the recorded pandas emit-dtype (an all-empty column reads
+back as ``float64`` and must emit as empty strings), and the original column
+order and row order are restored from per-run metadata.
 
 To stay faithful while still offering a useful semantic schema, every known
 prediction column is mapped onto typed store columns and anything left over for
@@ -154,6 +165,24 @@ def _read_predictions_dataframe(path: str | Path) -> pd.DataFrame:
             data = handle.read()
         return pd.read_csv(io.BytesIO(data))
     return pd.read_csv(path)
+
+
+def _read_predictions_raw_strings(path: str | Path) -> pd.DataFrame:
+    """Read a predictions CSV preserving every cell as its exact source text.
+
+    ``dtype=str, keep_default_na=False, na_filter=False`` means no value is ever
+    parsed into a float, so no float-to-text conversion (by sqlite, json, numpy,
+    or pandas, whose formatting can differ by version/platform) can corrupt the
+    byte-identical export. These exact strings are stashed per response and
+    emitted verbatim on export; see ``_response_record_from_csv``.
+    """
+    path = Path(path)
+    read_kwargs = dict(dtype=str, keep_default_na=False, na_filter=False)
+    if path.suffix == ".gz" or path.name.endswith(".csv.gz"):
+        with gzip.open(path, "rb") as handle:
+            data = handle.read()
+        return pd.read_csv(io.BytesIO(data), **read_kwargs)
+    return pd.read_csv(path, **read_kwargs)
 
 
 def _emit_dtype(series: pd.Series) -> str:
@@ -604,7 +633,13 @@ class RunStore:
 
     # -- predictions -------------------------------------------------------
 
-    def upsert_predictions(self, df: pd.DataFrame, *, run_id: str | None = None) -> int:
+    def upsert_predictions(
+        self,
+        df: pd.DataFrame,
+        *,
+        run_id: str | None = None,
+        raw_strings: pd.DataFrame | None = None,
+    ) -> int:
         """Upsert prediction rows from a DataFrame.
 
         Accepts either the *store* shape (``output_id``/``parse_status``/...) or
@@ -613,6 +648,12 @@ class RunStore:
         columns populate ``responses`` (attempt 0 unless ``source_attempt`` is
         present), prediction-level columns populate ``predictions``, and any
         unknown columns are preserved in ``extra_json``.
+
+        ``raw_strings``, when given, is the same CSV read with every cell kept as
+        its exact source text (see :func:`_read_predictions_raw_strings`). It must
+        align row-for-row with ``df``. The exact response-column strings are
+        stashed so export reproduces them verbatim, immune to platform-dependent
+        float-to-text formatting.
 
         Returns the number of prediction rows written.
         """
@@ -626,7 +667,7 @@ class RunStore:
         is_store_shape = "output_id" in frame.columns
         if is_store_shape:
             return self._upsert_store_predictions(frame)
-        return self._upsert_csv_predictions(frame)
+        return self._upsert_csv_predictions(frame, raw_strings=raw_strings)
 
     def _resolve_run_id(self, frame: pd.DataFrame) -> str:
         if _RUN_ID_COLUMN in frame.columns:
@@ -677,13 +718,25 @@ class RunStore:
         self._executemany_predictions(rows)
         return len(rows)
 
-    def _upsert_csv_predictions(self, frame: pd.DataFrame) -> int:
+    def _upsert_csv_predictions(
+        self, frame: pd.DataFrame, *, raw_strings: pd.DataFrame | None = None
+    ) -> int:
         run_id = self._resolve_run_id(frame)
         condition = self._condition_for(run_id)
 
         present_columns = list(frame.columns)
         extra_columns = [col for col in present_columns if col not in _KNOWN_COLUMNS]
         has_attempt = "source_attempt" in present_columns
+
+        # Row-aligned exact source strings (if provided) for verbatim export.
+        raw_records: list[dict[str, str]] | None = None
+        if raw_strings is not None:
+            if len(raw_strings) != len(frame):
+                raise ValueError(
+                    "raw_strings must align row-for-row with the predictions frame "
+                    f"({len(raw_strings)} vs {len(frame)} rows)."
+                )
+            raw_records = raw_strings.to_dict("records")
 
         # A logical "response" is one provider call. In chunked runs a scenario's
         # outputs are split across several calls, each with its own raw_response,
@@ -702,7 +755,7 @@ class RunStore:
         chunk_attempts: dict[tuple[str, str], dict[tuple, int]] = {}
         prediction_rows = []
 
-        for record in frame.to_dict("records"):
+        for position, record in enumerate(frame.to_dict("records")):
             model = str(record["model"])
             scenario_id = str(record["scenario_id"])
             if has_attempt:
@@ -717,13 +770,24 @@ class RunStore:
                     seen[signature] = len(seen)
                 attempt = seen[signature]
 
+            raw_record = raw_records[position] if raw_records is not None else None
             key = (model, scenario_id, attempt)
             if key not in response_rows:
                 response_rows[key] = self._response_record_from_csv(
-                    record, model, scenario_id, attempt
+                    record, model, scenario_id, attempt, raw_record=raw_record
                 )
 
             extra = {col: _store_scalar(record.get(col)) for col in extra_columns}
+            # Preserve the exact source text of prediction/explanation so export
+            # is byte-identical without re-parsing a float. pandas' default CSV
+            # float parser is lossy and platform-dependent (it parsed the same
+            # token to different doubles on the Linux CI), so the typed REAL value
+            # alone cannot guarantee a byte-identical round-trip. The REAL column
+            # stays for querying; export prefers these verbatim strings.
+            if raw_record is not None:
+                for col in _PREDICTION_COLUMNS:
+                    if col in raw_record:
+                        extra[f"_raw_{col}"] = raw_record[col]
             prediction_rows.append(
                 (
                     run_id,
@@ -744,7 +808,13 @@ class RunStore:
         return len(prediction_rows)
 
     def _response_record_from_csv(
-        self, record: dict[str, Any], model: str, scenario_id: str, attempt: int
+        self,
+        record: dict[str, Any],
+        model: str,
+        scenario_id: str,
+        attempt: int,
+        *,
+        raw_record: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         usage = {
             field: _store_scalar(record.get(field))
@@ -758,6 +828,25 @@ class RunStore:
             if field in record
         }
         usage = {k: v for k, v in usage.items() if v is not None}
+        # The stash carries the exact per-variable response-column text for a
+        # byte-identical export. When the original source strings are available
+        # (CSV import) we store those verbatim, so no float ever round-trips
+        # through a platform-dependent float-to-text formatter (sqlite REAL->TEXT,
+        # numpy/pandas object formatting). Without source strings (programmatic
+        # use) we fall back to the parsed scalar; export then formats it via
+        # pandas, which is acceptable since there is no original text to match.
+        if raw_record is not None:
+            csv_stash = {
+                col: raw_record.get(col)
+                for col in _RESPONSE_COLUMNS
+                if col in raw_record
+            }
+        else:
+            csv_stash = {
+                col: _store_scalar(record.get(col))
+                for col in _RESPONSE_COLUMNS
+                if col in record
+            }
         return {
             "model": model,
             "scenario_id": scenario_id,
@@ -776,13 +865,11 @@ class RunStore:
             "provider_resolved_model": _store_scalar(
                 record.get("provider_resolved_model")
             ),
-            # Keep the apportioned per-variable cost columns for byte-identical
-            # export. They are duplicated on every prediction row in the CSV.
-            "_csv": {
-                col: _store_scalar(record.get(col))
-                for col in _RESPONSE_COLUMNS
-                if col in record
-            },
+            # Exact per-variable response-column text (or parsed fallback), keyed
+            # by column. Stored under usage_json["_csv"]; see _executemany_responses.
+            "_csv": csv_stash,
+            # Marks whether the stash holds verbatim source strings.
+            "_csv_is_raw": raw_record is not None,
         }
 
     @staticmethod
@@ -819,12 +906,15 @@ class RunStore:
             csv_blob = r.get("_csv")
             # Stash the apportioned CSV response columns inside usage_json under a
             # reserved key so export can reproduce them exactly without widening
-            # the schema. usage_json stays valid JSON.
+            # the schema. usage_json stays valid JSON. ``_csv_raw`` records whether
+            # the stash holds verbatim source strings (emit as-is) or parsed
+            # scalars (let pandas format on export).
             usage_obj: dict[str, Any] = {}
             if usage_json:
                 usage_obj = json.loads(usage_json)
             if csv_blob:
                 usage_obj["_csv"] = csv_blob
+                usage_obj["_csv_raw"] = bool(r.get("_csv_is_raw"))
             rows.append(
                 (
                     run_id,
@@ -1129,6 +1219,9 @@ class RunStore:
         """
         path = Path(path)
         frame = _read_predictions_dataframe(path)
+        # Exact source-text view, row-aligned with ``frame``, so response columns
+        # export verbatim (immune to platform-dependent float-to-text formatting).
+        raw_strings = _read_predictions_raw_strings(path)
 
         resolved_run_id = run_id
         if resolved_run_id is None and _RUN_ID_COLUMN in frame.columns:
@@ -1171,7 +1264,7 @@ class RunStore:
             output_set=output_set,
             meta=run_meta,
         )
-        self.upsert_predictions(frame, run_id=resolved_run_id)
+        self.upsert_predictions(frame, run_id=resolved_run_id, raw_strings=raw_strings)
         return resolved_run_id
 
     def export_predictions_csv(
@@ -1234,17 +1327,23 @@ class RunStore:
             resp_index[(r["model"], r["scenario_id"], int(r["attempt"]))] = dict(r)
 
         records = []
+        verbatim_columns: set[str] = set()
         for pr in pred_rows:
             attempt = int(pr["source_attempt"] or 0)
             key = (pr["model"], pr["scenario_id"], attempt)
             response = resp_index.get(key) or self._fallback_response(
                 run_id, pr["model"], pr["scenario_id"]
             )
-            record = self._csv_record(pr, response, run_id, columns)
+            record, row_verbatim = self._csv_record(pr, response, run_id, columns)
+            verbatim_columns |= row_verbatim
             records.append(record)
 
         frame = pd.DataFrame.from_records(records, columns=columns)
-        frame = self._restore_dtypes(frame, dtypes)
+        # Columns whose values are exact source strings (raw stash) must be
+        # emitted verbatim; coercing them back through float would reintroduce
+        # platform-dependent formatting. Only non-verbatim columns are coerced to
+        # their recorded emit-dtype.
+        frame = self._restore_dtypes(frame, dtypes, skip=verbatim_columns)
         frame = self._sort_like_source(frame, run)
         return frame
 
@@ -1270,17 +1369,27 @@ class RunStore:
         response: dict[str, Any],
         run_id: str,
         columns: Sequence[str],
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], set[str]]:
+        """Build one CSV row dict; also report which columns are verbatim strings.
+
+        Returns ``(record, verbatim_columns)`` where ``verbatim_columns`` are the
+        response columns whose values were taken from the raw-string stash and so
+        must be emitted as-is (not coerced through a float).
+        """
         usage_obj: dict[str, Any] = {}
         if response.get("usage_json"):
             usage_obj = json.loads(response["usage_json"])
         csv_blob = usage_obj.get("_csv", {}) if isinstance(usage_obj, dict) else {}
+        csv_is_raw = (
+            bool(usage_obj.get("_csv_raw")) if isinstance(usage_obj, dict) else False
+        )
 
         extra = {}
         if pred["extra_json"]:
             extra = json.loads(pred["extra_json"])
 
         record: dict[str, Any] = {}
+        verbatim: set[str] = set()
         for col in columns:
             if col == _RUN_ID_COLUMN:
                 record[col] = run_id
@@ -1290,21 +1399,28 @@ class RunStore:
                 record[col] = pred["scenario_id"]
             elif col == "variable":
                 record[col] = pred["variable"]
-            elif col == "prediction":
-                record[col] = pred["prediction"]
-            elif col == "explanation":
-                record[col] = pred["explanation"]
+            elif col in _PREDICTION_COLUMNS:
+                # Prefer the exact source text (stored at import) so the float is
+                # never re-formatted; fall back to the typed column otherwise.
+                raw_key = f"_raw_{col}"
+                if raw_key in extra:
+                    record[col] = extra[raw_key]
+                    verbatim.add(col)
+                else:
+                    record[col] = pred[col]
             elif col in _RESPONSE_COLUMNS:
                 # Prefer the exact per-variable apportioned CSV value if stored.
                 if col in csv_blob:
                     record[col] = csv_blob[col]
+                    if csv_is_raw:
+                        verbatim.add(col)
                 else:
                     record[col] = self._response_column_value(col, response)
             elif col in extra:
                 record[col] = extra[col]
             else:
                 record[col] = None
-        return record
+        return record, verbatim
 
     @staticmethod
     def _response_column_value(col: str, response: dict[str, Any]) -> Any:
@@ -1326,8 +1442,19 @@ class RunStore:
         return usage.get(col)
 
     @staticmethod
-    def _restore_dtypes(frame: pd.DataFrame, dtypes: dict[str, str]) -> pd.DataFrame:
+    def _restore_dtypes(
+        frame: pd.DataFrame,
+        dtypes: dict[str, str],
+        skip: set[str] | None = None,
+    ) -> pd.DataFrame:
+        skip = skip or set()
         for col in frame.columns:
+            if col in skip:
+                # Verbatim source strings: emit exactly as stored. Missing cells
+                # are already "" (read with keep_default_na=False); only an actual
+                # None (column absent for some rows) becomes an empty field.
+                frame[col] = frame[col].where(frame[col].notna(), "")
+                continue
             emit = dtypes.get(col, "object")
             frame[col] = _coerce_column(frame[col], emit)
         return frame

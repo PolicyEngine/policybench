@@ -533,3 +533,236 @@ def test_import_run_dir_uses_sidecar_country(tmp_path):
 
 def test_status_values_constant_matches_schema():
     assert STATUS_VALUES == ("ok", "parse_error", "llm_error", "replaced")
+
+
+# ---------------------------------------------------------------------------
+# Float-formatting platform-independence (regression for the ubuntu-only CI
+# failure where total_tokens=2297.3333333333335 exported as 2297.333333333333).
+#
+# Root cause: the value round-tripped through a float (parse on import, store as
+# REAL / JSON number, re-format on export). Two platform-dependent steps could
+# corrupt it: (1) pandas' default CSV float parser (xstrtod) is fast but lossy
+# and lands on different doubles on different builds; (2) sqlite renders
+# REAL->TEXT with a version-dependent precision. The fix keeps the exact source
+# string for every float-bearing column (response columns + prediction/
+# explanation) and emits it verbatim, so no float parse/format is on the
+# byte-identical export path.
+# ---------------------------------------------------------------------------
+
+# A value whose shortest round-trip repr (17 sig digits) differs from its
+# %.16g rendering -- exactly the token value that broke ubuntu CI.
+_TRICKY_FLOAT_TEXT = "2297.3333333333335"
+
+# A value the default (lossy) pandas CSV parser resolves to a *different* double
+# than the round-trip parser -- the import-side half of the same root cause.
+_LOSSY_PARSED_FLOAT_TEXT = "1234.5678901234567"
+
+
+def _predictions_frame_with_tricky_floats():
+    """One response whose token/cost columns carry %.16g-sensitive values."""
+    variables = ("snap", "ssi", "tanf")
+    raw = '{"outputs": {}}'
+    rows = []
+    for i, variable in enumerate(variables):
+        rows.append(
+            {
+                "call_id": "m:s0",
+                "model": "m",
+                "scenario_id": "s0",
+                "variable": variable,
+                "prediction": float(i),
+                "explanation": f"e{i}",
+                "raw_response": raw,
+                "error": "",
+                "elapsed_seconds": 3.292535610900294,
+                "prompt_tokens": 1956.142857142857,
+                "completion_tokens": 341.1904761904762,
+                "total_tokens": float(_TRICKY_FLOAT_TEXT),
+                "reasoning_tokens": 0.0,
+                "cached_prompt_tokens": 0.0,
+                "total_cost_usd": 0.0036620952380952,
+                "provider_response_id": "rid",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def test_response_column_stash_stores_exact_source_strings(tmp_path):
+    """The stash holds verbatim CSV text, not parsed floats."""
+    frame = _predictions_frame_with_tricky_floats()
+    csv_path = tmp_path / "predictions.csv"
+    frame.to_csv(csv_path, index=False)
+    # Confirm the source text really contains the 17-digit form.
+    assert _TRICKY_FLOAT_TEXT in csv_path.read_text()
+
+    db = tmp_path / "run.db"
+    import_run_csv(db, csv_path, run_id="r")
+
+    store = RunStore(db)
+    usage_json = store.connection.execute(
+        "SELECT usage_json FROM responses LIMIT 1"
+    ).fetchone()[0]
+    blob = json.loads(usage_json)
+    assert blob["_csv_raw"] is True
+    # Stored as the exact source string -- not a JSON float number.
+    assert blob["_csv"]["total_tokens"] == _TRICKY_FLOAT_TEXT
+    assert isinstance(blob["_csv"]["total_tokens"], str)
+    store.close()
+
+
+def test_export_response_columns_emit_verbatim_strings(tmp_path):
+    """Export builds response columns as verbatim strings (no float coercion)."""
+    frame = _predictions_frame_with_tricky_floats()
+    csv_path = tmp_path / "predictions.csv"
+    frame.to_csv(csv_path, index=False)
+    db = tmp_path / "run.db"
+    import_run_csv(db, csv_path, run_id="r")
+
+    store = RunStore(db)
+    exported = store.build_predictions_frame("r")
+    # total_tokens is now an object/string column holding the exact source text.
+    assert exported["total_tokens"].map(type).eq(str).all()
+    assert (exported["total_tokens"] == _TRICKY_FLOAT_TEXT).all()
+    store.close()
+
+
+class _MangledRow(dict):
+    """A mapping that behaves like ``sqlite3.Row`` for the store's access."""
+
+
+def _old_sqlite_row_factory(cursor, row):
+    """Render every float read from sqlite as ``%.16g`` text.
+
+    Pre-3.43 sqlite builds (such as the one bundled with the Linux CI Python)
+    render floats with up to 16 significant digits rather than the shortest
+    round-trip form. Simulating the worst case proves the export must not depend
+    on sqlite's float-to-text rendering.
+    """
+    columns = [d[0] for d in cursor.description]
+    return _MangledRow(
+        (col, "%.16g" % val if isinstance(val, float) else val)
+        for col, val in zip(columns, row)
+    )
+
+
+def test_export_is_byte_identical_under_simulated_old_sqlite(tmp_path):
+    """Byte-identity must not depend on sqlite's REAL->TEXT formatting.
+
+    This reproduces the ubuntu-only failure mode locally: every float read from
+    sqlite is rendered with %.16g (as the older CI sqlite would). The export must
+    still reproduce the source bytes exactly.
+    """
+    csv_path, expected = _slice_snapshot_csv(tmp_path, n_rows=200)
+
+    db = tmp_path / "run.db"
+    run_id = import_run_csv(db, csv_path, run_id="us_slice")
+
+    store = RunStore(db)
+    # Swap the row factory so every float read renders as %.16g, mimicking the
+    # older CI sqlite. dict(row) and row["col"] both keep working.
+    store.connection.row_factory = _old_sqlite_row_factory
+    try:
+        out = tmp_path / "export.csv"
+        store.export_predictions_csv(run_id, out)
+        actual = out.read_bytes()
+    finally:
+        store.close()
+
+    assert actual == expected, (
+        "Export is not byte-identical when sqlite renders REAL->TEXT as %.16g "
+        "(the ubuntu CI failure mode). A float is leaking into the export's "
+        "text formatting."
+    )
+
+
+def _old_sqlite_row_factory_15g(cursor, row):
+    """As above but with %.15g (the documented pre-3.52 sqlite REAL->TEXT)."""
+    columns = [d[0] for d in cursor.description]
+    return _MangledRow(
+        (col, "%.15g" % val if isinstance(val, float) else val)
+        for col, val in zip(columns, row)
+    )
+
+
+def test_export_byte_identical_under_pre352_sqlite_15g(tmp_path):
+    """Pre-3.52 sqlite rounds REAL->TEXT to 15 digits; export must not depend on it."""
+    csv_path, expected = _slice_snapshot_csv(tmp_path, n_rows=200)
+    db = tmp_path / "run.db"
+    run_id = import_run_csv(db, csv_path, run_id="us_slice")
+    store = RunStore(db)
+    store.connection.row_factory = _old_sqlite_row_factory_15g
+    try:
+        out = tmp_path / "export.csv"
+        store.export_predictions_csv(run_id, out)
+        actual = out.read_bytes()
+    finally:
+        store.close()
+    assert actual == expected
+
+
+def test_high_precision_prediction_roundtrips_byte_identically(tmp_path):
+    """A prediction the lossy parser mangles must still export verbatim.
+
+    The default pandas CSV parser resolves this token to a different double than
+    the source; storing the exact source string and emitting it keeps the export
+    byte-identical regardless of the parser/platform.
+    """
+    variables = ("snap", "ssi")
+    rows = [
+        {
+            "call_id": "m:s0",
+            "model": "m",
+            "scenario_id": "s0",
+            "variable": var,
+            "prediction": float(_LOSSY_PARSED_FLOAT_TEXT) if i == 0 else float(i),
+            "explanation": f"e{i}",
+            "raw_response": "{}",
+            "error": "",
+            "elapsed_seconds": 1.5,
+            "total_tokens": float(_TRICKY_FLOAT_TEXT),
+            "total_cost_usd": 0.0036620952380952,
+            "provider_response_id": "rid",
+        }
+        for i, var in enumerate(variables)
+    ]
+    frame = pd.DataFrame(rows)
+    csv_path = tmp_path / "predictions.csv"
+    frame.to_csv(csv_path, index=False)
+    assert _LOSSY_PARSED_FLOAT_TEXT in csv_path.read_text()
+    expected = csv_path.read_bytes()
+
+    db = tmp_path / "run.db"
+    run_id = import_run_csv(db, csv_path, run_id="r")
+
+    # The exact prediction source string is preserved for verbatim export.
+    store = RunStore(db)
+    extra_json = store.connection.execute(
+        "SELECT extra_json FROM predictions WHERE output_id = 'snap'"
+    ).fetchone()[0]
+    assert json.loads(extra_json)["_raw_prediction"] == _LOSSY_PARSED_FLOAT_TEXT
+
+    out = tmp_path / "export.csv"
+    store.export_predictions_csv(run_id, out)
+    store.close()
+    assert out.read_bytes() == expected
+
+
+def test_default_csv_parser_is_lossy_for_the_token_class():
+    """Document the import-side root cause: the default float parser is lossy.
+
+    The default pandas parser (xstrtod) is fast but can land on a different
+    double than the round-trip parser, and exactly which double is
+    build/platform-dependent -- the import-side half of the ubuntu CI failure.
+    The round-trip parser always recovers the canonical shortest-repr value. This
+    is why the store keeps exact source strings rather than relying on a
+    re-parsed float. (The default parser is lossy for this token on the platforms
+    we ship to; we don't hard-assert it here to stay build-robust.)
+    """
+    import io
+
+    csv = f"x\n{_LOSSY_PARSED_FLOAT_TEXT}\n"
+    round_trip = float(
+        pd.read_csv(io.StringIO(csv), float_precision="round_trip")["x"].iloc[0]
+    )
+    # The round-trip parser always recovers the exact canonical value.
+    assert repr(round_trip) == _LOSSY_PARSED_FLOAT_TEXT

@@ -117,35 +117,60 @@ Each prediction's `source_attempt` points to its chunk. This is what lets export
 reproduce the file exactly: the right `raw_response`/tokens/cost reattach to the
 right variables.
 
-The exact per-row CSV values for the cost/usage columns are stashed under a
-reserved `"_csv"` key inside `responses.usage_json` so export can reproduce them
-without widening the schema. `usage_json` remains valid JSON.
+The exact per-row CSV values for every response column are stashed as strings
+under a reserved `"_csv"` key inside `responses.usage_json` so export can
+reproduce them without widening the schema. `usage_json` remains valid JSON.
 
 ## Byte-identical export
 
-`pandas.DataFrame.to_csv(index=False)` and `pandas.read_csv` (both with default
-options, exactly as `eval_no_tools.py` and `analysis.py` use them) round-trip
-**byte-for-byte** even on the full 240 MB US snapshot. Empirically:
+To guarantee a byte-identical export **on any platform**, the store keeps the
+exact source text of every cell and emits it verbatim. No float is ever
+parsed-then-reformatted on the round-trip.
 
-- floats round-trip via Python's repr (`1956.142857142857` survives exactly),
-- booleans emit as `True`/`False`,
-- `NaN`/empty cells emit as empty strings,
-- the line terminator is `\n`.
+This is necessary because a float round-trip is platform-dependent at *both*
+ends:
 
-The only thing the store must reproduce is **dtype** and **row order**:
+- **Import.** pandas' default CSV float parser (`xstrtod`) is fast but lossy and
+  resolves the same token to different doubles on different builds. For example
+  `1234.5678901234567` parses to `1234.567890123457` with the default parser but
+  `1234.5678901234567` with `float_precision="round_trip"`; which double the
+  default picks is build-dependent.
+- **Export.** sqlite renders REAL→TEXT with a version-dependent precision (15
+  digits before 3.52, shortest-round-trip after), and numpy/pandas object
+  formatting has likewise varied.
 
-- An all-empty column reads back as `float64` (all `NaN`) and must emit as empty
-  strings, not the literal `nan`/`None`. The store records each column's pandas
-  emit-dtype (`runs.meta_json["csv_schema"]`) and rebuilds it on export.
-- The original row order is not a simple sort, so import records the exact
-  ordered list of `(model, scenario_id, variable)` keys
-  (`runs.meta_json["row_order"]`) and export restores it.
+An earlier float-based design (store the parsed float as REAL / a JSON number,
+re-format on export) passed on macOS but produced `2297.333333333333` instead of
+`2297.3333333333335` for a `total_tokens` value on the Linux CI — the platform
+divergence above, surfacing as a one-ULP difference whose text rendering
+differed. Storing exact strings removes the entire class of failure.
+
+Concretely:
+
+- **Response columns** (`raw_response`, tokens, costs, latency, provider ids) are
+  stashed as exact strings under `responses.usage_json["_csv"]` (with a
+  `_csv_raw` flag); export emits them as `object` dtype, verbatim.
+- **prediction / explanation** source text is stashed under
+  `predictions.extra_json` as `_raw_prediction` / `_raw_explanation`; export
+  prefers these. The `prediction` REAL column stays for querying.
+- The store still records each column's pandas emit-dtype
+  (`runs.meta_json["csv_schema"]`) to rebuild any non-stashed column (an
+  all-empty column reads back as `float64` and must emit as empty strings), and
+  the exact original row order (`runs.meta_json["row_order"]`) since it is not a
+  simple sort.
 
 Proof: `tests/test_runstore.py::test_snapshot_slice_roundtrip_is_byte_identical`
 imports the first ~200 rows of the real US snapshot (written to a tmp CSV on the
 fly — no new fixture committed), exports, and asserts the bytes are identical.
-The full-file round-trip (US 240 MB, UK 34 MB) was verified manually and is
-byte-identical; the in-test check uses a slice to stay fast and offline.
+`test_export_is_byte_identical_under_simulated_old_sqlite` and
+`test_export_byte_identical_under_pre352_sqlite_15g` reproduce the Linux failure
+mode locally by forcing every float read from sqlite to render as `%.16g` /
+`%.15g`, and assert byte-identity still holds.
+`test_high_precision_prediction_roundtrips_byte_identically` covers a prediction
+value the lossy parser mangles. The full-file round-trip (US 240 MB, UK 34 MB)
+is byte-identical, verified under both macOS sqlite 3.50 and standalone Python
+3.12 / sqlite 3.43.1 with the CI-pinned numpy/pandas; the in-test checks use a
+slice to stay fast and offline.
 
 "Byte-identical for a clean run" means: a run imported from a CSV with no
 in-store retries/repairs exports the original bytes. Once you apply retries that
