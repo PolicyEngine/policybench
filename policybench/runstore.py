@@ -1448,53 +1448,6 @@ def import_run_dir(
 # ---------------------------------------------------------------------------
 
 
-def add_runstore_subparser(subparsers: Any) -> None:
-    """Register the ``runstore`` subcommand on an argparse subparsers object."""
-    runstore_parser = subparsers.add_parser(
-        "runstore",
-        help="Additive SQLite run store (import/export/status).",
-    )
-    runstore_sub = runstore_parser.add_subparsers(dest="runstore_command")
-
-    import_parser = runstore_sub.add_parser(
-        "import", help="Import a run directory's predictions.csv into a SQLite db."
-    )
-    import_parser.add_argument(
-        "--run-dir",
-        required=True,
-        help="Run directory containing predictions.csv[.gz] (and sidecars).",
-    )
-    import_parser.add_argument(
-        "--db",
-        default=None,
-        help=f"Output SQLite path (default: <run-dir>/{DEFAULT_DB_NAME}).",
-    )
-    import_parser.add_argument(
-        "--run-id",
-        default=None,
-        help="Run id to assign (default: inferred from CSV or run-dir name).",
-    )
-
-    export_parser = runstore_sub.add_parser(
-        "export", help="Export a run's predictions back to CSV (byte-identical)."
-    )
-    export_parser.add_argument("--db", required=True, help="SQLite db path.")
-    export_parser.add_argument("--run-id", required=True, help="Run id to export.")
-    export_parser.add_argument(
-        "-o", "--output", required=True, help="Destination CSV (.gz to compress)."
-    )
-
-    status_parser = runstore_sub.add_parser(
-        "status", help="Show counts by model/status and the missing-case count."
-    )
-    status_parser.add_argument("--db", required=True, help="SQLite db path.")
-    status_parser.add_argument(
-        "--run-id",
-        default=None,
-        help="Run id (default: the only run, if the db holds exactly one).",
-    )
-
-
 def run_runstore_command(args: Any) -> None:
     """Dispatch a parsed ``runstore`` subcommand."""
     command = getattr(args, "runstore_command", None)
