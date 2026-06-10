@@ -750,6 +750,48 @@ def main():
         help="Deterministic RNG seed for the fixture",
     )
 
+    validate_dashboard_parser = subparsers.add_parser(
+        "validate-dashboard",
+        help="Validate a dashboard payload file against the app contract",
+    )
+    validate_dashboard_parser.add_argument(
+        "path",
+        nargs="?",
+        default="app/src/data.json",
+        help="Dashboard payload to validate (default: app/src/data.json)",
+    )
+
+    publish_parser = subparsers.add_parser(
+        "publish-dashboard",
+        help="Validate and upload the dashboard payload as a GitHub release "
+        "asset, writing the artifact pointer the app fetches from",
+    )
+    publish_parser.add_argument(
+        "--source",
+        default="app/src/data.json",
+        help="Dashboard payload to publish (default: app/src/data.json)",
+    )
+    publish_parser.add_argument(
+        "--tag",
+        required=True,
+        help="GitHub release tag to publish under, e.g. dashboard-data-20260610",
+    )
+    publish_parser.add_argument(
+        "--repo",
+        default="PolicyEngine/policybench",
+        help="GitHub repository owning the release",
+    )
+    publish_parser.add_argument(
+        "--pointer-output",
+        default="app/src/data.artifact.json",
+        help="Committed pointer file recording the asset URL and sha256",
+    )
+    publish_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate and write the pointer without uploading",
+    )
+
     args = parser.parse_args()
 
     # Enable disk cache for ordinary eval calls. Contract-failure retry/repair
@@ -1102,6 +1144,43 @@ def main():
         output = write_scorer_vectors(args.output, seed=args.seed)
         size_kb = output.stat().st_size / 1024
         print(f"Scorer parity vectors saved to {output} ({size_kb:.1f} KB)")
+
+    elif args.command == "validate-dashboard":
+        import json as json_module
+
+        from policybench.dashboard_schema import validate_dashboard_payload
+
+        payload_path = Path(args.path)
+        if not payload_path.exists():
+            raise SystemExit(f"Missing dashboard payload: {payload_path}")
+        try:
+            payload = json_module.loads(payload_path.read_text(encoding="utf-8"))
+        except json_module.JSONDecodeError as exc:
+            raise SystemExit(f"{payload_path} is not valid JSON: {exc}") from exc
+        errors = validate_dashboard_payload(payload)
+        if errors:
+            for error in errors:
+                print(f"ERROR: {error}")
+            raise SystemExit(
+                f"{payload_path} failed dashboard validation with "
+                f"{len(errors)} error{'s' if len(errors) != 1 else ''}"
+            )
+        print(f"{payload_path} is a valid dashboard payload")
+
+    elif args.command == "publish-dashboard":
+        from policybench.publish_dashboard import publish_dashboard
+
+        pointer = publish_dashboard(
+            args.source,
+            args.tag,
+            repo=args.repo,
+            pointer_output=args.pointer_output,
+            dry_run=args.dry_run,
+        )
+        action = "Validated (dry run)" if args.dry_run else "Published"
+        print(f"{action} {args.source} -> {pointer['url']}")
+        print(f"sha256: {pointer['sha256']}")
+        print(f"Pointer written to {args.pointer_output}")
 
     else:
         parser.print_help()

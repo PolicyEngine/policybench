@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from typing import Sequence
 
@@ -18,6 +17,10 @@ from policybench.analysis import (
 from policybench.annotation_taxonomy import (
     validate_failure_source,
     validate_failure_subtype,
+)
+from policybench.dashboard_schema import (
+    dump_country_payload,
+    dump_dashboard_payload,
 )
 from policybench.spec import get_output_ids, output_group_id
 
@@ -294,7 +297,10 @@ def export_country(country_dir: Path) -> dict:
         scenarios,
         scenario_prompts=scenario_prompts,
     )
-    (country_dir / "data.json").write_text(json.dumps(payload), encoding="utf-8")
+    (country_dir / "data.json").write_text(
+        dump_country_payload(payload, country=country, source=str(country_dir)),
+        encoding="utf-8",
+    )
     return payload
 
 
@@ -336,15 +342,16 @@ def export_full_run(
         country: export_country(run_path / country) for country in selected_countries
     }
     combined_payload = {"countries": country_payloads}
+    combined_json = dump_dashboard_payload(combined_payload, source=str(run_path))
 
     run_payload_path = run_path / "data.json"
-    run_payload_path.write_text(json.dumps(combined_payload), encoding="utf-8")
+    run_payload_path.write_text(combined_json, encoding="utf-8")
     print(f"Wrote {run_payload_path}")
 
     if not skip_app_data:
         app_data_path = Path(app_data_output)
         app_data_path.parent.mkdir(parents=True, exist_ok=True)
-        app_data_path.write_text(json.dumps(combined_payload), encoding="utf-8")
+        app_data_path.write_text(combined_json, encoding="utf-8")
         print(f"Wrote {app_data_path}")
 
     return combined_payload
