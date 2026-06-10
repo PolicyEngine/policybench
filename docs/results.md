@@ -18,7 +18,8 @@ policybench analyze --output-dir results/local/analysis
 These commands are for local scratch analysis. Published dashboard exports are
 assembled from dated country/model batch directories with
 `policybench export-full-run`; do not treat a single local `analyze` run as the
-source for `app/src/data.json`.
+source for the published dashboard payload (`policybench publish-dashboard`
+uploads it and commits the pointer `app/src/data.artifact.json`).
 
 `reference-outputs` writes PolicyEngine reference outputs rather than
 administrative truth.

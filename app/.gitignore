@@ -33,3 +33,6 @@ src/data-summary.json
 public/data/
 
 .cache/
+
+# Local benchmark exports stay untracked; builds resolve src/data.artifact.json
+src/data.json
