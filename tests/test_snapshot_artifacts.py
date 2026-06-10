@@ -108,12 +108,20 @@ def _snapshot_country_payloads(manifest: dict) -> dict[str, dict]:
     return payloads
 
 
-def test_committed_app_payload_matches_frozen_source_run_export():
+def test_published_dashboard_artifact_matches_frozen_source_run_export():
+    """The published payload must equal the combined frozen run exports.
+
+    The dashboard blob is no longer committed, so this recombines the
+    committed per-country run exports exactly as export_full_run serializes
+    them and checks the bytes hash to the manifest's published-artifact pin —
+    the same equality the old committed-blob comparison enforced, offline.
+    """
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
     expected_payload = {"countries": _snapshot_country_payloads(manifest)}
-    app_payload = json.loads((ROOT / "app" / "src" / "data.json").read_text())
+    combined_bytes = json.dumps(expected_payload).encode("utf-8")
+    digest = hashlib.sha256(combined_bytes).hexdigest()
 
-    assert app_payload == expected_payload
+    assert digest == manifest["published_dashboard_artifact"]["sha256"]
 
 
 def _aggregate_scenario_metric(country_payload: dict, metric: str) -> dict[str, float]:
@@ -162,7 +170,8 @@ def _aggregate_scenario_metric(country_payload: dict, metric: str) -> dict[str, 
 
 
 def test_scenario_row_scores_reproduce_committed_model_stats():
-    app_payload = json.loads((ROOT / "app" / "src" / "data.json").read_text())
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    app_payload = {"countries": _snapshot_country_payloads(manifest)}
 
     metric_pairs = {
         "score": "score",
@@ -286,3 +295,30 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
             audited["failure_source"].value_counts().to_dict()
             == expected_sources[country]
         )
+
+
+def test_dashboard_pointer_matches_published_snapshot_artifact():
+    """The committed artifact pointer must reference the snapshot's pinned
+    dashboard payload — the machine-checked version of live_dashboard_note."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    pinned = manifest["published_dashboard_artifact"]
+    pointer = json.loads((ROOT / "app" / "src" / "data.artifact.json").read_text())
+    assert pointer["sha256"] == pinned["sha256"]
+    assert pointer["tag"] == pinned["tag"]
+    assert pointer["asset"] == pinned["asset"]
+    assert pointer["url"] == pinned["url"]
+
+
+def test_dashboard_blob_is_not_committed():
+    """data.json is a published artifact, not source; only the pointer is
+    committed (local exports are gitignored)."""
+    import subprocess
+
+    tracked = subprocess.run(
+        ["git", "ls-files", "app/src/data.json"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        check=True,
+    ).stdout.strip()
+    assert tracked == ""

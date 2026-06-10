@@ -56,20 +56,22 @@ without uploading.
 2. `app/src/data.artifact.json` — download the asset, verify its sha256,
    cache under `app/.cache/`, and refuse hash mismatches.
 
-## Cutover plan
+## Refresh flow (post-cutover)
 
-The committed `app/src/data.json` and the pointer currently coexist; the
-committed file wins so in-flight refresh branches are unaffected. Once the
-current refresh cycle lands:
+`app/src/data.json` is no longer committed (and is gitignored); builds resolve
+the pointer. A data refresh is:
 
-1. Refresh flow becomes: export run → `policybench publish-dashboard --tag
-   dashboard-data-<date>` → commit the pointer (a 9-line diff instead of a
-   57MB blob).
-2. Delete `app/src/data.json` from the repo; builds resolve via the pointer.
-3. `paper/snapshot/<date>/` copies stay committed and frozen — they are the
-   manuscript's evidence base, not the live site's data path. A future
-   snapshot may pin release artifacts by sha256 in its manifest instead of
-   committing copies.
+1. Export the run locally (`policybench export-full-run` writes
+   `app/src/data.json` in your working tree).
+2. `policybench publish-dashboard --tag dashboard-data-<date>` — validates,
+   uploads the release asset, rewrites the pointer.
+3. Commit the pointer plus a snapshot-manifest update pinning the new
+   artifact's sha256 (tests enforce pointer == manifest pin == the combined
+   committed run exports).
+
+`paper/snapshot/<date>/` copies stay committed and frozen — they are the
+manuscript's evidence base, and the integrity tests rebuild the published
+payload from them.
 
 History rewriting to reclaim the existing ~250MB of data.json blobs is
 intentionally out of scope: it would invalidate every open fork and PR, and

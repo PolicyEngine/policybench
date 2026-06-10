@@ -12,8 +12,10 @@ It builds against:
   scenarios, reference outputs, impact summaries, frozen run-level dashboard
   exports under `runs/`, the rendered PDF/web manuscript hashes, and the
   `manifest.json` provenance index.
-- `app/src/data.json` — the live site export. In this snapshot it is required
-  to equal the committed source-run dashboard exports under `runs/`.
+- `app/src/data.artifact.json` — the committed pointer to the published
+  live-site payload (a GitHub release asset). The manifest pins its sha256,
+  which must equal the combined source-run dashboard exports under `runs/`
+  (machine-checked by tests/test_snapshot_artifacts.py).
 
 ## Rendered outputs
 

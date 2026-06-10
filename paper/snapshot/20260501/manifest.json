@@ -4,7 +4,7 @@
     "us": "tax year 2026",
     "uk": "fiscal year 2026-27"
   },
-  "live_dashboard_note": "For this snapshot, app/src/data.json is required to equal the committed source run data.json files listed under source_run_artifacts. Future live-site refreshes should update the snapshot manifest or use a new snapshot directory.",
+  "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under published_dashboard_artifact, which equals the combined export of the source run data.json files listed under source_run_artifacts. Future refreshes publish a new artifact (policybench publish-dashboard) and either update this manifest or use a new snapshot directory.",
   "source_run_labels": {
     "us": "us_full_run_20260513_policyengine_4_4_4_nested_outputs",
     "uk": "uk_full_run_20260513_policyengine_4_4_4_nested_outputs"
@@ -236,5 +236,12 @@
     "path": "policybench/population_weights.json",
     "sha256": "31f603a8989f3784938de71854d5c3bf10a62baa33d6cdb85a3acbc726d54360",
     "note": "Output weights for the household and aggregate scoring views. US weights use the full Enhanced CPS; UK weights use the full enhanced FRS. This weighting source is separate from the public UK calibrated transfer dataset used for the benchmark scenarios. These weights are fixed for scoring the 100-household snapshot."
+  },
+  "published_dashboard_artifact": {
+    "tag": "dashboard-data-20260520",
+    "asset": "dashboard-data.json",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260520/dashboard-data.json",
+    "sha256": "4686fe4c74c41ae107f163b18d40ebed6c675c4432be1bf9fe67c61a64194d71",
+    "bytes": 57432435
   }
 }
