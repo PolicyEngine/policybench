@@ -123,6 +123,28 @@ export default function ScenarioExplorer({
     selectedScenario && data.scenarios[selectedScenario]
       ? selectedScenario
       : scenarioIds[0] ?? null;
+
+  /**
+   * Mirror explorer state into ?scenario= and ?cell=variable~model so any
+   * household or prediction cell is linkable (model pages link straight to
+   * their hardest cases). Uses replaceState — no history spam, no scrolling.
+   */
+  const syncExplorerUrl = (updates: {
+    scenario?: string;
+    cell?: string | null;
+  }) => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (updates.scenario !== undefined) {
+      url.searchParams.set("scenario", updates.scenario);
+      url.searchParams.delete("cell");
+    }
+    if (updates.cell !== undefined) {
+      if (updates.cell === null) url.searchParams.delete("cell");
+      else url.searchParams.set("cell", updates.cell);
+    }
+    window.history.replaceState(null, "", url);
+  };
   const scenario = resolvedScenarioId ? data.scenarios[resolvedScenarioId] : null;
 
   // Explanation and audit text lives in a per-country sidecar fetched lazily
@@ -251,12 +273,52 @@ export default function ScenarioExplorer({
   // factsText prop, so picking a different household from the dropdown
   // updates the modal in place rather than needing an explicit reset.
 
-  const closeModal = () => setManualSelection(null);
+  // Apply ?scenario= / ?cell= deep links once on mount. Post-mount (via a
+  // zero-delay timer, matching the repo's effect-setState convention) so the
+  // server-rendered default household hydrates cleanly first.
+  useEffect(() => {
+    const apply = () => {
+      const params = new URLSearchParams(window.location.search);
+      const scenarioParam = params.get("scenario");
+      if (!scenarioParam || !data.scenarios[scenarioParam]) return;
+      setSelectedScenario(scenarioParam);
+      const cellParam = params.get("cell");
+      if (!cellParam) return;
+      const separator = cellParam.indexOf("~");
+      if (separator <= 0) return;
+      const variable = cellParam.slice(0, separator);
+      const model = cellParam.slice(separator + 1);
+      if (!data.scenarioPredictions[scenarioParam]?.[variable]) return;
+      setManualSelection({
+        scenarioId: scenarioParam,
+        cell: { variable, model },
+      });
+      // The dialog opens over an inert background, so the viewport-gated
+      // explanation fetch would never trigger — start it now.
+      setExplanationsEnabled(true);
+      // The linked model may be hidden behind the frontier-only default.
+      if (!isFrontierModel(model)) setFrontierOnly(false);
+    };
+    const timer = window.setTimeout(apply, 0);
+    return () => window.clearTimeout(timer);
+    // Run once per country remount; the URL is only read at entry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const closeModal = () => {
+    setManualSelection(null);
+    syncExplorerUrl({ cell: null });
+  };
   const closeHouseholdModal = () => setHouseholdModalOpen(false);
 
   const setSelectedCell = (cell: { variable: string; model: string }) => {
     if (!resolvedScenarioId) return;
     setManualSelection({ scenarioId: resolvedScenarioId, cell });
+    setExplanationsEnabled(true);
+    syncExplorerUrl({
+      scenario: resolvedScenarioId,
+      cell: `${cell.variable}~${cell.model}`,
+    });
   };
 
   if (!scenario || !resolvedScenarioId) return null;
@@ -315,7 +377,10 @@ export default function ScenarioExplorer({
 
   const handleShuffle = () => {
     const nextScenario = pickRandomScenario(scenarioIds, resolvedScenarioId);
-    if (nextScenario) setSelectedScenario(nextScenario);
+    if (nextScenario) {
+      setSelectedScenario(nextScenario);
+      syncExplorerUrl({ scenario: nextScenario });
+    }
   };
 
   return (
@@ -347,7 +412,10 @@ export default function ScenarioExplorer({
             <select
               id="scenario-select"
               value={resolvedScenarioId}
-              onChange={(e) => setSelectedScenario(e.target.value)}
+              onChange={(e) => {
+                setSelectedScenario(e.target.value);
+                syncExplorerUrl({ scenario: e.target.value });
+              }}
               className="min-w-0 flex-1 bg-surface border border-border text-text text-sm rounded-lg px-3 py-2 focus:border-primary-strong/60 font-[family-name:var(--font-mono)]"
             >
               {scenarioIds.map((id) => {
@@ -935,7 +1003,12 @@ function DetailContent({
               size={14}
               className="flex-shrink-0"
             />
-            {MODEL_LABELS[model] ?? model}
+            <a
+              href={`/model/${model}`}
+              className="hover:text-primary-strong"
+            >
+              {MODEL_LABELS[model] ?? model}
+            </a>
           </div>
         </div>
         <span
