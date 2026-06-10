@@ -1428,3 +1428,37 @@ def generate_scenarios(
             excluded_household_ids=excluded_household_ids,
         )
     raise ValueError(f"Unsupported country '{country}'")
+
+
+def split_scenarios(
+    scenarios: list[Scenario],
+    private_fraction: float,
+    seed: int,
+) -> tuple[list[Scenario], list[Scenario]]:
+    """Deterministically partition scenarios into (public, private) splits.
+
+    The private split is a uniformly sampled subset whose membership depends
+    only on ``seed`` and the scenario ids, so re-running reference-output
+    generation with the same inputs reproduces the same partition. Both
+    splits preserve the input ordering.
+    """
+    if not 0.0 <= private_fraction < 1.0:
+        raise ValueError(f"private_fraction must be in [0, 1), got {private_fraction}")
+    if private_fraction == 0.0:
+        return list(scenarios), []
+
+    private_count = round(len(scenarios) * private_fraction)
+    if private_count == 0:
+        return list(scenarios), []
+
+    # Rank by a seeded hash of each scenario id rather than random.sample so
+    # membership is a pure function of (id, seed), independent of list order.
+    def membership_rank(scenario: Scenario) -> str:
+        digest = hashlib.sha256(f"{seed}:{scenario.id}".encode("utf-8"))
+        return digest.hexdigest()
+
+    ranked = sorted(scenarios, key=membership_rank)
+    private_ids = {scenario.id for scenario in ranked[:private_count]}
+    public = [s for s in scenarios if s.id not in private_ids]
+    private = [s for s in scenarios if s.id in private_ids]
+    return public, private

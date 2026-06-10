@@ -19,6 +19,12 @@ def _ensure_parent_dir(output_path: str) -> None:
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
 
+def _private_sibling_path(output_path: str | Path) -> Path:
+    """Sibling path for private-split files, e.g. scenarios-private.csv."""
+    path = Path(output_path)
+    return path.with_name(f"{path.stem}-private{path.suffix}")
+
+
 def _write_metadata(output_path: str, metadata: dict) -> None:
     Path(f"{output_path}.meta.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True),
@@ -183,6 +189,22 @@ def main():
         "--exclude-scenario-manifest",
         default=None,
         help="Existing scenario manifest whose sampled households should be excluded",
+    )
+    gt_parser.add_argument(
+        "--private-fraction",
+        type=float,
+        default=0.0,
+        help=(
+            "Fraction of households to reserve for a private evaluation "
+            "split, written to sibling *-private files that are never "
+            "exported to the public dashboard"
+        ),
+    )
+    gt_parser.add_argument(
+        "--split-seed",
+        type=int,
+        default=1042,
+        help="Seed controlling private-split membership",
     )
 
     # Eval no tools
@@ -682,47 +704,94 @@ def main():
     if args.command == "reference-outputs":
         from policybench.ground_truth import calculate_ground_truth
         from policybench.policyengine_runtime import runtime_metadata_for_country
-        from policybench.scenarios import get_uk_dataset_path, scenario_manifest
+        from policybench.scenarios import (
+            get_uk_dataset_path,
+            scenario_manifest,
+            split_scenarios,
+        )
 
         scenarios, scenario_manifest_input = _load_reference_scenarios(args)
         programs = _parse_programs(
             args.programs,
             get_programs(args.country, args.program_set),
         )
+        # Reference outputs are computed once for every household, then
+        # partitioned: the private split goes to *-private sibling files that
+        # stay out of public exports (see docs/benchmark_card.md).
         df = calculate_ground_truth(scenarios, programs=programs)
-        _ensure_parent_dir(args.output)
-        df.to_csv(args.output, index=False)
-        _ensure_parent_dir(args.scenario_manifest_output)
-        scenario_manifest(scenarios).to_csv(args.scenario_manifest_output, index=False)
+        public_scenarios, private_scenarios = split_scenarios(
+            scenarios,
+            args.private_fraction,
+            args.split_seed,
+        )
+        public_ids = {scenario.id for scenario in public_scenarios}
         source_dataset_path = get_uk_dataset_path() if args.country == "uk" else None
-        metadata = {
+        base_metadata = {
             "metadata_version": 1,
-            "task": "reference_outputs",
             "generated_at_utc": datetime.now(timezone.utc).isoformat(),
             "country": args.country,
-            "num_scenarios": len(scenarios),
             "requested_num_scenarios": args.num_scenarios,
             "seed": args.seed,
             "program_set": args.program_set,
             "programs": sorted(programs),
-            "output": args.output,
-            "scenario_manifest_output": args.scenario_manifest_output,
             "scenario_manifest_input": scenario_manifest_input,
+            "private_fraction": args.private_fraction,
+            "split_seed": args.split_seed,
             **runtime_metadata_for_country(
                 args.country,
                 source_dataset_path=source_dataset_path,
             ),
         }
-        _write_metadata(args.output, metadata)
-        _write_metadata(
-            args.scenario_manifest_output,
-            {
-                **metadata,
-                "task": "scenario_manifest",
-            },
-        )
-        print(f"PolicyEngine reference outputs saved to {args.output}")
-        print(f"Scenario manifest saved to {args.scenario_manifest_output}")
+
+        splits = [
+            (
+                "public",
+                public_scenarios,
+                Path(args.output),
+                Path(args.scenario_manifest_output),
+            )
+        ]
+        if private_scenarios:
+            splits.append(
+                (
+                    "private",
+                    private_scenarios,
+                    _private_sibling_path(args.output),
+                    _private_sibling_path(args.scenario_manifest_output),
+                )
+            )
+
+        for split_name, split_scenarios_list, output_path, manifest_path in splits:
+            split_ids = {scenario.id for scenario in split_scenarios_list}
+            split_df = df[df["scenario_id"].isin(split_ids)].reset_index(drop=True)
+            _ensure_parent_dir(str(output_path))
+            split_df.to_csv(output_path, index=False)
+            _ensure_parent_dir(str(manifest_path))
+            scenario_manifest(split_scenarios_list).to_csv(manifest_path, index=False)
+            split_metadata = {
+                **base_metadata,
+                "task": "reference_outputs",
+                "split": split_name,
+                "num_scenarios": len(split_scenarios_list),
+                "output": str(output_path),
+                "scenario_manifest_output": str(manifest_path),
+            }
+            _write_metadata(str(output_path), split_metadata)
+            _write_metadata(
+                str(manifest_path),
+                {**split_metadata, "task": "scenario_manifest"},
+            )
+            label = "" if split_name == "public" else " (private split)"
+            print(f"PolicyEngine reference outputs{label} saved to {output_path}")
+            print(f"Scenario manifest{label} saved to {manifest_path}")
+        if private_scenarios:
+            print(
+                f"Private split: {len(private_scenarios)} of "
+                f"{len(public_ids) + len(private_scenarios)} households "
+                f"(fraction {args.private_fraction}, split seed "
+                f"{args.split_seed}). Keep *-private files out of public "
+                "artifacts."
+            )
 
     elif args.command == "eval-no-tools":
         from policybench.eval_no_tools import (
