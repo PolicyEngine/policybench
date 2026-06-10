@@ -18,6 +18,11 @@ import {
   type ProviderKey,
 } from "../modelMeta";
 import { binaryFlag } from "../lib/scoring";
+import { mergeScenarioExplanations } from "../lib/explanations";
+import {
+  useExplanations,
+  type ExplanationsStatus,
+} from "../lib/useExplanations";
 import ProviderMark from "./ProviderMark";
 
 function formatBoolean(value: 0 | 1 | null): string {
@@ -120,13 +125,49 @@ export default function ScenarioExplorer({
       : scenarioIds[0] ?? null;
   const scenario = resolvedScenarioId ? data.scenarios[resolvedScenarioId] : null;
 
-  const predictions = useMemo(
-    () =>
-      resolvedScenarioId
-        ? (data.scenarioPredictions[resolvedScenarioId] ?? {})
-        : {},
-    [data, resolvedScenarioId],
-  );
+  // Explanation and audit text lives in a per-country sidecar fetched lazily
+  // once the explorer approaches the viewport; numeric predictions are in the
+  // bundle. See lib/explanations.ts.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [explanationsEnabled, setExplanationsEnabled] = useState(false);
+
+  useEffect(() => {
+    if (explanationsEnabled) return;
+    const node = rootRef.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === "undefined") {
+      const fallback = window.setTimeout(
+        () => setExplanationsEnabled(true),
+        0,
+      );
+      return () => window.clearTimeout(fallback);
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setExplanationsEnabled(true);
+        }
+      },
+      { rootMargin: "1200px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [explanationsEnabled]);
+
+  const {
+    status: explanationsStatus,
+    explanations,
+    retry: retryExplanations,
+  } = useExplanations(country, explanationsEnabled);
+
+  const predictions = useMemo(() => {
+    if (!resolvedScenarioId) return {};
+    const base = data.scenarioPredictions[resolvedScenarioId] ?? {};
+    return mergeScenarioExplanations(
+      base,
+      explanations?.scenarios[resolvedScenarioId],
+    );
+  }, [data, explanations, resolvedScenarioId]);
 
   // Scenarios always show every benchmark output for the active household.
   // The leaderboard's Options panel filters the *rankings* by program, but
@@ -278,7 +319,7 @@ export default function ScenarioExplorer({
   };
 
   return (
-    <div>
+    <div ref={rootRef}>
       <div className="eyebrow mb-3 animate-fade-up">Deep dive</div>
       <h2
         className="font-[family-name:var(--font-display)] text-4xl md:text-5xl text-text tracking-tight animate-fade-up"
@@ -601,14 +642,31 @@ export default function ScenarioExplorer({
           <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
             Explanation and audit coverage
           </div>
-          <p className="mt-2 text-sm text-text-secondary leading-relaxed">
-            {explanationRows} of {totalPredictionRows} model-output rows for
-            this household include explanation text returned by the model.{" "}
-            {annotationRows} rows include developer audit notes for incorrect
-            predictions, and {caseAnnotationRows} incorrect rows include
-            case-level notes comparing wrong models on the same
-            household-output target.
-          </p>
+          {explanationsStatus === "ready" ? (
+            <p className="mt-2 text-sm text-text-secondary leading-relaxed">
+              {explanationRows} of {totalPredictionRows} model-output rows for
+              this household include explanation text returned by the model.{" "}
+              {annotationRows} rows include developer audit notes for incorrect
+              predictions, and {caseAnnotationRows} incorrect rows include
+              case-level notes comparing wrong models on the same
+              household-output target.
+            </p>
+          ) : explanationsStatus === "error" ? (
+            <p className="mt-2 text-sm text-text-secondary leading-relaxed">
+              Couldn&apos;t load explanation text.{" "}
+              <button
+                type="button"
+                onClick={retryExplanations}
+                className="text-primary-strong underline underline-offset-2 hover:text-primary"
+              >
+                Retry
+              </button>
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-text-muted leading-relaxed">
+              Loading explanation and audit text&hellip;
+            </p>
+          )}
           {Object.keys(failureSources).length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {Object.entries(failureSources)
@@ -691,6 +749,7 @@ export default function ScenarioExplorer({
         predictions={filteredPredictions}
         country={country}
         currencySymbol={currencySymbol}
+        explanationsStatus={explanationsStatus}
         onClose={closeModal}
       />
 
@@ -760,12 +819,20 @@ type DetailDialogProps = {
   predictions: Record<string, Record<string, ScenarioPrediction>>;
   country: CountryCode;
   currencySymbol: "$" | "£";
+  explanationsStatus: ExplanationsStatus;
   onClose: () => void;
 };
 
 const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
   function DetailDialog(
-    { selectedCell, predictions, country, currencySymbol, onClose },
+    {
+      selectedCell,
+      predictions,
+      country,
+      currencySymbol,
+      explanationsStatus,
+      onClose,
+    },
     ref,
   ) {
     // Backdrop click: native <dialog> reports the click target as the dialog
@@ -791,6 +858,7 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
             predictions={predictions}
             country={country}
             currencySymbol={currencySymbol}
+            explanationsStatus={explanationsStatus}
             onClose={onClose}
           />
         ) : null}
@@ -804,6 +872,7 @@ type DetailContentProps = {
   predictions: Record<string, Record<string, ScenarioPrediction>>;
   country: CountryCode;
   currencySymbol: "$" | "£";
+  explanationsStatus: ExplanationsStatus;
   onClose: () => void;
 };
 
@@ -812,6 +881,7 @@ function DetailContent({
   predictions,
   country,
   currencySymbol,
+  explanationsStatus,
   onClose,
 }: DetailContentProps) {
   const { variable, model } = selectedCell;
@@ -917,6 +987,8 @@ function DetailContent({
             <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
               {pred.referenceExplanation}
             </p>
+          ) : explanationsStatus !== "ready" ? (
+            <PendingExplanationNote status={explanationsStatus} />
           ) : (
             <p className="mt-2 text-sm text-text-muted italic">
               Reference computation narrative not yet generated for this case.
@@ -932,6 +1004,8 @@ function DetailContent({
             <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
               {pred.explanation}
             </p>
+          ) : explanationsStatus !== "ready" ? (
+            <PendingExplanationNote status={explanationsStatus} />
           ) : (
             <p className="mt-2 text-sm text-text-muted italic">
               The model didn&apos;t return an explanation for this row.
@@ -949,7 +1023,9 @@ function DetailContent({
             <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
               {pred.annotation}
             </p>
-          ) : correct ? null : (
+          ) : correct ? null : explanationsStatus !== "ready" ? (
+            <PendingExplanationNote status={explanationsStatus} />
+          ) : (
             <p className="mt-2 text-sm text-text-muted italic">
               Not yet reviewed.
             </p>
@@ -970,6 +1046,16 @@ function DetailContent({
       )}
 
     </div>
+  );
+}
+
+function PendingExplanationNote({ status }: { status: ExplanationsStatus }) {
+  return (
+    <p className="mt-2 text-sm text-text-muted italic">
+      {status === "error"
+        ? "Couldn't load explanation text. Close this dialog and use Retry in the coverage card."
+        : "Loading explanation text…"}
+    </p>
   );
 }
 

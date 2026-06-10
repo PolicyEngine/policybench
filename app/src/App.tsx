@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import rawData from "./data.json";
+// Generated from data.json by scripts/prepare-data.ts (runs in dev/build):
+// the bundled summary holds every numeric field, while bulky explanation
+// text is split into /data/explanations-*.json and fetched on demand.
+import rawData from "./data-summary.json";
 import Hero from "./components/Hero";
 import FailureModes from "./components/FailureModes";
 import Methodology from "./components/Methodology";

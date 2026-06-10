@@ -1,13 +1,43 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+const SITE_URL = "https://policybench.org";
+const SITE_TITLE = "PolicyBench, by PolicyEngine";
+const SITE_DESCRIPTION =
+  "How accurately frontier AI models estimate US and UK tax and benefit " +
+  "amounts without tools, scored against PolicyEngine reference outputs.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "PolicyBench, by PolicyEngine",
+    default: SITE_TITLE,
     template: "%s — PolicyBench",
   },
-  description:
-    "Benchmarking no-tools policy calculation across frontier models.",
+  description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "PolicyBench",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "PolicyBench — an LLM benchmark for tax and benefit calculation",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: ["/og-image.png"],
+  },
   icons: {
     icon: [
       {

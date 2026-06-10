@@ -6,10 +6,36 @@ import SiteHeader from "../../components/SiteHeader";
 
 const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-20";
 
+const PAPER_DESCRIPTION =
+  "PolicyBench paper — 2026-05-20 household-equal scored manuscript snapshot with May 13-May 20 model responses and refreshed PolicyEngine reference outputs.";
+
 export const metadata: Metadata = {
   title: "Paper",
-  description:
-    "PolicyBench paper — 2026-05-20 household-equal scored manuscript snapshot with May 13-May 20 model responses and refreshed PolicyEngine reference outputs.",
+  description: PAPER_DESCRIPTION,
+  alternates: {
+    canonical: "/paper",
+  },
+  openGraph: {
+    type: "article",
+    url: "https://policybench.org/paper",
+    siteName: "PolicyBench",
+    title: "PolicyBench paper",
+    description: PAPER_DESCRIPTION,
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "PolicyBench — an LLM benchmark for tax and benefit calculation",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PolicyBench paper",
+    description: PAPER_DESCRIPTION,
+    images: ["/og-image.png"],
+  },
 };
 
 const manuscriptPaths = {
