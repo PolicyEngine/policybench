@@ -153,6 +153,9 @@ export default function App() {
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("country", view);
+      // Scenario ids and prediction cells are country-specific.
+      url.searchParams.delete("scenario");
+      url.searchParams.delete("cell");
       window.history.replaceState(null, "", url);
     }
   };

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import Link from "next/link";
 import type {
   BenchData,
   DashboardBundle,
@@ -328,9 +329,12 @@ export default function ModelLeaderboard({
                         size={14}
                         className="flex-shrink-0"
                       />
-                      <span className="truncate text-sm font-medium text-text">
+                      <Link
+                        href={`/model/${m.model}`}
+                        className="truncate text-sm font-medium text-text hover:text-primary-strong"
+                      >
                         {MODEL_LABELS[m.model] || m.model}
-                      </span>
+                      </Link>
                     </div>
                   </div>
 
@@ -352,9 +356,12 @@ export default function ModelLeaderboard({
                     size={14}
                     className="flex-shrink-0"
                   />
-                  <span className="text-text font-medium text-sm">
+                  <Link
+                    href={`/model/${m.model}`}
+                    className="text-text font-medium text-sm hover:text-primary-strong"
+                  >
                     {MODEL_LABELS[m.model] || m.model}
-                  </span>
+                  </Link>
                 </div>
 
                 <div className="col-span-3 text-right">
