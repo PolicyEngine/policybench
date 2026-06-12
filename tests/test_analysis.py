@@ -8,6 +8,7 @@ import pytest
 
 from policybench.analysis import (
     accuracy,
+    aggregate_weight_scores_by_model,
     amount_accuracy_by_model,
     analyze_no_tools,
     bootstrap_headline_cis,
@@ -18,9 +19,11 @@ from policybench.analysis import (
     build_scenario_prompt_map,
     compute_metrics,
     continuous_row_score,
+    equal_weight_scores_by_model,
     exact_amount_match,
     export_analysis,
     export_dashboard_data,
+    household_headline_scores,
     household_net_income_by_scenario,
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -1323,6 +1326,176 @@ class TestBoundedHouseholdScores:
         market = {"s1": 60000.0}
         out = bounded_household_scores(gt, preds, market)
         assert out.loc[out["model"] == "zero", "score"].iloc[0] < 0.5
+
+
+class TestZeroWeightHouseholds:
+    """Households whose entire kept active set carries zero output-group weight.
+
+    After program/reference filtering a household can be left with only rows
+    whose output group has weight 0 (reachable in production via a
+    zero-population-weight group such as ``local_income_tax``). The
+    within-household renormalization denominator is then 0. Such households must
+    be EXCLUDED from the equal-household mean (matching the TypeScript scorer),
+    not counted at score 0. When every household is zero-weight the model has no
+    scoreable households and is dropped from the result entirely (represented as
+    missing, not 0).
+    """
+
+    @staticmethod
+    def _zero_weight_population(monkeypatch):
+        """Force the ``income_tax`` group to weight 0 and ``snap`` to 1."""
+
+        def fake_population_weights(country, kind, output_groups):
+            return pd.Series({"income_tax": 0.0, "snap": 1.0})
+
+        monkeypatch.setattr(
+            "policybench.analysis.matching_population_weight_series",
+            fake_population_weights,
+        )
+
+    def _mixed_ground_truth(self):
+        # s_zero: only the zero-weight income_tax row -> zero-weight household.
+        # s_pos: income_tax (weight 0) + snap (weight 1) -> positively weighted.
+        return pd.DataFrame(
+            {
+                "scenario_id": ["s_zero", "s_pos", "s_pos"],
+                "variable": ["income_tax", "income_tax", "snap"],
+                "value": [500.0, 500.0, 1000.0],
+                "impact_weight": [pd.NA, pd.NA, pd.NA],
+            }
+        )
+
+    def _mixed_predictions(self):
+        # On s_pos the snap row is exactly right (score 1). Income tax is wrong
+        # everywhere, but it carries weight 0 so it never affects the score. The
+        # only thing that can change the model score is whether s_zero (score 0)
+        # is averaged in.
+        return pd.DataFrame(
+            {
+                "model": ["m1", "m1", "m1"],
+                "scenario_id": ["s_zero", "s_pos", "s_pos"],
+                "variable": ["income_tax", "income_tax", "snap"],
+                "prediction": [0.0, 0.0, 1000.0],
+            }
+        )
+
+    def test_bounded_household_scores_drops_zero_weight_household(self, monkeypatch):
+        self._zero_weight_population(monkeypatch)
+        out = bounded_household_scores(
+            self._mixed_ground_truth(),
+            self._mixed_predictions(),
+            {"s_zero": 20_000.0, "s_pos": 20_000.0},
+            country="us",
+        )
+        # The zero-weight household must not appear as a scored row at all.
+        scenarios = set(out["scenario_id"])
+        assert "s_zero" not in scenarios
+        assert scenarios == {"s_pos"}
+        # And the model mean over the kept households is the s_pos score (1.0),
+        # not dragged to 0.5 by counting s_zero at 0.
+        mean_score = out.groupby("model")["score"].mean()["m1"]
+        assert mean_score == pytest.approx(1.0)
+
+    def test_weighted_hit_rate_drops_zero_weight_household(self, monkeypatch):
+        self._zero_weight_population(monkeypatch)
+        out = weighted_hit_rate_scores_by_model(
+            self._mixed_ground_truth(),
+            self._mixed_predictions(),
+            {"s_zero": 20_000.0, "s_pos": 20_000.0},
+            country="us",
+        )
+        row = out.loc[out["model"] == "m1"].iloc[0]
+        # Only s_pos counts: snap is exact -> 1.0. Counting s_zero would halve it.
+        assert row["weighted_exact"] == pytest.approx(1.0)
+        assert row["weighted_within_1pct"] == pytest.approx(1.0)
+
+    def test_household_headline_scores_drops_zero_weight_household(self, monkeypatch):
+        self._zero_weight_population(monkeypatch)
+        out = household_headline_scores(
+            self._mixed_ground_truth(),
+            self._mixed_predictions(),
+            {"s_zero": 20_000.0, "s_pos": 20_000.0},
+            country="us",
+            metric="within_1pct",
+        )
+        scenarios = set(out["scenario_id"])
+        assert "s_zero" not in scenarios
+        assert out.groupby("model")["score"].mean()["m1"] == pytest.approx(1.0)
+
+    def test_all_zero_weight_means_model_is_missing(self, monkeypatch):
+        # Every household is zero-weight: a single income_tax-only household with
+        # income_tax weight 0. No household is scoreable, so the model must be
+        # dropped (missing), not reported at score 0.
+        self._zero_weight_population(monkeypatch)
+        gt = pd.DataFrame(
+            {
+                "scenario_id": ["s_zero"],
+                "variable": ["income_tax"],
+                "value": [500.0],
+                "impact_weight": [pd.NA],
+            }
+        )
+        preds = pd.DataFrame(
+            {
+                "model": ["m1"],
+                "scenario_id": ["s_zero"],
+                "variable": ["income_tax"],
+                "prediction": [0.0],
+            }
+        )
+        market = {"s_zero": 20_000.0}
+
+        bounded = bounded_household_scores(gt, preds, market, country="us")
+        assert bounded.empty or "m1" not in set(bounded["model"])
+
+        headline = household_headline_scores(
+            gt, preds, market, country="us", metric="within_1pct"
+        )
+        assert headline.empty or "m1" not in set(headline["model"])
+
+        hit = weighted_hit_rate_scores_by_model(gt, preds, market, country="us")
+        assert hit.empty or "m1" not in set(hit["model"])
+
+    def test_equal_weight_scores_drop_zero_weight_household(self, monkeypatch):
+        # equal_weight_scores_by_model uses the "equal" population view; force a
+        # zero-weight group there too.
+        def fake_population_weights(country, kind, output_groups):
+            if kind == "equal":
+                return pd.Series({"income_tax": 0.0, "snap": 1.0})
+            return None
+
+        monkeypatch.setattr(
+            "policybench.analysis.matching_population_weight_series",
+            fake_population_weights,
+        )
+        out = equal_weight_scores_by_model(
+            self._mixed_ground_truth(),
+            self._mixed_predictions(),
+            country="us",
+        )
+        # s_zero excluded -> mean is the s_pos score (snap exact = 1.0).
+        assert out.loc[out["model"] == "m1", "equal_score"].iloc[0] == pytest.approx(
+            1.0
+        )
+
+    def test_aggregate_weight_scores_drop_zero_weight_household(self, monkeypatch):
+        def fake_population_weights(country, kind, output_groups):
+            if kind == "aggregate":
+                return pd.Series({"income_tax": 0.0, "snap": 1.0})
+            return None
+
+        monkeypatch.setattr(
+            "policybench.analysis.matching_population_weight_series",
+            fake_population_weights,
+        )
+        out = aggregate_weight_scores_by_model(
+            self._mixed_ground_truth(),
+            self._mixed_predictions(),
+            country="us",
+        )
+        assert out.loc[out["model"] == "m1", "aggregate_score"].iloc[
+            0
+        ] == pytest.approx(1.0)
 
 
 class TestAmountAndParticipationAccuracy:
