@@ -1,6 +1,7 @@
 """PolicyEngine runtime provenance and model wiring."""
 
 import json
+import os
 import re
 from functools import lru_cache
 from importlib import metadata
@@ -324,14 +325,53 @@ def get_us_situation_simulation_class():
     return Simulation
 
 
+@lru_cache(maxsize=1)
+def materialize_certified_us_dataset() -> str:
+    """Download and return the policyengine.py-certified US dataset path.
+
+    ``policyengine_us.Microsimulation()`` defaults to the country package's
+    own dataset (Enhanced CPS), silently ignoring the dataset the installed
+    policyengine.py bundle certifies (populace as of 4.16.1). Resolve the
+    bundle's ``hf://org/repo/file[@rev]`` URI explicitly and fail loudly on
+    any error — a quiet fallback here would put the wrong population under
+    every weight, sample, and reference output.
+    """
+    bundle = policyengine_release_bundle("us")
+    uri = bundle.get("default_dataset_uri") or ""
+    if not uri.startswith("hf://"):
+        raise RuntimeError(
+            f"Cannot resolve certified US dataset: unexpected URI {uri!r} "
+            f"in the policyengine bundle ({bundle.get('bundle_id')})"
+        )
+    spec, _, revision = uri.removeprefix("hf://").partition("@")
+    org, repo, filename = spec.split("/", 2)
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import RepositoryNotFoundError
+
+    kwargs = {
+        "repo_id": f"{org}/{repo}",
+        "filename": filename,
+        "revision": revision or None,
+        "token": os.environ.get("HUGGING_FACE_TOKEN") or None,
+    }
+    try:
+        # populace lives in a dataset-type repo; older artifacts were
+        # model-type. Mirror policyengine 4.16's retry order.
+        return hf_hub_download(repo_type="dataset", **kwargs)
+    except RepositoryNotFoundError:
+        return hf_hub_download(**kwargs)
+
+
 def make_us_microsimulation(**kwargs):
-    """Create a PE-US Microsimulation with runtime provenance attached."""
+    """Create a PE-US Microsimulation on the certified dataset."""
     from policyengine_us import Microsimulation
 
+    if "dataset" not in kwargs:
+        kwargs["dataset"] = materialize_certified_us_dataset()
     sim = Microsimulation(**kwargs)
     sim.policyengine_bundle = {
         **policyengine_release_bundle("us"),
-        "runtime_dataset": getattr(sim, "default_dataset", None),
+        "runtime_dataset": str(kwargs.get("dataset")),
         "managed_by": "policybench via installed PolicyEngine packages",
     }
     return sim

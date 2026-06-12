@@ -150,13 +150,24 @@ def _series_by_household(
 
 
 def _us_population_contributions(year: int) -> dict[str, Any]:
-    from policyengine_us import Microsimulation
+    from policybench.policyengine_runtime import make_us_microsimulation
 
-    sim = Microsimulation()
+    sim = make_us_microsimulation()
     outputs = get_output_specs("us", "headline")
     household_ids = pd.Series(
         sim.calculate("household_id", year, map_to="household", use_weights=False)
     ).astype(int)
+    # A failed certified-dataset download makes Microsimulation() silently
+    # fall back to a small bundled sample; population weights derived from it
+    # would be quietly wrong. Full US datasets have tens of thousands of
+    # households (eCPS ~41k, populace ~75k).
+    if len(household_ids) < 20_000:
+        raise RuntimeError(
+            f"US microsimulation loaded only {len(household_ids)} households — "
+            "this looks like a fallback sample, not the certified full "
+            "population dataset. Check HUGGING_FACE_TOKEN and dataset access "
+            f"(certified: {_us_certified_dataset_label()})."
+        )
     household_weight = _series_by_household(
         sim.calculate("household_weight", year, map_to="household", use_weights=False),
         household_ids,
@@ -228,12 +239,28 @@ def _us_population_contributions(year: int) -> dict[str, Any]:
         household_net_income=household_net_income,
         household_weight=household_weight,
         metadata={
-            "source_dataset": "full PolicyEngine US Enhanced CPS",
+            # Record what actually loaded, not a hardcoded label: a failed
+            # dataset download can silently fall back to a small bundled
+            # sample, and the artifact must make that visible.
+            "source_dataset": _us_certified_dataset_label(),
             "source_dataset_uri": str(getattr(sim, "default_dataset", "default")),
             "source_household_rows": int(len(household_ids)),
             "tax_year": year,
         },
     )
+
+
+def _us_certified_dataset_label() -> str:
+    """The certified US dataset per the installed policyengine bundle."""
+    try:
+        from policybench.policyengine_runtime import runtime_metadata_for_country
+
+        bundle = runtime_metadata_for_country("us")["policyengine_bundles"]["us"]
+        dataset = bundle.get("default_dataset") or "unknown"
+        build = bundle.get("certified_data_build_id")
+        return f"{dataset} ({build})" if build else str(dataset)
+    except Exception:
+        return "unknown (runtime metadata unavailable)"
 
 
 def _aggregate_uk_to_households(
