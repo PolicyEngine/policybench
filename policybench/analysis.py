@@ -331,6 +331,40 @@ def _row_weights_for_ground_truth(
     return rows[["scenario_id", "variable", "weight"]]
 
 
+def _positive_weight_scenarios(row_weights: pd.DataFrame) -> set[str]:
+    """Scenario ids whose kept rows carry strictly-positive total weight.
+
+    After program/reference filtering a household can be left with only rows
+    whose output group has weight 0, so its within-household renormalization
+    denominator is 0 (reachable in production via a zero-population-weight group
+    such as ``local_income_tax``). Those households are excluded from the
+    equal-household mean — counting them at score 0 would punish models on
+    households where nothing was scoreable. This matches the TypeScript scorer's
+    ``if (denominator <= 0) continue`` guard (see issue #69).
+    """
+    if row_weights.empty or "scenario_id" not in row_weights.columns:
+        return set()
+    totals = row_weights.groupby("scenario_id")["weight"].sum()
+    return {str(scenario_id) for scenario_id, total in totals.items() if total > 0}
+
+
+def _drop_zero_weight_households(
+    merged: pd.DataFrame,
+    row_weights: pd.DataFrame,
+) -> pd.DataFrame:
+    """Keep only rows from households with strictly-positive total weight.
+
+    Drops every row belonging to a zero-weight household so those households are
+    excluded from the downstream equal-household mean. If no household has
+    positive weight the result is empty, which propagates upward as the model
+    being absent from the score table (missing rather than 0).
+    """
+    keep = _positive_weight_scenarios(row_weights)
+    if not keep:
+        return merged.iloc[0:0]
+    return merged[merged["scenario_id"].astype(str).isin(keep)]
+
+
 def bounded_global_variable_weights(
     ground_truth: pd.DataFrame,
     market_income_by_scenario: dict[str, float] | pd.Series,
@@ -422,6 +456,7 @@ def bounded_household_scores(
     ]
     merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
     merged["weight"] = merged["weight"].fillna(0.0)
+    merged = _drop_zero_weight_households(merged, row_weights)
     merged["weighted"] = merged["row_score"] * merged["weight"]
     return (
         merged.groupby(["model", "scenario_id"])["weighted"]
@@ -491,6 +526,7 @@ def weighted_hit_rate_scores_by_model(
         merged[column] = [score[column] for score in scores]
     merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
     merged["weight"] = merged["weight"].fillna(0.0)
+    merged = _drop_zero_weight_households(merged, row_weights)
     for column in [
         "exact",
         "within_1pct",
@@ -582,6 +618,7 @@ def household_headline_scores(
     ]
     merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
     merged["weight"] = merged["weight"].fillna(0.0)
+    merged = _drop_zero_weight_households(merged, row_weights)
     merged["weighted"] = merged["hit"] * merged["weight"]
     return (
         merged.groupby(["model", "scenario_id"])["weighted"]
@@ -798,6 +835,7 @@ def _weighted_household_scores(
     ]
     merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
     merged["weight"] = merged["weight"].fillna(0.0)
+    merged = _drop_zero_weight_households(merged, row_weights)
     merged["weighted"] = merged["row_score"] * merged["weight"]
     household = (
         merged.groupby(["model", "scenario_id"])["weighted"]
