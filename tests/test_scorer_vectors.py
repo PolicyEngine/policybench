@@ -2,9 +2,9 @@
 
 These guard the fixture consumed by ``app/tests/canonicalScore.test.ts``:
 deterministic output, a stable schema, expected scores that match the published
-Python canonical scorer on the unfiltered case, correct filter semantics, and a
-correctly-pinned record of the one documented Python/TypeScript divergence. All
-fast and pure — no network, no provider calls.
+Python canonical scorer on the unfiltered case, correct filter semantics, and
+zero-weight slices that produce missing scores rather than zero scores. All fast
+and pure — no network, no provider calls.
 """
 
 import json
@@ -24,7 +24,6 @@ from policybench.scorer_vectors import (
     build_vectors,
     canonical_filtered_scores,
     serialize_vectors,
-    typescript_filtered_scores,
     write_scorer_vectors,
 )
 from policybench.spec import output_group_id
@@ -89,7 +88,6 @@ def test_vector_schema_is_complete(fixture_payload):
         "scenarioPredictions",
         "globalWeights",
         "expectedScores",
-        "tsDivergence",
     }
     for vector in fixture_payload["vectors"]:
         assert required_keys <= set(vector), vector["name"]
@@ -342,45 +340,28 @@ def test_reference_filter_subsets_rows_before_scoring():
     assert zeros == pytest.approx({"m1": 0.0})
 
 
-def test_zero_weight_divergence_vectors_are_flagged(fixture_payload):
-    """Divergence vectors pin Python (all-zero) and the omitting TypeScript path."""
-    diverging = [
-        vector for vector in fixture_payload["vectors"] if vector["tsDivergence"]
+def test_zero_weight_vectors_are_plain_empty_score_vectors(fixture_payload):
+    """Zero-weight vectors are ordinary parity vectors with no scoreable models."""
+    zero_weight = [
+        vector
+        for vector in fixture_payload["vectors"]
+        if vector["name"].startswith("zero_weight_single_program")
     ]
-    assert len(diverging) == len(SCORE_FIELDS)
-    for vector in diverging:
-        # Python scores every model (at 0); TypeScript omits them all.
-        assert vector["expectedScores"]
-        assert all(value == 0.0 for value in vector["expectedScores"].values())
-        assert vector["typescriptScores"] == {}
-        assert vector["zeroWeightScenarios"], vector["name"]
-        assert "denominator" in vector["divergenceReason"]
-        assert vector["expectedScores"] != vector["typescriptScores"]
+    assert len(zero_weight) == len(SCORE_FIELDS)
+    for vector in zero_weight:
+        assert vector["expectedScores"] == {}
+        assert "tsDivergence" not in vector
+        assert "typescriptScores" not in vector
+        assert "zeroWeightScenarios" not in vector
+        assert "divergenceReason" not in vector
 
 
-def test_zero_weight_divergence_is_real_in_recomputation(fixture_payload):
-    """Re-running both conventions on a divergence vector confirms they differ."""
-    diverging = next(
-        vector for vector in fixture_payload["vectors"] if vector["tsDivergence"]
-    )
-    gt, pred = _frames_from_vector(diverging)
-    weights = diverging["globalWeights"][diverging["weightsView"]]
-    active = set(diverging["programFilter"])
-    python_scores, _ = canonical_filtered_scores(
-        gt, pred, weights, active, diverging["referenceFilter"], diverging["field"]
-    )
-    ts_scores = typescript_filtered_scores(
-        gt, pred, weights, active, diverging["referenceFilter"], diverging["field"]
-    )
-    assert python_scores  # Python keeps the zero-weight households (score 0)
-    assert ts_scores == {}  # TypeScript drops them
-    assert python_scores != ts_scores
-
-
-def test_active_group_is_actually_zero_weight_for_divergence(fixture_payload):
-    """The flagged vectors really have a zero-weight active group (precondition)."""
+def test_active_group_is_actually_zero_weight_for_empty_score_vectors(
+    fixture_payload,
+):
+    """The zero-weight vectors really have a zero-weight active group."""
     for vector in fixture_payload["vectors"]:
-        if not vector["tsDivergence"]:
+        if not vector["name"].startswith("zero_weight_single_program"):
             continue
         weights = vector["globalWeights"][vector["weightsView"]]
         active_weight = sum(

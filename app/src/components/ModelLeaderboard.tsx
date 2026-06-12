@@ -16,6 +16,10 @@ import {
 } from "../lib/programFilters";
 import { canonicalScoreByModel } from "../lib/canonicalScore";
 import {
+  rankWithFallbackScore,
+  rankWithRecomputedScores,
+} from "../lib/leaderboardRows";
+import {
   SENSITIVITY_VIEWS,
   modelScoresForView,
   viewSupportsSelected,
@@ -114,6 +118,10 @@ export default function ModelLeaderboard({
     for (const entry of sensitivityScores) out.set(entry.model, entry.score);
     return out;
   }, [sensitivityScores]);
+  const baseNoTools = useMemo(
+    () => data.modelStats.filter((m) => m.condition === "no_tools"),
+    [data.modelStats],
+  );
 
   const isProgramActive = useCallback(
     (variable: string) => programIsActive(activeProgramIds, variable),
@@ -166,10 +174,9 @@ export default function ModelLeaderboard({
       activeProgramIds,
     ],
   );
+  const canRecomputeScores = Boolean(data.globalWeights?.[effectiveView]);
 
   const noTools = useMemo<ModelStat[]>(() => {
-    const base = data.modelStats.filter((m) => m.condition === "no_tools");
-
     if (scoringMode === "exact" || scoringMode === "within1pct") {
       // Exact: percent of predictions that match the reference to the dollar
       // (or to the boolean for eligibility flags). Within-1%: the analyst
@@ -178,47 +185,37 @@ export default function ModelLeaderboard({
       // scenario rows so program filters renormalize the active set.
       const weighted =
         scoringMode === "exact" ? exactScoreByModel : within1pctScoreByModel;
-      return [...base]
-        .map((m) => {
-          const w = weighted.get(m.model);
-          const fallback =
-            scoringMode === "exact" ? (m.exact ?? 0) : (m.within1pct ?? 0);
-          return {
-            ...m,
-            score: w !== undefined ? w : fallback,
-          };
-        })
-        .sort((a, b) => b.score - a.score);
+      if (canRecomputeScores) {
+        return rankWithRecomputedScores(baseNoTools, weighted);
+      }
+      return rankWithFallbackScore(baseNoTools, (m) =>
+        scoringMode === "exact" ? (m.exact ?? 0) : (m.within1pct ?? 0),
+      );
     }
 
     // Continuous mode. Use the recomputed weighted score for country views so
     // program filters renormalize the active program weights.
-    if (filteredContinuousByModel.size > 0) {
-      return [...base]
-        .map((m) => ({
-          ...m,
-          score: filteredContinuousByModel.get(m.model) ?? 0,
-        }))
-        .sort((a, b) => b.score - a.score);
+    if (canRecomputeScores) {
+      return rankWithRecomputedScores(baseNoTools, filteredContinuousByModel);
     }
     if (effectiveView === "household") {
-      return [...base].sort((a, b) => b.score - a.score);
+      return rankWithFallbackScore(baseNoTools, (m) => m.score);
     }
     // Replace the score with the selected view's precomputed value, drop
     // models without one.
-    return base
-      .filter((m) => sensitivityScoreByModel.has(m.model))
-      .map((m) => ({ ...m, score: sensitivityScoreByModel.get(m.model)! }))
-      .sort((a, b) => b.score - a.score);
+    return rankWithRecomputedScores(baseNoTools, sensitivityScoreByModel);
   }, [
-    data,
+    baseNoTools,
     effectiveView,
     sensitivityScoreByModel,
     filteredContinuousByModel,
     exactScoreByModel,
     within1pctScoreByModel,
     scoringMode,
+    canRecomputeScores,
   ]);
+  const noWeightedOutputs =
+    canRecomputeScores && baseNoTools.length > 0 && noTools.length === 0;
 
   const activeView = SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)!;
 
@@ -282,15 +279,17 @@ export default function ModelLeaderboard({
         className="mt-8 space-y-3"
       >
         <p className="sr-only" role="status">
-          {`${noTools.length} models, ranked by ${
-            scoringMode === "exact"
-              ? "exact-match"
-              : scoringMode === "within1pct"
-                ? "within-1% hit rate"
-                : `${activeView.label.toLowerCase()}-weighted bounded`
-          } score (${
-            selectedView === "us" ? "United States" : "United Kingdom"
-          })`}
+          {noWeightedOutputs
+            ? "No weighted outputs match this filter."
+            : `${noTools.length} models, ranked by ${
+                scoringMode === "exact"
+                  ? "exact-match"
+                  : scoringMode === "within1pct"
+                    ? "within-1% hit rate"
+                    : `${activeView.label.toLowerCase()}-weighted bounded`
+              } score (${
+                selectedView === "us" ? "United States" : "United Kingdom"
+              })`}
         </p>
         <div
           role="row"
@@ -309,7 +308,21 @@ export default function ModelLeaderboard({
           </div>
         </div>
 
-        {noTools.map((m, i) => (
+        {noWeightedOutputs ? (
+          <div
+            role="status"
+            className="card px-4 py-5 text-sm text-text-secondary"
+          >
+            <p className="font-medium text-text">
+              No weighted outputs match this filter.
+            </p>
+            <p className="mt-1">
+              The selected programs and reference cases have zero scoring weight,
+              so PolicyBench does not rank models for this slice.
+            </p>
+          </div>
+        ) : (
+          noTools.map((m, i) => (
             <div
               key={m.model}
               role="row"
@@ -371,7 +384,8 @@ export default function ModelLeaderboard({
                 </div>
               </div>
             </div>
-          ))}
+          ))
+        )}
 
       </div>
 

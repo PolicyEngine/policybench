@@ -25,21 +25,9 @@ across its concrete rows inside a household, renormalize within the household,
 score each row, and average households with equal weight. On the unfiltered,
 all-positive-weight case this reproduces :func:`policybench.analysis.
 household_headline_scores` / :func:`policybench.analysis.bounded_household_scores`
-byte-for-byte (verified in ``tests/test_scorer_vectors.py``).
-
-Known Python/TypeScript divergence
-----------------------------------
-There is exactly one case where the two scorers disagree, and it is pinned and
-flagged here rather than hidden. When the entire kept active set of a household
-carries **zero** output-group weight (so the within-household renormalization
-denominator is 0), the Python scorer still counts that household in the
-equal-household mean (with score 0), while the TypeScript scorer skips it
-(``if (denominator <= 0) continue``). This is reachable in production only via an
-output group whose population weight is exactly 0 (e.g. ``local_income_tax`` in
-the US payload). Vectors that exercise this carry ``"tsDivergence": true`` and
-record both the Python expectation and the value the current TypeScript scorer
-produces; the TypeScript test asserts the documented (divergent) behavior so the
-gap stays visible.
+byte-for-byte (verified in ``tests/test_scorer_vectors.py``). Households whose
+entire kept active set carries zero output-group weight are excluded from both
+scorers; if every household is excluded, the expected model-score map is empty.
 """
 
 from __future__ import annotations
@@ -130,8 +118,9 @@ def canonical_filtered_scores(
 
     Returns ``(scores, household_zero_weight)`` where ``scores`` maps model →
     score and ``household_zero_weight`` maps scenario_id → whether that household
-    contributed only zero-weight kept rows (denominator 0). The latter is what
-    drives the documented TypeScript divergence.
+    contributed only zero-weight kept rows (denominator 0). Zero-weight
+    households are excluded from the mean; if no household is scoreable, the
+    score map is empty.
     """
     if field not in SCORE_FIELDS:
         raise ValueError(f"Unknown score field {field!r}. Valid: {SCORE_FIELDS}.")
@@ -177,98 +166,18 @@ def canonical_filtered_scores(
         .sum()
         .items()
     }
-
-    row_weight = rows.set_index(["scenario_id", "variable"])["weight"]
-
-    grid = (
-        gt.assign(_k=1)
-        .merge(pd.DataFrame({"model": models, "_k": 1}), on="_k")
-        .drop(columns="_k")
-    )
-    merged = grid.merge(
-        predictions[["model", "scenario_id", "variable", "prediction"]],
-        on=["model", "scenario_id", "variable"],
-        how="left",
-    )
-    if field == "continuous":
-        merged["row_score"] = [
-            bounded_row_score(variable, truth, prediction)
-            for variable, truth, prediction in zip(
-                merged["variable"], merged["value"], merged["prediction"], strict=True
-            )
-        ]
-    else:
-        metric = _FIELD_TO_HIT_METRIC[field]
-        merged["row_score"] = [
-            row_hit_scores(variable, truth, prediction)[metric]
-            for variable, truth, prediction in zip(
-                merged["variable"], merged["value"], merged["prediction"], strict=True
-            )
-        ]
-    merged["weight"] = [
-        float(row_weight.get((scenario_id, variable), 0.0))
-        for scenario_id, variable in zip(
-            merged["scenario_id"], merged["variable"], strict=True
-        )
-    ]
-    merged["weighted"] = merged["row_score"] * merged["weight"]
-
-    household = merged.groupby(["model", "scenario_id"])["weighted"].sum().reset_index()
-    # Python averages over every kept household with equal weight (including the
-    # zero-weight households, which contribute score 0). The TypeScript scorer
-    # instead skips zero-denominator households entirely — that difference is the
-    # documented divergence, captured separately via ``household_zero_weight``.
-    scores = {
-        str(model): float(group["weighted"].mean()) * 100.0
-        for model, group in household.groupby("model")
-    }
-    return scores, household_zero_weight
-
-
-def typescript_filtered_scores(
-    ground_truth: pd.DataFrame,
-    predictions: pd.DataFrame,
-    weights_by_group: dict[str, float],
-    active_groups: set[str],
-    reference_filter: str,
-    field: str,
-) -> dict[str, float]:
-    """Model → score under the *TypeScript* household-skipping convention.
-
-    Identical to :func:`canonical_filtered_scores` except households whose entire
-    kept active set carries zero output-group weight are dropped from the
-    equal-household mean (and a model present in no surviving household is
-    omitted). Used only to record the expected value for vectors that exercise
-    the documented divergence.
-    """
-    gt = ground_truth.copy()
-    gt["output_group"] = gt["variable"].map(output_group_id)
-    keep = gt["output_group"].isin(active_groups)
-    if reference_filter == "positives":
-        keep &= gt["value"] != 0
-    elif reference_filter == "zeros":
-        keep &= gt["value"] == 0
-    gt = gt[keep].copy()
-    models = sorted(predictions["model"].dropna().unique())
-    if gt.empty or not models:
-        return {}
-
-    weights_series = pd.Series(weights_by_group, dtype=float)
-    rows = gt[["scenario_id", "variable", "output_group"]].drop_duplicates().copy()
-    rows["group_weight"] = rows["output_group"].map(weights_series).fillna(0.0)
-    counts = rows.groupby(["scenario_id", "output_group"])["variable"].transform(
-        "count"
-    )
-    rows["raw_weight"] = np.where(counts > 0, rows["group_weight"] / counts, 0.0)
-    denom = rows.groupby("scenario_id")["raw_weight"].transform("sum")
-    rows["weight"] = np.where(denom > 0, rows["raw_weight"] / denom, 0.0)
-    kept_scenarios = {
+    positive_scenarios = {
         str(scenario_id)
         for scenario_id, total in rows.groupby("scenario_id")["raw_weight"]
         .sum()
         .items()
         if total > 0
     }
+    if not positive_scenarios:
+        return {}, household_zero_weight
+    rows = rows[rows["scenario_id"].astype(str).isin(positive_scenarios)]
+    gt = gt[gt["scenario_id"].astype(str).isin(positive_scenarios)]
+
     row_weight = rows.set_index(["scenario_id", "variable"])["weight"]
 
     grid = (
@@ -281,9 +190,6 @@ def typescript_filtered_scores(
         on=["model", "scenario_id", "variable"],
         how="left",
     )
-    merged = merged[merged["scenario_id"].astype(str).isin(kept_scenarios)]
-    if merged.empty:
-        return {}
     if field == "continuous":
         merged["row_score"] = [
             bounded_row_score(variable, truth, prediction)
@@ -306,11 +212,13 @@ def typescript_filtered_scores(
         )
     ]
     merged["weighted"] = merged["row_score"] * merged["weight"]
+
     household = merged.groupby(["model", "scenario_id"])["weighted"].sum().reset_index()
-    return {
+    scores = {
         str(model): float(group["weighted"].mean()) * 100.0
         for model, group in household.groupby("model")
     }
+    return scores, household_zero_weight
 
 
 def _scenario_predictions_payload(
@@ -391,7 +299,6 @@ def _vector(
     reference_filter: str,
     field: str,
     weights_view: str = "household",
-    ts_divergence: bool = False,
 ) -> dict[str, Any]:
     """Assemble one parity vector with Python-computed expected scores.
 
@@ -401,7 +308,7 @@ def _vector(
     ground_truth, predictions, weights_by_group = _round_frame_values(
         ground_truth, predictions, weights_by_group
     )
-    expected, household_zero_weight = canonical_filtered_scores(
+    expected, _ = canonical_filtered_scores(
         ground_truth,
         predictions,
         weights_by_group,
@@ -428,31 +335,7 @@ def _vector(
         "scenarioPredictions": scenario_predictions,
         "globalWeights": global_weights,
         "expectedScores": {model: _round10(score) for model, score in expected.items()},
-        "tsDivergence": ts_divergence,
     }
-    if ts_divergence:
-        ts_scores = typescript_filtered_scores(
-            ground_truth,
-            predictions,
-            weights_by_group,
-            active_groups,
-            reference_filter,
-            field,
-        )
-        vector["divergenceReason"] = (
-            "A household's entire kept active set carries zero output-group "
-            "weight, so the within-household renormalization denominator is 0. "
-            "Python counts the household in the equal-household mean (score 0); "
-            "the TypeScript scorer skips it (denominator <= 0 guard). Reachable "
-            "in production via a zero-population-weight output group such as "
-            "local_income_tax (US)."
-        )
-        vector["zeroWeightScenarios"] = sorted(
-            scenario_id for scenario_id, zero in household_zero_weight.items() if zero
-        )
-        vector["typescriptScores"] = {
-            model: _round10(score) for model, score in ts_scores.items()
-        }
     return vector
 
 
@@ -466,8 +349,8 @@ def _positive_weights_for(
 ) -> dict[str, float]:
     """Strictly-positive, normalized output-group weights for the given outputs.
 
-    Positivity guarantees TypeScript/Python parity (the divergence only occurs at
-    zero weight). Weights are normalized to sum to 1 like the exported payloads.
+    Positivity keeps every household scoreable. Weights are normalized to sum to
+    1 like the exported payloads.
     """
     groups = list(dict.fromkeys(output_group_id(v) for v in variables))
     raw = {group: float(rng.uniform(0.2, 1.0)) for group in groups}
@@ -562,7 +445,7 @@ def build_vectors(seed: int = 20260610) -> dict[str, Any]:
     vectors, positives-only and zeros-only vectors, all-zero-reference vectors,
     vectors with models missing rows (null predictions in a dense payload), and
     vectors whose weights omit some present groups — plus the flagged
-    zero-weight divergence vectors.
+    zero-weight empty-score vectors.
     """
     rng = np.random.default_rng(seed)
     vectors: list[dict[str, Any]] = []
@@ -765,10 +648,10 @@ def build_vectors(seed: int = 20260610) -> dict[str, Any]:
             )
         )
 
-    # 7. Flagged zero-weight divergence vectors. A single output group with
-    #    weight exactly 0 is the sole active program, so every household's kept
-    #    active set has denominator 0. Python scores 0 for all models; the
-    #    TypeScript scorer omits them.
+    # 7. Zero-weight vectors. A single output group with weight exactly 0 is the
+    #    sole active program, so every household's kept active set has
+    #    denominator 0. Both scorers omit those households, yielding no model
+    #    scores.
     zero_weight_variable = "income_tax"
     for field in SCORE_FIELDS:
         variables = [zero_weight_variable] + list(_BINARY_VARIABLES[:2])
@@ -791,7 +674,7 @@ def build_vectors(seed: int = 20260610) -> dict[str, Any]:
                 description=(
                     "Active program is a single zero-population-weight output "
                     "group, so every household's renormalization denominator is "
-                    "0. Pins the documented Python/TypeScript divergence."
+                    "0. Both scorers omit those households."
                 ),
                 ground_truth=gt,
                 predictions=pred,
@@ -799,7 +682,6 @@ def build_vectors(seed: int = 20260610) -> dict[str, Any]:
                 active_groups={output_group_id(zero_weight_variable)},
                 reference_filter="all",
                 field=field,
-                ts_divergence=True,
             )
         )
 

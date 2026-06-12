@@ -20,11 +20,9 @@ import fixture from "./fixtures/scorer_vectors.json";
  * TypeScript scorer and asserts it reproduces those scores, so any drift between
  * the two implementations fails CI.
  *
- * One vector class (`tsDivergence: true`) pins a documented, narrow
- * disagreement: when a household's entire kept active set has zero output-group
- * weight, Python counts the household (score 0) while TypeScript skips it. Those
- * vectors assert the *TypeScript* result (and that it genuinely differs from
- * Python), keeping the gap visible rather than hidden.
+ * Zero-weight household slices are ordinary parity cases: both Python and
+ * TypeScript omit those households, so an all-zero-weight slice has an empty
+ * expected score map.
  */
 
 type WeightsView = "household" | "aggregate" | "equal";
@@ -40,10 +38,6 @@ interface ScorerVector {
   scenarioPredictions: Record<string, ScenarioPredictionsByVariable>;
   globalWeights: Record<WeightsView, Record<string, number>>;
   expectedScores: Record<string, number>;
-  tsDivergence: boolean;
-  divergenceReason?: string;
-  zeroWeightScenarios?: string[];
-  typescriptScores?: Record<string, number>;
 }
 
 interface ScorerFixture {
@@ -93,36 +87,10 @@ describe("canonical scorer parity (TypeScript vs Python fixture)", () => {
     expect(tolerance).toBeGreaterThan(0);
   });
 
-  const agreeing = data.vectors.filter((vector) => !vector.tsDivergence);
-  const diverging = data.vectors.filter((vector) => vector.tsDivergence);
-
-  test.each(agreeing.map((vector) => [vector.name, vector] as const))(
+  test.each(data.vectors.map((vector) => [vector.name, vector] as const))(
     "reproduces Python scores: %s",
     (_name, vector) => {
       assertScoresMatch(runVector(vector), vector.expectedScores);
     },
   );
-
-  describe("documented zero-weight divergence", () => {
-    test("there is at least one flagged divergence vector", () => {
-      expect(diverging.length).toBeGreaterThanOrEqual(1);
-    });
-
-    test.each(diverging.map((vector) => [vector.name, vector] as const))(
-      "matches the recorded TypeScript behavior, which differs from Python: %s",
-      (_name, vector) => {
-        const actual = runVector(vector);
-        const typescriptScores = vector.typescriptScores ?? {};
-        // TypeScript skips zero-denominator households, so for a single
-        // zero-weight active program it scores no households and omits every
-        // model.
-        assertScoresMatch(actual, typescriptScores);
-        // And confirm the divergence is real: Python expected non-empty scores
-        // (all 0) for models the TypeScript scorer drops.
-        expect(Object.keys(vector.expectedScores).length).toBeGreaterThan(0);
-        expect(actual.size).not.toBe(Object.keys(vector.expectedScores).length);
-        expect(vector.divergenceReason).toBeTruthy();
-      },
-    );
-  });
 });
