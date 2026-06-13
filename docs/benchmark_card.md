@@ -47,6 +47,13 @@ PolicyBench has one canonical evaluation mode.
 - numeric answers for every requested output
 - one required non-empty explanation for each output
 
+Structured responses are collected through each provider's structured-output
+channel: where the API supports function calling, models fill a single answer
+schema (`submit_outputs`); otherwise they return the same fields in JSON mode.
+This is an output format, not a capability — nothing executes, no result is
+returned to the model, and each response is a single round trip. The benchmark
+remains no-tool in every response transport.
+
 The headline score uses the numeric answers only. Explanations are retained for
 auditing, scenario exploration, and qualitative error analysis; they should not
 be described as faithful reasoning traces.
