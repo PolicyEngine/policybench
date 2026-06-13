@@ -1,0 +1,183 @@
+"""Tests for the model-assisted failure audit (deterministic halves)."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from policybench.annotation_taxonomy import (
+    FAILURE_SOURCE_VALUES,
+    FAILURE_SUBTYPE_VALUES,
+)
+from policybench.audit import (
+    AUDIT_OUTPUT_SCHEMA,
+    build_audit_cases,
+    collect_audit,
+    parse_verdict,
+    prepare_audit,
+    render_case_prompt,
+)
+
+
+@pytest.fixture
+def country_dir(tmp_path: Path) -> Path:
+    """A minimal US run with two wrong cases over three models."""
+    d = tmp_path / "us"
+    d.mkdir()
+    pd.DataFrame(
+        [
+            {"scenario_id": "s0", "variable": "snap", "value": 0.0},
+            {"scenario_id": "s1", "variable": "snap", "value": 300.0},
+        ]
+    ).to_csv(d / "reference_outputs.csv", index=False)
+    # s0/snap: two models wrong; s1/snap: one model wrong, one right.
+    pd.DataFrame(
+        [
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 250.0,
+                "explanation": "Estimated benefit from income.",
+                "error": None,
+            },
+            {
+                "model": "m2",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 400.0,
+                "explanation": "Used gross income test.",
+                "error": None,
+            },
+            {
+                "model": "m1",
+                "scenario_id": "s1",
+                "variable": "snap",
+                "prediction": 300.0,
+                "explanation": "Matched the allotment.",
+                "error": None,
+            },
+            {
+                "model": "m2",
+                "scenario_id": "s1",
+                "variable": "snap",
+                "prediction": 0.0,
+                "explanation": "Assumed ineligible.",
+                "error": None,
+            },
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+    return d
+
+
+def test_build_audit_cases_groups_wrong_by_case(country_dir: Path):
+    cases = build_audit_cases(country_dir)
+    by_key = {(c.scenario_id, c.variable): c for c in cases}
+    # s0/snap has both models wrong; s1/snap only m2.
+    assert set(by_key) == {("s0", "snap"), ("s1", "snap")}
+    assert {m.model for m in by_key[("s0", "snap")].wrong_models} == {"m1", "m2"}
+    assert {m.model for m in by_key[("s1", "snap")].wrong_models} == {"m2"}
+    assert by_key[("s0", "snap")].reference_value == "$0.00"
+
+
+def test_render_case_prompt_includes_reference_and_models(country_dir: Path):
+    case = next(c for c in build_audit_cases(country_dir) if c.scenario_id == "s0")
+    prompt = render_case_prompt(case)
+    assert "POLICYENGINE REFERENCE VALUE: $0.00" in prompt
+    assert "m1: answered $250.00" in prompt
+    assert "Used gross income test." in prompt
+    assert "reference_suspect" in prompt  # instructs the PE-bug judgment
+
+
+def test_schema_enums_stay_in_sync_with_taxonomy():
+    props = AUDIT_OUTPUT_SCHEMA["properties"]
+    assert props["case_failure_source"]["enum"] == list(FAILURE_SOURCE_VALUES)
+    assert props["case_failure_subtype"]["enum"] == list(FAILURE_SUBTYPE_VALUES)
+    model_props = props["models"]["items"]["properties"]
+    assert model_props["failure_source"]["enum"] == list(FAILURE_SOURCE_VALUES)
+
+
+def test_parse_verdict_tolerates_prose_around_json(tmp_path: Path):
+    f = tmp_path / "verdict.json"
+    f.write_text(
+        'Here is my verdict:\n{"case_failure_source": "llm_error", "models": []}\nDone.'
+    )
+    parsed = parse_verdict(f)
+    assert parsed["case_failure_source"] == "llm_error"
+    assert parse_verdict(tmp_path / "absent.json") is None
+
+
+def test_prepare_audit_writes_layout(country_dir: Path, tmp_path: Path):
+    audit_dir = tmp_path / "audit"
+    cases = prepare_audit(country_dir, audit_dir)
+    assert (audit_dir / "schema.json").exists()
+    assert (audit_dir / "cases.jsonl").exists()
+    for case in cases:
+        assert (audit_dir / "cases" / case.case_id / "prompt.md").exists()
+    manifest = (audit_dir / "cases.jsonl").read_text().splitlines()
+    assert len(manifest) == len(cases)
+
+
+def test_collect_audit_folds_verdicts_and_tracks_missing(
+    country_dir: Path, tmp_path: Path
+):
+    audit_dir = tmp_path / "audit"
+    cases = prepare_audit(country_dir, audit_dir)
+    # Write a verdict for the s0 case only; leave s1 missing.
+    s0 = next(c for c in cases if c.scenario_id == "s0")
+    verdict = {
+        "reference_suspect": False,
+        "reference_bug_hypothesis": "",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "categorical_eligibility",
+        "rationale": "Both models misjudged the income test.",
+        "models": [
+            {
+                "model": "m1",
+                "failure_source": "llm_error",
+                "failure_subtype": "thresholds_rates",
+            },
+            {
+                "model": "m2",
+                "failure_source": "llm_error",
+                "failure_subtype": "categorical_eligibility",
+            },
+        ],
+    }
+    (audit_dir / "cases" / s0.case_id / "verdict.json").write_text(json.dumps(verdict))
+
+    out = collect_audit(country_dir, audit_dir)
+    assert set(out["missing"]["case_id"]) == {
+        c.case_id for c in cases if c.scenario_id == "s1"
+    }
+    rows = out["row"]
+    assert len(rows) == 2  # m1, m2 on the s0 case
+    m1 = rows[rows["model"] == "m1"].iloc[0]
+    assert m1["failure_subtype"] == "thresholds_rates"
+    assert m1["annotation"] == "Both models misjudged the income test."
+    assert bool(m1["reference_suspect"]) is False
+    case_rows = out["case"]
+    assert case_rows.iloc[0]["case_failure_source"] == "llm_error"
+
+
+def test_collect_audit_rejects_invalid_failure_source(
+    country_dir: Path, tmp_path: Path
+):
+    audit_dir = tmp_path / "audit"
+    cases = prepare_audit(country_dir, audit_dir)
+    s0 = next(c for c in cases if c.scenario_id == "s0")
+    (audit_dir / "cases" / s0.case_id / "verdict.json").write_text(
+        json.dumps(
+            {
+                "case_failure_source": "not_a_real_source",
+                "case_failure_subtype": "other",
+                "rationale": "x",
+                "models": [],
+            }
+        )
+    )
+    with pytest.raises(ValueError):
+        collect_audit(country_dir, audit_dir)

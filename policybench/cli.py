@@ -481,6 +481,34 @@ def main():
         help="Only write the combined payload under the run directory",
     )
 
+    # Failure audit (Codex-backed classifier)
+    audit_prepare_parser = subparsers.add_parser(
+        "audit-prepare",
+        help="Assemble per-case failure-audit prompts for a country run",
+    )
+    audit_prepare_parser.add_argument(
+        "--country-dir",
+        required=True,
+        help="Country run directory (contains reference_outputs.csv + predictions)",
+    )
+    audit_prepare_parser.add_argument(
+        "--audit-dir",
+        required=True,
+        help="Output directory for case prompts, schema, and manifest",
+    )
+
+    audit_collect_parser = subparsers.add_parser(
+        "audit-collect",
+        help="Fold Codex audit verdicts into annotation CSVs",
+    )
+    audit_collect_parser.add_argument("--country-dir", required=True)
+    audit_collect_parser.add_argument("--audit-dir", required=True)
+    audit_collect_parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Where to write annotation CSVs (default: the audit directory)",
+    )
+
     # Population weights
     weight_parser = subparsers.add_parser(
         "population-weights",
@@ -989,6 +1017,41 @@ def main():
             )
         except FileNotFoundError as exc:
             raise SystemExit(str(exc)) from exc
+
+    elif args.command == "audit-prepare":
+        from policybench.audit import prepare_audit
+
+        cases = prepare_audit(Path(args.country_dir), Path(args.audit_dir))
+        print(
+            f"Prepared {len(cases)} audit cases under {args.audit_dir}. "
+            f"Run scripts/run_audit_codex.sh {args.audit_dir} to classify."
+        )
+
+    elif args.command == "audit-collect":
+        from policybench.audit import collect_audit
+
+        country_dir = Path(args.country_dir)
+        out = collect_audit(country_dir, Path(args.audit_dir))
+        output_dir = Path(args.output_dir) if args.output_dir else Path(args.audit_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        country = country_dir.name
+        out["row"].to_csv(
+            output_dir / f"{country}_audit_row_annotations.csv", index=False
+        )
+        out["case"].to_csv(
+            output_dir / f"{country}_audit_case_annotations.csv", index=False
+        )
+        suspect = out["case"]
+        n_suspect = (
+            int(suspect["reference_suspect"].sum())
+            if not suspect.empty and "reference_suspect" in suspect
+            else 0
+        )
+        print(
+            f"Collected {len(out['row'])} row / {len(out['case'])} case annotations "
+            f"to {output_dir}; {len(out['missing'])} cases missing verdicts; "
+            f"{n_suspect} cases flag the PolicyEngine reference as suspect."
+        )
 
     elif args.command == "population-weights":
         from policybench.config import TAX_YEAR
