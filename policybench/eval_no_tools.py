@@ -67,6 +67,10 @@ EXPLANATION_FUNCTION_NAME = "submit_explanations"
 PROMPT_CONTRACT_VERSION = "2026-05-13-nested-output-explanations"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 1
 GPT55_EXPLANATION_CHUNK_SIZE = 3
+# Gemini truncates long structured outputs well below the requested token
+# budget (the tail of large-household per-person keys is dropped), so chunk its
+# outputs like Claude/GPT-5.5 so each call stays small enough to complete.
+GEMINI_EXPLANATION_CHUNK_SIZE = 2
 
 
 class RequestWallTimeoutError(TimeoutError):
@@ -280,6 +284,8 @@ def _required_explanation_chunk_size(
         return CLAUDE_EXPLANATION_CHUNK_SIZE
     if include_explanations and model_id == "gpt-5.5":
         return GPT55_EXPLANATION_CHUNK_SIZE
+    if include_explanations and model_id.startswith("gemini/"):
+        return GEMINI_EXPLANATION_CHUNK_SIZE
     return None
 
 
