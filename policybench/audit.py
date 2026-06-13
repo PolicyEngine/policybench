@@ -36,6 +36,10 @@ from policybench.case_annotations import _format_value, wrong_prediction_rows
 from policybench.full_run_export import load_case_reference_explanations
 from policybench.spec import metric_type_for_output
 
+# _format_value renders a missing/NaN prediction as this sentinel; such a miss
+# is a parse failure, not a substantive error.
+MISSING_VALUE = "missing"
+
 
 @dataclass(frozen=True)
 class WrongModel:
@@ -63,6 +67,11 @@ class AuditCase:
     def to_manifest_row(self) -> dict:
         row = asdict(self)
         row["wrong_models"] = [m.model for m in self.wrong_models]
+        missing = [m.model for m in self.wrong_models if m.prediction == MISSING_VALUE]
+        row["missing_models"] = missing
+        # A case whose every wrong model simply returned no value needs no LLM:
+        # each miss is deterministically a parse_contract_failure / missing_output.
+        row["parse_failure_only"] = len(missing) == len(self.wrong_models)
         return row
 
 
@@ -296,19 +305,27 @@ def prepare_audit(country_dir: Path, audit_dir: Path) -> list[AuditCase]:
     (audit_dir / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA, indent=2))
     cases_root = audit_dir / "cases"
     cases_root.mkdir(exist_ok=True)
-    # Prune orphan case dirs from a prior prepare whose wrong cell no longer
-    # exists, so the runner does not bill the classifier for stale cases.
-    # Still-current cases keep their dir (and any verdict) for resumability.
-    current_ids = {case.case_id for case in cases}
+    rows = [case.to_manifest_row() for case in cases]
+    # Only substantive cases (at least one model gave a real, wrong value) get a
+    # prompt + case dir; pure parse-failure cases are recorded in the manifest
+    # and classified deterministically at collect time — no classifier call.
+    substantive_ids = {
+        case.case_id for case, row in zip(cases, rows) if not row["parse_failure_only"]
+    }
+    # Prune orphan dirs (cases that vanished or flipped to parse-failure-only),
+    # so the runner never bills the classifier for them. Still-current
+    # substantive cases keep their dir (and any verdict) for resumability.
     for child in cases_root.iterdir():
-        if child.is_dir() and child.name not in current_ids:
+        if child.is_dir() and child.name not in substantive_ids:
             shutil.rmtree(child)
     with (audit_dir / "cases.jsonl").open("w") as manifest:
-        for case in cases:
+        for case, row in zip(cases, rows):
+            manifest.write(json.dumps(row) + "\n")
+            if row["parse_failure_only"]:
+                continue
             case_dir = cases_root / case.case_id
             case_dir.mkdir(exist_ok=True)
             (case_dir / "prompt.md").write_text(render_case_prompt(case))
-            manifest.write(json.dumps(case.to_manifest_row()) + "\n")
     return cases
 
 
@@ -369,6 +386,37 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
     missing: list[str] = []
 
     for case_id, meta in manifest.items():
+        if meta.get("parse_failure_only"):
+            # Every wrong model simply returned no value — a parse failure, not
+            # a substantive error. Classified deterministically, no classifier.
+            note = "All wrong responses were missing or unparseable predictions."
+            for model in meta["wrong_models"]:
+                row_records.append(
+                    {
+                        "country": country,
+                        "scenario_id": meta["scenario_id"],
+                        "variable": meta["variable"],
+                        "model": model,
+                        "failure_source": "parse_contract_failure",
+                        "failure_subtype": "missing_output",
+                        "reference_suspect": False,
+                        "annotation": note,
+                    }
+                )
+            case_records.append(
+                {
+                    "country": country,
+                    "scenario_id": meta["scenario_id"],
+                    "variable": meta["variable"],
+                    "wrong_model_count": len(meta["wrong_models"]),
+                    "case_failure_source": "parse_contract_failure",
+                    "case_failure_subtype": "missing_output",
+                    "reference_suspect": False,
+                    "reference_bug_hypothesis": "",
+                    "case_annotation": note,
+                }
+            )
+            continue
         verdict = parse_verdict(cases_root / case_id / "verdict.json")
         if verdict is None:
             missing.append(case_id)

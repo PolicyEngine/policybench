@@ -376,6 +376,51 @@ def test_collect_empty_wrong_set_keeps_header(tmp_path: Path):
     assert list(out["case"].columns) and "case_failure_source" in out["case"].columns
 
 
+def test_parse_failure_only_case_skips_codex_and_is_deterministic(tmp_path: Path):
+    """A case whose only wrong model returned no value needs no classifier."""
+    d = tmp_path / "us"
+    d.mkdir()
+    pd.DataFrame(
+        [
+            {"scenario_id": "s0", "variable": "snap", "value": 0.0},
+            {"scenario_id": "s9", "variable": "snap", "value": 0.0},
+        ]
+    ).to_csv(d / "reference_outputs.csv", index=False)
+    pd.DataFrame(
+        [
+            # m1 is correct on s0; m2 only answers s9, so it is missing on s0/snap.
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 0.0,
+                "explanation": "ineligible",
+                "error": None,
+            },
+            {
+                "model": "m2",
+                "scenario_id": "s9",
+                "variable": "snap",
+                "prediction": 0.0,
+                "explanation": "ineligible",
+                "error": None,
+            },
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+    audit_dir = tmp_path / "audit"
+    cases = prepare_audit(d, audit_dir)
+    s0 = next(c for c in cases if c.scenario_id == "s0")
+    # No prompt is written for a parse-failure-only case (no Codex call).
+    assert not (audit_dir / "cases" / s0.case_id / "prompt.md").exists()
+
+    out = collect_audit(d, audit_dir)
+    assert out["missing"].empty  # not "missing" — classified deterministically
+    s0_rows = out["row"][out["row"]["scenario_id"] == "s0"]
+    assert list(s0_rows["model"]) == ["m2"]
+    assert s0_rows.iloc[0]["failure_source"] == "parse_contract_failure"
+    assert s0_rows.iloc[0]["failure_subtype"] == "missing_output"
+
+
 def test_parse_verdict_survives_brace_in_leading_prose(tmp_path: Path):
     f = tmp_path / "verdict.json"
     f.write_text(
