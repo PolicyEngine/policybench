@@ -43,6 +43,12 @@ GEMINI_PRO_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_GEMINI_PRO_REQUEST_TIMEOUT_SECONDS", 60
 )
 XAI_REQUEST_TIMEOUT_SECONDS = _env_int("POLICYBENCH_XAI_REQUEST_TIMEOUT_SECONDS", 420)
+# Gemini emits ~5-6k tokens for a full large-household answer (its higher token
+# cap); that generation exceeds the 20s default, so all Gemini models get a
+# longer request timeout, not just the pro model.
+GEMINI_REQUEST_TIMEOUT_SECONDS = _env_int(
+    "POLICYBENCH_GEMINI_REQUEST_TIMEOUT_SECONDS", 120
+)
 # Claude opus/sonnet run adaptive thinking, which can exceed 20s on hard
 # scenarios; the default would time out mid-think and never complete the chunk.
 CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
@@ -56,9 +62,14 @@ RESUME_METADATA_VERSION = 2
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 EXPLANATION_MAX_COMPLETION_TOKENS = 4096
-GEMINI_JSON_MAX_COMPLETION_TOKENS = 4096
-GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS = 4096
+GEMINI_JSON_MAX_COMPLETION_TOKENS = 16384
+GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS = 16384
 MAX_COMPLETION_TOKENS_CAP = 4096
+# Large households request ~56 per-person outputs; with required explanations a
+# verbose model (Gemini) needs ~5-6k completion tokens. The 4096 cap truncated
+# Gemini mid-output, silently dropping the tail of the per-person keys, so it
+# gets a higher ceiling. Terser models finish well under 4096 and are untouched.
+GEMINI_MAX_COMPLETION_TOKENS_CAP = 16384
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
@@ -67,10 +78,6 @@ EXPLANATION_FUNCTION_NAME = "submit_explanations"
 PROMPT_CONTRACT_VERSION = "2026-05-13-nested-output-explanations"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 1
 GPT55_EXPLANATION_CHUNK_SIZE = 3
-# Gemini truncates long structured outputs well below the requested token
-# budget (the tail of large-household per-person keys is dropped), so chunk its
-# outputs like Claude/GPT-5.5 so each call stays small enough to complete.
-GEMINI_EXPLANATION_CHUNK_SIZE = 2
 
 
 class RequestWallTimeoutError(TimeoutError):
@@ -284,8 +291,6 @@ def _required_explanation_chunk_size(
         return CLAUDE_EXPLANATION_CHUNK_SIZE
     if include_explanations and model_id == "gpt-5.5":
         return GPT55_EXPLANATION_CHUNK_SIZE
-    if include_explanations and model_id.startswith("gemini/"):
-        return GEMINI_EXPLANATION_CHUNK_SIZE
     return None
 
 
@@ -304,6 +309,7 @@ def _completion_token_budget(
     base_tokens: int,
     variables: list[str] | None,
     include_explanations: bool,
+    cap: int = MAX_COMPLETION_TOKENS_CAP,
 ) -> int:
     variable_count = len(variables or [])
     per_variable = (
@@ -312,7 +318,7 @@ def _completion_token_budget(
         else ANSWER_TOKENS_PER_VARIABLE
     )
     dynamic_tokens = ANSWER_COMPLETION_BUFFER_TOKENS + per_variable * variable_count
-    return min(max(base_tokens, dynamic_tokens), MAX_COMPLETION_TOKENS_CAP)
+    return min(max(base_tokens, dynamic_tokens), cap)
 
 
 def _completion_controls(
@@ -327,7 +333,10 @@ def _completion_controls(
             base_tokens = GEMINI_JSON_MAX_COMPLETION_TOKENS
         return {
             "max_completion_tokens": _completion_token_budget(
-                base_tokens, variables, include_explanations
+                base_tokens,
+                variables,
+                include_explanations,
+                cap=GEMINI_MAX_COMPLETION_TOKENS_CAP,
             )
         }
     if model_id.startswith("xai/"):
@@ -372,8 +381,8 @@ def _completion_controls(
 
 
 def _request_timeout_seconds(model_id: str) -> int:
-    if model_id == "gemini/gemini-3.1-pro-preview":
-        return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
+    if model_id.startswith("gemini/"):
+        return GEMINI_REQUEST_TIMEOUT_SECONDS
     if model_id == "gpt-5.5":
         return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("xai/"):

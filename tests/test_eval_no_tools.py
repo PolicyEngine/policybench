@@ -1332,8 +1332,8 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
     assert mock_completion.call_args.kwargs["response_format"] == {
         "type": "json_object"
     }
-    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 4096
-    assert mock_completion.call_args.kwargs["timeout"] == 60
+    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 16384
+    assert mock_completion.call_args.kwargs["timeout"] == 120
     assert "tools" not in mock_completion.call_args.kwargs
     assert "tool_choice" not in mock_completion.call_args.kwargs
 
@@ -1474,6 +1474,14 @@ def test_completion_budget_scales_with_output_count():
             "max_completion_tokens"
         ]
         == 4096
+    )
+    # Gemini gets a higher cap so verbose large-household answers do not truncate;
+    # other models stay at the 4096 ceiling above.
+    assert (
+        _completion_controls("gemini/gemini-3.5-flash", variables=variables)[
+            "max_completion_tokens"
+        ]
+        == 16384
     )
 
 
