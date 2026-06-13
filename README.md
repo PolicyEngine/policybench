@@ -17,6 +17,12 @@ year 2026-27.
 
 1. **AI alone**: Models estimate tax/benefit values using only their training knowledge
 
+Models return answers by filling a structured answer schema, transmitted over
+the provider's function-calling or JSON-mode channel. That channel is purely an
+output format: nothing executes, no information flows back to the model, and
+each response is a single round trip, so the condition stays no-tool regardless
+of transport.
+
 ## Benchmark scope
 
 Benchmark outputs are defined in `policybench/benchmark_specs.json`. New CLI
