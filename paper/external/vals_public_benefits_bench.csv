@@ -1,0 +1,22 @@
+# Vals.ai Public Benefits Bench — per-model leaderboard (verbatim capture)
+# Source: https://www.vals.ai/benchmarks/public-benefits-bench
+# Leaderboard "Updated June 9, 2026"; captured 2026-06-13.
+# Metric: pass rate = % of expert rubric criteria met on SNAP guidance scenarios.
+# Test set: 230 questions (of 459 total), all 50 states + Guam + Virgin Islands.
+# Conditions: neither = no web search & single-turn (closest analog to PolicyBench's
+#   no-tools condition); web_search; multi_turn; both = web_search + multi_turn.
+# Scores are percentages.
+model,neither,web_search,multi_turn,both
+Claude Fable 5,63.4,67.7,65.2,71.7
+Claude Opus 4.8,53.1,58.9,58.5,62.1
+MiniMax-M3,40.2,53.6,48.2,60.7
+Claude Sonnet 4.6,45.6,52.4,52.4,58.5
+Gemini 3.5 Flash,50.3,54.1,54.0,58.0
+GLM 5.1,36.2,50.7,47.6,57.9
+DeepSeek V4,43.2,54.0,48.7,57.6
+GPT 5.5,49.7,53.9,53.9,57.2
+Kimi K2.6,34.4,43.6,46.3,53.4
+Gemini 3.1 Pro Preview,47.4,41.8,52.9,50.9
+Grok 4.3,38.0,44.0,46.9,50.1
+Claude Haiku 4.5,22.6,36.1,33.9,49.5
+Grok 4.1 Fast,33.0,33.1,41.7,44.3
