@@ -424,18 +424,6 @@ def _uses_responses_api(model_id: str) -> bool:
     return model_id.startswith("gpt-5")
 
 
-# Anthropic rejects forced tool use on these models ("tool_choice forces tool
-# use is not compatible with this model"); tool_choice auto keeps the same
-# function-call answer contract, with the prompt instructing the call.
-MODELS_WITHOUT_FORCED_TOOL_CHOICE = frozenset({"claude-fable-5"})
-
-
-def _chat_tool_choice(model_id: str, function_name: str) -> str | dict:
-    if model_id in MODELS_WITHOUT_FORCED_TOOL_CHOICE:
-        return "auto"
-    return {"type": "function", "function": {"name": function_name}}
-
-
 def _chat_completion_request_kwargs(
     scenario: Scenario,
     variables: list[str],
@@ -474,7 +462,10 @@ def _chat_completion_request_kwargs(
         request_kwargs.update(
             {
                 "tools": [tool],
-                "tool_choice": _chat_tool_choice(model_id, ANSWER_FUNCTION_NAME),
+                "tool_choice": {
+                    "type": "function",
+                    "function": {"name": ANSWER_FUNCTION_NAME},
+                },
             }
         )
     else:
@@ -1302,7 +1293,10 @@ def _request_explanations_once(
                 variables=variables,
             ),
             "tools": [_build_explanation_tool(variables, country=scenario.country)],
-            "tool_choice": _chat_tool_choice(model_id, EXPLANATION_FUNCTION_NAME),
+            "tool_choice": {
+                "type": "function",
+                "function": {"name": EXPLANATION_FUNCTION_NAME},
+            },
         }
         request_fn = completion
 

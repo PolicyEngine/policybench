@@ -26,7 +26,6 @@ DEFAULT_COUNTRY = "us"
 # ``provider_resolved_model`` in ``predictions.csv.gz``; older snapshots
 # only have the alias and the raw response payload.
 MODELS = {
-    "claude-fable-5": "claude-fable-5",
     "claude-opus-4.7": "claude-opus-4-7",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
