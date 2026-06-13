@@ -32,7 +32,7 @@ MODELS = {
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
     "grok-4.3": "xai/grok-4.3",
     "grok-4.20": "xai/grok-4.20-reasoning",
-    "grok-4.1-fast": "xai/grok-4-1-fast-non-reasoning",
+    "grok-4.20-fast": "xai/grok-4.20-0309-non-reasoning",
     "gpt-5.5": "gpt-5.5",
     "gpt-5.4-mini": "gpt-5.4-mini",
     "gpt-5.4-nano": "gpt-5.4-nano",
