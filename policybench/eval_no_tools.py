@@ -43,6 +43,11 @@ GEMINI_PRO_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_GEMINI_PRO_REQUEST_TIMEOUT_SECONDS", 60
 )
 XAI_REQUEST_TIMEOUT_SECONDS = _env_int("POLICYBENCH_XAI_REQUEST_TIMEOUT_SECONDS", 420)
+# Claude opus/sonnet run adaptive thinking, which can exceed 20s on hard
+# scenarios; the default would time out mid-think and never complete the chunk.
+CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
+    "POLICYBENCH_CLAUDE_REQUEST_TIMEOUT_SECONDS", 120
+)
 REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
@@ -367,6 +372,8 @@ def _request_timeout_seconds(model_id: str) -> int:
         return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("xai/"):
         return XAI_REQUEST_TIMEOUT_SECONDS
+    if model_id.startswith("claude-"):
+        return CLAUDE_REQUEST_TIMEOUT_SECONDS
     return REQUEST_TIMEOUT_SECONDS
 
 
