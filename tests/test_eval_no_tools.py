@@ -2297,3 +2297,38 @@ def test_load_repeated_predictions_adds_run_id_from_filename(tmp_path):
     df = load_repeated_predictions(str(tmp_path))
 
     assert set(df["run_id"]) == {"run_000", "already_set"}
+
+
+class TestFableToolChoice:
+    """Anthropic rejects forced tool use on claude-fable-5 (invalid_request_error:
+    "tool_choice forces tool use is not compatible with this model"). The answer
+    contract stays function-call shaped, but tool_choice must fall back to auto."""
+
+    def test_fable_falls_back_to_auto(self, mini_scenario):
+        from policybench.eval_no_tools import _chat_completion_request_kwargs
+
+        _, kwargs = _chat_completion_request_kwargs(
+            mini_scenario, ["income_tax"], "claude-fable-5"
+        )
+        assert kwargs["tool_choice"] == "auto"
+        assert kwargs["tools"][0]["function"]["name"] == "submit_outputs"
+
+    def test_other_claude_models_still_force(self, mini_scenario):
+        from policybench.eval_no_tools import _chat_completion_request_kwargs
+
+        _, kwargs = _chat_completion_request_kwargs(
+            mini_scenario, ["income_tax"], "claude-haiku-4.5"
+        )
+        assert kwargs["tool_choice"] == {
+            "type": "function",
+            "function": {"name": "submit_outputs"},
+        }
+
+    def test_helper_covers_explanation_function(self):
+        from policybench.eval_no_tools import _chat_tool_choice
+
+        assert _chat_tool_choice("claude-fable-5", "submit_explanations") == "auto"
+        assert _chat_tool_choice("grok-4.3", "submit_explanations") == {
+            "type": "function",
+            "function": {"name": "submit_explanations"},
+        }
