@@ -18,6 +18,12 @@ PARALLEL="${AUDIT_PARALLEL:-4}"
 EFFORT="${AUDIT_REASONING_EFFORT:-low}"
 PYTHON="${AUDIT_PYTHON:-python3}"
 command -v "$PYTHON" >/dev/null 2>&1 || PYTHON=".venv/bin/python"
+# Fail fast rather than burn classifier calls making zero progress: verdict
+# validation needs a working interpreter.
+command -v "$PYTHON" >/dev/null 2>&1 || [ -x "$PYTHON" ] || {
+  echo "no python interpreter for verdict validation; set AUDIT_PYTHON" >&2
+  exit 1
+}
 MODEL_FLAG=""
 [ -n "${AUDIT_MODEL:-}" ] && MODEL_FLAG="-m ${AUDIT_MODEL}"
 
