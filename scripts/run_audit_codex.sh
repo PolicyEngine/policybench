@@ -16,26 +16,41 @@ SCHEMA="$AUDIT_DIR/schema.json"
 CASES_DIR="$AUDIT_DIR/cases"
 PARALLEL="${AUDIT_PARALLEL:-4}"
 EFFORT="${AUDIT_REASONING_EFFORT:-low}"
+PYTHON="${AUDIT_PYTHON:-python3}"
+command -v "$PYTHON" >/dev/null 2>&1 || PYTHON=".venv/bin/python"
 MODEL_FLAG=""
 [ -n "${AUDIT_MODEL:-}" ] && MODEL_FLAG="-m ${AUDIT_MODEL}"
 
 [ -f "$SCHEMA" ] || { echo "missing $SCHEMA — run audit-prepare first" >&2; exit 1; }
 
-# A verdict is "done" if it carries the required keys. Full JSON validation
-# happens later in `policybench audit-collect`; this is just the skip gate.
+# A verdict is "done" only if it is parseable JSON carrying the required keys.
+# A substring check alone would accept a verdict.json truncated mid-write
+# (interrupted codex run), which the runner would then skip forever while the
+# collector reports it permanently missing.
 verdict_ok() {
-  [ -s "$1" ] && grep -q '"case_failure_source"' "$1" && grep -q '"models"' "$1"
+  [ -s "$1" ] || return 1
+  "$PYTHON" - "$1" <<'PY' 2>/dev/null
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(1)
+sys.exit(0 if isinstance(d, dict) and {"case_failure_source", "models"} <= d.keys() else 1)
+PY
 }
 
 classify_one() {
   case_dir="$1"
   prompt="$case_dir/prompt.md"
   out="$case_dir/verdict.json"
+  tmp="$case_dir/verdict.json.tmp"
   [ -f "$prompt" ] || return 0
   verdict_ok "$out" && return 0
-  # Self-contained prompt; read-only sandbox; enforce the JSON shape; write the
-  # final message to verdict.json. Default reasoning effort (xhigh) is wasteful
-  # for classification, so it is lowered.
+  # Self-contained prompt; read-only sandbox; enforce the JSON shape. Write to a
+  # temp file and publish atomically only once it validates, so an interrupted
+  # run never leaves a half-written verdict that looks done. Default reasoning
+  # effort (xhigh) is wasteful for classification, so it is lowered.
+  rm -f "$tmp"
   codex exec \
     --sandbox read-only \
     --skip-git-repo-check \
@@ -44,11 +59,13 @@ classify_one() {
     $MODEL_FLAG \
     -c model_reasoning_effort="$EFFORT" \
     --output-schema "$SCHEMA" \
-    -o "$out" \
+    -o "$tmp" \
     - < "$prompt" > "$case_dir/codex.log" 2>&1
-  if verdict_ok "$out"; then
+  if verdict_ok "$tmp"; then
+    mv -f "$tmp" "$out"
     echo "[ok] $(basename "$case_dir")"
   else
+    rm -f "$tmp"
     echo "[FAIL] $(basename "$case_dir") (see codex.log)"
   fi
 }

@@ -181,3 +181,207 @@ def test_collect_audit_rejects_invalid_failure_source(
     )
     with pytest.raises(ValueError):
         collect_audit(country_dir, audit_dir)
+
+
+def test_reference_derivation_reaches_the_prompt(tmp_path: Path):
+    """The PE-derivation narrative must appear in the prompt when present.
+
+    Regression for the column-name bug: load_case_reference_explanations
+    renames ``explanation`` -> ``reference_explanation``; reading the wrong
+    column silently dropped this core classifier input.
+    """
+    d = tmp_path / "us"
+    d.mkdir()
+    pd.DataFrame([{"scenario_id": "s0", "variable": "snap", "value": 0.0}]).to_csv(
+        d / "reference_outputs.csv", index=False
+    )
+    pd.DataFrame(
+        [
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 250.0,
+                "explanation": "x",
+                "error": None,
+            }
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+    annotations = tmp_path / "annotations"
+    annotations.mkdir()
+    pd.DataFrame(
+        [
+            {
+                "scenario_id": "s0",
+                "variable": "snap",
+                "explanation": "PolicyEngine found the household over the income test.",
+            }
+        ]
+    ).to_csv(annotations / "us_case_reference_explanations.csv", index=False)
+
+    case = build_audit_cases(d)[0]
+    assert "over the income test" in case.reference_derivation
+    assert "HOW POLICYENGINE DERIVED THE REFERENCE" in render_case_prompt(case)
+
+
+def test_binary_variable_renders_yes_no(tmp_path: Path):
+    d = tmp_path / "us"
+    d.mkdir()
+    pd.DataFrame(
+        [{"scenario_id": "s0", "variable": "person_medicaid_eligible", "value": 1.0}]
+    ).to_csv(d / "reference_outputs.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "person_medicaid_eligible",
+                "prediction": 0.0,
+                "explanation": "Assumed over the limit.",
+                "error": None,
+            }
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+    case = build_audit_cases(d)[0]
+    assert case.reference_value == "Yes"
+    assert case.wrong_models[0].prediction == "No"
+
+
+def test_missing_prediction_renders_as_missing(tmp_path: Path):
+    """A model with no prediction for a cell (cross-join NaN) reads 'missing'."""
+    d = tmp_path / "us"
+    d.mkdir()
+    pd.DataFrame([{"scenario_id": "s0", "variable": "snap", "value": 0.0}]).to_csv(
+        d / "reference_outputs.csv", index=False
+    )
+    pd.DataFrame(
+        [
+            {
+                "model": "answered",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 250.0,
+                "explanation": "e",
+                "error": None,
+            },
+            # 'silent' answers a different cell, so it is missing on s0/snap.
+            {
+                "model": "silent",
+                "scenario_id": "s9",
+                "variable": "snap",
+                "prediction": 5.0,
+                "explanation": "e",
+                "error": None,
+            },
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+    pd.DataFrame(
+        [
+            {"scenario_id": "s0", "variable": "snap", "value": 0.0},
+            {"scenario_id": "s9", "variable": "snap", "value": 5.0},
+        ]
+    ).to_csv(d / "reference_outputs.csv", index=False)
+    case = next(c for c in build_audit_cases(d) if c.scenario_id == "s0")
+    silent = next(m for m in case.wrong_models if m.model == "silent")
+    assert silent.prediction == "missing"
+    assert "answered missing" in render_case_prompt(case)
+
+
+def test_collect_defaults_missing_model_to_case_source(
+    country_dir: Path, tmp_path: Path
+):
+    """When the verdict omits a wrong model, its row inherits the case source."""
+    audit_dir = tmp_path / "audit"
+    cases = prepare_audit(country_dir, audit_dir)
+    s0 = next(c for c in cases if c.scenario_id == "s0")
+    (audit_dir / "cases" / s0.case_id / "verdict.json").write_text(
+        json.dumps(
+            {
+                "reference_suspect": False,
+                "reference_bug_hypothesis": "",
+                "case_failure_source": "prompt_ambiguity",
+                "case_failure_subtype": "other",
+                "rationale": "ambiguous",
+                # Only m1 is classified; m2 is omitted by the model.
+                "models": [
+                    {
+                        "model": "m1",
+                        "failure_source": "llm_error",
+                        "failure_subtype": "thresholds_rates",
+                    }
+                ],
+            }
+        )
+    )
+    rows = collect_audit(country_dir, audit_dir)["row"]
+    m2 = rows[rows["model"] == "m2"].iloc[0]
+    assert m2["failure_source"] == "prompt_ambiguity"  # inherited from case
+    assert m2["failure_subtype"] == "other"
+
+
+def test_duplicate_model_rows_are_deduped(tmp_path: Path):
+    """Repeated runs can yield two prediction rows for one cell; keep one."""
+    d = tmp_path / "us"
+    d.mkdir()
+    pd.DataFrame([{"scenario_id": "s0", "variable": "snap", "value": 0.0}]).to_csv(
+        d / "reference_outputs.csv", index=False
+    )
+    pd.DataFrame(
+        [
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 250.0,
+                "explanation": "run a",
+                "error": None,
+            },
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 260.0,
+                "explanation": "run b",
+                "error": None,
+            },
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+    case = build_audit_cases(d)[0]
+    assert [m.model for m in case.wrong_models] == ["m1"]
+
+
+def test_collect_empty_wrong_set_keeps_header(tmp_path: Path):
+    """No wrong cases still yields headered (empty) annotation frames."""
+    d = tmp_path / "us"
+    d.mkdir()
+    pd.DataFrame([{"scenario_id": "s0", "variable": "snap", "value": 100.0}]).to_csv(
+        d / "reference_outputs.csv", index=False
+    )
+    pd.DataFrame(
+        [
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 100.0,
+                "explanation": "correct",
+                "error": None,
+            }
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+    audit_dir = tmp_path / "audit"
+    prepare_audit(d, audit_dir)
+    out = collect_audit(d, audit_dir)
+    assert list(out["row"].columns) and "failure_source" in out["row"].columns
+    assert list(out["case"].columns) and "case_failure_source" in out["case"].columns
+
+
+def test_parse_verdict_survives_brace_in_leading_prose(tmp_path: Path):
+    f = tmp_path / "verdict.json"
+    f.write_text(
+        "I considered the set {A, B} of options.\n"
+        '{"case_failure_source": "llm_error", "models": []}'
+    )
+    parsed = parse_verdict(f)
+    assert parsed is not None
+    assert parsed["case_failure_source"] == "llm_error"

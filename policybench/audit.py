@@ -20,6 +20,7 @@ LLM step is the only non-deterministic link and is fully resumable.
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -34,12 +35,6 @@ from policybench.annotation_taxonomy import (
 from policybench.case_annotations import _format_value, wrong_prediction_rows
 from policybench.full_run_export import load_case_reference_explanations
 from policybench.spec import metric_type_for_output
-
-# Reference-suspect verdicts route a case to an upstream PolicyEngine/data fix
-# rather than scoring the models against a value the audit doubts.
-REFERENCE_SUSPECT_SOURCES = frozenset(
-    {"reference_model_issue_fixed", "reference_data_issue_fixed"}
-)
 
 
 @dataclass(frozen=True)
@@ -86,13 +81,14 @@ def build_audit_cases(country_dir: Path) -> list[AuditCase]:
 
     derivations = load_case_reference_explanations(country_dir)
     derivation_by_case: dict[tuple[str, str], str] = {}
-    if not derivations.empty and "explanation" in derivations.columns:
+    if not derivations.empty and "reference_explanation" in derivations.columns:
         for _, row in derivations.iterrows():
             derivation_by_case[(str(row["scenario_id"]), str(row["variable"]))] = str(
-                row.get("explanation") or ""
+                row.get("reference_explanation") or ""
             )
 
-    questions = _scenario_questions(country_dir)
+    variables = sorted(str(v) for v in wrong["variable"].unique())
+    questions = _scenario_questions(country_dir, variables)
 
     cases: list[AuditCase] = []
     group_cols = ["scenario_id", "variable"]
@@ -101,6 +97,10 @@ def build_audit_cases(country_dir: Path) -> list[AuditCase]:
         reference_value = _format_value(
             group["value"].iloc[0], country=country, variable=variable
         )
+        # A model can appear more than once per cell across repeated runs; keep
+        # one row per model so wrong_models (and wrong_model_count) stay unique
+        # and the collected annotations don't trip the duplicate-key guard.
+        deduped = group.sort_values("model").drop_duplicates("model", keep="first")
         wrong_models = tuple(
             WrongModel(
                 model=str(r["model"]),
@@ -109,7 +109,7 @@ def build_audit_cases(country_dir: Path) -> list[AuditCase]:
                 ),
                 explanation=_clean(r.get("explanation")),
             )
-            for _, r in group.sort_values("model").iterrows()
+            for _, r in deduped.iterrows()
         )
         cases.append(
             AuditCase(
@@ -136,7 +136,9 @@ def _clean(value: object) -> str:
     return "" if text.lower() == "nan" else text
 
 
-def _scenario_questions(country_dir: Path) -> dict[tuple[str, str], str]:
+def _scenario_questions(
+    country_dir: Path, variables: list[str]
+) -> dict[tuple[str, str], str]:
     """Map ``(scenario_id, variable)`` to the exact prompt the models received.
 
     Best-effort: returns an empty map when the scenario manifest lacks the
@@ -145,18 +147,13 @@ def _scenario_questions(country_dir: Path) -> dict[tuple[str, str], str]:
     manifest degrades context rather than failing the run.
     """
     manifest = country_dir / "scenarios.csv"
-    if not manifest.exists():
+    if not manifest.exists() or not variables:
         return {}
     scenarios = pd.read_csv(manifest)
     if "scenario_json" not in scenarios.columns:
         return {}
     from policybench.analysis import build_scenario_prompt_map
 
-    variables = sorted(str(v) for v in scenarios.get("variable", pd.Series()).unique())
-    if not variables:
-        # The manifest is one row per scenario; variables come from the wrong set.
-        wrong = wrong_prediction_rows(country_dir)
-        variables = sorted(str(v) for v in wrong["variable"].unique())
     prompt_map = build_scenario_prompt_map(scenarios, variables)
     out: dict[tuple[str, str], str] = {}
     for scenario_id, by_variable in prompt_map.items():
@@ -299,6 +296,13 @@ def prepare_audit(country_dir: Path, audit_dir: Path) -> list[AuditCase]:
     (audit_dir / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA, indent=2))
     cases_root = audit_dir / "cases"
     cases_root.mkdir(exist_ok=True)
+    # Prune orphan case dirs from a prior prepare whose wrong cell no longer
+    # exists, so the runner does not bill the classifier for stale cases.
+    # Still-current cases keep their dir (and any verdict) for resumability.
+    current_ids = {case.case_id for case in cases}
+    for child in cases_root.iterdir():
+        if child.is_dir() and child.name not in current_ids:
+            shutil.rmtree(child)
     with (audit_dir / "cases.jsonl").open("w") as manifest:
         for case in cases:
             case_dir = cases_root / case.case_id
@@ -332,13 +336,20 @@ def parse_verdict(path: Path) -> dict | None:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        start, end = text.find("{"), text.rfind("}")
-        if start == -1 or end <= start:
-            return None
+        pass
+    # Tolerate prose around the JSON: try decoding from each "{" until one
+    # yields a complete object (handles a stray brace in leading prose).
+    decoder = json.JSONDecoder()
+    idx = text.find("{")
+    while idx != -1:
         try:
-            return json.loads(text[start : end + 1])
+            obj, _ = decoder.raw_decode(text[idx:])
         except json.JSONDecodeError:
-            return None
+            obj = None
+        if isinstance(obj, dict):
+            return obj
+        idx = text.find("{", idx + 1)
+    return None
 
 
 def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]:
@@ -402,8 +413,30 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
                 "case_annotation": rationale,
             }
         )
+    # Explicit columns so empty output still carries the header contract.
+    row_columns = [
+        "country",
+        "scenario_id",
+        "variable",
+        "model",
+        "failure_source",
+        "failure_subtype",
+        "reference_suspect",
+        "annotation",
+    ]
+    case_columns = [
+        "country",
+        "scenario_id",
+        "variable",
+        "wrong_model_count",
+        "case_failure_source",
+        "case_failure_subtype",
+        "reference_suspect",
+        "reference_bug_hypothesis",
+        "case_annotation",
+    ]
     return {
-        "row": pd.DataFrame(row_records),
-        "case": pd.DataFrame(case_records),
-        "missing": pd.DataFrame({"case_id": missing}),
+        "row": pd.DataFrame(row_records, columns=row_columns),
+        "case": pd.DataFrame(case_records, columns=case_columns),
+        "missing": pd.DataFrame({"case_id": missing}, columns=["case_id"]),
     }
