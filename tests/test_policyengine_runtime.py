@@ -95,9 +95,9 @@ def test_matching_raw_manifest_marks_policyengine_bundle_match(monkeypatch):
         runtime,
         "_load_raw_policyengine_manifest",
         lambda country: {
-            "bundle_id": f"{country}-4.16.2",
+            "bundle_id": f"{country}-4.16.1",
             "country_id": country,
-            "policyengine_version": "4.16.2",
+            "policyengine_version": "4.16.1",
             "model_package": {
                 "name": f"policyengine-{country}",
                 "version": "1.723.0",
@@ -126,7 +126,7 @@ def test_matching_raw_manifest_marks_policyengine_bundle_match(monkeypatch):
         metadata,
         "version",
         lambda package: {
-            "policyengine": "4.16.2",
+            "policyengine": "4.16.1",
             "policyengine-us": "1.723.0",
         }[package],
     )

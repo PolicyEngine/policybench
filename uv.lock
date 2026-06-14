@@ -2892,7 +2892,7 @@ requires-dist = [
     { name = "litellm", extras = ["caching"], specifier = ">=1.30" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pandas", specifier = ">=2.0" },
-    { name = "policyengine", extras = ["us"], specifier = "==4.16.2" },
+    { name = "policyengine", extras = ["us"], specifier = "==4.16.1" },
     { name = "policyengine-uk", specifier = "==2.88.16" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
@@ -2902,7 +2902,7 @@ provides-extras = ["dev", "docs"]
 
 [[package]]
 name = "policyengine"
-version = "4.16.2"
+version = "4.16.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "diskcache" },
@@ -2917,9 +2917,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/da/e57fca9c327e821fd1389558a8d89574e040296869f8bf1f14e317c8a78b/policyengine-4.16.2.tar.gz", hash = "sha256:868f6fd9de90fc9158bbcb1f924f1a5260bfa8518111cd059c0348e15b724434", size = 696334, upload-time = "2026-06-12T10:02:05.254Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/3b/ec3fab5dc3f200c612bcfd046883bbea4b1a7178a34d7f5365a36fead02b/policyengine-4.16.1.tar.gz", hash = "sha256:63dcf08174daa63cdf5bbca73b65cc0d88b62c0f77a6676b6ac47055d8f99ee7", size = 737309, upload-time = "2026-06-12T03:41:42.088Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/df/99/173b9184688e92473ddd3008bc96a04b2031a3a19b51bb8012a716a2808e/policyengine-4.16.2-py3-none-any.whl", hash = "sha256:12b8c6fef8d74b40a7396ba9c063004203080de38cad9fc3ee7c6895ff8ab186", size = 223962, upload-time = "2026-06-12T10:02:03.948Z" },
+    { url = "https://files.pythonhosted.org/packages/de/a8/4b835f3582ec10de922910489bceb3c3a681b06cf2e43ea5bd78422a27d8/policyengine-4.16.1-py3-none-any.whl", hash = "sha256:604b70b2bc98faf8634d526fcf221fddd26e2e8bc80353d265574d35fd305e83", size = 269593, upload-time = "2026-06-12T03:41:40.374Z" },
 ]
 
 [package.optional-dependencies]
