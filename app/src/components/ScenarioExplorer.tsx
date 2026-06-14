@@ -9,7 +9,7 @@ import {
 import { formatCurrency } from "../format";
 import {
   MODEL_LABELS,
-  MODEL_ORDER,
+  MODEL_DISPLAY_ORDER,
   PROVIDER_LABELS,
   getProviderForModel,
   getPredictionTextColor,
@@ -150,7 +150,7 @@ export default function ScenarioExplorer({
     for (const varData of Object.values(filteredPredictions)) {
       for (const m of Object.keys(varData)) unique.add(m);
     }
-    return MODEL_ORDER.filter((m) => unique.has(m));
+    return MODEL_DISPLAY_ORDER.filter((m) => unique.has(m));
   }, [filteredPredictions]);
 
   const models = useMemo(() => {
@@ -426,7 +426,7 @@ export default function ScenarioExplorer({
                 ? "border-primary-strong bg-primary-strong text-white"
                 : "border-border bg-card text-text-secondary hover:text-text"
             }`}
-            title="Show only one frontier flagship per provider (Opus 4.7, GPT-5.5, Grok 4.3, Gemini 3.1 Pro Preview)"
+            title="Show only one frontier flagship per provider"
           >
             Frontier only
           </button>

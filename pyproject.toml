@@ -14,9 +14,8 @@ dependencies = [
     "litellm[caching]>=1.30",
     "pandas>=2.0",
     "numpy>=1.24",
-    "policyengine>=4.4.4,<5",
+    "policyengine[us]==4.16.2",
     "policyengine-uk==2.88.16",
-    "policyengine-us @ git+https://github.com/PolicyEngine/policyengine-us@4fd79e6608bc2dac3a7fde0be37191cb4870bd85",
 ]
 
 [project.optional-dependencies]

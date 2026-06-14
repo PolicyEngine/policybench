@@ -78,3 +78,68 @@ def test_unbundled_runtime_metadata_does_not_import_policyengine(monkeypatch):
     assert bundle["data_version"] == "1.2.3"
     assert bundle["certified_data_build_id"] == "sample-build"
     runtime.policyengine_release_bundle.cache_clear()
+
+
+def test_matching_raw_manifest_marks_policyengine_bundle_match(monkeypatch):
+    monkeypatch.setattr(
+        runtime,
+        "_bundled_model_version_from_policyengine_metadata",
+        lambda country, model_package_name: None,
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_load_policyengine_manifest",
+        lambda country: (_ for _ in ()).throw(AssertionError("should not import")),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_load_raw_policyengine_manifest",
+        lambda country: {
+            "bundle_id": f"{country}-4.16.2",
+            "country_id": country,
+            "policyengine_version": "4.16.2",
+            "model_package": {
+                "name": f"policyengine-{country}",
+                "version": "1.723.0",
+            },
+            "data_package": {
+                "name": "populace-data",
+                "version": "0.1.0",
+                "repo_id": "policyengine/populace-us",
+            },
+            "default_dataset": "populace_us_2024",
+            "certified_data_artifact": {
+                "dataset": "populace_us_2024",
+                "uri": ("hf://policyengine/populace-us/populace_us_2024.h5@example"),
+                "build_id": "populace-us-2024-5da5a95-20260611",
+                "sha256": "abc123",
+            },
+            "certification": {
+                "compatibility_basis": "built_with_model_package",
+                "data_build_id": "populace-us-2024-5da5a95-20260611",
+                "built_with_model_version": "1.723.0",
+                "certified_by": "policyengine.py certification",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        metadata,
+        "version",
+        lambda package: {
+            "policyengine": "4.16.2",
+            "policyengine-us": "1.723.0",
+        }[package],
+    )
+
+    runtime.policyengine_release_bundle.cache_clear()
+    bundle = runtime.policyengine_release_bundle("us")
+
+    assert bundle["model_matches_policyengine_bundle"] is True
+    assert bundle["bundled_model_version"] == "1.723.0"
+    assert bundle["model_version_source"] == "policyengine.py bundle"
+    assert bundle["compatibility_basis"] == "built_with_model_package"
+    assert bundle["default_dataset_uri"] == (
+        "hf://policyengine/populace-us/populace_us_2024.h5@example"
+    )
+    assert bundle["certified_data_artifact_sha256"] == "abc123"
+    runtime.policyengine_release_bundle.cache_clear()

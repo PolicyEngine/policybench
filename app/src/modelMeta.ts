@@ -4,30 +4,43 @@
 // can keep the runtime values out of the JS bundle.
 
 export const MODEL_ORDER = [
-  "claude-opus-4.7",
+  "claude-opus-4.8",
   "claude-sonnet-4.6",
   "claude-haiku-4.5",
   "grok-4.3",
-  "grok-4.20",
-  "grok-4.1-fast",
+  "grok-build-0.1",
   "gpt-5.5",
   "gpt-5.4-mini",
   "gpt-5.4-nano",
   "gemini-3.1-pro-preview",
   "gemini-3.5-flash",
   "gemini-3-flash-preview",
-  "gemini-3.1-flash-lite-preview",
+  "gemini-3.1-flash-lite",
   "deepseek-v4-pro",
   "deepseek-v4-flash",
 ] as const;
 
+export const LEGACY_MODEL_ORDER = [
+  "claude-opus-4.7",
+  "grok-4.20",
+  "grok-4.1-fast",
+  "gemini-3.1-flash-lite-preview",
+] as const;
+
+export const MODEL_DISPLAY_ORDER = [
+  ...MODEL_ORDER,
+  ...LEGACY_MODEL_ORDER,
+] as const;
+
 export const MODEL_LABELS: Record<string, string> = {
-  "claude-opus": "Claude Opus 4.7",
+  "claude-opus": "Claude Opus 4.8",
+  "claude-opus-4.8": "Claude Opus 4.8",
   "claude-opus-4.7": "Claude Opus 4.7",
   "claude-opus-4.6": "Claude Opus 4.6",
   "claude-haiku-4.5": "Claude Haiku 4.5",
   "claude-sonnet-4.6": "Claude Sonnet 4.6",
   "grok-4.3": "Grok 4.3",
+  "grok-build-0.1": "Grok Build 0.1",
   "grok-4.20": "Grok 4.20",
   "grok-4.1-fast": "Grok 4.1 Fast",
   "gpt-5.5": "GPT-5.5",
@@ -37,6 +50,7 @@ export const MODEL_LABELS: Record<string, string> = {
   "gemini-3.1-pro-preview": "Gemini 3.1 Pro Preview",
   "gemini-3.5-flash": "Gemini 3.5 Flash",
   "gemini-3-flash-preview": "Gemini 3 Flash Preview",
+  "gemini-3.1-flash-lite": "Gemini 3.1 Flash Lite",
   "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash Lite Preview",
   "deepseek-v4-pro": "DeepSeek V4 Pro",
   "deepseek-v4-flash": "DeepSeek V4 Flash",
@@ -69,15 +83,17 @@ export function getProviderForModel(model: string): ProviderKey | null {
 // One frontier flagship per provider — used by the leaderboard's
 // "Frontier only" filter (default on) so the table stays scannable.
 export const FRONTIER_MODELS: readonly string[] = [
-  "claude-opus-4.7",
+  "claude-opus-4.8",
   "gpt-5.5",
   "grok-4.3",
   "gemini-3.1-pro-preview",
   "deepseek-v4-pro",
 ];
 
+const LEGACY_FRONTIER_MODELS: readonly string[] = ["claude-opus-4.7"];
+
 export function isFrontierModel(model: string): boolean {
-  return FRONTIER_MODELS.includes(model);
+  return FRONTIER_MODELS.includes(model) || LEGACY_FRONTIER_MODELS.includes(model);
 }
 
 const TEAL_500 = "var(--color-teal-500)";
@@ -104,11 +120,13 @@ const TEXT_SECONDARY = "var(--text-secondary)";
 
 export const MODEL_COLORS: Record<string, string> = {
   "claude-opus": TEAL_500,
+  "claude-opus-4.8": TEAL_500,
   "claude-opus-4.7": TEAL_500,
   "claude-opus-4.6": TEAL_500,
   "claude-haiku-4.5": TEAL_300,
   "claude-sonnet-4.6": TEAL_400,
   "grok-4.3": GRAY_900,
+  "grok-build-0.1": GRAY_800,
   "grok-4.20": GRAY_800,
   "grok-4.1-fast": GRAY_700,
   "gpt-5.5": SECONDARY_700,
@@ -118,6 +136,7 @@ export const MODEL_COLORS: Record<string, string> = {
   "gemini-3.1-pro-preview": WARNING,
   "gemini-3.5-flash": WARNING,
   "gemini-3-flash-preview": WARNING,
+  "gemini-3.1-flash-lite": WARNING,
   "gemini-3.1-flash-lite-preview": WARNING,
   "deepseek-v4-pro": BLUE_700,
   "deepseek-v4-flash": BLUE_400,

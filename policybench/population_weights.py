@@ -150,9 +150,10 @@ def _series_by_household(
 
 
 def _us_population_contributions(year: int) -> dict[str, Any]:
-    from policyengine_us import Microsimulation
+    from policybench.policyengine_runtime import make_us_microsimulation
 
-    sim = Microsimulation()
+    sim = make_us_microsimulation()
+    bundle = sim.policyengine_bundle
     outputs = get_output_specs("us", "headline")
     household_ids = pd.Series(
         sim.calculate("household_id", year, map_to="household", use_weights=False)
@@ -229,7 +230,13 @@ def _us_population_contributions(year: int) -> dict[str, Any]:
         household_weight=household_weight,
         metadata={
             "source_dataset": "full PolicyEngine US Enhanced CPS",
-            "source_dataset_uri": str(getattr(sim, "default_dataset", "default")),
+            "source_dataset_uri": bundle["default_dataset_uri"],
+            "policyengine_version": bundle["policyengine_version"],
+            "policyengine_bundle_id": bundle["bundle_id"],
+            "policyengine_model_version": bundle["model_version"],
+            "policyengine_data_version": bundle["data_version"],
+            "certified_data_build_id": bundle["certified_data_build_id"],
+            "certified_data_artifact_sha256": bundle["certified_data_artifact_sha256"],
             "source_household_rows": int(len(household_ids)),
             "tax_year": year,
         },

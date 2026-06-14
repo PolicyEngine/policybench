@@ -62,7 +62,7 @@ request for reliability.
 
 ```bash
 for country in us uk; do
-  for model in claude-opus-4.7 claude-sonnet-4.6 claude-haiku-4.5; do
+  for model in claude-opus-4.8 claude-sonnet-4.6 claude-haiku-4.5; do
     uv run python -m policybench.cli eval-no-tools-chunked \
       --country "$country" \
       --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
@@ -83,7 +83,8 @@ implementation has been made thread-safe and tested.
 
 Run the remaining default models in provider groups. This is the preferred
 parallelism boundary: it keeps provider-specific rate limits and failures
-separate, while still allowing OpenAI, xAI, and Gemini to run at the same time.
+separate, while still allowing OpenAI, xAI, Gemini, and DeepSeek to run at the
+same time.
 
 ```bash
 # Terminal 1: xAI
@@ -93,8 +94,7 @@ for country in us uk; do
     --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
     --output-dir "$RUN_DIR/$country" \
     --model grok-4.3 \
-    --model grok-4.20 \
-    --model grok-4.1-fast \
+    --model grok-build-0.1 \
     --chunk-size 5 \
     --parallel 2 \
     --model-parallel 2 \
@@ -123,8 +123,23 @@ for country in us uk; do
     --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
     --output-dir "$RUN_DIR/$country" \
     --model gemini-3.1-pro-preview \
+    --model gemini-3.5-flash \
     --model gemini-3-flash-preview \
-    --model gemini-3.1-flash-lite-preview \
+    --model gemini-3.1-flash-lite \
+    --chunk-size 5 \
+    --parallel 1 \
+    --model-parallel 2 \
+    --chunk-attempts 1
+done
+
+# Terminal 4: DeepSeek
+for country in us uk; do
+  uv run python -m policybench.cli eval-no-tools-chunked \
+    --country "$country" \
+    --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
+    --output-dir "$RUN_DIR/$country" \
+    --model deepseek-v4-pro \
+    --model deepseek-v4-flash \
     --chunk-size 5 \
     --parallel 1 \
     --model-parallel 2 \
@@ -140,14 +155,16 @@ The current default non-Claude model set is:
 
 ```bash
 grok-4.3
-grok-4.20
-grok-4.1-fast
-  gpt-5.5
-  gpt-5.4-mini
-  gpt-5.4-nano
+grok-build-0.1
+gpt-5.5
+gpt-5.4-mini
+gpt-5.4-nano
 gemini-3.1-pro-preview
+gemini-3.5-flash
 gemini-3-flash-preview
-gemini-3.1-flash-lite-preview
+gemini-3.1-flash-lite
+deepseek-v4-pro
+deepseek-v4-flash
 ```
 
 The runner skips complete chunks and rewrites per-model merged CSVs on resume.

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { getVariableLabel, type BenchData, type HeatmapEntry } from "../types";
 import {
   MODEL_LABELS,
-  MODEL_ORDER,
+  MODEL_DISPLAY_ORDER,
   getPerformanceSurfaceColor,
   getPerformanceTextColor,
 } from "../modelMeta";
@@ -73,7 +73,7 @@ export default function ProgramHeatmap({
     return { grid: lookup, variables };
   }, [activeProgramIds, data]);
 
-  const models = MODEL_ORDER.filter((m) =>
+  const models = MODEL_DISPLAY_ORDER.filter((m) =>
     data.heatmap.some((h) => h.condition === "no_tools" && h.model === m),
   );
 

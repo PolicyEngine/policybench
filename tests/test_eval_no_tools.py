@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import litellm
 import pytest
 
+import policybench.eval_no_tools as eval_no_tools
 from policybench.config import (
     COUNTRY_PROGRAMS,
     EXPERIMENTAL_MODELS,
@@ -549,6 +550,26 @@ def test_no_tools_prompt_includes_nonzero_raw_inputs_across_entities(rich_scenar
     assert "auto loan interest: $300" in prompt_lower
 
 
+def test_no_tools_prompt_distinguishes_partnership_se_measure(rich_scenario):
+    """Partnership SE earnings should not read like additional household income."""
+    rich_scenario.adults[0].inputs.update(
+        {
+            "partnership_s_corp_income": 12_000.0,
+            "partnership_se_income": 7_000.0,
+        }
+    )
+
+    prompt = make_no_tools_prompt(
+        rich_scenario,
+        "self_employment_tax",
+    )
+    prompt_lower = prompt.lower()
+
+    assert "partnership and s-corp pass-through income: $12,000" in prompt_lower
+    assert "partnership net earnings for self-employment tax" in prompt_lower
+    assert "not additional income: $7,000" in prompt_lower
+
+
 def test_no_tools_prompt_omits_prior_year_inputs(rich_scenario):
     """Prior-year inputs are outside the current-year tax-benefit prompt scope."""
     rich_scenario.adults[0].inputs["employment_income_last_year"] = 49_000.0
@@ -754,7 +775,7 @@ def test_run_single_no_tools(mock_responses, mini_scenario):
     assert result["elapsed_seconds"] is not None
     assert result["elapsed_seconds"] >= 0
     mock_responses.assert_called_once()
-    assert mock_responses.call_args.kwargs["timeout"] == 20
+    assert mock_responses.call_args.kwargs["timeout"] == 60
     assert mock_responses.call_args.kwargs["max_output_tokens"] == 4096
     assert mock_responses.call_args.kwargs["tools"][0]["name"] == "submit_outputs"
     assert mock_responses.call_args.kwargs["tool_choice"]["name"] == "submit_outputs"
@@ -1336,8 +1357,8 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
     assert mock_completion.call_args.kwargs["response_format"] == {
         "type": "json_object"
     }
-    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 4096
-    assert mock_completion.call_args.kwargs["timeout"] == 60
+    assert mock_completion.call_args.kwargs["max_completion_tokens"] == 16384
+    assert mock_completion.call_args.kwargs["timeout"] == 120
     assert "tools" not in mock_completion.call_args.kwargs
     assert "tool_choice" not in mock_completion.call_args.kwargs
 
@@ -1346,7 +1367,7 @@ def test_run_single_no_tools_uses_json_contract_for_gemini(
 def test_run_single_no_tools_supports_deepseek_json_contract(
     mock_completion, mini_scenario
 ):
-    """DeepSeek is manually runnable, but excluded from default benchmark runs."""
+    """DeepSeek uses the JSON answer contract."""
     message = MagicMock()
     message.content = (
         '{"outputs": {"income_tax": {"value": 2400, '
@@ -1408,9 +1429,7 @@ def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario)
     )
     mock_completion.return_value = response
 
-    result = run_single_no_tools(
-        mini_scenario, "income_tax", "xai/grok-4-1-fast-non-reasoning"
-    )
+    result = run_single_no_tools(mini_scenario, "income_tax", "xai/grok-build-0.1")
 
     assert result["prediction"] == 1234.0
     assert result["predictions"]["income_tax"] == 1234.0
@@ -1425,6 +1444,10 @@ def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario)
 def test_default_models_include_new_provider_variants():
     """Keep newly added provider variants addressable by stable local names."""
     assert MODELS["grok-4.3"] == "xai/grok-4.3"
+    assert MODELS["grok-build-0.1"] == "xai/grok-build-0.1"
+    assert "grok-4.20" not in MODELS
+    assert "grok-4.20-non-reasoning" not in MODELS
+    assert "grok-4.1-fast" not in MODELS
 
 
 def test_deepseek_models_are_public_defaults():
@@ -1465,13 +1488,11 @@ def test_completion_budget_scales_with_output_count():
         > 256
     )
     assert (
-        _completion_controls("xai/grok-4-1-fast-non-reasoning", variables=variables)[
-            "max_tokens"
-        ]
+        _completion_controls("xai/grok-build-0.1", variables=variables)["max_tokens"]
         > 256
     )
     assert (
-        _completion_controls("claude-opus-4-7", variables=["income_tax"])[
+        _completion_controls("claude-opus-4-8", variables=["income_tax"])[
             "max_completion_tokens"
         ]
         == 4096
@@ -1482,32 +1503,57 @@ def test_completion_budget_scales_with_output_count():
         ]
         == 4096
     )
+    assert (
+        _completion_controls("gemini/gemini-3.5-flash", variables=variables)[
+            "max_completion_tokens"
+        ]
+        == 16384
+    )
 
 
 def test_claude_explanation_runs_use_single_output_chunks():
     """Claude providers can omit outputs in larger chunks, so keep them small."""
     assert _required_explanation_chunk_size("claude-sonnet-4-6", True) == 1
-    assert _required_explanation_chunk_size("claude-opus-4-7", True) == 1
+    assert _required_explanation_chunk_size("claude-opus-4-8", True) == 1
     assert _required_explanation_chunk_size("gpt-5.5", True) == 3
     assert _required_explanation_chunk_size("claude-sonnet-4-6", False) is None
 
 
-def test_gpt_55_uses_longer_full_output_timeout():
-    """GPT-5.5 needs the longer frontier-model timeout on full prompts."""
+def test_gpt5_models_use_longer_full_output_timeout():
+    """GPT-5 Responses API calls need the longer frontier-model timeout."""
     assert _request_timeout_seconds("gpt-5.5") == 60
+    assert _request_timeout_seconds("gpt-5.4-nano") == 60
+
+
+def test_gpt5_timeout_uses_gpt_specific_knob(monkeypatch):
+    """GPT and Gemini frontier timeouts should be independently configurable."""
+    monkeypatch.setattr(eval_no_tools, "GPT5_REQUEST_TIMEOUT_SECONDS", 77)
+    monkeypatch.setattr(eval_no_tools, "GEMINI_REQUEST_TIMEOUT_SECONDS", 120)
+
+    assert eval_no_tools._request_timeout_seconds("gpt-5.5") == 77
+    assert eval_no_tools._request_timeout_seconds("gpt-5.4-nano") == 77
+    assert (
+        eval_no_tools._request_timeout_seconds("gemini/gemini-3.1-pro-preview") == 120
+    )
+    assert eval_no_tools._request_timeout_seconds("gemini/gemini-3.5-flash") == 120
 
 
 def test_claude_models_use_longer_timeout():
     """Claude explanation calls can exceed the generic 20s request timeout."""
     assert _request_timeout_seconds("claude-sonnet-4.6") == 90
-    assert _request_timeout_seconds("claude-opus-4.7") == 90
+    assert _request_timeout_seconds("claude-opus-4.8") == 90
 
 
 def test_xai_models_use_longer_timeout():
     """xAI models need more than the generic 20s request timeout."""
     assert _request_timeout_seconds("xai/grok-4.3") == 420
-    assert _request_timeout_seconds("xai/grok-4.20") == 420
-    assert _request_timeout_seconds("xai/grok-4.1-fast") == 420
+    assert _request_timeout_seconds("xai/grok-build-0.1") == 420
+
+
+def test_deepseek_models_use_longer_timeout():
+    """DeepSeek explanation calls can exceed the generic 20s request timeout."""
+    assert _request_timeout_seconds("deepseek/deepseek-v4-pro") == 240
+    assert _request_timeout_seconds("deepseek/deepseek-v4-flash") == 240
 
 
 def test_provider_error_text_classification():
@@ -1594,13 +1640,13 @@ def test_run_no_tools_eval_skips_remaining_model_after_fatal_error(
     auth_error = litellm.AuthenticationError(
         message="missing key",
         llm_provider="anthropic",
-        model="claude-opus-4-6",
+        model="claude-opus-4-8",
     )
     mock_run_single_no_tools.side_effect = auth_error
 
     df = run_no_tools_eval(
         [mini_scenario],
-        models={"claude-opus-4.6": "claude-opus-4-6"},
+        models={"claude-opus-4.8": "claude-opus-4-8"},
         programs=["income_tax", "federal_refundable_credits"],
     )
 

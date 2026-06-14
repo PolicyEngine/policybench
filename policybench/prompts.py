@@ -117,8 +117,10 @@ INPUT_LABEL_OVERRIDES = {
     "other_credits": "other credits",
     "other_medical_expenses": "other medical expenses",
     "over_the_counter_health_expenses": "over-the-counter health expenses",
-    "partnership_s_corp_income": "partnership or S-corp income",
-    "partnership_se_income": "self-employment partnership income",
+    "partnership_s_corp_income": "partnership and S-corp pass-through income",
+    "partnership_se_income": (
+        "partnership net earnings for self-employment tax; not additional income"
+    ),
     "pre_subsidy_rent": "pre-subsidy rent",
     "prior_year_minimum_tax_credit": "prior-year minimum tax credit",
     "qualified_dividend_income": "qualified dividend income",
@@ -129,7 +131,7 @@ INPUT_LABEL_OVERRIDES = {
     "roth_ira_contributions": "Roth IRA contributions",
     "salt_refund_income": "state and local tax refund income",
     "self_employed_pension_contributions": "self-employed pension contributions",
-    "self_employment_income": "self-employment income",
+    "self_employment_income": "self-employment business income",
     "short_term_capital_gains": "short-term capital gains",
     "social_security_dependents": "Social Security dependent benefits",
     "social_security_disability": "Social Security disability income",
@@ -269,6 +271,12 @@ def _variable_request_line(variable: str) -> str:
 def _humanize_input_label(field: str) -> str:
     if field in INPUT_LABEL_OVERRIDES:
         return INPUT_LABEL_OVERRIDES[field]
+    if field.endswith("_would_be_qualified"):
+        source = field.removesuffix("_would_be_qualified")
+        return (
+            f"{_humanize_input_label(source)} qualifies for the "
+            "qualified business income deduction"
+        )
     return field.replace("_", " ")
 
 
