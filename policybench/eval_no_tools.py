@@ -39,13 +39,17 @@ def _env_int(name: str, default: int) -> int:
 MAX_RETRIES = 2
 RETRY_BASE_DELAY = 2
 REQUEST_TIMEOUT_SECONDS = _env_int("POLICYBENCH_REQUEST_TIMEOUT_SECONDS", 20)
-GEMINI_PRO_REQUEST_TIMEOUT_SECONDS = _env_int(
-    "POLICYBENCH_GEMINI_PRO_REQUEST_TIMEOUT_SECONDS", 60
+GEMINI_REQUEST_TIMEOUT_SECONDS = _env_int(
+    "POLICYBENCH_GEMINI_REQUEST_TIMEOUT_SECONDS", 120
 )
+GPT5_REQUEST_TIMEOUT_SECONDS = _env_int("POLICYBENCH_GPT5_REQUEST_TIMEOUT_SECONDS", 60)
 CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_CLAUDE_REQUEST_TIMEOUT_SECONDS", 90
 )
 XAI_REQUEST_TIMEOUT_SECONDS = _env_int("POLICYBENCH_XAI_REQUEST_TIMEOUT_SECONDS", 420)
+DEEPSEEK_REQUEST_TIMEOUT_SECONDS = _env_int(
+    "POLICYBENCH_DEEPSEEK_REQUEST_TIMEOUT_SECONDS", 240
+)
 REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
@@ -54,9 +58,10 @@ RESUME_METADATA_VERSION = 2
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 EXPLANATION_MAX_COMPLETION_TOKENS = 4096
-GEMINI_JSON_MAX_COMPLETION_TOKENS = 4096
-GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS = 4096
+GEMINI_JSON_MAX_COMPLETION_TOKENS = 16384
+GEMINI_PRO_JSON_MAX_COMPLETION_TOKENS = 16384
 MAX_COMPLETION_TOKENS_CAP = 4096
+GEMINI_MAX_COMPLETION_TOKENS_CAP = 16384
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
@@ -197,7 +202,7 @@ def _extract_provider_fingerprint(response) -> dict:
     """Capture the provider response id, system fingerprint, and resolved model.
 
     These fields make it possible to audit which underlying model build a
-    provider routed an alias to (e.g. ``claude-opus-4-7`` resolving to a
+    provider routed an alias to (e.g. ``claude-opus-4-8`` resolving to a
     dated weights revision). Providers that do not report a particular field
     return ``None`` for that field.
     """
@@ -296,6 +301,7 @@ def _completion_token_budget(
     base_tokens: int,
     variables: list[str] | None,
     include_explanations: bool,
+    cap: int = MAX_COMPLETION_TOKENS_CAP,
 ) -> int:
     variable_count = len(variables or [])
     per_variable = (
@@ -304,7 +310,7 @@ def _completion_token_budget(
         else ANSWER_TOKENS_PER_VARIABLE
     )
     dynamic_tokens = ANSWER_COMPLETION_BUFFER_TOKENS + per_variable * variable_count
-    return min(max(base_tokens, dynamic_tokens), MAX_COMPLETION_TOKENS_CAP)
+    return min(max(base_tokens, dynamic_tokens), cap)
 
 
 def _completion_controls(
@@ -319,7 +325,10 @@ def _completion_controls(
             base_tokens = GEMINI_JSON_MAX_COMPLETION_TOKENS
         return {
             "max_completion_tokens": _completion_token_budget(
-                base_tokens, variables, include_explanations
+                base_tokens,
+                variables,
+                include_explanations,
+                cap=GEMINI_MAX_COMPLETION_TOKENS_CAP,
             )
         }
     if model_id.startswith("xai/"):
@@ -364,14 +373,16 @@ def _completion_controls(
 
 
 def _request_timeout_seconds(model_id: str) -> int:
-    if model_id == "gemini/gemini-3.1-pro-preview":
-        return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
-    if model_id == "gpt-5.5":
-        return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
+    if model_id.startswith("gemini/"):
+        return GEMINI_REQUEST_TIMEOUT_SECONDS
+    if model_id.startswith("gpt-5"):
+        return GPT5_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("claude-"):
         return CLAUDE_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("xai/"):
         return XAI_REQUEST_TIMEOUT_SECONDS
+    if model_id.startswith("deepseek/"):
+        return DEEPSEEK_REQUEST_TIMEOUT_SECONDS
     return REQUEST_TIMEOUT_SECONDS
 
 

@@ -155,12 +155,13 @@ EXCLUDED_INPUT_SUFFIXES = (
     "_fips",
     "_id",
     "_reported",
-    "_would_be_qualified",
 )
 
 PROMPTABLE_REPORTED_INPUTS = {
     "employee_pension_contributions_reported",
 }
+
+PROMPT_DEFAULT_INPUT_SUFFIXES = ("_would_be_qualified",)
 
 INPUT_NAME_ALIASES = {
     "employment_income_before_lsr": "employment_income",
@@ -369,9 +370,10 @@ def _is_promptable_input_variable(name: str, variable) -> bool:
     if is_excluded_prompt_input_name(name):
         return False
 
-    if getattr(variable, "formula", None) is not None:
+    has_default = getattr(variable, "default_value", None) is not None
+    if not has_default and getattr(variable, "formula", None) is not None:
         return False
-    if getattr(variable, "formulas", None):
+    if not has_default and getattr(variable, "formulas", None):
         return False
     defined_for = getattr(variable, "defined_for", None)
     if defined_for is not None and not _is_geographic_defined_for(defined_for):
@@ -564,6 +566,25 @@ def person_to_dict(person: Person) -> dict[str, Any]:
     }
 
 
+def _preserve_default_inputs_from_existing(
+    inputs: dict[str, Any],
+    entity: str,
+) -> dict[str, Any]:
+    row = pd.Series(inputs)
+    for spec in get_promptable_input_specs():
+        if spec.entity != entity or spec.output_name in inputs:
+            continue
+        if spec.default_value is None:
+            continue
+        if not _should_preserve_default_input(row, spec):
+            continue
+        if spec.value_type == "bool":
+            inputs[spec.output_name] = bool(spec.default_value)
+        else:
+            inputs[spec.output_name] = spec.default_value
+    return inputs
+
+
 def person_from_dict(data: dict[str, Any]) -> Person:
     """Reconstruct a Person from a serialized dict."""
     return Person(
@@ -594,18 +615,42 @@ def scenario_to_dict(scenario: Scenario) -> dict[str, Any]:
 
 def scenario_from_dict(data: dict[str, Any]) -> Scenario:
     """Reconstruct a Scenario from a serialized dict."""
+    country = str(data.get("country", DEFAULT_COUNTRY))
+    adults = [person_from_dict(person) for person in data.get("adults", [])]
+    children = [person_from_dict(person) for person in data.get("children", [])]
+    tax_unit_inputs = dict(data.get("tax_unit_inputs", {}))
+    spm_unit_inputs = dict(data.get("spm_unit_inputs", {}))
+    household_inputs = dict(data.get("household_inputs", {}))
+    if country == "us":
+        for person in adults + children:
+            person.inputs = _preserve_default_inputs_from_existing(
+                person.inputs,
+                "person",
+            )
+        tax_unit_inputs = _preserve_default_inputs_from_existing(
+            tax_unit_inputs,
+            "tax_unit",
+        )
+        spm_unit_inputs = _preserve_default_inputs_from_existing(
+            spm_unit_inputs,
+            "spm_unit",
+        )
+        household_inputs = _preserve_default_inputs_from_existing(
+            household_inputs,
+            "household",
+        )
     return Scenario(
         id=str(data["id"]),
-        country=str(data.get("country", DEFAULT_COUNTRY)),
+        country=country,
         state=str(data["state"]),
         filing_status=(
             None if data.get("filing_status") is None else str(data["filing_status"])
         ),
-        adults=[person_from_dict(person) for person in data.get("adults", [])],
-        children=[person_from_dict(person) for person in data.get("children", [])],
-        tax_unit_inputs=dict(data.get("tax_unit_inputs", {})),
-        spm_unit_inputs=dict(data.get("spm_unit_inputs", {})),
-        household_inputs=dict(data.get("household_inputs", {})),
+        adults=adults,
+        children=children,
+        tax_unit_inputs=tax_unit_inputs,
+        spm_unit_inputs=spm_unit_inputs,
+        household_inputs=household_inputs,
         year=int(data.get("year", TAX_YEAR)),
         source_dataset=str(data.get("source_dataset", "enhanced_cps")),
         metadata=dict(data.get("metadata", {})),
@@ -1080,6 +1125,8 @@ def _extract_entity_inputs(
             )
             if value != default:
                 inputs[spec.output_name] = value
+            elif _should_preserve_default_input(row, spec):
+                inputs[spec.output_name] = value
             continue
 
         value = float(row[spec.output_name])
@@ -1094,6 +1141,25 @@ def _extract_entity_inputs(
             inputs[spec.output_name] = value
 
     return inputs
+
+
+def _should_preserve_default_input(
+    row: pd.Series,
+    spec: InputVariableSpec,
+) -> bool:
+    if not spec.output_name.endswith(PROMPT_DEFAULT_INPUT_SUFFIXES):
+        return False
+
+    source_name = spec.output_name.removesuffix("_would_be_qualified")
+    if source_name not in row or pd.isna(row[source_name]):
+        return False
+
+    try:
+        source_value = float(row[source_name])
+    except (TypeError, ValueError):
+        return False
+
+    return abs(source_value) > 1e-6
 
 
 def _build_person_with_tax_unit_role(row: pd.Series, label: str) -> Person:

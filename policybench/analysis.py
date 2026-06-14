@@ -1366,6 +1366,61 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def latency_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate provider response latency by model-household call."""
+    columns = [
+        "model",
+        "call_count",
+        "total_elapsed_seconds",
+        "mean_elapsed_seconds",
+        "median_elapsed_seconds",
+        "p95_elapsed_seconds",
+        "max_elapsed_seconds",
+    ]
+    if predictions.empty or "model" not in predictions.columns:
+        return pd.DataFrame(columns=columns)
+
+    usage = predictions.copy()
+    if "elapsed_seconds" not in usage.columns:
+        usage["elapsed_seconds"] = float("nan")
+    usage["elapsed_seconds"] = pd.to_numeric(
+        usage["elapsed_seconds"],
+        errors="coerce",
+    )
+    if "call_id" in usage.columns:
+        fallback_call_id = (
+            usage["model"].astype(str) + ":" + usage["scenario_id"].astype(str)
+        )
+        usage["_latency_call_id"] = usage["call_id"].fillna(fallback_call_id)
+    else:
+        usage["_latency_call_id"] = (
+            usage["model"].astype(str) + ":" + usage["scenario_id"].astype(str)
+        )
+
+    call_latencies = (
+        usage.groupby(["model", "_latency_call_id"])["elapsed_seconds"]
+        .sum(min_count=1)
+        .dropna()
+        .rename("call_elapsed_seconds")
+        .reset_index()
+    )
+    if call_latencies.empty:
+        return pd.DataFrame(columns=columns)
+
+    return (
+        call_latencies.groupby("model")["call_elapsed_seconds"]
+        .agg(
+            call_count="size",
+            total_elapsed_seconds="sum",
+            mean_elapsed_seconds="mean",
+            median_elapsed_seconds="median",
+            p95_elapsed_seconds=lambda s: float(s.quantile(0.95)),
+            max_elapsed_seconds="max",
+        )
+        .reset_index()
+    )
+
+
 def analyze_no_tools(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
@@ -1478,6 +1533,7 @@ def analyze_no_tools(
     model_summary = model_summary.sort_values(sort_column, ascending=False)
     variable_summary = summary_by_variable(metrics).sort_values("variable")
     usage_summary = usage_summary_by_model(predictions).sort_values("model")
+    latency_summary = latency_summary_by_model(predictions).sort_values("model")
     return {
         "metrics": metrics,
         "model_summary": model_summary,
@@ -1486,6 +1542,7 @@ def analyze_no_tools(
         "global_weights": global_weights,
         "variable_summary": variable_summary,
         "usage_summary": usage_summary,
+        "latency_summary": latency_summary,
         "run_model_summary": run_model_summary,
         "run_stability": run_stability,
     }
@@ -2475,6 +2532,7 @@ def export_analysis(
     impact_summary_path = output_path / "impact_summary_by_model.csv"
     variable_summary_path = output_path / "summary_by_variable.csv"
     usage_summary_path = output_path / "usage_summary.csv"
+    latency_summary_path = output_path / "latency_summary.csv"
     report_path = output_path / "report.md"
 
     analysis["metrics"].to_csv(metrics_path, index=False)
@@ -2485,6 +2543,10 @@ def export_analysis(
     )
     analysis["variable_summary"].to_csv(variable_summary_path, index=False)
     analysis["usage_summary"].to_csv(usage_summary_path, index=False)
+    analysis.get("latency_summary", pd.DataFrame()).to_csv(
+        latency_summary_path,
+        index=False,
+    )
     report_path.write_text(render_markdown_report(analysis), encoding="utf-8")
 
     exported = {
@@ -2493,6 +2555,7 @@ def export_analysis(
         "impact_summary": impact_summary_path,
         "variable_summary": variable_summary_path,
         "usage_summary": usage_summary_path,
+        "latency_summary": latency_summary_path,
         "report": report_path,
     }
     run_model_summary = analysis.get("run_model_summary", pd.DataFrame())

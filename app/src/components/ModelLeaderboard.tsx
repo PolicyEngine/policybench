@@ -6,7 +6,11 @@ import type {
   CountryCode,
 } from "../types";
 import { getVariableLabel } from "../types";
-import { MODEL_LABELS, MODEL_ORDER, getProviderForModel } from "../modelMeta";
+import {
+  MODEL_DISPLAY_ORDER,
+  MODEL_LABELS,
+  getProviderForModel,
+} from "../modelMeta";
 import ProviderMark from "./ProviderMark";
 import { ProgramFilterPanel } from "./ProgramFilterDropdown";
 import {
@@ -78,9 +82,7 @@ type PendingModel = {
 };
 
 const PENDING_MODELS: Record<CountryCode, PendingModel[]> = {
-  us: [
-    { model: "grok-4.20", note: "US full run pending" },
-  ],
+  us: [],
   uk: [],
 };
 
@@ -346,8 +348,12 @@ export default function ModelLeaderboard({
       (model) => !present.has(model.model),
     );
     return [...configured].sort((a, b) => {
-      const aIndex = MODEL_ORDER.indexOf(a.model as (typeof MODEL_ORDER)[number]);
-      const bIndex = MODEL_ORDER.indexOf(b.model as (typeof MODEL_ORDER)[number]);
+      const aIndex = MODEL_DISPLAY_ORDER.indexOf(
+        a.model as (typeof MODEL_DISPLAY_ORDER)[number],
+      );
+      const bIndex = MODEL_DISPLAY_ORDER.indexOf(
+        b.model as (typeof MODEL_DISPLAY_ORDER)[number],
+      );
       return aIndex - bIndex;
     });
   }, [noTools, selectedView]);

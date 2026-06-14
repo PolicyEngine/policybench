@@ -460,6 +460,84 @@ def main():
         help="Only write the combined payload under the run directory",
     )
 
+    # Cell deviation audits
+    audit_parser = subparsers.add_parser(
+        "cell-deviation-audits",
+        help="Build and run local Codex audits for wrong household-output cells",
+    )
+    audit_parser.add_argument(
+        "--run-dir",
+        required=True,
+        help="Full-run directory containing country subdirectories",
+    )
+    audit_parser.add_argument(
+        "--output-dir",
+        required=True,
+        help="Directory for audit queue, packets, and local Codex outputs",
+    )
+    audit_parser.add_argument(
+        "--country",
+        action="append",
+        dest="countries",
+        choices=sorted(COUNTRY_PROGRAMS),
+        default=None,
+        help="Country code to audit. Repeat to audit multiple countries.",
+    )
+    audit_parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="Rebuild queue and packets even when output-dir already has files",
+    )
+    audit_parser.add_argument(
+        "--build-only",
+        action="store_true",
+        help="Only build queue and packets; do not invoke local Codex",
+    )
+    audit_parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Only run the first N queued cell audits",
+    )
+    audit_parser.add_argument(
+        "--randomize",
+        action="store_true",
+        help="Shuffle queued cell audits before applying --limit",
+    )
+    audit_parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=None,
+        help="Optional seed for reproducible randomized audit selection",
+    )
+    audit_parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="Concurrent local Codex audit subprocesses",
+    )
+    audit_parser.add_argument(
+        "--codex-bin",
+        default="codex",
+        help="Codex CLI executable for local audit subprocesses",
+    )
+    audit_parser.add_argument(
+        "--codex-model",
+        default=None,
+        help="Optional Codex model override for local audit subprocesses",
+    )
+    audit_parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=None,
+        help="Optional wall-time timeout per cell audit subprocess",
+    )
+    audit_parser.add_argument(
+        "--keep-codex-events",
+        action="store_true",
+        help="Persist full Codex JSON event streams for debugging",
+    )
+
     # Population weights
     weight_parser = subparsers.add_parser(
         "population-weights",
@@ -813,6 +891,51 @@ def main():
             )
         except FileNotFoundError as exc:
             raise SystemExit(str(exc)) from exc
+
+    elif args.command == "cell-deviation-audits":
+        from policybench.cell_deviation_audits import (
+            build_cell_deviation_audit_run,
+            run_cell_deviation_audits,
+        )
+
+        output_dir = Path(args.output_dir)
+        queue_path = output_dir / "queue.json"
+        if args.rebuild or not queue_path.exists():
+            try:
+                manifest = build_cell_deviation_audit_run(
+                    run_dir=args.run_dir,
+                    output_dir=output_dir,
+                    countries=args.countries,
+                    overwrite=args.rebuild,
+                )
+            except (FileExistsError, FileNotFoundError, ValueError) as exc:
+                raise SystemExit(str(exc)) from exc
+            print(
+                "Cell-deviation audit queue built: "
+                f"{manifest['total_queued_cells']} cells in {output_dir}"
+            )
+        if args.build_only:
+            return
+        try:
+            result = run_cell_deviation_audits(
+                audit_dir=output_dir,
+                repo_dir=Path(__file__).resolve().parents[1],
+                limit=args.limit,
+                parallel=args.parallel,
+                codex_bin=args.codex_bin,
+                model=args.codex_model,
+                timeout_seconds=args.timeout_seconds,
+                keep_codex_events=args.keep_codex_events,
+                randomize=args.randomize or args.random_seed is not None,
+                random_seed=args.random_seed,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            raise SystemExit(str(exc)) from exc
+        print(
+            "Cell-deviation audits finished: "
+            f"{result.completed} complete, {result.failed} failed, "
+            f"{result.attempted} attempted"
+        )
 
     elif args.command == "population-weights":
         from policybench.config import TAX_YEAR

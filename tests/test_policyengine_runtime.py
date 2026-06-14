@@ -95,33 +95,30 @@ def test_matching_raw_manifest_marks_policyengine_bundle_match(monkeypatch):
         runtime,
         "_load_raw_policyengine_manifest",
         lambda country: {
-            "bundle_id": f"{country}-4.14.2",
+            "bundle_id": f"{country}-4.16.2",
             "country_id": country,
-            "policyengine_version": "4.14.2",
+            "policyengine_version": "4.16.2",
             "model_package": {
                 "name": f"policyengine-{country}",
-                "version": "1.715.2",
+                "version": "1.723.0",
             },
             "data_package": {
-                "name": f"policyengine-{country}-data",
-                "version": "1.115.5",
-                "repo_id": f"policyengine/policyengine-{country}-data",
+                "name": "populace-data",
+                "version": "0.1.0",
+                "repo_id": "policyengine/populace-us",
             },
-            "default_dataset": "enhanced_cps_2024",
+            "default_dataset": "populace_us_2024",
             "certified_data_artifact": {
-                "dataset": "enhanced_cps_2024",
-                "uri": (
-                    "hf://policyengine/policyengine-us-data/"
-                    "enhanced_cps_2024.h5@example"
-                ),
-                "build_id": "policyengine-us-data-1.115.5",
+                "dataset": "populace_us_2024",
+                "uri": ("hf://policyengine/populace-us/populace_us_2024.h5@example"),
+                "build_id": "populace-us-2024-5da5a95-20260611",
                 "sha256": "abc123",
             },
             "certification": {
-                "compatibility_basis": "legacy_compatible_model_package",
-                "data_build_id": "policyengine-us-data-1.115.5",
-                "built_with_model_version": "1.700.0",
-                "certified_by": "policyengine-us-data release manifest",
+                "compatibility_basis": "built_with_model_package",
+                "data_build_id": "populace-us-2024-5da5a95-20260611",
+                "built_with_model_version": "1.723.0",
+                "certified_by": "policyengine.py certification",
             },
         },
     )
@@ -129,8 +126,8 @@ def test_matching_raw_manifest_marks_policyengine_bundle_match(monkeypatch):
         metadata,
         "version",
         lambda package: {
-            "policyengine": "4.14.2",
-            "policyengine-us": "1.715.2",
+            "policyengine": "4.16.2",
+            "policyengine-us": "1.723.0",
         }[package],
     )
 
@@ -138,11 +135,11 @@ def test_matching_raw_manifest_marks_policyengine_bundle_match(monkeypatch):
     bundle = runtime.policyengine_release_bundle("us")
 
     assert bundle["model_matches_policyengine_bundle"] is True
-    assert bundle["bundled_model_version"] == "1.715.2"
+    assert bundle["bundled_model_version"] == "1.723.0"
     assert bundle["model_version_source"] == "policyengine.py bundle"
-    assert bundle["compatibility_basis"] == "legacy_compatible_model_package"
+    assert bundle["compatibility_basis"] == "built_with_model_package"
     assert bundle["default_dataset_uri"] == (
-        "hf://policyengine/policyengine-us-data/enhanced_cps_2024.h5@example"
+        "hf://policyengine/populace-us/populace_us_2024.h5@example"
     )
     assert bundle["certified_data_artifact_sha256"] == "abc123"
     runtime.policyengine_release_bundle.cache_clear()

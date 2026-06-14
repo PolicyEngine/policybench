@@ -1,6 +1,7 @@
 """Tests for scenario generation."""
 
 import json
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -533,15 +534,35 @@ def test_promptable_inputs_are_pure_leaf_variables():
     assert "weekly_hours_worked" not in source_names
     assert "weekly_hours_worked_before_lsr" not in source_names
     assert all("_last_year" not in source_name for source_name in source_names)
+    assert "rental_income_would_be_qualified" in source_names
     assert "was_calworks_recipient" in source_names
     for spec in specs:
         variable = sim.tax_benefit_system.variables[spec.source_name]
-        assert getattr(variable, "formula", None) is None
-        assert not getattr(variable, "formulas", None)
+        if getattr(variable, "default_value", None) is None:
+            assert getattr(variable, "formula", None) is None
+            assert not getattr(variable, "formulas", None)
         defined_for = getattr(variable, "defined_for", None)
         assert defined_for is None or _is_geographic_defined_for(defined_for)
         assert not getattr(variable, "adds", None)
         assert not getattr(variable, "subtracts", None)
+
+
+def test_defaulted_input_variables_are_not_treated_as_formula_variables():
+    variable = SimpleNamespace(
+        entity=SimpleNamespace(key="person"),
+        value_type=bool,
+        default_value=True,
+        formula=object(),
+        formulas={"2026": object()},
+        defined_for=None,
+        adds=None,
+        subtracts=None,
+    )
+
+    assert scenarios_module._is_promptable_input_variable(
+        "defaulted_input_flag",
+        variable,
+    )
 
 
 def test_conditional_inputs_are_not_preserved():
@@ -573,6 +594,73 @@ def test_conditional_inputs_are_not_preserved():
 
     assert "medicare_enrolled" not in scenario.adults[0].inputs
     assert "has_medicaid_health_coverage_at_interview" not in scenario.adults[0].inputs
+
+
+def test_default_qbi_qualifier_inputs_are_preserved_when_income_is_present():
+    """Defaulted QBI qualifier inputs should be visible when they affect results."""
+    scenario = scenarios_from_cps_frame(
+        pd.DataFrame(
+            [
+                {
+                    "person_id": 1,
+                    "household_id": 1,
+                    "tax_unit_id": 1,
+                    "spm_unit_id": 1,
+                    "family_id": 1,
+                    "marital_unit_id": 1,
+                    "household_weight": 1.0,
+                    "state_code": "PA",
+                    "filing_status": "SINGLE",
+                    "age": 35,
+                    "employment_income": 0.0,
+                    "rental_income": 12_000.0,
+                    "is_tax_unit_head": True,
+                }
+            ]
+        ),
+        n=1,
+        seed=0,
+    )[0]
+
+    head_inputs = scenario.adults[0].inputs
+
+    assert head_inputs["rental_income"] == 12_000.0
+    assert head_inputs["rental_income_would_be_qualified"] is True
+    assert "self_employment_income_would_be_qualified" not in head_inputs
+
+    from policybench.prompts import describe_household
+
+    assert (
+        "- rental income qualifies for the qualified business income deduction"
+        in describe_household(scenario)
+    )
+
+
+def test_saved_us_scenarios_backfill_default_qbi_qualifier_inputs():
+    """Saved manifests from earlier runs should render defaulted QBI facts."""
+    scenario = scenarios_module.scenario_from_dict(
+        {
+            "id": "scenario_000",
+            "country": "us",
+            "state": "PA",
+            "filing_status": "single",
+            "adults": [
+                {
+                    "name": "head",
+                    "age": 35,
+                    "employment_income": 0.0,
+                    "inputs": {"rental_income": 12_000.0},
+                }
+            ],
+            "children": [],
+            "tax_unit_inputs": {},
+            "spm_unit_inputs": {},
+            "household_inputs": {},
+            "year": 2026,
+        }
+    )
+
+    assert scenario.adults[0].inputs["rental_income_would_be_qualified"] is True
 
 
 def test_missing_bool_inputs_are_not_preserved():

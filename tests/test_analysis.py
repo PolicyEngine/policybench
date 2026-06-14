@@ -23,6 +23,7 @@ from policybench.analysis import (
     household_equal_impact_scores,
     household_impact_summary_by_model,
     household_net_income_by_scenario,
+    latency_summary_by_model,
     mean_absolute_error,
     mean_absolute_percentage_error,
     participation_accuracy_by_model,
@@ -450,6 +451,7 @@ class TestSummaries:
             "global_weights",
             "variable_summary",
             "usage_summary",
+            "latency_summary",
             "run_model_summary",
             "run_stability",
         }
@@ -458,6 +460,7 @@ class TestSummaries:
         assert len(analysis["impact_summary"]) == 1
         assert len(analysis["variable_summary"]) == 1
         assert len(analysis["usage_summary"]) == 1
+        assert analysis["latency_summary"].empty
         assert analysis["run_model_summary"].empty
         assert analysis["run_stability"].empty
 
@@ -525,6 +528,26 @@ class TestSummaries:
         assert model_a["total_estimated_cost_usd"] == pytest.approx(0.3)
         assert model_a["total_elapsed_seconds"] == 3.0
         assert model_a["total_tokens"] == 33.0
+
+    def test_latency_summary_by_model_aggregates_call_elapsed_time(self):
+        predictions_df = pd.DataFrame(
+            {
+                "model": ["model_a", "model_a", "model_a", "model_b"],
+                "call_id": ["a:s1", "a:s1", "a:s2", "b:s1"],
+                "scenario_id": ["s1", "s1", "s2", "s1"],
+                "variable": ["income_tax", "eitc", "income_tax", "income_tax"],
+                "elapsed_seconds": [1.5, 1.5, 4.0, 5.0],
+            }
+        )
+
+        summary = latency_summary_by_model(predictions_df)
+        model_a = summary[summary["model"] == "model_a"].iloc[0]
+
+        assert model_a["call_count"] == 2
+        assert model_a["total_elapsed_seconds"] == pytest.approx(7.0)
+        assert model_a["mean_elapsed_seconds"] == pytest.approx(3.5)
+        assert model_a["median_elapsed_seconds"] == pytest.approx(3.5)
+        assert model_a["max_elapsed_seconds"] == pytest.approx(4.0)
 
     def test_render_markdown_report_contains_sections(self, metrics_df):
         analysis = {
@@ -683,6 +706,7 @@ class TestSummaries:
             "impact_summary",
             "variable_summary",
             "usage_summary",
+            "latency_summary",
             "report",
             "run_model_summary",
             "run_stability",
@@ -692,6 +716,7 @@ class TestSummaries:
         assert exported["impact_summary"].exists()
         assert exported["variable_summary"].exists()
         assert exported["usage_summary"].exists()
+        assert exported["latency_summary"].exists()
         assert exported["report"].exists()
 
     def test_build_dashboard_payload_matches_frontend_shape(self):

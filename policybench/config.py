@@ -19,26 +19,25 @@ DEFAULT_COUNTRY = "us"
 # Canonical default benchmark models. This list should track the published
 # no-tools leaderboard rather than every model ever probed in the repo.
 #
-# Most identifiers below are provider aliases (e.g. ``claude-opus-4.7`` or
+# Most identifiers below are provider aliases (e.g. ``claude-opus-4.8`` or
 # ``gpt-5.5``), not dated revisions. Provider responses can be routed to
 # different underlying weights over time. Runs after 2026-05-01 capture
 # ``provider_response_id``, ``provider_system_fingerprint``, and
 # ``provider_resolved_model`` in ``predictions.csv.gz``; older snapshots
 # only have the alias and the raw response payload.
 MODELS = {
-    "claude-opus-4.7": "claude-opus-4-7",
+    "claude-opus-4.8": "claude-opus-4-8",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
     "grok-4.3": "xai/grok-4.3",
-    "grok-4.20": "xai/grok-4.20-reasoning",
-    "grok-4.1-fast": "xai/grok-4-1-fast-non-reasoning",
+    "grok-build-0.1": "xai/grok-build-0.1",
     "gpt-5.5": "gpt-5.5",
     "gpt-5.4-mini": "gpt-5.4-mini",
     "gpt-5.4-nano": "gpt-5.4-nano",
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
     "gemini-3.5-flash": "gemini/gemini-3.5-flash",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
-    "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
+    "gemini-3.1-flash-lite": "gemini/gemini-3.1-flash-lite",
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
     "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
 }
