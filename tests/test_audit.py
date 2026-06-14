@@ -468,6 +468,54 @@ def test_reprepare_drops_stale_verdict_when_case_changed(tmp_path: Path):
     assert verdict_path.exists()
 
 
+def test_collect_audit_coerces_parse_source_for_parsed_predictions(tmp_path: Path):
+    """Classifier parse labels should not survive on parsed, substantive misses."""
+    d = tmp_path / "us"
+    d.mkdir()
+    pd.DataFrame([{"scenario_id": "s0", "variable": "snap", "value": 0.0}]).to_csv(
+        d / "reference_outputs.csv", index=False
+    )
+    pd.DataFrame(
+        [
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 250.0,
+                "explanation": "Too high. value = 250",
+                "error": None,
+            }
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+
+    audit_dir = tmp_path / "audit"
+    cases = prepare_audit(d, audit_dir)
+    case = cases[0]
+    verdict_path = audit_dir / "cases" / case.case_id / "verdict.json"
+    verdict_path.write_text(
+        json.dumps(
+            {
+                "reference_suspect": False,
+                "reference_bug_hypothesis": "",
+                "case_failure_source": "llm_error",
+                "case_failure_subtype": "other",
+                "rationale": "The parsed value is wrong.",
+                "models": [
+                    {
+                        "model": "m1",
+                        "failure_source": "parse_contract_failure",
+                        "failure_subtype": "other",
+                    }
+                ],
+            }
+        )
+    )
+
+    out = collect_audit(d, audit_dir)
+
+    assert out["row"].iloc[0]["failure_source"] == "llm_error"
+
+
 def test_parse_verdict_survives_brace_in_leading_prose(tmp_path: Path):
     f = tmp_path / "verdict.json"
     f.write_text(

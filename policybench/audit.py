@@ -382,6 +382,16 @@ def parse_verdict(path: Path) -> dict | None:
     return None
 
 
+def _row_failure_source(meta: dict, model: str, requested_source: str) -> str:
+    """Keep parse-contract labels scoped to genuinely missing predictions."""
+    source = validate_failure_source(requested_source)
+    if source == "parse_contract_failure" and model not in set(
+        meta.get("missing_models", [])
+    ):
+        return "llm_error"
+    return source
+
+
 def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]:
     """Fold verdicts into the annotation schema.
 
@@ -449,8 +459,10 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
                     "scenario_id": meta["scenario_id"],
                     "variable": meta["variable"],
                     "model": model,
-                    "failure_source": validate_failure_source(
-                        entry.get("failure_source", case_source)
+                    "failure_source": _row_failure_source(
+                        meta,
+                        model,
+                        entry.get("failure_source", case_source),
                     ),
                     "failure_subtype": validate_failure_subtype(
                         entry.get("failure_subtype", case_subtype)
