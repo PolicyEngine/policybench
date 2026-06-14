@@ -325,7 +325,20 @@ def prepare_audit(country_dir: Path, audit_dir: Path) -> list[AuditCase]:
                 continue
             case_dir = cases_root / case.case_id
             case_dir.mkdir(exist_ok=True)
-            (case_dir / "prompt.md").write_text(render_case_prompt(case))
+            prompt_path = case_dir / "prompt.md"
+            verdict_path = case_dir / "verdict.json"
+            new_prompt = render_case_prompt(case)
+            # Content-aware resumability: if the case changed since it was last
+            # classified (e.g. a model was re-run and now answers differently),
+            # the prompt differs from the stored one — drop the stale verdict so
+            # the runner re-classifies it rather than reusing the old label.
+            if (
+                verdict_path.exists()
+                and prompt_path.exists()
+                and prompt_path.read_text() != new_prompt
+            ):
+                verdict_path.unlink()
+            prompt_path.write_text(new_prompt)
     return cases
 
 

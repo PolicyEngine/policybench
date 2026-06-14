@@ -421,6 +421,53 @@ def test_parse_failure_only_case_skips_codex_and_is_deterministic(tmp_path: Path
     assert s0_rows.iloc[0]["failure_subtype"] == "missing_output"
 
 
+def test_reprepare_drops_stale_verdict_when_case_changed(tmp_path: Path):
+    """A verdict is invalidated when the case content (prompt) changes."""
+    d = tmp_path / "us"
+    d.mkdir()
+    pd.DataFrame([{"scenario_id": "s0", "variable": "snap", "value": 0.0}]).to_csv(
+        d / "reference_outputs.csv", index=False
+    )
+    pd.DataFrame(
+        [
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 250.0,
+                "explanation": "first answer",
+                "error": None,
+            }
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+    audit_dir = tmp_path / "audit"
+    cases = prepare_audit(d, audit_dir)
+    s0 = cases[0]
+    verdict_path = audit_dir / "cases" / s0.case_id / "verdict.json"
+    verdict_path.write_text('{"case_failure_source": "llm_error", "models": []}')
+
+    # Re-run m1 with a different wrong answer -> the case prompt changes.
+    pd.DataFrame(
+        [
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": 999.0,
+                "explanation": "different answer",
+                "error": None,
+            }
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+    prepare_audit(d, audit_dir)
+    assert not verdict_path.exists()  # stale verdict dropped
+
+    # An unchanged case keeps its verdict.
+    verdict_path.write_text('{"case_failure_source": "llm_error", "models": []}')
+    prepare_audit(d, audit_dir)
+    assert verdict_path.exists()
+
+
 def test_parse_verdict_survives_brace_in_leading_prose(tmp_path: Path):
     f = tmp_path / "verdict.json"
     f.write_text(
