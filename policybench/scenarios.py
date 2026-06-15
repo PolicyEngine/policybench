@@ -586,7 +586,7 @@ def scenario_from_dict(data: dict[str, Any]) -> Scenario:
 
 
 def load_enhanced_cps_person_frame() -> tuple[pd.DataFrame, int]:
-    """Load a person-level frame from the default Enhanced CPS microsimulation."""
+    """Load a person-level frame from the certified US microsimulation dataset."""
     from policybench.policyengine_runtime import make_us_microsimulation
 
     sim = make_us_microsimulation()
@@ -1152,7 +1152,7 @@ def scenarios_from_cps_frame(
     dataset_year: int | None = None,
     excluded_household_ids: set[int] | None = None,
 ) -> list[Scenario]:
-    """Sample benchmark scenarios from a person-level Enhanced CPS frame."""
+    """Sample benchmark scenarios from a person-level US source frame."""
     df = _prepare_cps_frame(person_df)
     eligible_households = _eligible_households(df)
     if excluded_household_ids:

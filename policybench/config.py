@@ -26,12 +26,12 @@ DEFAULT_COUNTRY = "us"
 # ``provider_resolved_model`` in ``predictions.csv.gz``; older snapshots
 # only have the alias and the raw response payload.
 MODELS = {
+    "claude-opus-4.8": "claude-opus-4-8",
     "claude-opus-4.7": "claude-opus-4-7",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
     "grok-4.3": "xai/grok-4.3",
-    "grok-4.20": "xai/grok-4.20-reasoning",
-    "grok-4.1-fast": "xai/grok-4-1-fast-non-reasoning",
+    "grok-build-0.1": "xai/grok-build-0.1",
     "gpt-5.5": "gpt-5.5",
     "gpt-5.4-mini": "gpt-5.4-mini",
     "gpt-5.4-nano": "gpt-5.4-nano",

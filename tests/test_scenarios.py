@@ -661,7 +661,7 @@ def test_aggregate_net_worth_input_is_not_preserved():
     assert "net_worth" not in scenario.household_inputs
 
 
-def test_formula_overtime_premium_is_not_prompted_or_sent_to_policyengine():
+def test_overtime_premium_input_is_sent_to_policyengine():
     scenario = scenarios_from_cps_frame(
         pd.DataFrame(
             [
@@ -693,7 +693,10 @@ def test_formula_overtime_premium_is_not_prompted_or_sent_to_policyengine():
     pe_household = scenario.to_pe_household()
     head = pe_household["people"]["head"]
     assert "tip_income" in head
-    assert "fsla_overtime_premium" not in head
+    # fsla_overtime_premium became a model input (no formula) in
+    # policyengine-us 1.722+, so the scenario must pass the sampled value
+    # through — dropping it would silently change no-tax-on-overtime math.
+    assert head["fsla_overtime_premium"] == {"2026": 3_000.0}
 
 
 def test_formula_county_fields_are_not_prompted_or_sent_to_policyengine():

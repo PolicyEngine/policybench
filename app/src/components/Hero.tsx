@@ -1,7 +1,7 @@
 import type { BenchData, CountryCode } from "../types";
 import SiteHeader, { type HeaderNavItem } from "./SiteHeader";
 
-const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-20";
+const SNAPSHOT_DATE_LABEL = "Snapshot 2026-06-14";
 
 function PreReleaseBanner() {
   return (

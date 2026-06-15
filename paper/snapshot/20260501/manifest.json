@@ -1,71 +1,58 @@
 {
-  "snapshot_date": "2026-05-20",
-  "policy_period": {
-    "us": "tax year 2026",
-    "uk": "fiscal year 2026-27"
-  },
-  "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under published_dashboard_artifact, which equals the combined export of the source run data.json files listed under source_run_artifacts. Future refreshes publish a new artifact (policybench publish-dashboard) and either update this manifest or use a new snapshot directory.",
-  "source_run_labels": {
-    "us": "us_full_run_20260513_policyengine_4_4_4_nested_outputs",
-    "uk": "uk_full_run_20260513_policyengine_4_4_4_nested_outputs"
-  },
-  "source_run_artifacts": {
-    "note": "Compact copies of run outputs used to verify this snapshot. The canonical predictions.csv.gz files include accepted full-response retries and final row-level contract repairs; the response_retries and row_repairs artifact directories preserve the targets, attempts, accepted replacements, and replaced original rows. The run data.json files retain parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime metadata used by the dashboard.",
-    "us_full_run_20260513_policyengine_4_4_4_nested_outputs": {
-      "path": "paper/snapshot/20260501/runs/us_full_run_20260513_policyengine_4_4_4_nested_outputs",
-      "prompt_payload_sha256": "15e3c512a846fe38b396552dacfdab9f7f4af6de0f00dc3f3ff2cff1cec587a0",
-      "files": {
-        "analysis/impact_summary_by_model.csv": "fb41e35ec39536755c65b1d7f0fc5292547dbb7f97a0d4a9df74b94f76eb9fb1",
-        "analysis/metrics.csv": "45772916942e3bc0b67225bae50c6e847de38ca84f47d48e05fe8b9d15679048",
-        "analysis/report.md": "3dd85897ace3ba30b02d076fb0db352290d5a9e2e504de97cce3249dd91c1ea8",
-        "analysis/summary_by_model.csv": "6fe934cad610310f4f4fb8f4e1e19800b33c9ed22533a600ac795fb70767cfa6",
-        "analysis/summary_by_variable.csv": "0d30219cd09e0061fb83d7f47a35c828026a0174568aa067aba8ad3cb5f3fa74",
-        "analysis/usage_summary.csv": "0c86a1d60f4e9c8228e0a0f36ffedabf7c5d9a52ecb8e6b87466e3799db48039",
-        "data.json": "1016061c8f4a089d54188c66f041360c62d6087da7e8fdf7c4a84d01d3b06b16",
-        "predictions.csv.gz": "c37d8b0144ebb26b52af8c799c72043461a7b50f36e32c0b7917d84ab1f36102",
-        "reference_outputs.csv": "04febaadd091dfa7de97fcf71a8a52d3db2296ca98fe1c97f9be92c4bf1383ce",
-        "reference_outputs.csv.meta.json": "4db925a1841ce8549d99e3e69cd5796dab3ca960da08a6108185f5cbc0190f8c",
-        "scenarios.csv": "b05091225c066b652c11d16bf1c78778193d4f3ee277ce8aed8f0a7536c0e66c",
-        "scenarios.csv.meta.json": "ec705caa68554f008ef7b6e76e1e5d9b1f9768588e786e35438562b4dfb00074"
-      }
+  "audit_annotation_artifacts": {
+    "files": {
+      "us_audit_row_annotations.csv": "273156ca67af74c6a81402ee2935297a21e12b952ac8bc83317192e47fd5775f",
+      "us_case_notes.csv": "fbf81134966c4e1a022f888b5f352b4b5fad981a46fa06cce1da6ea9dacd3a66"
     },
-    "uk_full_run_20260513_policyengine_4_4_4_nested_outputs": {
-      "path": "paper/snapshot/20260501/runs/uk_full_run_20260513_policyengine_4_4_4_nested_outputs",
-      "prompt_payload_sha256": "2f64b11a99aac4b4e1e150e397481b9139ae38d6f8e13065de2220f4b210dbfe",
-      "files": {
-        "analysis/impact_summary_by_model.csv": "4d43581d8175e15cb057394c50b3fad257cd3274095c81e7dbd99134271d096d",
-        "analysis/metrics.csv": "6fee6d59c507c9bec2ada2dfda5ed499f5771e2e81526110043a7203ff1db86f",
-        "analysis/report.md": "7afeda8b6bd49b1cfea5d61c620aaa52dd67fb4734ecd614a7106b61ede34ece",
-        "analysis/summary_by_model.csv": "8261c40f6a5e1ecfcde3acd4ea3be5924cd4619df9679f0ed5fdbbe2d6497f92",
-        "analysis/summary_by_variable.csv": "4bcfa8a601974949caadacd058a49d0caec09480d53a54bf48292a9f3663d667",
-        "analysis/usage_summary.csv": "0246ee29ddea4091842ec6f471cae37cb2064159cccb6b9e6a03890ad910bdf8",
-        "data.json": "9dc661d1ee7e411c7802ffbbee4ae7d3be2cb1e883e272a02cd00fd780a9310c",
-        "predictions.csv.gz": "808a2583ab145120442cecb91f3ca2cb5d194a8a825d7417a6ffc1362657ed5d",
-        "reference_outputs.csv": "6286a238e54a0b948385a60a73f36a1aae3cb9bf6612fa28c530d0fd3e024aae",
-        "reference_outputs.csv.meta.json": "5634984705ff8312936a2b57fdc339efef4747ee270949a2caa23a7d203da9e8",
-        "scenarios.csv": "eee79fb1db36851fd3b0d3fd343c1dbe62f86222f45b1fe806a5e0f4e49645d2",
-        "scenarios.csv.meta.json": "41a7c2cacf06f452164057ec4092c386938f2243a97ba30e0e3f0182f3ad6e34"
-      }
-    }
+    "note": "Developer-led row and case audit annotations for every wrong prediction row in the frozen snapshot. Final row-level failure_source values are limited to llm_error. Case notes are stored as us_case_notes.csv with case_failure_sources / case_failure_subtypes columns.",
+    "path": "annotations/us_full_run_20260612_policyengine_4_16_1_populace"
   },
   "committed_snapshot_artifacts": {
-    "us_scenarios.csv": "b05091225c066b652c11d16bf1c78778193d4f3ee277ce8aed8f0a7536c0e66c",
-    "us_reference_outputs.csv": "04febaadd091dfa7de97fcf71a8a52d3db2296ca98fe1c97f9be92c4bf1383ce",
-    "us_impact_summary_by_model.csv": "fb41e35ec39536755c65b1d7f0fc5292547dbb7f97a0d4a9df74b94f76eb9fb1",
-    "uk_scenarios.csv": "eee79fb1db36851fd3b0d3fd343c1dbe62f86222f45b1fe806a5e0f4e49645d2",
-    "uk_reference_outputs.csv": "6286a238e54a0b948385a60a73f36a1aae3cb9bf6612fa28c530d0fd3e024aae",
-    "uk_impact_summary_by_model.csv": "4d43581d8175e15cb057394c50b3fad257cd3274095c81e7dbd99134271d096d"
+    "us_impact_summary_by_model.csv": "9dfed6eb55a273b5ed0c9d7b369e94118b728a0a211ae6b9cdb78f7d27026546",
+    "us_reference_outputs.csv": "59860ff2d3c2b02768cae2db8e305ae042c8666cf121ea5d1df7d5f713f96141",
+    "us_scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"
+  },
+  "files": [
+    {
+      "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json",
+      "sha256": "74d118086cdcd1c48e120f86874edb949471bc5a3c4036004c1326c73d7dc5e8"
+    }
+  ],
+  "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under published_dashboard_artifact, which equals the combined export of the source run data.json files listed under source_run_artifacts. Future refreshes publish a new artifact (policybench publish-dashboard) and either update this manifest or use a new snapshot directory.",
+  "model_response_date": "2026-06-12 to 2026-06-13",
+  "policy_period": {
+    "us": "tax year 2026"
+  },
+  "population_weight_artifact": {
+    "note": "Output weights for the household and aggregate scoring views. US weights use the certified PolicyEngine US populace dataset with formula-owned benchmark output inputs cleared before calculation. These weights are fixed for scoring the 100-household snapshot.",
+    "path": "policybench/population_weights.json",
+    "sha256": "0b3b96b8247477631510371b9c3b021a18a535e8ebbf8c73a8aa67cff3110cd4"
+  },
+  "published_dashboard_artifact": {
+    "asset": "dashboard-data.json",
+    "bytes": 14099216,
+    "sha256": "460f261649aa5d772301dc638f6e79322a1a2cdeb6f3d130d4ff008f625f7e4d",
+    "tag": "dashboard-data-20260614",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260614/dashboard-data.json"
+  },
+  "reference_output_refresh": {
+    "date": "2026-06-14",
+    "policyengine_us_data_artifact_sha256": "f32c2e5e9098bc6540724fdd5debf963af495da4c29b3a7a63fb53c2a4bb5a34",
+    "policyengine_us_data_build_id": "populace-us-2024-5da5a95-20260611",
+    "policyengine_us_dataset": "populace_us_2024",
+    "policyengine_us_dataset_uri": "hf://policyengine/populace-us/populace_us_2024.h5@populace-us-2024-5da5a95-20260611",
+    "policyengine_us_version": "1.723.0",
+    "policyengine_version": "4.16.1"
   },
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "95a7b0c45d0b6f867f127c948705ba0045cbbecb4230556f7e503e171dcbca7e"
+      "sha256": "ba10e04f2bfded70892c9d8f38761365a7e064929eee4da141c723a43b4e9cba"
     },
     "web": {
-      "path": "app/public/paper/web",
       "files": {
-        "figures/positive_zero_scatter.png": "72c9ce6d698ad6972a93489a00741437f0519a3a8948547eafa7c9488396a20c",
-        "index.html": "81a80505020e258e219701e4c6ba66621bdde425c09f48b5728ab486ced5709f",
+        "figures/positive_zero_scatter.png": "400872786be76a04a6e30065b1055286637107259846ca96b057d0dd53ac4797",
+        "index.html": "3bc2bdbafb42e179f16a459487489f043bf2ac6fa87f437cbef7607669e7856d",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -81,167 +68,60 @@
         "site_libs/quarto-html/tabby.min.js": "d9bb77bde59c096a08171b67d3f4b797606fb06019ed3ca36028a5aa6f4d5953",
         "site_libs/quarto-html/tippy.css": "5969f497d9158d7682f8219c6f13fa67269cdf5bf50a3931d95327151dee5678",
         "site_libs/quarto-html/tippy.umd.min.js": "41181eeec6d7ba64cb9165f0e95563e34e026bde79e7c13aeec83270429b6fae"
-      }
+      },
+      "path": "app/public/paper/web"
     }
   },
   "reproducibility_notes": [
-    "The top-level scenario, refreshed reference-output, and impact-summary CSVs are byte-identical to the corresponding compact source-run artifacts copied under paper/snapshot/20260501/runs/.",
-    "Most model responses are from the May 13, 2026 source run; Gemini 3.5 Flash was added on 2026-05-20 using the same prompts, scenarios, and reference outputs. Reference outputs and derived scores were refreshed on 2026-05-15 with policyengine.py 4.4.4, policyengine-us 1.691.10 from Git SHA 4fd79e6608bc2dac3a7fde0be37191cb4870bd85, and policyengine-uk 2.88.16. The PE-UK stock-capital period-handling update did not change any reference value in the frozen UK sample.",
-    "Canonical prediction files include parser recovery, accepted full-response retries, and final row-level contract repairs. The preserved retry and repair artifacts retain the failed attempts and replaced original rows.",
-    "Raw provider responses are retained in compressed source-run predictions.csv.gz files. The separate LiteLLM cache remains local-only because it is a generated request cache, not the canonical snapshot artifact.",
-    "Model APIs and upstream model aliases may change after the recorded 2026-05-13 to 2026-05-20 response window, so exact reruns can diverge even with the committed household inputs, reference outputs, parsed dashboard export, and analysis summaries."
-  ],
-  "uk_transfer_dataset": {
-    "artifact": "enhanced_cps_2025.h5",
-    "sha256": "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866",
-    "public_repository": "https://github.com/PolicyEngine/policyengine-uk-data",
-    "pinned_commit": "9514dfb7ec607897c9f7122a2e073b922c9fd8b6",
-    "pinned_url": "https://raw.githubusercontent.com/PolicyEngine/policyengine-uk-data/9514dfb7ec607897c9f7122a2e073b922c9fd8b6/policyengine_uk_data/storage/enhanced_cps_2025.h5",
-    "note": "UK calibrated transfer dataset derived from benchmark-compatible PolicyEngine US Enhanced CPS households. The artifact is checked in to the public PolicyEngine/policyengine-uk-data GitHub repository at the pinned commit; later commits in that repository may rebuild the file. It is not native UK survey microdata, enhanced FRS, or population-representative."
-  },
-  "scope": {
-    "households": {
-      "us": 100,
-      "uk": 100
-    },
-    "output_groups": {
-      "us": 18,
-      "uk": 7
-    },
-    "models": 13,
-    "condition": "No tools, no web access, one structured response per household with numeric answers and non-empty explanations."
-  },
-  "model_response_date": "2026-05-13 to 2026-05-20",
-  "reference_output_refresh": {
-    "date": "2026-05-15",
-    "policyengine_version": "4.4.4",
-    "policyengine_us_version": "1.691.10",
-    "policyengine_us_git_sha": "4fd79e6608bc2dac3a7fde0be37191cb4870bd85",
-    "policyengine_uk_version": "2.88.16"
-  },
-  "files": [
-    {
-      "path": "runs/us_full_run_20260513_policyengine_4_4_4_nested_outputs/data.json",
-      "sha256": "1016061c8f4a089d54188c66f041360c62d6087da7e8fdf7c4a84d01d3b06b16"
-    },
-    {
-      "path": "runs/uk_full_run_20260513_policyengine_4_4_4_nested_outputs/data.json",
-      "sha256": "9dc661d1ee7e411c7802ffbbee4ae7d3be2cb1e883e272a02cd00fd780a9310c"
-    }
+    "The top-level scenario, reference-output, and impact-summary CSVs are byte-identical to the corresponding compact source-run artifacts copied under paper/snapshot/20260501/runs/.",
+    "Model responses are from the June 12-13, 2026 US run. Reference outputs were generated with policyengine.py 4.16.1 and policyengine-us 1.723.0 against the certified PolicyEngine US populace dataset (populace-us-2024-5da5a95-20260611, populace_us_2024).",
+    "Canonical prediction files include parser recovery. No full-response retries were required for this run; five missing cells were re-elicited individually.",
+    "Raw provider responses are retained in the compressed source-run predictions.csv.gz file. The separate LiteLLM cache remains local-only because it is a generated request cache, not the canonical snapshot artifact.",
+    "Model APIs and upstream model aliases may change after the recorded 2026-06-12 to 2026-06-13 response window, so exact reruns can diverge even with the committed household inputs, reference outputs, parsed dashboard export, and analysis summaries."
   ],
   "response_retry_artifacts": {
-    "path": "paper/snapshot/20260501/response_retries",
-    "note": "Bounded full-response retries. Accepted retries replace whole country-model-household responses only; rejected attempts and original failed responses are preserved. The final row-level repair pass starts from the Round 3 merged predictions.",
-    "files": {
-      "README.md": "e2a796c06abd659477431edb7bc80643b152a4d8b2c864c7b4a4c2e095d25e16",
-      "round_1/uk/accepted_retry_rows.csv.gz": "e31e10d1a77c347d26bdfccd9215d6815e0ea7783fc2ba0d4f660e6bb18b392e",
-      "round_1/uk/accepted_retry_units.csv": "8f097ea559aebb4ad63e099953ddaceaa47f134c4d1b52ebab8ceefe55c61d86",
-      "round_1/uk/merged_predictions.csv.gz": "c49ced02991d50148aadd1a4b74f7b13e6f5a887341177c35bea3b647921d912",
-      "round_1/uk/original_failed_responses.csv.gz": "64430041c5ff3c7d9ce40062675b44bbd69de72c0dc809601602715bd9a46ba2",
-      "round_1/uk/rejected_retry_units.csv": "307d84636a0e9511fbe2cae40ad5aaf6a27309204e424a4bfc34230ac2025ed4",
-      "round_1/uk/replaced_original_responses.csv.gz": "f284a3e7f20359afb8f09f627b484138f8547a8b719bbf28fa734561e335c001",
-      "round_1/uk/retry_metadata.json": "c33c7fdb26fe9d41c06b06c55083df34c3b8025b8f8cf3ab640f09b54cc70cfa",
-      "round_1/uk/retry_predictions.csv.gz": "e2a0492a393ff1506738b58c1221ff95efc339545ac63d2015e4797159ca4af3",
-      "round_1/uk/target_units.csv": "bcbf4fe41fd0d44761bca6352fa1c50644d90edf6eb1ade953a3ef3ab842b5d3",
-      "round_1/us/accepted_retry_rows.csv.gz": "cde8b1d7e6774ba506ade04ac729bddfb1b30f6a76d5257e361b6ea7ccbfd490",
-      "round_1/us/accepted_retry_units.csv": "c7dd1d425d0a9d90a9972e45c89677ed5d3ee73fb3cee23f2062a161ad42cf50",
-      "round_1/us/merged_predictions.csv.gz": "ad19c360198513c378c96ecd3fc6066abfced09ef5e10e5949093507bb7571a7",
-      "round_1/us/original_failed_responses.csv.gz": "159b8fd34d704a71e5e2ca23d4719d96702b8f9a2ff4f743312c51ade27d8229",
-      "round_1/us/rejected_retry_units.csv": "b7857ff43bdb6c471827924946a17a483e36c66d5bdb07df5c325cd973b0f29d",
-      "round_1/us/replaced_original_responses.csv.gz": "452edf06b7ba886a19cf43e73f23bfbbb63a2f080d76ab272d6bda2d8955e9ee",
-      "round_1/us/retry_metadata.json": "b5ef33621d3de5874471b627b2698942e54cbb32dd4e825a3532d703ae1a140d",
-      "round_1/us/retry_predictions.csv.gz": "37656720b1bc7482bc0d19bfccb590997f2de135ad063eaee81d4a9a29d5c0eb",
-      "round_1/us/target_units.csv": "f5439d87992bc564c583cebcdecbd1231d821a6ead2aa4a420eecebeb7570cab",
-      "round_2/uk/accepted_retry_rows.csv.gz": "7e3e1e6868e2f02420a033bdd5cc50f9ff68fefd07fbb6925b6f2ce9733f6b92",
-      "round_2/uk/accepted_retry_units.csv": "a43b082aac2b45ca92cc7af9d9f4af9eaac89456dc5ca081f2ab70c0777d0c64",
-      "round_2/uk/merged_predictions.csv.gz": "ca0c5eec673c8288a36f28b1ae1d0f739137dc7b6582cf1221dd66dfc7bd3b17",
-      "round_2/uk/original_failed_responses.csv.gz": "5fa0c88f9baff3481a80148c6727fd2a3cd6ec6582f0bc30e89826c04511cbd8",
-      "round_2/uk/rejected_retry_units.csv": "4559aecb6866d28282f5319afe59e61569399832917dd6c729eb3e3a1926e9a8",
-      "round_2/uk/replaced_original_responses.csv.gz": "61f4d375beec8083f62c75839354e15fa77fa44c1e7b477ccf402ee96733c604",
-      "round_2/uk/retry_metadata.json": "0c6dbcdcd71970dfdd3eb109546a04268bf2ea9b6055feae14a7d0657b321307",
-      "round_2/uk/retry_predictions.csv.gz": "ec55869cec6352500259b73e7ee1ae75cdcaa0440d17cf6bb02aeb89c83958aa",
-      "round_2/uk/target_units.csv": "eb84c6934bf6301eca736864d217b899588e2dfca621877cf99d94e45828e9e4",
-      "round_2/us/accepted_retry_rows.csv.gz": "d34a1261f3ec2385ba2d91a384370834ce3692d594adb49fb1ddf4c6ef988b64",
-      "round_2/us/accepted_retry_units.csv": "a43b082aac2b45ca92cc7af9d9f4af9eaac89456dc5ca081f2ab70c0777d0c64",
-      "round_2/us/merged_predictions.csv.gz": "d48c8d2ba29e611359c0586035209ca46b4576051b7230bddecad1e6cb5994b3",
-      "round_2/us/original_failed_responses.csv.gz": "046e987b702bd88ca7f874540a6d013b27383a6a9469dd5c61f0fe1f6ba33e6f",
-      "round_2/us/rejected_retry_units.csv": "f8625ea09bee70310327c9f7c898a2be7f48ac06fce4642652992ed008529e7e",
-      "round_2/us/replaced_original_responses.csv.gz": "bd594c821d8034e4c1f44b9b82513676ab30d1fcc39986b28e089ce65620e526",
-      "round_2/us/retry_metadata.json": "21d31a1d23aa91ae474b45b471abc3186938659ed14235fae46c21fd05264b5b",
-      "round_2/us/retry_predictions.csv.gz": "ca6d7bb54e206298a31a64a0f57b41278101cf8adaf505013bf3a6e18693d849",
-      "round_2/us/target_units.csv": "16063df9142b6e8bfbc23c4520fbb85317cd69f8ad22dfd782b61ce72890f178",
-      "round_3/uk/accepted_retry_rows.csv.gz": "b9ede0989c948bb84737998800585f912304b4e572d013ac6551cf211e7fefbb",
-      "round_3/uk/accepted_retry_units.csv": "753ad865b93a9fdc11bf1523cfecd34f8bd10c5e4f59a3d87045a1fa4b7a5bf6",
-      "round_3/uk/merged_predictions.csv.gz": "aa3b34b26bda21cc92adc9dd6cc049debb7f698ee1410022d9973d41ca835397",
-      "round_3/uk/original_failed_responses.csv.gz": "5e77ec30ef573ec0e92e1c7d539cc8ce0bb11eb0b0eb73ae903f8d83f42f4aed",
-      "round_3/uk/rejected_retry_units.csv": "9c3e85e22b55d2ec36a04282bed8f0cc3d619d6e3b7b1a9ba05f6c0cd1c04152",
-      "round_3/uk/replaced_original_responses.csv.gz": "c303f112628c3d7dd050159e6df68cea9cd242d11491b3002bbd4812389345cb",
-      "round_3/uk/retry_metadata.json": "cc869a6f169f339aee5561022967619669cd8d5f8b9a91337a14bb3f31347230",
-      "round_3/uk/retry_predictions.csv.gz": "f70d6be681ba727dcfe007ea4cdece0f4db6d778f4a236b6caa5f27065f4bd3d",
-      "round_3/uk/target_units.csv": "02dc36b94d1db65870ffb84d319472cca73e165f6b05a86c20f6c560e7625979",
-      "round_3/us/accepted_retry_rows.csv.gz": "5f1d03fc9c745ec48c66e485ee6b388672c44494db664e5e3651101c53dd84c6",
-      "round_3/us/accepted_retry_units.csv": "76be8a5505b79243ffc1f14c8f109e5b1b8ff5ce0b8230aa899c696b3cd44d11",
-      "round_3/us/merged_predictions.csv.gz": "1ebf2389786a79acc5fc9af3c6f900272d2f7e4ef8f87bbdf155995711b2f465",
-      "round_3/us/original_failed_responses.csv.gz": "dbb8236a8aeaa8575821837a08078293dc19e07389ab4e074d0d4d655e853570",
-      "round_3/us/rejected_retry_units.csv": "4371acb9a9e46f34d582f6d3a299528201bde17eea03dad079b9c690bc974e18",
-      "round_3/us/replaced_original_responses.csv.gz": "41919cb25bb2ece76be394d16953347a63cb5dab5a340cffcba8d8638fb08779",
-      "round_3/us/retry_metadata.json": "62eef07c61ac0d6cf8cc209a19f15b24107ed45931ee1a0b05f7daca3c60a464",
-      "round_3/us/retry_predictions.csv.gz": "4c9a6f2e06acfadb6d3e97ef0137c9db47b4476e6c8e7e78787bd81b9053e726",
-      "round_3/us/target_units.csv": "45965c6746620629b97eee882335cfdb5b27217a87288e9b5cd88115df76b734"
-    }
-  },
-  "audit_annotation_artifacts": {
-    "path": "annotations/full_run_20260513_policyengine_4_4_4_nested_outputs",
-    "note": "Developer-led row and case annotations for every wrong prediction row in the repaired frozen snapshot. Final failure_source values are limited to llm_error.",
-    "files": {
-      "README.md": "f8f76a07a2214235d51f6567469c51f615be9e9556b7c1c7c433c2a42b0009d7",
-      "uk_benefit_annotations.csv": "ce1240613d27705cf3edc5fd5263116d9ee5a1444ec6f3c57cf8b747b21d80f4",
-      "uk_case_notes.csv": "77904fbd7cba33b4f35e8234eb79f4c43c639c78f54cbad3f259d378b438ab04",
-      "uk_case_reference_explanations.csv": "8cb5c2721e947a7503e98ebb897ffe2f5d0bee6f69b9e6542dc1f66afa165c16",
-      "uk_tax_annotations.csv": "95aee45ec30391d91e0b0ff7bab0c2bd16e3535f29cc846e456e0da3f885ce05",
-      "us_benefit_annotations.csv": "2882e221faa00ba2e4f539a8138bf6d3bbfa3e14ffab73501cce99b8185c32cb",
-      "us_case_notes.csv": "beb0a130ebc6ca5264f181225b6bb56cdb6aa22ddd72841573092e333f72b71b",
-      "us_case_reference_explanations.csv": "74a118e21cca22855f957d1482d1a0d9807fb0da159d00541c2e5ec6b4376466",
-      "us_tax_annotations.csv": "9f87399422822103fc9487f96be600d06cbd75b08a7a83cb8abb63bda2656c7f"
-    }
+    "files": {},
+    "note": "No full-response retries were required for the June populace run; whole-response retry rounds were not needed.",
+    "path": "paper/snapshot/20260501/response_retries"
   },
   "row_repair_artifacts": {
-    "path": "paper/snapshot/20260501/row_repairs",
-    "note": "Final row-level contract repairs. Accepted rows replace only rows still missing a parsed numeric value or non-empty explanation after parser recovery and full-response retries. Targets, attempts, accepted rows, replaced originals, and merged prediction files are preserved.",
-    "files": {
-      "README.md": "cd3f26113bd55e0ab74b737094f42d71897c65a2567d9f187bcdfb206d2a2450",
-      "round_1/uk/accepted_row_repair_rows.csv.gz": "e5d9728d23c380020420c742005b4520edc6f08cd152e38cb2f36d498a017601",
-      "round_1/uk/merged_predictions.csv.gz": "34502eb863e0e67e149b852c9a9676032a105044ced5c97898d1d1f59b08013c",
-      "round_1/uk/rejected_row_repair_rows.csv": "6acdb418942c5f100985e54c485e4f2a269dd3e3fba19129793b71e6fba8b660",
-      "round_1/uk/reparsed_source_predictions.csv.gz": "acd5bffce19ea39d406cc162ade7e56c4d02bda5cc7f610cc91fb39026c73553",
-      "round_1/uk/replaced_original_rows.csv.gz": "8201cc55a67db4ac72d68fc6924ff5e419b45702c99445459ebe741045d020e4",
-      "round_1/uk/row_repair_attempts.csv.gz": "cdee75edc59b5c1baaf7665f5505e629fd57fd70199b4b728058ffe8ab388bd5",
-      "round_1/uk/row_repair_metadata.json": "b2ca41aa60067684a419e00085af2d5a5d18c91f87cdd22d15e107d7e9b69513",
-      "round_1/uk/row_repair_predictions.csv.gz": "2f884308a47b7a353a00026926c842303a85be58cc96186f1b375b54ac670114",
-      "round_1/uk/source_predictions.csv.gz": "aa3b34b26bda21cc92adc9dd6cc049debb7f698ee1410022d9973d41ca835397",
-      "round_1/uk/target_rows.csv": "980b37f0b81c925a078b01d0a255e313a4ab2d19cf6526508f5647fa3936024a",
-      "round_1/us/accepted_row_repair_rows.csv.gz": "11b4d47fdb7c2dbb91343c2c647f184a9d00cce92187edd79659c5d79f17a196",
-      "round_1/us/merged_predictions.csv.gz": "46c030a3d9cb3a2e90652f99bc741e32db7c4f2499018417e75497ecbada74f3",
-      "round_1/us/rejected_row_repair_rows.csv": "6acdb418942c5f100985e54c485e4f2a269dd3e3fba19129793b71e6fba8b660",
-      "round_1/us/reparsed_source_predictions.csv.gz": "b6661c1aa1422eedb0f764639dac0495293f32746dc1074b835df6e6f90dc0cd",
-      "round_1/us/replaced_original_rows.csv.gz": "58831610b5d8683bc88b6135d6a643d48980cbe4eabcbee5fb4286135c0802c9",
-      "round_1/us/row_repair_attempts.csv.gz": "aaad69a14241eb23ccc116af1d424c36391819ee678017a50bfd4bd70aac4ec9",
-      "round_1/us/row_repair_metadata.json": "aef62ac48504d9c7970b7a48d90887ffbd38b56d11c02d1464efef241e1c941f",
-      "round_1/us/row_repair_predictions.csv.gz": "e071076e25e8bb4dbd076ec75f3661de779788694222714eab12b91cbb5d3e57",
-      "round_1/us/source_predictions.csv.gz": "1ebf2389786a79acc5fc9af3c6f900272d2f7e4ef8f87bbdf155995711b2f465",
-      "round_1/us/target_rows.csv": "65804743a0d579f099826046e72a52785f122dba6d860552c27d6ea83b85dc8b"
+    "files": {},
+    "note": "No bulk row-repair rounds were required for the June populace run; five missing cells were re-elicited individually.",
+    "path": "paper/snapshot/20260501/row_repairs"
+  },
+  "scope": {
+    "condition": "No tools, no web access, one structured response per household with numeric answers and non-empty explanations.",
+    "households": {
+      "us": 100
+    },
+    "models": 13,
+    "output_groups": {
+      "us": 18
     }
   },
-  "population_weight_artifact": {
-    "path": "policybench/population_weights.json",
-    "sha256": "31f603a8989f3784938de71854d5c3bf10a62baa33d6cdb85a3acbc726d54360",
-    "note": "Output weights for the household and aggregate scoring views. US weights use the full Enhanced CPS; UK weights use the full enhanced FRS. This weighting source is separate from the public UK calibrated transfer dataset used for the benchmark scenarios. These weights are fixed for scoring the 100-household snapshot."
+  "snapshot_date": "2026-06-14",
+  "source_run_artifacts": {
+    "note": "Compact copies of run outputs used to verify this snapshot. The run data.json retains parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime metadata used by the dashboard. predictions.csv.gz is a deterministic gzip of the run's raw provider responses.",
+    "us_full_run_20260612_policyengine_4_16_1_populace": {
+      "files": {
+        "analysis/impact_summary_by_model.csv": "9dfed6eb55a273b5ed0c9d7b369e94118b728a0a211ae6b9cdb78f7d27026546",
+        "analysis/metrics.csv": "1a89ea8347394d8b584a37e7391582245f7aeb09015368f031b1f195d788bcfe",
+        "analysis/report.md": "1b3baf19b724987f9d06ddf71de3ab17db915154eaf248d5447daff6275ef8e5",
+        "analysis/summary_by_model.csv": "c6412a304f5c586303b6ddc795d0b1ae64e7f126966e3ba3ce35b86161285db4",
+        "analysis/summary_by_variable.csv": "9e1cfc1dd890dc4b81c01bf7113883ae1f5b9e2e6447f7d7738653b5cd10bf5c",
+        "analysis/usage_summary.csv": "57f2d29319424ee08cdf4a1ef0fd0d17903f729f0022af5614e86ef5bfeb4c50",
+        "data.json": "74d118086cdcd1c48e120f86874edb949471bc5a3c4036004c1326c73d7dc5e8",
+        "predictions.csv.gz": "1f1709c745135a2059fd37429ef4999cdc4b55e73c2f1b54b7ad13e1c9b5f654",
+        "reference_outputs.csv": "59860ff2d3c2b02768cae2db8e305ae042c8666cf121ea5d1df7d5f713f96141",
+        "reference_outputs.csv.meta.json": "da59c97eac135fc48700c2a74b5e34c933b1d7781cafd2e60fe7c33509f3914f",
+        "scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+        "scenarios.csv.meta.json": "03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb"
+      },
+      "path": "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace",
+      "prompt_payload_sha256": "1c3f94362d0b06a34018e5c0c6f39a0c2c2ff36b89c106ae27bbe40c722c2f73"
+    }
   },
-  "published_dashboard_artifact": {
-    "tag": "dashboard-data-20260520",
-    "asset": "dashboard-data.json",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260520/dashboard-data.json",
-    "sha256": "4686fe4c74c41ae107f163b18d40ebed6c675c4432be1bf9fe67c61a64194d71",
-    "bytes": 57432435
+  "source_run_labels": {
+    "us": "us_full_run_20260612_policyengine_4_16_1_populace"
   }
 }

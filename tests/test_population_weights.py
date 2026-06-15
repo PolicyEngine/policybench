@@ -1,9 +1,12 @@
 """Tests for full-population scoring weights."""
 
+from types import SimpleNamespace
+
 import pandas as pd
 import pytest
 
 from policybench.population_weights import (
+    _clear_formula_owned_output_inputs,
     _weights_from_contributions,
     load_population_weight_payload,
     population_weight_series,
@@ -36,10 +39,7 @@ def test_population_weight_artifact_has_expected_nonzero_weights():
     assert uk["universal_credit"] > 0
     assert uk["pip"] > 0
 
-    # The current full ECPS source has no local-income-tax-positive households.
-    # Keeping this at zero is intentional until the scenario source can
-    # represent local tax jurisdictions.
-    assert us["local_income_tax"] == 0
+    assert us["local_income_tax"] > 0
 
 
 def test_weights_from_contributions_uses_household_weights_and_aggregate_sums():
@@ -67,6 +67,55 @@ def test_weights_from_contributions_uses_household_weights_and_aggregate_sums():
     assert result["weights"]["household"]["benefit"] == pytest.approx(0.9 / 0.91)
     assert result["metadata"]["positive_weight_households"] == 2
     assert result["metadata"]["total_household_weight"] == pytest.approx(10.0)
+
+
+def test_clear_formula_owned_output_inputs_deletes_only_active_formula_outputs():
+    class FakeVariable:
+        def __init__(self, has_formula: bool):
+            self.has_formula = has_formula
+
+        def get_formula(self, period: str):
+            return (lambda *_: None) if self.has_formula else None
+
+    class FakeHolder:
+        def __init__(self, known_periods):
+            self._known_periods = list(known_periods)
+            self.deleted = False
+
+        def get_known_periods(self):
+            return list(self._known_periods)
+
+        def delete_arrays(self):
+            self.deleted = True
+            self._known_periods = []
+
+    holders = {
+        "formula_output": FakeHolder(["2026"]),
+        "input_output": FakeHolder(["2026"]),
+        "uncached_formula_output": FakeHolder([]),
+    }
+    sim = SimpleNamespace(
+        tax_benefit_system=SimpleNamespace(
+            variables={
+                "formula_output": FakeVariable(True),
+                "input_output": FakeVariable(False),
+                "uncached_formula_output": FakeVariable(True),
+            }
+        ),
+        get_holder=lambda name: holders[name],
+    )
+    outputs = [
+        SimpleNamespace(pe_variable="formula_output"),
+        SimpleNamespace(pe_variable="input_output"),
+        SimpleNamespace(pe_variable="uncached_formula_output"),
+    ]
+
+    cleared = _clear_formula_owned_output_inputs(sim, outputs, 2026)
+
+    assert cleared == ["formula_output"]
+    assert holders["formula_output"].deleted
+    assert not holders["input_output"].deleted
+    assert not holders["uncached_formula_output"].deleted
 
 
 def test_population_weight_artifact_covers_current_headline_spec():

@@ -29,6 +29,9 @@ function ViewSelector({
   onSelect: (view: CountryCode) => void;
   views: CountryCode[];
 }) {
+  // Only show the country toggle when more than one country is published.
+  // The current release is US-only, so the selector stays hidden.
+  if (views.length <= 1) return null;
   return (
     <div
       role="group"

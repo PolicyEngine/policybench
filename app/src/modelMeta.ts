@@ -4,12 +4,12 @@
 // can keep the runtime values out of the JS bundle.
 
 export const MODEL_ORDER = [
+  "claude-opus-4.8",
   "claude-opus-4.7",
   "claude-sonnet-4.6",
   "claude-haiku-4.5",
   "grok-4.3",
-  "grok-4.20",
-  "grok-4.1-fast",
+  "grok-build-0.1",
   "gpt-5.5",
   "gpt-5.4-mini",
   "gpt-5.4-nano",
@@ -22,12 +22,12 @@ export const MODEL_ORDER = [
 ] as const;
 
 export const MODEL_LABELS: Record<string, string> = {
+  "claude-opus-4.8": "Claude Opus 4.8",
   "claude-opus-4.7": "Claude Opus 4.7",
   "claude-haiku-4.5": "Claude Haiku 4.5",
   "claude-sonnet-4.6": "Claude Sonnet 4.6",
   "grok-4.3": "Grok 4.3",
-  "grok-4.20": "Grok 4.20",
-  "grok-4.1-fast": "Grok 4.1 Fast",
+  "grok-build-0.1": "Grok Build 0.1",
   "gpt-5.5": "GPT-5.5",
   "gpt-5.4-mini": "GPT-5.4 mini",
   "gpt-5.4-nano": "GPT-5.4 nano",
@@ -66,7 +66,7 @@ export function getProviderForModel(model: string): ProviderKey | null {
 // One frontier flagship per provider — used by the leaderboard's
 // "Frontier only" filter (default on) so the table stays scannable.
 export const FRONTIER_MODELS: readonly string[] = [
-  "claude-opus-4.7",
+  "claude-opus-4.8",
   "gpt-5.5",
   "grok-4.3",
   "gemini-3.1-pro-preview",

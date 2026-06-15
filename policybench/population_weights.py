@@ -3,7 +3,8 @@
 The benchmark evaluates a fixed sample of households, but the output weights
 should reflect policy importance in the full source populations. This module
 loads a committed weight artifact and contains the generator used to rebuild it
-from the full US Enhanced CPS and UK enhanced FRS microsimulation datasets.
+from the certified PolicyEngine US populace dataset and the UK enhanced FRS
+microsimulation dataset.
 """
 
 from __future__ import annotations
@@ -149,14 +150,58 @@ def _series_by_household(
     )
 
 
-def _us_population_contributions(year: int) -> dict[str, Any]:
-    from policyengine_us import Microsimulation
+def _has_active_formula(variable: Any, year: int) -> bool:
+    get_formula = getattr(variable, "get_formula", None)
+    if get_formula is not None:
+        return get_formula(str(year)) is not None
+    return getattr(variable, "formula", None) is not None or bool(
+        getattr(variable, "formulas", None)
+    )
 
-    sim = Microsimulation()
+
+def _clear_formula_owned_output_inputs(
+    sim: Any, outputs: list[Any], year: int
+) -> list[str]:
+    """Force benchmark output variables to calculate from formulas, not data columns."""
+    cleared = []
+    variables = sim.tax_benefit_system.variables
+    for output in outputs:
+        variable_name = output.pe_variable
+        variable = variables[variable_name]
+        if not _has_active_formula(variable, year):
+            continue
+        holder = sim.get_holder(variable_name)
+        if not holder.get_known_periods():
+            continue
+        holder.delete_arrays()
+        cleared.append(variable_name)
+    return sorted(cleared)
+
+
+def _us_population_contributions(year: int) -> dict[str, Any]:
+    from policybench.policyengine_runtime import make_us_microsimulation
+
+    sim = make_us_microsimulation()
     outputs = get_output_specs("us", "headline")
+    cleared_formula_owned_outputs = _clear_formula_owned_output_inputs(
+        sim,
+        outputs,
+        year,
+    )
     household_ids = pd.Series(
         sim.calculate("household_id", year, map_to="household", use_weights=False)
     ).astype(int)
+    # A failed certified-dataset download makes Microsimulation() silently
+    # fall back to a small bundled sample; population weights derived from it
+    # would be quietly wrong. Full US datasets have tens of thousands of
+    # households; the certified populace dataset has about 75k.
+    if len(household_ids) < 20_000:
+        raise RuntimeError(
+            f"US microsimulation loaded only {len(household_ids)} households — "
+            "this looks like a fallback sample, not the certified full "
+            "population dataset. Check HUGGING_FACE_TOKEN and dataset access "
+            f"(certified: {_us_certified_dataset_label()})."
+        )
     household_weight = _series_by_household(
         sim.calculate("household_weight", year, map_to="household", use_weights=False),
         household_ids,
@@ -228,12 +273,29 @@ def _us_population_contributions(year: int) -> dict[str, Any]:
         household_net_income=household_net_income,
         household_weight=household_weight,
         metadata={
-            "source_dataset": "full PolicyEngine US Enhanced CPS",
-            "source_dataset_uri": str(getattr(sim, "default_dataset", "default")),
+            # Record what actually loaded, not a hardcoded label: a failed
+            # dataset download can silently fall back to a small bundled
+            # sample, and the artifact must make that visible.
+            "source_dataset": _us_certified_dataset_label(),
+            "source_dataset_uri": sim.policyengine_bundle.get("default_dataset_uri"),
             "source_household_rows": int(len(household_ids)),
             "tax_year": year,
+            "formula_owned_output_inputs_cleared": cleared_formula_owned_outputs,
         },
     )
+
+
+def _us_certified_dataset_label() -> str:
+    """The certified US dataset per the installed policyengine bundle."""
+    try:
+        from policybench.policyengine_runtime import runtime_metadata_for_country
+
+        bundle = runtime_metadata_for_country("us")["policyengine_bundles"]["us"]
+        dataset = bundle.get("default_dataset") or "unknown"
+        build = bundle.get("certified_data_build_id")
+        return f"{dataset} ({build})" if build else str(dataset)
+    except Exception:
+        return "unknown (runtime metadata unavailable)"
 
 
 def _aggregate_uk_to_households(
