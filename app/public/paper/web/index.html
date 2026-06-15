@@ -233,91 +233,81 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
-<td>Response retry artifacts</td>
-<td>paper/snapshot/20260501/response_retries</td>
-</tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">7</th>
-<td>Row-repair artifacts</td>
-<td>paper/snapshot/20260501/row_repairs</td>
-</tr>
-<tr class="odd">
-<th data-quarto-table-cell-role="th">8</th>
 <td>Audit annotations</td>
 <td>annotations/us_full_run_20260612_policyengine_4_16_1_populace</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">9</th>
+<th data-quarto-table-cell-role="th">7</th>
 <td>US scenarios SHA-256 prefix</td>
 <td>71b16212f0c0</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">10</th>
+<th data-quarto-table-cell-role="th">8</th>
 <td>US reference outputs SHA-256 prefix</td>
 <td>59860ff2d3c2</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">11</th>
+<th data-quarto-table-cell-role="th">9</th>
 <td>Benchmark spec SHA-256 prefix</td>
 <td>ce233f8cbb05</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">12</th>
+<th data-quarto-table-cell-role="th">10</th>
 <td>Frozen prompt payload SHA-256 prefix</td>
 <td>US 1c3f94362d0b</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">13</th>
+<th data-quarto-table-cell-role="th">11</th>
 <td>Scoring code SHA-256 prefix</td>
-<td>129f51903bc8</td>
+<td>e973e8e5f3df</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">14</th>
+<th data-quarto-table-cell-role="th">12</th>
 <td>US run label</td>
 <td>us_full_run_20260612_policyengine_4_16_1_populace</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">15</th>
+<th data-quarto-table-cell-role="th">13</th>
 <td>Household sample seed</td>
 <td>42</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">16</th>
+<th data-quarto-table-cell-role="th">14</th>
 <td>PolicyEngine.py</td>
 <td>4.16.1</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">17</th>
+<th data-quarto-table-cell-role="th">15</th>
 <td>PolicyEngine-US</td>
 <td>policyengine-us 1.723.0</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">18</th>
+<th data-quarto-table-cell-role="th">16</th>
 <td>US dataset</td>
 <td>populace_us_2024 (populace-us-2024-5da5a95-20260611)</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">19</th>
+<th data-quarto-table-cell-role="th">17</th>
 <td>Households</td>
 <td>100 US</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">20</th>
+<th data-quarto-table-cell-role="th">18</th>
 <td>Models</td>
 <td>13</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">21</th>
+<th data-quarto-table-cell-role="th">19</th>
 <td>Output groups</td>
 <td>18 US</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">22</th>
+<th data-quarto-table-cell-role="th">20</th>
 <td>Condition</td>
 <td>No tools, no web access, one structured response per household</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">23</th>
+<th data-quarto-table-cell-role="th">21</th>
 <td>Response contract</td>
 <td>Numeric answer and non-empty explanation for every requested output</td>
 </tr>
@@ -1358,7 +1348,7 @@ Table&nbsp;12: US within-10% accuracy on federal vs state refundable credits and
 <p>These results support a narrow conclusion: unaided frontier models still struggle to reproduce selected household-level microsimulation outputs under a structured public benchmark. They do not show that models cannot assist policy analysis, and they do not validate PolicyEngine outputs as administrative truth. They suggest that future evaluations should separate no-tool estimation, tool-using system design, and reference-output validation more explicitly.</p>
 <p>Next steps are to expand country coverage, increase frozen sample sizes, and add protected or rotating evaluation sets so that public rankings are less exposed to open-set leakage. The benchmark should also continue reporting sensitivity views, because scores are useful summaries only when their weighting choices are visible.</p>
 <h2 id="appendix-a-structured-output-audit" class="anchored">Appendix A: Structured-output audit</h2>
-<p>The benchmark requires one numeric value and one explanation for every requested output. Parse failures are benchmark failures, not missing data to drop from the denominator. Before publishing the manuscript snapshot, we audited missing numeric values and explanations, extended the parser only where explicit variable-keyed <code>value</code> and <code>explanation</code> fields were recoverable, retried broken full responses, and then ran targeted row repairs for the remaining missing rows. <a href="#tbl-parse-repair-summary" class="quarto-xref">Table&nbsp;13</a> summarizes that sequence.</p>
+<p>The benchmark requires one numeric value and one explanation for every requested output. Parse failures are benchmark failures, not missing data to drop from the denominator. Before publishing the manuscript snapshot, we audited missing numeric values and explanations, extended the parser only where explicit variable-keyed <code>value</code> and <code>explanation</code> fields were recoverable, and re-elicited the few remaining missing cells individually. <a href="#tbl-parse-repair-summary" class="quarto-xref">Table&nbsp;13</a> summarizes that sequence.</p>
 <div class="cell" data-execution_count="14">
 <div id="tbl-parse-repair-summary" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="14">
 <figure class="quarto-float quarto-float-tbl">
@@ -1419,7 +1409,7 @@ Table&nbsp;13: Structured-output parser audit and repair sequence.
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
 <td>Preservation rule</td>
-<td>The snapshot retains response-retry and row-repair targets, attempts, accepted replacements, rejected rows, and merged prediction files.</td>
+<td>The snapshot retains the raw provider responses in the compressed source-run prediction files; no full-response retry or bulk row-repair rounds were required for this run.</td>
 </tr>
 </tbody>
 </table>
@@ -1430,86 +1420,7 @@ Table&nbsp;13: Structured-output parser audit and repair sequence.
 </figure>
 </div>
 </div>
-<p>The main full-response denominator is the country-model-household response: one model answering one household in one country. We first retried broken responses at that level, accepting a retry only when the whole response satisfied the numeric-and-explanation contract. Several outputs in the same response are mechanically related, so this full-response pass avoided mixing answer sets where possible. <a href="#tbl-retry-round-summary" class="quarto-xref">Table&nbsp;14</a> summarizes the preserved retry rounds.</p>
-<div class="cell" data-execution_count="15">
-<div id="tbl-retry-round-summary" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="15">
-<figure class="quarto-float quarto-float-tbl">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-retry-round-summary-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;14: Full-response retry rounds preserved with the paper snapshot.
-</figcaption>
-<div aria-describedby="tbl-retry-round-summary-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display" data-execution_count="15">
-<div>
-<style scoped="">
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-
-<table class="dataframe cell caption-top" data-border="1">
-<thead>
-<tr class="header" style="text-align: right;">
-<th data-quarto-table-cell-role="th"></th>
-</tr>
-</thead>
-<tbody>
-</tbody>
-</table>
-
-</div>
-</div>
-</div>
-</figure>
-</div>
-</div>
-<p>The full-response pass did not eliminate every missing row. The final row-level repair pass retried the same model on the same household-output target and accepted only rows with both a parsed numeric value and non-empty explanation. These repairs are part of the canonical manuscript snapshot, not a separate leaderboard condition. <a href="#tbl-row-repair-summary" class="quarto-xref">Table&nbsp;15</a> reports the row-level repair counts and confirms that the final repaired prediction files have zero missing output rows.</p>
-<div class="cell" data-execution_count="16">
-<div id="tbl-row-repair-summary" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="16">
-<figure class="quarto-float quarto-float-tbl">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-row-repair-summary-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;15: Row-level repairs preserved with the paper snapshot.
-</figcaption>
-<div aria-describedby="tbl-row-repair-summary-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display" data-execution_count="16">
-<div>
-<style scoped="">
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-
-<table class="dataframe cell caption-top" data-border="1">
-<thead>
-<tr class="header" style="text-align: right;">
-<th data-quarto-table-cell-role="th"></th>
-</tr>
-</thead>
-<tbody>
-</tbody>
-</table>
-
-</div>
-</div>
-</div>
-</figure>
-</div>
-</div>
+<p>No full-response retry or bulk row-repair rounds were required for the June populace run; the five missing cells noted above were re-elicited individually against the same model, household, and output, and the resulting canonical prediction files have zero missing numeric values or explanations.</p>
 <h2 id="competing-interests" class="anchored">Competing interests</h2>
 <p>The author is affiliated with PolicyEngine, which develops the microsimulation software used to produce the benchmark reference outputs.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">
