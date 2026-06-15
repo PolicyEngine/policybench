@@ -500,77 +500,6 @@ def weighting_sensitivity() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def response_retry_dir() -> Path:
-    return ROOT / IMPACT_SNAPSHOT_DIR / "response_retries"
-
-
-def row_repair_dir() -> Path:
-    return ROOT / IMPACT_SNAPSHOT_DIR / "row_repairs"
-
-
-def retry_round_summary_table() -> pd.DataFrame:
-    rows = []
-    for round_name in ["round_1", "round_2", "round_3"]:
-        for country in COUNTRIES:
-            retry_dir = response_retry_dir() / round_name / country
-            if not retry_dir.exists():
-                continue
-            target = pd.read_csv(retry_dir / "target_units.csv")
-            accepted = pd.read_csv(retry_dir / "accepted_retry_units.csv")
-            rejected = pd.read_csv(retry_dir / "rejected_retry_units.csv")
-            predictions = pd.read_csv(
-                retry_dir / "retry_predictions.csv.gz",
-                usecols=lambda column: column in {"estimated_cost_usd"},
-            )
-            rows.append(
-                {
-                    "Round": round_name.replace("_", " ").title(),
-                    "Country": country.upper(),
-                    "Target responses": len(target),
-                    "Accepted responses": len(accepted),
-                    "Rejected responses": len(rejected),
-                    "Estimated cost": f"${predictions['estimated_cost_usd'].fillna(0).sum():.2f}",
-                }
-            )
-    return pd.DataFrame(rows)
-
-
-def row_repair_summary_table() -> pd.DataFrame:
-    rows = []
-    for round_name in ["round_1"]:
-        for country in COUNTRIES:
-            repair_dir = row_repair_dir() / round_name / country
-            if not repair_dir.exists():
-                continue
-            target = pd.read_csv(repair_dir / "target_rows.csv")
-            accepted = pd.read_csv(repair_dir / "accepted_row_repair_rows.csv.gz")
-            rejected = pd.read_csv(repair_dir / "rejected_row_repair_rows.csv")
-            attempts = pd.read_csv(
-                repair_dir / "row_repair_attempts.csv.gz",
-                usecols=lambda column: column in {"estimated_cost_usd"},
-            )
-            merged = pd.read_csv(
-                repair_dir / "merged_predictions.csv.gz",
-                usecols=["prediction", "explanation"],
-            )
-            missing = (
-                merged["prediction"].isna()
-                | merged["explanation"].fillna("").astype(str).str.strip().eq("")
-            )
-            rows.append(
-                {
-                    "Round": round_name.replace("_", " ").title(),
-                    "Country": country.upper(),
-                    "Target rows": len(target),
-                    "Accepted row repairs": len(accepted),
-                    "Rejected row repairs": len(rejected),
-                    "Final missing rows": int(missing.sum()),
-                    "Estimated cost": f"${attempts['estimated_cost_usd'].fillna(0).sum():.2f}",
-                }
-            )
-    return pd.DataFrame(rows)
-
-
 def deviation_audit_summary_table() -> pd.DataFrame:
     from policybench.annotation_validation import validate_snapshot_audit
 
@@ -819,8 +748,6 @@ model_runs = model_run_table()
 baseline_summary = simple_baselines()
 federal_state_joint = federal_state_joint_accuracy()
 weighting_sensitivity_table = weighting_sensitivity()
-retry_round_summary = retry_round_summary_table()
-row_repair_summary = row_repair_summary_table()
 deviation_audit_summary = deviation_audit_summary_table()
 total_wrong_rows_audited = int(
     deviation_audit_summary.loc[
@@ -839,8 +766,6 @@ snapshot_provenance = pd.DataFrame(
             f"US {file_hash_prefix(US_DASHBOARD_EXPORT)}",
         ],
         ["Snapshot manifest", f"{IMPACT_SNAPSHOT_DIR}/manifest.json"],
-        ["Response retry artifacts", f"{IMPACT_SNAPSHOT_DIR}/response_retries"],
-        ["Row-repair artifacts", f"{IMPACT_SNAPSHOT_DIR}/row_repairs"],
         ["Audit annotations", ANNOTATION_DIR],
         ["US scenarios SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_scenarios.csv")],
         ["US reference outputs SHA-256 prefix", file_hash_prefix(f"{IMPACT_SNAPSHOT_DIR}/us_reference_outputs.csv")],
@@ -895,7 +820,7 @@ parse_repair_summary = pd.DataFrame(
                 f"{r.n_canonical_rows_fmt} canonical model-output rows."
             ),
         ],
-        ["Preservation rule", "The snapshot retains response-retry and row-repair targets, attempts, accepted replacements, rejected rows, and merged prediction files."],
+        ["Preservation rule", "The snapshot retains the raw provider responses in the compressed source-run prediction files; no full-response retry or bulk row-repair rounds were required for this run."],
     ],
     columns=["Step", "Finding"],
 )
@@ -1151,7 +1076,7 @@ Next steps are to expand country coverage, increase frozen sample sizes, and add
 
 ## Appendix A: Structured-output audit
 
-The benchmark requires one numeric value and one explanation for every requested output. Parse failures are benchmark failures, not missing data to drop from the denominator. Before publishing the manuscript snapshot, we audited missing numeric values and explanations, extended the parser only where explicit variable-keyed `value` and `explanation` fields were recoverable, retried broken full responses, and then ran targeted row repairs for the remaining missing rows. @tbl-parse-repair-summary summarizes that sequence.
+The benchmark requires one numeric value and one explanation for every requested output. Parse failures are benchmark failures, not missing data to drop from the denominator. Before publishing the manuscript snapshot, we audited missing numeric values and explanations, extended the parser only where explicit variable-keyed `value` and `explanation` fields were recoverable, and re-elicited the few remaining missing cells individually. @tbl-parse-repair-summary summarizes that sequence.
 
 ```{python}
 #| label: tbl-parse-repair-summary
@@ -1159,21 +1084,7 @@ The benchmark requires one numeric value and one explanation for every requested
 parse_repair_summary
 ```
 
-The main full-response denominator is the country-model-household response: one model answering one household in one country. We first retried broken responses at that level, accepting a retry only when the whole response satisfied the numeric-and-explanation contract. Several outputs in the same response are mechanically related, so this full-response pass avoided mixing answer sets where possible. @tbl-retry-round-summary summarizes the preserved retry rounds.
-
-```{python}
-#| label: tbl-retry-round-summary
-#| tbl-cap: "Full-response retry rounds preserved with the paper snapshot."
-retry_round_summary
-```
-
-The full-response pass did not eliminate every missing row. The final row-level repair pass retried the same model on the same household-output target and accepted only rows with both a parsed numeric value and non-empty explanation. These repairs are part of the canonical manuscript snapshot, not a separate leaderboard condition. @tbl-row-repair-summary reports the row-level repair counts and confirms that the final repaired prediction files have zero missing output rows.
-
-```{python}
-#| label: tbl-row-repair-summary
-#| tbl-cap: "Row-level repairs preserved with the paper snapshot."
-row_repair_summary
-```
+No full-response retry or bulk row-repair rounds were required for the June populace run; the five missing cells noted above were re-elicited individually against the same model, household, and output, and the resulting canonical prediction files have zero missing numeric values or explanations.
 
 ## Competing interests
 
