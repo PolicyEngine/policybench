@@ -616,7 +616,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-dir",
-        default="annotations/full_run_20260513_policyengine_4_4_4_nested_outputs",
+        default="annotations/us_full_run_20260612_policyengine_4_16_1_populace",
         help="Destination directory for the explanations CSVs.",
     )
     parser.add_argument("--year", type=int, default=DEFAULT_YEAR)

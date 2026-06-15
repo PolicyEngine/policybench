@@ -25,9 +25,11 @@ import {
 function Badge({
   children,
   variant,
+  title,
 }: {
   children: React.ReactNode;
   variant: "primary" | "warning" | "danger" | "success";
+  title?: string;
 }) {
   // Use accessible text tokens (text-warning-text / text-danger-text /
   // text-success-text / text-primary-strong) on -soft fills so badges
@@ -40,6 +42,7 @@ function Badge({
   };
   return (
     <span
+      title={title}
       className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium tracking-wide uppercase border ${styles[variant]}`}
     >
       {children}
@@ -338,7 +341,9 @@ export default function ModelLeaderboard({
                     </div>
                   </div>
 
-                  <Badge variant={accColor(m.score)}>{m.score.toFixed(1)}%</Badge>
+                  <Badge variant={accColor(m.score)} title={`${m.score.toFixed(2)}%`}>
+                    {m.score.toFixed(1)}%
+                  </Badge>
                 </div>
 
               </div>
@@ -365,7 +370,10 @@ export default function ModelLeaderboard({
                 </div>
 
                 <div className="col-span-3 text-right">
-                  <Badge variant={accColor(m.score)}>
+                  <Badge
+                    variant={accColor(m.score)}
+                    title={`${m.score.toFixed(2)}%`}
+                  >
                     {m.score.toFixed(1)}%
                   </Badge>
                 </div>

@@ -13,7 +13,10 @@ from policybench.spec import output_group_id
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 ANNOTATIONS_DIR = (
-    ROOT / "annotations" / "full_run_20260513_policyengine_4_4_4_nested_outputs"
+    ROOT
+    / json.loads((SNAPSHOT_DIR / "manifest.json").read_text())[
+        "audit_annotation_artifacts"
+    ]["path"]
 )
 
 
@@ -234,7 +237,7 @@ def test_snapshot_source_run_payloads_match_scope():
         assert references["scenario_id"].nunique() == expected_households
 
     expected_models = manifest["scope"]["models"]
-    for country in ("us", "uk"):
+    for country in manifest["scope"]["households"]:
         country_models = [
             row
             for row in dashboard["countries"][country]["modelStats"]
@@ -263,15 +266,14 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_wrong_rows = {
-        "us": 4_039,
-        "uk": 2_732,
+        "us": 3_300,
     }
     expected_sources = {
-        "us": {"llm_error": 4_039},
-        "uk": {"llm_error": 2_732},
+        "us": {"llm_error": 3_300},
     }
 
-    for country in ["us", "uk"]:
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    for country in manifest["source_run_labels"]:
         result = validate_snapshot_audit(
             snapshot_dir=SNAPSHOT_DIR,
             annotations_dir=ANNOTATIONS_DIR,

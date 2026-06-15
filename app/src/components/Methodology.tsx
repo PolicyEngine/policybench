@@ -74,7 +74,7 @@ export default function Methodology({
   const scoredPoints =
     noToolsModels[0]?.n ?? scenarioCount * benchData.programStats.length;
   const householdsLabel =
-    country === "uk" ? "UK transfer households" : "Enhanced CPS households";
+    country === "uk" ? "UK transfer households" : "populace households";
   const referenceOutputSource =
     country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
   const benchmarkDescription =
@@ -147,7 +147,7 @@ export default function Methodology({
         <SectionCard title="Households">
           {country === "uk"
             ? "The UK benchmark samples one-benefit-unit households from the public UK calibrated transfer dataset with a fixed seed. That dataset maps benchmark-compatible US Enhanced CPS records into UK-facing inputs and recalibrates weights to selected UK targets. The prompt states the shared UK benefit-unit structure; nonzero promptable inputs are carried through into both the prompt and the PolicyEngine-UK input."
-            : `The US benchmark samples households from the Enhanced CPS with a fixed seed. The current set is restricted to households with a single federal tax unit, a single family, and a single benefit-calculation unit. Adult dependents remain in scope when they satisfy those restrictions. Ages, roles, income sources, and other nonzero promptable inputs are carried through into both the prompt and the ${referenceOutputSource} input; filing status is inferred from household structure.`}
+            : `The US benchmark samples households from PolicyEngine's populace US microdataset with a fixed seed. The current set is restricted to households with a single federal tax unit, a single family, and a single benefit-calculation unit. Adult dependents remain in scope when they satisfy those restrictions. Ages, roles, income sources, and other nonzero promptable inputs are carried through into both the prompt and the ${referenceOutputSource} input; filing status is inferred from household structure.`}
         </SectionCard>
 
         <SectionCard title="Reference outputs">
@@ -164,8 +164,8 @@ export default function Methodology({
           market data, or program take-up assignment. WIC is scored as
           person-level eligibility, not as a dollar amount. Local income tax
           is retained as a displayed requested output, but currently receives
-          zero default population-impact weight because the full Enhanced CPS
-          source has no positive modeled local-income-tax records.
+          zero default population-impact weight because the full populace
+          dataset has no positive modeled local-income-tax records.
           {country === "us"
             ? " The source run also requested the ACA Premium Tax Credit, but explanation audits showed the prompt could be misleading when households lacked plan-specific Marketplace information, so it is preserved in raw responses and excluded from the scored leaderboard."
             : ""}
@@ -188,7 +188,7 @@ export default function Methodology({
           the gross tax-benefit flow and equals one only when programs cancel
           each other out. Those shares are averaged using calibrated household
           weights in the full weighting population, then renormalized so the
-          output weights sum to one. US weights use the full Enhanced CPS; UK
+          output weights sum to one. US weights use the full populace dataset; UK
           weights use the full enhanced FRS. This weighting source is separate
           from the UK benchmark scenarios, which use the public calibrated
           transfer dataset. The weights are then applied to the fixed benchmark

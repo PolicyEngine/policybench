@@ -8,10 +8,10 @@ and benefit outputs without tools.
 For benchmark scope, snapshot policy, and terminology, see the
 [benchmark card](https://github.com/PolicyEngine/policybench/blob/main/docs/benchmark_card.md).
 
-US benchmark scenarios are sampled from Enhanced CPS households and evaluated
-under tax year 2026 rules with PolicyEngine-US. The public UK path uses a
-UK-calibrated transfer dataset and PolicyEngine-UK reference outputs for fiscal
-year 2026-27.
+US benchmark scenarios are sampled from the certified PolicyEngine populace
+dataset and evaluated under tax year 2026 rules with PolicyEngine-US. The
+public UK path uses a UK-calibrated transfer dataset and PolicyEngine-UK
+reference outputs for fiscal year 2026-27.
 
 ## Condition
 

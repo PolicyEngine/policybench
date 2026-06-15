@@ -65,7 +65,7 @@ UK_TRANSFER_DATASET = {
     ),
     "runtime_dataset_note": (
         "UK calibrated transfer dataset derived from benchmark-compatible "
-        "PolicyEngine US Enhanced CPS households. The artifact is checked "
+        "PolicyEngine US household records. The artifact is checked "
         "into the public PolicyEngine/policyengine-uk-data GitHub "
         "repository at the pinned commit; subsequent commits in that "
         "repository may rebuild the file. It is not native UK survey "
@@ -330,8 +330,8 @@ def materialize_certified_us_dataset() -> str:
     """Download and return the policyengine.py-certified US dataset path.
 
     ``policyengine_us.Microsimulation()`` defaults to the country package's
-    own dataset (Enhanced CPS), silently ignoring the dataset the installed
-    policyengine.py bundle certifies (populace as of 4.16.1). Resolve the
+    own dataset, silently ignoring the dataset the installed policyengine.py
+    bundle certifies (populace as of 4.16.1). Resolve the
     bundle's ``hf://org/repo/file[@rev]`` URI explicitly and fail loudly on
     any error — a quiet fallback here would put the wrong population under
     every weight, sample, and reference output.

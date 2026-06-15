@@ -150,9 +150,8 @@ the site's types and leaderboard already filter on `condition`.
 
 ### United States
 
-The US benchmark uses households derived from PolicyEngine US Enhanced Current
-Population Survey (CPS) and scores outputs against PolicyEngine US reference
-outputs.
+The US benchmark uses households sampled from the certified PolicyEngine
+populace dataset and scores outputs against PolicyEngine US reference outputs.
 
 ### United Kingdom
 

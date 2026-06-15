@@ -10,9 +10,13 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-SNAPSHOT_RUN_DIR = ROOT / "paper" / "snapshot" / "20260501" / "runs"
-US_RUN_LABEL = "us_full_run_20260513_policyengine_4_4_4_nested_outputs"
-UK_RUN_LABEL = "uk_full_run_20260513_policyengine_4_4_4_nested_outputs"
+SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
+SNAPSHOT_RUN_DIR = SNAPSHOT_DIR / "runs"
+# Run labels come from the snapshot manifest so figures track whatever the
+# frozen snapshot contains (US-only for this release).
+RUN_LABELS: dict[str, str] = json.loads(
+    (SNAPSHOT_DIR / "manifest.json").read_text(encoding="utf-8")
+)["source_run_labels"]
 FIGURES_DIR = ROOT / "paper" / "figures"
 
 
@@ -204,12 +208,10 @@ def _positive_zero_scatter_svg(payload: dict[str, Any]) -> str:
 
 def load_frozen_dashboard() -> dict[str, Any]:
     country_payloads = {
-        "us": json.loads(
-            (SNAPSHOT_RUN_DIR / US_RUN_LABEL / "data.json").read_text(encoding="utf-8")
-        ),
-        "uk": json.loads(
-            (SNAPSHOT_RUN_DIR / UK_RUN_LABEL / "data.json").read_text(encoding="utf-8")
-        ),
+        country: json.loads(
+            (SNAPSHOT_RUN_DIR / label / "data.json").read_text(encoding="utf-8")
+        )
+        for country, label in RUN_LABELS.items()
     }
     return {"countries": country_payloads}
 
@@ -218,12 +220,8 @@ def dashboard_summary(payload: dict[str, Any]) -> dict[str, object]:
     countries = payload.get("countries", {})
     return {
         "source": {
-            "us": str(
-                (SNAPSHOT_RUN_DIR / US_RUN_LABEL / "data.json").relative_to(ROOT)
-            ),
-            "uk": str(
-                (SNAPSHOT_RUN_DIR / UK_RUN_LABEL / "data.json").relative_to(ROOT)
-            ),
+            country: str((SNAPSHOT_RUN_DIR / label / "data.json").relative_to(ROOT))
+            for country, label in RUN_LABELS.items()
         },
         "countries": sorted(countries),
         "country_models": {
