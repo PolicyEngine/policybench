@@ -147,7 +147,7 @@ export default function ScenarioExplorer({
   };
   const scenario = resolvedScenarioId ? data.scenarios[resolvedScenarioId] : null;
 
-  // Explanation text lives in a per-country sidecar fetched lazily
+  // Explanation and audit text lives in a per-country sidecar fetched lazily
   // once the explorer approaches the viewport; numeric predictions are in the
   // bundle. See lib/explanations.ts.
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -346,6 +346,12 @@ export default function ScenarioExplorer({
       Object.values(modelMap).filter((entry) => !!entry.explanation).length,
     0,
   );
+  const annotationRows = Object.values(filteredPredictions).reduce(
+    (sum, modelMap) =>
+      sum +
+      Object.values(modelMap).filter((entry) => !!entry.annotation).length,
+    0,
+  );
   const failureSources = Object.values(filteredPredictions).reduce<
     Record<string, number>
   >(
@@ -357,6 +363,12 @@ export default function ScenarioExplorer({
       return counts;
     },
     {},
+  );
+  const caseAnnotationRows = Object.values(filteredPredictions).reduce(
+    (sum, modelMap) =>
+      sum +
+      Object.values(modelMap).filter((entry) => !!entry.caseAnnotation).length,
+    0,
   );
   const totalPredictionRows = Object.values(filteredPredictions).reduce(
     (sum, modelMap) => sum + Object.keys(modelMap).length,
@@ -696,12 +708,16 @@ export default function ScenarioExplorer({
           style={{ animationDelay: "340ms" }}
         >
           <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-            Explanation coverage
+            Explanation and audit coverage
           </div>
           {explanationsStatus === "ready" ? (
             <p className="mt-2 text-sm text-text-secondary leading-relaxed">
               {explanationRows} of {totalPredictionRows} model-output rows for
-              this household include explanation text returned by the model.
+              this household include explanation text returned by the model.{" "}
+              {annotationRows} rows include developer audit notes for incorrect
+              predictions, and {caseAnnotationRows} incorrect rows include
+              case-level notes comparing wrong models on the same
+              household-output target.
             </p>
           ) : explanationsStatus === "error" ? (
             <p className="mt-2 text-sm text-text-secondary leading-relaxed">
@@ -716,7 +732,7 @@ export default function ScenarioExplorer({
             </p>
           ) : (
             <p className="mt-2 text-sm text-text-muted leading-relaxed">
-              Loading explanation text&hellip;
+              Loading explanation and audit text&hellip;
             </p>
           )}
           {Object.keys(failureSources).length > 0 && (
@@ -1071,14 +1087,20 @@ function DetailContent({
         </section>
       </div>
 
-      {(pred.annotation || auditTags.length > 0) && (
+      {(pred.annotation || auditTags.length > 0 || !correct) && (
         <section className="mt-5 border-t border-border-subtle pt-4">
           <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
             Audit tags
           </div>
-          {pred.annotation && (
+          {pred.annotation ? (
             <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
               {pred.annotation}
+            </p>
+          ) : correct ? null : explanationsStatus !== "ready" ? (
+            <PendingExplanationNote status={explanationsStatus} />
+          ) : (
+            <p className="mt-2 text-sm text-text-muted italic">
+              Not yet reviewed.
             </p>
           )}
           {auditTags.length > 0 && (
