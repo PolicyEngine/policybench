@@ -216,11 +216,7 @@ export default function SiteHeader({
       )}
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
-        <div
-          className={`flex flex-wrap items-center gap-2 sm:gap-3 ${
-            alwaysExpanded ? "pt-8 pb-4 sm:pt-10" : "py-2 sm:py-3"
-          }`}
-        >
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 py-2 sm:py-3">
           <Link
             href="/"
             className="order-1 shrink-0 hover:opacity-80 sm:order-none"
@@ -235,11 +231,7 @@ export default function SiteHeader({
             tabIndex={alwaysExpanded || contentVisible ? 0 : -1}
             aria-hidden={!alwaysExpanded && !contentVisible ? true : undefined}
           >
-            <span
-              className={`font-[family-name:var(--font-display)] tracking-tight text-text leading-none ${
-                alwaysExpanded ? "text-[36px]" : "text-[16px]"
-              }`}
-            >
+            <span className="font-[family-name:var(--font-display)] tracking-tight text-text leading-none text-[16px]">
               PolicyBench
             </span>
           </Link>
@@ -319,8 +311,13 @@ export default function SiteHeader({
           </a>
         </div>
 
-        {alwaysExpanded && expandedContent && (
-          <div className="pb-8">{expandedContent}</div>
+        {alwaysExpanded && (
+          <div className="pt-4 pb-8 sm:pt-6">
+            <span className="block font-[family-name:var(--font-display)] tracking-tight text-text leading-none text-[36px] sm:text-[44px]">
+              PolicyBench
+            </span>
+            {expandedContent && <div className="mt-5">{expandedContent}</div>}
+          </div>
         )}
       </div>
 
