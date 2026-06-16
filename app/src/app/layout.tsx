@@ -5,7 +5,7 @@ const SITE_URL = "https://policybench.org";
 const SITE_TITLE = "PolicyBench, by PolicyEngine";
 const SITE_DESCRIPTION =
   "How accurately frontier AI models estimate US tax and benefit " +
-  "amounts without tools, scored against PolicyEngine reference outputs.";
+  "amounts, scored against PolicyEngine reference outputs.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

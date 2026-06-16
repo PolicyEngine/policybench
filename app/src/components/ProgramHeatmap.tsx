@@ -100,7 +100,7 @@ export default function ProgramHeatmap({
         className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Bounded score by program and model (AI alone, without tools). Dollar
+        Bounded score by program and model (AI alone). Dollar
         targets use continuous relative-error partial credit; binary coverage
         flags use exact accuracy.
       </p>
