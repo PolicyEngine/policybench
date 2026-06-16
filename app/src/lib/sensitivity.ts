@@ -1,8 +1,4 @@
-import type {
-  CountryCode,
-  DashboardBundle,
-  ModelStat,
-} from "../types";
+import type { CountryCode, DashboardBundle, ModelStat } from "../types";
 
 export type SensitivityViewId = "household" | "aggregate" | "equal";
 
@@ -17,7 +13,7 @@ export const SENSITIVITY_VIEWS: SensitivityView[] = [
     id: "household",
     label: "Household",
     description:
-      "Population household-impact weights — each output group's share is |ref| / max(|household_net_income|, Σ|ref|) in the full weighting population, averaged with household weights and renormalized before scoring each benchmark household. US weights use the full populace dataset; UK weights use the full enhanced FRS. The UK benchmark scenarios themselves still come from the public calibrated transfer dataset.",
+      "Population household-impact weights — each output group's share is |ref| / max(|household_net_income|, Σ|ref|) in the full weighting population, averaged with household weights and renormalized before scoring each benchmark household. US weights use the full populace dataset.",
   },
   {
     id: "aggregate",
@@ -45,9 +41,14 @@ export type ModelScore = {
   score: number;
 };
 
-function readCountryScore(stat: ModelStat, view: SensitivityViewId): number | undefined {
+function readCountryScore(
+  stat: ModelStat,
+  view: SensitivityViewId,
+): number | undefined {
   const value = stat[VIEW_TO_FIELD[view]];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 /** Returns true if every model in the selected payload exposes a score for this view. */

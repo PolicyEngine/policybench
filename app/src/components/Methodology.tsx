@@ -236,7 +236,7 @@ export default function Methodology({
             </div>
           </div>
           <div className="text-text-muted text-xs">
-            Fixed test set, no tools, US tax year 2026 / UK fiscal year 2026-27
+            Fixed test set, no tools, US tax year 2026
           </div>
         </div>
 
