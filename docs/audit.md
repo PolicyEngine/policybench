@@ -33,7 +33,7 @@ uv run python -m policybench.cli audit-collect \
 `<country>_audit_case_annotations.csv`. They follow the legacy annotation
 schema (the classifier's rationale lands in the `annotation` / `case_annotation`
 columns) and add a `reference_suspect` flag — plus `reference_bug_hypothesis` at
-the case level — so the classifier's reasoning is preserved (the May 2026 audit
+the case level — so the classifier's reasoning is preserved (a prior audit
 collapsed to an all-`llm_error` residual because its reasoning was never
 serialized).
 

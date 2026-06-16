@@ -105,8 +105,8 @@ The live site can change after new runs are added.
 Paper tables and manuscript claims should be tied to a frozen export snapshot.
 Each paper should report the exact export date, committed export artifact,
 artifact hashes, source run labels, model set, household sample, output set, and
-policy period used for manuscript claims. For the current cross-country release,
-that means US tax year 2026 and UK fiscal year 2026-27.
+policy period used for manuscript claims. For the current US release, that means
+US tax year 2026.
 
 The public scenario explorer exposes the household prompts, model outputs, and
 reference outputs. The public leaderboard should therefore be treated as an
@@ -133,7 +133,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-05-20 snapshot predates
+- Activation is a snapshot decision: the current 2026-06-14 snapshot predates
   the split and remains fully public. The first snapshot that reports
   protected scores should state both splits' sizes and the split seed's
   custody (who can regenerate membership).
@@ -162,11 +162,11 @@ populace dataset and scores outputs against PolicyEngine US reference outputs.
 
 ### United Kingdom
 
-The current public UK path uses a calibrated transfer dataset rather than
-restricted native UK survey microdata. It should be described as a public UK
-transfer path for benchmarking, not as a replacement for enhanced Family
-Resources Survey (FRS) microdata or as a population-representative UK household
-sample.
+The repository retains legacy UK-calibrated transfer-path support, but the
+current public release is US-only. If UK results are revived, describe that path
+as a public UK transfer path for benchmarking, not as a replacement for enhanced
+Family Resources Survey (FRS) microdata or as a population-representative UK
+household sample.
 
 ## Naming discipline
 

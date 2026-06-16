@@ -84,14 +84,19 @@ export default function ModelLeaderboard({
 }) {
   const [sensitivityView, setSensitivityView] =
     useState<SensitivityViewId>("household");
-  // Headline scoring: defaults to "within1pct". On UK, ~71% of references
-  // are £0 and Exact mode mostly measures "did you say £0?" — the
-  // within-1% bar restores meaningful separation. Exact remains a click
-  // away as the production-deployability bar; Continuous tracks
-  // conceptual progress year over year.
+  // Headline scoring: defaults to "exact" — the deployability bar. A
+  // prediction counts only if it matches the PolicyEngine reference to the
+  // dollar (for amounts) or to the eligibility flag (for booleans), which is
+  // the bar a tax filer, benefit estimator, or caseworker actually has to
+  // clear. Because this leaderboard is household-impact-weighted, the
+  // weighting down-weights the zero-reference outputs that a hedge-to-zero
+  // model gets for free, so weighted exact is NOT compressed near the
+  // unweighted zero share and discriminates between models about as well as
+  // within-1%. Within-1% (near-miss tolerance) and Continuous (partial
+  // credit) are a click away.
   const [scoringMode, setScoringMode] = useState<
     "exact" | "within1pct" | "continuous"
-  >("within1pct");
+  >("exact");
   // Reference cases: All by default, but Positives is the right view when
   // (e.g.) UK references are 71% £0 and Exact mode mostly measures
   // "did you say £0?". Zeros surfaces the inverse — eligibility hedging.

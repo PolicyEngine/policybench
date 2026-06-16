@@ -3,22 +3,6 @@ import SiteHeader, { type HeaderNavItem } from "./SiteHeader";
 
 const SNAPSHOT_DATE_LABEL = "Snapshot 2026-06-14";
 
-function PreReleaseBanner() {
-  return (
-    <div className="border-y border-warning/30 bg-warning-soft/90">
-      <div className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3 text-sm text-text sm:flex-row sm:items-center sm:px-6">
-        <span className="font-[family-name:var(--font-mono)] text-[11px] font-semibold uppercase tracking-[0.12em] text-warning-text">
-          Pre-release
-        </span>
-        <span className="text-text-secondary">
-          These results are provisional. We plan to rerun PolicyBench with
-          updated data and improved prompts before the final release.
-        </span>
-      </div>
-    </div>
-  );
-}
-
 export default function Hero({
   selectedView,
   onSelectView,
@@ -60,7 +44,6 @@ export default function Hero({
         availableViews={availableViews}
         actionLink={{ label: "Paper", href: "/paper", type: "internal" }}
       />
-      <PreReleaseBanner />
 
       <section
         aria-labelledby="hero-title"
@@ -102,7 +85,10 @@ export default function Hero({
             </div>
 
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-text-secondary">
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary/70" />
+              <span
+                aria-hidden
+                className="h-1.5 w-1.5 rounded-full bg-primary/70"
+              />
               {SNAPSHOT_DATE_LABEL}
             </span>
           </div>

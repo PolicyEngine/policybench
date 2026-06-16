@@ -62,13 +62,13 @@ export default function Methodology({
   const benchData = data;
   const country = benchData.country;
   const noToolsModels = benchData.modelStats.filter(
-    (m) => m.condition === "no_tools"
+    (m) => m.condition === "no_tools",
   );
   const modelNames = noToolsModels.map((m) => MODEL_LABELS[m.model] || m.model);
   const variables = [...benchData.programStats]
     .map((program) => program.variable)
     .sort((a, b) =>
-      getVariableLabel(a, country).localeCompare(getVariableLabel(b, country))
+      getVariableLabel(a, country).localeCompare(getVariableLabel(b, country)),
     );
   const scenarioCount = Object.keys(benchData.scenarios).length;
   const scoredPoints =
@@ -138,15 +138,15 @@ export default function Methodology({
 
         <SectionCard title="Open-set status">
           The public scenario explorer exposes prompts and PolicyEngine
-          reference outputs, so future model releases or fine-tunes could
-          learn from the released cases. Treat this leaderboard as a public
-          preview; protected held-out claims would require a separate
-          rotating evaluation set.
+          reference outputs, so future model releases or fine-tunes could learn
+          from the released cases. Treat this leaderboard as a public preview;
+          protected held-out claims would require a separate rotating evaluation
+          set.
         </SectionCard>
 
         <SectionCard title="Households">
           {country === "uk"
-            ? "The UK benchmark samples one-benefit-unit households from the public UK calibrated transfer dataset with a fixed seed. That dataset maps benchmark-compatible US Enhanced CPS records into UK-facing inputs and recalibrates weights to selected UK targets. The prompt states the shared UK benefit-unit structure; nonzero promptable inputs are carried through into both the prompt and the PolicyEngine-UK input."
+            ? "The UK benchmark samples one-benefit-unit households from the public UK calibrated transfer dataset with a fixed seed. That dataset maps benchmark-compatible US household records into UK-facing inputs and recalibrates weights to selected UK targets. The prompt states the shared UK benefit-unit structure; nonzero promptable inputs are carried through into both the prompt and the PolicyEngine-UK input."
             : `The US benchmark samples households from PolicyEngine's populace US microdataset with a fixed seed. The current set is restricted to households with a single federal tax unit, a single family, and a single benefit-calculation unit. Adult dependents remain in scope when they satisfy those restrictions. Ages, roles, income sources, and other nonzero promptable inputs are carried through into both the prompt and the ${referenceOutputSource} input; filing status is inferred from household structure.`}
         </SectionCard>
 
@@ -162,48 +162,44 @@ export default function Methodology({
           facts. It excludes intermediate tax bases, payroll subcomponents, and
           outputs that mainly require unavailable history, restricted local
           market data, or program take-up assignment. WIC is scored as
-          person-level eligibility, not as a dollar amount. Local income tax
-          is retained as a displayed requested output, but currently receives
-          zero default population-impact weight because the full populace
-          dataset has no positive modeled local-income-tax records.
+          person-level eligibility, not as a dollar amount. Local income tax is
+          retained as a displayed requested output, but currently receives zero
+          default population-impact weight because the full populace dataset has
+          no positive modeled local-income-tax records.
           {country === "us"
             ? " The source run also requested the ACA Premium Tax Credit, but explanation audits showed the prompt could be misleading when households lacked plan-specific Marketplace information, so it is preserved in raw responses and excluded from the scored leaderboard."
             : ""}
         </SectionCard>
 
         <SectionCard title="Scoring and weighting">
-          The public leaderboard ranks models by the within-1% hit rate using
+          The public leaderboard ranks models by the exact-match rate using
           population household-impact weights. For each household-output row,
           the within-1% indicator is 1 when a currency answer is within 1% of
           the PolicyEngine reference value, with a one-currency-unit tolerance
           when the reference is zero. Binary eligibility flags are requested as
           integer 0/1 outputs and require exact 0/1 matching. The secondary
-          bounded score uses{" "}
-          <code>max(0, 1 − |pred − ref| / |ref|)</code> when the reference is
-          nonzero and exact zero matches when the reference is zero for amount
-          outputs, and the same exact 0/1 rule for binary outputs.
-          Each full source household&apos;s per-output share is{" "}
+          bounded score uses <code>max(0, 1 − |pred − ref| / |ref|)</code> when
+          the reference is nonzero and exact zero matches when the reference is
+          zero for amount outputs, and the same exact 0/1 rule for binary
+          outputs. Each full source household&apos;s per-output share is{" "}
           <code>|ref| / max(|household_net_income|, Σ |ref|)</code>, a value in
           [0, 1] that&apos;s strictly less than one when net income dominates
           the gross tax-benefit flow and equals one only when programs cancel
           each other out. Those shares are averaged using calibrated household
           weights in the full weighting population, then renormalized so the
-          output weights sum to one. US weights use the full populace dataset; UK
-          weights use the full enhanced FRS. This weighting source is separate
-          from the UK benchmark scenarios, which use the public calibrated
-          transfer dataset. The weights are then applied to the fixed benchmark
-          households and renormalized within each household over requested
-          outputs.
+          output weights sum to one. US weights use the full populace dataset.
+          The weights are then applied to the fixed benchmark households and
+          renormalized within each household over requested outputs.
           {country === "us"
             ? " Person-level eligibility flags like Medicaid carry weight through PolicyEngine's paired per-capita value (e.g. medicaid_value), so the LLM is graded only on the boolean call itself."
-            : " Person-level eligibility flags carry weight through PolicyEngine's paired per-capita value, so the LLM is graded only on the boolean call itself."}
-          {" "}Missing or unparseable answers count as misses through the
-          coverage multiplier. The leaderboard reports within-1% as the
-          headline, exact match as the deployability bar, and bounded score,
-          amount accuracy, and participation accuracy as diagnostic companions.
-          Equal-weight and budget-weighted variants are reported alongside for
-          transparency. The leaderboard is a point estimate on this fixed test
-          set.
+            : " Person-level eligibility flags carry weight through PolicyEngine's paired per-capita value, so the LLM is graded only on the boolean call itself."}{" "}
+          Missing or unparseable answers count as misses through the coverage
+          multiplier. The leaderboard reports the exact-match rate as the
+          headline deployability bar, with within-1% as a near-miss-tolerant
+          companion and bounded score, amount accuracy, and participation
+          accuracy as further diagnostics. Equal-weight and
+          budget-weighted variants are reported alongside for transparency. The
+          leaderboard is a point estimate on this fixed test set.
         </SectionCard>
 
         <SectionCard title="Sensitivity checks">
@@ -212,8 +208,7 @@ export default function Methodology({
           cases, zero-reference cases, and country-only results. In the
           equal-output-group view, person-level outputs are grouped by program
           before the country average. These checks are used to interpret rank
-          stability; they do not replace the public within-1%
-          leaderboard.
+          stability; they do not replace the public exact-match leaderboard.
         </SectionCard>
 
         <SectionCard title="Impact weighting">
@@ -242,7 +237,7 @@ export default function Methodology({
             </div>
           </div>
           <div className="text-text-muted text-xs">
-            Fixed test set, no tools, US tax year 2026 / UK fiscal year 2026-27
+            Fixed test set, no tools, US tax year 2026
           </div>
         </div>
 

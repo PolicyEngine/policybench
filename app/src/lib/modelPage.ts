@@ -18,7 +18,7 @@ import { binaryFlag } from "./scoring";
 export type ModelCountrySummary = {
   country: CountryCode;
   stat: ModelStat;
-  /** Leaderboard position by the headline within-1% metric (1-based). */
+  /** Leaderboard position by the headline exact-match metric (1-based). */
   rank: number;
   rankedModels: number;
 };
@@ -49,7 +49,7 @@ export function listModels(bundle: DashboardBundle): string[] {
   for (const bench of Object.values(bundle.countries)) {
     if (!bench) continue;
     for (const row of noToolsStats(bench)) {
-      const headline = row.within1pct ?? row.score;
+      const headline = row.exact ?? row.score;
       best.set(row.model, Math.max(best.get(row.model) ?? -Infinity, headline));
     }
   }
@@ -69,7 +69,7 @@ export function modelCountrySummaries(
   ][]) {
     if (!bench) continue;
     const rows = noToolsStats(bench).sort(
-      (a, b) => (b.within1pct ?? b.score) - (a.within1pct ?? a.score),
+      (a, b) => (b.exact ?? b.score) - (a.exact ?? a.score),
     );
     const index = rows.findIndex((row) => row.model === model);
     if (index === -1) continue;
@@ -96,7 +96,7 @@ export function programRows(bench: BenchData, model: string): ProgramRow[] {
       exact: entry.exact ?? null,
       n: entry.n,
     }))
-    .sort((a, b) => (a.within1pct ?? 0) - (b.within1pct ?? 0));
+    .sort((a, b) => (a.exact ?? 0) - (b.exact ?? 0));
 }
 
 /**

@@ -26,7 +26,7 @@ from policybench.ground_truth import (
 )
 from policybench.scenarios import scenario_from_dict
 
-REFERENCE_MODEL = "claude-sonnet-4-6"
+REFERENCE_MODEL = "claude-haiku-4-5"
 MAX_TOKENS = 500
 TEMPERATURE = 0.0
 DEFAULT_CONCURRENCY = 8
@@ -398,6 +398,11 @@ async def _generate_one(
                 "error": f"{type(exc).__name__}: {exc}",
             }
         explanation = response.choices[0].message.content.strip()
+        # Haiku sometimes prepends a markdown header despite the prompt asking
+        # for plain prose; drop a stray leading "# ..." line.
+        lines = explanation.split("\n")
+        if lines and lines[0].lstrip().startswith("#"):
+            explanation = "\n".join(lines[1:]).strip()
         return {
             "country": country,
             "scenario_id": scenario_id,

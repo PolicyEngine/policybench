@@ -13,9 +13,9 @@ Sources, in order of authority:
   US source-run label, PolicyEngine versions, the populace dataset id, and the
   declared scope (households, output groups, models).
 * ``paper/snapshot/20260501/runs/<us_label>/data.json`` -- the frozen US
-  dashboard payload: the 13-model roster, ``modelStats`` within-1% scores,
-  per-output ``programStats`` and ``failureModes`` breakdowns, household and
-  scored-output counts.
+  dashboard payload: the 13-model roster, ``modelStats`` exact-match and
+  within-1% scores, per-output ``programStats`` and ``failureModes``
+  breakdowns, household and scored-output counts.
 * the frozen audit annotations dir (``manifest['audit_annotation_artifacts']``)
   -- the count of wrong rows, the fact that every wrong row is an ``llm_error``,
   and that zero rows are reference-suspect (no PolicyEngine bugs found).
@@ -143,20 +143,28 @@ class PaperResults:
 
     @cached_property
     def model_stats(self) -> list[dict]:
-        """No-tools model rows, ranked by the within-1% headline metric."""
+        """No-tools model rows, ranked by the exact-match headline metric.
+
+        Exact match is the headline deployability bar. Because the public
+        leaderboard is household-impact-weighted, the weighting down-weights the
+        zero-reference outputs a hedge-to-zero model gets for free, so the
+        weighted exact rate is not compressed near the unweighted zero share and
+        discriminates between models about as well as within-1%. The
+        ``within1pct`` field remains on every row as the near-miss companion.
+        """
         rows = [
             row
             for row in self.dashboard["modelStats"]
             if row.get("condition") == "no_tools"
         ]
-        return sorted(rows, key=lambda row: row["within1pct"], reverse=True)
+        return sorted(rows, key=lambda row: row["exact"], reverse=True)
 
     @cached_property
     def program_stats(self) -> list[dict]:
-        """Per-output rows, ranked easiest-to-hardest by within-1%."""
+        """Per-output rows, ranked easiest-to-hardest by exact match."""
         return sorted(
             self.dashboard["programStats"],
-            key=lambda row: row["within1pct"],
+            key=lambda row: row["exact"],
             reverse=True,
         )
 
@@ -294,11 +302,82 @@ class PaperResults:
     def zero_share_pct_fmt(self) -> str:
         return f"{100 * self.zero_share:.0f}"
 
+    # ----- always-zero baseline (household-impact-weighted) --------------
+    @cached_property
+    def _always_zero_weighted_rates(self) -> dict[str, float]:
+        """Weighted exact and within-1% rates of an always-zero predictor.
+
+        Computed from the frozen snapshot through the canonical
+        household-impact-weighting path (``weighted_hit_rate_scores_by_model``
+        over the headline-filtered reference outputs) -- the same aggregation
+        that produces every model's ``exact``/``within1pct`` field in the
+        leaderboard. Because the weighting down-weights zero-reference outputs,
+        this baseline sits well below the unweighted zero share, which is why
+        the weighted exact rate is not compressed and still discriminates
+        between models.
+        """
+        import numpy as np
+        import pandas as pd
+
+        from policybench.analysis import weighted_hit_rate_scores_by_model
+        from policybench.spec import get_output_ids, output_group_id
+
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        ground_truth = pd.read_csv(run_dir / "reference_outputs.csv")
+        headline = set(get_output_ids("us", "headline"))
+        ground_truth = ground_truth[
+            ground_truth["variable"].map(output_group_id).isin(headline)
+        ].reset_index(drop=True)
+        ground_truth["scenario_id"] = ground_truth["scenario_id"].astype(str)
+
+        scenarios = pd.read_csv(run_dir / "scenarios.csv")
+        market = dict(
+            zip(
+                scenarios["scenario_id"].astype(str),
+                pd.to_numeric(scenarios["total_income"], errors="coerce").fillna(0.0),
+            )
+        )
+
+        predictions = ground_truth[["scenario_id", "variable"]].copy()
+        predictions["model"] = "Always zero"
+        predictions["prediction"] = np.zeros(len(ground_truth))
+        scored = weighted_hit_rate_scores_by_model(
+            ground_truth, predictions, market, country="us"
+        )
+        return {
+            "exact": float(scored["weighted_exact"].mean()) * 100,
+            "within1pct": float(scored["weighted_within_1pct"].mean()) * 100,
+        }
+
+    @property
+    def always_zero_exact_fmt(self) -> str:
+        """Household-impact-weighted exact rate of the always-zero baseline."""
+        return f"{self._always_zero_weighted_rates['exact']:.1f}"
+
+    @property
+    def always_zero_within1_fmt(self) -> str:
+        """Household-impact-weighted within-1% rate of the always-zero baseline."""
+        return f"{self._always_zero_weighted_rates['within1pct']:.1f}"
+
+    @property
+    def top_exact_margin_fmt(self) -> str:
+        """Points by which the top model's exact rate beats always-zero."""
+        margin = (
+            self._stats_by_model[self.top_model_id]["exact"]
+            - self._always_zero_weighted_rates["exact"]
+        )
+        return f"{margin:.1f}"
+
     # ----- model helpers -------------------------------------------------
     def model_name(self, model_id: str) -> str:
         return MODEL_DISPLAY_NAMES.get(model_id, model_id)
 
     def _score_fmt(self, model_id: str) -> str:
+        """Headline exact-match rate for a model, formatted to one decimal."""
+        return f"{self._stats_by_model[model_id]['exact']:.1f}"
+
+    def _within1_fmt(self, model_id: str) -> str:
+        """Companion within-1% rate for a model, formatted to one decimal."""
         return f"{self._stats_by_model[model_id]['within1pct']:.1f}"
 
     @property
@@ -335,38 +414,46 @@ class PaperResults:
 
     @property
     def opus_gap_fmt(self) -> str:
-        """Within-1% points by which Opus 4.7 leads Opus 4.8."""
+        """Exact-match points by which Opus 4.7 leads Opus 4.8 (headline)."""
         gap = (
-            self._stats_by_model["claude-opus-4.7"]["within1pct"]
-            - self._stats_by_model["claude-opus-4.8"]["within1pct"]
+            self._stats_by_model["claude-opus-4.7"]["exact"]
+            - self._stats_by_model["claude-opus-4.8"]["exact"]
         )
         return f"{gap:.1f}"
 
     def model_score_fmt(self, model_id: str) -> str:
-        """Within-1% rate for any roster model, formatted to one decimal."""
+        """Headline exact-match rate for any roster model, one decimal."""
         return self._score_fmt(model_id)
+
+    def model_within1_fmt(self, model_id: str) -> str:
+        """Companion within-1% rate for any roster model, one decimal."""
+        return self._within1_fmt(model_id)
 
     @property
     def top3_summary(self) -> str:
-        """'Model A (x.x), Model B (y.y), and Model C (z.z)' on within-1%."""
+        """'Model A (x.x), Model B (y.y), and Model C (z.z)' on exact match."""
         parts = [
-            f"{self.model_name(row['model'])} ({row['within1pct']:.1f}% within-1%; "
-            f"{row['exact']:.1f}% exact)"
+            f"{self.model_name(row['model'])} ({row['exact']:.1f}% exact; "
+            f"{row['within1pct']:.1f}% within-1%)"
             for row in self.model_stats[:3]
         ]
         return _ordinal_join(parts)
 
     @cached_property
-    def within1_leaderboard(self) -> list[tuple[int, str, str, str]]:
-        """Ranked (rank, model name, within-1% %, exact %) tuples."""
+    def exact_leaderboard(self) -> list[tuple[int, str, str, str]]:
+        """Ranked (rank, model name, exact %, within-1% %) tuples.
+
+        Ordered by the headline exact-match rate, with the within-1% companion
+        column preserved alongside.
+        """
         rows = []
         for index, row in enumerate(self.model_stats, start=1):
             rows.append(
                 (
                     index,
                     self.model_name(row["model"]),
-                    f"{row['within1pct']:.1f}",
                     f"{row['exact']:.1f}",
+                    f"{row['within1pct']:.1f}",
                 )
             )
         return rows

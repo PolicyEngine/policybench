@@ -4,10 +4,10 @@ import Link from "next/link";
 
 import SiteHeader from "../../components/SiteHeader";
 
-const SNAPSHOT_DATE_LABEL = "Snapshot 2026-05-20";
+const SNAPSHOT_DATE_LABEL = "Snapshot 2026-06-14";
 
 const PAPER_DESCRIPTION =
-  "PolicyBench paper — 2026-05-20 household-equal scored manuscript snapshot with May 13-May 20 model responses and refreshed PolicyEngine reference outputs.";
+  "PolicyBench paper — the 2026-06-14 household-equal scored manuscript snapshot, with June 12-13 model responses and PolicyEngine reference outputs on the populace US microdata.";
 
 export const metadata: Metadata = {
   title: "Paper",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
 
 const manuscriptPaths = {
   pdf: "/paper/policybench.pdf",
-  web: "/paper/web/index.html?v=20260609-vals-related-work",
+  web: "/paper/web/index.html?v=20260616-populace-launch",
 };
 const ssrnUrl = process.env.NEXT_PUBLIC_POLICYBENCH_SSRN_URL;
 
@@ -49,13 +49,16 @@ export default function PaperPage() {
     <>
       <p className="max-w-2xl text-sm leading-relaxed text-text-secondary sm:text-base">
         Benchmarking no-tool tax-and-benefit estimation in frontier language
-        models. This page embeds the 2026-05-20 scored manuscript snapshot:
-        a 100-household-per-country public preview using household-equal impact
-        scores against PolicyEngine reference outputs.
+        models. This page embeds the 2026-06-14 scored manuscript snapshot: a
+        100-household public preview using household-equal impact scores against
+        PolicyEngine reference outputs.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-text-secondary">
-          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary/70" />
+          <span
+            aria-hidden
+            className="h-1.5 w-1.5 rounded-full bg-primary/70"
+          />
           {SNAPSHOT_DATE_LABEL}
         </span>
       </div>
