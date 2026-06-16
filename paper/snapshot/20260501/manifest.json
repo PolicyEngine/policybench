@@ -15,7 +15,7 @@
   "files": [
     {
       "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json",
-      "sha256": "74d118086cdcd1c48e120f86874edb949471bc5a3c4036004c1326c73d7dc5e8"
+      "sha256": "7d9fc182ad6e14fbc751d1e709b95a95d1b2dac75dbd7afef3928b59759666a1"
     }
   ],
   "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under published_dashboard_artifact, which equals the combined export of the source run data.json files listed under source_run_artifacts. Future refreshes publish a new artifact (policybench publish-dashboard) and either update this manifest or use a new snapshot directory.",
@@ -30,10 +30,10 @@
   },
   "published_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 14099216,
-    "sha256": "460f261649aa5d772301dc638f6e79322a1a2cdeb6f3d130d4ff008f625f7e4d",
-    "tag": "dashboard-data-20260614",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260614/dashboard-data.json"
+    "bytes": 37005774,
+    "sha256": "497c6c34f3e7160dab5ebf6aaa98415eed88f15ce01666d768ca490164a234ad",
+    "tag": "dashboard-data-20260616",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260616/dashboard-data.json"
   },
   "reference_output_refresh": {
     "date": "2026-06-14",
@@ -110,7 +110,7 @@
         "analysis/summary_by_model.csv": "c6412a304f5c586303b6ddc795d0b1ae64e7f126966e3ba3ce35b86161285db4",
         "analysis/summary_by_variable.csv": "9e1cfc1dd890dc4b81c01bf7113883ae1f5b9e2e6447f7d7738653b5cd10bf5c",
         "analysis/usage_summary.csv": "57f2d29319424ee08cdf4a1ef0fd0d17903f729f0022af5614e86ef5bfeb4c50",
-        "data.json": "74d118086cdcd1c48e120f86874edb949471bc5a3c4036004c1326c73d7dc5e8",
+        "data.json": "7d9fc182ad6e14fbc751d1e709b95a95d1b2dac75dbd7afef3928b59759666a1",
         "predictions.csv.gz": "1f1709c745135a2059fd37429ef4999cdc4b55e73c2f1b54b7ad13e1c9b5f654",
         "reference_outputs.csv": "59860ff2d3c2b02768cae2db8e305ae042c8666cf121ea5d1df7d5f713f96141",
         "reference_outputs.csv.meta.json": "da59c97eac135fc48700c2a74b5e34c933b1d7781cafd2e60fe7c33509f3914f",
