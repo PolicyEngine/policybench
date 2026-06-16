@@ -20,17 +20,16 @@ DATA_PACKAGES = {
 
 SOURCE_DATA_PROVENANCE = {
     "us": {
-        "data_package": "policyengine-us-data",
-        "data_version": "1.73.0",
-        "default_dataset": "enhanced_cps_2024",
+        "data_package": "populace-us",
+        "default_dataset": "populace_us_2024",
         "default_dataset_uri": (
-            "hf://policyengine/policyengine-us-data/enhanced_cps_2024.h5@1.73.0"
+            "hf://policyengine/populace-us/populace_us_2024.h5"
+            "@populace-us-2024-5da5a95-20260611"
         ),
-        "certified_data_build_id": "policyengine-us-data-1.73.0",
+        "certified_data_build_id": "populace-us-2024-5da5a95-20260611",
         "certified_data_artifact_sha256": (
-            "18cdc668d05311c32ae37364abcea89b0221c27154559667e951c7b19f5b5cbd"
+            "f32c2e5e9098bc6540724fdd5debf963af495da4c29b3a7a63fb53c2a4bb5a34"
         ),
-        "data_build_model_version": "1.647.0",
     },
     "uk": {
         "data_package": "policyengine-uk-data",
