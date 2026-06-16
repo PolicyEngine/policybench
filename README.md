@@ -8,10 +8,9 @@ and benefit outputs without tools.
 For benchmark scope, snapshot policy, and terminology, see the
 [benchmark card](https://github.com/PolicyEngine/policybench/blob/main/docs/benchmark_card.md).
 
-US benchmark scenarios are sampled from the certified PolicyEngine populace
-dataset and evaluated under tax year 2026 rules with PolicyEngine-US. The
-public UK path uses a UK-calibrated transfer dataset and PolicyEngine-UK
-reference outputs for fiscal year 2026-27.
+Current public benchmark scenarios are sampled from the certified PolicyEngine
+populace US dataset and evaluated under tax year 2026 rules with
+PolicyEngine-US.
 
 ## Condition
 
@@ -39,13 +38,13 @@ eligibility, not as a dollar amount.
 ## Programs evaluated
 
 The current public release covers selected federal taxes, credits, benefits,
-coverage labels, and state-tax outputs in the US, plus selected tax and transfer
-outputs in the UK. US federal income tax is scored as a compact decomposition:
-tax after nonrefundable credits and before refundable credits, plus refundable
-federal credits excluding the ACA Premium Tax Credit. The May 2026 source run
-requested ACA Premium Tax Credit responses, but they are excluded from the
-canonical scored leaderboard because explanation audits showed prompt ambiguity
-without plan-specific Marketplace information.
+coverage labels, and state-tax outputs in the US. US federal income tax is scored
+as a compact decomposition: tax after nonrefundable credits and before
+refundable credits, plus refundable federal credits excluding the ACA Premium Tax
+Credit. The June 2026 populace source run requested ACA Premium Tax Credit
+responses, but they are excluded from the canonical scored leaderboard because
+explanation audits showed prompt ambiguity without plan-specific Marketplace
+information.
 
 ## Quick start
 
