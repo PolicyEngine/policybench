@@ -172,7 +172,7 @@ export default function Methodology({
         </SectionCard>
 
         <SectionCard title="Scoring and weighting">
-          The public leaderboard ranks models by the within-1% hit rate using
+          The public leaderboard ranks models by the exact-match rate using
           population household-impact weights. For each household-output row,
           the within-1% indicator is 1 when a currency answer is within 1% of
           the PolicyEngine reference value, with a one-currency-unit tolerance
@@ -194,9 +194,10 @@ export default function Methodology({
             ? " Person-level eligibility flags like Medicaid carry weight through PolicyEngine's paired per-capita value (e.g. medicaid_value), so the LLM is graded only on the boolean call itself."
             : " Person-level eligibility flags carry weight through PolicyEngine's paired per-capita value, so the LLM is graded only on the boolean call itself."}{" "}
           Missing or unparseable answers count as misses through the coverage
-          multiplier. The leaderboard reports within-1% as the headline, exact
-          match as the deployability bar, and bounded score, amount accuracy,
-          and participation accuracy as diagnostic companions. Equal-weight and
+          multiplier. The leaderboard reports the exact-match rate as the
+          headline deployability bar, with within-1% as a near-miss-tolerant
+          companion and bounded score, amount accuracy, and participation
+          accuracy as further diagnostics. Equal-weight and
           budget-weighted variants are reported alongside for transparency. The
           leaderboard is a point estimate on this fixed test set.
         </SectionCard>
@@ -207,7 +208,7 @@ export default function Methodology({
           cases, zero-reference cases, and country-only results. In the
           equal-output-group view, person-level outputs are grouped by program
           before the country average. These checks are used to interpret rank
-          stability; they do not replace the public within-1% leaderboard.
+          stability; they do not replace the public exact-match leaderboard.
         </SectionCard>
 
         <SectionCard title="Impact weighting">

@@ -39,12 +39,12 @@ export async function generateMetadata({
   const scoreText = summaries
     .map(
       (summary) =>
-        `${summary.country.toUpperCase()} ${(summary.stat.within1pct ?? summary.stat.score).toFixed(1)}%`,
+        `${summary.country.toUpperCase()} ${(summary.stat.exact ?? summary.stat.score).toFixed(1)}%`,
     )
     .join(", ");
   const description =
     `How accurately ${label} estimates household tax and benefit amounts ` +
-    `without tools, scored against PolicyEngine (within-1% hit rate: ` +
+    `without tools, scored against PolicyEngine (exact-match rate: ` +
     `${scoreText}).`;
   return {
     title: label,
@@ -119,8 +119,8 @@ export default async function ModelPage({
         {summaries.map((summary) => (
           <ScorePill
             key={`score-${summary.country}`}
-            label={`${summary.country.toUpperCase()} within 1%`}
-            value={formatPct(summary.stat.within1pct ?? summary.stat.score)}
+            label={`${summary.country.toUpperCase()} exact`}
+            value={formatPct(summary.stat.exact ?? summary.stat.score)}
           />
         ))}
       </div>
@@ -202,10 +202,10 @@ export default async function ModelPage({
                             Program
                           </th>
                           <th className="px-4 py-2.5 text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                            Within 1%
+                            Exact
                           </th>
                           <th className="px-4 py-2.5 text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                            Exact
+                            Within 1%
                           </th>
                           <th className="px-4 py-2.5 text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
                             n
@@ -222,10 +222,10 @@ export default async function ModelPage({
                               {getVariableLabel(row.variable, summary.country)}
                             </td>
                             <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text">
-                              {formatPct(row.within1pct)}
+                              {formatPct(row.exact)}
                             </td>
                             <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text-secondary">
-                              {formatPct(row.exact)}
+                              {formatPct(row.within1pct)}
                             </td>
                             <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text-muted">
                               {row.n}

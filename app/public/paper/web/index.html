@@ -113,8 +113,8 @@ div.csl-indent {
   <li><a href="#related-work" id="toc-related-work">Related work</a></li>
   <li><a href="#benchmark-design" id="toc-benchmark-design">Benchmark design</a>
   <ul>
-  <li><a href="#primary-metric-within-1" id="toc-primary-metric-within-1">Primary metric: within 1%</a></li>
-  <li><a href="#deployability-bar-exact-match" id="toc-deployability-bar-exact-match">Deployability bar: exact match</a></li>
+  <li><a href="#headline-metric-exact-match" id="toc-headline-metric-exact-match">Headline metric: exact match</a></li>
+  <li><a href="#near-miss-companion-within-1" id="toc-near-miss-companion-within-1">Near-miss companion: within 1%</a></li>
   <li><a href="#secondary-metric-bounded-continuous-score" id="toc-secondary-metric-bounded-continuous-score">Secondary metric: bounded continuous score</a></li>
   <li><a href="#frozen-snapshot-and-open-set-status" id="toc-frozen-snapshot-and-open-set-status">Frozen snapshot and open-set status</a></li>
   </ul></li>
@@ -140,29 +140,30 @@ div.csl-indent {
   </ul>
 </nav>
 <h2 id="abstract" class="anchored">Abstract</h2>
-<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine populace microdataset, scored through policyengine.py 4.16.1. It evaluates 13 frontier models on 100 households across 18 output groups, and reports three complementary scores: a within-1% hit rate as the headline ranking metric, an exact-match rate as the deployability bar (predictions are graded only if they match the PolicyEngine reference to the dollar or to the eligibility flag), and a continuous bounded score that awards partial credit for close answers. The headline metric is within-1% rather than exact match because the panel is zero-inflated — 84% of US reference outputs are exact zeros — which compresses top-of-leaderboard exact-match rates near the share of zero cases a hedging model can predict and makes within-1% the more discriminating ranking on the positive-reference cases that drive quality differences. The manuscript snapshot is a 100-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-06-14), the top-scoring US model on within-1% is GPT-5.5 at 82.6, while GPT-5.4 nano is lowest at 63.2. Notably, the newest flagship is not the strongest on this task: Claude Opus 4.8 scores 73.8% within-1%, below the 78.3% of the prior-generation Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. An exhaustive developer audit of every wrong cell traced all 3,300 scored misses to model errors, with zero PolicyEngine reference defects. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
+<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine populace microdataset, scored through policyengine.py 4.16.1. It evaluates 13 frontier models on 100 households across 18 output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match because the leaderboard is household-impact-weighted: a <em>naive unweighted</em> exact rate would be dominated by the 84% of US reference outputs that are exact zeros — a hedge-to-zero model scores about 84% unweighted — but the household-impact weighting down-weights those zero-reference outputs, so the <em>weighted</em> exact rate is not compressed near the zero share and discriminates between models about as well as within-1%. On the weighted leaderboard the top model leads an always-zero baseline of 66.8% exact by 13.4 points, a margin comparable to within-1%, and exact spreads across the roster about as widely (the within-1% companion adds near-miss tolerance on top). The manuscript snapshot is a 100-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-06-14), the top-scoring US model on exact match is GPT-5.5 at 80.3, while GPT-5.4 nano is lowest at 62.2. Notably, the newest flagship is not the strongest on this task: Claude Opus 4.8 scores 72.5% exact, below the 77.3% of the prior-generation Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. An exhaustive developer audit of every wrong cell traced all 3,300 scored misses to model errors, with zero PolicyEngine reference defects. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
 <h2 id="introduction" class="anchored">Introduction</h2>
 <p>Household tax-and-benefit estimation sits between arithmetic and policy discussion. Each case has numeric labels, but generating those labels requires filing status, household composition, income concepts, program thresholds, and jurisdiction-specific rules. PolicyBench measures whether models can map household records to those outputs.</p>
 <p>Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>, while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.</p>
 <p>This matters for public-facing calculators, analyst workflows, and tax-preparation or screening systems. The benchmark is intended to separate verbal policy fluency from household-level quantitative prediction.</p>
 <h2 id="related-work" class="anchored">Related work</h2>
 <p>The most relevant prior work is tax and statutory reasoning. SARA frames statutory interpretation, including tax-relevant rule application, as a language-understanding problem <span class="citation" data-cites="holzenberger2021sara">(Holzenberger et al. 2021)</span>. LegalBench broadens this view and includes tax-oriented numeric tasks such as <code>sara_numeric</code> <span class="citation" data-cites="guha2023legalbench">(<span class="nocase">Guha et al.</span> 2023)</span>. RuleArena evaluates rule-guided reasoning in regulation-style settings <span class="citation" data-cites="zhou2025rulearena">(Zhou et al. 2025)</span>, and TaxCalcBench evaluates frontier models on tax calculation from structured return-like inputs <span class="citation" data-cites="taxcalcbench2025">(Bock et al. 2025)</span>. <span class="citation" data-cites="shanahan2025vita">Shanahan et al. (2025)</span> report a similar split on the Volunteer Income Tax Assistance (VITA) test: models do better on tax knowledge questions than on open-ended calculation tasks.</p>
-<p>PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead <span class="citation" data-cites="zhou2025tempanswerqa">(Abbood et al. 2025)</span>. PolicyBench treats this as a measurement design choice rather than a forced pick: it leads with a within-1% hit rate as the headline ranking metric, retains the exact-match rate as the deployability bar (a tax filer or benefits caseworker can’t ship “close”), and reports a bounded continuous score that awards relative-error partial credit as a secondary tracking diagnostic. The headline choice is driven by zero inflation in the benchmark panel — 84% of reference outputs are exact zeros — which compresses exact-match leaderboards near the share of zero cases a hedging model can predict and gives within-1% more ranking power on the positive-reference cases.</p>
+<p>PolicyBench also sits within a broader literature on quantitative reasoning benchmarks. Canonical math evaluations such as GSM8K and MATH normalized exact final-answer scoring for numeric tasks <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>. Recent work has questioned pure exact-match scoring in numeric QA and temporal reasoning, arguing for error-aware metrics instead <span class="citation" data-cites="zhou2025tempanswerqa">(Abbood et al. 2025)</span>. PolicyBench treats this as a measurement design choice rather than a forced pick: it leads with the exact-match rate as the headline deployability bar (a tax filer or benefits caseworker can’t ship “close”), retains a within-1% hit rate as a near-miss-tolerant companion, and reports a bounded continuous score that awards relative-error partial credit as a secondary tracking diagnostic. The benchmark panel is zero-inflated — 84% of reference outputs are exact zeros — so a <em>naive unweighted</em> exact rate would be dominated by zero cases a hedging model can predict; but the public leaderboard is household-impact-weighted, which down-weights those zero-reference outputs, so the <em>weighted</em> exact rate is not compressed near the zero share and ranks models about as sharply as within-1% while keeping the to-the-dollar deployability meaning.</p>
 <p>Finance-domain benchmarks provide another relevant precedent. FinQA and TAT-QA both show that realistic quantitative reasoning often requires combining structured numbers with domain knowledge rather than solving stylized school-math problems <span class="citation" data-cites="chen2021finqa zhu2021tatqa">(<span class="nocase">Chen et al.</span> 2021; <span class="nocase">Zhu et al.</span> 2021)</span>. PolicyBench differs in that its reference outputs are generated by executable tax-benefit microsimulation rather than annotated document questions, but the underlying motivation is similar: domain-specific quantitative reasoning deserves dedicated evaluation.</p>
 <p>The nearest public-benefits benchmark is the concurrent Public Benefits Bench, built by Vals AI with the Center for Civic Futures and Code for America <span class="citation" data-cites="vals2026publicbenefits">(Vals AI 2026)</span>. It evaluates models on 459 expert-validated SNAP guidance scenarios (230 in the published test set) spanning all 50 US states plus Guam and the Virgin Islands, and grades free-text answers against expert-written rubric criteria using a judge model that agreed with SNAP policy experts on 80.6% of grading decisions. Where PolicyBench isolates parametric knowledge by withholding tools, Public Benefits Bench varies tool access directly: across models, multi-turn conversation raises pass rates by roughly 7.6 percentage points and web search by about 6.9. The two benchmarks probe complementary failure surfaces — conversational guidance quality for a single program with tools available, versus no-tool numeric estimation across tax and transfer outputs scored deterministically against microsimulation references — and reach consistent conclusions. The best model passes 71.7% of rubric criteria under Public Benefits Bench’s strongest condition, and its authors conclude that “no general-purpose AI model performs well enough to be trusted with SNAP benefits guidance,” matching the deployability gaps PolicyBench reports for unaided calculation.</p>
 <p>Finally, PolicyBench depends on two infrastructure literatures that are not themselves large language model (LLM) benchmarks. One is structured-output reliability, since the benchmark relies on multi-output JSON responses and parse coverage rather than free-form prose <span class="citation" data-cites="shorten2024structuredrag">(Shorten et al. 2024)</span>. The other is tax-benefit microsimulation, where systems such as EUROMOD provide the methodological precedent for evaluating policy rules over household microdata <span class="citation" data-cites="sutherland2023euromod">(Sutherland and Figari 2013)</span>. There is also operational work on applying and evaluating AI systems in public-benefits settings, including caseworker-assist and Supplemental Nutrition Assistance Program (SNAP)-focused evaluations <span class="citation" data-cites="nava2026caseworker nava2025benefits propel2025snap">(Nava Labs 2026, 2025; ZenML LLMOps Database 2025)</span>. PolicyBench combines these strands into a public cross-model benchmark over household-level tax and benefit outputs.</p>
 <h2 id="benchmark-design" class="anchored">Benchmark design</h2>
 <p>PolicyBench asks models to predict all benchmark outputs for a household in a single structured response. One response per household reduces repeated prompt cost and keeps the task at the household-return level rather than turning it into a sequence of unrelated one-output calls.</p>
-<h3 id="primary-metric-within-1" class="anchored">Primary metric: within 1%</h3>
-<p>The primary headline metric is the within-1% hit rate: the share of requested outputs the model gets within one percent of the PolicyEngine reference value. For currency amounts, “within 1%” means <code>|pred − ref| ≤ 0.01 × |ref|</code> when the reference is nonzero and <code>|pred| ≤ 1</code> (the same one-currency-unit absolute tolerance used by exact match) when the reference is zero. Binary outputs are requested as integer 0/1 eligibility flags and scored identically to the exact-match metric.</p>
-<p>Within-1% is the headline because the benchmark panel is zero-inflated. In the frozen manuscript snapshot, 84% of reference outputs are exact zeros — most sampled households are not eligible for any given program, owe no capital gains tax, do not phase into a refundable credit, and so on. A model that hedges to zero on every requested output therefore earns full exact credit on every zero case, which compresses top-of-leaderboard exact-match rates near the share of zero cases the panel contains, because within-1% credits close-but-not-exact predictions on the positive-reference cases where rule comprehension is actually tested. Within-1% inherits the same one-currency-unit tolerance on zeros, so a hedging baseline gets no extra credit from the relaxed threshold; it is the partial credit on positive-reference cases that yields the discriminating signal.</p>
-<p>The within-1% rate is aggregated to a household score and then to a country score, with the same population-derived output weights that the secondary bounded score uses. Equal household weight preserves comparability across scenarios and slices. The leaderboard reports US results on this fixed test set.</p>
-<h3 id="deployability-bar-exact-match" class="anchored">Deployability bar: exact match</h3>
-<p>PolicyBench retains the exact-match rate as the deployability bar: the share of requested outputs the model gets right to the dollar (or, for eligibility flags, to the boolean). A tax filer, a benefit estimator, or a caseworker cannot ship “close” — a prediction off by $50 is no more usable than one off by $500, because neither matches the bottom line a downstream system or a household needs. For currency amounts, “exact” means within <code>1</code> currency unit of the reference value after numeric parsing. For binary outputs, “exact” means the parsed value is exactly the same 0/1 flag as the reference.</p>
-<p>The exact-match rate uses the same per-output weighting as the primary within-1% metric. It is reported alongside the headline in every leaderboard table and remains the bar a production-facing system must clear. We report it as the deployability bar rather than the headline ranking because in zero-inflated panels it is dominated by zero-case behavior and discriminates less well between models that understand the policy rules and models that simply hedge to zero.</p>
+<h3 id="headline-metric-exact-match" class="anchored">Headline metric: exact match</h3>
+<p>The headline metric is the exact-match rate: the share of requested outputs the model gets right to the dollar (or, for eligibility flags, to the boolean). This is the deployability bar. A tax filer, a benefit estimator, or a caseworker cannot ship “close” — a prediction off by $50 is no more usable than one off by $500, because neither matches the bottom line a downstream system or a household needs. For currency amounts, “exact” means within <code>1</code> currency unit of the reference value after numeric parsing. For binary outputs, “exact” means the parsed value is exactly the same 0/1 flag as the reference.</p>
+<p>Exact match can be a deceptive headline in a zero-inflated panel — but only when the rate is computed <em>unweighted</em>. In the frozen manuscript snapshot, 84% of reference outputs are exact zeros: most sampled households are not eligible for any given program, owe no capital gains tax, do not phase into a refundable credit, and so on. A model that hedges to zero on every requested output earns full exact credit on every zero case, so a <em>naive unweighted</em> exact rate is dominated by those zeros — a hedge-to-zero model scores roughly 84% unweighted, leaving little room above the floor to separate models that actually understand the rules.</p>
+<p>The public leaderboard corrects for this by household-impact weighting. Each requested output’s weight is its share of the household’s stake — <code>|ref| / max(|household_net_income|, Σ |ref|)</code> — averaged with calibrated household weights over the full populace population (the weighting construction is detailed under “Impact weighting” below). Because zero-reference outputs contribute zero weight, the weighting strips out exactly the rows a hedge-to-zero model gets for free. The <em>weighted</em> exact rate is therefore not compressed near the unweighted zero share: an always-zero baseline scores 66.8% weighted exact, well below the 84% unweighted floor, and the top model clears that baseline by 13.4 points — a margin comparable to within-1%. Across the 13-model roster, the weighted exact rate spreads about as widely as within-1% and ranks models in nearly the same order, so exact match discriminates between rule comprehension and zero-hedging about as well as within-1% while preserving the to-the-dollar deployability meaning.</p>
+<p>The exact rate is aggregated to a household score and then to a country score, with the same population-derived output weights that the within-1% companion and the bounded score use. Equal household weight preserves comparability across scenarios and slices. The leaderboard reports US results on this fixed test set.</p>
+<h3 id="near-miss-companion-within-1" class="anchored">Near-miss companion: within 1%</h3>
+<p>The within-1% hit rate is the near-miss-tolerant companion to the headline: the share of requested outputs the model gets within one percent of the PolicyEngine reference value. For currency amounts, “within 1%” means <code>|pred − ref| ≤ 0.01 × |ref|</code> when the reference is nonzero and <code>|pred| ≤ 1</code> (the same one-currency-unit absolute tolerance used by exact match) when the reference is zero. Binary outputs are requested as integer 0/1 eligibility flags and scored identically to the exact-match metric.</p>
+<p>Within-1% relaxes the exact bar by tolerating rounding and small rate or parameter drift on positive-reference cases, so it credits a model that is consistently close but rarely to-the-dollar. It uses the same per-output household-impact weighting and the same household-equal aggregation as the headline exact rate, and it is reported alongside exact in every leaderboard table. Because both metrics share the weighting, the two rank models almost identically; within-1% sits a few points above exact and is the right view when near-miss accuracy, rather than strict deployability, is the question.</p>
 <h3 id="secondary-metric-bounded-continuous-score" class="anchored">Secondary metric: bounded continuous score</h3>
-<p>PolicyBench also reports a bounded <code>0-100</code> score that awards smooth partial credit for close-but-not-exact amount answers. This is informative for tracking conceptual progress year over year while exact rates remain low, and it captures the qualitative gap between a model that is consistently close and one that is consistently far from the reference value. For amount variables, the row-level bounded score is <code>max(0, 1 - |pred - ref| / |ref|)</code> when the reference value is nonzero and <code>1{pred = 0}</code> when the reference value is zero. For binary outputs, it uses exact 0/1 matching. The exact, within-1%, within-5%, and within-10% hit rates are reported separately as threshold diagnostics; they are not averaged to create the bounded score.</p>
-<p>PolicyBench also tracks mean absolute error and related error metrics. These remain secondary diagnostics under the primary within-1% metric, the deployability-bar exact-match rate, and the bounded score. The three-metric design follows recent numeric-evaluation literature that questions pure exact-match scoring <span class="citation" data-cites="zhou2025tempanswerqa">(Abbood et al. 2025)</span> without abandoning exactness as the production bar.</p>
+<p>PolicyBench also reports a bounded <code>0-100</code> score that awards smooth partial credit for close-but-not-exact amount answers. This is informative for tracking conceptual progress year over year and captures the qualitative gap between a model that is consistently close and one that is consistently far from the reference value. For amount variables, the row-level bounded score is <code>max(0, 1 - |pred - ref| / |ref|)</code> when the reference value is nonzero and <code>1{pred = 0}</code> when the reference value is zero. For binary outputs, it uses exact 0/1 matching. The exact, within-1%, within-5%, and within-10% hit rates are reported separately as threshold diagnostics; they are not averaged to create the bounded score.</p>
+<p>PolicyBench also tracks mean absolute error and related error metrics. These remain secondary diagnostics under the headline exact-match rate, the within-1% near-miss companion, and the bounded score. The three-metric design follows recent numeric-evaluation literature that questions pure exact-match scoring <span class="citation" data-cites="zhou2025tempanswerqa">(Abbood et al. 2025)</span> while keeping exactness as the production bar.</p>
 <p>All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026. For currency amounts, the “exact” hit rate means within <code>1</code> currency unit of the reference value after numeric parsing. Percentage-threshold hit rates use relative error when the reference value is nonzero and the same <code>1</code> currency-unit absolute tolerance when the reference value is zero. Binary outputs are parsed as numeric 0/1 eligibility flags and scored by exact classification accuracy. Missing, unparseable, or non-0/1 answers receive zero score for that requested output.</p>
 <p>Aggregation proceeds in three steps. First, each household-output prediction receives a <code>0-100</code> score. Second, each household receives one model score: requested output rows are weighted by output-group weights constructed from the full weighting population, then renormalized within the household over outputs that are actually requested for that household. Person-level coverage flags are scored at the person row; their output-group weight is split across the relevant people in the household and is based on PolicyEngine value proxies where available. Third, the country score averages those household scores with equal household weight. The leaderboard reports US results on this fixed test set. Equal-output-group scores and other alternative views are reported as sensitivity checks.</p>
 <p>The benchmark requires each model response to include numeric answers and one explanation per requested output. Both the exact-match rate and the bounded score use only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.</p>
@@ -678,12 +679,12 @@ Table&nbsp;5: Exhaustive annotation coverage for scored misses in the frozen sna
 </div>
 <h2 id="results" class="anchored">Results</h2>
 <h3 id="united-states-leaderboard" class="anchored">United States leaderboard</h3>
-<p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;6</a>. The top three models in that snapshot are GPT-5.5 (82.6 within-1%, 95% CI 79.3–85.7; 80.3 exact), Grok 4.3 (79.1 within-1%, 95% CI 76.1–82.1; 77.2 exact), and Gemini 3.1 Pro Preview (78.3 within-1%, 95% CI 75.0–81.7; 77.8 exact).</p>
+<p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;6</a>. The top three models in that snapshot are GPT-5.5 (80.3 exact, 95% CI 77.0–83.3; 82.6 within-1%), Gemini 3.1 Pro Preview (77.8 exact, 95% CI 74.4–81.2; 78.3 within-1%), and Claude Opus 4.7 (77.3 exact, 95% CI 74.3–80.3; 78.3 within-1%).</p>
 <div class="cell" data-execution_count="7">
 <div id="tbl-us-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="7">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-us-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot. Within-1% 95% CIs and rank ranges are household-resampling bootstrap intervals (see Uncertainty).
+Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot, ranked by the headline exact-match rate with the within-1% near-miss companion alongside. Exact 95% CIs and rank ranges are household-resampling bootstrap intervals (see Uncertainty).
 </figcaption>
 <div aria-describedby="tbl-us-top-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output cell-output-display" data-execution_count="7">
@@ -707,10 +708,10 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot. Within-
 <tr class="header" style="text-align: right;">
 <th data-quarto-table-cell-role="th"></th>
 <th data-quarto-table-cell-role="th">Model</th>
-<th data-quarto-table-cell-role="th">Within 1% %</th>
-<th data-quarto-table-cell-role="th">Within 1% 95% CI</th>
-<th data-quarto-table-cell-role="th">Within-1% rank</th>
 <th data-quarto-table-cell-role="th">Exact %</th>
+<th data-quarto-table-cell-role="th">Exact 95% CI</th>
+<th data-quarto-table-cell-role="th">Exact rank</th>
+<th data-quarto-table-cell-role="th">Within 1% %</th>
 <th data-quarto-table-cell-role="th">Within 10%</th>
 <th data-quarto-table-cell-role="th">Bounded score</th>
 <th data-quarto-table-cell-role="th">Parsed</th>
@@ -721,58 +722,58 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot. Within-
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>GPT-5.5</td>
-<td>82.6</td>
-<td>79.3–85.7</td>
-<td>1</td>
 <td>80.3</td>
+<td>77.0–83.3</td>
+<td>1–2</td>
+<td>82.6</td>
 <td>88.3</td>
 <td>92.0</td>
 <td>1984</td>
 <td>1984</td>
 </tr>
 <tr class="even">
+<th data-quarto-table-cell-role="th">2</th>
+<td>Gemini 3.1 Pro Preview</td>
+<td>77.8</td>
+<td>74.4–81.2</td>
+<td>1–6</td>
+<td>78.3</td>
+<td>83.2</td>
+<td>91.1</td>
+<td>1984</td>
+<td>1984</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">3</th>
+<td>Claude Opus 4.7</td>
+<td>77.3</td>
+<td>74.3–80.3</td>
+<td>2–9</td>
+<td>78.3</td>
+<td>83.5</td>
+<td>88.6</td>
+<td>1984</td>
+<td>1984</td>
+</tr>
+<tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>Grok 4.3</td>
-<td>79.1</td>
-<td>76.1–82.1</td>
-<td>2–7</td>
 <td>77.2</td>
+<td>74.1–80.2</td>
+<td>2–9</td>
+<td>79.1</td>
 <td>83.3</td>
 <td>87.1</td>
 <td>1984</td>
 <td>1984</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">2</th>
-<td>Gemini 3.1 Pro Preview</td>
-<td>78.3</td>
-<td>75.0–81.7</td>
-<td>2–8</td>
-<td>77.8</td>
-<td>83.2</td>
-<td>91.1</td>
-<td>1984</td>
-<td>1984</td>
-</tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">3</th>
-<td>Claude Opus 4.7</td>
-<td>78.3</td>
-<td>75.4–81.2</td>
-<td>2–9</td>
-<td>77.3</td>
-<td>83.5</td>
-<td>88.6</td>
-<td>1984</td>
-<td>1984</td>
-</tr>
-<tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>Claude Sonnet 4.6</td>
-<td>78.2</td>
-<td>75.1–81.4</td>
-<td>2–9</td>
 <td>77.0</td>
+<td>73.8–80.2</td>
+<td>2–9</td>
+<td>78.2</td>
 <td>86.2</td>
 <td>89.8</td>
 <td>1984</td>
@@ -788,15 +789,15 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot. Within-
 </div>
 </div>
 <h3 id="uncertainty" class="anchored">Uncertainty</h3>
-<p>Each leaderboard score is a mean over a sample of 100 households, so the rankings carry sampling uncertainty. We quantify it with a household-level bootstrap: the 100 households are resampled with replacement 10,000 times, and each model’s population-weighted within-1% rate is recomputed on every resample. The resampling unit is the household, carried with its full output vector, so within-household correlations across outputs are preserved. The same resampled set is used for every model in each replicate (a paired bootstrap), so the rank ranges in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;6</a> reflect genuine ordering uncertainty rather than independent per-model noise.</p>
-<p>Sampling uncertainty is substantial at this sample size. In the frozen snapshot, 8 of the other 12 models have a within-1% 95% interval that overlaps the leader’s. Small differences in the leaderboard ordering should therefore be read as ties rather than as a strict ranking, and the rank-range column makes the set of plausible positions explicit. These intervals are a manuscript artifact: the public leaderboard and app report point estimates only, because the benchmark sample, not run-to-run model variation, is the dominant source of uncertainty here.</p>
+<p>Each leaderboard score is a mean over a sample of 100 households, so the rankings carry sampling uncertainty. We quantify it with a household-level bootstrap: the 100 households are resampled with replacement 10,000 times, and each model’s population-weighted exact-match rate is recomputed on every resample. The resampling unit is the household, carried with its full output vector, so within-household correlations across outputs are preserved. The same resampled set is used for every model in each replicate (a paired bootstrap), so the rank ranges in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;6</a> reflect genuine ordering uncertainty rather than independent per-model noise.</p>
+<p>Sampling uncertainty is substantial at this sample size. In the frozen snapshot, 8 of the other 12 models have an exact-match 95% interval that overlaps the leader’s. Small differences in the leaderboard ordering should therefore be read as ties rather than as a strict ranking, and the rank-range column makes the set of plausible positions explicit. These intervals are a manuscript artifact: the public leaderboard and app report point estimates only, because the benchmark sample, not run-to-run model variation, is the dominant source of uncertainty here.</p>
 <h3 id="simple-baselines" class="anchored">Simple baselines</h3>
-<p>Simple baselines help interpret score levels in a zero-heavy benchmark. <a href="#tbl-baselines" class="quarto-xref">Table&nbsp;7</a> reports an always-zero response and a median-reference-by-output response on the same frozen household sample. These are not model competitors; they show how much of either metric can be earned without household-specific policy calculation — and they make clear that the within-1% headline and exact-match deployability bar are not trivial bars to clear above the always-zero baseline on positive-reference cases.</p>
+<p>Simple baselines help interpret score levels in a zero-heavy benchmark. <a href="#tbl-baselines" class="quarto-xref">Table&nbsp;7</a> reports an always-zero response and a median-reference-by-output response on the same frozen household sample, scored with the household-impact weighting. These are not model competitors; they show how much of each metric can be earned without household-specific policy calculation. The always-zero baseline scores 66.8% on the headline exact-match rate — well below the 84% of outputs that are exact zeros, because the impact weighting down-weights the zero-reference rows the hedge gets for free. That is why exact match is not a trivial bar above the baseline: the top model clears it by 13.4 points, and the within-1% companion shows the same separation with near-miss tolerance.</p>
 <div class="cell" data-execution_count="8">
 <div id="tbl-baselines" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="8">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-baselines-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;7: Simple baseline scores on the frozen manuscript snapshot.
+Table&nbsp;7: Simple baseline scores on the frozen manuscript snapshot, household-impact-weighted. The always-zero exact rate sits well below the unweighted zero share because the weighting down-weights zero-reference outputs.
 </figcaption>
 <div aria-describedby="tbl-baselines-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output cell-output-display" data-execution_count="8">
@@ -820,7 +821,9 @@ Table&nbsp;7: Simple baseline scores on the frozen manuscript snapshot.
 <tr class="header" style="text-align: right;">
 <th data-quarto-table-cell-role="th"></th>
 <th data-quarto-table-cell-role="th">Baseline</th>
-<th data-quarto-table-cell-role="th">US score</th>
+<th data-quarto-table-cell-role="th">Exact %</th>
+<th data-quarto-table-cell-role="th">Within 1% %</th>
+<th data-quarto-table-cell-role="th">Bounded score</th>
 </tr>
 </thead>
 <tbody>
@@ -828,10 +831,14 @@ Table&nbsp;7: Simple baseline scores on the frozen manuscript snapshot.
 <th data-quarto-table-cell-role="th">0</th>
 <td>Always zero</td>
 <td>66.8</td>
+<td>66.8</td>
+<td>66.8</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>Median reference by output</td>
+<td>61.0</td>
+<td>61.0</td>
 <td>64.2</td>
 </tr>
 </tbody>
@@ -881,41 +888,48 @@ Table&nbsp;8: Leaderboard sensitivity to alternative scoring views.
 <tbody>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
-<td>Within-1% headline</td>
+<td>Exact-match headline</td>
+<td>GPT-5.5 (80.3)</td>
+<td>Gemini 3.1 Pro Preview (77.8)</td>
+<td>Claude Opus 4.7 (77.3)</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>Within-1% companion</td>
 <td>GPT-5.5 (82.6)</td>
 <td>Grok 4.3 (79.1)</td>
 <td>Gemini 3.1 Pro Preview (78.3)</td>
 </tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">1</th>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
 <td>Bounded score</td>
 <td>GPT-5.5 (92.0)</td>
 <td>Gemini 3.1 Pro Preview (91.1)</td>
 <td>Gemini 3 Flash Preview (90.4)</td>
 </tr>
-<tr class="odd">
-<th data-quarto-table-cell-role="th">2</th>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
 <td>Equal-output-group score</td>
 <td>GPT-5.5 (95.5)</td>
 <td>Gemini 3.1 Pro Preview (94.8)</td>
 <td>Gemini 3 Flash Preview (94.6)</td>
 </tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">3</th>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">4</th>
 <td>Amount outputs only</td>
 <td>GPT-5.5 (94.5)</td>
 <td>Claude Sonnet 4.6 (92.7)</td>
 <td>Gemini 3 Flash Preview (91.9)</td>
 </tr>
-<tr class="odd">
-<th data-quarto-table-cell-role="th">4</th>
+<tr class="even">
+<th data-quarto-table-cell-role="th">5</th>
 <td>Positive reference cases only</td>
 <td>Gemini 3.5 Flash (82.5)</td>
 <td>GPT-5.5 (76.9)</td>
 <td>Gemini 3 Flash Preview (76.4)</td>
 </tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">5</th>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">6</th>
 <td>Zero reference cases only</td>
 <td>Gemini 3.1 Pro Preview (98.1)</td>
 <td>GPT-5.5 (97.8)</td>
@@ -1026,8 +1040,8 @@ Table&nbsp;10: Hardest US variables by bounded score (the secondary tracking met
 <th data-quarto-table-cell-role="th"></th>
 <th data-quarto-table-cell-role="th">Variable</th>
 <th data-quarto-table-cell-role="th">Score</th>
-<th data-quarto-table-cell-role="th">Within 1%</th>
 <th data-quarto-table-cell-role="th">Exact</th>
+<th data-quarto-table-cell-role="th">Within 1%</th>
 <th data-quarto-table-cell-role="th">Within 10%</th>
 </tr>
 </thead>
@@ -1036,32 +1050,32 @@ Table&nbsp;10: Hardest US variables by bounded score (the secondary tracking met
 <th data-quarto-table-cell-role="th">0</th>
 <td>federal_income_tax_before_refundable_credits</td>
 <td>75.1</td>
-<td>49.2</td>
 <td>47.1</td>
+<td>49.2</td>
 <td>58.8</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">15</th>
 <td>state_income_tax_before_refundable_credits</td>
 <td>77.9</td>
-<td>54.9</td>
 <td>53.3</td>
+<td>54.9</td>
 <td>65.7</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">16</th>
 <td>state_refundable_credits</td>
 <td>82.2</td>
-<td>79.0</td>
 <td>78.8</td>
+<td>79.0</td>
 <td>79.6</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">13</th>
 <td>snap</td>
 <td>83.5</td>
-<td>77.5</td>
 <td>76.8</td>
+<td>77.5</td>
 <td>80.7</td>
 </tr>
 <tr class="odd">
@@ -1336,7 +1350,7 @@ Table&nbsp;12: US within-10% accuracy on federal vs state refundable credits and
 <ul>
 <li>output-contract reliability required a repair workflow, and the raw failed attempts are preserved separately from the repaired canonical prediction files</li>
 <li>zero-heavy outputs require separate positive-case interpretation</li>
-<li>the choice of primary metric (within-1%), deployability bar (exact match), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate</li>
+<li>the choice of headline metric (exact match), near-miss companion (within-1%), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate</li>
 <li>the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail</li>
 <li>the 100-household manuscript snapshot should be treated as a preview until larger frozen runs are published</li>
 <li>the scored-miss audit is exhaustive over this frozen snapshot, but it is developer-led and not an independent validation of every reference value</li>
