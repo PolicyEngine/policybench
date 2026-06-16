@@ -187,12 +187,9 @@ export default function Methodology({
           the gross tax-benefit flow and equals one only when programs cancel
           each other out. Those shares are averaged using calibrated household
           weights in the full weighting population, then renormalized so the
-          output weights sum to one. US weights use the full populace dataset;
-          UK weights use the full enhanced FRS. This weighting source is
-          separate from the UK benchmark scenarios, which use the public
-          calibrated transfer dataset. The weights are then applied to the fixed
-          benchmark households and renormalized within each household over
-          requested outputs.
+          output weights sum to one. US weights use the full populace dataset.
+          The weights are then applied to the fixed benchmark households and
+          renormalized within each household over requested outputs.
           {country === "us"
             ? " Person-level eligibility flags like Medicaid carry weight through PolicyEngine's paired per-capita value (e.g. medicaid_value), so the LLM is graded only on the boolean call itself."
             : " Person-level eligibility flags carry weight through PolicyEngine's paired per-capita value, so the LLM is graded only on the boolean call itself."}{" "}
