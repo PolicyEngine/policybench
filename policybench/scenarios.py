@@ -220,7 +220,7 @@ MONETARY_INCOME_FIELDS = {
     "long_term_capital_gains",
 }
 
-BASE_CPS_COLUMNS = {
+BASE_PERSON_COLUMNS = {
     "person_id": "person_id",
     "household_id": "household_id",
     "tax_unit_id": "tax_unit_id",
@@ -443,7 +443,7 @@ class Scenario:
     household_inputs: dict[str, Any] = field(default_factory=dict)
     year: int = TAX_YEAR
     country: str = DEFAULT_COUNTRY
-    source_dataset: str = "enhanced_cps"
+    source_dataset: str = "populace_us_2024"
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -580,21 +580,28 @@ def scenario_from_dict(data: dict[str, Any]) -> Scenario:
         spm_unit_inputs=dict(data.get("spm_unit_inputs", {})),
         household_inputs=dict(data.get("household_inputs", {})),
         year=int(data.get("year", TAX_YEAR)),
-        source_dataset=str(data.get("source_dataset", "enhanced_cps")),
+        source_dataset=str(data.get("source_dataset", "populace_us_2024")),
         metadata=dict(data.get("metadata", {})),
     )
 
 
-def load_enhanced_cps_person_frame() -> tuple[pd.DataFrame, int]:
-    """Load a person-level frame from the certified US microsimulation dataset."""
+def load_certified_us_person_frame() -> tuple[pd.DataFrame, int, str]:
+    """Load a person-level frame from the certified US microsimulation dataset.
+
+    Returns ``(person_df, dataset_year, dataset_label)``. The label is read
+    from the live simulation's PolicyEngine bundle (``default_dataset``), so it
+    reflects the dataset the run actually materialized -- the certified
+    populace build (``populace_us_2024``) -- rather than a hardcoded name.
+    """
     from policybench.policyengine_runtime import make_us_microsimulation
 
     sim = make_us_microsimulation()
     dataset_year = sim.default_input_period
+    dataset_label = str(sim.policyengine_bundle["default_dataset"])
     input_specs = get_promptable_input_specs()
 
     values = {}
-    for output_name, variable_name in BASE_CPS_COLUMNS.items():
+    for output_name, variable_name in BASE_PERSON_COLUMNS.items():
         values[output_name] = np.asarray(
             sim.calculate(
                 variable_name,
@@ -614,7 +621,7 @@ def load_enhanced_cps_person_frame() -> tuple[pd.DataFrame, int]:
             )
         )
 
-    return pd.DataFrame(values), dataset_year
+    return pd.DataFrame(values), dataset_year, dataset_label
 
 
 def _hash_file(path: Path) -> str:
@@ -1150,9 +1157,16 @@ def scenarios_from_cps_frame(
     seed: int = SEED,
     year: int = TAX_YEAR,
     dataset_year: int | None = None,
+    dataset_label: str | None = None,
     excluded_household_ids: set[int] | None = None,
 ) -> list[Scenario]:
-    """Sample benchmark scenarios from a person-level US source frame."""
+    """Sample benchmark scenarios from a person-level US source frame.
+
+    ``dataset_label`` is the certified dataset name reported by the runtime
+    (e.g. ``populace_us_2024``); when provided it is recorded verbatim as each
+    scenario's ``source_dataset``. When omitted, a neutral populace default is
+    used so generated scenarios are never mislabeled.
+    """
     df = _prepare_cps_frame(person_df)
     eligible_households = _eligible_households(df)
     if excluded_household_ids:
@@ -1179,11 +1193,7 @@ def scenarios_from_cps_frame(
         if dataset_year is not None:
             metadata["dataset_year"] = int(dataset_year)
 
-        source_dataset = (
-            f"enhanced_cps_{int(dataset_year)}"
-            if dataset_year is not None
-            else "enhanced_cps"
-        )
+        source_dataset = dataset_label or "populace_us_2024"
         scenarios.append(
             Scenario(
                 id=f"scenario_{i:03d}",
@@ -1407,13 +1417,14 @@ def generate_scenarios(
 ) -> list[Scenario]:
     """Generate benchmark scenarios for a country."""
     if country == "us":
-        person_df, dataset_year = load_enhanced_cps_person_frame()
+        person_df, dataset_year, dataset_label = load_certified_us_person_frame()
         return scenarios_from_cps_frame(
             person_df,
             n=n,
             seed=seed,
             year=TAX_YEAR,
             dataset_year=dataset_year,
+            dataset_label=dataset_label,
             excluded_household_ids=excluded_household_ids,
         )
     if country == "uk":

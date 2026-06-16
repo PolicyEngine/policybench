@@ -893,7 +893,7 @@ class TestSummaries:
             ],
             "children": [],
             "year": 2026,
-            "source_dataset": "enhanced_cps_2024",
+            "source_dataset": "populace_us_2024",
             "metadata": {"household_id": 1},
         }
         scenarios_df = pd.DataFrame(
@@ -928,7 +928,7 @@ class TestSummaries:
             ],
             "children": [],
             "year": 2026,
-            "source_dataset": "enhanced_cps_2024",
+            "source_dataset": "populace_us_2024",
             "metadata": {"household_id": 1},
         }
         scenarios_df = pd.DataFrame(

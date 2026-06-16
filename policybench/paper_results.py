@@ -82,7 +82,7 @@ OUTPUT_DISPLAY_NAMES = {
 # reproducible at build time via, from the repo root::
 #
 #     from policybench import scenarios
-#     df, _ = scenarios.load_enhanced_cps_person_frame()
+#     df, _, _ = scenarios.load_certified_us_person_frame()
 #     df["is_adult"] = df["age"] >= 18
 #     n_people, n_households = len(df), df["household_id"].nunique()
 #     n_eligible = len(scenarios._eligible_households(df))
