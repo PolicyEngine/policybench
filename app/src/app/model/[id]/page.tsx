@@ -43,8 +43,8 @@ export async function generateMetadata({
     )
     .join(", ");
   const description =
-    `How accurately ${label} estimates household tax and benefit amounts ` +
-    `without tools, scored against PolicyEngine (exact-match rate: ` +
+    `How accurately ${label} estimates household tax and benefit amounts, ` +
+    `scored against PolicyEngine (exact-match rate: ` +
     `${scoreText}).`;
   return {
     title: label,

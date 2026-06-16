@@ -5,7 +5,7 @@ const SITE_URL = "https://policybench.org";
 const SITE_TITLE = "PolicyBench, by PolicyEngine";
 const SITE_DESCRIPTION =
   "How accurately frontier AI models estimate US tax and benefit " +
-  "amounts without tools, scored against PolicyEngine reference outputs.";
+  "amounts, scored against PolicyEngine reference outputs.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     images: [
       {
-        url: "/og-image.png",
+        url: "/og-image.png?v=20260616",
         width: 1200,
         height: 630,
         alt: "PolicyBench — an LLM benchmark for tax and benefit calculation",
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: ["/og-image.png"],
+    images: ["/og-image.png?v=20260616"],
   },
   icons: {
     icon: [
