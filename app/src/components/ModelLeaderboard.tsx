@@ -58,11 +58,12 @@ function accColor(pct: number): "success" | "primary" | "warning" | "danger" {
   return "danger";
 }
 
-// Per-household cost to two significant figures — values span ~$0.002 to
-// ~$0.29 across models, so fixed decimals would lose the cheap end.
+// Per-household cost, always to the tenth of a cent so every model reads with
+// the same precision. Values span ~$0.002 to ~$0.29, so two decimals would
+// round the cheapest models to $0.00; three keeps them consistent and legible.
 function fmtCost(usd: number | undefined, symbol: string): string {
   if (usd == null || !Number.isFinite(usd)) return "—";
-  return `${symbol}${Number(usd.toPrecision(2))}`;
+  return `${symbol}${usd.toFixed(3)}`;
 }
 
 // Median per-household request-time: seconds under a minute, minutes above.

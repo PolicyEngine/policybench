@@ -749,6 +749,92 @@ us_positive_cases = positive_case_table(us_failures)
 sensitivity = sensitivity_rows()
 model_runs = model_run_table()
 baseline_summary = simple_baselines()
+
+
+def fmt_latency_seconds(seconds) -> str:
+    if seconds is None or pd.isna(seconds):
+        return "—"
+    if seconds < 60:
+        return f"{round(seconds)} s"
+    return f"{seconds / 60:.1f} min"
+
+
+def fmt_cost_per_household(usd) -> str:
+    if usd is None or pd.isna(usd):
+        return "—"
+    # Escape for Quarto so the paired dollar signs are not read as inline math.
+    return f"\\${usd:.3f}"
+
+
+def load_us_cost_latency() -> dict:
+    # Cost and latency are computed from the frozen run's logged token usage and
+    # per-call timings, so they need no snapshot regeneration: the same
+    # model_cost_latency the leaderboard pipeline uses, read off predictions.
+    from policybench.analysis import model_cost_latency
+    from policybench.config import PRICE_OVERRIDES_PER_1M
+
+    predictions = pd.read_csv(
+        ROOT / IMPACT_SNAPSHOT_DIR / "runs" / US_RUN_LABEL / "predictions.csv.gz"
+    )
+    return model_cost_latency(predictions, PRICE_OVERRIDES_PER_1M)
+
+
+us_cost_latency = load_us_cost_latency()
+
+
+def cost_latency_table() -> pd.DataFrame:
+    rows = []
+    for _, row in us_model.sort_values("exact", ascending=False).iterrows():
+        entry = us_cost_latency.get(row["model"], {})
+        rows.append(
+            {
+                "Model": model_display_name(row["model"]),
+                "Exact (%)": fmt_score(row["exact"]),
+                "Cost / household": fmt_cost_per_household(entry.get("costPerHousehold")),
+                "Latency (median)": fmt_latency_seconds(entry.get("latencySeconds")),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+cost_latency = cost_latency_table()
+
+
+def cost_latency_summary() -> str:
+    priced = [
+        m
+        for m in us_model["model"]
+        if us_cost_latency.get(m, {}).get("costPerHousehold") is not None
+    ]
+    timed = [
+        m
+        for m in priced
+        if us_cost_latency.get(m, {}).get("latencySeconds") is not None
+    ]
+    by_cost = sorted(priced, key=lambda m: us_cost_latency[m]["costPerHousehold"])
+    by_latency = sorted(timed, key=lambda m: us_cost_latency[m]["latencySeconds"])
+    cheapest, priciest = by_cost[0], by_cost[-1]
+    fastest, slowest = by_latency[0], by_latency[-1]
+    top = top_model(us_model)
+    top_cl = us_cost_latency.get(top.model, {})
+    return (
+        "Per-household cost spans "
+        f"{fmt_cost_per_household(us_cost_latency[cheapest]['costPerHousehold'])} "
+        f"({model_display_name(cheapest)}) to "
+        f"{fmt_cost_per_household(us_cost_latency[priciest]['costPerHousehold'])} "
+        f"({model_display_name(priciest)}), and median per-household latency "
+        f"{fmt_latency_seconds(us_cost_latency[fastest]['latencySeconds'])} "
+        f"({model_display_name(fastest)}) to "
+        f"{fmt_latency_seconds(us_cost_latency[slowest]['latencySeconds'])} "
+        f"({model_display_name(slowest)}). Neither dimension cleanly tracks accuracy: "
+        f"the top-scoring model, {model_display_name(top.model)} at "
+        f"{fmt_score(top.exact)}% exact, sits mid-pack at "
+        f"{fmt_cost_per_household(top_cl.get('costPerHousehold'))} per household and "
+        f"{fmt_latency_seconds(top_cl.get('latencySeconds'))}."
+    )
+
+
+cost_latency_text = cost_latency_summary()
 federal_state_joint = federal_state_joint_accuracy()
 weighting_sensitivity_table = weighting_sensitivity()
 deviation_audit_summary = deviation_audit_summary_table()
@@ -990,6 +1076,18 @@ us_top
 Each leaderboard score is a mean over a sample of `{python} r.n_households_fmt` households, so the rankings carry sampling uncertainty. We quantify it with a household-level bootstrap: the `{python} r.n_households_fmt` households are resampled with replacement 10,000 times, and each model's population-weighted exact-match rate is recomputed on every resample. The resampling unit is the household, carried with its full output vector, so within-household correlations across outputs are preserved. The same resampled set is used for every model in each replicate (a paired bootstrap), so the rank ranges in @tbl-us-top reflect genuine ordering uncertainty rather than independent per-model noise.
 
 Sampling uncertainty is substantial at this sample size. In the frozen snapshot, `{python} ci_overlap_summary('us')`. Small differences in the leaderboard ordering should therefore be read as ties rather than as a strict ranking, and the rank-range column makes the set of plausible positions explicit. These intervals are a manuscript artifact: the public leaderboard and app report point estimates only, because the benchmark sample, not run-to-run model variation, is the dominant source of uncertainty here.
+
+### Cost and latency
+
+Accuracy is one axis; the price and speed of a no-tools answer are another. @tbl-us-cost-latency reports each model's estimated cost to compute one household's full output vector and its median per-household latency, next to the headline exact rate. `{python} cost_latency_text`
+
+```{python}
+#| label: tbl-us-cost-latency
+#| tbl-cap: "Estimated cost and median latency per household for the frozen US snapshot, alongside the headline exact-match rate. Cost is reconstructed from logged token usage at provider list prices; latency is the median across households of each household's summed request-time."
+cost_latency
+```
+
+Cost is reconstructed from each call's logged prompt and completion tokens at provider list prices through litellm; for `grok-build-0.1`, which litellm's price map did not yet cover, we apply the provider's published rate of \$1 and \$2 per million input and output tokens. Latency is wall-clock request time as observed by the harness, summed within each household and taken as the median across the `{python} r.n_households_fmt` households. The per-call timer spans any provider-side retry or rate-limit backoff, so the median is reported in preference to the mean, which a few throttled calls inflate. Both are properties of this run's providers, prompts, and conditions at evaluation time rather than fixed model constants — an agent that handed the calculation to a deterministic engine would move this frontier rather than sit on it.
 
 ### Simple baselines
 
