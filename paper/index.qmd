@@ -754,9 +754,7 @@ baseline_summary = simple_baselines()
 def fmt_latency_seconds(seconds) -> str:
     if seconds is None or pd.isna(seconds):
         return "—"
-    if seconds < 60:
-        return f"{round(seconds)} s"
-    return f"{seconds / 60:.1f} min"
+    return f"{round(seconds)} s"
 
 
 def fmt_cost_per_household(usd) -> str:

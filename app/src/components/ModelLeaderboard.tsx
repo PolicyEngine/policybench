@@ -66,11 +66,10 @@ function fmtCost(usd: number | undefined, symbol: string): string {
   return `${symbol}${usd.toFixed(3)}`;
 }
 
-// Median per-household request-time: seconds under a minute, minutes above.
+// Median per-household request-time, in seconds for every model.
 function fmtLatency(seconds: number | undefined): string {
   if (seconds == null || !Number.isFinite(seconds)) return "—";
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  return `${(seconds / 60).toFixed(1)}m`;
+  return `${Math.round(seconds)}s`;
 }
 
 export default function ModelLeaderboard({
