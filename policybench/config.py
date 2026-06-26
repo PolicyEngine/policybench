@@ -43,6 +43,15 @@ MODELS = {
     "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
 }
 
+# Per-1M-token USD prices for models litellm's cost map does not yet cover
+# (typically brand-new provider preview models). Used only as a fallback when a
+# run's reconstructed per-call cost is missing, so the leaderboard can still
+# show a cost. Keyed by the display id used in predictions.csv.gz.
+PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
+    # grok-build-0.1: $1 / $2 per 1M input/output tokens (https://x.ai/api).
+    "grok-build-0.1": {"input": 1.0, "output": 2.0},
+}
+
 # Current output set. The benchmark contains signed household net-income
 # components plus coverage booleans with explicit impact weights.
 US_HEADLINE_PROGRAMS = get_output_ids("us", "headline")

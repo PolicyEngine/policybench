@@ -8,6 +8,7 @@ import pandas as pd
 
 from policybench.config import (
     BINARY_PROGRAMS,
+    PRICE_OVERRIDES_PER_1M,
     SEED,
 )
 from policybench.dashboard_schema import dump_dashboard_payload
@@ -1393,6 +1394,60 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def model_cost_latency(
+    predictions: pd.DataFrame,
+    price_overrides: dict[str, dict[str, float]] | None = None,
+) -> dict[str, dict[str, float]]:
+    """Per-model cost and per-household latency for the leaderboard.
+
+    Cost is the run total in USD (matching :func:`usage_summary_by_model`) plus
+    a per-household figure. Latency is the *median* per-household request-time —
+    each household's calls summed, then the median across households — which is
+    robust to the occasional rate-limit retry that inflates the mean. When a
+    model's reconstructed cost is missing (a provider preview model not yet in
+    litellm's price map), it is filled from ``price_overrides``.
+    """
+    if predictions.empty or "model" not in predictions.columns:
+        return {}
+    usage = usage_summary_by_model(predictions)
+    households = int(predictions["scenario_id"].nunique()) or 1
+    latency_median = pd.Series(dtype=float)
+    if "elapsed_seconds" in predictions.columns:
+        latency_median = (
+            predictions.groupby(["model", "scenario_id"])["elapsed_seconds"]
+            .sum()
+            .groupby("model")
+            .median()
+        )
+    overrides = price_overrides or {}
+    out: dict[str, dict[str, float]] = {}
+    for _, row in usage.iterrows():
+        model = str(row["model"])
+        cost = row.get("total_cost_usd")
+        if (cost is None or pd.isna(cost)) and model in overrides:
+            price = overrides[model]
+            prompt = row.get("prompt_tokens")
+            completion = row.get("completion_tokens")
+            prompt = 0.0 if prompt is None or pd.isna(prompt) else float(prompt)
+            completion = (
+                0.0 if completion is None or pd.isna(completion) else float(completion)
+            )
+            cost = prompt * price["input"] / 1e6 + completion * price["output"] / 1e6
+        entry: dict[str, float] = {}
+        if cost is not None and not pd.isna(cost):
+            entry["costUsd"] = _clean_json_number(float(cost))
+            entry["costPerHousehold"] = _clean_json_number(float(cost) / households)
+        latency = latency_median.get(model)
+        if latency is not None and not pd.isna(latency):
+            entry["latencySeconds"] = _clean_json_number(float(latency))
+        total_tokens = row.get("total_tokens")
+        if total_tokens is not None and not pd.isna(total_tokens):
+            entry["totalTokens"] = int(total_tokens)
+        if entry:
+            out[model] = entry
+    return out
+
+
 def analyze_no_tools(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
@@ -2088,6 +2143,7 @@ def build_dashboard_payload(
                     entry[key] = float(value) * 100
             bounded_by_model[str(model_name)] = entry
 
+    cost_latency = model_cost_latency(predictions, PRICE_OVERRIDES_PER_1M)
     model_stats = []
     for _, row in analysis["model_summary"].iterrows():
         output_group_score = _clean_json_number(
@@ -2221,6 +2277,7 @@ def build_dashboard_payload(
             item["equalScore"] = bounded_entry["equal"]
         if "aggregate" in bounded_entry:
             item["aggregateScore"] = bounded_entry["aggregate"]
+        item.update(cost_latency.get(str(row["model"]), {}))
         model_stats.append({k: v for k, v in item.items() if v is not None})
     model_stats.sort(
         key=lambda row: (row.get("within1pct", row["score"]), row["score"]),

@@ -10,10 +10,7 @@ import { getVariableLabel } from "../types";
 import { MODEL_LABELS, getProviderForModel } from "../modelMeta";
 import ProviderMark from "./ProviderMark";
 import { ProgramFilterPanel } from "./ProgramFilterDropdown";
-import {
-  programIsActive,
-  type ProgramOption,
-} from "../lib/programFilters";
+import { programIsActive, type ProgramOption } from "../lib/programFilters";
 import { canonicalScoreByModel } from "../lib/canonicalScore";
 import {
   rankWithFallbackScore,
@@ -59,6 +56,20 @@ function accColor(pct: number): "success" | "primary" | "warning" | "danger" {
   if (pct >= 65) return "primary";
   if (pct >= 50) return "warning";
   return "danger";
+}
+
+// Per-household cost, always to the tenth of a cent so every model reads with
+// the same precision. Values span ~$0.002 to ~$0.29, so two decimals would
+// round the cheapest models to $0.00; three keeps them consistent and legible.
+function fmtCost(usd: number | undefined, symbol: string): string {
+  if (usd == null || !Number.isFinite(usd)) return "—";
+  return `${symbol}${usd.toFixed(3)}`;
+}
+
+// Median per-household request-time, in seconds for every model.
+function fmtLatency(seconds: number | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds)) return "—";
+  return `${Math.round(seconds)}s`;
 }
 
 export default function ModelLeaderboard({
@@ -155,32 +166,17 @@ export default function ModelLeaderboard({
   const exactScoreByModel = useMemo(
     () => hitRateByModel("exact"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      data,
-      effectiveView,
-      referenceFilter,
-      activeProgramIds,
-    ],
+    [data, effectiveView, referenceFilter, activeProgramIds],
   );
   const within1pctScoreByModel = useMemo(
     () => hitRateByModel("within1pct"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      data,
-      effectiveView,
-      referenceFilter,
-      activeProgramIds,
-    ],
+    [data, effectiveView, referenceFilter, activeProgramIds],
   );
   const filteredContinuousByModel = useMemo(
     () => hitRateByModel("continuous"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      data,
-      effectiveView,
-      referenceFilter,
-      activeProgramIds,
-    ],
+    [data, effectiveView, referenceFilter, activeProgramIds],
   );
   const canRecomputeScores = Boolean(data.globalWeights?.[effectiveView]);
 
@@ -303,13 +299,29 @@ export default function ModelLeaderboard({
           role="row"
           className="hidden gap-3 px-4 text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium md:grid md:grid-cols-12"
         >
-          <div role="columnheader" className="col-span-1">#</div>
-          <div role="columnheader" className="col-span-8">
+          <div role="columnheader" className="col-span-1">
+            #
+          </div>
+          <div role="columnheader" className="col-span-5">
             Model
           </div>
-          <div role="columnheader" className="col-span-3 text-right">
+          <div
+            role="columnheader"
+            className="col-span-2 text-right"
+            title="Estimated cost to run one household's full set of outputs, no tools"
+          >
+            Cost / hh
+          </div>
+          <div
+            role="columnheader"
+            className="col-span-2 text-right"
+            title="Median wall-clock to compute one household, no tools"
+          >
+            Latency
+          </div>
+          <div role="columnheader" className="col-span-2 text-right">
             {scoringMode === "exact"
-              ? "Exact match %"
+              ? "Exact"
               : scoringMode === "within1pct"
                 ? "Within 1%"
                 : "Score"}
@@ -325,8 +337,8 @@ export default function ModelLeaderboard({
               No weighted outputs match this filter.
             </p>
             <p className="mt-1">
-              The selected programs and reference cases have zero scoring weight,
-              so PolicyBench does not rank models for this slice.
+              The selected programs and reference cases have zero scoring
+              weight, so PolicyBench does not rank models for this slice.
             </p>
           </div>
         ) : (
@@ -357,13 +369,19 @@ export default function ModelLeaderboard({
                         {MODEL_LABELS[m.model] || m.model}
                       </Link>
                     </div>
+                    <div className="mt-1.5 pl-[26px] font-[family-name:var(--font-mono)] text-[11px] text-text-muted">
+                      {fmtCost(m.costPerHousehold, currencySymbol)}/hh ·{" "}
+                      {fmtLatency(m.latencySeconds)}
+                    </div>
                   </div>
 
-                  <Badge variant={accColor(m.score)} title={`${m.score.toFixed(2)}%`}>
+                  <Badge
+                    variant={accColor(m.score)}
+                    title={`${m.score.toFixed(2)}%`}
+                  >
                     {m.score.toFixed(1)}%
                   </Badge>
                 </div>
-
               </div>
 
               <div className="hidden items-center gap-3 md:grid md:grid-cols-12">
@@ -373,7 +391,7 @@ export default function ModelLeaderboard({
                   </span>
                 </div>
 
-                <div className="col-span-8 flex items-center gap-2.5">
+                <div className="col-span-5 flex min-w-0 items-center gap-2.5">
                   <ProviderMark
                     provider={getProviderForModel(m.model)}
                     size={14}
@@ -381,13 +399,31 @@ export default function ModelLeaderboard({
                   />
                   <Link
                     href={`/model/${m.model}`}
-                    className="text-text font-medium text-sm hover:text-primary-strong"
+                    className="truncate text-text font-medium text-sm hover:text-primary-strong"
                   >
                     {MODEL_LABELS[m.model] || m.model}
                   </Link>
                 </div>
 
-                <div className="col-span-3 text-right">
+                <div
+                  className="col-span-2 text-right font-[family-name:var(--font-mono)] text-sm text-text-secondary"
+                  title={
+                    m.costUsd != null
+                      ? `${currencySymbol}${m.costUsd.toFixed(2)} total · ${fmtCost(m.costPerHousehold, currencySymbol)}/household`
+                      : "Cost not recorded for this model"
+                  }
+                >
+                  {fmtCost(m.costPerHousehold, currencySymbol)}
+                </div>
+
+                <div
+                  className="col-span-2 text-right font-[family-name:var(--font-mono)] text-sm text-text-secondary"
+                  title="Median wall-clock per household, no tools"
+                >
+                  {fmtLatency(m.latencySeconds)}
+                </div>
+
+                <div className="col-span-2 text-right">
                   <Badge
                     variant={accColor(m.score)}
                     title={`${m.score.toFixed(2)}%`}
@@ -399,7 +435,6 @@ export default function ModelLeaderboard({
             </div>
           ))
         )}
-
       </div>
 
       <details
@@ -425,9 +460,7 @@ export default function ModelLeaderboard({
             <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
               Options
             </span>
-            <span className="truncate text-text-muted">
-              {optionsSummary}
-            </span>
+            <span className="truncate text-text-muted">{optionsSummary}</span>
           </span>
         </summary>
 
@@ -510,62 +543,62 @@ export default function ModelLeaderboard({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-              <span
-                id="leaderboard-refcases-label"
-                className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
-              >
-                Reference cases
-              </span>
-              <div
-                role="group"
-                aria-labelledby="leaderboard-refcases-label"
-                className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
-              >
-                {(
+            <span
+              id="leaderboard-refcases-label"
+              className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted"
+            >
+              Reference cases
+            </span>
+            <div
+              role="group"
+              aria-labelledby="leaderboard-refcases-label"
+              className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1"
+            >
+              {(
+                [
                   [
-                    [
-                      "all",
-                      "All",
-                      "Every (model, scenario, variable) cell in the benchmark slice.",
-                    ],
-                    [
-                      "positives",
-                      "Positives only",
-                      "Restrict to cases where the PolicyEngine reference is non-zero (e.g., the household actually receives the benefit or owes the tax). Reveals competence on cases that matter, especially on zero-heavy slices like UK.",
-                    ],
-                    [
-                      "zeros",
-                      "Zeros only",
-                      "Restrict to cases where the PolicyEngine reference is zero (no benefit, no tax). Measures eligibility hedging — does the model correctly say zero when it should?",
-                    ],
-                  ] as const
-                ).map(([id, label, description]) => {
-                  const isActive = referenceFilter === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setReferenceFilter(id)}
-                      aria-pressed={isActive}
-                      title={description}
-                      className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                        isActive
-                          ? "bg-primary-strong text-white"
-                          : "text-text-secondary hover:text-text"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-              <span className="text-[11px] text-text-muted">
-                {referenceFilter === "all"
-                  ? "All reference cells."
-                  : referenceFilter === "positives"
-                    ? "Only cases where the reference is nonzero."
-                    : "Only cases where the reference is zero."}
-              </span>
+                    "all",
+                    "All",
+                    "Every (model, scenario, variable) cell in the benchmark slice.",
+                  ],
+                  [
+                    "positives",
+                    "Positives only",
+                    "Restrict to cases where the PolicyEngine reference is non-zero (e.g., the household actually receives the benefit or owes the tax). Reveals competence on cases that matter, especially on zero-heavy slices like UK.",
+                  ],
+                  [
+                    "zeros",
+                    "Zeros only",
+                    "Restrict to cases where the PolicyEngine reference is zero (no benefit, no tax). Measures eligibility hedging — does the model correctly say zero when it should?",
+                  ],
+                ] as const
+              ).map(([id, label, description]) => {
+                const isActive = referenceFilter === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setReferenceFilter(id)}
+                    aria-pressed={isActive}
+                    title={description}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                      isActive
+                        ? "bg-primary-strong text-white"
+                        : "text-text-secondary hover:text-text"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[11px] text-text-muted">
+              {referenceFilter === "all"
+                ? "All reference cells."
+                : referenceFilter === "positives"
+                  ? "Only cases where the reference is nonzero."
+                  : "Only cases where the reference is zero."}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -624,11 +657,11 @@ export default function ModelLeaderboard({
           </div>
           {sensitivityUnsupportedForView && (
             <p className="text-[11px] text-text-muted">
-              The &ldquo;{
-                SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)?.label ??
-                  sensitivityView
-              }&rdquo; view is not available on this slice; the leaderboard
-              falls back to the Household view.
+              The &ldquo;
+              {SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)?.label ??
+                sensitivityView}
+              &rdquo; view is not available on this slice; the leaderboard falls
+              back to the Household view.
             </p>
           )}
         </div>
@@ -659,7 +692,8 @@ export default function ModelLeaderboard({
                 Per-variable weights
               </span>
               <span className="text-text-muted">
-                {weightedVariables.length} variables, sorted by {activeView.label}
+                {weightedVariables.length} variables, sorted by{" "}
+                {activeView.label}
               </span>
             </span>
           </summary>
@@ -694,10 +728,7 @@ export default function ModelLeaderboard({
               </thead>
               <tbody>
                 {weightedVariables.map((variable) => (
-                  <tr
-                    key={variable}
-                    className="border-t border-border-subtle"
-                  >
+                  <tr key={variable} className="border-t border-border-subtle">
                     <td className="px-4 py-2 text-text-secondary">
                       {getVariableLabel(variable, weightsCountry)}
                     </td>

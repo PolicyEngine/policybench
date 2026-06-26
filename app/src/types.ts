@@ -26,8 +26,7 @@ const US_VARIABLE_LABELS: Record<string, string> = {
   ssi: "SSI",
   tanf: "TANF",
   free_school_meals_eligible: "Free school meals eligibility",
-  reduced_price_school_meals_eligible:
-    "Reduced-price school meals eligibility",
+  reduced_price_school_meals_eligible: "Reduced-price school meals eligibility",
   person_wic_eligible: "Person-level WIC eligibility",
   person_medicaid_eligible: "Person-level Medicaid eligibility",
   person_chip_eligible: "Person-level CHIP eligibility",
@@ -88,7 +87,7 @@ const UK_VARIABLE_CATEGORIES: Record<string, string> = {
 
 export function getVariableLabel(
   variable: string,
-  country: CountryCode = "us"
+  country: CountryCode = "us",
 ): string {
   const personEligibility = parsePersonEligibilityVariable(variable);
   if (personEligibility) {
@@ -100,7 +99,7 @@ export function getVariableLabel(
 
 export function getVariableCategory(
   variable: string,
-  country: CountryCode = "us"
+  country: CountryCode = "us",
 ): string {
   if (parsePersonEligibilityVariable(variable)) {
     return "Coverage";
@@ -110,11 +109,11 @@ export function getVariableCategory(
   return categoryMap[variable] ?? "Other";
 }
 
-function parsePersonEligibilityVariable(variable: string):
-  | { personLabel: string; program: string }
-  | null {
+function parsePersonEligibilityVariable(
+  variable: string,
+): { personLabel: string; program: string } | null {
   const match = variable.match(
-    /^(head|spouse|adult\d+|child\d+|dependent\d+)_(wic|medicaid|chip|medicare|head_start|early_head_start)_eligible$/
+    /^(head|spouse|adult\d+|child\d+|dependent\d+)_(wic|medicaid|chip|medicare|head_start|early_head_start)_eligible$/,
   );
   if (!match) {
     return null;
@@ -148,7 +147,7 @@ function getPersonDisplayLabel(person: string): string {
 
 export function isBinaryVariable(
   variable: string,
-  country: CountryCode = "us"
+  country: CountryCode = "us",
 ): boolean {
   if (country === "uk") {
     return false;
@@ -190,6 +189,11 @@ export type ModelStat = {
   coverage?: number;
   mape?: number;
   accuracy?: number;
+  // Run cost (USD) and per-household latency, from analysis.model_cost_latency.
+  costUsd?: number;
+  costPerHousehold?: number;
+  latencySeconds?: number;
+  totalTokens?: number;
   runCount?: number;
   scoreRunMean?: number;
   scoreRunStd?: number;
