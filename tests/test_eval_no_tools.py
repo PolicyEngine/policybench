@@ -1429,6 +1429,34 @@ def test_deepseek_models_are_public_defaults():
     assert MODELS["deepseek-v4-flash"] == "deepseek/deepseek-v4-flash"
 
 
+def test_claude_fable_5_is_a_public_default():
+    """Claude Fable 5 is a default model with a priced fallback (litellm's cost
+    map may lag brand-new Anthropic models)."""
+    from policybench.config import PRICE_OVERRIDES_PER_1M
+
+    assert MODELS["claude-fable-5"] == "claude-fable-5"
+    assert PRICE_OVERRIDES_PER_1M["claude-fable-5"] == {
+        "input": 10.0,
+        "output": 50.0,
+    }
+
+
+def test_claude_fable_5_provider_resolves_without_remote_cost_map():
+    """litellm routes unprefixed models via its model-cost map, whose remote
+    refresh can time out mid-run and whose bundled backup lags brand-new
+    models. Importing the eval module must register Fable 5 locally so
+    provider routing and pricing never depend on the remote fetch."""
+    import litellm
+    from litellm import get_llm_provider
+
+    assert "claude-fable-5" in litellm.model_cost
+    _, provider, _, _ = get_llm_provider("claude-fable-5")
+    assert provider == "anthropic"
+    entry = litellm.model_cost["claude-fable-5"]
+    assert entry["input_cost_per_token"] == 10e-6
+    assert entry["output_cost_per_token"] == 50e-6
+
+
 def test_request_wall_timeout_exceeds_provider_timeout():
     """Local wall timeouts should give providers a small grace period."""
     assert _request_wall_timeout_seconds({"timeout": 20}) == 50
@@ -1491,6 +1519,22 @@ def test_claude_explanation_runs_use_single_output_chunks():
     assert _required_explanation_chunk_size("claude-opus-4-7", True) == 1
     assert _required_explanation_chunk_size("gpt-5.5", True) == 3
     assert _required_explanation_chunk_size("claude-sonnet-4-6", False) is None
+
+
+def test_claude_fable_5_gets_thinking_headroom():
+    """Fable 5 cannot disable thinking, and thinking tokens share the completion
+    budget, so it needs the higher ceiling and a longer request timeout than
+    other Claude models."""
+    assert (
+        _completion_controls("claude-fable-5", variables=["income_tax"])[
+            "max_completion_tokens"
+        ]
+        == 16384
+    )
+    assert _required_explanation_chunk_size("claude-fable-5", True) == 1
+    assert _request_timeout_seconds("claude-fable-5") == 300
+    # Other Claude models keep their existing budget and timeout.
+    assert _request_timeout_seconds("claude-opus-4-8") == 120
 
 
 def test_gpt_55_uses_longer_full_output_timeout():

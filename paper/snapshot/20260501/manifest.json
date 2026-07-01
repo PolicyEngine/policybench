@@ -18,7 +18,15 @@
       "sha256": "7d9fc182ad6e14fbc751d1e709b95a95d1b2dac75dbd7afef3928b59759666a1"
     }
   ],
-  "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under published_dashboard_artifact, which equals the combined export of the source run data.json files listed under source_run_artifacts. Future refreshes publish a new artifact (policybench publish-dashboard) and either update this manifest or use a new snapshot directory.",
+  "live_dashboard_artifact": {
+    "asset": "dashboard-data.json",
+    "bytes": 36259601,
+    "derivation": "published_dashboard_artifact (the frozen source-run export) with per-model cost and latency injected into countries.us.modelStats (PR #81 metrics; republished 2026-06-25).",
+    "sha256": "72d4b524fb6df8b3aa5e98638ec32ff13fb7bc87a4494edade02d0ae3e7fba5c",
+    "tag": "dashboard-data-20260625",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260625/dashboard-data.json"
+  },
+  "live_dashboard_note": "Two artifacts are tracked. published_dashboard_artifact pins the manuscript's frozen record: it equals the combined export of the source run data.json files listed under source_run_artifacts, byte for byte. live_dashboard_artifact is the release asset the committed pointer app/src/data.artifact.json references; it starts from the frozen export and may gain additive updates (injected metrics, newly benchmarked models) without changing the frozen models' scores. Every publish-dashboard run must update live_dashboard_artifact (tag, sha256, bytes, derivation) in the same commit as the pointer.",
   "model_response_date": "2026-06-12 to 2026-06-13",
   "policy_period": {
     "us": "tax year 2026"

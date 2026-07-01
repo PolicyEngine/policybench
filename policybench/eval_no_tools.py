@@ -15,6 +15,29 @@ import pandas as pd
 from litellm import completion, completion_cost, responses
 
 from policybench.config import MODELS, PROGRAMS
+
+# litellm resolves an unprefixed model's provider (and prices it) through its
+# model-cost map, whose remote refresh can time out mid-run and whose bundled
+# backup lags brand-new models. Register Claude Fable 5 locally so provider
+# routing and cost reconstruction never depend on the remote fetch.
+if "claude-fable-5" not in litellm.model_cost:
+    litellm.register_model(
+        {
+            "claude-fable-5": {
+                "max_tokens": 128000,
+                "max_input_tokens": 1000000,
+                "max_output_tokens": 128000,
+                "input_cost_per_token": 10e-6,
+                "output_cost_per_token": 50e-6,
+                "litellm_provider": "anthropic",
+                "mode": "chat",
+                "supports_function_calling": True,
+                "supports_tool_choice": True,
+                "supports_vision": True,
+                "supports_prompt_caching": True,
+            }
+        }
+    )
 from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.prompts import (
     get_variable_description,
@@ -54,6 +77,11 @@ GEMINI_REQUEST_TIMEOUT_SECONDS = _env_int(
 CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_CLAUDE_REQUEST_TIMEOUT_SECONDS", 120
 )
+# Claude Fable 5 cannot disable thinking, and single hard outputs can think for
+# minutes, so it gets a longer timeout than the rest of the Claude family.
+FABLE_REQUEST_TIMEOUT_SECONDS = _env_int(
+    "POLICYBENCH_FABLE_REQUEST_TIMEOUT_SECONDS", 300
+)
 REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
@@ -70,6 +98,10 @@ MAX_COMPLETION_TOKENS_CAP = 4096
 # Gemini mid-output, silently dropping the tail of the per-person keys, so it
 # gets a higher ceiling. Terser models finish well under 4096 and are untouched.
 GEMINI_MAX_COMPLETION_TOKENS_CAP = 16384
+# Claude Fable 5's always-on thinking bills against the same completion budget
+# as the tool-call answer, so the shared 4096 cap could truncate mid-answer
+# after a long think. Extra headroom costs nothing when unused.
+FABLE_MAX_COMPLETION_TOKENS_CAP = 16384
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
@@ -363,6 +395,19 @@ def _completion_controls(
                 base_tokens, variables, include_explanations
             )
         }
+    if model_id == "claude-fable-5":
+        if include_explanations:
+            base_tokens = FABLE_MAX_COMPLETION_TOKENS_CAP
+        else:
+            base_tokens = EXTENDED_MAX_COMPLETION_TOKENS
+        return {
+            "max_completion_tokens": _completion_token_budget(
+                base_tokens,
+                variables,
+                include_explanations,
+                cap=FABLE_MAX_COMPLETION_TOKENS_CAP,
+            )
+        }
     if model_id.startswith("claude-"):
         if include_explanations:
             base_tokens = EXPLANATION_MAX_COMPLETION_TOKENS
@@ -387,6 +432,8 @@ def _request_timeout_seconds(model_id: str) -> int:
         return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("xai/"):
         return XAI_REQUEST_TIMEOUT_SECONDS
+    if model_id == "claude-fable-5":
+        return FABLE_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("claude-"):
         return CLAUDE_REQUEST_TIMEOUT_SECONDS
     return REQUEST_TIMEOUT_SECONDS
@@ -694,6 +741,20 @@ def _sum_optional_numbers(values: Iterable[float | int | None]) -> float | None:
     return sum(present)
 
 
+def _min_optional_numbers(values: Iterable[float | int | None]) -> float | None:
+    present = [float(value) for value in values if value is not None]
+    if not present:
+        return None
+    return min(present)
+
+
+def _max_optional_numbers(values: Iterable[float | int | None]) -> float | None:
+    present = [float(value) for value in values if value is not None]
+    if not present:
+        return None
+    return max(present)
+
+
 def _first_non_null(values: Iterable):
     for value in values:
         if value is not None and value != "":
@@ -730,6 +791,8 @@ def _aggregate_request_results(results: list[dict]) -> dict:
         return {
             "raw_response": None,
             "elapsed_seconds": None,
+            "request_started_at": None,
+            "request_completed_at": None,
             "prompt_tokens": None,
             "completion_tokens": None,
             "total_tokens": None,
@@ -759,6 +822,12 @@ def _aggregate_request_results(results: list[dict]) -> dict:
         ),
         "elapsed_seconds": _sum_optional_numbers(
             result.get("elapsed_seconds") for result in results
+        ),
+        "request_started_at": _min_optional_numbers(
+            result.get("request_started_at") for result in results
+        ),
+        "request_completed_at": _max_optional_numbers(
+            result.get("request_completed_at") for result in results
         ),
         "prompt_tokens": _sum_optional_numbers(
             result.get("prompt_tokens") for result in results
@@ -1322,9 +1391,11 @@ def _request_explanations_once(
         }
         request_fn = completion
 
+    request_started_at = time.time()
     started_at = time.perf_counter()
     response = _run_request_with_wall_timeout(request_fn, request_kwargs)
     elapsed_seconds = time.perf_counter() - started_at
+    request_completed_at = time.time()
     if _uses_responses_api(model_id):
         content, tool_calls = _responses_content_and_tool_calls(response)
         function_call = None
@@ -1361,6 +1432,8 @@ def _request_explanations_once(
         "explanations": explanations,
         "raw_response": raw_response,
         "elapsed_seconds": elapsed_seconds,
+        "request_started_at": request_started_at,
+        "request_completed_at": request_completed_at,
         **usage,
     }
 
@@ -1394,9 +1467,11 @@ def _request_predictions_once(
 
     for attempt in range(MAX_ATTEMPTS):
         try:
+            request_started_at = time.time()
             started_at = time.perf_counter()
             response = _run_request_with_wall_timeout(request_fn, request_kwargs)
             elapsed_seconds = time.perf_counter() - started_at
+            request_completed_at = time.time()
             if _uses_responses_api(model_id):
                 content, tool_calls = _responses_content_and_tool_calls(response)
                 function_call = None
@@ -1432,6 +1507,8 @@ def _request_predictions_once(
                 "explanations": explanations,
                 "raw_response": raw_response,
                 "elapsed_seconds": elapsed_seconds,
+                "request_started_at": request_started_at,
+                "request_completed_at": request_completed_at,
                 **_extract_usage_metadata(
                     response,
                     model_id,
@@ -1516,6 +1593,12 @@ def run_single_no_tools(
             "error": "; ".join(errors) if errors else None,
             "raw_response": raw_response,
             "elapsed_seconds": _sum_optional_field(chunk_results, "elapsed_seconds"),
+            "request_started_at": _min_optional_numbers(
+                result.get("request_started_at") for result in chunk_results
+            ),
+            "request_completed_at": _max_optional_numbers(
+                result.get("request_completed_at") for result in chunk_results
+            ),
             "prompt_tokens": _sum_optional_field(chunk_results, "prompt_tokens"),
             "completion_tokens": _sum_optional_field(
                 chunk_results, "completion_tokens"
@@ -2009,6 +2092,11 @@ def run_no_tools_eval(
                             if elapsed_seconds is not None
                             else None
                         ),
+                        # Absolute epoch bounds of the response's provider
+                        # call(s); shared verbatim by every row in the batch so
+                        # wall-clock spans can be derived downstream (#80).
+                        "request_started_at": result.get("request_started_at"),
+                        "request_completed_at": result.get("request_completed_at"),
                         "prompt_tokens": (
                             prompt_tokens / batch_size
                             if prompt_tokens is not None
@@ -2200,6 +2288,8 @@ def run_no_tools_single_output_eval(
                         "raw_response": result["raw_response"],
                         "error": error,
                         "elapsed_seconds": result.get("elapsed_seconds"),
+                        "request_started_at": result.get("request_started_at"),
+                        "request_completed_at": result.get("request_completed_at"),
                         "prompt_tokens": result.get("prompt_tokens"),
                         "completion_tokens": result.get("completion_tokens"),
                         "total_tokens": result.get("total_tokens"),
