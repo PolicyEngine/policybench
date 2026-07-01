@@ -112,6 +112,8 @@ _RESPONSE_COLUMNS = (
     "raw_response",
     "error",
     "elapsed_seconds",
+    "request_started_at",
+    "request_completed_at",
     "prompt_tokens",
     "completion_tokens",
     "total_tokens",

@@ -741,6 +741,20 @@ def _sum_optional_numbers(values: Iterable[float | int | None]) -> float | None:
     return sum(present)
 
 
+def _min_optional_numbers(values: Iterable[float | int | None]) -> float | None:
+    present = [float(value) for value in values if value is not None]
+    if not present:
+        return None
+    return min(present)
+
+
+def _max_optional_numbers(values: Iterable[float | int | None]) -> float | None:
+    present = [float(value) for value in values if value is not None]
+    if not present:
+        return None
+    return max(present)
+
+
 def _first_non_null(values: Iterable):
     for value in values:
         if value is not None and value != "":
@@ -777,6 +791,8 @@ def _aggregate_request_results(results: list[dict]) -> dict:
         return {
             "raw_response": None,
             "elapsed_seconds": None,
+            "request_started_at": None,
+            "request_completed_at": None,
             "prompt_tokens": None,
             "completion_tokens": None,
             "total_tokens": None,
@@ -806,6 +822,12 @@ def _aggregate_request_results(results: list[dict]) -> dict:
         ),
         "elapsed_seconds": _sum_optional_numbers(
             result.get("elapsed_seconds") for result in results
+        ),
+        "request_started_at": _min_optional_numbers(
+            result.get("request_started_at") for result in results
+        ),
+        "request_completed_at": _max_optional_numbers(
+            result.get("request_completed_at") for result in results
         ),
         "prompt_tokens": _sum_optional_numbers(
             result.get("prompt_tokens") for result in results
@@ -1369,9 +1391,11 @@ def _request_explanations_once(
         }
         request_fn = completion
 
+    request_started_at = time.time()
     started_at = time.perf_counter()
     response = _run_request_with_wall_timeout(request_fn, request_kwargs)
     elapsed_seconds = time.perf_counter() - started_at
+    request_completed_at = time.time()
     if _uses_responses_api(model_id):
         content, tool_calls = _responses_content_and_tool_calls(response)
         function_call = None
@@ -1408,6 +1432,8 @@ def _request_explanations_once(
         "explanations": explanations,
         "raw_response": raw_response,
         "elapsed_seconds": elapsed_seconds,
+        "request_started_at": request_started_at,
+        "request_completed_at": request_completed_at,
         **usage,
     }
 
@@ -1441,9 +1467,11 @@ def _request_predictions_once(
 
     for attempt in range(MAX_ATTEMPTS):
         try:
+            request_started_at = time.time()
             started_at = time.perf_counter()
             response = _run_request_with_wall_timeout(request_fn, request_kwargs)
             elapsed_seconds = time.perf_counter() - started_at
+            request_completed_at = time.time()
             if _uses_responses_api(model_id):
                 content, tool_calls = _responses_content_and_tool_calls(response)
                 function_call = None
@@ -1479,6 +1507,8 @@ def _request_predictions_once(
                 "explanations": explanations,
                 "raw_response": raw_response,
                 "elapsed_seconds": elapsed_seconds,
+                "request_started_at": request_started_at,
+                "request_completed_at": request_completed_at,
                 **_extract_usage_metadata(
                     response,
                     model_id,
@@ -1563,6 +1593,12 @@ def run_single_no_tools(
             "error": "; ".join(errors) if errors else None,
             "raw_response": raw_response,
             "elapsed_seconds": _sum_optional_field(chunk_results, "elapsed_seconds"),
+            "request_started_at": _min_optional_numbers(
+                result.get("request_started_at") for result in chunk_results
+            ),
+            "request_completed_at": _max_optional_numbers(
+                result.get("request_completed_at") for result in chunk_results
+            ),
             "prompt_tokens": _sum_optional_field(chunk_results, "prompt_tokens"),
             "completion_tokens": _sum_optional_field(
                 chunk_results, "completion_tokens"
@@ -2056,6 +2092,11 @@ def run_no_tools_eval(
                             if elapsed_seconds is not None
                             else None
                         ),
+                        # Absolute epoch bounds of the response's provider
+                        # call(s); shared verbatim by every row in the batch so
+                        # wall-clock spans can be derived downstream (#80).
+                        "request_started_at": result.get("request_started_at"),
+                        "request_completed_at": result.get("request_completed_at"),
                         "prompt_tokens": (
                             prompt_tokens / batch_size
                             if prompt_tokens is not None
@@ -2247,6 +2288,8 @@ def run_no_tools_single_output_eval(
                         "raw_response": result["raw_response"],
                         "error": error,
                         "elapsed_seconds": result.get("elapsed_seconds"),
+                        "request_started_at": result.get("request_started_at"),
+                        "request_completed_at": result.get("request_completed_at"),
                         "prompt_tokens": result.get("prompt_tokens"),
                         "completion_tokens": result.get("completion_tokens"),
                         "total_tokens": result.get("total_tokens"),

@@ -1353,6 +1353,8 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
         "cost_is_estimated",
         "estimated_cost_usd",
         "elapsed_seconds",
+        "request_started_at",
+        "request_completed_at",
         "prompt_tokens",
         "completion_tokens",
         "total_tokens",
@@ -1365,6 +1367,16 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
             usage[column] = False
         elif column not in usage.columns:
             usage[column] = float("nan")
+
+    def _wall_clock_seconds(group: pd.Series) -> float:
+        # Wall-clock span from absolute call timestamps (#80): concurrent calls
+        # overlap, so max(completed) - min(started) is the real duration, not
+        # the cumulative request-time sum. NaN when a run predates timestamps.
+        completed = usage.loc[group.index, "request_completed_at"]
+        started = group
+        if started.notna().sum() == 0 or completed.notna().sum() == 0:
+            return float("nan")
+        return float(completed.max() - started.min())
 
     return (
         usage.groupby("model")
@@ -1384,6 +1396,9 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
             ),
             total_estimated_cost_usd=("estimated_cost_usd", _sum_or_nan),
             total_elapsed_seconds=("elapsed_seconds", _sum_or_nan),
+            wall_clock_seconds=("request_started_at", _wall_clock_seconds),
+            first_request_at=("request_started_at", "min"),
+            last_request_at=("request_completed_at", "max"),
             prompt_tokens=("prompt_tokens", _sum_or_nan),
             completion_tokens=("completion_tokens", _sum_or_nan),
             total_tokens=("total_tokens", _sum_or_nan),
@@ -1658,28 +1673,54 @@ def render_markdown_report(analysis: dict[str, pd.DataFrame]) -> str:
     if not usage_summary.empty:
         total_cost = _sum_or_nan(usage_summary["total_cost_usd"])
         total_runtime = _sum_or_nan(usage_summary["total_elapsed_seconds"])
+        # Calls run concurrently, so summed request-time is not wall-clock
+        # (#80). Wall-clock comes from absolute call timestamps when the run
+        # recorded them; older runs report only the cumulative sum.
+        has_wall_clock = (
+            "wall_clock_seconds" in usage_summary.columns
+            and usage_summary["wall_clock_seconds"].notna().any()
+        )
+        usage_headline = (
+            f"Total cost: `{_format_metric(total_cost)}` USD. "
+            f"Cumulative request-time: `{_format_seconds(total_runtime)}` "
+            "(summed across concurrent calls; not wall-clock)."
+        )
+        if (
+            has_wall_clock
+            and "first_request_at" in usage_summary.columns
+            and "last_request_at" in usage_summary.columns
+        ):
+            run_wall_clock = float(
+                usage_summary["last_request_at"].max()
+                - usage_summary["first_request_at"].min()
+            )
+            usage_headline += f" Run wall-clock: `{_format_seconds(run_wall_clock)}`."
+        lines.extend(["## Usage", "", usage_headline, ""])
+        wall_clock_column = "| wall_clock " if has_wall_clock else ""
         lines.extend(
             [
-                "## Usage",
-                "",
-                (
-                    f"Total cost: `{_format_metric(total_cost)}` USD. "
-                    f"Estimated total runtime: `{_format_seconds(total_runtime)}`."
-                ),
-                "",
                 "| model | total_cost_usd | cost_rows_estimated "
-                "| total_elapsed | total_tokens "
+                "| cumulative_request_time "
+                f"{wall_clock_column}"
+                "| total_tokens "
                 "| reasoning_tokens | parsed_rows | total_rows |",
-                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+                + (" ---: |" if has_wall_clock else ""),
             ]
         )
         for _, row in usage_summary.iterrows():
+            wall_clock_cell = (
+                f"{_format_seconds(row.get('wall_clock_seconds'))} | "
+                if has_wall_clock
+                else ""
+            )
             lines.append(
                 "| "
                 f"{row['model']} | "
                 f"{_format_metric(row['total_cost_usd'])} | "
                 f"{int(row['estimated_cost_rows'])} | "
                 f"{_format_seconds(row['total_elapsed_seconds'])} | "
+                f"{wall_clock_cell}"
                 f"{_format_metric(row['total_tokens'])} | "
                 f"{_format_metric(row['reasoning_tokens'])} | "
                 f"{int(row['parsed_rows'])} | "
