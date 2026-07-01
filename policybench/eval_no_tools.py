@@ -15,6 +15,29 @@ import pandas as pd
 from litellm import completion, completion_cost, responses
 
 from policybench.config import MODELS, PROGRAMS
+
+# litellm resolves an unprefixed model's provider (and prices it) through its
+# model-cost map, whose remote refresh can time out mid-run and whose bundled
+# backup lags brand-new models. Register Claude Fable 5 locally so provider
+# routing and cost reconstruction never depend on the remote fetch.
+if "claude-fable-5" not in litellm.model_cost:
+    litellm.register_model(
+        {
+            "claude-fable-5": {
+                "max_tokens": 128000,
+                "max_input_tokens": 1000000,
+                "max_output_tokens": 128000,
+                "input_cost_per_token": 10e-6,
+                "output_cost_per_token": 50e-6,
+                "litellm_provider": "anthropic",
+                "mode": "chat",
+                "supports_function_calling": True,
+                "supports_tool_choice": True,
+                "supports_vision": True,
+                "supports_prompt_caching": True,
+            }
+        }
+    )
 from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.prompts import (
     get_variable_description,
@@ -54,6 +77,11 @@ GEMINI_REQUEST_TIMEOUT_SECONDS = _env_int(
 CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_CLAUDE_REQUEST_TIMEOUT_SECONDS", 120
 )
+# Claude Fable 5 cannot disable thinking, and single hard outputs can think for
+# minutes, so it gets a longer timeout than the rest of the Claude family.
+FABLE_REQUEST_TIMEOUT_SECONDS = _env_int(
+    "POLICYBENCH_FABLE_REQUEST_TIMEOUT_SECONDS", 300
+)
 REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
@@ -70,6 +98,10 @@ MAX_COMPLETION_TOKENS_CAP = 4096
 # Gemini mid-output, silently dropping the tail of the per-person keys, so it
 # gets a higher ceiling. Terser models finish well under 4096 and are untouched.
 GEMINI_MAX_COMPLETION_TOKENS_CAP = 16384
+# Claude Fable 5's always-on thinking bills against the same completion budget
+# as the tool-call answer, so the shared 4096 cap could truncate mid-answer
+# after a long think. Extra headroom costs nothing when unused.
+FABLE_MAX_COMPLETION_TOKENS_CAP = 16384
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
@@ -363,6 +395,19 @@ def _completion_controls(
                 base_tokens, variables, include_explanations
             )
         }
+    if model_id == "claude-fable-5":
+        if include_explanations:
+            base_tokens = FABLE_MAX_COMPLETION_TOKENS_CAP
+        else:
+            base_tokens = EXTENDED_MAX_COMPLETION_TOKENS
+        return {
+            "max_completion_tokens": _completion_token_budget(
+                base_tokens,
+                variables,
+                include_explanations,
+                cap=FABLE_MAX_COMPLETION_TOKENS_CAP,
+            )
+        }
     if model_id.startswith("claude-"):
         if include_explanations:
             base_tokens = EXPLANATION_MAX_COMPLETION_TOKENS
@@ -387,6 +432,8 @@ def _request_timeout_seconds(model_id: str) -> int:
         return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("xai/"):
         return XAI_REQUEST_TIMEOUT_SECONDS
+    if model_id == "claude-fable-5":
+        return FABLE_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("claude-"):
         return CLAUDE_REQUEST_TIMEOUT_SECONDS
     return REQUEST_TIMEOUT_SECONDS
