@@ -77,10 +77,14 @@ GEMINI_REQUEST_TIMEOUT_SECONDS = _env_int(
 CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_CLAUDE_REQUEST_TIMEOUT_SECONDS", 120
 )
-# Claude Fable 5 cannot disable thinking, and single hard outputs can think for
-# minutes, so it gets a longer timeout than the rest of the Claude family.
-FABLE_REQUEST_TIMEOUT_SECONDS = _env_int(
-    "POLICYBENCH_FABLE_REQUEST_TIMEOUT_SECONDS", 300
+# Claude models whose requests run thinking without us asking: Fable 5 cannot
+# disable it, and Sonnet 5 defaults to adaptive thinking when the request omits
+# the thinking param (ours do — models run at their API defaults). Hard single
+# outputs can think for minutes, so both get a longer timeout than the rest of
+# the Claude family.
+THINKING_DEFAULT_CLAUDE_MODELS = ("claude-fable-5", "claude-sonnet-5")
+THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
+    "POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS", 300
 )
 REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
@@ -98,10 +102,10 @@ MAX_COMPLETION_TOKENS_CAP = 4096
 # Gemini mid-output, silently dropping the tail of the per-person keys, so it
 # gets a higher ceiling. Terser models finish well under 4096 and are untouched.
 GEMINI_MAX_COMPLETION_TOKENS_CAP = 16384
-# Claude Fable 5's always-on thinking bills against the same completion budget
-# as the tool-call answer, so the shared 4096 cap could truncate mid-answer
-# after a long think. Extra headroom costs nothing when unused.
-FABLE_MAX_COMPLETION_TOKENS_CAP = 16384
+# Thinking-by-default Claude models bill thinking against the same completion
+# budget as the tool-call answer, so the shared 4096 cap could truncate
+# mid-answer after a long think. Extra headroom costs nothing when unused.
+THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP = 16384
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
@@ -395,9 +399,9 @@ def _completion_controls(
                 base_tokens, variables, include_explanations
             )
         }
-    if model_id == "claude-fable-5":
+    if model_id in THINKING_DEFAULT_CLAUDE_MODELS:
         if include_explanations:
-            base_tokens = FABLE_MAX_COMPLETION_TOKENS_CAP
+            base_tokens = THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP
         else:
             base_tokens = EXTENDED_MAX_COMPLETION_TOKENS
         return {
@@ -405,7 +409,7 @@ def _completion_controls(
                 base_tokens,
                 variables,
                 include_explanations,
-                cap=FABLE_MAX_COMPLETION_TOKENS_CAP,
+                cap=THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
             )
         }
     if model_id.startswith("claude-"):
@@ -432,8 +436,8 @@ def _request_timeout_seconds(model_id: str) -> int:
         return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("xai/"):
         return XAI_REQUEST_TIMEOUT_SECONDS
-    if model_id == "claude-fable-5":
-        return FABLE_REQUEST_TIMEOUT_SECONDS
+    if model_id in THINKING_DEFAULT_CLAUDE_MODELS:
+        return THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("claude-"):
         return CLAUDE_REQUEST_TIMEOUT_SECONDS
     return REQUEST_TIMEOUT_SECONDS

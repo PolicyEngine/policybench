@@ -1521,20 +1521,40 @@ def test_claude_explanation_runs_use_single_output_chunks():
     assert _required_explanation_chunk_size("claude-sonnet-4-6", False) is None
 
 
-def test_claude_fable_5_gets_thinking_headroom():
-    """Fable 5 cannot disable thinking, and thinking tokens share the completion
-    budget, so it needs the higher ceiling and a longer request timeout than
+def test_thinking_default_claude_models_get_headroom():
+    """Fable 5 always thinks and Sonnet 5 thinks by default when the request
+    omits the thinking param (ours do). Thinking tokens share the completion
+    budget, so both need the higher ceiling and a longer request timeout than
     other Claude models."""
-    assert (
-        _completion_controls("claude-fable-5", variables=["income_tax"])[
-            "max_completion_tokens"
-        ]
-        == 16384
-    )
-    assert _required_explanation_chunk_size("claude-fable-5", True) == 1
-    assert _request_timeout_seconds("claude-fable-5") == 300
+    for model_id in ("claude-fable-5", "claude-sonnet-5"):
+        assert (
+            _completion_controls(model_id, variables=["income_tax"])[
+                "max_completion_tokens"
+            ]
+            == 16384
+        )
+        assert _required_explanation_chunk_size(model_id, True) == 1
+        assert _request_timeout_seconds(model_id) == 300
     # Other Claude models keep their existing budget and timeout.
     assert _request_timeout_seconds("claude-opus-4-8") == 120
+    assert (
+        _completion_controls("claude-opus-4-8", variables=["income_tax"])[
+            "max_completion_tokens"
+        ]
+        == 4096
+    )
+
+
+def test_claude_sonnet_5_is_a_public_default():
+    """Sonnet 5 is a default model with a priced fallback; litellm's bundled
+    map already carries it at the standard $3/$15 rate."""
+    from policybench.config import PRICE_OVERRIDES_PER_1M
+
+    assert MODELS["claude-sonnet-5"] == "claude-sonnet-5"
+    assert PRICE_OVERRIDES_PER_1M["claude-sonnet-5"] == {
+        "input": 3.0,
+        "output": 15.0,
+    }
 
 
 def test_gpt_55_uses_longer_full_output_timeout():
