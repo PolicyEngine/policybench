@@ -4,8 +4,8 @@
       "us_audit_row_annotations.csv": "273156ca67af74c6a81402ee2935297a21e12b952ac8bc83317192e47fd5775f",
       "us_case_notes.csv": "fbf81134966c4e1a022f888b5f352b4b5fad981a46fa06cce1da6ea9dacd3a66"
     },
-    "note": "Developer-led row and case audit annotations for every wrong prediction row in the frozen snapshot. Final row-level failure_source values are limited to llm_error. Case notes are stored as us_case_notes.csv with case_failure_sources / case_failure_subtypes columns.",
-    "path": "annotations/us_full_run_20260612_policyengine_4_16_1_populace"
+    "note": "Developer-led row and case audit annotations for every wrong prediction row in the frozen snapshot, frozen here at their June state (hashes below). Final row-level failure_source values are limited to llm_error. Case notes are stored as us_case_notes.csv with case_failure_sources / case_failure_subtypes columns. The live annotations/ directory grows as post-snapshot models are audited (Claude Fable 5 and Sonnet 5, 2026-07-02) and feeds the live dashboard export; this frozen copy is the manuscript's record.",
+    "path": "paper/snapshot/20260501/annotations"
   },
   "committed_snapshot_artifacts": {
     "us_impact_summary_by_model.csv": "9dfed6eb55a273b5ed0c9d7b369e94118b728a0a211ae6b9cdb78f7d27026546",
