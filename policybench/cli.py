@@ -453,6 +453,56 @@ def main():
         ),
     )
 
+    batch_parser = subparsers.add_parser(
+        "eval-no-tools-batch",
+        help=(
+            "Run AI-alone evaluation through the provider's batch API "
+            "(~50%% of sync cost; Anthropic, OpenAI, and Gemini models)"
+        ),
+    )
+    batch_parser.add_argument(
+        "-s",
+        "--scenario-manifest",
+        required=True,
+        help="CSV file with serialized scenarios exported by `reference-outputs`",
+    )
+    batch_parser.add_argument(
+        "-o",
+        "--output-dir",
+        required=True,
+        help="Run directory; writes by_model/<model>.csv and batches/ state",
+    )
+    batch_parser.add_argument(
+        "--country",
+        choices=sorted(COUNTRY_PROGRAMS),
+        required=True,
+        help="Benchmark country to evaluate",
+    )
+    batch_parser.add_argument(
+        "--model",
+        action="append",
+        dest="models",
+        required=True,
+        help="Configured model name to evaluate. Repeat for several models.",
+    )
+    batch_parser.add_argument(
+        "--program-set",
+        default=DEFAULT_PROGRAM_SET,
+        help="Benchmark output set to use. Defaults to headline.",
+    )
+    batch_parser.add_argument(
+        "--poll-seconds",
+        type=int,
+        default=30,
+        help="Seconds between batch status polls",
+    )
+    batch_parser.add_argument(
+        "--max-wait-seconds",
+        type=int,
+        default=4 * 60 * 60,
+        help="Give up polling one batch after this long (rerun resumes it)",
+    )
+
     # Export full run
     export_parser = subparsers.add_parser(
         "export-full-run",
@@ -1004,6 +1054,34 @@ def main():
         except (FileNotFoundError, RuntimeError, ValueError) as exc:
             raise SystemExit(str(exc)) from exc
         print(f"Chunked no-tools predictions saved to {output}")
+
+    elif args.command == "eval-no-tools-batch":
+        from policybench.batch_eval import adapter_for_model, run_batch_eval
+        from policybench.scenarios import load_scenarios_from_manifest
+
+        scenarios = load_scenarios_from_manifest(args.scenario_manifest)
+        programs = get_programs(args.country, args.program_set)
+        models = _parse_models(args.models)
+        run_dir = Path(args.output_dir)
+        for model_name, model_id in models.items():
+            if adapter_for_model(model_id) is None:
+                raise SystemExit(
+                    f"{model_name} ({model_id}) has no batch API — run it "
+                    "with eval-no-tools-chunked instead."
+                )
+        for model_name, model_id in models.items():
+            try:
+                run_batch_eval(
+                    scenarios=scenarios,
+                    programs=programs,
+                    model_name=model_name,
+                    model_id=model_id,
+                    run_dir=run_dir,
+                    poll_seconds=args.poll_seconds,
+                    max_wait_seconds=args.max_wait_seconds,
+                )
+            except (RuntimeError, TimeoutError, ValueError) as exc:
+                raise SystemExit(str(exc)) from exc
 
     elif args.command == "export-full-run":
         from policybench.full_run_export import export_full_run
