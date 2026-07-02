@@ -299,16 +299,24 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
         )
 
 
-def test_dashboard_pointer_matches_published_snapshot_artifact():
-    """The committed artifact pointer must reference the snapshot's pinned
-    dashboard payload — the machine-checked version of live_dashboard_note."""
+def test_dashboard_pointer_matches_live_snapshot_artifact():
+    """The committed artifact pointer must reference the manifest's live
+    dashboard artifact — the machine-checked version of live_dashboard_note.
+
+    The live artifact starts from the frozen export pinned under
+    published_dashboard_artifact and may move ahead of it (injected metrics,
+    newly benchmarked models), so the pointer is checked against the live
+    entry; the frozen pin is covered by
+    test_published_dashboard_artifact_matches_frozen_source_run_export.
+    """
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
-    pinned = manifest["published_dashboard_artifact"]
+    live = manifest["live_dashboard_artifact"]
     pointer = json.loads((ROOT / "app" / "src" / "data.artifact.json").read_text())
-    assert pointer["sha256"] == pinned["sha256"]
-    assert pointer["tag"] == pinned["tag"]
-    assert pointer["asset"] == pinned["asset"]
-    assert pointer["url"] == pinned["url"]
+    assert pointer["sha256"] == live["sha256"]
+    assert pointer["tag"] == live["tag"]
+    assert pointer["asset"] == live["asset"]
+    assert pointer["url"] == live["url"]
+    assert live["derivation"]
 
 
 def test_dashboard_blob_is_not_committed():

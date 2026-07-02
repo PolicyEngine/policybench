@@ -26,6 +26,7 @@ DEFAULT_COUNTRY = "us"
 # ``provider_resolved_model`` in ``predictions.csv.gz``; older snapshots
 # only have the alias and the raw response payload.
 MODELS = {
+    "claude-fable-5": "claude-fable-5",
     "claude-opus-4.8": "claude-opus-4-8",
     "claude-opus-4.7": "claude-opus-4-7",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
@@ -50,6 +51,9 @@ MODELS = {
 PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # grok-build-0.1: $1 / $2 per 1M input/output tokens (https://x.ai/api).
     "grok-build-0.1": {"input": 1.0, "output": 2.0},
+    # claude-fable-5: $10 / $50 per 1M input/output tokens
+    # (https://platform.claude.com/docs/en/about-claude/models/overview).
+    "claude-fable-5": {"input": 10.0, "output": 50.0},
 }
 
 # Current output set. The benchmark contains signed household net-income

@@ -440,6 +440,79 @@ class TestSummaries:
         assert model_a["total_estimated_cost_usd"] == pytest.approx(0.3)
         assert model_a["total_elapsed_seconds"] == 3.0
         assert model_a["total_tokens"] == 33.0
+        # No absolute call timestamps recorded -> no wall-clock claim.
+        assert pd.isna(model_a["wall_clock_seconds"])
+
+    def test_usage_summary_wall_clock_spans_absolute_timestamps(self):
+        """Wall-clock is max(completed) - min(started) per model, which differs
+        from the cumulative elapsed sum when calls overlap (#80)."""
+        predictions_df = pd.DataFrame(
+            {
+                "model": ["model_a", "model_a", "model_b"],
+                "scenario_id": ["s1", "s2", "s1"],
+                "variable": ["income_tax", "eitc", "income_tax"],
+                "prediction": [1.0, 2.0, 3.0],
+                "elapsed_seconds": [60.0, 60.0, 5.0],
+                # model_a's two 60s calls overlap: cumulative 120s, wall 90s.
+                "request_started_at": [1000.0, 1030.0, 2000.0],
+                "request_completed_at": [1060.0, 1090.0, 2005.0],
+            }
+        )
+
+        summary = usage_summary_by_model(predictions_df)
+        model_a = summary[summary["model"] == "model_a"].iloc[0]
+        model_b = summary[summary["model"] == "model_b"].iloc[0]
+
+        assert model_a["total_elapsed_seconds"] == 120.0
+        assert model_a["wall_clock_seconds"] == 90.0
+        assert model_b["wall_clock_seconds"] == 5.0
+        assert model_a["first_request_at"] == 1000.0
+        assert model_a["last_request_at"] == 1090.0
+
+    def test_render_markdown_report_labels_cumulative_request_time(self, metrics_df):
+        """The usage headline must not present summed request-time as
+        wall-clock, and the wall_clock column appears when timestamps exist."""
+        base_usage = {
+            "model": ["a"],
+            "total_rows": [100],
+            "parsed_rows": [95],
+            "error_rows": [5],
+            "total_provider_reported_cost_usd": [1.00],
+            "total_reconstructed_cost_usd": [1.23],
+            "total_cost_usd": [1.23],
+            "estimated_cost_rows": [100],
+            "total_estimated_cost_usd": [1.23],
+            "total_elapsed_seconds": [120.0],
+            "prompt_tokens": [1000.0],
+            "completion_tokens": [200.0],
+            "total_tokens": [1200.0],
+            "reasoning_tokens": [50.0],
+            "cached_prompt_tokens": [100.0],
+        }
+        analysis = {
+            "metrics": metrics_df,
+            "model_summary": summary_by_model(metrics_df),
+            "variable_summary": summary_by_variable(metrics_df),
+            "usage_summary": pd.DataFrame(base_usage),
+            "run_model_summary": pd.DataFrame(),
+            "run_stability": pd.DataFrame(),
+        }
+        report = render_markdown_report(analysis)
+        assert "Cumulative request-time" in report
+        assert "Estimated total runtime" not in report
+        assert "wall_clock" not in report
+
+        analysis["usage_summary"] = pd.DataFrame(
+            {
+                **base_usage,
+                "wall_clock_seconds": [90.0],
+                "first_request_at": [1000.0],
+                "last_request_at": [1090.0],
+            }
+        )
+        report_with_wall = render_markdown_report(analysis)
+        assert "wall_clock" in report_with_wall
+        assert "Run wall-clock" in report_with_wall
 
     def test_render_markdown_report_contains_sections(self, metrics_df):
         analysis = {
