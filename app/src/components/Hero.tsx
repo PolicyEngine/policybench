@@ -1,7 +1,7 @@
 import type { BenchData, CountryCode } from "../types";
 import SiteHeader, { type HeaderNavItem } from "./SiteHeader";
 
-const SNAPSHOT_DATE_LABEL = "Snapshot 2026-07-01";
+const SNAPSHOT_DATE_LABEL = "Snapshot 2026-07-02";
 
 export default function Hero({
   selectedView,
