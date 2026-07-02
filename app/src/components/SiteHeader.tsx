@@ -17,7 +17,12 @@ export type HeaderActionLink = {
 
 const HEADER_BACKGROUND_REVEAL_START = 0;
 const HEADER_BACKGROUND_REVEAL_DISTANCE = 160;
-const COMPACT_HEADER_REVEAL_START = 280;
+// Start the compact brand/nav reveal the moment the background finishes, not
+// 120px later. The old 280px start left a fully frosted bar holding nothing
+// but the right-side pills while hero text slid clipped beneath its border —
+// the mid-scroll "glitch" of #44. The hero title's bottom passes under the
+// bar by ~160px of scroll, so revealing here cannot double the brand.
+const COMPACT_HEADER_REVEAL_START = 160;
 const COMPACT_HEADER_REVEAL_DISTANCE = 72;
 
 function ViewSelector({
