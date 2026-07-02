@@ -106,8 +106,10 @@ function pickRandomScenario(
 
 export default function ScenarioExplorer({
   data,
+  versionId,
 }: {
   data: BenchData;
+  versionId: string;
 }) {
   const country = data.country;
   const [promptFormat, setPromptFormat] = useState<"tool" | "json">("tool");
@@ -180,7 +182,7 @@ export default function ScenarioExplorer({
     status: explanationsStatus,
     explanations,
     retry: retryExplanations,
-  } = useExplanations(country, explanationsEnabled);
+  } = useExplanations(country, explanationsEnabled, versionId);
 
   const predictions = useMemo(() => {
     if (!resolvedScenarioId) return {};

@@ -1,16 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { CountryCode } from "../types";
+import { explanationsPath } from "./dataVersionsRuntime";
 import type { ExplanationsFile } from "./explanations";
 
 export type ExplanationsStatus = "idle" | "loading" | "ready" | "error";
 
-const cache = new Map<CountryCode, Promise<ExplanationsFile>>();
+// Keyed by "<versionId>:<country>" so switching dataset version or country
+// fetches the right sidecar instead of serving a cached one.
+const cache = new Map<string, Promise<ExplanationsFile>>();
 
-function fetchExplanations(country: CountryCode): Promise<ExplanationsFile> {
-  let pending = cache.get(country);
+function cacheKey(versionId: string, country: CountryCode): string {
+  return `${versionId}:${country}`;
+}
+
+function fetchExplanations(
+  versionId: string,
+  country: CountryCode,
+): Promise<ExplanationsFile> {
+  const key = cacheKey(versionId, country);
+  let pending = cache.get(key);
   if (!pending) {
-    pending = fetch(`/data/explanations-${country}.json`).then((response) => {
+    pending = fetch(explanationsPath(versionId, country)).then((response) => {
       if (!response.ok) {
         throw new Error(`Failed to load explanations: HTTP ${response.status}`);
       }
@@ -18,22 +29,24 @@ function fetchExplanations(country: CountryCode): Promise<ExplanationsFile> {
     });
     // Drop failed loads from the cache so a retry can issue a fresh request.
     pending.catch(() => {
-      if (cache.get(country) === pending) cache.delete(country);
+      if (cache.get(key) === pending) cache.delete(key);
     });
-    cache.set(country, pending);
+    cache.set(key, pending);
   }
   return pending;
 }
 
 /**
- * Lazily load the per-country explanation sidecar once `enabled` flips true
- * (the scenario explorer enables it when it approaches the viewport). Status
- * is derived from the last settled fetch, so switching country or retrying
- * falls back to "loading" until the new fetch resolves.
+ * Lazily load the per-country explanation sidecar for the active dataset
+ * version once `enabled` flips true (the scenario explorer enables it when it
+ * approaches the viewport). Status is derived from the last settled fetch, so
+ * switching country/version or retrying falls back to "loading" until the new
+ * fetch resolves.
  */
 export function useExplanations(
   country: CountryCode,
   enabled: boolean,
+  versionId: string,
 ): {
   status: ExplanationsStatus;
   explanations: ExplanationsFile | null;
@@ -41,35 +54,36 @@ export function useExplanations(
 } {
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{
-    country: CountryCode;
+    key: string;
     explanations: ExplanationsFile;
   } | null>(null);
   const [failure, setFailure] = useState<{
-    country: CountryCode;
+    key: string;
     attempt: number;
   } | null>(null);
+
+  const key = cacheKey(versionId, country);
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    fetchExplanations(country).then(
+    fetchExplanations(versionId, country).then(
       (explanations) => {
-        if (!cancelled) setLoaded({ country, explanations });
+        if (!cancelled) setLoaded({ key, explanations });
       },
       () => {
-        if (!cancelled) setFailure({ country, attempt });
+        if (!cancelled) setFailure({ key, attempt });
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [country, enabled, attempt]);
+  }, [key, versionId, country, enabled, attempt]);
 
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
 
-  const isReady = loaded?.country === country;
-  const isFailed =
-    failure?.country === country && failure.attempt === attempt;
+  const isReady = loaded?.key === key;
+  const isFailed = failure?.key === key && failure.attempt === attempt;
   return {
     status: !enabled
       ? "idle"

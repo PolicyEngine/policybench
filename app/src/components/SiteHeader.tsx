@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { CountryCode } from "../types";
 import { VIEW_LABELS } from "../types";
+import DatasetSelector from "./DatasetSelector";
 
 export type HeaderNavItem = { id: string; label: string };
 
@@ -150,6 +151,10 @@ export type SiteHeaderProps = {
   onSelectView?: (view: CountryCode) => void;
   availableViews?: CountryCode[];
   actionLink?: HeaderActionLink;
+  /** Active dataset-version id; when set with `onSelectVersion`, shows the
+   *  dataset selector in the header. */
+  versionId?: string;
+  onSelectVersion?: (id: string) => void;
   /**
    * Optional expanded content shown inside the sticky header. Use only with
    * `alwaysExpanded` — when `alwaysExpanded` is false, this prop is ignored and
@@ -172,6 +177,8 @@ export default function SiteHeader({
   onSelectView,
   availableViews,
   actionLink,
+  versionId,
+  onSelectVersion,
   expandedContent,
   alwaysExpanded = false,
 }: SiteHeaderProps) {
@@ -197,6 +204,7 @@ export default function SiteHeader({
 
   const showViewSelector =
     availableViews && availableViews.length > 0 && selectedView && onSelectView;
+  const showVersionSelector = versionId != null && onSelectVersion != null;
   const headerPositionClass = alwaysExpanded ? "relative z-40" : "sticky top-0 z-40";
 
   return (
@@ -280,6 +288,12 @@ export default function SiteHeader({
                 onSelect={onSelectView}
                 views={availableViews}
               />
+            </div>
+          )}
+
+          {showVersionSelector && (
+            <div className="order-4 shrink-0 sm:order-none">
+              <DatasetSelector versionId={versionId} onSelect={onSelectVersion} />
             </div>
           )}
 

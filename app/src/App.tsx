@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-// Generated from data.json by scripts/prepare-data.ts (runs in dev/build):
-// the bundled summary holds every numeric field, while bulky explanation
-// text is split into /data/explanations-*.json and fetched on demand.
+// Generated from the default dataset version by scripts/prepare-data.ts (runs
+// in dev/build): the bundled summary holds every numeric field, while bulky
+// explanation text is split into /data/explanations-*.json and fetched on
+// demand. Other versions are code-split and loaded lazily on selection.
 import rawData from "./data-summary.json";
 import Hero from "./components/Hero";
 import FailureModes from "./components/FailureModes";
@@ -11,6 +12,12 @@ import Methodology from "./components/Methodology";
 import ModelLeaderboard from "./components/ModelLeaderboard";
 import ProgramHeatmap from "./components/ProgramHeatmap";
 import ScenarioExplorer from "./components/ScenarioExplorer";
+import {
+  DEFAULT_VERSION_ID,
+  getVersionById,
+  loadVersionSummary,
+  resolveVersionIdFromQuery,
+} from "./lib/dataVersionsRuntime";
 import {
   buildProgramOptions,
   resolveActiveProgramIds,
@@ -20,9 +27,14 @@ import {
 import type { CountryCode, DashboardBundle } from "./types";
 import { VIEW_LABELS } from "./types";
 
-const dashboard = rawData as DashboardBundle;
+const defaultDashboard = rawData as DashboardBundle;
 
 export type { DashboardBundle } from "./types";
+
+/** Snapshot chip label for a version id, or null to keep the live default. */
+function snapshotLabelFor(versionId: string): string | null {
+  return getVersionById(versionId)?.snapshotLabel ?? null;
+}
 
 const COUNTRY_NAV_ITEMS = [
   { id: "models", label: "Models" },
@@ -78,7 +90,15 @@ function countryFromQuery(
 }
 
 export default function App() {
-  const availableViews = useMemo(() => getAvailableViews(dashboard), []);
+  // Dataset version: the default summary is bundled and shown immediately;
+  // switching versions lazy-loads that version's summary and swaps it in.
+  const [versionId, setVersionId] = useState<string>(DEFAULT_VERSION_ID);
+  const [dashboard, setDashboard] = useState<DashboardBundle>(defaultDashboard);
+
+  const availableViews = useMemo(
+    () => getAvailableViews(dashboard),
+    [dashboard],
+  );
   // Default to the US benchmark, then switch UK visitors after mount when
   // timezone or browser language gives us a clear signal.
   const initialView: CountryCode = availableViews.includes("us")
@@ -88,6 +108,69 @@ export default function App() {
   const [hasUserPickedView, setHasUserPickedView] = useState(false);
   const [selectedPrograms, setSelectedPrograms] = useState<Set<string>>(
     () => new Set(),
+  );
+
+  // Adopt the dataset version named in ?dataset= on first mount (falls back to
+  // the default), then load its summary if it isn't already the default.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fromUrl = resolveVersionIdFromQuery(window.location.search);
+    if (fromUrl === DEFAULT_VERSION_ID) return;
+    let cancelled = false;
+    setVersionId(fromUrl);
+    loadVersionSummary(fromUrl).then(
+      (loaded) => {
+        if (!cancelled) setDashboard(loaded);
+      },
+      () => {
+        // Loading the archived summary failed; fall back to the default data
+        // and drop the query so the UI stays consistent.
+        if (cancelled) return;
+        setVersionId(DEFAULT_VERSION_ID);
+        setDashboard(defaultDashboard);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("dataset");
+        window.history.replaceState(null, "", url);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+    // Runs once on mount: later changes come from the dataset selector.
+  }, []);
+
+  const handleSelectVersion = useCallback(
+    (nextVersionId: string) => {
+      if (nextVersionId === versionId) return;
+      const meta = getVersionById(nextVersionId);
+      if (!meta) return;
+      setVersionId(nextVersionId);
+      // Keep the URL shareable: name non-default versions, drop the param for
+      // the default so canonical links stay clean.
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        if (nextVersionId === DEFAULT_VERSION_ID) {
+          url.searchParams.delete("dataset");
+        } else {
+          url.searchParams.set("dataset", nextVersionId);
+        }
+        window.history.replaceState(null, "", url);
+      }
+      loadVersionSummary(nextVersionId).then(
+        (loaded) => setDashboard(loaded),
+        () => {
+          // Roll back to the default on failure rather than showing stale data.
+          setVersionId(DEFAULT_VERSION_ID);
+          setDashboard(defaultDashboard);
+          if (typeof window !== "undefined") {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("dataset");
+            window.history.replaceState(null, "", url);
+          }
+        },
+      );
+    },
+    [versionId],
   );
 
   useEffect(() => {
@@ -109,7 +192,12 @@ export default function App() {
   const [activeNav, setActiveNav] = useState<string>("models");
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  const data = dashboard.countries[selectedView]!;
+  // Fall back to the first available view if the selected one is absent from
+  // the active version (e.g. a version that ships fewer countries).
+  const resolvedView = dashboard.countries[selectedView]
+    ? selectedView
+    : (availableViews[0] ?? selectedView);
+  const data = dashboard.countries[resolvedView]!;
   const navItems = COUNTRY_NAV_ITEMS;
 
   const programOptions = useMemo(() => buildProgramOptions(data), [data]);
@@ -207,12 +295,15 @@ export default function App() {
       />
 
       <Hero
-        selectedView={selectedView}
+        selectedView={resolvedView}
         onSelectView={handleSelectView}
         data={data}
         availableViews={availableViews}
         navItems={navItems}
         activeNav={activeNav}
+        versionId={versionId}
+        onSelectVersion={handleSelectVersion}
+        snapshotLabel={snapshotLabelFor(versionId)}
       />
 
       <main id="main" className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -224,7 +315,7 @@ export default function App() {
         >
           <ModelLeaderboard
             data={data}
-            selectedView={selectedView}
+            selectedView={resolvedView}
             dashboard={dashboard}
             programOptions={programOptions}
             activeProgramIds={activeProgramIds}
@@ -250,7 +341,11 @@ export default function App() {
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
         <section id="scenarios" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
-          <ScenarioExplorer key={data.country} data={data} />
+          <ScenarioExplorer
+            key={`${versionId}:${data.country}`}
+            data={data}
+            versionId={versionId}
+          />
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
@@ -263,7 +358,7 @@ export default function App() {
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
         <section id="methodology" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
-          <Methodology data={data} selectedView={selectedView} />
+          <Methodology data={data} selectedView={resolvedView} />
         </section>
       </main>
 

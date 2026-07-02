@@ -1,15 +1,21 @@
 /**
- * Build-time split of the dashboard payload.
+ * Build-time split of the dashboard payload, for every published dataset
+ * version listed in src/data.versions.json.
  *
- * Source resolution order:
- *   1. src/data.json - committed or locally exported payload
- *   2. src/data.artifact.json - pointer to a published GitHub release asset
- *      (written by `policybench publish-dashboard`); downloaded to .cache/
- *      and verified against the recorded sha256
+ * Per-version source resolution order:
+ *   1. src/data.json - committed or locally exported payload. Applies to the
+ *      default version only, so a local export can stand in for the live data
+ *      without re-downloading the archived versions.
+ *   2. the version's artifact:
+ *        - {"pointer": "live"}    -> src/data.artifact.json (the current pointer)
+ *        - an inline release pointer (tag/url/sha256/bytes) for archived versions
+ *      The asset is downloaded to .cache/ and verified against its sha256.
  *
- * Emits:
- *   - src/data-summary.json          bundled with the app (no free text)
- *   - public/data/explanations-*.json fetched lazily by the scenario explorer
+ * Emits, per version:
+ *   - default version -> src/data-summary.json               (bundled with app)
+ *                        public/data/explanations-*.json      (lazy sidecars)
+ *   - other versions  -> src/data-summary.<slug>.json         (code-split chunk)
+ *                        public/data/<slug>/explanations-*.json (lazy sidecars)
  *
  * Runs before `next dev` and `next build` (see package.json). Outputs are
  * generated artifacts and gitignored.
@@ -22,16 +28,24 @@ import {
   assertDashboardShape,
   parseArtifactPointer,
   sha256Hex,
+  type ArtifactPointer,
 } from "../src/lib/dataArtifact";
+import {
+  isLivePointerRef,
+  parseDataVersionRegistry,
+  versionSlug,
+  type DataVersion,
+} from "../src/lib/dataVersions";
 import { splitDashboardExplanations } from "../src/lib/explanations";
 import type { DashboardBundle } from "../src/types";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourcePath = path.join(appRoot, "src", "data.json");
 const pointerPath = path.join(appRoot, "src", "data.artifact.json");
+const registryPath = path.join(appRoot, "src", "data.versions.json");
 const cacheDir = path.join(appRoot, ".cache");
-const summaryPath = path.join(appRoot, "src", "data-summary.json");
-const sidecarDir = path.join(appRoot, "public", "data");
+const srcDir = path.join(appRoot, "src");
+const sidecarRoot = path.join(appRoot, "public", "data");
 
 function formatMb(bytes: number): string {
   return `${(bytes / 1_000_000).toFixed(1)}MB`;
@@ -43,16 +57,15 @@ function formatMb(bytes: number): string {
  * resolves to undefined), so the bundled summary must stay ASCII-only.
  */
 function toAsciiJson(value: unknown): string {
-  return JSON.stringify(value).replace(
-    /[\u0080-\uffff]/g,
-    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  // Escape every non-ASCII code unit (>= 0x80) like Python's json.dump does.
+  return JSON.stringify(value).replace(/[^\x00-\x7f]/g, (char) =>
+    `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );
 }
 
-async function fetchArtifact(): Promise<{ bytes: Buffer; origin: string }> {
-  const pointer = parseArtifactPointer(
-    JSON.parse(readFileSync(pointerPath, "utf8")),
-  );
+async function fetchFromPointer(
+  pointer: ArtifactPointer,
+): Promise<{ bytes: Buffer; origin: string }> {
   const cachePath = path.join(
     cacheDir,
     `dashboard-data-${pointer.sha256.slice(0, 16)}.json`,
@@ -73,7 +86,7 @@ async function fetchArtifact(): Promise<{ bytes: Buffer; origin: string }> {
   if (!response.ok) {
     throw new Error(
       `Failed to download dashboard artifact: HTTP ${response.status} from ` +
-      pointer.url,
+        pointer.url,
     );
   }
   const bytes = Buffer.from(await response.arrayBuffer());
@@ -81,7 +94,7 @@ async function fetchArtifact(): Promise<{ bytes: Buffer; origin: string }> {
   if (digest !== pointer.sha256) {
     throw new Error(
       `Downloaded artifact hash mismatch for ${pointer.url}: expected ` +
-      `${pointer.sha256}, got ${digest}. Refusing to use it.`,
+        `${pointer.sha256}, got ${digest}. Refusing to use it.`,
     );
   }
   mkdirSync(cacheDir, { recursive: true });
@@ -89,43 +102,83 @@ async function fetchArtifact(): Promise<{ bytes: Buffer; origin: string }> {
   return { bytes, origin: pointer.url };
 }
 
-async function resolveSource(): Promise<{ bytes: Buffer; origin: string }> {
-  if (existsSync(sourcePath)) {
+/** Resolve the live pointer (src/data.artifact.json) to a verified payload. */
+function resolveLivePointer(): ArtifactPointer {
+  if (!existsSync(pointerPath)) {
+    throw new Error(
+      `prepare-data: version uses {"pointer": "live"} but ${pointerPath} ` +
+        "is missing.",
+    );
+  }
+  return parseArtifactPointer(JSON.parse(readFileSync(pointerPath, "utf8")));
+}
+
+async function resolveVersionSource(
+  version: DataVersion,
+  isDefault: boolean,
+): Promise<{ bytes: Buffer; origin: string }> {
+  // A local export stands in for the live/default data only. Archived versions
+  // always resolve through their pinned artifact so their hashes stay honest.
+  if (isDefault && existsSync(sourcePath)) {
     return { bytes: readFileSync(sourcePath), origin: sourcePath };
   }
-  if (existsSync(pointerPath)) {
-    return fetchArtifact();
+  const pointer = isLivePointerRef(version.artifact)
+    ? resolveLivePointer()
+    : version.artifact;
+  return fetchFromPointer(pointer);
+}
+
+async function buildVersion(
+  version: DataVersion,
+  isDefault: boolean,
+): Promise<string> {
+  const { bytes, origin } = await resolveVersionSource(version, isDefault);
+  const bundle = JSON.parse(bytes.toString("utf8")) as unknown;
+  assertDashboardShape(bundle, `${origin} (version ${version.id})`);
+  const { summary, explanations } = splitDashboardExplanations(
+    bundle as DashboardBundle,
+  );
+
+  // Default -> canonical paths (App.tsx imports src/data-summary.json and the
+  // flat /data/ sidecars); other versions -> slug-namespaced paths.
+  const slug = versionSlug(version.id);
+  const summaryPath = isDefault
+    ? path.join(srcDir, "data-summary.json")
+    : path.join(srcDir, `data-summary.${slug}.json`);
+  const sidecarDir = isDefault ? sidecarRoot : path.join(sidecarRoot, slug);
+
+  const summaryJson = toAsciiJson(summary);
+  writeFileSync(summaryPath, summaryJson);
+  mkdirSync(sidecarDir, { recursive: true });
+
+  const sidecarSizes: string[] = [];
+  for (const file of Object.values(explanations)) {
+    const sidecarJson = JSON.stringify(file);
+    writeFileSync(
+      path.join(sidecarDir, `explanations-${file.country}.json`),
+      sidecarJson,
+    );
+    sidecarSizes.push(`${file.country} ${formatMb(sidecarJson.length)}`);
   }
-  throw new Error(
-    `prepare-data: neither ${sourcePath} nor ${pointerPath} exists. ` +
-    "Export a run (policybench export-full-run) or commit an artifact " +
-    "pointer (policybench publish-dashboard).",
+
+  return (
+    `prepare-data: [${version.id}] ${formatMb(bytes.length)} payload from ` +
+    `${origin} -> ${formatMb(summaryJson.length)} bundled summary + ` +
+    `lazy explanations (${sidecarSizes.join(", ")})`
   );
 }
 
-const { bytes, origin } = await resolveSource();
-const bundle = JSON.parse(bytes.toString("utf8")) as unknown;
-assertDashboardShape(bundle, origin);
-const { summary, explanations } = splitDashboardExplanations(
-  bundle as DashboardBundle,
+const registry = parseDataVersionRegistry(
+  JSON.parse(readFileSync(registryPath, "utf8")),
 );
 
-const summaryJson = toAsciiJson(summary);
-writeFileSync(summaryPath, summaryJson);
-mkdirSync(sidecarDir, { recursive: true });
+// Build the default first so a local src/data.json export surfaces problems
+// before the network fetches for archived versions.
+const ordered = [...registry.versions].sort((a, b) =>
+  a.id === registry.default ? -1 : b.id === registry.default ? 1 : 0,
+);
 
-const sidecarSizes: string[] = [];
-for (const file of Object.values(explanations)) {
-  const sidecarJson = JSON.stringify(file);
-  writeFileSync(
-    path.join(sidecarDir, `explanations-${file.country}.json`),
-    sidecarJson,
-  );
-  sidecarSizes.push(`${file.country} ${formatMb(sidecarJson.length)}`);
+for (const version of ordered) {
+  const line = await buildVersion(version, version.id === registry.default);
+  console.log(line);
 }
-
-console.log(
-  `prepare-data: ${formatMb(bytes.length)} payload from ${origin} -> ` +
-  `${formatMb(summaryJson.length)} bundled summary + ` +
-  `lazy explanations (${sidecarSizes.join(", ")})`,
-);
