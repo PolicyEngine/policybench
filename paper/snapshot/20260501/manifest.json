@@ -20,11 +20,11 @@
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 42745511,
-    "derivation": "published_dashboard_artifact (the frozen source-run export) plus Claude Fable 5 (run 2026-07-01) and Claude Sonnet 5 (run 2026-07-02) scored against the same frozen manifest and references, with per-model cost and latency in countries.us.modelStats. The combined 15-model predictions.csv.gz is attached to the release.",
-    "sha256": "bea82b7ea984e286db4bfecd140d0170e3aecae2f2c247a3e7c49f50a21b510f",
-    "tag": "dashboard-data-20260702",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260702/dashboard-data.json"
+    "bytes": 43052995,
+    "derivation": "dashboard-data-20260702 (frozen 13 models + Claude Fable 5 + Claude Sonnet 5) plus LLM-judge failure-mode annotations for the two Claude 5 models' 322 wrong cases (Codex-classified 2026-07-02, same taxonomy and procedure as the June audit). Scores unchanged; the combined 15-model predictions.csv.gz is attached to the release.",
+    "sha256": "7b26f03fb77c3c2683e2aa8ff9caef8c718972f174d6802c8147bc384991b74c",
+    "tag": "dashboard-data-20260702b",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260702b/dashboard-data.json"
   },
   "live_dashboard_note": "Two artifacts are tracked. published_dashboard_artifact pins the manuscript's frozen record: it equals the combined export of the source run data.json files listed under source_run_artifacts, byte for byte. live_dashboard_artifact is the release asset the committed pointer app/src/data.artifact.json references; it starts from the frozen export and may gain additive updates (injected metrics, newly benchmarked models) without changing the frozen models' scores. Every publish-dashboard run must update live_dashboard_artifact (tag, sha256, bytes, derivation) in the same commit as the pointer.",
   "model_response_date": "2026-06-12 to 2026-06-13",
