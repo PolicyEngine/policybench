@@ -161,6 +161,32 @@ Provider transport, timeout, rate-limit, server, authentication, and
 request-configuration errors are infrastructure failures; chunks containing
 those errors remain incomplete and should be retried or rerun.
 
+## 4b. Batch Mode (Anthropic, OpenAI, Gemini)
+
+`eval-no-tools-batch` runs the same evaluation through the provider's batch
+API at ~50% of synchronous prices, with the provider handling parallelism.
+Request bodies are identical to sync mode; results land in the same
+`by_model/<model>.csv` schema, so retries, export, and the runstore work
+unchanged. xAI and DeepSeek have no batch APIs — keep using the chunked
+runner for them.
+
+```bash
+uv run policybench eval-no-tools-batch \
+  --country us \
+  --scenario-manifest "$RUN_DIR/us/scenarios.csv" \
+  --output-dir "$RUN_DIR/us" \
+  --model claude-fable-5 --model claude-sonnet-5 \
+  --poll-seconds 30
+```
+
+Batch ids persist under `$RUN_DIR/us/batches/`; rerunning the command
+resumes polling instead of resubmitting. Contract violations are re-requested
+in bounded repair rounds as follow-up batches. Two reporting differences,
+both deliberate: latency columns are left empty (batch round-trips include
+provider queue time, which is not model latency), and cost columns are
+reconstructed at standard synchronous rates so the leaderboard basis stays
+comparable while actual spend is roughly half.
+
 ## 5. Retry Broken Full Responses
 
 Before freezing a paid run, run bounded full-response retries for households
