@@ -109,9 +109,10 @@ THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP = 16384
 # Per-model reasoning-effort overrides sent as `reasoning={"effort": ...}`.
 # Models absent from this mapping receive NO reasoning-control parameters:
 # whatever an unconfigured API call does is what the benchmark measures.
-# Keep this the single source of truth — the manuscript's model-run table
-# imports it, so any change here is documented automatically.
-REASONING_EFFORT_OVERRIDES: dict[str, str] = {"gpt-5.5": "low"}
+# EMPTY since 2026-07-03: gpt-5.5 ran with effort "low" from the May 2026
+# launch through the v1.x runs (recorded in the manuscript's snapshot
+# config); the pin was removed so every model runs unconfigured.
+REASONING_EFFORT_OVERRIDES: dict[str, str] = {}
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
