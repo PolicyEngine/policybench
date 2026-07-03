@@ -25,6 +25,11 @@ import numpy as np
 import pandas as pd
 from policybench.config import MODELS, SEED
 from policybench.analysis import score_single_prediction
+from policybench.eval_no_tools import (
+    REASONING_EFFORT_OVERRIDES,
+    THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
+    THINKING_DEFAULT_CLAUDE_MODELS,
+)
 from policybench.paper_results import MODEL_DISPLAY_NAMES, r
 from policybench.spec import (
     get_output_ids,
@@ -674,6 +679,23 @@ def sensitivity_rows() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def reasoning_setup(model: str) -> str:
+    """Per-model reasoning configuration, read from the harness constants.
+
+    Sourced from ``policybench.eval_no_tools`` so the manuscript cannot
+    drift from the code that made the requests.
+    """
+    if model in THINKING_DEFAULT_CLAUDE_MODELS:
+        cap = f"{THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP:,}"
+        return (
+            "extended thinking on (model default); thinking and answer share "
+            f"a {cap}-token completion budget"
+        )
+    if model in REASONING_EFFORT_OVERRIDES:
+        return f"reasoning effort pinned to {REASONING_EFFORT_OVERRIDES[model]!r}"
+    return "no reasoning parameters sent (provider default)"
+
+
 def model_run_table(top_n: int | None = None) -> pd.DataFrame:
     rows = []
     models = sorted(us_model["model"])
@@ -686,7 +708,8 @@ def model_run_table(top_n: int | None = None) -> pd.DataFrame:
                 "Provider ID": MODELS.get(model, "not in default registry"),
                 "Parsed": f"{int(us_row.nParsed):,}/{int(us_row.n):,}",
                 "Structured output": "provider structured-output schema; no external tool",
-                "Decoding": "provider default; no model-specific prompt tuning",
+                "Reasoning setup": reasoning_setup(model),
+                "Decoding": "temperature and sampling untouched (provider defaults); identical prompt template for every model",
             }
         )
     return pd.DataFrame(rows)
@@ -1003,7 +1026,7 @@ Aggregation proceeds in three steps. First, each household-output prediction rec
 
 The benchmark requires each model response to include numeric answers and one explanation per requested output. Both the exact-match rate and the bounded score use only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.
 
-Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are `0`, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output.
+Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are `0`, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output and the reasoning configuration documented per model in @tbl-model-runs: models whose provider enables reasoning by default run with extended thinking against a fixed shared completion budget, one model runs with an explicit reasoning-effort setting, and every other model receives no reasoning-control parameters. Reasoning configuration is therefore not uniform across the roster. Sampling parameters are never set; temperature and related decoding controls stay at provider defaults for every model. A rerun at strictly unconfigured provider defaults for all models is planned as a sensitivity release.
 
 ### Frozen snapshot and open-set status
 
