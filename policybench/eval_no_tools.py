@@ -106,6 +106,12 @@ GEMINI_MAX_COMPLETION_TOKENS_CAP = 16384
 # budget as the tool-call answer, so the shared 4096 cap could truncate
 # mid-answer after a long think. Extra headroom costs nothing when unused.
 THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP = 16384
+# Per-model reasoning-effort overrides sent as `reasoning={"effort": ...}`.
+# Models absent from this mapping receive NO reasoning-control parameters:
+# whatever an unconfigured API call does is what the benchmark measures.
+# Keep this the single source of truth — the manuscript's model-run table
+# imports it, so any change here is documented automatically.
+REASONING_EFFORT_OVERRIDES: dict[str, str] = {"gpt-5.5": "low"}
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
@@ -589,8 +595,8 @@ def _responses_request_kwargs(
                 },
             }
         )
-    if model_id == "gpt-5.5":
-        request_kwargs["reasoning"] = {"effort": "low"}
+    if model_id in REASONING_EFFORT_OVERRIDES:
+        request_kwargs["reasoning"] = {"effort": REASONING_EFFORT_OVERRIDES[model_id]}
     return [{"role": "user", "content": prompt}], request_kwargs
 
 
@@ -1372,8 +1378,10 @@ def _request_explanations_once(
                 "name": EXPLANATION_FUNCTION_NAME,
             },
         }
-        if model_id == "gpt-5.5":
-            request_kwargs["reasoning"] = {"effort": "low"}
+        if model_id in REASONING_EFFORT_OVERRIDES:
+            request_kwargs["reasoning"] = {
+                "effort": REASONING_EFFORT_OVERRIDES[model_id]
+            }
         request_fn = responses
     else:
         messages = [{"role": "user", "content": prompt}]
