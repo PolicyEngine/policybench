@@ -20,11 +20,20 @@
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 43052995,
-    "derivation": "dashboard-data-20260702 (frozen 13 models + Claude Fable 5 + Claude Sonnet 5) plus LLM-judge failure-mode annotations for the two Claude 5 models' 322 wrong cases (Codex-classified 2026-07-02, same taxonomy and procedure as the June audit). Scores unchanged; the combined 15-model predictions.csv.gz is attached to the release.",
-    "sha256": "7b26f03fb77c3c2683e2aa8ff9caef8c718972f174d6802c8147bc384991b74c",
-    "tag": "dashboard-data-20260702b",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260702b/dashboard-data.json"
+    "bytes": 43029976,
+    "derivation": "PolicyBench dataset v1.1. Re-scores the frozen 15-model predictions (dashboard-data-20260702b: frozen 13 models + Claude Fable 5 + Claude Sonnet 5, predictions unchanged) against corrected US reference outputs regenerated with a direct install of policyengine-us 1.755.4 (references are a function of the engine only). Exactly three reference value cells change versus the frozen references, all upstream fixes: scenario_056 state_income_tax_before_refundable_credits 67.7394->0.0 (NJ filing-threshold floor, pe-us 1.755.3, N.J.S.A. 54A:2-4), and scenario_008 child5_head_start_eligible and scenario_100 child2_head_start_eligible 0->1 (Head Start ages 3-5, pe-us 1.755.4, 45 CFR 1302.12(b)). All 15 models gain on the corrected reference; every per-cell score change is confined to those three cells (45 of 29,760 prediction rows = 15 models x 3 cells). Population output weights are unchanged from the committed June artifact (policybench/population_weights.json, sha256 0b3b96b8...); a populace-refreshed weights build ships later as a separate version. The combined 15-model predictions.csv.gz attached to the release is byte-identical to the dashboard-data-20260702b asset.",
+    "reference_engine": {
+      "policyengine_us_version": "1.755.4",
+      "policyengine_us_source": "direct pip install",
+      "policyengine_version": "4.16.1"
+    },
+    "population_weights": {
+      "source": "committed June artifact policybench/population_weights.json (unchanged)",
+      "sha256": "0b3b96b8247477631510371b9c3b021a18a535e8ebbf8c73a8aa67cff3110cd4"
+    },
+    "sha256": "fa10d4c745dba1e8cde92fa5eb96f8f0c0d0af6fbef79e434ce5ff38833aaa70",
+    "tag": "dashboard-data-20260705",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260705/dashboard-data.json"
   },
   "live_dashboard_note": "Two artifacts are tracked. published_dashboard_artifact pins the manuscript's frozen record: it equals the combined export of the source run data.json files listed under source_run_artifacts, byte for byte. live_dashboard_artifact is the release asset the committed pointer app/src/data.artifact.json references; it starts from the frozen export and may gain additive updates (injected metrics, newly benchmarked models) without changing the frozen models' scores. Every publish-dashboard run must update live_dashboard_artifact (tag, sha256, bytes, derivation) in the same commit as the pointer.",
   "model_response_date": "2026-06-12 to 2026-06-13",
