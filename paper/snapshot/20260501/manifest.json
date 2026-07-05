@@ -20,9 +20,9 @@
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 43030043,
+    "bytes": 43017962,
     "derivation": "PolicyBench dataset v1.1. Re-scores the frozen 15-model predictions (dashboard-data-20260702b: frozen 13 models + Claude Fable 5 + Claude Sonnet 5, predictions unchanged) against corrected US reference outputs regenerated with a direct install of policyengine-us 1.755.4 (references are a function of the engine only). Exactly three reference value cells change versus the frozen references, all upstream fixes: scenario_056 state_income_tax_before_refundable_credits 67.7394->0.0 (NJ filing-threshold floor, pe-us 1.755.3, N.J.S.A. 54A:2-4), and scenario_008 child5_head_start_eligible and scenario_100 child2_head_start_eligible 0->1 (Head Start ages 3-5, pe-us 1.755.4, 45 CFR 1302.12(b)). All 15 models gain on the corrected reference; every per-cell score change is confined to those three cells (45 of 29,760 prediction rows = 15 models x 3 cells). Population output weights are unchanged from the committed June artifact (policybench/population_weights.json, sha256 0b3b96b8...); a populace-refreshed weights build ships later as a separate version. The combined 15-model predictions.csv.gz attached to the release is byte-identical to the dashboard-data-20260702b asset.",
-    "notes": "v1.1 corrected-references release; claude-fable-5 usage fields are artifact-level values (per-row usage not present in predictions.csv; run reconstructed from the 20260701 artifact).",
+    "notes": "v1.1: corrected references (policyengine-us 1.755.4) with every model at unconfigured provider defaults \u2014 GPT-5.5 rerun at default reasoning effort (#95/#101), replacing the pinned-low run. claude-fable-5 usage fields are artifact-level values (per-row usage not present in predictions.csv).",
     "population_weights": {
       "sha256": "0b3b96b8247477631510371b9c3b021a18a535e8ebbf8c73a8aa67cff3110cd4",
       "source": "committed June artifact policybench/population_weights.json (unchanged)"
@@ -32,7 +32,7 @@
       "policyengine_us_version": "1.755.4",
       "policyengine_version": "4.16.1"
     },
-    "sha256": "96b30cff81c666effe1da0edce135aa2741709f37d614c9fbfc9a1e5cfafe24b",
+    "sha256": "7d43a032156147dfc9a839dd87a532387f5c6c9b4a572c3127ebd5ce324e0140",
     "tag": "dashboard-data-20260705",
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260705/dashboard-data.json"
   },
