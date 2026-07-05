@@ -66,12 +66,6 @@ function fmtCost(usd: number | undefined, symbol: string): string {
   return `${symbol}${usd.toFixed(3)}`;
 }
 
-// Median per-household request-time, in seconds for every model.
-function fmtLatency(seconds: number | undefined): string {
-  if (seconds == null || !Number.isFinite(seconds)) return "—";
-  return `${Math.round(seconds)}s`;
-}
-
 export default function ModelLeaderboard({
   data,
   selectedView,
@@ -302,22 +296,15 @@ export default function ModelLeaderboard({
           <div role="columnheader" className="col-span-1">
             #
           </div>
-          <div role="columnheader" className="col-span-5">
+          <div role="columnheader" className="col-span-7">
             Model
           </div>
           <div
             role="columnheader"
             className="col-span-2 text-right"
-            title="Estimated cost to run one household's full set of outputs, no tools"
+            title="Estimated cost to run one household's full set of outputs, no tools (batch runs priced at standard synchronous rates)"
           >
             Cost / hh
-          </div>
-          <div
-            role="columnheader"
-            className="col-span-2 text-right"
-            title="Median wall-clock to compute one household, no tools"
-          >
-            Latency
           </div>
           <div role="columnheader" className="col-span-2 text-right">
             {scoringMode === "exact"
@@ -370,8 +357,7 @@ export default function ModelLeaderboard({
                       </Link>
                     </div>
                     <div className="mt-1.5 pl-[26px] font-[family-name:var(--font-mono)] text-[11px] text-text-muted">
-                      {fmtCost(m.costPerHousehold, currencySymbol)}/hh ·{" "}
-                      {fmtLatency(m.latencySeconds)}
+                      {fmtCost(m.costPerHousehold, currencySymbol)}/hh
                     </div>
                   </div>
 
@@ -391,7 +377,7 @@ export default function ModelLeaderboard({
                   </span>
                 </div>
 
-                <div className="col-span-5 flex min-w-0 items-center gap-2.5">
+                <div className="col-span-7 flex min-w-0 items-center gap-2.5">
                   <ProviderMark
                     provider={getProviderForModel(m.model)}
                     size={14}
@@ -416,12 +402,6 @@ export default function ModelLeaderboard({
                   {fmtCost(m.costPerHousehold, currencySymbol)}
                 </div>
 
-                <div
-                  className="col-span-2 text-right font-[family-name:var(--font-mono)] text-sm text-text-secondary"
-                  title="Median wall-clock per household, no tools"
-                >
-                  {fmtLatency(m.latencySeconds)}
-                </div>
 
                 <div className="col-span-2 text-right">
                   <Badge
