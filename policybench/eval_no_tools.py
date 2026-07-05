@@ -114,8 +114,21 @@ THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP = 16384
 # config); the pin was removed so every model runs unconfigured.
 REASONING_EFFORT_OVERRIDES: dict[str, str] = {}
 # Models that reason by default when unconfigured, billing reasoning against
-# the completion budget — they get thinking-class headroom like the Claude 5s.
+# the completion budget — they get thinking-class headroom like the Claude 5s,
+# and the thinking-class request timeout (long thinks exceed the 20s default;
+# the DeepSeek smoke timed out at exactly that ceiling).
 REASONING_DEFAULT_OPENAI_MODELS = ("gpt-5.5",)
+REASONING_DEFAULT_OPEN_WEIGHT_MODELS = (
+    "deepseek/deepseek-v4-pro",
+    "deepseek/deepseek-v4-flash",
+    "openrouter/moonshotai/kimi-k2.6",
+    "openrouter/z-ai/glm-5.2",
+    "openrouter/minimax/minimax-m3",
+    "openrouter/qwen/qwen3.7-max",
+)
+REASONING_DEFAULT_MODELS = (
+    REASONING_DEFAULT_OPENAI_MODELS + REASONING_DEFAULT_OPEN_WEIGHT_MODELS
+)
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
@@ -124,6 +137,17 @@ EXPLANATION_FUNCTION_NAME = "submit_explanations"
 PROMPT_CONTRACT_VERSION = "2026-05-13-nested-output-explanations"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 1
 GPT55_EXPLANATION_CHUNK_SIZE = 3
+OPEN_WEIGHT_EXPLANATION_CHUNK_SIZE = 3
+# Kimi K2.6 and GLM-5.2 at default reasoning effort do not converge on
+# whole-scenario requests: GLM reasons to the full 16,384-token ceiling
+# (both contracts), and Kimi pours its reasoning stream into the JSON
+# explanation fields until the budget truncates the document mid-structure.
+# Probed 2026-07-05: at 1-3 variables per call both stop cleanly within
+# ~1,500 completion tokens.
+CHUNKED_OPEN_WEIGHT_MODELS = (
+    "openrouter/moonshotai/kimi-k2.6",
+    "openrouter/z-ai/glm-5.2",
+)
 
 
 class RequestWallTimeoutError(TimeoutError):
@@ -337,6 +361,8 @@ def _required_explanation_chunk_size(
         return CLAUDE_EXPLANATION_CHUNK_SIZE
     if include_explanations and model_id == "gpt-5.5":
         return GPT55_EXPLANATION_CHUNK_SIZE
+    if include_explanations and model_id in CHUNKED_OPEN_WEIGHT_MODELS:
+        return OPEN_WEIGHT_EXPLANATION_CHUNK_SIZE
     return None
 
 
@@ -395,18 +421,15 @@ def _completion_controls(
                 base_tokens, variables, include_explanations
             )
         }
-    if model_id in REASONING_DEFAULT_OPENAI_MODELS:
-        # Unconfigured gpt-5.5 reasons at its default (medium) effort, and
-        # reasoning tokens bill against the same completion budget as the
-        # tool-call answer. The pre-unpin per-chunk budgets (sized for
-        # pinned-low) left small chunks at ~2,048 tokens, which medium-effort
-        # reasoning exhausts before any answer is emitted — the run's raw
-        # responses were empty at exactly the budget ceiling. Mirror the
-        # thinking-Claude headroom; extra ceiling costs nothing when unused.
-        if include_explanations:
-            base_tokens = THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP
-        else:
-            base_tokens = EXTENDED_MAX_COMPLETION_TOKENS
+    if model_id in REASONING_DEFAULT_MODELS:
+        # Reasoning-by-default models bill reasoning against the same
+        # completion budget as the answer, and the reasoning spend does not
+        # depend on whether explanations were requested — an answers-only
+        # request (--no-explanations, repairs) needs the same headroom the
+        # explanation path got in #101, or default-effort reasoning exhausts
+        # the small dynamic budget before any output. Unused headroom is
+        # free.
+        base_tokens = THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP
         return {
             "max_completion_tokens": _completion_token_budget(
                 base_tokens,
@@ -456,6 +479,8 @@ def _completion_controls(
 
 
 def _request_timeout_seconds(model_id: str) -> int:
+    if model_id in REASONING_DEFAULT_OPEN_WEIGHT_MODELS:
+        return THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("gemini/"):
         return GEMINI_REQUEST_TIMEOUT_SECONDS
     if model_id == "gpt-5.5":
@@ -513,8 +538,27 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
             signal.setitimer(signal.ITIMER_REAL, *previous_timer)
 
 
+# Models whose serving stack rejects or degrades forced tool calls. Moonshot
+# returns 400 "tool_choice 'specified' is incompatible with thinking enabled"
+# for Kimi K2.6 (OpenRouter then silently reroutes forced-tool requests to
+# third-party hosts where the model reasons to the token ceiling without ever
+# emitting the call), and Alibaba returns 400 "tool_choice ... does not
+# support being set to required ... in thinking mode" for Qwen3.7-max. The
+# JSON contract sidesteps tool_choice entirely.
+# GLM-5.2 accepts forced tool calls but reasons to the full 16,384-token
+# ceiling without emitting one (probed 2026-07-05); it gets the JSON contract
+# for the same reason.
+JSON_CONTRACT_MODELS = (
+    "openrouter/moonshotai/kimi-k2.6",
+    "openrouter/qwen/qwen3.7-max",
+    "openrouter/z-ai/glm-5.2",
+)
+
+
 def _answer_contract_for_model(model_id: str) -> str:
     if model_id.startswith("deepseek/") or model_id.startswith("gemini/"):
+        return "json"
+    if model_id in JSON_CONTRACT_MODELS:
         return "json"
     return "tool"
 

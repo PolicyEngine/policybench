@@ -43,6 +43,10 @@ MODELS = {
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
     "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
+    "kimi-k2.6": "openrouter/moonshotai/kimi-k2.6",
+    "glm-5.2": "openrouter/z-ai/glm-5.2",
+    "minimax-m3": "openrouter/minimax/minimax-m3",
+    "qwen-3.7-max": "openrouter/qwen/qwen3.7-max",
 }
 
 # Per-1M-token USD prices for models litellm's cost map does not yet cover
@@ -60,6 +64,15 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # if reconstruction is unavailable. Introductory billing ($2 / $10 through
     # 2026-08-31) is intentionally not used — costs compare at standard rates.
     "claude-sonnet-5": {"input": 3.0, "output": 15.0},
+    # Open-weight additions, per-1M USD from the OpenRouter live model list
+    # (https://openrouter.ai/api/v1/models, retrieved 2026-07-05). DeepSeek
+    # runs on its native API at the same list prices.
+    "deepseek-v4-pro": {"input": 0.435, "output": 0.87},
+    "deepseek-v4-flash": {"input": 0.09, "output": 0.18},
+    "kimi-k2.6": {"input": 0.66, "output": 3.41},
+    "glm-5.2": {"input": 0.574, "output": 1.804},
+    "minimax-m3": {"input": 0.3, "output": 1.2},
+    "qwen-3.7-max": {"input": 1.25, "output": 3.75},
 }
 
 # Current output set. The benchmark contains signed household net-income
