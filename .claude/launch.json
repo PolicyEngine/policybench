@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "policybench",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-lc", "cd app && PORT=3737 bun run dev"],
+      "port": 3737
+    }
+  ]
+}
