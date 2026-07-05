@@ -1497,11 +1497,15 @@ def test_completion_budget_scales_with_output_count():
         ]
         == 4096
     )
+    # gpt-5.5 reasons by default when unconfigured; reasoning bills against
+    # the completion budget, so it gets thinking-class headroom (the pinned-low
+    # era budgets left small chunks at ~2k tokens, which medium-effort
+    # reasoning exhausted before emitting any answer).
     assert (
         _completion_controls("gpt-5.5", variables=["income_tax"])[
             "max_completion_tokens"
         ]
-        == 4096
+        == 16384
     )
     # Gemini gets a higher cap so verbose large-household answers do not truncate;
     # other models stay at the 4096 ceiling above.
