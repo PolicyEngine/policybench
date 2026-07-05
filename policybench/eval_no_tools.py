@@ -113,6 +113,9 @@ THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP = 16384
 # launch through the v1.x runs (recorded in the manuscript's snapshot
 # config); the pin was removed so every model runs unconfigured.
 REASONING_EFFORT_OVERRIDES: dict[str, str] = {}
+# Models that reason by default when unconfigured, billing reasoning against
+# the completion budget — they get thinking-class headroom like the Claude 5s.
+REASONING_DEFAULT_OPENAI_MODELS = ("gpt-5.5",)
 ANSWER_TOKENS_PER_VARIABLE = 48
 EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
@@ -392,13 +395,29 @@ def _completion_controls(
                 base_tokens, variables, include_explanations
             )
         }
+    if model_id in REASONING_DEFAULT_OPENAI_MODELS:
+        # Unconfigured gpt-5.5 reasons at its default (medium) effort, and
+        # reasoning tokens bill against the same completion budget as the
+        # tool-call answer. The pre-unpin per-chunk budgets (sized for
+        # pinned-low) left small chunks at ~2,048 tokens, which medium-effort
+        # reasoning exhausts before any answer is emitted — the run's raw
+        # responses were empty at exactly the budget ceiling. Mirror the
+        # thinking-Claude headroom; extra ceiling costs nothing when unused.
+        if include_explanations:
+            base_tokens = THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP
+        else:
+            base_tokens = EXTENDED_MAX_COMPLETION_TOKENS
+        return {
+            "max_completion_tokens": _completion_token_budget(
+                base_tokens,
+                variables,
+                include_explanations,
+                cap=THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
+            )
+        }
     if model_id.startswith("gpt-5"):
         if include_explanations:
-            base_tokens = (
-                MAX_COMPLETION_TOKENS_CAP
-                if model_id == "gpt-5.5"
-                else EXPLANATION_MAX_COMPLETION_TOKENS
-            )
+            base_tokens = EXPLANATION_MAX_COMPLETION_TOKENS
         else:
             base_tokens = EXTENDED_MAX_COMPLETION_TOKENS
         return {
