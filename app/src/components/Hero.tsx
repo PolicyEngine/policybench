@@ -1,3 +1,4 @@
+import { DEFAULT_VERSION_ID } from "../lib/dataVersionsRuntime";
 import type { BenchData, CountryCode } from "../types";
 import SiteHeader, { type HeaderNavItem } from "./SiteHeader";
 
@@ -10,6 +11,9 @@ export default function Hero({
   availableViews,
   navItems,
   activeNav,
+  versionId,
+  onSelectVersion,
+  snapshotLabel,
 }: {
   selectedView: CountryCode;
   onSelectView: (view: CountryCode) => void;
@@ -17,6 +21,10 @@ export default function Hero({
   availableViews: CountryCode[];
   navItems: readonly HeaderNavItem[];
   activeNav: string;
+  versionId: string;
+  onSelectVersion: (id: string) => void;
+  /** Snapshot chip label for the active version; null keeps the live default. */
+  snapshotLabel: string | null;
 }) {
   const rankedNoTools = [...data.modelStats]
     .filter((m) => m.condition === "no_tools")
@@ -34,6 +42,11 @@ export default function Hero({
     { value: `${data.programStats.length}`, label: "Outputs" },
   ];
 
+  // Archived versions carry their own snapshot label; the live default keeps
+  // the constant above.
+  const snapshotChipLabel = snapshotLabel ?? SNAPSHOT_DATE_LABEL;
+  const isArchived = versionId !== DEFAULT_VERSION_ID;
+
   return (
     <>
       <SiteHeader
@@ -42,6 +55,8 @@ export default function Hero({
         selectedView={selectedView}
         onSelectView={onSelectView}
         availableViews={availableViews}
+        versionId={versionId}
+        onSelectVersion={onSelectVersion}
         actionLink={{ label: "Paper", href: "/paper", type: "internal" }}
       />
 
@@ -89,9 +104,26 @@ export default function Hero({
                 aria-hidden
                 className="h-1.5 w-1.5 rounded-full bg-primary/70"
               />
-              {SNAPSHOT_DATE_LABEL}
+              {snapshotChipLabel}
             </span>
           </div>
+
+          {isArchived && (
+            <p
+              role="note"
+              className="mt-4 flex max-w-xl items-start gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-xs leading-relaxed text-warning-text"
+            >
+              <span
+                aria-hidden
+                className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
+              />
+              <span>
+                You are viewing archived dataset v{versionId}, superseded by v
+                {DEFAULT_VERSION_ID}. Use the dataset selector to return to the
+                current data.
+              </span>
+            </p>
+          )}
         </div>
       </section>
     </>
