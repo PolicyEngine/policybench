@@ -144,9 +144,14 @@ OPEN_WEIGHT_EXPLANATION_CHUNK_SIZE = 3
 # explanation fields until the budget truncates the document mid-structure.
 # Probed 2026-07-05: at 1-3 variables per call both stop cleanly within
 # ~1,500 completion tokens.
+# Qwen3.7-max joined after its whole-scenario runs failed deterministically
+# on larger households: reasoning plus a 30-variable JSON document exceeds
+# the 300s timeout every attempt (42/100 scenarios completed across three
+# passes with zero marginal progress).
 CHUNKED_OPEN_WEIGHT_MODELS = (
     "openrouter/moonshotai/kimi-k2.6",
     "openrouter/z-ai/glm-5.2",
+    "openrouter/qwen/qwen3.7-max",
 )
 
 
@@ -478,7 +483,17 @@ def _completion_controls(
     }
 
 
+# Qwen3.7-max via Alibaba routinely needs more than 300s on the largest
+# households even at 3-variable chunks: six grind rounds (2026-07-06) left
+# the same ~36 scenarios timing out deterministically. Timeout is harness
+# infrastructure, not model configuration — the model still runs
+# unconfigured at its default reasoning effort.
+QWEN_REQUEST_TIMEOUT_SECONDS = 600
+
+
 def _request_timeout_seconds(model_id: str) -> int:
+    if model_id == "openrouter/qwen/qwen3.7-max":
+        return QWEN_REQUEST_TIMEOUT_SECONDS
     if model_id in REASONING_DEFAULT_OPEN_WEIGHT_MODELS:
         return THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS
     if model_id.startswith("gemini/"):
