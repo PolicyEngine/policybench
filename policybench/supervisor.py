@@ -24,6 +24,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -106,6 +107,9 @@ class Supervisor:
         )
         self._recent: list[ScenarioResult] = []
         self.projection_warning: str | None = None
+        self._credits_baseline = self._credits_usage()
+        self._credits_checked_at = float("-inf")
+        self._credits_spent = 0.0
 
     # -- setup -------------------------------------------------------------
 
@@ -134,6 +138,43 @@ class Supervisor:
         ]
 
     # -- budget ------------------------------------------------------------
+
+    # Cache-replayed responses carry their ORIGINAL recorded cost, so the
+    # disk sum double-counts money spent in earlier runs (observed on the
+    # supervisor's first production outing: $7.74 "spent" in a minute of
+    # free replays). When an OpenRouter key is present, the /credits delta
+    # from run start is the authoritative meter; the disk sum is the
+    # fallback for providers without a balance endpoint.
+    CREDITS_POLL_SECONDS = 20.0
+
+    def _credits_usage(self) -> float | None:
+        key = self.env.get("OPENROUTER_API_KEY")
+        if not key:
+            return None
+        request = urllib.request.Request(
+            "https://openrouter.ai/api/v1/credits",
+            headers={"Authorization": f"Bearer {key}"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                data = json.load(response)["data"]
+            return float(data["total_usage"])
+        except Exception:
+            return None
+
+    def _spent(self) -> float:
+        now = time.monotonic()
+        if (
+            self._credits_baseline is not None
+            and now - self._credits_checked_at >= self.CREDITS_POLL_SECONDS
+        ):
+            usage = self._credits_usage()
+            self._credits_checked_at = now
+            if usage is not None:
+                self._credits_spent = max(0.0, usage - self._credits_baseline)
+        if self._credits_baseline is not None:
+            return self._credits_spent
+        return self._spent_from_disk()
 
     def _spent_from_disk(self) -> float:
         total = 0.0
@@ -308,11 +349,11 @@ class Supervisor:
                         self.state.completed.append(result.scenario_id)
                     else:
                         self.state.failed[result.scenario_id] = rounds[index]
-                    self.state.spent_usd = self._spent_from_disk()
+                    self.state.spent_usd = self._spent()
                     self.write_heartbeat()
             if self.state.stopped_reason:
                 break
-        self.state.spent_usd = self._spent_from_disk()
+        self.state.spent_usd = self._spent()
         remaining = self.pending_indices()
         if remaining and not self.state.stopped_reason:
             self.state.stopped_reason = (
