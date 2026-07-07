@@ -19,6 +19,10 @@ ruff format .             # Format
 - `policybench/ground_truth.py` — PE-US calculations
 - `policybench/prompts.py` — Natural language prompt templates
 - `policybench/eval_no_tools.py` — LiteLLM-based AI-alone benchmark
+- `policybench/model_cards.py` — Per-model serving treatments (contracts, chunking, timeouts)
+- `policybench/supervisor.py` — Supervised runs: scenario work queue, budget governor (`policybench run`)
+- `policybench/onboard.py` — New-model probe gauntlet (`policybench onboard`)
+- `policybench/fold_board.py` — Fold new models into a staged board (`policybench fold-board`)
 - `policybench/analysis.py` — Metrics and reporting
 
 ## Testing

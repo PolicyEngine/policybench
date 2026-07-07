@@ -870,6 +870,67 @@ def main():
         help="Validate and write the pointer without uploading",
     )
 
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Supervised benchmark run: per-scenario work queue, adaptive "
+        "concurrency, budget governor, heartbeat state file, resumable",
+    )
+    run_parser.add_argument("--model", required=True, help="Model key from config")
+    run_parser.add_argument("--scenario-manifest", required=True)
+    run_parser.add_argument("--run-dir", required=True)
+    run_parser.add_argument(
+        "--budget-usd",
+        type=float,
+        default=None,
+        help="Stop dispatching at 90%% of this spend; omit for no cap",
+    )
+    run_parser.add_argument("--max-workers", type=int, default=4)
+    run_parser.add_argument(
+        "--max-rounds",
+        type=int,
+        default=4,
+        help="Retry rounds for scenarios that fail or time out",
+    )
+
+    onboard_parser = subparsers.add_parser(
+        "onboard",
+        help="Probe a new model's serving stack (contracts, chunking, "
+        "latency) and print a suggested ModelCard",
+    )
+    onboard_parser.add_argument(
+        "--model-id", required=True, help="Full litellm id, e.g. openrouter/x/y"
+    )
+    onboard_parser.add_argument("--scenario-manifest", required=True)
+    onboard_parser.add_argument(
+        "--report-output", default=None, help="Optional path for the report"
+    )
+
+    fold_parser = subparsers.add_parser(
+        "fold-board",
+        help="Fold new model prediction CSVs into an existing board and "
+        "stage the export for review",
+    )
+    fold_parser.add_argument(
+        "--base", required=True, help="Current board's combined predictions.csv"
+    )
+    fold_parser.add_argument(
+        "--add",
+        action="append",
+        required=True,
+        help="Predictions CSV for one new model (repeatable)",
+    )
+    fold_parser.add_argument(
+        "--scoring-source",
+        required=True,
+        help="Directory holding reference_outputs.csv and scenarios.csv",
+    )
+    fold_parser.add_argument("--out", required=True, help="Staging directory")
+    fold_parser.add_argument(
+        "--no-export",
+        action="store_true",
+        help="Skip the country export (combine and gate only)",
+    )
+
     args = parser.parse_args()
 
     # Enable disk cache for ordinary eval calls. Contract-failure retry/repair
@@ -978,6 +1039,61 @@ def main():
                 f"{args.split_seed}). Keep *-private files out of public "
                 "artifacts."
             )
+
+    elif args.command == "run":
+        from policybench.supervisor import Supervisor
+
+        supervisor = Supervisor(
+            model=args.model,
+            manifest=Path(args.scenario_manifest),
+            run_dir=Path(args.run_dir),
+            budget_usd=args.budget_usd,
+            max_workers=args.max_workers,
+            max_rounds=args.max_rounds,
+        )
+        state = supervisor.run()
+        print(
+            f"{state.model}: {len(state.completed)}/{state.total} scenarios, "
+            f"${state.spent_usd:.2f} spent"
+        )
+        if supervisor.projection_warning:
+            print(f"WARNING: {supervisor.projection_warning}")
+        if state.stopped_reason:
+            print(f"STOPPED: {state.stopped_reason}")
+            raise SystemExit(1)
+
+    elif args.command == "onboard":
+        from policybench.config import PROGRAMS
+        from policybench.onboard import format_report, run_gauntlet
+        from policybench.scenarios import load_scenarios_from_manifest
+        from policybench.spec import expand_programs_for_scenario
+
+        scenarios = load_scenarios_from_manifest(args.scenario_manifest)
+        scenario = scenarios[0]
+        variables = expand_programs_for_scenario(list(PROGRAMS), scenario)
+        report = run_gauntlet(args.model_id, scenario, variables)
+        text = format_report(report)
+        print(text)
+        if args.report_output:
+            Path(args.report_output).write_text(text)
+
+    elif args.command == "fold-board":
+        from policybench.fold_board import fold_board
+
+        result = fold_board(
+            base_predictions=Path(args.base),
+            additions=[Path(p) for p in args.add],
+            scoring_source=Path(args.scoring_source),
+            out_dir=Path(args.out),
+            export=not args.no_export,
+        )
+        for name in result["folded"]:
+            print(f"folded: {name}")
+        for name, reason in result["excluded"].items():
+            print(f"EXCLUDED {name}: {reason}")
+        print(f"board: {result['models']} models, {result['rows']} rows")
+        if result["summary"] is not None:
+            print(result["summary"].to_string(index=False))
 
     elif args.command == "eval-no-tools":
         from policybench.eval_no_tools import (
