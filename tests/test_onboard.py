@@ -8,14 +8,21 @@ from unittest.mock import patch
 import pytest
 
 from policybench.onboard import format_report, run_gauntlet
-from policybench.scenarios import generate_scenarios
+from policybench.scenarios import Person, Scenario
 
 FULL_VARS = [f"var_{i}" for i in range(16)]
 
 
 @pytest.fixture(scope="module")
 def scenario():
-    return generate_scenarios(n=1, seed=0)[0]
+    # Synthetic scenario: generate_scenarios() loads the certified populace
+    # frame, which is far too heavy for CI runners.
+    return Scenario(
+        id="scenario_000",
+        state="CA",
+        filing_status="SINGLE",
+        adults=[Person(name="adult_1", age=35, employment_income=30_000.0)],
+    )
 
 
 def fake_response(
