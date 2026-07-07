@@ -303,6 +303,7 @@ def _prompt(
     reference_value: float,
     year: int,
     trace_text: str,
+    grounding: str = "",
 ) -> str:
     intro = (
         "You are summarizing how PolicyEngine derived a tax/benefit value "
@@ -315,6 +316,13 @@ def _prompt(
         "about model performance; just describe the derivation. Plain prose, "
         "no headers, no bullet lists."
     )
+    grounding_block = ""
+    if grounding:
+        grounding_block = (
+            "\nAUTHORITATIVE ENGINE FACTS (the narrative MUST agree with "
+            "these; never attribute the result to any other mechanism):\n"
+            f"{grounding}\n"
+        )
     return f"""{intro}
 
 VARIABLE: {variable} (PolicyEngine variable: {pe_variable})
@@ -322,7 +330,7 @@ COUNTRY: {country.upper()}
 TAX YEAR: {year}
 HOUSEHOLD: {scenario_summary}
 REFERENCE VALUE: {reference_value}
-
+{grounding_block}
 PolicyEngine computation trace (indented dependency tree, non-zero nodes only):
 ```
 {trace_text}
@@ -369,6 +377,7 @@ async def _generate_one(
     reference_value: float,
     year: int,
     trace_text: str,
+    grounding: str = "",
 ) -> dict | None:
     async with semaphore:
         prompt = _prompt(
@@ -379,6 +388,7 @@ async def _generate_one(
             reference_value,
             year,
             trace_text,
+            grounding=grounding,
         )
         try:
             response = await litellm.acompletion(
@@ -457,6 +467,7 @@ async def _run_batch(
                 reference_value=payload["reference_value"],
                 year=year,
                 trace_text=payload["trace_text"],
+                grounding=payload.get("grounding", ""),
             )
         )
     results = []
@@ -476,6 +487,7 @@ def generate_country_explanations(
     annotations_dir: Path | None = None,
     concurrency: int = DEFAULT_CONCURRENCY,
     limit: int | None = None,
+    grounding_lookup: dict[tuple[str, str], str] | None = None,
 ) -> Path:
     """Generate reference explanations for a country's cases.
 
@@ -574,6 +586,9 @@ def generate_country_explanations(
                         "pe_variable": pe_variable,
                         "reference_value": payload["reference_value"],
                         "trace_text": traces.get(pe_variable, "[trace unavailable]"),
+                        "grounding": (grounding_lookup or {}).get(
+                            (key.scenario_id, key.variable), ""
+                        ),
                     },
                 )
             )
