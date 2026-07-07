@@ -63,6 +63,7 @@ MODEL_CARDS: dict[str, ModelCard] = {
         litellm_id="openrouter/moonshotai/kimi-k2.6",
         answer_contract="json",
         explanation_chunk_size=3,
+        request_timeout_seconds=600,
         thinking_budget=True,
         expected_cost_per_scenario_usd=0.396,
         notes=(

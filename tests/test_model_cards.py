@@ -35,7 +35,7 @@ EXPECTED = {
     "xai/grok-build-0.1": ("tool", None, 420, 4_096),
     "deepseek/deepseek-v4-pro": ("json", None, 300, 16_384),
     "deepseek/deepseek-v4-flash": ("json", None, 300, 16_384),
-    "openrouter/moonshotai/kimi-k2.6": ("json", 3, 300, 16_384),
+    "openrouter/moonshotai/kimi-k2.6": ("json", 3, 600, 16_384),
     "openrouter/z-ai/glm-5.2": ("json", 3, 300, 16_384),
     "openrouter/minimax/minimax-m3": ("tool", None, 300, 16_384),
     "openrouter/qwen/qwen3.7-max": ("json", 3, 600, 16_384),
