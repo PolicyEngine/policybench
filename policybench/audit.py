@@ -20,6 +20,7 @@ LLM step is the only non-deterministic link and is fully resumable.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -63,6 +64,7 @@ class AuditCase:
     reference_derivation: str
     question: str
     wrong_models: tuple[WrongModel, ...]
+    grounding: str = ""
 
     def to_manifest_row(self) -> dict:
         row = asdict(self)
@@ -81,8 +83,16 @@ def _case_id(country: str, scenario_id: str, variable: str) -> str:
     return "".join(c if (c.isalnum() or c in "._-") else "-" for c in safe)
 
 
-def build_audit_cases(country_dir: Path) -> list[AuditCase]:
-    """Assemble one :class:`AuditCase` per wrong ``(scenario_id, variable)``."""
+def build_audit_cases(
+    country_dir: Path,
+    grounding_lookup: dict[tuple[str, str], str] | None = None,
+) -> list[AuditCase]:
+    """Assemble one :class:`AuditCase` per wrong ``(scenario_id, variable)``.
+
+    ``grounding_lookup`` optionally maps ``(scenario_id, variable)`` to a block
+    of authoritative engine facts (e.g. the Medicaid eligibility category from
+    the reference trace) rendered into the case prompt.
+    """
     country = country_dir.name
     wrong = wrong_prediction_rows(country_dir)
     if wrong.empty:
@@ -133,6 +143,9 @@ def build_audit_cases(country_dir: Path) -> list[AuditCase]:
                 ),
                 question=questions.get((str(scenario_id), str(variable)), ""),
                 wrong_models=wrong_models,
+                grounding=(grounding_lookup or {}).get(
+                    (str(scenario_id), str(variable)), ""
+                ),
             )
         )
     return cases
@@ -201,7 +214,12 @@ AUDIT_OUTPUT_SCHEMA: dict = {
         },
         "rationale": {
             "type": "string",
-            "description": "2-4 sentence explanation of the classification.",
+            "description": (
+                "2-4 sentences on the shared trap: the specific rule or "
+                "computation step that separates the reference from the wrong "
+                "answers in this case. Definitive voice; never discuss "
+                "whether the reference is correct here."
+            ),
         },
         "models": {
             "type": "array",
@@ -218,8 +236,25 @@ AUDIT_OUTPUT_SCHEMA: dict = {
                         "type": "string",
                         "enum": list(FAILURE_SUBTYPE_VALUES),
                     },
+                    "diagnosis": {
+                        "type": "string",
+                        "description": (
+                            "1-3 definitive sentences: the exact rule, "
+                            "eligibility pathway, deduction, threshold, or "
+                            "computation step THIS model missed or "
+                            "misapplied, grounded in its own stated "
+                            "reasoning (or, absent reasoning, in what its "
+                            "answer implies it computed). No hedging; never "
+                            "discuss whether the reference is correct."
+                        ),
+                    },
                 },
-                "required": ["model", "failure_source", "failure_subtype"],
+                "required": [
+                    "model",
+                    "failure_source",
+                    "failure_subtype",
+                    "diagnosis",
+                ],
             },
         },
     },
@@ -234,30 +269,54 @@ AUDIT_OUTPUT_SCHEMA: dict = {
 }
 
 _PROMPT_HEADER = """\
-You are auditing why AI models missed a PolicyEngine reference value on a \
+You are diagnosing why AI models missed a PolicyEngine reference value on a \
 US/UK tax-and-benefit estimation benchmark. The models answered from \
 parametric knowledge with no tools; PolicyEngine's microsimulation is the \
-reference. Classify the failure for this one case.
+reference.
 
-Decide, conservatively:
-1. Is the PolicyEngine REFERENCE itself likely wrong (a model/data bug worth \
-filing upstream)? Set reference_suspect=true ONLY with concrete evidence \
-(e.g. the reference contradicts the stated rules, or every model agrees on a \
-value that is clearly correct against the law). Default to false — the models \
-are usually the ones in error.
-2. Otherwise, classify each model's miss into a failure_subtype, and give the \
-case a primary failure_source/subtype.
+The reference value and its derivation are generated directly from the \
+engine's computation trace, and the reference pipeline has survived an \
+adversarial review program: every wrong-reference hypothesis raised by \
+earlier audits was adjudicated against primary sources, and the few real \
+bugs found were fixed before this run. Treat the reference and its \
+derivation as correct. Your job is NOT to re-litigate the reference — it is \
+to explain each model's mistake decisively.
+
+For every wrong model, write a `diagnosis`: 1-3 definitive sentences naming \
+the exact rule, eligibility pathway, deduction, threshold, or computation \
+step that model missed or misapplied, grounded in its own stated reasoning. \
+Be specific — "treated the 138% FPL MAGI limit as the only Medicaid pathway \
+and never applied the aged/disabled income test, which deducts the Medicare \
+Part B premium from countable income" — not generic ("got the income \
+calculation wrong"). If the model gave no usable reasoning, derive the \
+mistake from its answer: state what the correct derivation yields and what \
+shortcut the model's number is consistent with.
+
+Hedging is forbidden in `diagnosis` and `rationale`, and these phrasings \
+are mechanically rejected: "plausible"; "not enough evidence"; \
+"insufficient evidence/information"; "cannot/unable to \
+determine/verify/confirm/tell"; "difficult/hard to verify"; "may be/have"; \
+"might be/have"; "possibly"; "perhaps"; "unclear"; "the reference \
+is/appears/seems correct" or any other verdict on the reference. Write \
+definitively around them (e.g. "excess shelter costs are deductible", not \
+"may be deducted"). Doubt \
+about the reference belongs ONLY in reference_suspect + \
+reference_bug_hypothesis, and requires a concrete contradiction: the \
+derivation conflicts with a specific statute, regulation, or published \
+parameter you can name, or contradicts its own arithmetic. Absent that, set \
+reference_suspect=false and diagnose from the reference as ground truth.
 
 failure_source meanings:
 - llm_error: the model reasoned or computed incorrectly (the usual case).
 - prompt_ambiguity: the question is genuinely ambiguous; a careful expert \
-could read it more than one way.
+could read it more than one way. Name the two readings.
 - reference_model_issue_fixed / reference_data_issue_fixed: the reference \
 value looks wrong (PolicyEngine logic / underlying data). Use with \
-reference_suspect=true.
+reference_suspect=true and a concrete contradiction.
 - parse_contract_failure: the model's answer was missing or unparseable, not a \
 substantive error.
-- needs_review: genuinely cannot tell.
+- needs_review: genuinely cannot tell; name precisely what information is \
+missing.
 
 Output ONLY the JSON verdict matching the schema. Do not run any commands; all \
 information you need is below.
@@ -274,7 +333,13 @@ def render_case_prompt(case: AuditCase) -> str:
     ]
     if case.reference_derivation:
         lines.append(
-            f"\nHOW POLICYENGINE DERIVED THE REFERENCE:\n{case.reference_derivation}"
+            "\nHOW POLICYENGINE DERIVED THE REFERENCE (generated from the "
+            f"engine's computation trace):\n{case.reference_derivation}"
+        )
+    if case.grounding:
+        lines.append(
+            "\nAUTHORITATIVE ENGINE FACTS (from the reference trace; every "
+            f"diagnosis must agree with these):\n{case.grounding}"
         )
     if case.question:
         lines.append(f"\nQUESTION SHOWN TO THE MODELS:\n{case.question}")
@@ -290,7 +355,11 @@ def render_case_prompt(case: AuditCase) -> str:
     return "\n".join(lines)
 
 
-def prepare_audit(country_dir: Path, audit_dir: Path) -> list[AuditCase]:
+def prepare_audit(
+    country_dir: Path,
+    audit_dir: Path,
+    grounding_lookup: dict[tuple[str, str], str] | None = None,
+) -> list[AuditCase]:
     """Write per-case prompts, the shared output schema, and a manifest.
 
     Layout under ``audit_dir``::
@@ -300,7 +369,7 @@ def prepare_audit(country_dir: Path, audit_dir: Path) -> list[AuditCase]:
         cases/<case_id>/prompt.md
         cases/<case_id>/verdict.json   (written later by the runner)
     """
-    cases = build_audit_cases(country_dir)
+    cases = build_audit_cases(country_dir, grounding_lookup=grounding_lookup)
     audit_dir.mkdir(parents=True, exist_ok=True)
     (audit_dir / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA, indent=2))
     cases_root = audit_dir / "cases"
@@ -340,6 +409,39 @@ def prepare_audit(country_dir: Path, audit_dir: Path) -> list[AuditCase]:
                 verdict_path.unlink()
             prompt_path.write_text(new_prompt)
     return cases
+
+
+# --- Hedge detection -----------------------------------------------------------
+
+# Published diagnoses must be definitive. These patterns catch the judge
+# re-adjudicating the reference ("plausible", "not enough evidence") or
+# hedging its own diagnosis — both mean the verdict answered the wrong
+# question and must be re-judged, not shipped.
+HEDGE_PATTERNS = (
+    r"\bplausible\b",
+    r"not enough (?:concrete )?evidence",
+    r"insufficient (?:evidence|information)",
+    r"\bcannot\s+(?:be\s+)?(?:determine|verify|confirm|rule|tell)",
+    r"\bunable to (?:determine|verify|confirm|tell)",
+    r"difficult to (?:verify|confirm|determine)",
+    r"hard to (?:say|tell|verify)",
+    r"reference (?:is|looks|seems|appears) "
+    r"(?:plausible|correct|right|reasonable|accurate|sound|likely|fine)",
+    r"call the .{0,60}reference wrong",
+    r"treat the .{0,60}reference as",
+    r"\bmay (?:be|have)\b",
+    r"\bmight (?:be|have)\b",
+    r"\bpossibly\b",
+    r"\bperhaps\b",
+    r"\bunclear\b",
+)
+
+_HEDGE_RE = re.compile("|".join(HEDGE_PATTERNS), re.IGNORECASE)
+
+
+def is_hedged(text: object) -> bool:
+    """True when annotation text hedges instead of diagnosing."""
+    return bool(_HEDGE_RE.search(str(text or "")))
 
 
 # --- Verdict collection ------------------------------------------------------
@@ -395,10 +497,14 @@ def _row_failure_source(meta: dict, model: str, requested_source: str) -> str:
 def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]:
     """Fold verdicts into the annotation schema.
 
-    Returns ``{"row": ..., "case": ..., "missing": ...}``. ``row`` and ``case``
-    match the committed annotation CSV columns, extended with ``rationale`` and
-    ``reference_suspect`` so the classifier's reasoning is preserved. ``missing``
-    lists cases whose verdict has not yet been produced (resumability).
+    Returns ``{"row": ..., "case": ..., "missing": ..., "hedged": ...}``.
+    ``row`` and ``case`` match the committed annotation CSV columns, extended
+    with ``rationale`` and ``reference_suspect`` so the classifier's reasoning
+    is preserved. ``missing`` lists cases whose verdict has not yet been
+    produced (resumability). ``hedged`` lists case ids whose diagnosis or
+    rationale hedges instead of diagnosing (see :data:`HEDGE_PATTERNS`) —
+    delete those ``verdict.json`` files and re-run the classifier rather than
+    shipping them.
     """
     manifest = _load_manifest(audit_dir)
     cases_root = audit_dir / "cases"
@@ -407,6 +513,7 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
     row_records: list[dict] = []
     case_records: list[dict] = []
     missing: list[str] = []
+    hedged: list[str] = []
 
     for case_id, meta in manifest.items():
         if meta.get("parse_failure_only"):
@@ -451,8 +558,14 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
         per_model = {
             str(m["model"]): m for m in verdict.get("models", []) if m.get("model")
         }
+        case_hedged = is_hedged(rationale)
         for model in meta["wrong_models"]:
             entry = per_model.get(model, {})
+            # The published per-model annotation is the model-specific
+            # diagnosis; the case rationale is only a fallback for verdicts
+            # predating the diagnosis field.
+            diagnosis = str(entry.get("diagnosis", "")).strip() or rationale
+            case_hedged = case_hedged or is_hedged(diagnosis)
             row_records.append(
                 {
                     "country": country,
@@ -468,9 +581,11 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
                         entry.get("failure_subtype", case_subtype)
                     ),
                     "reference_suspect": reference_suspect,
-                    "annotation": rationale,
+                    "annotation": diagnosis,
                 }
             )
+        if case_hedged:
+            hedged.append(case_id)
         case_records.append(
             {
                 "country": country,
@@ -512,4 +627,5 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
         "row": pd.DataFrame(row_records, columns=row_columns),
         "case": pd.DataFrame(case_records, columns=case_columns),
         "missing": pd.DataFrame({"case_id": missing}, columns=["case_id"]),
+        "hedged": pd.DataFrame({"case_id": hedged}, columns=["case_id"]),
     }
