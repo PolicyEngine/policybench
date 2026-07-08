@@ -20,9 +20,9 @@
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 57460867,
-    "derivation": "PolicyBench dataset v1.1, updated with five open-weight models. Adds deepseek-v4-pro, minimax-m3, qwen-3.7-max, glm-5.2, and kimi-k2.6 (1,984 rows each, 100 scenarios, scored against the v1.1 corrected references) to the dashboard-data-20260705 board. All 15 incumbent models' modelStats entries and all 29,760 incumbent scenarioPrediction leaves are byte-identical to dashboard-data-20260705; globalWeights are unchanged (population_weights.json, sha256 0b3b96b8...). programStats and failureModes are cross-model pools and change by addition. Serving treatments per model documented in policybench/model_cards.py: json answer contract for the DeepSeek/Kimi/GLM/Qwen stacks (Moonshot and Alibaba reject forced tool_choice in thinking mode), 3-variable chunking for Kimi/GLM/Qwen, 600s timeouts for Qwen/Kimi. All five run unconfigured at provider-default reasoning effort. The attached predictions.csv.gz carries all 20 models.",
-    "notes": "Same dataset version (v1.1): adding models leaves every incumbent's numbers unchanged, so no new selector version; versions change only when existing numbers change (references, weights, model config). claude-fable-5 usage fields remain artifact-level values. Codex failure-audit annotations for the five new models are merged into annotations/ (issue #107 tracks 14 reference-suspect cases).",
+    "bytes": 57597347,
+    "derivation": "PolicyBench dataset v1.1, 20-model board (dashboard-data-20260707) with corrected reference-derivation narratives only. 177 Medicaid narratives are regenerated with the engine's eligibility category injected as authoritative grounding (29 had described 65+ people via the ACA adult expansion), and 3 narratives that still described pre-v1.1 reference values (scenario_008/scenario_100 Head Start, scenario_056 NJ state tax) are regenerated against the current engine. Every score, prediction leaf, modelStats entry, and globalWeights value is byte-identical to dashboard-data-20260707; the only changed payload fields are referenceExplanation (180 cells x 20 model leaves). Generator grounding mechanism and regenerated annotations landed in PR #110; the #107 audit adjudicated all 14 reference-suspect flags with zero real reference bugs.",
+    "notes": "Narrative-correction republish (same pattern as dashboard-data-20260702b): dataset version unchanged (v1.1), no selector changes. claude-fable-5 usage fields remain artifact-level values.",
     "population_weights": {
       "sha256": "0b3b96b8247477631510371b9c3b021a18a535e8ebbf8c73a8aa67cff3110cd4",
       "source": "committed June artifact policybench/population_weights.json (unchanged)"
@@ -32,9 +32,9 @@
       "policyengine_us_version": "1.755.4",
       "policyengine_version": "4.16.1"
     },
-    "sha256": "2a4d0c7be63ea75969a63037c1dc1265d08119db16964c40c1b2addf23b29eb8",
-    "tag": "dashboard-data-20260707",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260707/dashboard-data.json"
+    "sha256": "a9b8bee0802ed9446e8c6a1d954afbe0ddbe478803b9041da8cfa2f0f382f43d",
+    "tag": "dashboard-data-20260707b",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260707b/dashboard-data.json"
   },
   "live_dashboard_note": "Two artifacts are tracked. published_dashboard_artifact pins the manuscript's frozen record: it equals the combined export of the source run data.json files listed under source_run_artifacts, byte for byte. live_dashboard_artifact is the release asset the committed pointer app/src/data.artifact.json references; it starts from the frozen export and may gain additive updates (injected metrics, newly benchmarked models) without changing the frozen models' scores. Every publish-dashboard run must update live_dashboard_artifact (tag, sha256, bytes, derivation) in the same commit as the pointer.",
   "model_response_date": "2026-06-12 to 2026-06-13",
