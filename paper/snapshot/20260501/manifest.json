@@ -20,8 +20,8 @@
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 57737111,
-    "derivation": "PolicyBench dataset v1.1, 20-model board with the unified failure-audit annotations. Every wrong cell across all 20 models is Codex-judged in one coherent pass against the corrected reference-derivation narratives (889 cases, 636 substantive verdicts, 5,351 row annotations) \u2014 replacing the patchwork of June and per-batch audits, covering GPT-5.5's default-effort rerun for the first time, and retiring annotations that quoted the pre-correction narratives. Every score, prediction leaf, modelStats entry, and globalWeights value is byte-identical to dashboard-data-20260707b; the only changed payload fields are the annotation classes (annotation, failureSource, failureSubtype, caseAnnotation, caseFailureSources, caseFailureSubtypes).",
+    "bytes": 56950706,
+    "derivation": "Re-judged failure audit with decisive per-model diagnoses (PR #114): judge schema gained a required per-model diagnosis, the prompt treats the trace-generated reference as verified and mechanically rejects hedging, and case prompts carry authoritative engine facts (654 grounding blocks: medicaid, CHIP, school meals, SSI). 477 CHIP/school-meal/SSI reference narratives regenerated grounded after a mechanism-required validator found 74 June narratives fabricating mechanisms. 636 substantive cases re-judged (0 hedged, 0 reference-suspect); 5,351 row annotations. Scores unchanged: modelStats and globalWeights byte-identical to dashboard-data-20260707c; only annotation, referenceExplanation, and judged failure-class leaf fields changed.",
     "notes": "Annotation republish (pattern of 20260702b/20260707b): dataset version unchanged (v1.1), no selector changes. claude-fable-5 usage fields remain artifact-level values. Fresh audit flags 10 reference-suspect cases; 5 were previously adjudicated reference-correct (#107), 5 new are under adjudication.",
     "population_weights": {
       "sha256": "0b3b96b8247477631510371b9c3b021a18a535e8ebbf8c73a8aa67cff3110cd4",
@@ -32,9 +32,9 @@
       "policyengine_us_version": "1.755.4",
       "policyengine_version": "4.16.1"
     },
-    "sha256": "0860f8ebab3853441ee91c7283dc465434e52e9c2266975af7d58baa712d7f0a",
-    "tag": "dashboard-data-20260707c",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260707c/dashboard-data.json"
+    "sha256": "d95e19a2f461f78367629bb75fdc0ad1771d0eab6d70550afbd2cf8dddabbf53",
+    "tag": "dashboard-data-20260708",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260708/dashboard-data.json"
   },
   "live_dashboard_note": "Two artifacts are tracked. published_dashboard_artifact pins the manuscript's frozen record: it equals the combined export of the source run data.json files listed under source_run_artifacts, byte for byte. live_dashboard_artifact is the release asset the committed pointer app/src/data.artifact.json references; it starts from the frozen export and may gain additive updates (injected metrics, newly benchmarked models) without changing the frozen models' scores. Every publish-dashboard run must update live_dashboard_artifact (tag, sha256, bytes, derivation) in the same commit as the pointer.",
   "model_response_date": "2026-06-12 to 2026-06-13",
