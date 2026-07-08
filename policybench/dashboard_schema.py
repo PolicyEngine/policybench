@@ -53,8 +53,18 @@ def _is_finite_number(value: Any) -> bool:
     return _is_number(value) and math.isfinite(value)
 
 
-def validate_country_payload(bench: Any, *, country: str | None = None) -> list[str]:
-    """Validate one country's bench payload. Returns a list of errors."""
+def validate_country_payload(
+    bench: Any,
+    *,
+    country: str | None = None,
+    require_failure_annotations: bool = False,
+) -> list[str]:
+    """Validate one country's bench payload. Returns a list of errors.
+
+    ``require_failure_annotations`` additionally requires every wrong answer
+    (thresholdScore < 100) to carry a judged ``failureSource``. Publishing
+    enforces it; staged exports that precede the failure audit do not.
+    """
     if not isinstance(bench, dict):
         return [f"bench payload must be an object, got {type(bench).__name__}"]
 
@@ -171,6 +181,24 @@ def validate_country_payload(bench: Any, *, country: str | None = None) -> list[
                             f"{variable}.{model}: groundTruth must be a finite "
                             f"number, got {record['groundTruth']!r}"
                         )
+                    # Every wrong answer must carry a judged failure
+                    # annotation. GPT-5.5's default-effort rerun shipped
+                    # unannotated because nothing asserted coverage — the
+                    # publish gate now fails instead of shipping unexplained
+                    # misses. "Wrong" matches the failure audit's own
+                    # definition: thresholdScore below 100.
+                    threshold = record.get("thresholdScore")
+                    if (
+                        require_failure_annotations
+                        and _is_finite_number(threshold)
+                        and float(threshold) < 100
+                        and not record.get("failureSource")
+                    ):
+                        errors.append(
+                            f"{prefix}.scenarioPredictions.{scenario_id}."
+                            f"{variable}.{model}: wrong answer has no judged "
+                            f"failureSource annotation"
+                        )
 
     failure_modes = bench.get("failureModes")
     if not isinstance(failure_modes, dict) or not {
@@ -184,7 +212,9 @@ def validate_country_payload(bench: Any, *, country: str | None = None) -> list[
     return errors
 
 
-def validate_dashboard_payload(payload: Any) -> list[str]:
+def validate_dashboard_payload(
+    payload: Any, *, require_failure_annotations: bool = False
+) -> list[str]:
     """Validate the combined app payload. Returns a list of errors."""
     if not isinstance(payload, dict):
         return [f"payload must be an object, got {type(payload).__name__}"]
@@ -213,13 +243,26 @@ def validate_dashboard_payload(payload: Any) -> list[str]:
 
     for country, bench in countries.items():
         if country in COUNTRY_CODES:
-            errors.extend(validate_country_payload(bench, country=country))
+            errors.extend(
+                validate_country_payload(
+                    bench,
+                    country=country,
+                    require_failure_annotations=require_failure_annotations,
+                )
+            )
 
     return errors
 
 
-def assert_valid_dashboard_payload(payload: Any, *, source: str = "payload") -> None:
-    errors = validate_dashboard_payload(payload)
+def assert_valid_dashboard_payload(
+    payload: Any,
+    *,
+    source: str = "payload",
+    require_failure_annotations: bool = False,
+) -> None:
+    errors = validate_dashboard_payload(
+        payload, require_failure_annotations=require_failure_annotations
+    )
     if errors:
         raise DashboardValidationError(source, errors)
 

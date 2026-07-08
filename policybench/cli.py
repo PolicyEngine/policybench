@@ -1414,7 +1414,9 @@ def main():
             payload = json_module.loads(payload_path.read_text(encoding="utf-8"))
         except json_module.JSONDecodeError as exc:
             raise SystemExit(f"{payload_path} is not valid JSON: {exc}") from exc
-        errors = validate_dashboard_payload(payload)
+        # The CLI check is the pre-publish gate, so it matches
+        # publish-dashboard strictness: wrong answers need judge annotations.
+        errors = validate_dashboard_payload(payload, require_failure_annotations=True)
         if errors:
             for error in errors:
                 print(f"ERROR: {error}")
