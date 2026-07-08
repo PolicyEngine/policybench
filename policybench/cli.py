@@ -546,6 +546,12 @@ def main():
         required=True,
         help="Output directory for case prompts, schema, and manifest",
     )
+    audit_prepare_parser.add_argument(
+        "--grounding-csv",
+        default=None,
+        help="Optional CSV (scenario_id, variable, grounding) of authoritative "
+        "engine facts rendered into matching case prompts",
+    )
 
     audit_collect_parser = subparsers.add_parser(
         "audit-collect",
@@ -557,6 +563,12 @@ def main():
         "--output-dir",
         default=None,
         help="Where to write annotation CSVs (default: the audit directory)",
+    )
+    audit_collect_parser.add_argument(
+        "--allow-hedged",
+        action="store_true",
+        help="Write CSVs even when some verdicts hedge instead of diagnosing "
+        "(default: refuse and list the hedged cases for re-judging)",
     )
 
     # Population weights
@@ -1215,7 +1227,21 @@ def main():
     elif args.command == "audit-prepare":
         from policybench.audit import prepare_audit
 
-        cases = prepare_audit(Path(args.country_dir), Path(args.audit_dir))
+        grounding_lookup = None
+        if args.grounding_csv:
+            import pandas as pd_module
+
+            grounding_df = pd_module.read_csv(args.grounding_csv)
+            grounding_lookup = {
+                (str(row.scenario_id), str(row.variable)): str(row.grounding)
+                for row in grounding_df.itertuples()
+                if str(row.grounding).strip()
+            }
+        cases = prepare_audit(
+            Path(args.country_dir),
+            Path(args.audit_dir),
+            grounding_lookup=grounding_lookup,
+        )
         print(
             f"Prepared {len(cases)} audit cases under {args.audit_dir}. "
             f"Run scripts/run_audit_codex.sh {args.audit_dir} to classify."
@@ -1226,6 +1252,15 @@ def main():
 
         country_dir = Path(args.country_dir)
         out = collect_audit(country_dir, Path(args.audit_dir))
+        hedged = out["hedged"]
+        if not hedged.empty and not args.allow_hedged:
+            for case_id in hedged["case_id"]:
+                print(f"HEDGED: {case_id}")
+            raise SystemExit(
+                f"{len(hedged)} verdicts hedge instead of diagnosing; delete "
+                f"their cases/<id>/verdict.json and re-run the classifier, or "
+                f"pass --allow-hedged to write anyway"
+            )
         output_dir = Path(args.output_dir) if args.output_dir else Path(args.audit_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         country = country_dir.name
@@ -1244,6 +1279,7 @@ def main():
         print(
             f"Collected {len(out['row'])} row / {len(out['case'])} case annotations "
             f"to {output_dir}; {len(out['missing'])} cases missing verdicts; "
+            f"{len(out['hedged'])} hedged; "
             f"{n_suspect} cases flag the PolicyEngine reference as suspect."
         )
 

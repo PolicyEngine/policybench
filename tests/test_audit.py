@@ -16,6 +16,7 @@ from policybench.audit import (
     AUDIT_OUTPUT_SCHEMA,
     build_audit_cases,
     collect_audit,
+    is_hedged,
     parse_verdict,
     prepare_audit,
     render_case_prompt,
@@ -525,3 +526,119 @@ def test_parse_verdict_survives_brace_in_leading_prose(tmp_path: Path):
     parsed = parse_verdict(f)
     assert parsed is not None
     assert parsed["case_failure_source"] == "llm_error"
+
+
+def make_verdict(m1_diagnosis: str, m2_diagnosis: str, rationale: str) -> dict:
+    return {
+        "reference_suspect": False,
+        "reference_bug_hypothesis": "",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "categorical_eligibility",
+        "rationale": rationale,
+        "models": [
+            {
+                "model": "m1",
+                "failure_source": "llm_error",
+                "failure_subtype": "thresholds_rates",
+                "diagnosis": m1_diagnosis,
+            },
+            {
+                "model": "m2",
+                "failure_source": "llm_error",
+                "failure_subtype": "categorical_eligibility",
+                "diagnosis": m2_diagnosis,
+            },
+        ],
+    }
+
+
+def test_collect_uses_per_model_diagnosis_for_row_annotation(
+    country_dir: Path, tmp_path: Path
+):
+    audit_dir = tmp_path / "audit"
+    cases = prepare_audit(country_dir, audit_dir)
+    s0 = next(c for c in cases if c.scenario_id == "s0")
+    verdict = make_verdict(
+        "Applied the net-income allotment formula without the earned income "
+        "deduction, overstating the benefit by $250.",
+        "Applied the 130% FPL gross income test to a household that is "
+        "categorically eligible under BBCE, concluding ineligibility.",
+        "Both models skipped the categorical-eligibility screen that "
+        "controls this household's SNAP outcome.",
+    )
+    (audit_dir / "cases" / s0.case_id / "verdict.json").write_text(json.dumps(verdict))
+
+    out = collect_audit(country_dir, audit_dir)
+    rows = out["row"]
+    m1 = rows[rows["model"] == "m1"].iloc[0]
+    m2 = rows[rows["model"] == "m2"].iloc[0]
+    assert m1["annotation"].startswith("Applied the net-income allotment")
+    assert m2["annotation"].startswith("Applied the 130% FPL gross income test")
+    assert out["case"].iloc[0]["case_annotation"].startswith("Both models skipped")
+    assert out["hedged"].empty
+
+
+def test_collect_flags_hedged_verdicts_for_rejudging(country_dir: Path, tmp_path: Path):
+    # The shipped 20260707c failure class: the judge answers "is the
+    # reference wrong?" instead of diagnosing the model.
+    audit_dir = tmp_path / "audit"
+    cases = prepare_audit(country_dir, audit_dir)
+    s0 = next(c for c in cases if c.scenario_id == "s0")
+    verdict = make_verdict(
+        "The reference is plausible under the stated PolicyEngine "
+        "derivation; there is not enough concrete evidence here to call "
+        "the PolicyEngine reference wrong.",
+        "The model may have used a stale threshold.",
+        "Hard to verify without more information.",
+    )
+    (audit_dir / "cases" / s0.case_id / "verdict.json").write_text(json.dumps(verdict))
+
+    out = collect_audit(country_dir, audit_dir)
+    assert list(out["hedged"]["case_id"]) == [s0.case_id]
+
+
+def test_is_hedged_separates_verdict_voice_from_legal_optionality():
+    # Reference-adjudication and self-doubt: rejected.
+    assert is_hedged(
+        "The reference is plausible under the stated PolicyEngine derivation"
+    )
+    assert is_hedged("There is not enough concrete evidence to call it wrong")
+    assert is_hedged("The model may have applied 2023 thresholds")
+    assert is_hedged("It is unclear which pathway the model used")
+    assert is_hedged("We cannot determine the exact computation")
+    # Definitive diagnosis, including legal-optionality phrasing: allowed.
+    assert not is_hedged(
+        "Treated the 138% FPL MAGI limit as the only Medicaid pathway and "
+        "never applied the aged/disabled income test, which deducts the "
+        "Medicare Part B premium from countable income."
+    )
+    assert not is_hedged("Excess shelter costs are deductible; the model omitted them.")
+    assert not is_hedged("")
+    assert not is_hedged(None)
+
+
+def test_prompt_treats_reference_as_verified_and_demands_diagnosis(
+    country_dir: Path,
+):
+    case = next(c for c in build_audit_cases(country_dir) if c.scenario_id == "s0")
+    prompt = render_case_prompt(case)
+    assert "Treat the reference and its derivation as correct" in prompt
+    assert "diagnosis" in prompt
+    assert "mechanically rejected" in prompt
+    assert "concrete contradiction" in prompt
+
+
+def test_grounding_lookup_renders_engine_facts_block(country_dir: Path):
+    lookup = {("s0", "snap"): "- medicaid_category: SENIOR_OR_DISABLED\n- age: 67"}
+    cases = build_audit_cases(country_dir, grounding_lookup=lookup)
+    grounded = next(c for c in cases if c.scenario_id == "s0")
+    bare = next(c for c in cases if c.scenario_id == "s1")
+    assert "AUTHORITATIVE ENGINE FACTS" in render_case_prompt(grounded)
+    assert "SENIOR_OR_DISABLED" in render_case_prompt(grounded)
+    assert "AUTHORITATIVE ENGINE FACTS" not in render_case_prompt(bare)
+
+
+def test_schema_requires_per_model_diagnosis():
+    items = AUDIT_OUTPUT_SCHEMA["properties"]["models"]["items"]
+    assert "diagnosis" in items["properties"]
+    assert "diagnosis" in items["required"]
