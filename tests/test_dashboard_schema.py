@@ -106,6 +106,71 @@ def test_no_tools_condition_required():
     assert any("no_tools" in error for error in errors)
 
 
+def make_wrong_leaf(**extra) -> dict:
+    return {"prediction": 100.0, "groundTruth": 90.0, "thresholdScore": 0.0, **extra}
+
+
+def test_wrong_answer_without_failure_annotation_fails_publish_gate():
+    # The gap class shipped in 20260707b: GPT-5.5's default-effort rerun had
+    # wrong answers with no judged failureSource. Publishing must fail.
+    bench = make_bench()
+    bench["scenarioPredictions"]["scenario_001"]["snap"]["model-a"] = make_wrong_leaf()
+    errors = validate_country_payload(
+        bench, country="us", require_failure_annotations=True
+    )
+    assert errors == [
+        "countries.us.scenarioPredictions.scenario_001.snap.model-a: "
+        "wrong answer has no judged failureSource annotation"
+    ]
+
+
+def test_wrong_answer_without_failure_annotation_allowed_in_staged_export():
+    # Fold-board staging exports precede the failure audit, so the default
+    # (non-publish) validation stays structural.
+    bench = make_bench()
+    bench["scenarioPredictions"]["scenario_001"]["snap"]["model-a"] = make_wrong_leaf()
+    assert validate_country_payload(bench, country="us") == []
+
+
+def test_wrong_answer_with_failure_annotation_passes_publish_gate():
+    bench = make_bench()
+    bench["scenarioPredictions"]["scenario_001"]["snap"]["model-a"] = make_wrong_leaf(
+        failureSource="model",
+        failureSubtype="calculation_error",
+        annotation="The model omitted the standard deduction.",
+    )
+    errors = validate_country_payload(
+        bench, country="us", require_failure_annotations=True
+    )
+    assert errors == []
+
+
+def test_correct_answer_needs_no_failure_annotation():
+    bench = make_bench()
+    bench["scenarioPredictions"]["scenario_001"]["snap"]["model-a"] = {
+        "prediction": 90.0,
+        "groundTruth": 90.0,
+        "thresholdScore": 100.0,
+    }
+    errors = validate_country_payload(
+        bench, country="us", require_failure_annotations=True
+    )
+    assert errors == []
+
+
+def test_dashboard_payload_threads_annotation_requirement():
+    payload = make_payload()
+    payload["countries"]["us"]["scenarioPredictions"]["scenario_001"]["snap"][
+        "model-a"
+    ] = make_wrong_leaf()
+    assert validate_dashboard_payload(payload) == []
+    errors = validate_dashboard_payload(payload, require_failure_annotations=True)
+    assert errors == [
+        "countries.us.scenarioPredictions.scenario_001.snap.model-a: "
+        "wrong answer has no judged failureSource annotation"
+    ]
+
+
 def test_nan_score_reported():
     bench = make_bench()
     bench["modelStats"][0]["score"] = float("nan")

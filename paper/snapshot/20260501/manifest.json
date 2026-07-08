@@ -20,9 +20,9 @@
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 57597347,
-    "derivation": "PolicyBench dataset v1.1, 20-model board (dashboard-data-20260707) with corrected reference-derivation narratives only. 177 Medicaid narratives are regenerated with the engine's eligibility category injected as authoritative grounding (29 had described 65+ people via the ACA adult expansion), and 3 narratives that still described pre-v1.1 reference values (scenario_008/scenario_100 Head Start, scenario_056 NJ state tax) are regenerated against the current engine. Every score, prediction leaf, modelStats entry, and globalWeights value is byte-identical to dashboard-data-20260707; the only changed payload fields are referenceExplanation (180 cells x 20 model leaves). Generator grounding mechanism and regenerated annotations landed in PR #110; the #107 audit adjudicated all 14 reference-suspect flags with zero real reference bugs.",
-    "notes": "Narrative-correction republish (same pattern as dashboard-data-20260702b): dataset version unchanged (v1.1), no selector changes. claude-fable-5 usage fields remain artifact-level values.",
+    "bytes": 57737111,
+    "derivation": "PolicyBench dataset v1.1, 20-model board with the unified failure-audit annotations. Every wrong cell across all 20 models is Codex-judged in one coherent pass against the corrected reference-derivation narratives (889 cases, 636 substantive verdicts, 5,351 row annotations) \u2014 replacing the patchwork of June and per-batch audits, covering GPT-5.5's default-effort rerun for the first time, and retiring annotations that quoted the pre-correction narratives. Every score, prediction leaf, modelStats entry, and globalWeights value is byte-identical to dashboard-data-20260707b; the only changed payload fields are the annotation classes (annotation, failureSource, failureSubtype, caseAnnotation, caseFailureSources, caseFailureSubtypes).",
+    "notes": "Annotation republish (pattern of 20260702b/20260707b): dataset version unchanged (v1.1), no selector changes. claude-fable-5 usage fields remain artifact-level values. Fresh audit flags 10 reference-suspect cases; 5 were previously adjudicated reference-correct (#107), 5 new are under adjudication.",
     "population_weights": {
       "sha256": "0b3b96b8247477631510371b9c3b021a18a535e8ebbf8c73a8aa67cff3110cd4",
       "source": "committed June artifact policybench/population_weights.json (unchanged)"
@@ -32,9 +32,9 @@
       "policyengine_us_version": "1.755.4",
       "policyengine_version": "4.16.1"
     },
-    "sha256": "a9b8bee0802ed9446e8c6a1d954afbe0ddbe478803b9041da8cfa2f0f382f43d",
-    "tag": "dashboard-data-20260707b",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260707b/dashboard-data.json"
+    "sha256": "0860f8ebab3853441ee91c7283dc465434e52e9c2266975af7d58baa712d7f0a",
+    "tag": "dashboard-data-20260707c",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260707c/dashboard-data.json"
   },
   "live_dashboard_note": "Two artifacts are tracked. published_dashboard_artifact pins the manuscript's frozen record: it equals the combined export of the source run data.json files listed under source_run_artifacts, byte for byte. live_dashboard_artifact is the release asset the committed pointer app/src/data.artifact.json references; it starts from the frozen export and may gain additive updates (injected metrics, newly benchmarked models) without changing the frozen models' scores. Every publish-dashboard run must update live_dashboard_artifact (tag, sha256, bytes, derivation) in the same commit as the pointer.",
   "model_response_date": "2026-06-12 to 2026-06-13",

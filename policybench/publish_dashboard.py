@@ -84,7 +84,9 @@ def publish_dashboard(
 
     raw = source_path.read_bytes()
     payload = json.loads(raw)
-    assert_valid_dashboard_payload(payload, source=str(source_path))
+    assert_valid_dashboard_payload(
+        payload, source=str(source_path), require_failure_annotations=True
+    )
 
     digest = hashlib.sha256(raw).hexdigest()
     pointer = build_pointer(
