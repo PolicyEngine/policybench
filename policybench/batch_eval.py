@@ -307,6 +307,18 @@ class OpenAIBatchAdapter:
             include_explanations=True,
         )
         kwargs.pop("timeout", None)
+        connection_keys = {
+            "api_base",
+            "api_key",
+            "base_url",
+            "custom_llm_provider",
+        }
+        leaked = connection_keys & kwargs.keys()
+        if leaked:
+            raise ValueError(
+                "Provider connection settings must never enter a batch body: "
+                f"{', '.join(sorted(leaked))}"
+            )
         return kwargs
 
     def submit(self, requests: list[tuple[str, dict]], model_id: str) -> str:
@@ -639,6 +651,9 @@ def rows_from_unit(
                 "cached_prompt_tokens": split(
                     result.cached_prompt_tokens if result else None
                 ),
+                "cache_write_prompt_tokens": split(
+                    result.cache_write_prompt_tokens if result else None
+                ),
                 "provider_reported_cost_usd": None,
                 "reconstructed_cost_usd": split(reconstructed),
                 "total_cost_usd": split(reconstructed),
@@ -677,8 +692,11 @@ def run_batch_eval(
     adapter = adapter or adapter_for_model(model_id)
     if adapter is None:
         raise ValueError(
-            f"{model_id} has no batch adapter (xAI and DeepSeek have no batch "
-            "APIs) — use the sync chunked runner."
+            f"{model_id} has no batch adapter — use the sync chunked runner."
+        )
+    if not adapter.supports(model_id):
+        raise ValueError(
+            f"{adapter.provider} batch adapter does not support {model_id}"
         )
 
     scenario_by_id = {scenario.id: scenario for scenario in scenarios}

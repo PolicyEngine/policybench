@@ -17,6 +17,7 @@ from litellm import completion, completion_cost, responses
 from policybench.config import (
     GPT_56_MODELS,
     MODELS,
+    MUSE_SPARK_MODELS,
     PRICE_OVERRIDES_PER_1M,
     PROGRAMS,
 )
@@ -91,6 +92,41 @@ for _model_id in GPT_56_MODELS.values():
                 "supports_reasoning": True,
                 "supports_response_schema": True,
                 "supports_tool_choice": True,
+                "supports_vision": True,
+            }
+        }
+    )
+
+# Meta launched Muse Spark 1.1 and its OpenAI-compatible Model API after the
+# pinned LiteLLM release. Register capabilities and standard prices locally;
+# transport still uses Meta's own host and MODEL_API_KEY below.
+for _display_id, _model_id in MUSE_SPARK_MODELS.items():
+    if _model_id in litellm.model_cost:
+        continue
+    _prices = PRICE_OVERRIDES_PER_1M[_display_id]
+    litellm.register_model(
+        {
+            _model_id: {
+                "max_tokens": 1_048_576,
+                "max_input_tokens": 1_048_576,
+                "max_output_tokens": 131_072,
+                "input_cost_per_token": _prices["input"] / 1_000_000,
+                "cache_read_input_token_cost": (_prices["cached_input"] / 1_000_000),
+                "output_cost_per_token": _prices["output"] / 1_000_000,
+                "litellm_provider": "openai",
+                "mode": "chat",
+                "supported_endpoints": [
+                    "/v1/chat/completions",
+                    "/v1/responses",
+                ],
+                "supports_function_calling": True,
+                "supports_parallel_function_calling": True,
+                "supports_prompt_caching": True,
+                "supports_reasoning": True,
+                "supports_response_schema": True,
+                # Meta currently accepts only tool_choice="auto". PolicyBench
+                # therefore uses the model card's JSON contract.
+                "supports_tool_choice": False,
                 "supports_vision": True,
             }
         }
@@ -171,10 +207,40 @@ ANSWER_FUNCTION_NAME = "submit_outputs"
 EXPLANATION_FUNCTION_NAME = "submit_explanations"
 PROMPT_CONTRACT_VERSION = "2026-05-13-nested-output-explanations"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 1
+META_MODEL_API_BASE = os.environ.get(
+    "POLICYBENCH_META_API_BASE", "https://api.meta.ai/v1"
+)
 
 
 class RequestWallTimeoutError(TimeoutError):
     """Raised when a provider request exceeds PolicyBench's local wall timeout."""
+
+
+def _provider_connection_kwargs(model_id: str) -> dict:
+    """Return provider-specific transport settings without credential crossover.
+
+    Meta implements OpenAI-compatible endpoints, but it is a different trust
+    boundary. Requiring MODEL_API_KEY before constructing the request prevents
+    LiteLLM from falling back to OPENAI_API_KEY and sending that credential to
+    Meta's host.
+    """
+    if model_id not in MUSE_SPARK_MODELS.values():
+        return {}
+    api_key = os.environ.get("MODEL_API_KEY")
+    if not api_key:
+        raise litellm.AuthenticationError(
+            message=(
+                "Meta Model API key not found; set MODEL_API_KEY before "
+                f"running {model_id}"
+            ),
+            llm_provider="meta",
+            model=model_id,
+        )
+    return {
+        "api_base": META_MODEL_API_BASE,
+        "api_key": api_key,
+        "custom_llm_provider": "openai",
+    }
 
 
 NON_RETRYABLE_ERRORS = (
@@ -337,6 +403,23 @@ def _reconstruct_token_cost(
             + int(completion_tokens) * output_rate
         )
 
+    if model_id in MUSE_SPARK_MODELS.values():
+        display_id = next(
+            name
+            for name, provider_id in MUSE_SPARK_MODELS.items()
+            if provider_id == model_id
+        )
+        rates = PRICE_OVERRIDES_PER_1M[display_id]
+        input_rate = rates["input"] / 1_000_000
+        cached_input_rate = rates["cached_input"] / 1_000_000
+        output_rate = rates["output"] / 1_000_000
+        standard_input = int(prompt_tokens) - cached
+        return (
+            standard_input * input_rate
+            + cached * cached_input_rate
+            + int(completion_tokens) * output_rate
+        )
+
     try:
         input_cost, output_cost = litellm.cost_per_token(
             model=model_id,
@@ -404,7 +487,7 @@ def _extract_usage_metadata(
 
     provider_reported_cost_usd = _get_usage_value(usage, "cost")
     reconstructed_cost_usd = None
-    if model_id in GPT_56_MODELS:
+    if model_id in GPT_56_MODELS or model_id in MUSE_SPARK_MODELS.values():
         reconstructed_cost_usd = _reconstruct_token_cost(
             model_name=model_id,
             model_id=model_id,
@@ -427,9 +510,11 @@ def _extract_usage_metadata(
         except Exception:
             reconstructed_cost_usd = None
 
-    if model_id in GPT_56_MODELS and reconstructed_cost_usd is not None:
-        # OpenAI responses do not report dollar cost; current LiteLLM fills
-        # ``usage.cost`` from a map that predates GPT-5.6 cache-write pricing.
+    if (
+        model_id in GPT_56_MODELS or model_id in MUSE_SPARK_MODELS.values()
+    ) and reconstructed_cost_usd is not None:
+        # OpenAI-compatible responses do not report dollar cost; current
+        # LiteLLM either lacks these new models or predates their cache rates.
         total_cost_usd = reconstructed_cost_usd
         cost_is_estimated = True
     else:
@@ -446,6 +531,7 @@ def _extract_usage_metadata(
         "total_tokens": _get_usage_value(usage, "total_tokens"),
         "reasoning_tokens": reasoning_tokens,
         "cached_prompt_tokens": cached_prompt_tokens,
+        "cache_write_prompt_tokens": cache_write_prompt_tokens,
         "provider_reported_cost_usd": provider_reported_cost_usd,
         "reconstructed_cost_usd": reconstructed_cost_usd,
         "total_cost_usd": total_cost_usd,
@@ -687,6 +773,7 @@ def _chat_completion_request_kwargs(
         "messages": messages,
         "caching": True,
         "timeout": _request_timeout_seconds(model_id),
+        **_provider_connection_kwargs(model_id),
         **_completion_controls(
             model_id,
             include_explanations=include_explanations,
@@ -734,6 +821,7 @@ def _responses_request_kwargs(
         "model": model_id,
         "input": prompt,
         "timeout": _request_timeout_seconds(model_id),
+        **_provider_connection_kwargs(model_id),
         "max_output_tokens": _completion_controls(
             model_id,
             include_explanations=include_explanations,
@@ -969,6 +1057,7 @@ def _aggregate_request_results(results: list[dict]) -> dict:
             "total_tokens": None,
             "reasoning_tokens": None,
             "cached_prompt_tokens": None,
+            "cache_write_prompt_tokens": None,
             "provider_reported_cost_usd": None,
             "reconstructed_cost_usd": None,
             "total_cost_usd": None,
@@ -1014,6 +1103,9 @@ def _aggregate_request_results(results: list[dict]) -> dict:
         ),
         "cached_prompt_tokens": _sum_optional_numbers(
             result.get("cached_prompt_tokens") for result in results
+        ),
+        "cache_write_prompt_tokens": _sum_optional_numbers(
+            result.get("cache_write_prompt_tokens") for result in results
         ),
         "provider_reported_cost_usd": _sum_optional_numbers(
             result.get("provider_reported_cost_usd") for result in results
@@ -1516,13 +1608,20 @@ def _request_explanations_once(
     answers: dict[str, float],
     model_id: str,
 ) -> dict:
-    prompt = make_explanation_repair_prompt(scenario, variables, answers)
+    answer_contract = _answer_contract_for_model(model_id)
+    prompt = make_explanation_repair_prompt(
+        scenario,
+        variables,
+        answers,
+        answer_contract=answer_contract,
+    )
     if _uses_responses_api(model_id):
         messages = [{"role": "user", "content": prompt}]
         request_kwargs = {
             "model": model_id,
             "input": prompt,
             "timeout": _request_timeout_seconds(model_id),
+            **_provider_connection_kwargs(model_id),
             "max_output_tokens": _completion_controls(
                 model_id,
                 include_explanations=True,
@@ -1551,17 +1650,30 @@ def _request_explanations_once(
             "messages": messages,
             "caching": True,
             "timeout": _request_timeout_seconds(model_id),
+            **_provider_connection_kwargs(model_id),
             **_completion_controls(
                 model_id,
                 include_explanations=True,
                 variables=variables,
             ),
-            "tools": [_build_explanation_tool(variables, country=scenario.country)],
-            "tool_choice": {
-                "type": "function",
-                "function": {"name": EXPLANATION_FUNCTION_NAME},
-            },
         }
+        if answer_contract == "tool":
+            request_kwargs.update(
+                {
+                    "tools": [
+                        _build_explanation_tool(
+                            variables,
+                            country=scenario.country,
+                        )
+                    ],
+                    "tool_choice": {
+                        "type": "function",
+                        "function": {"name": EXPLANATION_FUNCTION_NAME},
+                    },
+                }
+            )
+        else:
+            request_kwargs["response_format"] = {"type": "json_object"}
         request_fn = completion
 
     request_started_at = time.time()
@@ -1780,6 +1892,9 @@ def run_single_no_tools(
             "reasoning_tokens": _sum_optional_field(chunk_results, "reasoning_tokens"),
             "cached_prompt_tokens": _sum_optional_field(
                 chunk_results, "cached_prompt_tokens"
+            ),
+            "cache_write_prompt_tokens": _sum_optional_field(
+                chunk_results, "cache_write_prompt_tokens"
             ),
             "provider_reported_cost_usd": _sum_optional_field(
                 chunk_results, "provider_reported_cost_usd"
@@ -2144,7 +2259,8 @@ def run_no_tools_eval(
     Returns DataFrame with columns:
         model, scenario_id, variable, prediction, explanation, raw_response,
         error, elapsed_seconds, prompt_tokens, completion_tokens, total_tokens,
-        reasoning_tokens, cached_prompt_tokens, estimated_cost_usd
+        reasoning_tokens, cached_prompt_tokens, cache_write_prompt_tokens,
+        estimated_cost_usd
     """
     if models is None:
         models = MODELS
@@ -2224,6 +2340,7 @@ def run_no_tools_eval(
                     "total_tokens": None,
                     "reasoning_tokens": None,
                     "cached_prompt_tokens": None,
+                    "cache_write_prompt_tokens": None,
                     "provider_reported_cost_usd": None,
                     "reconstructed_cost_usd": None,
                     "total_cost_usd": None,
@@ -2241,6 +2358,7 @@ def run_no_tools_eval(
             total_tokens = result.get("total_tokens")
             reasoning_tokens = result.get("reasoning_tokens")
             cached_prompt_tokens = result.get("cached_prompt_tokens")
+            cache_write_prompt_tokens = result.get("cache_write_prompt_tokens")
             provider_reported_cost_usd = result.get("provider_reported_cost_usd")
             reconstructed_cost_usd = result.get("reconstructed_cost_usd")
             total_cost_usd = result.get("total_cost_usd")
@@ -2293,6 +2411,11 @@ def run_no_tools_eval(
                         "cached_prompt_tokens": (
                             cached_prompt_tokens / batch_size
                             if cached_prompt_tokens is not None
+                            else None
+                        ),
+                        "cache_write_prompt_tokens": (
+                            cache_write_prompt_tokens / batch_size
+                            if cache_write_prompt_tokens is not None
                             else None
                         ),
                         "provider_reported_cost_usd": (
@@ -2432,6 +2555,7 @@ def run_no_tools_single_output_eval(
                         "total_tokens": None,
                         "reasoning_tokens": None,
                         "cached_prompt_tokens": None,
+                        "cache_write_prompt_tokens": None,
                         "provider_reported_cost_usd": None,
                         "reconstructed_cost_usd": None,
                         "total_cost_usd": None,
@@ -2468,6 +2592,9 @@ def run_no_tools_single_output_eval(
                         "total_tokens": result.get("total_tokens"),
                         "reasoning_tokens": result.get("reasoning_tokens"),
                         "cached_prompt_tokens": result.get("cached_prompt_tokens"),
+                        "cache_write_prompt_tokens": result.get(
+                            "cache_write_prompt_tokens"
+                        ),
                         "provider_reported_cost_usd": result.get(
                             "provider_reported_cost_usd"
                         ),

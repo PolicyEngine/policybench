@@ -18,6 +18,7 @@ describe("model metadata", () => {
     ["gpt-5.6-sol", "GPT-5.6 Sol", "openai"],
     ["gpt-5.6-terra", "GPT-5.6 Terra", "openai"],
     ["gpt-5.6-luna", "GPT-5.6 Luna", "openai"],
+    ["muse-spark-1.1", "Muse Spark 1.1", "meta"],
     ["kimi-k2.6", "Kimi K2.6", "moonshot"],
     ["glm-5.2", "GLM-5.2", "zai"],
     ["minimax-m3", "MiniMax M3", "minimax"],
@@ -30,6 +31,7 @@ describe("model metadata", () => {
   test("labels the added providers", () => {
     expect(PROVIDER_LABELS).toMatchObject({
       alibaba: "Alibaba",
+      meta: "Meta",
       minimax: "MiniMax",
       moonshot: "Moonshot AI",
       zai: "Z.ai",
@@ -76,6 +78,7 @@ describe("model metadata", () => {
     const models = [
       "claude-fable-5",
       "gpt-5.6-sol",
+      "muse-spark-1.1",
       "grok-4.3",
       "gemini-3.1-pro-preview",
       "deepseek-v4-pro",

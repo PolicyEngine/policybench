@@ -39,26 +39,45 @@ class ModelCard:
 MODEL_CARDS: dict[str, ModelCard] = {
     "gpt-5.6-sol": ModelCard(
         litellm_id="gpt-5.6-sol",
+        answer_contract="tool",
         thinking_budget=True,
+        expected_cost_per_scenario_usd=0.09,
         notes=(
-            "New reasoning model. Serving treatment must be "
-            "rechecked with `policybench onboard` after API access is granted."
+            "Onboarded 2026-07-09: forced tool contract and whole-scenario "
+            "requests passed. The 100-scenario sync run cost $8.95; OpenAI "
+            "Batch did not yet support the model id."
         ),
     ),
     "gpt-5.6-terra": ModelCard(
         litellm_id="gpt-5.6-terra",
+        answer_contract="tool",
         thinking_budget=True,
+        expected_cost_per_scenario_usd=0.039,
         notes=(
-            "New reasoning model. Serving treatment must be "
-            "rechecked with `policybench onboard` after API access is granted."
+            "Onboarded 2026-07-09: forced tool contract and whole-scenario "
+            "requests passed. The 100-scenario sync run cost $3.89; OpenAI "
+            "Batch did not yet support the model id."
         ),
     ),
     "gpt-5.6-luna": ModelCard(
         litellm_id="gpt-5.6-luna",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.019,
+        notes=(
+            "Onboarded 2026-07-09: forced tool contract and whole-scenario "
+            "requests passed. The 100-scenario sync run cost $1.87; OpenAI "
+            "Batch did not yet support the model id."
+        ),
+    ),
+    "openai/muse-spark-1.1": ModelCard(
+        litellm_id="openai/muse-spark-1.1",
+        answer_contract="json",
         thinking_budget=True,
         notes=(
-            "New reasoning model. Serving treatment must be "
-            "rechecked with `policybench onboard` after API access is granted."
+            "Meta Model API public preview. JSON mode avoids forced named tool "
+            "choice, which Meta does not currently support; run onboarding and "
+            "a 2-scenario smoke before a paid full run."
         ),
     ),
     "gpt-5.5": ModelCard(

@@ -12,14 +12,19 @@ from policybench.config import (
     COUNTRY_PROGRAMS,
     GPT_56_MODELS,
     MODELS,
+    MUSE_SPARK_MODELS,
     PRICE_OVERRIDES_PER_1M,
 )
 from policybench.eval_no_tools import (
     RequestWallTimeoutError,
     _build_answer_tool,
     _build_resume_metadata,
+    _chat_completion_request_kwargs,
     _completion_controls,
     _enforce_explanation_value_contract,
+    _extract_usage_metadata,
+    _provider_connection_kwargs,
+    _request_explanations_once,
     _request_timeout_seconds,
     _request_wall_timeout_seconds,
     _required_explanation_chunk_size,
@@ -745,6 +750,7 @@ def test_run_single_no_tools(mock_responses, mini_scenario):
     assert result["total_tokens"] == 15
     assert result["reasoning_tokens"] == 2
     assert result["cached_prompt_tokens"] == 4
+    assert result["cache_write_prompt_tokens"] is None
     assert result["provider_reported_cost_usd"] == 0.00123
     assert result["total_cost_usd"] == 0.00123
     assert result["cost_is_estimated"] is False
@@ -1437,6 +1443,106 @@ def test_gpt_56_family_is_in_the_default_roster():
         assert PRICE_OVERRIDES_PER_1M[model_id] == prices
 
 
+def test_muse_spark_is_in_the_default_roster_with_official_prices():
+    assert MUSE_SPARK_MODELS == {"muse-spark-1.1": "openai/muse-spark-1.1"}
+    assert MODELS["muse-spark-1.1"] == "openai/muse-spark-1.1"
+    assert PRICE_OVERRIDES_PER_1M["muse-spark-1.1"] == {
+        "input": 1.25,
+        "cached_input": 0.15,
+        "output": 4.25,
+    }
+    _, provider, _, _ = litellm.get_llm_provider("openai/muse-spark-1.1")
+    assert provider == "openai"
+
+
+def test_muse_spark_connection_requires_its_own_key(monkeypatch):
+    monkeypatch.delenv("MODEL_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "must-not-be-reused")
+
+    with pytest.raises(litellm.AuthenticationError, match="MODEL_API_KEY"):
+        _provider_connection_kwargs("openai/muse-spark-1.1")
+
+
+def test_muse_spark_chat_request_uses_meta_json_transport(monkeypatch, mini_scenario):
+    monkeypatch.setenv("MODEL_API_KEY", "meta-test-key")
+
+    _, kwargs = _chat_completion_request_kwargs(
+        mini_scenario,
+        ["income_tax"],
+        "openai/muse-spark-1.1",
+    )
+
+    assert kwargs["model"] == "openai/muse-spark-1.1"
+    assert kwargs["api_base"] == "https://api.meta.ai/v1"
+    assert kwargs["api_key"] == "meta-test-key"
+    assert kwargs["custom_llm_provider"] == "openai"
+    assert kwargs["response_format"] == {"type": "json_object"}
+    assert "tools" not in kwargs
+    assert "tool_choice" not in kwargs
+
+
+def test_muse_spark_usage_uses_cached_input_price():
+    response = SimpleNamespace(
+        id="meta-response",
+        model="muse-spark-1.1",
+        usage=SimpleNamespace(
+            prompt_tokens=1_000,
+            completion_tokens=200,
+            total_tokens=1_200,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=400),
+            completion_tokens_details=SimpleNamespace(reasoning_tokens=50),
+        ),
+    )
+
+    usage = _extract_usage_metadata(
+        response,
+        "openai/muse-spark-1.1",
+        [{"role": "user", "content": "x"}],
+        "{}",
+    )
+
+    expected = 600 * 1.25e-6 + 400 * 0.15e-6 + 200 * 4.25e-6
+    assert usage["reconstructed_cost_usd"] == pytest.approx(expected)
+    assert usage["total_cost_usd"] == pytest.approx(expected)
+    assert usage["reasoning_tokens"] == 50
+    assert usage["cached_prompt_tokens"] == 400
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_muse_spark_explanation_repair_stays_in_json_mode(
+    mock_completion, monkeypatch, mini_scenario
+):
+    monkeypatch.setenv("MODEL_API_KEY", "meta-test-key")
+    message = MagicMock()
+    message.content = json.dumps(
+        {"income_tax": "Calculated from the supplied answer. value = 123"}
+    )
+    message.tool_calls = None
+    message.function_call = None
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(
+        prompt_tokens=10,
+        completion_tokens=5,
+        total_tokens=15,
+    )
+    mock_completion.return_value = response
+
+    result = _request_explanations_once(
+        mini_scenario,
+        ["income_tax"],
+        {"income_tax": 123.0},
+        "openai/muse-spark-1.1",
+    )
+
+    kwargs = mock_completion.call_args.kwargs
+    assert kwargs["response_format"] == {"type": "json_object"}
+    assert "tools" not in kwargs
+    assert "tool_choice" not in kwargs
+    assert "valid JSON object" in kwargs["messages"][0]["content"]
+    assert result["explanations"]["income_tax"].endswith("value = 123")
+
+
 @pytest.mark.parametrize("model_id", sorted(GPT_56_MODELS))
 def test_gpt_56_provider_resolves_without_remote_cost_map(model_id):
     from litellm import get_llm_provider
@@ -1502,6 +1608,7 @@ def test_gpt_56_responses_usage_reconstructs_cache_and_long_context_cost(
     assert usage["reconstructed_cost_usd"] == pytest.approx(expected)
     assert usage["total_cost_usd"] == pytest.approx(expected)
     assert usage["provider_reported_cost_usd"] == pytest.approx(0.01)
+    assert usage["cache_write_prompt_tokens"] == details.get("cache_write_tokens")
     assert usage["cost_is_estimated"] is True
 
 

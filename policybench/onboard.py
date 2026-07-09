@@ -118,6 +118,7 @@ def _probe_request(scenario, variables, model_id, contract):
             "model": model_id,
             "input": prompt,
             "timeout": timeout,
+            **harness._provider_connection_kwargs(model_id),
             "max_output_tokens": controls["max_completion_tokens"],
         }
         if contract == "tool":
@@ -142,6 +143,7 @@ def _probe_request(scenario, variables, model_id, contract):
         "model": model_id,
         "messages": messages,
         "timeout": timeout,
+        **harness._provider_connection_kwargs(model_id),
         **controls,
     }
     if contract == "tool":
@@ -166,16 +168,16 @@ def _probe_request(scenario, variables, model_id, contract):
 
 
 def _run_probe(name, scenario, variables, model_id, contract) -> ProbeResult:
-    messages, kwargs, request_fn = _probe_request(
-        scenario, variables, model_id, contract
-    )
-    budget = (
-        kwargs.get("max_completion_tokens")
-        or kwargs.get("max_output_tokens")
-        or kwargs.get("max_tokens")
-    )
     started = time.time()
     try:
+        messages, kwargs, request_fn = _probe_request(
+            scenario, variables, model_id, contract
+        )
+        budget = (
+            kwargs.get("max_completion_tokens")
+            or kwargs.get("max_output_tokens")
+            or kwargs.get("max_tokens")
+        )
         response = harness._run_request_with_wall_timeout(request_fn, kwargs)
     except Exception as error:
         return ProbeResult(

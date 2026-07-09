@@ -47,14 +47,15 @@ def load_predictions(country_dir: Path) -> pd.DataFrame:
     compressed_predictions_path = country_dir / "predictions.csv.gz"
     if files:
         predictions = pd.concat(
-            (pd.read_csv(path) for path in files), ignore_index=True
+            (pd.read_csv(path, low_memory=False) for path in files),
+            ignore_index=True,
         )
         predictions.to_csv(predictions_path, index=False)
         return predictions
     if predictions_path.exists():
-        return pd.read_csv(predictions_path)
+        return pd.read_csv(predictions_path, low_memory=False)
     if compressed_predictions_path.exists():
-        return pd.read_csv(compressed_predictions_path)
+        return pd.read_csv(compressed_predictions_path, low_memory=False)
     raise FileNotFoundError(
         f"Expected at least one CSV in {by_model_dir}, {predictions_path}, "
         f"or {compressed_predictions_path}."

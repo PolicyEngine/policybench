@@ -33,6 +33,13 @@ GPT_56_MODELS = {
     "gpt-5.6-luna": "gpt-5.6-luna",
 }
 
+MUSE_SPARK_MODELS = {
+    # Meta's Model API is OpenAI-compatible. The provider prefix gives the
+    # pinned LiteLLM release an adapter while request routing supplies Meta's
+    # distinct host and credential explicitly.
+    "muse-spark-1.1": "openai/muse-spark-1.1",
+}
+
 MODELS = {
     "claude-fable-5": "claude-fable-5",
     "claude-opus-4.8": "claude-opus-4-8",
@@ -46,6 +53,7 @@ MODELS = {
     "gpt-5.5": "gpt-5.5",
     "gpt-5.4-mini": "gpt-5.4-mini",
     "gpt-5.4-nano": "gpt-5.4-nano",
+    **MUSE_SPARK_MODELS,
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
     "gemini-3.5-flash": "gemini/gemini-3.5-flash",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
@@ -69,6 +77,15 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
     "gpt-5.6-terra": {"input": 2.5, "output": 15.0},
     "gpt-5.6-luna": {"input": 1.0, "output": 6.0},
+    # Muse Spark 1.1 public-preview prices from Meta Model API docs
+    # (https://dev.meta.ai/docs/getting-started/pricing-rate-limits,
+    # retrieved 2026-07-09). Cached input has its own per-token rate and no
+    # long-context premium applies.
+    "muse-spark-1.1": {
+        "input": 1.25,
+        "cached_input": 0.15,
+        "output": 4.25,
+    },
     # grok-build-0.1: $1 / $2 per 1M input/output tokens (https://x.ai/api).
     "grok-build-0.1": {"input": 1.0, "output": 2.0},
     # claude-fable-5: $10 / $50 per 1M input/output tokens

@@ -2,6 +2,7 @@
 
 import json
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -11,6 +12,7 @@ from policybench.batch_eval import (
     BatchRunState,
     BatchUnit,
     NormalizedResult,
+    OpenAIBatchAdapter,
     _normalize_anthropic_entry,
     _normalize_openai_entry,
     _openai_kwargs_to_anthropic_params,
@@ -95,6 +97,30 @@ def test_adapter_routing():
     assert adapter_for_model("gemini/gemini-3.5-flash").provider == "gemini"
     assert adapter_for_model("xai/grok-4.3") is None
     assert adapter_for_model("deepseek/deepseek-v4-pro") is None
+    assert adapter_for_model("openai/muse-spark-1.1") is None
+
+
+def test_openai_batch_body_rejects_meta_connection_secrets(monkeypatch, scenario):
+    monkeypatch.setenv("MODEL_API_KEY", "meta-test-key")
+    adapter = OpenAIBatchAdapter(client=MagicMock())
+    unit = BatchUnit(scenario.id, ["eitc"], 0)
+
+    with pytest.raises(ValueError, match="must never enter a batch body"):
+        adapter.build_request_body(scenario, unit, "openai/muse-spark-1.1")
+
+
+def test_run_batch_rejects_explicit_adapter_model_mismatch(tmp_path, scenario):
+    adapter = OpenAIBatchAdapter(client=MagicMock())
+
+    with pytest.raises(ValueError, match="does not support"):
+        run_batch_eval(
+            scenarios=[scenario],
+            programs=["eitc"],
+            model_name="muse-spark-1.1",
+            model_id="openai/muse-spark-1.1",
+            run_dir=tmp_path,
+            adapter=adapter,
+        )
 
 
 def test_gpt_56_batch_body_uses_public_responses_id(scenario):
@@ -293,6 +319,7 @@ def test_anthropic_batch_cost_includes_uncached_read_and_write_tokens():
     )
 
     assert rows[0]["reconstructed_cost_usd"] == pytest.approx(expected)
+    assert rows[0]["cache_write_prompt_tokens"] == 10
 
 
 @pytest.mark.parametrize(
@@ -326,6 +353,7 @@ def test_gpt_56_batch_cost_uses_cache_and_long_context_rates(
     )
 
     assert rows[0]["reconstructed_cost_usd"] == pytest.approx(expected)
+    assert rows[0]["cache_write_prompt_tokens"] == cache_write
 
 
 class FakeAdapter:
@@ -451,6 +479,7 @@ def test_run_batch_eval_end_to_end_with_repair(tmp_path, scenario, second_scenar
         "total_tokens",
         "reasoning_tokens",
         "cached_prompt_tokens",
+        "cache_write_prompt_tokens",
         "provider_reported_cost_usd",
         "reconstructed_cost_usd",
         "total_cost_usd",

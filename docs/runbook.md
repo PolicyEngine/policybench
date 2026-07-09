@@ -84,7 +84,8 @@ implementation has been made thread-safe and tested.
 
 Run the remaining default models in provider groups. This is the preferred
 parallelism boundary: it keeps provider-specific rate limits and failures
-separate, while still allowing OpenAI, xAI, and Gemini to run at the same time.
+separate, while still allowing independent provider groups to run at the same
+time.
 
 ```bash
 # Terminal 1: xAI
@@ -102,6 +103,7 @@ for country in us uk; do
 done
 
 # Terminal 2: OpenAI
+# STOP: run the GPT-5.6 onboarding/smoke gate below before its first full run.
 for country in us uk; do
   uv run python -m policybench.cli eval-no-tools-chunked \
     --country "$country" \
@@ -164,6 +166,20 @@ for country in us uk; do
     --model-parallel 2 \
     --chunk-attempts 1
 done
+
+# Terminal 6: Meta Model API (requires MODEL_API_KEY)
+# STOP: run the Muse onboarding/smoke gate below before its first full run.
+for country in us uk; do
+  uv run python -m policybench.cli eval-no-tools-chunked \
+    --country "$country" \
+    --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
+    --output-dir "$RUN_DIR/$country" \
+    --model muse-spark-1.1 \
+    --chunk-size 5 \
+    --parallel 2 \
+    --model-parallel 1 \
+    --chunk-attempts 1
+done
 ```
 
 If a provider begins rate-limiting or producing transport errors, reduce only
@@ -181,6 +197,7 @@ gpt-5.6-luna
 gpt-5.5
 gpt-5.4-mini
 gpt-5.4-nano
+muse-spark-1.1
 gemini-3.1-pro-preview
 gemini-3.5-flash
 gemini-3-flash-preview
@@ -197,7 +214,7 @@ OpenAI made [GPT-5.6 generally available](https://openai.com/index/gpt-5-6/)
 across ChatGPT, Codex, and the API on 2026-07-09, with a global rollout over 24
 hours. Because these models are new to the PolicyBench harness, run the serving
 gauntlet and a two-scenario smoke for each model before committing to a paid
-batch:
+full run:
 
 ```bash
 for model in gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna; do
@@ -220,6 +237,30 @@ The bare `gpt-5.6` alias resolves to Sol and must not be added as a separate
 benchmark row. GPT-5.6 Pro is a product/request mode rather than a separate API
 model id, so it is also not a separate benchmark row.
 
+Meta released [Muse Spark 1.1](https://ai.meta.com/blog/introducing-muse-spark-meta-model-api/)
+and the Meta Model API in public preview on 2026-07-09. The official model id
+is `muse-spark-1.1`; PolicyBench routes it to `https://api.meta.ai/v1` with the
+dedicated `MODEL_API_KEY`. Do not reuse `OPENAI_API_KEY` even though Meta's API
+is OpenAI-compatible. Meta currently supports only automatic tool choice, so
+the model card deliberately uses PolicyBench's JSON answer contract.
+
+Before a paid run, onboard the full LiteLLM id and smoke the display alias:
+
+```bash
+uv run policybench onboard \
+  --model-id openai/muse-spark-1.1 \
+  --scenario-manifest "$RUN_DIR/us/scenarios.csv" \
+  --report-output "$RUN_DIR/us/muse-spark-1.1-onboarding.md"
+
+uv run policybench eval-no-tools \
+  --country us \
+  --scenario-manifest "$RUN_DIR/us/scenarios.csv" \
+  --num-scenarios "$N" \
+  --model muse-spark-1.1 \
+  --scenario-end 2 \
+  --output "$RUN_DIR/us/muse-spark-1.1-smoke.csv"
+```
+
 The runner skips complete chunks and rewrites per-model merged CSVs on resume.
 Provider transport, timeout, rate-limit, server, authentication, and
 request-configuration errors are infrastructure failures; chunks containing
@@ -231,8 +272,10 @@ those errors remain incomplete and should be retried or rerun.
 API at ~50% of synchronous prices, with the provider handling parallelism.
 Request bodies are identical to sync mode; results land in the same
 `by_model/<model>.csv` schema, so retries, export, and the runstore work
-unchanged. The harness has no batch adapter for xAI, DeepSeek, or
-OpenRouter-routed models — keep using the chunked runner for them.
+unchanged. The harness has no batch adapter for xAI, DeepSeek, Meta, or
+OpenRouter-routed models — keep using the chunked runner for them. OpenAI's
+Batch API also rejected the GPT-5.6 family as unsupported on 2026-07-09; use
+the resumable sync supervisor until OpenAI enables those ids for Batch.
 
 ```bash
 uv run policybench eval-no-tools-batch \
