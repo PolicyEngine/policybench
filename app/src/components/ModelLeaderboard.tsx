@@ -58,14 +58,6 @@ function accColor(pct: number): "success" | "primary" | "warning" | "danger" {
   return "danger";
 }
 
-// Per-household cost, always to the tenth of a cent so every model reads with
-// the same precision. Values span ~$0.002 to ~$0.29, so two decimals would
-// round the cheapest models to $0.00; three keeps them consistent and legible.
-function fmtCost(usd: number | undefined, symbol: string): string {
-  if (usd == null || !Number.isFinite(usd)) return "—";
-  return `${symbol}${usd.toFixed(3)}`;
-}
-
 export default function ModelLeaderboard({
   data,
   selectedView,
@@ -296,15 +288,8 @@ export default function ModelLeaderboard({
           <div role="columnheader" className="col-span-1">
             #
           </div>
-          <div role="columnheader" className="col-span-7">
+          <div role="columnheader" className="col-span-9">
             Model
-          </div>
-          <div
-            role="columnheader"
-            className="col-span-2 text-right"
-            title="Estimated cost to run one household's full set of outputs, no tools (batch runs priced at standard synchronous rates)"
-          >
-            Cost / household
           </div>
           <div role="columnheader" className="col-span-2 text-right">
             {scoringMode === "exact"
@@ -356,9 +341,6 @@ export default function ModelLeaderboard({
                         {MODEL_LABELS[m.model] || m.model}
                       </Link>
                     </div>
-                    <div className="mt-1.5 pl-[26px] font-[family-name:var(--font-mono)] text-[11px] text-text-muted">
-                      {fmtCost(m.costPerHousehold, currencySymbol)} per household
-                    </div>
                   </div>
 
                   <Badge
@@ -377,7 +359,7 @@ export default function ModelLeaderboard({
                   </span>
                 </div>
 
-                <div className="col-span-7 flex min-w-0 items-center gap-2.5">
+                <div className="col-span-9 flex min-w-0 items-center gap-2.5">
                   <ProviderMark
                     provider={getProviderForModel(m.model)}
                     size={14}
@@ -390,18 +372,6 @@ export default function ModelLeaderboard({
                     {MODEL_LABELS[m.model] || m.model}
                   </Link>
                 </div>
-
-                <div
-                  className="col-span-2 text-right font-[family-name:var(--font-mono)] text-sm text-text-secondary"
-                  title={
-                    m.costUsd != null
-                      ? `${currencySymbol}${m.costUsd.toFixed(2)} total · ${fmtCost(m.costPerHousehold, currencySymbol)} per household`
-                      : "Cost not recorded for this model"
-                  }
-                >
-                  {fmtCost(m.costPerHousehold, currencySymbol)}
-                </div>
-
 
                 <div className="col-span-2 text-right">
                   <Badge
