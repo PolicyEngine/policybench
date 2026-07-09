@@ -15,9 +15,13 @@ from policybench.eval_no_tools import (
     _request_timeout_seconds,
     _required_explanation_chunk_size,
 )
+from policybench.model_cards import card_for
 
 # model_id -> (contract, chunk_size, timeout_s, budget_for_16_vars_with_expl)
 EXPECTED = {
+    "gpt-5.6-sol": ("tool", None, 300, 16_384),
+    "gpt-5.6-terra": ("tool", None, 300, 16_384),
+    "gpt-5.6-luna": ("tool", None, 300, 16_384),
     "gpt-5.5": ("tool", 3, 60, 16_384),
     "claude-fable-5": ("tool", 1, 300, 16_384),
     "claude-sonnet-5": ("tool", 1, 300, 16_384),
@@ -70,3 +74,15 @@ def test_treatment_locked(model_id):
 def test_no_chunking_when_explanations_off():
     for model_id in EXPECTED:
         assert _required_explanation_chunk_size(model_id, False) is None
+
+
+@pytest.mark.parametrize(
+    ("model_id", "expected_cost"),
+    [
+        ("gpt-5.6-sol", 0.09),
+        ("gpt-5.6-terra", 0.039),
+        ("gpt-5.6-luna", 0.019),
+    ],
+)
+def test_gpt_56_cards_record_measured_full_run_cost(model_id, expected_cost):
+    assert card_for(model_id).expected_cost_per_scenario_usd == expected_cost

@@ -176,3 +176,25 @@ def test_spend_falls_back_to_disk_without_credits(manifest, tmp_path, monkeypatc
         {"scenario_id": ["scenario_000"], "prediction": [1.0], "total_cost_usd": [0.7]}
     ).to_csv(stub / "scenario_000.csv", index=False)
     assert supervisor._spent() == pytest.approx(0.7)
+
+
+def test_non_openrouter_model_ignores_openrouter_account_meter(
+    manifest, tmp_path, monkeypatch
+):
+    called = False
+
+    def fail_if_called(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("OpenRouter meter should not be queried")
+
+    monkeypatch.setattr("urllib.request.urlopen", fail_if_called)
+    supervisor = Supervisor(
+        model="gpt-5.6-sol",
+        manifest=manifest,
+        run_dir=tmp_path / "run",
+        env={"OPENROUTER_API_KEY": "present-but-unrelated"},
+    )
+
+    assert supervisor._credits_baseline is None
+    assert called is False

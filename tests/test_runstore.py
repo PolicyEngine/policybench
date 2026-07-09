@@ -580,6 +580,7 @@ def _predictions_frame_with_tricky_floats():
                 "total_tokens": float(_TRICKY_FLOAT_TEXT),
                 "reasoning_tokens": 0.0,
                 "cached_prompt_tokens": 0.0,
+                "cache_write_prompt_tokens": 1950.142857142857,
                 "total_cost_usd": 0.0036620952380952,
                 "provider_response_id": "rid",
             }
@@ -607,6 +608,8 @@ def test_response_column_stash_stores_exact_source_strings(tmp_path):
     # Stored as the exact source string -- not a JSON float number.
     assert blob["_csv"]["total_tokens"] == _TRICKY_FLOAT_TEXT
     assert isinstance(blob["_csv"]["total_tokens"], str)
+    assert blob["cache_write_prompt_tokens"] == pytest.approx(1950.142857142857)
+    assert blob["_csv"]["cache_write_prompt_tokens"] == "1950.142857142857"
     store.close()
 
 

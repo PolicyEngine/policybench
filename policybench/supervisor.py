@@ -144,10 +144,14 @@ class Supervisor:
     # supervisor's first production outing: $7.74 "spent" in a minute of
     # free replays). When an OpenRouter key is present, the /credits delta
     # from run start is the authoritative meter; the disk sum is the
-    # fallback for providers without a balance endpoint.
+    # fallback for providers without a balance endpoint. Never use the
+    # OpenRouter account meter for a model served by another provider merely
+    # because that credential also happens to be present in the environment.
     CREDITS_POLL_SECONDS = 20.0
 
     def _credits_usage(self) -> float | None:
+        if not self.litellm_id.startswith("openrouter/"):
+            return None
         key = self.env.get("OPENROUTER_API_KEY")
         if not key:
             return None

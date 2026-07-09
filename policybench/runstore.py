@@ -119,6 +119,7 @@ _RESPONSE_COLUMNS = (
     "total_tokens",
     "reasoning_tokens",
     "cached_prompt_tokens",
+    "cache_write_prompt_tokens",
     "provider_reported_cost_usd",
     "reconstructed_cost_usd",
     "total_cost_usd",
@@ -826,6 +827,7 @@ class RunStore:
                 "total_tokens",
                 "reasoning_tokens",
                 "cached_prompt_tokens",
+                "cache_write_prompt_tokens",
             )
             if field in record
         }

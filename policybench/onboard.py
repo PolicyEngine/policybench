@@ -21,15 +21,15 @@ few cents; run it before committing real money to a full benchmark.
 from __future__ import annotations
 
 import json
+import math
 import time
 from dataclasses import dataclass, field
 
-from litellm import completion
+from litellm import completion, responses
 
 from policybench import eval_no_tools as harness
 from policybench.model_cards import ModelCard
 
-PROBE_SMALL_VARIABLES = ["payroll_tax", "snap", "ssi"]
 PROBE_FULL_VARIABLE_COUNT = 16
 PROBE_TIMEOUT_SECONDS = 240
 # A call whose completion tokens hit the ceiling without producing a
@@ -45,10 +45,17 @@ SLOW_CALL_FRACTION = 0.5
 ENVIRONMENT_ERROR_MARKERS = (
     "more credits",
     "insufficient credits",
+    "insufficient_quota",
+    "exceeded your current quota",
     "402",
     "authentication",
     "invalid api key",
     "api key not found",
+    "notfounderror",
+    "permissiondeniederror",
+    "does not exist or you do not have access",
+    "model not found",
+    "permission denied",
 )
 
 
@@ -69,7 +76,9 @@ class ProbeResult:
         if not self.error:
             return False
         lowered = self.error.lower()
-        return any(marker in lowered for marker in ENVIRONMENT_ERROR_MARKERS)
+        return any(
+            marker in lowered for marker in ENVIRONMENT_ERROR_MARKERS
+        ) or harness.is_retryable_provider_error_text(self.error)
 
 
 @dataclass
@@ -90,32 +99,84 @@ class GauntletReport:
 
 def _probe_request(scenario, variables, model_id, contract):
     """Build a harness-parity request forcing the given contract."""
-    messages, kwargs = harness._chat_completion_request_kwargs(
-        scenario, variables, model_id
+    prompt = harness.make_no_tools_batch_prompt(
+        scenario,
+        variables,
+        answer_contract=contract,
+        include_explanations=True,
     )
-    kwargs.pop("caching", None)
-    kwargs["timeout"] = PROBE_TIMEOUT_SECONDS
-    if contract == "json":
-        for key in ("tools", "tool_choice"):
-            kwargs.pop(key, None)
-        prompt = harness.make_no_tools_batch_prompt(
-            scenario,
-            variables,
-            answer_contract="json",
-            include_explanations=True,
+    messages = [{"role": "user", "content": prompt}]
+    controls = harness._completion_controls(
+        model_id,
+        include_explanations=True,
+        variables=variables,
+    )
+    timeout = max(PROBE_TIMEOUT_SECONDS, harness._request_timeout_seconds(model_id))
+
+    if harness._uses_responses_api(model_id):
+        kwargs = {
+            "model": model_id,
+            "input": prompt,
+            "timeout": timeout,
+            "max_output_tokens": controls["max_completion_tokens"],
+        }
+        if contract == "tool":
+            kwargs.update(
+                {
+                    "tools": [
+                        harness._responses_tool_schema(
+                            variables,
+                            country=scenario.country,
+                            include_explanations=True,
+                        )
+                    ],
+                    "tool_choice": {
+                        "type": "function",
+                        "name": harness.ANSWER_FUNCTION_NAME,
+                    },
+                }
+            )
+        return messages, kwargs, responses
+
+    kwargs = {
+        "model": model_id,
+        "messages": messages,
+        "timeout": timeout,
+        **controls,
+    }
+    if contract == "tool":
+        kwargs.update(
+            {
+                "tools": [
+                    harness._build_answer_tool(
+                        variables,
+                        country=scenario.country,
+                        include_explanations=True,
+                    )
+                ],
+                "tool_choice": {
+                    "type": "function",
+                    "function": {"name": harness.ANSWER_FUNCTION_NAME},
+                },
+            }
         )
-        messages = [{"role": "user", "content": prompt}]
-    return messages, kwargs
+    else:
+        kwargs["response_format"] = {"type": "json_object"}
+    return messages, kwargs, completion
 
 
 def _run_probe(name, scenario, variables, model_id, contract) -> ProbeResult:
-    messages, kwargs = _probe_request(scenario, variables, model_id, contract)
-    budget = kwargs.get("max_completion_tokens") or kwargs.get("max_tokens")
     started = time.time()
     try:
-        response = completion(
-            messages=messages, **{k: v for k, v in kwargs.items() if k != "messages"}
+        messages, kwargs, request_fn = _probe_request(
+            scenario, variables, model_id, contract
         )
+        budget = (
+            kwargs.get("max_completion_tokens")
+            or kwargs.get("max_output_tokens")
+            or kwargs.get("max_tokens")
+        )
+        response = harness._run_request_with_wall_timeout(request_fn, kwargs)
     except Exception as error:
         return ProbeResult(
             name,
@@ -124,22 +185,27 @@ def _run_probe(name, scenario, variables, model_id, contract) -> ProbeResult:
             requested=len(variables),
             error=f"{type(error).__name__}: {error}"[:300],
         )
-    choice = response.choices[0]
-    message = choice.message
-    tool_calls = getattr(message, "tool_calls", None)
-    content = getattr(message, "content", None)
+    if harness._uses_responses_api(model_id):
+        content, tool_calls = harness._responses_content_and_tool_calls(response)
+        function_call = None
+        finish_reason = getattr(response, "status", None)
+    else:
+        choice = response.choices[0]
+        message = choice.message
+        tool_calls = getattr(message, "tool_calls", None)
+        content = getattr(message, "content", None)
+        function_call = getattr(message, "function_call", None)
+        finish_reason = choice.finish_reason
     predictions = harness.extract_predictions(
         content=content,
         variables=variables,
         tool_calls=tool_calls,
-        function_call=getattr(message, "function_call", None),
+        function_call=function_call,
     )
     parsed = sum(1 for v in variables if predictions.get(v) is not None)
-    usage = getattr(response, "usage", None)
-    completion_tokens = getattr(usage, "completion_tokens", None)
-    cost = None
-    if usage is not None:
-        cost = getattr(usage, "cost", None)
+    usage = harness._extract_usage_metadata(response, model_id, messages, content or "")
+    completion_tokens = usage["completion_tokens"]
+    cost = usage["total_cost_usd"]
     hit_ceiling = (
         budget is not None
         and completion_tokens is not None
@@ -151,7 +217,7 @@ def _run_probe(name, scenario, variables, model_id, contract) -> ProbeResult:
         ok=parsed == len(variables) and not hit_ceiling,
         seconds=time.time() - started,
         completion_tokens=completion_tokens,
-        finish_reason=choice.finish_reason,
+        finish_reason=finish_reason,
         parsed=parsed,
         requested=len(variables),
         cost_usd=cost,
@@ -165,18 +231,18 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
     output list (16+ entries exercises the whole-scenario request shape).
     """
     report = GauntletReport(model_id=model_id)
+    small_variables = full_variables[:3]
 
-    tool_small = _run_probe(
-        "tool-3var", scenario, PROBE_SMALL_VARIABLES, model_id, "tool"
-    )
+    tool_small = _run_probe("tool-3var", scenario, small_variables, model_id, "tool")
     report.probes.append(tool_small)
     if tool_small.environment_error:
         report.aborted = f"environment error, not a serving fact: {tool_small.error}"
         return report
     contract = "tool" if tool_small.ok else "json"
+    small_success = tool_small
     if not tool_small.ok:
         json_small = _run_probe(
-            "json-3var", scenario, PROBE_SMALL_VARIABLES, model_id, "json"
+            "json-3var", scenario, small_variables, model_id, "json"
         )
         report.probes.append(json_small)
         if json_small.environment_error:
@@ -188,6 +254,7 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
             # Neither contract answers a 3-variable request; nothing further
             # to derive — the model cannot run the benchmark as-is.
             return report
+        small_success = json_small
 
     full_vars = full_variables[:PROBE_FULL_VARIABLE_COUNT]
     full = _run_probe(f"{contract}-full", scenario, full_vars, model_id, contract)
@@ -204,9 +271,14 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
     )
     timeout = 600 if slow else None
 
-    costs = [p.cost_usd for p in report.probes if p.cost_usd]
-    calls_per_scenario = 1 if chunk_size is None else 6
-    expected = round(sum(costs) / len(costs) * calls_per_scenario, 3) if costs else None
+    if chunk_size is None:
+        expected = full.cost_usd
+    elif small_success.cost_usd is not None:
+        expected = small_success.cost_usd * math.ceil(len(full_variables) / chunk_size)
+    else:
+        expected = None
+    if expected is not None:
+        expected = round(expected, 3)
 
     report.card = ModelCard(
         litellm_id=model_id,

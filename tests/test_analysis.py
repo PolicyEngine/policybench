@@ -426,6 +426,7 @@ class TestSummaries:
                 "total_tokens": [11, 22, 33],
                 "reasoning_tokens": [0, 1, 2],
                 "cached_prompt_tokens": [4, 5, 6],
+                "cache_write_prompt_tokens": [7, 8, 9],
             }
         )
 
@@ -440,6 +441,7 @@ class TestSummaries:
         assert model_a["total_estimated_cost_usd"] == pytest.approx(0.3)
         assert model_a["total_elapsed_seconds"] == 3.0
         assert model_a["total_tokens"] == 33.0
+        assert model_a["cache_write_prompt_tokens"] == 15.0
         # No absolute call timestamps recorded -> no wall-clock claim.
         assert pd.isna(model_a["wall_clock_seconds"])
 

@@ -1360,6 +1360,7 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
         "total_tokens",
         "reasoning_tokens",
         "cached_prompt_tokens",
+        "cache_write_prompt_tokens",
     ):
         if column not in usage.columns and column == "error":
             usage[column] = None
@@ -1404,6 +1405,7 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
             total_tokens=("total_tokens", _sum_or_nan),
             reasoning_tokens=("reasoning_tokens", _sum_or_nan),
             cached_prompt_tokens=("cached_prompt_tokens", _sum_or_nan),
+            cache_write_prompt_tokens=("cache_write_prompt_tokens", _sum_or_nan),
         )
         .reset_index()
     )

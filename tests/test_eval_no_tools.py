@@ -10,7 +10,9 @@ import pytest
 
 from policybench.config import (
     COUNTRY_PROGRAMS,
+    GPT_56_MODELS,
     MODELS,
+    PRICE_OVERRIDES_PER_1M,
 )
 from policybench.eval_no_tools import (
     RequestWallTimeoutError,
@@ -18,6 +20,7 @@ from policybench.eval_no_tools import (
     _build_resume_metadata,
     _completion_controls,
     _enforce_explanation_value_contract,
+    _request_explanations_once,
     _request_timeout_seconds,
     _request_wall_timeout_seconds,
     _required_explanation_chunk_size,
@@ -743,6 +746,7 @@ def test_run_single_no_tools(mock_responses, mini_scenario):
     assert result["total_tokens"] == 15
     assert result["reasoning_tokens"] == 2
     assert result["cached_prompt_tokens"] == 4
+    assert result["cache_write_prompt_tokens"] is None
     assert result["provider_reported_cost_usd"] == 0.00123
     assert result["total_cost_usd"] == 0.00123
     assert result["cost_is_estimated"] is False
@@ -1421,6 +1425,121 @@ def test_run_single_no_tools_uses_xai_max_tokens(mock_completion, mini_scenario)
 def test_default_models_include_new_provider_variants():
     """Keep newly added provider variants addressable by stable local names."""
     assert MODELS["grok-4.3"] == "xai/grok-4.3"
+
+
+def test_gpt_56_family_is_in_the_default_roster():
+    expected = {
+        "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
+        "gpt-5.6-terra": {"input": 2.5, "output": 15.0},
+        "gpt-5.6-luna": {"input": 1.0, "output": 6.0},
+    }
+    assert set(GPT_56_MODELS) == set(expected)
+    for model_id, prices in expected.items():
+        assert MODELS[model_id] == model_id
+        assert PRICE_OVERRIDES_PER_1M[model_id] == prices
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_json_contract_explanation_repair_stays_in_json_mode(
+    mock_completion, mini_scenario
+):
+    message = MagicMock()
+    message.content = json.dumps(
+        {"income_tax": "Calculated from the supplied answer. value = 123"}
+    )
+    message.tool_calls = None
+    message.function_call = None
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(
+        prompt_tokens=10,
+        completion_tokens=5,
+        total_tokens=15,
+    )
+    mock_completion.return_value = response
+
+    result = _request_explanations_once(
+        mini_scenario,
+        ["income_tax"],
+        {"income_tax": 123.0},
+        "gemini/gemini-3.5-flash",
+    )
+
+    kwargs = mock_completion.call_args.kwargs
+    assert kwargs["response_format"] == {"type": "json_object"}
+    assert "tools" not in kwargs
+    assert "tool_choice" not in kwargs
+    assert "valid JSON object" in kwargs["messages"][0]["content"]
+    assert result["explanations"]["income_tax"].endswith("value = 123")
+
+
+@pytest.mark.parametrize("model_id", sorted(GPT_56_MODELS))
+def test_gpt_56_provider_resolves_without_remote_cost_map(model_id):
+    from litellm import get_llm_provider
+
+    assert model_id in litellm.model_cost
+    _, provider, _, _ = get_llm_provider(model_id)
+    assert provider == "openai"
+    entry = litellm.model_cost[model_id]
+    assert entry["supports_reasoning"] is True
+    input_rate = PRICE_OVERRIDES_PER_1M[model_id]["input"] / 1_000_000
+    output_rate = PRICE_OVERRIDES_PER_1M[model_id]["output"] / 1_000_000
+    assert entry["cache_read_input_token_cost"] == pytest.approx(input_rate * 0.1)
+    assert entry["cache_creation_input_token_cost"] == pytest.approx(input_rate * 1.25)
+    assert entry["input_cost_per_token_above_272k_tokens"] == pytest.approx(
+        input_rate * 2
+    )
+    assert entry["output_cost_per_token_above_272k_tokens"] == pytest.approx(
+        output_rate * 1.5
+    )
+
+    cached_input_cost, _ = litellm.cost_per_token(
+        model=model_id, cache_read_input_tokens=1_000_000
+    )
+    cache_write_cost, _ = litellm.cost_per_token(
+        model=model_id, cache_creation_input_tokens=1_000_000
+    )
+    assert cached_input_cost == pytest.approx(
+        PRICE_OVERRIDES_PER_1M[model_id]["input"] * 0.1
+    )
+    assert cache_write_cost == pytest.approx(
+        PRICE_OVERRIDES_PER_1M[model_id]["input"] * 1.25
+    )
+
+
+@pytest.mark.parametrize(
+    ("input_tokens", "output_tokens", "details", "expected"),
+    [
+        (100_000, 0, {"cache_write_tokens": 100_000}, 0.625),
+        (100_000, 0, {"cached_tokens": 100_000}, 0.05),
+        (300_000, 10_000, {"cache_write_tokens": 300_000}, 4.2),
+    ],
+)
+def test_gpt_56_responses_usage_reconstructs_cache_and_long_context_cost(
+    input_tokens, output_tokens, details, expected
+):
+    from policybench.eval_no_tools import _extract_usage_metadata
+
+    response = SimpleNamespace(
+        usage=SimpleNamespace(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+            input_tokens_details=details,
+            output_tokens_details={},
+            cost=0.01,
+        )
+    )
+
+    usage = _extract_usage_metadata(
+        response, "gpt-5.6-sol", [{"role": "user", "content": "x"}], ""
+    )
+
+    assert usage["reconstructed_cost_usd"] == pytest.approx(expected)
+    assert usage["total_cost_usd"] == pytest.approx(expected)
+    assert usage["provider_reported_cost_usd"] == pytest.approx(0.01)
+    assert usage["cache_write_prompt_tokens"] == details.get("cache_write_tokens")
+    assert usage["cost_is_estimated"] is True
 
 
 def test_deepseek_models_are_public_defaults():

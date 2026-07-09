@@ -48,6 +48,32 @@ def test_folds_complete_model(board, tmp_path):
     assert (tmp_path / "out" / "us" / "reference_outputs.csv").exists()
 
 
+def test_fold_preserves_new_addition_columns(board, tmp_path):
+    base_path, scoring = board
+    add = tmp_path / "new.csv"
+    frame = predictions("model-c", 3)
+    frame["cache_write_prompt_tokens"] = 12.5
+    frame.to_csv(add, index=False)
+
+    fold_board(base_path, [add], scoring, tmp_path / "out", export=False)
+
+    combined = pd.read_csv(tmp_path / "out" / "us" / "predictions.csv")
+    assert "cache_write_prompt_tokens" in combined
+    assert (
+        combined.loc[combined["model"] == "model-c", "cache_write_prompt_tokens"]
+        .eq(12.5)
+        .all()
+    )
+    assert (
+        combined.loc[
+            combined["model"].isin(["model-a", "model-b"]),
+            "cache_write_prompt_tokens",
+        ]
+        .isna()
+        .all()
+    )
+
+
 def test_excludes_short_run(board, tmp_path):
     base_path, scoring = board
     add = tmp_path / "short.csv"

@@ -34,7 +34,7 @@ def fold_board(
     out_dir: Path,
     export: bool = True,
 ) -> dict:
-    base = pd.read_csv(base_predictions)
+    base = pd.read_csv(base_predictions, low_memory=False)
     expected_rows = _rows_per_model(base)
 
     out_dir = Path(out_dir)
@@ -45,7 +45,7 @@ def fold_board(
     folded: list[str] = []
     excluded: dict[str, str] = {}
     for path in additions:
-        frame = pd.read_csv(path)
+        frame = pd.read_csv(path, low_memory=False)
         models = frame["model"].unique()
         if len(models) != 1:
             excluded[str(path)] = f"expected one model, found {list(models)}"
@@ -63,7 +63,11 @@ def fold_board(
             excluded[name] = "; ".join(problems)
             continue
         frame.to_csv(by_model_dir / f"{name}.csv", index=False)
-        frames.append(frame[base.columns])
+        # Keep additive schema improvements (for example newly captured usage
+        # metadata) instead of silently truncating each addition to the older
+        # base artifact's columns. pandas preserves the base column order and
+        # appends new columns, leaving incumbent cells blank.
+        frames.append(frame)
         folded.append(name)
 
     combined = pd.concat(frames, ignore_index=True)

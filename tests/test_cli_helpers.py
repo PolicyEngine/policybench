@@ -16,6 +16,11 @@ def test_parse_models_selects_subset():
     assert _parse_models([name]) == {name: MODELS[name]}
 
 
+def test_parse_models_selects_gpt_56_model():
+    name = "gpt-5.6-sol"
+    assert _parse_models([name]) == {name: MODELS[name]}
+
+
 def test_parse_models_unknown_raises():
     with pytest.raises(SystemExit, match="Unknown model"):
         _parse_models(["not-a-real-model"])

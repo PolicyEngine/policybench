@@ -32,12 +32,12 @@ from typing import Iterable, Iterator, Protocol
 
 import pandas as pd
 
-from policybench.config import PRICE_OVERRIDES_PER_1M
 from policybench.eval_no_tools import (
     MAX_REPAIR_ROUNDS,
     _chat_completion_request_kwargs,
     _chunk_variables,
     _enforce_explanation_value_contract,
+    _reconstruct_token_cost,
     _required_explanation_chunk_size,
     _responses_request_kwargs,
     _serialize_response_payload,
@@ -82,6 +82,7 @@ class NormalizedResult:
     completion_tokens: int | None = None
     reasoning_tokens: int | None = None
     cached_prompt_tokens: int | None = None
+    cache_write_prompt_tokens: int | None = None
     provider_response_id: str | None = None
     provider_resolved_model: str | None = None
     error: str | None = None
@@ -244,13 +245,26 @@ def _normalize_anthropic_entry(entry) -> NormalizedResult:
         elif block_type == "tool_use":
             tool_calls.append(_tool_call_shim(block.name, json.dumps(block.input)))
     usage = message.usage
+    uncached_input_tokens = getattr(usage, "input_tokens", None)
+    cached_input_tokens = getattr(usage, "cache_read_input_tokens", None)
+    cache_write_tokens = getattr(usage, "cache_creation_input_tokens", None)
+    prompt_tokens = None
+    if uncached_input_tokens is not None:
+        # Anthropic reports uncached input separately from cache reads/writes;
+        # normalize to the inclusive prompt-token convention used elsewhere.
+        prompt_tokens = (
+            uncached_input_tokens
+            + (cached_input_tokens or 0)
+            + (cache_write_tokens or 0)
+        )
     return NormalizedResult(
         custom_id=entry.custom_id,
         content="\n".join(text_parts) or None,
         tool_calls=tool_calls or None,
-        prompt_tokens=getattr(usage, "input_tokens", None),
+        prompt_tokens=prompt_tokens,
         completion_tokens=getattr(usage, "output_tokens", None),
-        cached_prompt_tokens=getattr(usage, "cache_read_input_tokens", None),
+        cached_prompt_tokens=cached_input_tokens,
+        cache_write_prompt_tokens=cache_write_tokens,
         provider_response_id=getattr(message, "id", None),
         provider_resolved_model=getattr(message, "model", None),
     )
@@ -293,6 +307,18 @@ class OpenAIBatchAdapter:
             include_explanations=True,
         )
         kwargs.pop("timeout", None)
+        connection_keys = {
+            "api_base",
+            "api_key",
+            "base_url",
+            "custom_llm_provider",
+        }
+        leaked = connection_keys & kwargs.keys()
+        if leaked:
+            raise ValueError(
+                "Provider connection settings must never enter a batch body: "
+                f"{', '.join(sorted(leaked))}"
+            )
         return kwargs
 
     def submit(self, requests: list[tuple[str, dict]], model_id: str) -> str:
@@ -356,14 +382,18 @@ def _normalize_openai_entry(entry: dict) -> NormalizedResult:
                 _tool_call_shim(item.get("name", ""), item.get("arguments", "{}"))
             )
     usage = body.get("usage") or {}
-    details = usage.get("output_tokens_details") or {}
+    output_details = usage.get("output_tokens_details") or {}
+    input_details = usage.get("input_tokens_details") or {}
     return NormalizedResult(
         custom_id=custom_id,
         content="\n".join(text_parts) or None,
         tool_calls=tool_calls or None,
         prompt_tokens=usage.get("input_tokens"),
         completion_tokens=usage.get("output_tokens"),
-        reasoning_tokens=details.get("reasoning_tokens"),
+        reasoning_tokens=output_details.get("reasoning_tokens"),
+        cached_prompt_tokens=input_details.get("cached_tokens"),
+        cache_write_prompt_tokens=input_details.get("cache_write_tokens")
+        or input_details.get("cache_creation_tokens"),
         provider_response_id=body.get("id"),
         provider_resolved_model=body.get("model"),
     )
@@ -472,21 +502,6 @@ def adapter_for_model(model_id: str, adapters: Iterable | None = None):
     return None
 
 
-def _standard_rate(model_name: str, model_id: str) -> tuple[float, float] | None:
-    """Per-token USD (input, output) at standard synchronous rates."""
-    import litellm
-
-    entry = litellm.model_cost.get(model_id) or litellm.model_cost.get(
-        model_id.split("/")[-1]
-    )
-    if entry and entry.get("input_cost_per_token"):
-        return entry["input_cost_per_token"], entry["output_cost_per_token"]
-    override = PRICE_OVERRIDES_PER_1M.get(model_name)
-    if override:
-        return override["input"] / 1e6, override["output"] / 1e6
-    return None
-
-
 @dataclass
 class BatchRunState:
     """Persisted per-round record so interrupted runs re-poll, not resubmit."""
@@ -586,12 +601,18 @@ def rows_from_unit(
 ) -> list[dict]:
     """Emit CSV rows in the sync schema, usage apportioned across the chunk."""
     size = len(unit.variables)
-    rate = _standard_rate(model_name, model_id)
     prompt_tokens = result.prompt_tokens if result else None
     completion_tokens = result.completion_tokens if result else None
-    reconstructed = None
-    if rate and prompt_tokens is not None and completion_tokens is not None:
-        reconstructed = prompt_tokens * rate[0] + completion_tokens * rate[1]
+    reconstructed = _reconstruct_token_cost(
+        model_name=model_name,
+        model_id=model_id,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=(result.cached_prompt_tokens if result else None),
+        cache_write_prompt_tokens=(
+            result.cache_write_prompt_tokens if result else None
+        ),
+    )
     total_tokens = (
         prompt_tokens + completion_tokens
         if prompt_tokens is not None and completion_tokens is not None
@@ -629,6 +650,9 @@ def rows_from_unit(
                 "reasoning_tokens": split(result.reasoning_tokens if result else None),
                 "cached_prompt_tokens": split(
                     result.cached_prompt_tokens if result else None
+                ),
+                "cache_write_prompt_tokens": split(
+                    result.cache_write_prompt_tokens if result else None
                 ),
                 "provider_reported_cost_usd": None,
                 "reconstructed_cost_usd": split(reconstructed),
@@ -668,8 +692,11 @@ def run_batch_eval(
     adapter = adapter or adapter_for_model(model_id)
     if adapter is None:
         raise ValueError(
-            f"{model_id} has no batch adapter (xAI and DeepSeek have no batch "
-            "APIs) — use the sync chunked runner."
+            f"{model_id} has no batch adapter — use the sync chunked runner."
+        )
+    if not adapter.supports(model_id):
+        raise ValueError(
+            f"{adapter.provider} batch adapter does not support {model_id}"
         )
 
     scenario_by_id = {scenario.id: scenario for scenario in scenarios}

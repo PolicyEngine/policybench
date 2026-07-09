@@ -653,6 +653,7 @@ def make_explanation_repair_prompt(
     scenario: Scenario,
     variables: list[str],
     answers: dict[str, float],
+    answer_contract: str = "tool",
 ) -> str:
     """Create a prompt for missing explanations only."""
     description = describe_household(scenario)
@@ -664,6 +665,19 @@ def make_explanation_repair_prompt(
         f"- {variable}: {answers[variable]}" for variable in variables
     )
 
+    if answer_contract == "json":
+        response_instruction = (
+            "Return only one valid JSON object keyed by the listed variable "
+            "names. Include every listed key exactly once, and make every "
+            "value a non-empty explanation."
+        )
+    else:
+        response_instruction = (
+            "Use the `submit_explanations` function exactly once. Return only "
+            "a single object keyed by the listed variable names. Include every "
+            "listed key exactly once, and make every explanation non-empty."
+        )
+
     return (
         f"{TASK_PREFACE}"
         f"{description}\n\n"
@@ -673,10 +687,8 @@ def make_explanation_repair_prompt(
         "Use these already-returned numeric answers as context; do not recalculate "
         "or return numeric answers in this repair response:\n"
         f"{returned_answers}\n\n"
-        "Use the `submit_explanations` function exactly once. Return only a "
-        "single object keyed by the listed variable names. Include every listed "
-        "key exactly once, and make every explanation non-empty, specific to "
-        "that variable, and concise. Each explanation must support the "
+        f"{response_instruction} Make each explanation specific to that "
+        "variable and concise. Each explanation must support the "
         "already-returned numeric answer for the same variable; do not mention "
         "a different final amount. End each explanation with `value = X`, "
         "where X exactly matches the already-returned numeric answer."

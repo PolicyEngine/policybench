@@ -53,6 +53,55 @@ def fake_response(
     )
 
 
+def fake_responses_response(variables, tokens=200):
+    import json
+
+    arguments = json.dumps(
+        {"outputs": {v: {"value": 1, "explanation": "x"} for v in variables}}
+    )
+    return SimpleNamespace(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name="submit_outputs",
+                arguments=arguments,
+            )
+        ],
+        output_text=None,
+        status="completed",
+        usage=SimpleNamespace(
+            input_tokens=100,
+            output_tokens=tokens,
+            total_tokens=100 + tokens,
+            cost=0.002,
+        ),
+    )
+
+
+def fake_responses_json_response(variables, tokens=200):
+    import json
+
+    content = json.dumps(
+        {"outputs": {v: {"value": 1, "explanation": "x"} for v in variables}}
+    )
+    return SimpleNamespace(
+        output=[
+            SimpleNamespace(
+                type="message",
+                content=[SimpleNamespace(type="output_text", text=content)],
+            )
+        ],
+        output_text=content,
+        status="completed",
+        usage=SimpleNamespace(
+            input_tokens=100,
+            output_tokens=tokens,
+            total_tokens=100 + tokens,
+            cost=0.002,
+        ),
+    )
+
+
 def test_clean_tool_model_gets_tool_contract(scenario):
     def respond(messages, **kwargs):
         tools = kwargs.get("tools")
@@ -72,12 +121,102 @@ def test_clean_tool_model_gets_tool_contract(scenario):
     assert report.card.answer_contract == "tool"
     assert report.card.explanation_chunk_size is None
     assert report.card.request_timeout_seconds is None
+    assert report.card.expected_cost_per_scenario_usd == pytest.approx(0.002)
+
+
+def test_small_probe_uses_supplied_country_variables(scenario):
+    uk_scenario = Scenario(
+        id=scenario.id,
+        state="",
+        filing_status=None,
+        adults=scenario.adults,
+        country="uk",
+        source_dataset="enhanced_frs_2023_24",
+    )
+    uk_variables = [
+        "income_tax",
+        "national_insurance",
+        "capital_gains_tax",
+        "child_benefit",
+        "universal_credit",
+    ]
+    requested = []
+
+    def respond(messages, **kwargs):
+        variables = list(
+            kwargs["tools"][0]["function"]["parameters"]["properties"]["outputs"][
+                "properties"
+            ]
+        )
+        requested.append(variables)
+        return fake_response(variables=variables)
+
+    with patch("policybench.onboard.completion", side_effect=respond):
+        report = run_gauntlet("openrouter/example/uk-clean", uk_scenario, uk_variables)
+
+    assert report.card is not None
+    assert requested[0] == uk_variables[:3]
+    assert requested[1] == uk_variables
+
+
+def test_gpt_model_probe_uses_responses_api_like_production(scenario):
+    calls = []
+
+    def respond(**kwargs):
+        calls.append(kwargs)
+        tool = kwargs["tools"][0]
+        variables = list(tool["parameters"]["properties"]["outputs"]["properties"])
+        return fake_responses_response(variables)
+
+    with (
+        patch("policybench.onboard.responses", side_effect=respond),
+        patch(
+            "policybench.onboard.completion",
+            side_effect=AssertionError("GPT probes must not use Chat Completions"),
+        ),
+    ):
+        report = run_gauntlet("gpt-5.6-sol", scenario, FULL_VARS)
+
+    assert report.card.answer_contract == "tool"
+    assert report.card.explanation_chunk_size is None
+    assert len(calls) == 2
+    assert all(call["model"] == "gpt-5.6-sol" for call in calls)
+    assert all("input" in call and "messages" not in call for call in calls)
+    assert all(call["max_output_tokens"] == 16_384 for call in calls)
+    assert all(call["timeout"] == 300 for call in calls)
+
+
+def test_gpt_responses_tool_rejection_falls_back_to_json(scenario):
+    def respond(**kwargs):
+        if kwargs.get("tools"):
+            raise RuntimeError("tool_choice incompatible with this model")
+        requested = [variable for variable in FULL_VARS if variable in kwargs["input"]]
+        return fake_responses_json_response(requested)
+
+    with (
+        patch("policybench.onboard.responses", side_effect=respond),
+        patch(
+            "policybench.onboard.completion",
+            side_effect=AssertionError("GPT probes must not use Chat Completions"),
+        ),
+    ):
+        report = run_gauntlet("gpt-5.6-sol", scenario, FULL_VARS)
+
+    assert [probe.name for probe in report.probes] == [
+        "tool-3var",
+        "json-3var",
+        "json-full",
+    ]
+    assert report.card.answer_contract == "json"
+    assert report.card.explanation_chunk_size is None
 
 
 def test_tool_rejection_falls_to_json(scenario):
     def respond(messages, **kwargs):
         if kwargs.get("tools"):
-            raise RuntimeError("tool_choice incompatible with thinking")
+            raise RuntimeError(
+                "BadRequestError: tool_choice incompatible with thinking"
+            )
         return fake_response(variables=_requested(messages), tool_call=False)
 
     def _requested(messages):
@@ -107,7 +246,7 @@ def test_ceiling_burn_on_full_probe_triggers_chunking(scenario):
     with patch("policybench.onboard.completion", side_effect=respond):
         report = run_gauntlet("openrouter/example/burner", scenario, FULL_VARS)
     assert report.card.explanation_chunk_size == 3
-    assert report.card.expected_cost_per_scenario_usd is not None
+    assert report.card.expected_cost_per_scenario_usd == pytest.approx(0.012)
 
 
 def test_no_viable_contract_yields_no_card(scenario):
@@ -168,3 +307,32 @@ def test_credit_errors_abort_without_card(scenario):
     assert report.card is None
     assert "environment error" in report.aborted
     assert "no card derived" in format_report(report)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "NotFoundError: model gpt-5.6-sol does not exist or you do not have access",
+        "PermissionDeniedError: permission denied for this organization",
+        "RateLimitError: insufficient_quota; exceeded your current quota",
+    ],
+)
+def test_rollout_access_errors_abort_without_shaping_card(scenario, message):
+    with patch("policybench.onboard.responses", side_effect=RuntimeError(message)):
+        report = run_gauntlet("gpt-5.6-sol", scenario, FULL_VARS)
+
+    assert len(report.probes) == 1
+    assert report.card is None
+    assert "environment error" in report.aborted
+
+
+def test_transient_provider_error_aborts_without_falling_back_contract(scenario):
+    with patch(
+        "policybench.onboard.completion",
+        side_effect=RuntimeError("RateLimitError: 429 Too Many Requests"),
+    ):
+        report = run_gauntlet("openrouter/example/rate-limited", scenario, FULL_VARS)
+
+    assert len(report.probes) == 1
+    assert report.card is None
+    assert "environment error" in report.aborted

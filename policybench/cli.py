@@ -1075,14 +1075,15 @@ def main():
             raise SystemExit(1)
 
     elif args.command == "onboard":
-        from policybench.config import PROGRAMS
         from policybench.onboard import format_report, run_gauntlet
         from policybench.scenarios import load_scenarios_from_manifest
         from policybench.spec import expand_programs_for_scenario
 
         scenarios = load_scenarios_from_manifest(args.scenario_manifest)
         scenario = scenarios[0]
-        variables = expand_programs_for_scenario(list(PROGRAMS), scenario)
+        variables = expand_programs_for_scenario(
+            get_programs(scenario.country), scenario
+        )
         report = run_gauntlet(args.model_id, scenario, variables)
         text = format_report(report)
         print(text)

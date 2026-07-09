@@ -2,9 +2,9 @@ import { useMemo } from "react";
 import { getVariableLabel, type BenchData, type HeatmapEntry } from "../types";
 import {
   MODEL_LABELS,
-  MODEL_ORDER,
   getPerformanceSurfaceColor,
   getPerformanceTextColor,
+  orderModels,
 } from "../modelMeta";
 import { programIsActive, type ProgramOption } from "../lib/programFilters";
 import ProgramFilterDropdown from "./ProgramFilterDropdown";
@@ -73,8 +73,10 @@ export default function ProgramHeatmap({
     return { grid: lookup, variables };
   }, [activeProgramIds, data]);
 
-  const models = MODEL_ORDER.filter((m) =>
-    data.heatmap.some((h) => h.condition === "no_tools" && h.model === m),
+  const models = orderModels(
+    data.heatmap
+      .filter((entry) => entry.condition === "no_tools")
+      .map((entry) => entry.model),
   );
 
   const averageScores = useMemo(() => {
@@ -132,7 +134,7 @@ export default function ProgramHeatmap({
                   key={m}
                   className="text-center text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium pb-3 px-2 w-28"
                 >
-                  {MODEL_LABELS[m]}
+                  {MODEL_LABELS[m] ?? m}
                 </th>
               ))}
               <th className="text-center text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium pb-3 px-2 w-20">
