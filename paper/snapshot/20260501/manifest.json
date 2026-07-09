@@ -20,9 +20,9 @@
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 56950706,
-    "derivation": "Re-judged failure audit with decisive per-model diagnoses (PR #114): judge schema gained a required per-model diagnosis, the prompt treats the trace-generated reference as verified and mechanically rejects hedging, and case prompts carry authoritative engine facts (654 grounding blocks: medicaid, CHIP, school meals, SSI). 477 CHIP/school-meal/SSI reference narratives regenerated grounded after a mechanism-required validator found 74 June narratives fabricating mechanisms. 636 substantive cases re-judged (0 hedged, 0 reference-suspect); 5,351 row annotations. Scores unchanged: modelStats and globalWeights byte-identical to dashboard-data-20260707c; only annotation, referenceExplanation, and judged failure-class leaf fields changed.",
-    "notes": "Annotation republish (pattern of 20260702b/20260707b): dataset version unchanged (v1.1), no selector changes. claude-fable-5 usage fields remain artifact-level values. Fresh audit flags 10 reference-suspect cases; 5 were previously adjudicated reference-correct (#107), 5 new are under adjudication.",
+    "bytes": 64166377,
+    "derivation": "Additive fold of complete GPT-5.6 Sol, Terra, and Luna runs into the 20-model v1.1 board: 45,632 prediction rows across 23 models and 1,984 canonical outputs. All 489 wrong rows across 239 new model-output cases were independently audited; verdict validation found 0 missing, hedged, or reference-suspect cases after adjudication. The live annotation file preserves all 5,351 incumbent row annotations and adds the 489 GPT-5.6 annotations. Incumbent predictions, metrics, annotations, and serialized scenario leaves are unchanged.",
+    "notes": "Dataset version remains v1.1 with the corrected PolicyEngine references. GPT-5.6 usage and exact reconstructed cost include cache-write prompt tokens; claude-fable-5 retains its prior artifact-level usage values. Muse Spark 1.1 support is implemented but is not included in this artifact because no Meta Model API credential was available for a live run.",
     "population_weights": {
       "sha256": "0b3b96b8247477631510371b9c3b021a18a535e8ebbf8c73a8aa67cff3110cd4",
       "source": "committed June artifact policybench/population_weights.json (unchanged)"
@@ -32,9 +32,9 @@
       "policyengine_us_version": "1.755.4",
       "policyengine_version": "4.16.1"
     },
-    "sha256": "d95e19a2f461f78367629bb75fdc0ad1771d0eab6d70550afbd2cf8dddabbf53",
-    "tag": "dashboard-data-20260708",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260708/dashboard-data.json"
+    "sha256": "7ca50e5795ad269c69c775064c12f87b6f31e47fba8da36e6f9242ed3e61db79",
+    "tag": "dashboard-data-20260709",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260709/dashboard-data.json"
   },
   "live_dashboard_note": "Two artifacts are tracked. published_dashboard_artifact pins the manuscript's frozen record: it equals the combined export of the source run data.json files listed under source_run_artifacts, byte for byte. live_dashboard_artifact is the release asset the committed pointer app/src/data.artifact.json references; it starts from the frozen export and may gain additive updates (injected metrics, newly benchmarked models) without changing the frozen models' scores. Every publish-dashboard run must update live_dashboard_artifact (tag, sha256, bytes, derivation) in the same commit as the pointer.",
   "model_response_date": "2026-06-12 to 2026-06-13",
