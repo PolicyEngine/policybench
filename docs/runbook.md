@@ -62,7 +62,8 @@ request for reliability.
 
 ```bash
 for country in us uk; do
-  for model in claude-opus-4.7 claude-sonnet-4.6 claude-haiku-4.5; do
+  for model in claude-fable-5 claude-opus-4.8 claude-opus-4.7 \
+    claude-sonnet-5 claude-sonnet-4.6 claude-haiku-4.5; do
     uv run python -m policybench.cli eval-no-tools-chunked \
       --country "$country" \
       --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
@@ -93,8 +94,7 @@ for country in us uk; do
     --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
     --output-dir "$RUN_DIR/$country" \
     --model grok-4.3 \
-    --model grok-4.20 \
-    --model grok-4.1-fast \
+    --model grok-build-0.1 \
     --chunk-size 5 \
     --parallel 2 \
     --model-parallel 2 \
@@ -107,6 +107,9 @@ for country in us uk; do
     --country "$country" \
     --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
     --output-dir "$RUN_DIR/$country" \
+    --model gpt-5.6-sol \
+    --model gpt-5.6-terra \
+    --model gpt-5.6-luna \
     --model gpt-5.5 \
     --model gpt-5.4-mini \
     --model gpt-5.4-nano \
@@ -131,6 +134,36 @@ for country in us uk; do
     --model-parallel 2 \
     --chunk-attempts 1
 done
+
+# Terminal 4: DeepSeek
+for country in us uk; do
+  uv run python -m policybench.cli eval-no-tools-chunked \
+    --country "$country" \
+    --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
+    --output-dir "$RUN_DIR/$country" \
+    --model deepseek-v4-pro \
+    --model deepseek-v4-flash \
+    --chunk-size 5 \
+    --parallel 2 \
+    --model-parallel 2 \
+    --chunk-attempts 1
+done
+
+# Terminal 5: models served through OpenRouter
+for country in us uk; do
+  uv run python -m policybench.cli eval-no-tools-chunked \
+    --country "$country" \
+    --scenario-manifest "$RUN_DIR/$country/scenarios.csv" \
+    --output-dir "$RUN_DIR/$country" \
+    --model kimi-k2.6 \
+    --model glm-5.2 \
+    --model minimax-m3 \
+    --model qwen-3.7-max \
+    --chunk-size 5 \
+    --parallel 1 \
+    --model-parallel 2 \
+    --chunk-attempts 1
+done
 ```
 
 If a provider begins rate-limiting or producing transport errors, reduce only
@@ -141,8 +174,10 @@ The current default non-Claude model set is:
 
 ```bash
 grok-4.3
-grok-4.20
-grok-4.1-fast
+grok-build-0.1
+gpt-5.6-sol
+gpt-5.6-terra
+gpt-5.6-luna
 gpt-5.5
 gpt-5.4-mini
 gpt-5.4-nano
@@ -150,11 +185,40 @@ gemini-3.1-pro-preview
 gemini-3.5-flash
 gemini-3-flash-preview
 gemini-3.1-flash-lite-preview
+deepseek-v4-pro
+deepseek-v4-flash
+kimi-k2.6
+glm-5.2
+minimax-m3
+qwen-3.7-max
 ```
 
-`config.MODELS` may also include newer models (e.g. DeepSeek) added after the
-frozen manuscript snapshot; add them to the appropriate provider group when
-running a fresh batch.
+OpenAI made [GPT-5.6 generally available](https://openai.com/index/gpt-5-6/)
+across ChatGPT, Codex, and the API on 2026-07-09, with a global rollout over 24
+hours. Because these models are new to the PolicyBench harness, run the serving
+gauntlet and a two-scenario smoke for each model before committing to a paid
+batch:
+
+```bash
+for model in gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna; do
+  uv run policybench onboard \
+    --model-id "$model" \
+    --scenario-manifest "$RUN_DIR/us/scenarios.csv" \
+    --report-output "$RUN_DIR/us/${model}-onboarding.md"
+
+  uv run policybench eval-no-tools \
+    --country us \
+    --scenario-manifest "$RUN_DIR/us/scenarios.csv" \
+    --num-scenarios "$N" \
+    --model "$model" \
+    --scenario-end 2 \
+    --output "$RUN_DIR/us/${model}-smoke.csv"
+done
+```
+
+The bare `gpt-5.6` alias resolves to Sol and must not be added as a separate
+benchmark row. GPT-5.6 Pro is a product/request mode rather than a separate API
+model id, so it is also not a separate benchmark row.
 
 The runner skips complete chunks and rewrites per-model merged CSVs on resume.
 Provider transport, timeout, rate-limit, server, authentication, and
@@ -167,8 +231,8 @@ those errors remain incomplete and should be retried or rerun.
 API at ~50% of synchronous prices, with the provider handling parallelism.
 Request bodies are identical to sync mode; results land in the same
 `by_model/<model>.csv` schema, so retries, export, and the runstore work
-unchanged. xAI and DeepSeek have no batch APIs — keep using the chunked
-runner for them.
+unchanged. The harness has no batch adapter for xAI, DeepSeek, or
+OpenRouter-routed models — keep using the chunked runner for them.
 
 ```bash
 uv run policybench eval-no-tools-batch \

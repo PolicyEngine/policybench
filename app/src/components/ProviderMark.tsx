@@ -1,4 +1,14 @@
-import { Anthropic, DeepSeek, Google, OpenAI, XAI } from "@lobehub/icons";
+import {
+  Alibaba,
+  Anthropic,
+  DeepSeek,
+  Google,
+  Minimax,
+  Moonshot,
+  OpenAI,
+  XAI,
+  ZAI,
+} from "@lobehub/icons";
 import { PROVIDER_LABELS, type ProviderKey } from "../modelMeta";
 
 export default function ProviderMark({
@@ -32,11 +42,15 @@ export default function ProviderMark({
       aria-label={label}
       className={`inline-flex items-center justify-center text-text ${className}`}
     >
+      {provider === "alibaba" && <Alibaba.Color size={size} aria-hidden="true" />}
       {provider === "anthropic" && <Anthropic size={size} color="currentColor" aria-hidden="true" />}
       {provider === "deepseek" && <DeepSeek.Color size={size} aria-hidden="true" />}
       {provider === "google" && <Google.Color size={size} aria-hidden="true" />}
+      {provider === "minimax" && <Minimax.Color size={size} aria-hidden="true" />}
+      {provider === "moonshot" && <Moonshot size={size} color="currentColor" aria-hidden="true" />}
       {provider === "openai" && <OpenAI size={size} color="currentColor" aria-hidden="true" />}
       {provider === "xai" && <XAI size={size} color="currentColor" aria-hidden="true" />}
+      {provider === "zai" && <ZAI size={size} color="currentColor" aria-hidden="true" />}
     </span>
   );
 }

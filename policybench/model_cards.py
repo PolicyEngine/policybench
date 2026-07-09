@@ -37,6 +37,30 @@ class ModelCard:
 
 
 MODEL_CARDS: dict[str, ModelCard] = {
+    "gpt-5.6-sol": ModelCard(
+        litellm_id="gpt-5.6-sol",
+        thinking_budget=True,
+        notes=(
+            "New reasoning model. Serving treatment must be "
+            "rechecked with `policybench onboard` after API access is granted."
+        ),
+    ),
+    "gpt-5.6-terra": ModelCard(
+        litellm_id="gpt-5.6-terra",
+        thinking_budget=True,
+        notes=(
+            "New reasoning model. Serving treatment must be "
+            "rechecked with `policybench onboard` after API access is granted."
+        ),
+    ),
+    "gpt-5.6-luna": ModelCard(
+        litellm_id="gpt-5.6-luna",
+        thinking_budget=True,
+        notes=(
+            "New reasoning model. Serving treatment must be "
+            "rechecked with `policybench onboard` after API access is granted."
+        ),
+    ),
     "gpt-5.5": ModelCard(
         litellm_id="gpt-5.5",
         explanation_chunk_size=3,

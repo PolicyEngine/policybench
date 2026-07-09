@@ -16,8 +16,10 @@ SEED = 42
 # Default benchmark country
 DEFAULT_COUNTRY = "us"
 
-# Canonical default benchmark models. This list should track the published
-# no-tools leaderboard rather than every model ever probed in the repo.
+# Canonical default benchmark models. Newly released models may enter this
+# runnable roster before their completed results reach the published no-tools
+# leaderboard; dashboard artifacts remain unchanged until a run is folded and
+# published separately.
 #
 # Most identifiers below are provider aliases (e.g. ``claude-opus-4.7`` or
 # ``gpt-5.5``), not dated revisions. Provider responses can be routed to
@@ -25,6 +27,12 @@ DEFAULT_COUNTRY = "us"
 # ``provider_response_id``, ``provider_system_fingerprint``, and
 # ``provider_resolved_model`` in ``predictions.csv.gz``; older snapshots
 # only have the alias and the raw response payload.
+GPT_56_MODELS = {
+    "gpt-5.6-sol": "gpt-5.6-sol",
+    "gpt-5.6-terra": "gpt-5.6-terra",
+    "gpt-5.6-luna": "gpt-5.6-luna",
+}
+
 MODELS = {
     "claude-fable-5": "claude-fable-5",
     "claude-opus-4.8": "claude-opus-4-8",
@@ -34,6 +42,7 @@ MODELS = {
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
     "grok-4.3": "xai/grok-4.3",
     "grok-build-0.1": "xai/grok-build-0.1",
+    **GPT_56_MODELS,
     "gpt-5.5": "gpt-5.5",
     "gpt-5.4-mini": "gpt-5.4-mini",
     "gpt-5.4-nano": "gpt-5.4-nano",
@@ -54,6 +63,12 @@ MODELS = {
 # run's reconstructed per-call cost is missing, so the leaderboard can still
 # show a cost. Keyed by the display id used in predictions.csv.gz.
 PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
+    # GPT-5.6 list prices from OpenAI's general-availability announcement
+    # (https://openai.com/index/gpt-5-6/, retrieved 2026-07-09).
+    # These overrides are needed until LiteLLM's model-cost map catches up.
+    "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
+    "gpt-5.6-terra": {"input": 2.5, "output": 15.0},
+    "gpt-5.6-luna": {"input": 1.0, "output": 6.0},
     # grok-build-0.1: $1 / $2 per 1M input/output tokens (https://x.ai/api).
     "grok-build-0.1": {"input": 1.0, "output": 2.0},
     # claude-fable-5: $10 / $50 per 1M input/output tokens

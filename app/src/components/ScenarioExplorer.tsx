@@ -8,13 +8,12 @@ import {
 } from "../types";
 import { formatCurrency } from "../format";
 import {
-  FRONTIER_MODELS,
   MODEL_LABELS,
-  MODEL_ORDER,
   PROVIDER_LABELS,
+  frontierModelsFor,
   getProviderForModel,
   getPredictionTextColor,
-  isFrontierModel,
+  orderModels,
   type ProviderKey,
 } from "../modelMeta";
 import { binaryFlag } from "../lib/scoring";
@@ -216,19 +215,39 @@ export default function ScenarioExplorer({
     for (const varData of Object.values(filteredPredictions)) {
       for (const m of Object.keys(varData)) unique.add(m);
     }
-    return MODEL_ORDER.filter((m) => unique.has(m));
+    return orderModels(unique);
   }, [filteredPredictions]);
+
+  const frontierModels = useMemo(
+    () => frontierModelsFor(allModels),
+    [allModels],
+  );
+  const frontierModelSet = useMemo(
+    () => new Set(frontierModels),
+    [frontierModels],
+  );
+
+  const providerOptions = useMemo(() => {
+    const available = new Set(
+      allModels
+        .map((model) => getProviderForModel(model))
+        .filter((provider): provider is ProviderKey => provider !== null),
+    );
+    return (Object.keys(PROVIDER_LABELS) as ProviderKey[]).filter(
+      (provider) => available.has(provider) || providerFilter.has(provider),
+    );
+  }, [allModels, providerFilter]);
 
   const models = useMemo(() => {
     return allModels.filter((m) => {
-      if (frontierOnly && !isFrontierModel(m)) return false;
+      if (frontierOnly && !frontierModelSet.has(m)) return false;
       if (providerFilter.size > 0) {
         const provider = getProviderForModel(m);
         if (!provider || !providerFilter.has(provider)) return false;
       }
       return true;
     });
-  }, [allModels, frontierOnly, providerFilter]);
+  }, [allModels, frontierModelSet, frontierOnly, providerFilter]);
 
   // The detail modal opens on click. Selection is scoped to the current
   // scenario so switching households doesn't carry the old cell over.
@@ -299,7 +318,7 @@ export default function ScenarioExplorer({
       // explanation fetch would never trigger — start it now.
       setExplanationsEnabled(true);
       // The linked model may be hidden behind the frontier-only default.
-      if (!isFrontierModel(model)) setFrontierOnly(false);
+      if (!frontierModelSet.has(model)) setFrontierOnly(false);
     };
     const timer = window.setTimeout(apply, 0);
     return () => window.clearTimeout(timer);
@@ -538,7 +557,7 @@ export default function ScenarioExplorer({
                 ? "border-primary-strong bg-primary-strong text-white"
                 : "border-border bg-card text-text-secondary hover:text-text"
             }`}
-            title={`Show only one frontier flagship per provider (${FRONTIER_MODELS.map((m) => MODEL_LABELS[m] ?? m).join(", ")})`}
+            title={`Show only one frontier flagship per provider (${frontierModels.map((m) => MODEL_LABELS[m] ?? m).join(", ")})`}
           >
             Frontier only
           </button>
@@ -555,7 +574,7 @@ export default function ScenarioExplorer({
             aria-labelledby="scenarios-provider-label"
             className="inline-flex flex-wrap items-center gap-1"
           >
-            {(Object.keys(PROVIDER_LABELS) as ProviderKey[]).map((provider) => {
+            {providerOptions.map((provider) => {
               const isActive = providerFilter.has(provider);
               return (
                 <button
@@ -608,7 +627,7 @@ export default function ScenarioExplorer({
                       size={12}
                       className="flex-shrink-0"
                     />
-                    {MODEL_LABELS[m]?.split(" ").slice(-2).join(" ")}
+                    {(MODEL_LABELS[m] ?? m).split(" ").slice(-2).join(" ")}
                   </div>
                 </th>
               ))}

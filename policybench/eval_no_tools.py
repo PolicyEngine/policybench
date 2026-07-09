@@ -14,8 +14,22 @@ import litellm
 import pandas as pd
 from litellm import completion, completion_cost, responses
 
-from policybench.config import MODELS, PROGRAMS
+from policybench.config import (
+    GPT_56_MODELS,
+    MODELS,
+    PRICE_OVERRIDES_PER_1M,
+    PROGRAMS,
+)
 from policybench.model_cards import card_for
+from policybench.policyengine_runtime import policyengine_bundles_for_countries
+from policybench.prompts import (
+    get_variable_description,
+    make_explanation_repair_prompt,
+    make_no_tools_batch_prompt,
+    make_no_tools_batch_repair_prompt,
+)
+from policybench.scenarios import Scenario, scenario_to_dict
+from policybench.spec import expand_programs_for_scenario, metric_type_for_output
 
 # litellm resolves an unprefixed model's provider (and prices it) through its
 # model-cost map, whose remote refresh can time out mid-run and whose bundled
@@ -39,15 +53,48 @@ if "claude-fable-5" not in litellm.model_cost:
             }
         }
     )
-from policybench.policyengine_runtime import policyengine_bundles_for_countries
-from policybench.prompts import (
-    get_variable_description,
-    make_explanation_repair_prompt,
-    make_no_tools_batch_prompt,
-    make_no_tools_batch_repair_prompt,
-)
-from policybench.scenarios import Scenario, scenario_to_dict
-from policybench.spec import expand_programs_for_scenario, metric_type_for_output
+
+# LiteLLM's bundled model map predates the GPT-5.6 release. Without a
+# local entry it cannot infer that the unprefixed public API ids belong to
+# OpenAI, so requests fail before reaching the provider. Keep these entries
+# minimal and grounded in OpenAI's published model/pricing pages; a future
+# LiteLLM map entry takes precedence automatically.
+for _model_id in GPT_56_MODELS.values():
+    if _model_id in litellm.model_cost:
+        continue
+    _prices = PRICE_OVERRIDES_PER_1M[_model_id]
+    _input_cost = _prices["input"] / 1_000_000
+    _output_cost = _prices["output"] / 1_000_000
+    litellm.register_model(
+        {
+            _model_id: {
+                "max_tokens": 128000,
+                "max_input_tokens": 1050000,
+                "max_output_tokens": 128000,
+                "input_cost_per_token": _input_cost,
+                "output_cost_per_token": _output_cost,
+                "cache_read_input_token_cost": _input_cost * 0.1,
+                "cache_creation_input_token_cost": _input_cost * 1.25,
+                "input_cost_per_token_above_272k_tokens": _input_cost * 2,
+                "cache_read_input_token_cost_above_272k_tokens": (_input_cost * 0.2),
+                "output_cost_per_token_above_272k_tokens": _output_cost * 1.5,
+                "litellm_provider": "openai",
+                "mode": "chat",
+                "supported_endpoints": [
+                    "/v1/chat/completions",
+                    "/v1/batch",
+                    "/v1/responses",
+                ],
+                "supports_function_calling": True,
+                "supports_parallel_function_calling": True,
+                "supports_prompt_caching": True,
+                "supports_reasoning": True,
+                "supports_response_schema": True,
+                "supports_tool_choice": True,
+                "supports_vision": True,
+            }
+        }
+    )
 
 
 def _env_int(name: str, default: int) -> int:
@@ -252,6 +299,63 @@ def _get_usage_value(obj, key: str):
     return getattr(obj, key, None)
 
 
+def _reconstruct_token_cost(
+    *,
+    model_name: str,
+    model_id: str,
+    prompt_tokens: int | None,
+    completion_tokens: int | None,
+    cached_prompt_tokens: int | None = None,
+    cache_write_prompt_tokens: int | None = None,
+) -> float | None:
+    """Reconstruct standard synchronous token cost from provider usage.
+
+    GPT-5.6 needs an explicit path until LiteLLM carries the release: cache
+    writes cost 1.25x, reads 0.1x, and requests above 272K input tokens price
+    the full request at 2x input / 1.5x output.
+    """
+    if prompt_tokens is None or completion_tokens is None:
+        return None
+    cached = max(0, min(int(cached_prompt_tokens or 0), int(prompt_tokens)))
+    cache_write = max(
+        0,
+        min(int(cache_write_prompt_tokens or 0), int(prompt_tokens) - cached),
+    )
+
+    if model_id in GPT_56_MODELS:
+        rates = PRICE_OVERRIDES_PER_1M[model_id]
+        input_rate = rates["input"] / 1_000_000
+        output_rate = rates["output"] / 1_000_000
+        if prompt_tokens > 272_000:
+            input_rate *= 2
+            output_rate *= 1.5
+        uncached = int(prompt_tokens) - cached - cache_write
+        return (
+            uncached * input_rate
+            + cached * input_rate * 0.1
+            + cache_write * input_rate * 1.25
+            + int(completion_tokens) * output_rate
+        )
+
+    try:
+        input_cost, output_cost = litellm.cost_per_token(
+            model=model_id,
+            prompt_tokens=int(prompt_tokens),
+            completion_tokens=int(completion_tokens),
+            cache_read_input_tokens=cached,
+            cache_creation_input_tokens=cache_write,
+        )
+        return float(input_cost + output_cost)
+    except Exception:
+        override = PRICE_OVERRIDES_PER_1M.get(model_name)
+        if override is None:
+            return None
+        return (
+            int(prompt_tokens) * override["input"]
+            + int(completion_tokens) * override["output"]
+        ) / 1_000_000
+
+
 def _extract_provider_fingerprint(response) -> dict:
     """Capture the provider response id, system fingerprint, and resolved model.
 
@@ -283,41 +387,69 @@ def _extract_usage_metadata(
             completion_tokens_details, "reasoning_tokens"
         )
 
+    prompt_tokens = _get_usage_value(usage, "prompt_tokens") or _get_usage_value(
+        usage, "input_tokens"
+    )
+    completion_tokens = _get_usage_value(
+        usage, "completion_tokens"
+    ) or _get_usage_value(usage, "output_tokens")
+    cached_prompt_tokens = _get_usage_value(prompt_tokens_details, "cached_tokens")
+    cache_write_prompt_tokens = _get_usage_value(
+        prompt_tokens_details, "cache_write_tokens"
+    )
+    if cache_write_prompt_tokens is None:
+        cache_write_prompt_tokens = _get_usage_value(
+            prompt_tokens_details, "cache_creation_tokens"
+        )
+
     provider_reported_cost_usd = _get_usage_value(usage, "cost")
     reconstructed_cost_usd = None
-    try:
-        cost_kwargs = {
-            "completion_response": response,
-            "model": model_id,
-        }
-        if messages:
-            cost_kwargs["messages"] = messages
-        if content:
-            cost_kwargs["completion"] = content
-        reconstructed_cost_usd = completion_cost(**cost_kwargs)
-    except Exception:
-        reconstructed_cost_usd = None
+    if model_id in GPT_56_MODELS:
+        reconstructed_cost_usd = _reconstruct_token_cost(
+            model_name=model_id,
+            model_id=model_id,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cached_prompt_tokens=cached_prompt_tokens,
+            cache_write_prompt_tokens=cache_write_prompt_tokens,
+        )
+    else:
+        try:
+            cost_kwargs = {
+                "completion_response": response,
+                "model": model_id,
+            }
+            if messages:
+                cost_kwargs["messages"] = messages
+            if content:
+                cost_kwargs["completion"] = content
+            reconstructed_cost_usd = completion_cost(**cost_kwargs)
+        except Exception:
+            reconstructed_cost_usd = None
 
-    total_cost_usd = provider_reported_cost_usd
-    if total_cost_usd is None:
+    if model_id in GPT_56_MODELS and reconstructed_cost_usd is not None:
+        # OpenAI responses do not report dollar cost; current LiteLLM fills
+        # ``usage.cost`` from a map that predates GPT-5.6 cache-write pricing.
         total_cost_usd = reconstructed_cost_usd
+        cost_is_estimated = True
+    else:
+        total_cost_usd = provider_reported_cost_usd
+        if total_cost_usd is None:
+            total_cost_usd = reconstructed_cost_usd
+        cost_is_estimated = (
+            provider_reported_cost_usd is None and total_cost_usd is not None
+        )
 
     return {
-        "prompt_tokens": _get_usage_value(usage, "prompt_tokens")
-        or _get_usage_value(usage, "input_tokens"),
-        "completion_tokens": _get_usage_value(usage, "completion_tokens")
-        or _get_usage_value(usage, "output_tokens"),
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
         "total_tokens": _get_usage_value(usage, "total_tokens"),
         "reasoning_tokens": reasoning_tokens,
-        "cached_prompt_tokens": _get_usage_value(
-            prompt_tokens_details, "cached_tokens"
-        ),
+        "cached_prompt_tokens": cached_prompt_tokens,
         "provider_reported_cost_usd": provider_reported_cost_usd,
         "reconstructed_cost_usd": reconstructed_cost_usd,
         "total_cost_usd": total_cost_usd,
-        "cost_is_estimated": (
-            provider_reported_cost_usd is None and total_cost_usd is not None
-        ),
+        "cost_is_estimated": cost_is_estimated,
         "estimated_cost_usd": total_cost_usd,
         **_extract_provider_fingerprint(response),
     }

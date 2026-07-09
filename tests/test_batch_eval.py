@@ -90,9 +90,23 @@ def test_anthropic_translation_rejects_unknown_parameters():
 def test_adapter_routing():
     assert isinstance(adapter_for_model("claude-fable-5"), AnthropicBatchAdapter)
     assert adapter_for_model("gpt-5.5").provider == "openai"
+    for model_id in ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"):
+        assert adapter_for_model(model_id).provider == "openai"
     assert adapter_for_model("gemini/gemini-3.5-flash").provider == "gemini"
     assert adapter_for_model("xai/grok-4.3") is None
     assert adapter_for_model("deepseek/deepseek-v4-pro") is None
+
+
+def test_gpt_56_batch_body_uses_public_responses_id(scenario):
+    adapter = adapter_for_model("gpt-5.6-sol")
+    unit = BatchUnit(scenario.id, ["eitc"], 0)
+
+    body = adapter.build_request_body(scenario, unit, "gpt-5.6-sol")
+
+    assert body["model"] == "gpt-5.6-sol"
+    assert body["max_output_tokens"] == 16_384
+    assert body["tool_choice"] == {"type": "function", "name": "submit_outputs"}
+    assert "timeout" not in body
 
 
 def test_build_units_mirrors_sync_chunking(scenario):
@@ -130,13 +144,16 @@ def test_normalize_anthropic_entry_success_and_error():
                 usage=SimpleNamespace(
                     input_tokens=100,
                     output_tokens=50,
-                    cache_read_input_tokens=0,
+                    cache_read_input_tokens=20,
+                    cache_creation_input_tokens=10,
                 ),
             ),
         ),
     )
     normalized = _normalize_anthropic_entry(entry)
-    assert normalized.prompt_tokens == 100
+    assert normalized.prompt_tokens == 130
+    assert normalized.cached_prompt_tokens == 20
+    assert normalized.cache_write_prompt_tokens == 10
     assert normalized.tool_calls[0].function.name == "submit_outputs"
     assert json.loads(normalized.tool_calls[0].function.arguments) == {
         "outputs": {"eitc": {"value": 4022.0, "explanation": "ok"}}
@@ -173,6 +190,10 @@ def test_normalize_openai_entry_responses_shape():
                 "usage": {
                     "input_tokens": 10,
                     "output_tokens": 5,
+                    "input_tokens_details": {
+                        "cached_tokens": 4,
+                        "cache_write_tokens": 3,
+                    },
                     "output_tokens_details": {"reasoning_tokens": 2},
                 },
             },
@@ -180,6 +201,8 @@ def test_normalize_openai_entry_responses_shape():
     }
     normalized = _normalize_openai_entry(entry)
     assert normalized.reasoning_tokens == 2
+    assert normalized.cached_prompt_tokens == 4
+    assert normalized.cache_write_prompt_tokens == 3
     assert normalized.tool_calls[0].function.name == "submit_outputs"
 
 
@@ -238,6 +261,71 @@ def test_rows_apportion_usage_and_omit_latency():
     # Cost reconstructed at standard sync rates for leaderboard parity.
     assert rows[0]["reconstructed_cost_usd"] is not None
     assert rows[0]["total_cost_usd"] == rows[0]["reconstructed_cost_usd"]
+
+
+def test_anthropic_batch_cost_includes_uncached_read_and_write_tokens():
+    import litellm
+
+    unit = BatchUnit("scenario_000", ["eitc"], 0)
+    result = NormalizedResult(
+        custom_id=unit.custom_id,
+        prompt_tokens=130,
+        completion_tokens=50,
+        cached_prompt_tokens=20,
+        cache_write_prompt_tokens=10,
+    )
+    rows = rows_from_unit(
+        model_name="claude-sonnet-5",
+        model_id="claude-sonnet-5",
+        unit=unit,
+        predictions={"eitc": 1.0},
+        explanations={"eitc": "x"},
+        raw_response="{}",
+        error=None,
+        result=result,
+    )
+    rates = litellm.model_cost["claude-sonnet-5"]
+    expected = (
+        100 * rates["input_cost_per_token"]
+        + 20 * rates["cache_read_input_token_cost"]
+        + 10 * rates["cache_creation_input_token_cost"]
+        + 50 * rates["output_cost_per_token"]
+    )
+
+    assert rows[0]["reconstructed_cost_usd"] == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached", "cache_write", "expected"),
+    [
+        (100_000, 0, 0, 100_000, 0.625),
+        (300_000, 10_000, 0, 300_000, 4.2),
+        (100_000, 0, 100_000, 0, 0.05),
+    ],
+)
+def test_gpt_56_batch_cost_uses_cache_and_long_context_rates(
+    prompt_tokens, completion_tokens, cached, cache_write, expected
+):
+    unit = BatchUnit("scenario_000", ["eitc"], 0)
+    result = NormalizedResult(
+        custom_id=unit.custom_id,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached,
+        cache_write_prompt_tokens=cache_write,
+    )
+    rows = rows_from_unit(
+        model_name="gpt-5.6-sol",
+        model_id="gpt-5.6-sol",
+        unit=unit,
+        predictions={"eitc": 1.0},
+        explanations={"eitc": "x"},
+        raw_response="{}",
+        error=None,
+        result=result,
+    )
+
+    assert rows[0]["reconstructed_cost_usd"] == pytest.approx(expected)
 
 
 class FakeAdapter:

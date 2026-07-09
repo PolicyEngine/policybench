@@ -12,6 +12,9 @@ export const MODEL_ORDER = [
   "claude-haiku-4.5",
   "grok-4.3",
   "grok-build-0.1",
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
   "gpt-5.5",
   "gpt-5.4-mini",
   "gpt-5.4-nano",
@@ -21,6 +24,10 @@ export const MODEL_ORDER = [
   "gemini-3.1-flash-lite-preview",
   "deepseek-v4-pro",
   "deepseek-v4-flash",
+  "kimi-k2.6",
+  "glm-5.2",
+  "minimax-m3",
+  "qwen-3.7-max",
 ] as const;
 
 export const MODEL_LABELS: Record<string, string> = {
@@ -32,6 +39,9 @@ export const MODEL_LABELS: Record<string, string> = {
   "claude-sonnet-4.6": "Claude Sonnet 4.6",
   "grok-4.3": "Grok 4.3",
   "grok-build-0.1": "Grok Build 0.1",
+  "gpt-5.6-sol": "GPT-5.6 Sol",
+  "gpt-5.6-terra": "GPT-5.6 Terra",
+  "gpt-5.6-luna": "GPT-5.6 Luna",
   "gpt-5.5": "GPT-5.5",
   "gpt-5.4-mini": "GPT-5.4 mini",
   "gpt-5.4-nano": "GPT-5.4 nano",
@@ -41,41 +51,101 @@ export const MODEL_LABELS: Record<string, string> = {
   "gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash Lite Preview",
   "deepseek-v4-pro": "DeepSeek V4 Pro",
   "deepseek-v4-flash": "DeepSeek V4 Flash",
+  "kimi-k2.6": "Kimi K2.6",
+  "glm-5.2": "GLM-5.2",
+  "minimax-m3": "MiniMax M3",
+  "qwen-3.7-max": "Qwen 3.7 Max",
 };
 
 export type ProviderKey =
+  | "alibaba"
   | "anthropic"
   | "deepseek"
   | "google"
+  | "minimax"
+  | "moonshot"
   | "openai"
-  | "xai";
+  | "xai"
+  | "zai";
 
 export const PROVIDER_LABELS: Record<ProviderKey, string> = {
+  alibaba: "Alibaba",
   anthropic: "Anthropic",
   deepseek: "DeepSeek",
   google: "Google",
+  minimax: "MiniMax",
+  moonshot: "Moonshot AI",
   openai: "OpenAI",
   xai: "xAI",
+  zai: "Z.ai",
 };
 
 export function getProviderForModel(model: string): ProviderKey | null {
   if (model.startsWith("claude-")) return "anthropic";
   if (model.startsWith("deepseek-")) return "deepseek";
   if (model.startsWith("gemini-")) return "google";
+  if (model.startsWith("glm-")) return "zai";
   if (model.startsWith("gpt-")) return "openai";
   if (model.startsWith("grok-")) return "xai";
+  if (model.startsWith("kimi-")) return "moonshot";
+  if (model.startsWith("minimax-")) return "minimax";
+  if (model.startsWith("qwen-")) return "alibaba";
   return null;
 }
 
-// One frontier flagship per provider — used by the leaderboard's
-// "Frontier only" filter (default on) so the table stays scannable.
-export const FRONTIER_MODELS: readonly string[] = [
-  "claude-fable-5",
-  "gpt-5.5",
-  "grok-4.3",
-  "gemini-3.1-pro-preview",
-  "deepseek-v4-pro",
-];
+/**
+ * Put curated models in display order without hiding models that the data
+ * bundle gained before this metadata file was updated. Unknown IDs sort by
+ * their stable machine names so their order does not depend on input traversal.
+ */
+export function orderModels(models: Iterable<string>): string[] {
+  const uniqueModels = new Set(models);
+  const knownModels = MODEL_ORDER.filter((model) => uniqueModels.delete(model));
+  return [...knownModels, ...Array.from(uniqueModels).sort()];
+}
+
+// One frontier flagship per provider — used by the scenario explorer's
+// "Frontier only" filter (default on) so the table stays scannable. A provider
+// can list fallbacks after its current flagship so an older frozen data bundle
+// still retains one visible model (for example GPT-5.5 before Sol is folded).
+const FRONTIER_MODEL_GROUPS = [
+  ["claude-fable-5", "claude-opus-4.8"],
+  ["gpt-5.6-sol", "gpt-5.5"],
+  ["grok-4.3"],
+  ["gemini-3.1-pro-preview"],
+  ["deepseek-v4-pro"],
+  ["kimi-k2.6"],
+  ["glm-5.2"],
+  ["minimax-m3"],
+  ["qwen-3.7-max"],
+] as const;
+
+export const FRONTIER_MODELS: readonly string[] = FRONTIER_MODEL_GROUPS.map(
+  ([current]) => current,
+);
+
+export function frontierModelsFor(models: Iterable<string>): string[] {
+  const available = new Set(models);
+  const selected: string[] = [];
+  const representedProviders = new Set<ProviderKey>();
+  for (const candidates of FRONTIER_MODEL_GROUPS) {
+    const model = candidates.find((candidate) => available.has(candidate));
+    if (!model) continue;
+    selected.push(model);
+    const provider = getProviderForModel(model);
+    if (provider) representedProviders.add(provider);
+  }
+
+  // A newly added provider or a frozen bundle without a named candidate still
+  // gets one visible model instead of a provider chip that empties the table.
+  for (const model of orderModels(available)) {
+    const provider = getProviderForModel(model);
+    if (!provider || representedProviders.has(provider)) continue;
+    selected.push(model);
+    representedProviders.add(provider);
+  }
+  return selected;
+}
 
 export function isFrontierModel(model: string): boolean {
   return FRONTIER_MODELS.includes(model);
