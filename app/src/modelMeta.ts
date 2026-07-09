@@ -18,7 +18,6 @@ export const MODEL_ORDER = [
   "gpt-5.5",
   "gpt-5.4-mini",
   "gpt-5.4-nano",
-  "muse-spark-1.1",
   "gemini-3.1-pro-preview",
   "gemini-3.5-flash",
   "gemini-3-flash-preview",
@@ -46,7 +45,6 @@ export const MODEL_LABELS: Record<string, string> = {
   "gpt-5.5": "GPT-5.5",
   "gpt-5.4-mini": "GPT-5.4 mini",
   "gpt-5.4-nano": "GPT-5.4 nano",
-  "muse-spark-1.1": "Muse Spark 1.1",
   "gemini-3.1-pro-preview": "Gemini 3.1 Pro Preview",
   "gemini-3.5-flash": "Gemini 3.5 Flash",
   "gemini-3-flash-preview": "Gemini 3 Flash Preview",
@@ -64,7 +62,6 @@ export type ProviderKey =
   | "anthropic"
   | "deepseek"
   | "google"
-  | "meta"
   | "minimax"
   | "moonshot"
   | "openai"
@@ -76,7 +73,6 @@ export const PROVIDER_LABELS: Record<ProviderKey, string> = {
   anthropic: "Anthropic",
   deepseek: "DeepSeek",
   google: "Google",
-  meta: "Meta",
   minimax: "MiniMax",
   moonshot: "Moonshot AI",
   openai: "OpenAI",
@@ -92,7 +88,6 @@ export function getProviderForModel(model: string): ProviderKey | null {
   if (model.startsWith("gpt-")) return "openai";
   if (model.startsWith("grok-")) return "xai";
   if (model.startsWith("kimi-")) return "moonshot";
-  if (model.startsWith("muse-spark-")) return "meta";
   if (model.startsWith("minimax-")) return "minimax";
   if (model.startsWith("qwen-")) return "alibaba";
   return null;
@@ -116,7 +111,6 @@ export function orderModels(models: Iterable<string>): string[] {
 const FRONTIER_MODEL_GROUPS = [
   ["claude-fable-5", "claude-opus-4.8"],
   ["gpt-5.6-sol", "gpt-5.5"],
-  ["muse-spark-1.1"],
   ["grok-4.3"],
   ["gemini-3.1-pro-preview"],
   ["deepseek-v4-pro"],

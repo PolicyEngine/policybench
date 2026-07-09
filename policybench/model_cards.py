@@ -70,16 +70,6 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "Batch did not yet support the model id."
         ),
     ),
-    "openai/muse-spark-1.1": ModelCard(
-        litellm_id="openai/muse-spark-1.1",
-        answer_contract="json",
-        thinking_budget=True,
-        notes=(
-            "Meta Model API public preview. JSON mode avoids forced named tool "
-            "choice, which Meta does not currently support; run onboarding and "
-            "a 2-scenario smoke before a paid full run."
-        ),
-    ),
     "gpt-5.5": ModelCard(
         litellm_id="gpt-5.5",
         explanation_chunk_size=3,

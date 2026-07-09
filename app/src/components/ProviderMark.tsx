@@ -3,7 +3,6 @@ import {
   Anthropic,
   DeepSeek,
   Google,
-  Meta,
   Minimax,
   Moonshot,
   OpenAI,
@@ -47,7 +46,6 @@ export default function ProviderMark({
       {provider === "anthropic" && <Anthropic size={size} color="currentColor" aria-hidden="true" />}
       {provider === "deepseek" && <DeepSeek.Color size={size} aria-hidden="true" />}
       {provider === "google" && <Google.Color size={size} aria-hidden="true" />}
-      {provider === "meta" && <Meta.Color size={size} aria-hidden="true" />}
       {provider === "minimax" && <Minimax.Color size={size} aria-hidden="true" />}
       {provider === "moonshot" && <Moonshot size={size} color="currentColor" aria-hidden="true" />}
       {provider === "openai" && <OpenAI size={size} color="currentColor" aria-hidden="true" />}

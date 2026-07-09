@@ -326,22 +326,6 @@ def test_rollout_access_errors_abort_without_shaping_card(scenario, message):
     assert "environment error" in report.aborted
 
 
-def test_missing_meta_key_aborts_before_provider_call(monkeypatch, scenario):
-    monkeypatch.delenv("MODEL_API_KEY", raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "must-not-be-reused")
-
-    report = run_gauntlet(
-        "openai/muse-spark-1.1",
-        scenario,
-        FULL_VARS,
-    )
-
-    assert len(report.probes) == 1
-    assert report.card is None
-    assert "MODEL_API_KEY" in report.probes[0].error
-    assert "environment error" in report.aborted
-
-
 def test_transient_provider_error_aborts_without_falling_back_contract(scenario):
     with patch(
         "policybench.onboard.completion",

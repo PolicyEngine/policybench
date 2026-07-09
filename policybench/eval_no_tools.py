@@ -17,7 +17,6 @@ from litellm import completion, completion_cost, responses
 from policybench.config import (
     GPT_56_MODELS,
     MODELS,
-    MUSE_SPARK_MODELS,
     PRICE_OVERRIDES_PER_1M,
     PROGRAMS,
 )
@@ -92,41 +91,6 @@ for _model_id in GPT_56_MODELS.values():
                 "supports_reasoning": True,
                 "supports_response_schema": True,
                 "supports_tool_choice": True,
-                "supports_vision": True,
-            }
-        }
-    )
-
-# Meta launched Muse Spark 1.1 and its OpenAI-compatible Model API after the
-# pinned LiteLLM release. Register capabilities and standard prices locally;
-# transport still uses Meta's own host and MODEL_API_KEY below.
-for _display_id, _model_id in MUSE_SPARK_MODELS.items():
-    if _model_id in litellm.model_cost:
-        continue
-    _prices = PRICE_OVERRIDES_PER_1M[_display_id]
-    litellm.register_model(
-        {
-            _model_id: {
-                "max_tokens": 1_048_576,
-                "max_input_tokens": 1_048_576,
-                "max_output_tokens": 131_072,
-                "input_cost_per_token": _prices["input"] / 1_000_000,
-                "cache_read_input_token_cost": (_prices["cached_input"] / 1_000_000),
-                "output_cost_per_token": _prices["output"] / 1_000_000,
-                "litellm_provider": "openai",
-                "mode": "chat",
-                "supported_endpoints": [
-                    "/v1/chat/completions",
-                    "/v1/responses",
-                ],
-                "supports_function_calling": True,
-                "supports_parallel_function_calling": True,
-                "supports_prompt_caching": True,
-                "supports_reasoning": True,
-                "supports_response_schema": True,
-                # Meta currently accepts only tool_choice="auto". PolicyBench
-                # therefore uses the model card's JSON contract.
-                "supports_tool_choice": False,
                 "supports_vision": True,
             }
         }
@@ -207,40 +171,10 @@ ANSWER_FUNCTION_NAME = "submit_outputs"
 EXPLANATION_FUNCTION_NAME = "submit_explanations"
 PROMPT_CONTRACT_VERSION = "2026-05-13-nested-output-explanations"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 1
-META_MODEL_API_BASE = os.environ.get(
-    "POLICYBENCH_META_API_BASE", "https://api.meta.ai/v1"
-)
 
 
 class RequestWallTimeoutError(TimeoutError):
     """Raised when a provider request exceeds PolicyBench's local wall timeout."""
-
-
-def _provider_connection_kwargs(model_id: str) -> dict:
-    """Return provider-specific transport settings without credential crossover.
-
-    Meta implements OpenAI-compatible endpoints, but it is a different trust
-    boundary. Requiring MODEL_API_KEY before constructing the request prevents
-    LiteLLM from falling back to OPENAI_API_KEY and sending that credential to
-    Meta's host.
-    """
-    if model_id not in MUSE_SPARK_MODELS.values():
-        return {}
-    api_key = os.environ.get("MODEL_API_KEY")
-    if not api_key:
-        raise litellm.AuthenticationError(
-            message=(
-                "Meta Model API key not found; set MODEL_API_KEY before "
-                f"running {model_id}"
-            ),
-            llm_provider="meta",
-            model=model_id,
-        )
-    return {
-        "api_base": META_MODEL_API_BASE,
-        "api_key": api_key,
-        "custom_llm_provider": "openai",
-    }
 
 
 NON_RETRYABLE_ERRORS = (
@@ -403,23 +337,6 @@ def _reconstruct_token_cost(
             + int(completion_tokens) * output_rate
         )
 
-    if model_id in MUSE_SPARK_MODELS.values():
-        display_id = next(
-            name
-            for name, provider_id in MUSE_SPARK_MODELS.items()
-            if provider_id == model_id
-        )
-        rates = PRICE_OVERRIDES_PER_1M[display_id]
-        input_rate = rates["input"] / 1_000_000
-        cached_input_rate = rates["cached_input"] / 1_000_000
-        output_rate = rates["output"] / 1_000_000
-        standard_input = int(prompt_tokens) - cached
-        return (
-            standard_input * input_rate
-            + cached * cached_input_rate
-            + int(completion_tokens) * output_rate
-        )
-
     try:
         input_cost, output_cost = litellm.cost_per_token(
             model=model_id,
@@ -487,7 +404,7 @@ def _extract_usage_metadata(
 
     provider_reported_cost_usd = _get_usage_value(usage, "cost")
     reconstructed_cost_usd = None
-    if model_id in GPT_56_MODELS or model_id in MUSE_SPARK_MODELS.values():
+    if model_id in GPT_56_MODELS:
         reconstructed_cost_usd = _reconstruct_token_cost(
             model_name=model_id,
             model_id=model_id,
@@ -510,11 +427,9 @@ def _extract_usage_metadata(
         except Exception:
             reconstructed_cost_usd = None
 
-    if (
-        model_id in GPT_56_MODELS or model_id in MUSE_SPARK_MODELS.values()
-    ) and reconstructed_cost_usd is not None:
-        # OpenAI-compatible responses do not report dollar cost; current
-        # LiteLLM either lacks these new models or predates their cache rates.
+    if model_id in GPT_56_MODELS and reconstructed_cost_usd is not None:
+        # OpenAI responses do not report dollar cost; current LiteLLM fills
+        # ``usage.cost`` from a map that predates GPT-5.6 cache-write pricing.
         total_cost_usd = reconstructed_cost_usd
         cost_is_estimated = True
     else:
@@ -773,7 +688,6 @@ def _chat_completion_request_kwargs(
         "messages": messages,
         "caching": True,
         "timeout": _request_timeout_seconds(model_id),
-        **_provider_connection_kwargs(model_id),
         **_completion_controls(
             model_id,
             include_explanations=include_explanations,
@@ -821,7 +735,6 @@ def _responses_request_kwargs(
         "model": model_id,
         "input": prompt,
         "timeout": _request_timeout_seconds(model_id),
-        **_provider_connection_kwargs(model_id),
         "max_output_tokens": _completion_controls(
             model_id,
             include_explanations=include_explanations,
@@ -1621,7 +1534,6 @@ def _request_explanations_once(
             "model": model_id,
             "input": prompt,
             "timeout": _request_timeout_seconds(model_id),
-            **_provider_connection_kwargs(model_id),
             "max_output_tokens": _completion_controls(
                 model_id,
                 include_explanations=True,
@@ -1650,7 +1562,6 @@ def _request_explanations_once(
             "messages": messages,
             "caching": True,
             "timeout": _request_timeout_seconds(model_id),
-            **_provider_connection_kwargs(model_id),
             **_completion_controls(
                 model_id,
                 include_explanations=True,

@@ -22,7 +22,6 @@ EXPECTED = {
     "gpt-5.6-sol": ("tool", None, 300, 16_384),
     "gpt-5.6-terra": ("tool", None, 300, 16_384),
     "gpt-5.6-luna": ("tool", None, 300, 16_384),
-    "openai/muse-spark-1.1": ("json", None, 300, 16_384),
     "gpt-5.5": ("tool", 3, 60, 16_384),
     "claude-fable-5": ("tool", 1, 300, 16_384),
     "claude-sonnet-5": ("tool", 1, 300, 16_384),

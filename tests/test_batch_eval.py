@@ -97,16 +97,24 @@ def test_adapter_routing():
     assert adapter_for_model("gemini/gemini-3.5-flash").provider == "gemini"
     assert adapter_for_model("xai/grok-4.3") is None
     assert adapter_for_model("deepseek/deepseek-v4-pro") is None
-    assert adapter_for_model("openai/muse-spark-1.1") is None
 
 
-def test_openai_batch_body_rejects_meta_connection_secrets(monkeypatch, scenario):
-    monkeypatch.setenv("MODEL_API_KEY", "meta-test-key")
+def test_openai_batch_body_rejects_connection_secrets(monkeypatch, scenario):
+    monkeypatch.setattr(
+        "policybench.batch_eval._responses_request_kwargs",
+        lambda **_: (
+            [],
+            {
+                "model": "gpt-5.6-sol",
+                "api_key": "must-not-enter-body",
+            },
+        ),
+    )
     adapter = OpenAIBatchAdapter(client=MagicMock())
     unit = BatchUnit(scenario.id, ["eitc"], 0)
 
     with pytest.raises(ValueError, match="must never enter a batch body"):
-        adapter.build_request_body(scenario, unit, "openai/muse-spark-1.1")
+        adapter.build_request_body(scenario, unit, "gpt-5.6-sol")
 
 
 def test_run_batch_rejects_explicit_adapter_model_mismatch(tmp_path, scenario):
@@ -116,8 +124,8 @@ def test_run_batch_rejects_explicit_adapter_model_mismatch(tmp_path, scenario):
         run_batch_eval(
             scenarios=[scenario],
             programs=["eitc"],
-            model_name="muse-spark-1.1",
-            model_id="openai/muse-spark-1.1",
+            model_name="grok-4.3",
+            model_id="xai/grok-4.3",
             run_dir=tmp_path,
             adapter=adapter,
         )
