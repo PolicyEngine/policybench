@@ -304,7 +304,7 @@ export default function ModelLeaderboard({
             className="col-span-2 text-right"
             title="Estimated cost to run one household's full set of outputs, no tools (batch runs priced at standard synchronous rates)"
           >
-            Cost / hh
+            Cost / household
           </div>
           <div role="columnheader" className="col-span-2 text-right">
             {scoringMode === "exact"
@@ -357,7 +357,7 @@ export default function ModelLeaderboard({
                       </Link>
                     </div>
                     <div className="mt-1.5 pl-[26px] font-[family-name:var(--font-mono)] text-[11px] text-text-muted">
-                      {fmtCost(m.costPerHousehold, currencySymbol)}/hh
+                      {fmtCost(m.costPerHousehold, currencySymbol)} per household
                     </div>
                   </div>
 
@@ -395,7 +395,7 @@ export default function ModelLeaderboard({
                   className="col-span-2 text-right font-[family-name:var(--font-mono)] text-sm text-text-secondary"
                   title={
                     m.costUsd != null
-                      ? `${currencySymbol}${m.costUsd.toFixed(2)} total · ${fmtCost(m.costPerHousehold, currencySymbol)}/household`
+                      ? `${currencySymbol}${m.costUsd.toFixed(2)} total · ${fmtCost(m.costPerHousehold, currencySymbol)} per household`
                       : "Cost not recorded for this model"
                   }
                 >
