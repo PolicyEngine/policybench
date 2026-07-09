@@ -1076,3 +1076,29 @@ def test_sample_household_ids_requires_enough_positive_weight():
     )
     with pytest.raises(ValueError, match="positive sampling weight"):
         _sample_household_ids(eligible, n=2, seed=0)
+
+
+def test_load_enhanced_cps_person_frame_reads_inputs_at_tax_year(monkeypatch):
+    from unittest.mock import MagicMock
+
+    import numpy as np
+
+    import policybench.policyengine_runtime as runtime
+    from policybench.config import TAX_YEAR
+    from policybench.scenarios import load_enhanced_cps_person_frame
+
+    sim = MagicMock()
+    # Dataset's native input period differs from the benchmark year.
+    sim.default_input_period = 2024
+    sim.calculate.return_value = np.array([1.0])
+    monkeypatch.setattr(runtime, "make_us_microsimulation", lambda: sim)
+
+    _frame, dataset_year = load_enhanced_cps_person_frame()
+
+    # Provenance keeps the dataset's native period ...
+    assert dataset_year == 2024
+    # ... but every promptable input is read at the benchmark year (TAX_YEAR),
+    # so households are represented at the year they are scored, not 2024.
+    assert sim.calculate.call_count > 0
+    periods = {call.args[1] for call in sim.calculate.call_args_list}
+    assert periods == {TAX_YEAR}
