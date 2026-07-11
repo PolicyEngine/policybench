@@ -2,7 +2,7 @@ import { DEFAULT_VERSION_ID } from "../lib/dataVersionsRuntime";
 import type { BenchData, CountryCode } from "../types";
 import SiteHeader, { type HeaderNavItem } from "./SiteHeader";
 
-const SNAPSHOT_DATE_LABEL = "Snapshot 2026-07-09";
+const SNAPSHOT_DATE_LABEL = "Snapshot 2026-07-10";
 
 export default function Hero({
   selectedView,

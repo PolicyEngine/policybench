@@ -41,6 +41,7 @@ MODELS = {
     "claude-sonnet-4.6": "claude-sonnet-4-6",
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
     "grok-4.3": "xai/grok-4.3",
+    "grok-4.5": "xai/grok-4.5",
     "grok-build-0.1": "xai/grok-build-0.1",
     **GPT_56_MODELS,
     "gpt-5.5": "gpt-5.5",

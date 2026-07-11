@@ -36,6 +36,7 @@ EXPECTED = {
     "gpt-5.4-mini": ("tool", None, 20, 4_096),
     "gpt-5.4-nano": ("tool", None, 20, 4_096),
     "xai/grok-4.3": ("tool", None, 420, 4_096),
+    "xai/grok-4.5": ("tool", None, 420, 16_384),
     "xai/grok-build-0.1": ("tool", None, 420, 4_096),
     "deepseek/deepseek-v4-pro": ("json", None, 300, 16_384),
     "deepseek/deepseek-v4-flash": ("json", None, 300, 16_384),
