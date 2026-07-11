@@ -45,13 +45,14 @@ from policybench.analysis import score_single_prediction
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the June 2026 US-only populace refresh.
+# Configuration for the July 2026 US-only populace refresh (24-model board,
+# corrected v1.1 references).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
-SNAPSHOT_DATE = "2026-06-14"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-06-13"
+SNAPSHOT_DATE = "2026-07-11"
+MODEL_RESPONSE_DATE = "2026-06-12 to 2026-07-10"
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
 SOURCE_RUN = ROOT / "results" / RUN_LABEL / "us"
@@ -344,11 +345,22 @@ def freeze_annotations() -> dict[str, str]:
     )
     case.to_csv(ANNOTATIONS_DEST / "us_case_notes.csv", index=False)
 
+    # Trace-grounded reference narratives (added after the June freeze) are
+    # part of the frozen audit story: the judge reads them and the dashboard
+    # displays them, so they freeze alongside the annotations.
+    copy_exact(
+        SOURCE_RUN / "audit" / "us_case_reference_explanations.csv",
+        ANNOTATIONS_DEST / "us_case_reference_explanations.csv",
+    )
+
     return {
         "us_audit_row_annotations.csv": sha256_file(
             ANNOTATIONS_DEST / "us_audit_row_annotations.csv"
         ),
         "us_case_notes.csv": sha256_file(ANNOTATIONS_DEST / "us_case_notes.csv"),
+        "us_case_reference_explanations.csv": sha256_file(
+            ANNOTATIONS_DEST / "us_case_reference_explanations.csv"
+        ),
     }
 
 
@@ -443,29 +455,33 @@ def build_manifest(
             "are byte-identical to the corresponding compact source-run "
             "artifacts copied under "
             f"paper/snapshot/{SNAPSHOT_DIR_NAME}/runs/.",
-            "Model responses are from the June 12-13, 2026 US run. Reference "
+            "Model responses were collected in waves between June 12 and "
+            "July 10, 2026, as models were added to the board; each model's "
+            "full 100-household run is a single consistent wave. Reference "
             "outputs were generated with policyengine.py "
             f"{reference_refresh['policyengine_version']} and policyengine-us "
             f"{reference_refresh['policyengine_us_version']} against the "
             "certified PolicyEngine US populace dataset "
             f"({reference_refresh['policyengine_us_data_build_id']}, "
             f"{reference_refresh['policyengine_us_dataset']}).",
-            "Canonical prediction files include parser recovery. No "
-            "full-response retries were required for this run; five missing "
-            "cells were re-elicited individually.",
+            "Canonical prediction files include parser recovery. Later "
+            "waves ran under the resumable supervised runner, which retries "
+            "failed or timed-out scenarios in bounded rounds; every model's "
+            "canonical file covers all 100 households.",
             "Raw provider responses are retained in the compressed source-run "
             "predictions.csv.gz file. The separate LiteLLM cache remains "
             "local-only because it is a generated request cache, not the "
             "canonical snapshot artifact.",
             "Model APIs and upstream model aliases may change after the "
-            "recorded 2026-06-12 to 2026-06-13 response window, so exact reruns "
-            "can diverge even with the committed household inputs, reference "
-            "outputs, parsed dashboard export, and analysis summaries.",
+            "recorded 2026-06-12 to 2026-07-10 response window, so exact "
+            "reruns can diverge even with the committed household inputs, "
+            "reference outputs, parsed dashboard export, and analysis "
+            "summaries.",
         ],
         "scope": {
             "households": {"us": 100},
             "output_groups": {"us": 18},
-            "models": 13,
+            "models": 24,
             "condition": (
                 "No tools, no web access, one structured response per household "
                 "with numeric answers and non-empty explanations."
@@ -482,27 +498,36 @@ def build_manifest(
         "response_retry_artifacts": {
             "path": f"paper/snapshot/{SNAPSHOT_DIR_NAME}/response_retries",
             "note": (
-                "No full-response retries were required for the June populace "
-                "run; whole-response retry rounds were not needed."
+                "No separate whole-response retry artifacts exist for this "
+                "snapshot; the supervised runner's bounded per-scenario retry "
+                "rounds are folded into each model's canonical predictions."
             ),
             "files": {},
         },
         "row_repair_artifacts": {
             "path": f"paper/snapshot/{SNAPSHOT_DIR_NAME}/row_repairs",
             "note": (
-                "No bulk row-repair rounds were required for the June populace "
-                "run; five missing cells were re-elicited individually."
+                "No bulk row-repair artifacts exist for this snapshot; "
+                "row-level repairs are folded into each model's canonical "
+                "predictions."
             ),
             "files": {},
         },
         "audit_annotation_artifacts": {
             "path": f"annotations/{RUN_LABEL}",
             "note": (
-                "Developer-led row and case audit annotations for every wrong "
-                "prediction row in the frozen snapshot. Final row-level "
-                "failure_source values are limited to llm_error. Case notes are "
+                "Model-assisted, developer-adjudicated row and case audit "
+                "annotations for every wrong prediction row in the frozen "
+                "snapshot, produced under the decisive-diagnosis contract "
+                "(per-model diagnoses grounded in engine facts; hedged "
+                "verdicts mechanically rejected and re-judged). Row-level "
+                "failure_source values are llm_error for substantive misses "
+                "and parse_contract_failure for missing or unparseable "
+                "answers; zero rows are reference-suspect. Case notes are "
                 "stored as us_case_notes.csv with case_failure_sources / "
-                "case_failure_subtypes columns."
+                "case_failure_subtypes columns. Reference narratives the "
+                "judge and dashboard display are frozen as "
+                "us_case_reference_explanations.csv."
             ),
             "files": annotation_files,
         },
@@ -523,6 +548,20 @@ def build_manifest(
             "url": pointer["url"],
             "sha256": pointer["sha256"],
             "bytes": pointer["bytes"],
+        },
+        "live_dashboard_artifact": {
+            "tag": pointer["tag"],
+            "asset": pointer["asset"],
+            "url": pointer["url"],
+            "sha256": pointer["sha256"],
+            "bytes": pointer["bytes"],
+            "derivation": (
+                "At freeze time the live artifact equals the frozen "
+                "published_dashboard_artifact: the combined export of the "
+                "source-run data.json listed under source_run_artifacts. "
+                "Annotation-class republishes may advance this entry ahead "
+                "of the frozen pin without changing any score."
+            ),
         },
     }
 
