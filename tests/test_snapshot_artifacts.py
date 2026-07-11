@@ -245,7 +245,7 @@ def test_snapshot_source_run_payloads_match_scope():
         ]
         assert len(country_models) == expected_models
         top_model = max(country_models, key=lambda row: row["within1pct"])
-        assert top_model["model"] == "gpt-5.5"
+        assert top_model["model"] == "gpt-5.6-sol"
 
 
 def test_snapshot_copied_artifacts_match_source_runs():
@@ -266,10 +266,10 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_wrong_rows = {
-        "us": 3_300,
+        "us": 6_031,
     }
     expected_sources = {
-        "us": {"llm_error": 3_300},
+        "us": {"llm_error": 5_466, "parse_contract_failure": 565},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())

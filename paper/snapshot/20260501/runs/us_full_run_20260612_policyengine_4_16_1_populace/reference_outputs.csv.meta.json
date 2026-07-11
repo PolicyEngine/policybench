@@ -1,9 +1,9 @@
 {
   "country": "us",
-  "generated_at_utc": "2026-06-12T05:15:20.881729+00:00",
+  "generated_at_utc": "2026-07-03T04:21:31.815629+00:00",
   "metadata_version": 1,
   "num_scenarios": 100,
-  "output": "results/us_full_run_20260612_policyengine_4_16_1_populace/us/reference_outputs.csv",
+  "output": "results/local/v1_1/us/reference_outputs.csv",
   "policyengine_bundles": {
     "us": {
       "bundle_id": "us-4.16.1",
@@ -26,12 +26,12 @@
       "model_direct_url": null,
       "model_matches_policyengine_bundle": false,
       "model_package": "policyengine-us",
-      "model_version": "1.723.0",
+      "model_version": "1.755.4",
       "model_version_source": "installed package",
       "policyengine_version": "4.16.1"
     }
   },
-  "private_fraction": 0.2,
+  "private_fraction": 0.0,
   "program_set": "headline",
   "programs": [
     "federal_income_tax_before_refundable_credits",
@@ -53,9 +53,9 @@
     "state_refundable_credits",
     "tanf"
   ],
-  "requested_num_scenarios": 125,
-  "scenario_manifest_input": null,
-  "scenario_manifest_output": "results/us_full_run_20260612_policyengine_4_16_1_populace/us/scenarios.csv",
+  "requested_num_scenarios": 100,
+  "scenario_manifest_input": "results/local/v1_1/us/scenarios_patched.csv",
+  "scenario_manifest_output": "results/local/v1_1/us/scenarios_out.csv",
   "seed": 42,
   "split": "public",
   "split_seed": 1042,

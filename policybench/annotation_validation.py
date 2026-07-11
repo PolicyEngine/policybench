@@ -19,7 +19,12 @@ from policybench.full_run_export import (
     load_predictions,
 )
 
-FINAL_FAILURE_SOURCES = {"llm_error"}
+# Final classifications for scoring claims: substantive model errors and
+# deterministic parse failures (the model returned no usable answer; collect
+# labels these without a classifier). Everything else — reference-suspect
+# classes, prompt ambiguity, needs_review — is unresolved for a frozen
+# snapshot.
+FINAL_FAILURE_SOURCES = {"llm_error", "parse_contract_failure"}
 
 
 def _expected_prediction_rows(

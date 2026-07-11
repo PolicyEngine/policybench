@@ -37,15 +37,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 
-# Human-readable model names for the 13-model June roster. Aliases that do not
+# Human-readable model names for the frozen roster. Aliases that do not
 # appear here fall back to a humanized form of the PolicyBench id.
 MODEL_DISPLAY_NAMES = {
+    "gpt-5.6-sol": "GPT-5.6 Sol",
+    "gpt-5.6-terra": "GPT-5.6 Terra",
+    "gpt-5.6-luna": "GPT-5.6 Luna",
+    "claude-fable-5": "Claude Fable 5",
+    "claude-sonnet-5": "Claude Sonnet 5",
+    "grok-4.5": "Grok 4.5",
+    "deepseek-v4-pro": "DeepSeek V4 Pro",
+    "kimi-k2.6": "Kimi K2.6",
+    "glm-5.2": "GLM-5.2",
+    "minimax-m3": "MiniMax M3",
+    "qwen-3.7-max": "Qwen3.7-max",
+    "grok-build-0.1": "Grok Build 0.1",
     "claude-opus-4.8": "Claude Opus 4.8",
     "claude-opus-4.7": "Claude Opus 4.7",
     "claude-sonnet-4.6": "Claude Sonnet 4.6",
     "claude-haiku-4.5": "Claude Haiku 4.5",
     "grok-4.3": "Grok 4.3",
-    "grok-build-0.1": "Grok Build 0.1",
     "gpt-5.5": "GPT-5.5",
     "gpt-5.4-mini": "GPT-5.4 mini",
     "gpt-5.4-nano": "GPT-5.4 nano",

@@ -40,7 +40,7 @@ from policybench.spec import (
 
 pd.set_option("display.max_colwidth", None)
 
-# The June 2026 refresh is US-only (the UK leg is deferred). Every constant
+# The July 2026 refresh is US-only (the UK leg is deferred). Every constant
 # below is derived from the frozen manifest so a future refresh updates the
 # manuscript without prose edits; ``r`` (policybench.paper_results) exposes the
 # already-formatted numbers the prose interpolates.
@@ -532,6 +532,9 @@ def deviation_audit_summary_table() -> pd.DataFrame:
                 "Country": country.upper(),
                 "Wrong rows audited": len(wrong),
                 "LLM response errors": int(source_counts.get("llm_error", 0)),
+                "Parse-contract failures": int(
+                    source_counts.get("parse_contract_failure", 0)
+                ),
                 "Unresolved prompt/reference rows": len(result["unresolved_rows"]),
                 "Missing row annotations": len(result["missing_rows"]),
                 "Missing case notes": len(result["missing_cases"]),
@@ -680,12 +683,12 @@ def sensitivity_rows() -> pd.DataFrame:
 
 
 # Reasoning-effort overrides in force when the frozen snapshot's runs were
-# made. Recorded here as a snapshot fact: the live harness mapping
-# (REASONING_EFFORT_OVERRIDES) was emptied on 2026-07-03 when the gpt-5.5
-# pin was removed, but this manuscript describes the frozen runs, which
-# used the pin. Assert containment so a *new* live override can never ship
-# undocumented in the manuscript.
-SNAPSHOT_REASONING_EFFORT_OVERRIDES: dict[str, str] = {"gpt-5.5": "low"}
+# made: none. Every model in this snapshot ran at unconfigured provider
+# defaults. (An earlier June run pinned gpt-5.5 to low effort; that run was
+# replaced after the pin was traced to a harness token-budget artifact, and
+# the frozen gpt-5.5 wave is a default-effort rerun.) Assert containment so
+# a *new* live override can never ship undocumented in the manuscript.
+SNAPSHOT_REASONING_EFFORT_OVERRIDES: dict[str, str] = {}
 assert all(
     SNAPSHOT_REASONING_EFFORT_OVERRIDES.get(k) == v
     for k, v in REASONING_EFFORT_OVERRIDES.items()
@@ -708,6 +711,15 @@ def reasoning_setup(model: str) -> str:
         return (
             "reasoning effort pinned to "
             f"{SNAPSHOT_REASONING_EFFORT_OVERRIDES[model]!r}"
+        )
+    from policybench.model_cards import card_for
+
+    card = card_for(MODELS.get(model, model))
+    if card is not None and card.thinking_budget:
+        cap = f"{THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP:,}"
+        return (
+            "no reasoning parameters sent (provider default); reasoning and "
+            f"answer share a {cap}-token completion budget"
         )
     return "no reasoning parameters sent (provider default)"
 
@@ -909,7 +921,7 @@ snapshot_provenance = pd.DataFrame(
         ["Households", f"{r.n_households_fmt} US"],
         ["Models", r.n_models_fmt],
         ["Output groups", f"{r.n_output_groups_fmt} US"],
-        ["Condition", "No tools, no web access, one structured response per household"],
+        ["Condition", "No tools, no web access; structured responses covering every requested output"],
         ["Response contract", "Numeric answer and non-empty explanation for every requested output"],
     ],
     columns=["Item", "Value"],
@@ -925,10 +937,12 @@ scope_rationale = pd.DataFrame(
 )
 reference_audit = pd.DataFrame(
     [
-        ["US federal credits", "Reviewed cases where explanations omitted EITC or refundable CTC; discrepancies reflected model credit-treatment errors, not identified PolicyEngine errors."],
-        ["US SNAP, SSI, and Medicaid", "Reviewed false-zero and false-positive explanations; common model failures used broad asset or income heuristics inconsistent with the supplied facts and the reference rules."],
-        ["US payroll and overtime", "Reviewed overtime-related cases during development; upstream data/model fixes and prompt clarifications were applied before the frozen snapshot."],
-        ["US state and local income tax", "Reviewed state-rule and bracket misses; explanations applied wrong state schedules or omitted state-specific additions, not identified PolicyEngine errors."],
+        ["US federal credits", "Reviewed cases where explanations omitted EITC or refundable CTC; discrepancies reflected model credit-treatment errors, not PolicyEngine errors."],
+        ["US health coverage (Medicaid/CHIP)", "Reviewed threshold-cluster suspects; all dissolved against 42 CFR 435 pathway rules (aged/disabled income tests, tax-dependent household composition, CHIP's exclusion of Medicaid-eligible children) confirmed in engine traces."],
+        ["US SNAP, SSI, and school meals", "Reviewed false-zero suspects; references confirmed against categorical-eligibility, aged/blind/disabled, and universal-free-meal rules. One SNAP cell traced to a scenario encoding that omits the disability its prompt implies (disclosed under Limitations)."],
+        ["US state and local income tax", "Reviewed state-rule and bracket suspects; most applied wrong schedules or missed conformity elections and forgiveness programs. One genuine defect: New Jersey's filing-threshold floor was bypassed on the benchmarked path (fixed, policyengine-us #8845)."],
+        ["US Head Start eligibility", "Two flags reflected a genuine age-window defect (fixed, policyengine-us #8846); references regenerated with the fix."],
+        ["US payroll and overtime", "Reviewed during development; upstream data fixes and prompt clarifications were applied before the frozen snapshot."],
     ],
     columns=["Discrepancy class", "Review outcome"],
 )
@@ -936,17 +950,19 @@ parse_repair_summary = pd.DataFrame(
     [
         ["Initial parse-contract audit", "The source run was audited for rows missing a parsed numeric value or non-empty explanation; those rows were not dropped from the denominator."],
         ["Parser repair", "The parser was extended to recover explicit `value` and non-empty `explanation` blocks from nested, escaped, or partially truncated provider JSON without scraping prose numbers."],
-        ["Full-response retries", "No full-response retries were required for the June populace run; whole-response retry rounds were not needed."],
-        ["Row-level repairs", "Five missing cells were re-elicited individually against the same model, household, and output, accepting only rows with both a parsed numeric value and non-empty explanation."],
+        ["Retry policy", "Later waves ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds; every model's canonical file covers all 100 households. No separate whole-response retry artifacts exist for this snapshot."],
         [
             "Final parse coverage",
             (
-                "The repaired manuscript snapshot has zero missing parsed numeric "
-                "values and zero missing explanations across all "
-                f"{r.n_canonical_rows_fmt} canonical model-output rows."
+                "565 of the "
+                f"{r.n_canonical_rows_fmt} canonical model-output rows (1.2%) "
+                "have no parsable numeric value despite retries — 426 from "
+                "Kimi K2.6 and 139 from GLM-5.2 — and score zero as "
+                "parse-contract failures. Every other row has a parsed "
+                "numeric value and a non-empty explanation."
             ),
         ],
-        ["Preservation rule", "The snapshot retains the raw provider responses in the compressed source-run prediction files; no full-response retry or bulk row-repair rounds were required for this run."],
+        ["Preservation rule", "The snapshot retains the raw provider responses in the compressed source-run prediction files, including the responses behind unparsable rows."],
     ],
     columns=["Step", "Finding"],
 )
@@ -988,7 +1004,7 @@ conclusion_snapshot_summary = country_top_sentence(us_top_model)
 
 ## Abstract
 
-PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine `{python} r.dataset_label` microdataset, scored through policyengine.py `{python} r.policyengine_version`. It evaluates `{python} r.n_models_fmt` frontier models on `{python} r.n_households_fmt` households across `{python} r.n_output_groups_fmt` output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match because the leaderboard is household-impact-weighted: a *naive unweighted* exact rate would be dominated by the `{python} r.zero_share_pct_fmt`% of US reference outputs that are exact zeros — a hedge-to-zero model scores about `{python} r.zero_share_pct_fmt`% unweighted — but the household-impact weighting down-weights those zero-reference outputs, so the *weighted* exact rate is not compressed near the zero share and discriminates between models about as well as within-1%. On the weighted leaderboard the top model leads an always-zero baseline of `{python} r.always_zero_exact_fmt`% exact by `{python} r.top_exact_margin_fmt` points, a margin comparable to within-1%, and exact spreads across the roster about as widely (the within-1% companion adds near-miss tolerance on top). The manuscript snapshot is a `{python} r.n_households_fmt`-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` Notably, the newest flagship is not the strongest on this task: Claude Opus 4.8 scores `{python} r.opus48_score_fmt`% exact, below the `{python} r.opus47_score_fmt`% of the prior-generation Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. An exhaustive developer audit of every wrong cell traced all `{python} r.wrong_row_count_fmt` scored misses to model errors, with zero PolicyEngine reference defects. The live benchmark is available at <https://policybench.org>.
+PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine `{python} r.dataset_label` microdataset, scored through policyengine.py `{python} r.policyengine_version`. It evaluates `{python} r.n_models_fmt` frontier models on `{python} r.n_households_fmt` households across `{python} r.n_output_groups_fmt` output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match because the leaderboard is household-impact-weighted: a *naive unweighted* exact rate would be dominated by the `{python} r.zero_share_pct_fmt`% of US reference outputs that are exact zeros — a hedge-to-zero model scores about `{python} r.zero_share_pct_fmt`% unweighted — but the household-impact weighting down-weights those zero-reference outputs, so the *weighted* exact rate is not compressed near the zero share and discriminates between models about as well as within-1%. On the weighted leaderboard the top model leads an always-zero baseline of `{python} r.always_zero_exact_fmt`% exact by `{python} r.top_exact_margin_fmt` points, a margin comparable to within-1%, and exact spreads across the roster about as widely (the within-1% companion adds near-miss tolerance on top). The manuscript snapshot is a `{python} r.n_households_fmt`-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` Notably, the newest flagship is not the strongest on this task: Claude Opus 4.8 scores `{python} r.opus48_score_fmt`% exact, below the `{python} r.opus47_score_fmt`% of the prior-generation Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. An exhaustive audit of every wrong cell — with each reference-suspect flag adjudicated against primary sources and engine traces — surfaced four reference defects across three audit waves during development; all were fixed upstream before this snapshot's references were generated, and in the frozen release every one of the `{python} r.wrong_row_count_fmt` scored misses traces to a model error: a substantive miscalculation or, for 1.2% of cells, a missing or unparsable answer scored as a miss rather than dropped. The live benchmark is available at <https://policybench.org>.
 
 ## Introduction
 
@@ -1080,9 +1096,11 @@ scope_rationale
 
 PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and externally checked in specific domains. No. 10 Downing Street's data science team adapted PolicyEngine's open-source microsimulation model for experimental policy simulation, with validation against external projections before use [@woodruff2026no10; @policyengine2026downing]. In the US, @policyengine2024statetax reports matching the National Bureau of Economic Research (NBER) TAXSIM-35 model [@feenberg1993taxsim] to the cent on the vast majority of cases for the 2021 tax year across hundreds of thousands of tax units per state, with state-specific differences documented in the integration tests. We do not restate that comparison as a single percentage because the published source uses qualitative phrasing rather than a headline accuracy number. PolicyEngine has also signed a memorandum of understanding [@policyengine2025atlantafed] with the Federal Reserve Bank of Atlanta for future validation work against its Policy Rules Database [-@atlantafed2026prd]. The Atlanta Fed sources are a caveat rather than evidence of completed validation for this benchmark: they document planned collaboration and the comparison source, not finished checks of the frozen PolicyBench outputs. Taken together, these sources support using PolicyEngine as a transparent reference implementation with partial external validation, but they do not validate every benchmark output.
 
-This does not make PolicyEngine infallible. During benchmark development, we performed a manual, developer-led discrepancy review, with LLM assistance used to triage and summarize candidate cases surfaced by model explanations. @tbl-reference-review summarizes the main discrepancy classes reviewed before the frozen snapshot. In those reviewed classes, discrepancies reflected model mistakes, prompt ambiguity later corrected, or upstream data/model issues fixed before the frozen snapshot; the reviewed discrepancy classes did not identify unresolved PolicyEngine reference-output defects.
+This does not make PolicyEngine infallible, so we treated the reference outputs as claims to be attacked rather than assumptions. Across development and three audit waves, every wrong cell received a model-assisted review, and every case in which a reviewing model suspected the reference itself was adjudicated by hand against primary sources — statutes, regulations, and published program parameters — and against the engine's computation traces. Reviewers raised 35 reference-suspect flags in total. Thirty-one dissolved under adjudication, with the reviewer's hypothesis failing against a primary source (stale thresholds, missed program mergers, missed federal-conformity elections, misread eligibility-income definitions) or against the engine trace. Four were genuine: two Head Start eligibility flags and one New Jersey state income tax cell reflected policyengine-us defects (an age-window bound and a filing-threshold floor the benchmarked path bypassed), and one SNAP cell rested on a scenario whose encoded inputs did not match the disability status its prompt implied. The engine defects were fixed upstream (policyengine-us #8845 and #8846, plus #8844, found in the same review but affecting no benchmark cell), and this snapshot's reference outputs are generated with the fixed engine, policyengine-us `{python} r.policyengine_us_version`. The mis-encoded scenario is disclosed under Limitations pending the next scenario refresh. @tbl-reference-review summarizes the reviewed discrepancy classes and outcomes; no unresolved reference-computation defect is known in the frozen snapshot.
 
-After freezing the snapshot and completing response-contract repairs, we annotated every wrong model-output row and every scenario-output case with at least one wrong row. @tbl-deviation-audit reports that all `{python} f"{total_wrong_rows_audited:,}"` rows receiving less than full score have row-level and case-level annotations. The final row-level source is `llm_error`; no frozen-snapshot wrong row remains classified as a prompt ambiguity, unresolved reference-model issue, unresolved reference-data issue, parse-contract failure, or needs-review item. The audit is still developer-led rather than independent external validation, but it is exhaustive over scored misses in the repaired frozen snapshot.
+The audit tooling itself required hardening, which we report because it changes how much the annotations can be trusted. The derivation narratives displayed alongside reference values are generated from engine computation traces, and mechanical validators enforce that each narrative states the engine's actual mechanism (for example, that a child ineligible for CHIP because they qualify for Medicaid is never described as failing a CHIP income test) after earlier model-written narratives were found to misattribute eligibility pathways. The failure-audit judge reads these grounded narratives together with engine facts, must return a per-model diagnosis naming the specific rule or computation the model missed, and is barred from re-adjudicating the reference in prose: hedged or reference-adjudicating verdicts are mechanically rejected and re-judged, and genuine reference doubt is routed to a structured flag that triggers the manual adjudication described above.
+
+After freezing the snapshot and completing response-contract repairs, we annotated every wrong model-output row and every scenario-output case with at least one wrong row. @tbl-deviation-audit reports that all `{python} f"{total_wrong_rows_audited:,}"` rows receiving less than full score carry row-level and case-level annotations. Every row resolves to one of two final classes: `llm_error` (a substantive miscalculation, with a per-model diagnosis naming the rule or computation the model missed) or `parse_contract_failure` (a missing or unparsable answer, classified deterministically). No wrong row remains classified as a prompt ambiguity, unresolved reference issue, or needs-review item, and zero rows carry a standing reference-suspect flag. The audit pipeline is model-assisted with developer adjudication of every reference-suspect flag rather than independent external validation, but it is exhaustive over scored misses in the frozen snapshot.
 
 ```{python}
 #| label: tbl-reference-review
@@ -1190,7 +1208,7 @@ Second, joint accuracy across interacting components is lower than marginal accu
 federal_state_joint
 ```
 
-Third, structured-output reliability is part of the benchmark contract. Missing or unparseable numeric values are not dropped. Appendix A documents parser recovery, bounded full-response retries, and row-level repairs that brought the canonical manuscript snapshot to zero missing numeric values or explanations while preserving the failed attempts.
+Third, structured-output reliability is part of the benchmark contract. Missing or unparseable numeric values are not dropped. Appendix A documents parser recovery and the supervised runner's bounded retry rounds; the 565 cells (1.2%) that still returned no parsable value after retries — concentrated in Kimi K2.6 and GLM-5.2 — stand in the canonical files and score zero as parse-contract failures.
 
 ## Limitations
 
@@ -1201,7 +1219,8 @@ PolicyBench is not a substitute for a production tax-and-benefit calculator. Sev
 - the choice of headline metric (exact match), near-miss companion (within-1%), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate
 - the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail
 - the `{python} r.n_households_fmt`-household manuscript snapshot should be treated as a preview until larger frozen runs are published
-- the scored-miss audit is exhaustive over this frozen snapshot, but it is developer-led and not an independent validation of every reference value
+- the scored-miss audit is exhaustive over this frozen snapshot, but it is developer-adjudicated and not an independent validation of every reference value
+- one frozen scenario encodes household inputs that do not match its prompt narrative (a South Carolina household whose prompt implies a qualifying disability the inputs omit), and two input-semantics conventions (SSI disability status and adult tax-dependent relationships) are under-specified in ways a scheduled scenario refresh will address; affected cells score models against the encoded inputs
 - benchmark success should not be interpreted as policy-advice readiness
 
 The current paper is therefore an evaluation of model performance under a specific structured-output benchmark, not a general certification of tax or benefit competence.
@@ -1216,7 +1235,7 @@ Next steps are to expand country coverage, increase frozen sample sizes, and add
 
 ## Appendix A: Structured-output audit
 
-The benchmark requires one numeric value and one explanation for every requested output. Parse failures are benchmark failures, not missing data to drop from the denominator. Before publishing the manuscript snapshot, we audited missing numeric values and explanations, extended the parser only where explicit variable-keyed `value` and `explanation` fields were recoverable, and re-elicited the few remaining missing cells individually. @tbl-parse-repair-summary summarizes that sequence.
+The benchmark requires one numeric value and one explanation for every requested output. Parse failures are benchmark failures, not missing data to drop from the denominator. Before publishing the manuscript snapshot, we audited missing numeric values and explanations, extended the parser only where explicit variable-keyed `value` and `explanation` fields were recoverable, and retried failing scenarios under the supervised runner's bounded rounds. @tbl-parse-repair-summary summarizes that sequence.
 
 ```{python}
 #| label: tbl-parse-repair-summary
@@ -1224,7 +1243,7 @@ The benchmark requires one numeric value and one explanation for every requested
 parse_repair_summary
 ```
 
-No full-response retry or bulk row-repair rounds were required for the June populace run; the five missing cells noted above were re-elicited individually against the same model, household, and output, and the resulting canonical prediction files have zero missing numeric values or explanations.
+Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds, so no separate retry artifacts exist; repairs are folded into each model's canonical prediction file. After retries, 565 cells (1.2% of canonical rows, concentrated in Kimi K2.6 and GLM-5.2) still returned no parsable numeric value. These stand in the canonical files with their raw responses preserved and score zero as parse-contract failures — the denominator is never reduced.
 
 ## Competing interests
 
