@@ -80,6 +80,19 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "truncated it at exactly the ceiling."
         ),
     ),
+    "xai/grok-4.5": ModelCard(
+        litellm_id="xai/grok-4.5",
+        answer_contract="tool",
+        request_timeout_seconds=420,
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.091,
+        notes=(
+            "Onboarded 2026-07-10: forced tool contract passed 3/3 and "
+            "16/16; the full-scenario probe used 14,225 tokens, so it gets "
+            "the thinking-class budget. Timeout matches grok-4.3's 420s for "
+            "tail scenarios."
+        ),
+    ),
     "deepseek/deepseek-v4-pro": ModelCard(
         litellm_id="deepseek/deepseek-v4-pro",
         answer_contract="json",

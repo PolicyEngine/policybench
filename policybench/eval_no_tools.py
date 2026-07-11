@@ -521,7 +521,11 @@ def _completion_controls(
                 cap=GEMINI_MAX_COMPLETION_TOKENS_CAP,
             )
         }
-    if model_id.startswith("xai/"):
+    card = card_for(model_id)
+    # A thinking-budget card outranks the legacy xai/ family branch:
+    # grok-4.5 reasons by default (14k tokens on the 16-variable probe),
+    # while grok-4.3 has no card and keeps the flat family budget.
+    if model_id.startswith("xai/") and not (card is not None and card.thinking_budget):
         if include_explanations:
             base_tokens = EXPLANATION_MAX_COMPLETION_TOKENS
         else:
@@ -531,7 +535,6 @@ def _completion_controls(
                 base_tokens, variables, include_explanations
             )
         }
-    card = card_for(model_id)
     if card is not None and card.thinking_budget:
         # Reasoning-by-default models bill reasoning against the same
         # completion budget as the answer, and the reasoning spend does not
@@ -540,15 +543,17 @@ def _completion_controls(
         # explanation path got in #101, or default-effort reasoning exhausts
         # the small dynamic budget before any output. Unused headroom is
         # free.
-        base_tokens = THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP
-        return {
-            "max_completion_tokens": _completion_token_budget(
-                base_tokens,
-                variables,
-                include_explanations,
-                cap=THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
-            )
-        }
+        budget = _completion_token_budget(
+            THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
+            variables,
+            include_explanations,
+            cap=THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
+        )
+        # xAI rejects max_completion_tokens outright (litellm
+        # UnsupportedParamsError); it takes the same budget as max_tokens.
+        if model_id.startswith("xai/"):
+            return {"max_tokens": budget}
+        return {"max_completion_tokens": budget}
     if model_id.startswith("gpt-5"):
         if include_explanations:
             base_tokens = EXPLANATION_MAX_COMPLETION_TOKENS

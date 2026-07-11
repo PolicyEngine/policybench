@@ -177,6 +177,7 @@ The current default non-Claude model set is:
 
 ```bash
 grok-4.3
+grok-4.5
 grok-build-0.1
 gpt-5.6-sol
 gpt-5.6-terra
