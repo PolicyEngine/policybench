@@ -113,7 +113,7 @@ export function orderModels(models: Iterable<string>): string[] {
 const FRONTIER_MODEL_GROUPS = [
   ["claude-fable-5", "claude-opus-4.8"],
   ["gpt-5.6-sol", "gpt-5.5"],
-  ["grok-4.3"],
+  ["grok-4.5", "grok-4.3"],
   ["gemini-3.1-pro-preview"],
   ["deepseek-v4-pro"],
   ["kimi-k2.6"],

@@ -76,7 +76,6 @@ describe("model metadata", () => {
     const models = [
       "claude-fable-5",
       "gpt-5.6-sol",
-      "grok-4.3",
       "grok-4.5",
       "gemini-3.1-pro-preview",
       "deepseek-v4-pro",
