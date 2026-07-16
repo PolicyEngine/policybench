@@ -1,18 +1,24 @@
 ---
 title: "PolicyBench"
 subtitle: "Benchmarking no-tool tax-and-benefit estimation in frontier language models"
-author:
-  - name: "Max Ghenis"
-    affiliation: "PolicyEngine"
 bibliography: references.bib
 jupyter: python3
 format:
   html:
     toc: true
     toc-depth: 3
+    author:
+      - name: "Max Ghenis"
+        affiliations:
+          - name: "PolicyEngine"
+          - name: "Axiom Foundation"
   pdf:
     toc: true
     number-sections: true
+    # The default LaTeX template drops structured affiliations, so the PDF
+    # carries them as a title-page footnote instead.
+    author: 'Max Ghenis\thanks{PolicyEngine and Axiom Foundation.}'
+
 ---
 
 ```{python}
@@ -1247,4 +1253,4 @@ Model waves after June ran under a resumable supervised runner that retries fail
 
 ## Competing interests
 
-The author is affiliated with PolicyEngine, which develops the microsimulation software used to produce the benchmark reference outputs.
+The author leads PolicyEngine, which develops the microsimulation software used to produce the benchmark reference outputs, and is a founder of the Axiom Foundation, a nonprofit developing deterministic rules-as-code infrastructure. Both organizations' missions are advanced by the finding that unaided language models do not reliably reproduce rule calculations.
