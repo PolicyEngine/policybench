@@ -13,7 +13,7 @@ Sources, in order of authority:
   US source-run label, PolicyEngine versions, the populace dataset id, and the
   declared scope (households, output groups, models).
 * ``paper/snapshot/20260501/runs/<us_label>/data.json`` -- the frozen US
-  dashboard payload: the 13-model roster, ``modelStats`` exact-match and
+  dashboard payload: the frozen model roster, ``modelStats`` exact-match and
   within-1% scores, per-output ``programStats`` and ``failureModes``
   breakdowns, household and scored-output counts.
 * the frozen audit annotations dir (``manifest['audit_annotation_artifacts']``)
