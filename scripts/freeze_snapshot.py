@@ -472,6 +472,10 @@ def build_manifest(
             "predictions.csv.gz file. The separate LiteLLM cache remains "
             "local-only because it is a generated request cache, not the "
             "canonical snapshot artifact.",
+            "The frozen scenarios.csv source_dataset column carries a stale "
+            "enhanced_cps_2024 label from the pre-#77 scenario generator; the "
+            "run metadata (scenarios.csv.meta.json) records the "
+            "populace_us_2024 build actually loaded.",
             "Model APIs and upstream model aliases may change after the "
             "recorded 2026-06-12 to 2026-07-10 response window, so exact "
             "reruns can diverge even with the committed household inputs, "
