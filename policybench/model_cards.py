@@ -30,6 +30,10 @@ class ModelCard:
     # True → 16,384-token completion budget on both explanation arms
     # (reasoning bills against the same budget as the answer).
     thinking_budget: bool | None = None
+    # Overrides the thinking-budget completion ceiling for models whose
+    # reasoning tail overflows 16,384. Headroom is free — only tokens
+    # actually generated bill.
+    completion_token_cap: int | None = None
     # Measured during onboarding; informs the run supervisor's projection
     # before live per-scenario costs exist.
     expected_cost_per_scenario_usd: float | None = None
@@ -117,6 +121,28 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "enabled; OpenRouter silently reroutes to hosts that reason to "
             "the token ceiling. Whole-scenario JSON overflows into truncated "
             "documents; converges at 3 variables/call."
+        ),
+    ),
+    "openrouter/moonshotai/kimi-k3": ModelCard(
+        litellm_id="openrouter/moonshotai/kimi-k3",
+        answer_contract="json",
+        request_timeout_seconds=1200,
+        thinking_budget=True,
+        completion_token_cap=49_152,
+        expected_cost_per_scenario_usd=0.3,
+        notes=(
+            "Moonshot rejects forced tool_choice with thinking enabled "
+            "(same as kimi-k2.6), so it runs the JSON contract — but "
+            "whole-scenario, not chunked: reasoning spend is per-call, "
+            "not per-variable (a full 16-var probe finished at 12.4k "
+            "completion tokens while a 3-var probe hit 31k), so chunking "
+            "at 3 would multiply cost ~7x for nothing. The reasoning "
+            "tail overflows the shared 16,384 ceiling (one probe burned "
+            "all 16,384 in 430s with no answer), so the cap is 49,152 "
+            "and the timeout 1200s — enough to generate to the cap at "
+            "the observed ~35-40 tok/s; unused headroom is free. Single "
+            "OpenRouter endpoint (Moonshot AI, native int4), $3/$15 per "
+            "1M tokens."
         ),
     ),
     "openrouter/z-ai/glm-5.2": ModelCard(

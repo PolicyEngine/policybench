@@ -54,6 +54,7 @@ MODELS = {
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
     "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
     "kimi-k2.6": "openrouter/moonshotai/kimi-k2.6",
+    "kimi-k3": "openrouter/moonshotai/kimi-k3",
     "glm-5.2": "openrouter/z-ai/glm-5.2",
     "minimax-m3": "openrouter/minimax/minimax-m3",
     "qwen-3.7-max": "openrouter/qwen/qwen3.7-max",
@@ -72,6 +73,9 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     "gpt-5.6-luna": {"input": 1.0, "output": 6.0},
     # grok-build-0.1: $1 / $2 per 1M input/output tokens (https://x.ai/api).
     "grok-build-0.1": {"input": 1.0, "output": 2.0},
+    # kimi-k3: $3 / $15 per 1M input/output tokens (OpenRouter model listing,
+    # 2026-07-17); litellm's price map does not yet cover the id.
+    "kimi-k3": {"input": 3.0, "output": 15.0},
     # claude-fable-5: $10 / $50 per 1M input/output tokens
     # (https://platform.claude.com/docs/en/about-claude/models/overview).
     "claude-fable-5": {"input": 10.0, "output": 50.0},
