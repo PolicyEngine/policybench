@@ -230,7 +230,7 @@ def test_tool_rejection_falls_to_json(scenario):
     assert names == ["tool-3var", "json-3var", "json-full"]
 
 
-def test_ceiling_burn_on_full_probe_triggers_chunking(scenario):
+def test_ceiling_burn_on_full_probe_is_not_scorable(scenario):
     calls = {"n": 0}
 
     def respond(messages, **kwargs):
@@ -245,8 +245,9 @@ def test_ceiling_burn_on_full_probe_triggers_chunking(scenario):
 
     with patch("policybench.onboard.completion", side_effect=respond):
         report = run_gauntlet("openrouter/example/burner", scenario, FULL_VARS)
-    assert report.card.explanation_chunk_size == 3
-    assert report.card.expected_cost_per_scenario_usd == pytest.approx(0.012)
+    assert report.card is None
+    assert "canonical whole-scenario prompt" in report.unscorable_reason
+    assert "NOT SCORABLE" in format_report(report)
 
 
 def test_no_viable_contract_yields_no_card(scenario):
@@ -256,7 +257,7 @@ def test_no_viable_contract_yields_no_card(scenario):
     with patch("policybench.onboard.completion", side_effect=respond):
         report = run_gauntlet("openrouter/example/dead", scenario, FULL_VARS)
     assert report.card is None
-    assert "cannot run the benchmark" in format_report(report)
+    assert "NOT SCORABLE" in format_report(report)
 
 
 def test_slow_probes_earn_extended_timeout(scenario):

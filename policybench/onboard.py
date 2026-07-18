@@ -9,7 +9,11 @@ expansion is a cheap, automatable probe:
 2. JSON contract at 3 variables — the fallback contract.
 3. The surviving contract at 16 variables (whole-scenario shape) — GLM
    reasoned to the ceiling here in both contracts; Kimi overflowed the JSON
-   document with its reasoning stream. Failure ⇒ chunk at 3.
+   document with its reasoning stream. This probe is the scoring gate:
+   every model must answer the canonical whole-scenario prompt, so a
+   failure here means the model is listed as not scorable, never chunked.
+   (Cards predating this rule keep their chunked treatments; an earlier
+   comparison found chunking made little scoring difference.)
 4. Latency and token appetite from the probes — models whose calls push the
    default timeout get a larger one on the card, and measured cost per call
    seeds the supervisor's budget projection.
@@ -21,7 +25,6 @@ few cents; run it before committing real money to a full benchmark.
 from __future__ import annotations
 
 import json
-import math
 import time
 from dataclasses import dataclass, field
 
@@ -85,6 +88,7 @@ class ProbeResult:
 class GauntletReport:
     model_id: str
     probes: list[ProbeResult] = field(default_factory=list)
+    unscorable_reason: str | None = None
     card: ModelCard | None = None
     aborted: str | None = None
 
@@ -92,6 +96,7 @@ class GauntletReport:
         return {
             "model_id": self.model_id,
             "probes": [vars(p) for p in self.probes],
+            "unscorable_reason": self.unscorable_reason,
             "card": vars(self.card) if self.card else None,
             "aborted": self.aborted,
         }
@@ -239,7 +244,6 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
         report.aborted = f"environment error, not a serving fact: {tool_small.error}"
         return report
     contract = "tool" if tool_small.ok else "json"
-    small_success = tool_small
     if not tool_small.ok:
         json_small = _run_probe(
             "json-3var", scenario, small_variables, model_id, "json"
@@ -251,10 +255,9 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
             )
             return report
         if not json_small.ok:
-            # Neither contract answers a 3-variable request; nothing further
-            # to derive — the model cannot run the benchmark as-is.
+            # Neither contract answers even a 3-variable request.
+            report.unscorable_reason = "neither contract answers a 3-variable request"
             return report
-        small_success = json_small
 
     full_vars = full_variables[:PROBE_FULL_VARIABLE_COUNT]
     full = _run_probe(f"{contract}-full", scenario, full_vars, model_id, contract)
@@ -262,7 +265,15 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
     if full.environment_error:
         report.aborted = f"environment error, not a serving fact: {full.error}"
         return report
-    chunk_size = None if full.ok else 3
+    if not full.ok:
+        # Scores are only comparable when every model answers the same
+        # canonical whole-scenario prompt; per-model chunking would hand
+        # this model an easier request than the rest of the board saw.
+        report.unscorable_reason = (
+            f"{contract} contract answers 3 variables but not the "
+            "canonical whole-scenario prompt"
+        )
+        return report
 
     slow = any(
         p.seconds > harness.THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS * SLOW_CALL_FRACTION
@@ -271,19 +282,13 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
     )
     timeout = 600 if slow else None
 
-    if chunk_size is None:
-        expected = full.cost_usd
-    elif small_success.cost_usd is not None:
-        expected = small_success.cost_usd * math.ceil(len(full_variables) / chunk_size)
-    else:
-        expected = None
+    expected = full.cost_usd
     if expected is not None:
         expected = round(expected, 3)
 
     report.card = ModelCard(
         litellm_id=model_id,
         answer_contract=contract,
-        explanation_chunk_size=chunk_size,
         request_timeout_seconds=timeout,
         thinking_budget=True,
         expected_cost_per_scenario_usd=expected,
@@ -312,9 +317,11 @@ def format_report(report: GauntletReport) -> str:
         lines.append("Fix the environment (credits, keys) and rerun; no card derived.")
         return "\n".join(lines)
     if report.card is None:
+        reason = report.unscorable_reason or "no probe produced a viable card"
         lines.append(
-            "No viable contract at 3 variables — the model cannot run the "
-            "benchmark without harness changes."
+            f"NOT SCORABLE — {reason}. Every scored model answers the same "
+            "canonical whole-scenario prompt; list the model as not "
+            "scorable rather than accommodating it."
         )
     else:
         lines.append("Suggested ModelCard (add to policybench/model_cards.py):")

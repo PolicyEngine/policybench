@@ -11,6 +11,14 @@ encode serving-stack facts discovered during onboarding (see
 
 Cards OVERRIDE the family-prefix heuristics in ``eval_no_tools``; models
 without a card (or with a field left ``None``) keep the heuristic treatment.
+
+Scores are only comparable when every model answers the same canonical
+whole-scenario prompt, so ``explanation_chunk_size`` is closed to new
+models: a model that cannot answer the canonical prompt is listed as not
+scorable instead (the gauntlet enforces this). The chunked cards below —
+gpt-5.5, claude-fable-5, claude-sonnet-5, kimi-k2.6, glm-5.2, and
+qwen3.7-max — predate the rule and keep their shipped treatments; an
+earlier comparison found chunking made little scoring difference.
 """
 
 from __future__ import annotations
