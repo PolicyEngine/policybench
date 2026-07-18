@@ -15,10 +15,12 @@ without a card (or with a field left ``None``) keep the heuristic treatment.
 Scores are only comparable when every model answers the same canonical
 whole-scenario prompt, so ``explanation_chunk_size`` is closed to new
 models: a model that cannot answer the canonical prompt is listed as not
-scorable instead (the gauntlet enforces this). The chunked cards below —
+scorable instead (the gauntlet enforces this). The chunked treatments that
+predate the rule keep their shipped behavior — the cards below for
 gpt-5.5, claude-fable-5, claude-sonnet-5, kimi-k2.6, glm-5.2, and
-qwen3.7-max — predate the rule and keep their shipped treatments; an
-earlier comparison found chunking made little scoring difference.
+qwen3.7-max, plus the claude- family heuristic (1 output per request) that
+covers the older Claude roster; an earlier comparison found chunking made
+little scoring difference. The paper documents the asymmetry.
 """
 
 from __future__ import annotations

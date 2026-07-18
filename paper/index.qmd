@@ -705,10 +705,7 @@ def reasoning_setup(model: str) -> str:
     """
     if model in THINKING_DEFAULT_CLAUDE_MODELS:
         cap = f"{THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP:,}"
-        return (
-            "extended thinking on (model default); thinking and answer share "
-            f"a {cap}-token completion budget"
-        )
+        return f"extended thinking (default); {cap}-token shared budget"
     if model in SNAPSHOT_REASONING_EFFORT_OVERRIDES:
         return (
             "reasoning effort pinned to "
@@ -719,11 +716,27 @@ def reasoning_setup(model: str) -> str:
     card = card_for(MODELS.get(model, model))
     if card is not None and card.thinking_budget:
         cap = f"{THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP:,}"
-        return (
-            "no reasoning parameters sent (provider default); reasoning and "
-            f"answer share a {cap}-token completion budget"
-        )
-    return "no reasoning parameters sent (provider default)"
+        return f"provider default; {cap}-token shared budget"
+    return "provider default"
+
+
+def request_shape(model: str) -> str:
+    """Per-model request shape in the frozen snapshot's runs.
+
+    Derived from the live harness treatment (cards and family heuristics,
+    unchanged since those runs): None means the model answered the whole
+    scenario in one request; an integer means the same template was applied
+    over subsets of that many requested outputs per request.
+    """
+    from policybench.eval_no_tools import _required_explanation_chunk_size
+
+    chunk = _required_explanation_chunk_size(
+        MODELS.get(model, model), include_explanations=True
+    )
+    if chunk is None:
+        return "whole scenario"
+    plural = "" if chunk == 1 else "s"
+    return f"{chunk} output{plural}/request"
 
 
 def model_run_table(top_n: int | None = None) -> pd.DataFrame:
@@ -737,6 +750,7 @@ def model_run_table(top_n: int | None = None) -> pd.DataFrame:
                 "PolicyBench ID": model,
                 "Provider ID": MODELS.get(model, "not in default registry"),
                 "Parsed": f"{int(us_row.nParsed):,}/{int(us_row.n):,}",
+                "Request shape": request_shape(model),
                 "Reasoning setup": reasoning_setup(model),
             }
         )
@@ -799,6 +813,9 @@ us_hardest = variable_hardest(us_var)
 us_positive_cases = positive_case_table(us_failures)
 sensitivity = sensitivity_rows()
 model_runs = model_run_table()
+n_chunked_models = int(
+    (model_runs["Request shape"] != "whole scenario").sum()
+)
 baseline_summary = simple_baselines()
 
 
@@ -811,7 +828,11 @@ def md_table(frame: pd.DataFrame) -> "Markdown":
     from IPython.display import Markdown
 
     def clean(value: object) -> str:
-        return str(value).replace("|", "\\|").replace("\n", " ")
+        # The zero-width space after each slash gives LaTeX a break point
+        # inside long unhyphenated tokens (provider ids), which otherwise
+        # overflow their column into the neighbor.
+        cleaned = str(value).replace("|", "\\|").replace("\n", " ")
+        return cleaned.replace("/", "/​")
 
     header = "| " + " | ".join(clean(c) for c in frame.columns) + " |"
     rule = "|" + "|".join("---" for _ in frame.columns) + "|"
@@ -1100,7 +1121,9 @@ Aggregation proceeds in three steps. First, each household-output prediction rec
 
 The benchmark requires each model response to include numeric answers and one explanation per requested output. Both the exact-match rate and the bounded score use only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.
 
-Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are `0`, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output and the reasoning configuration documented per model in @tbl-model-runs: models whose provider enables reasoning by default run with extended thinking against a fixed shared completion budget, and no model receives reasoning-control parameters — every model in the frozen snapshot runs at its provider's default reasoning configuration. Sampling parameters are never set; temperature and related decoding controls stay at provider defaults for every model. (An earlier June run pinned GPT-5.5's reasoning effort to low; the pin was traced to a harness token-budget artifact and that run was replaced before the freeze, so the frozen GPT-5.5 wave is a default-effort run like every other model.)
+Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are `0`, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output, the request shape, and the reasoning configuration documented per model in @tbl-model-runs: models whose provider enables reasoning by default run with extended thinking against a fixed shared completion budget, and no model receives reasoning-control parameters — every model in the frozen snapshot runs at its provider's default reasoning configuration. Sampling parameters are never set; temperature and related decoding controls stay at provider defaults for every model. (An earlier June run pinned GPT-5.5's reasoning effort to low; the pin was traced to a harness token-budget artifact and that run was replaced before the freeze, so the frozen GPT-5.5 wave is a default-effort run like every other model.)
+
+Request shape is the one dimension on which requests were not identical across models. `{python} n_chunked_models` of the `{python} r.n_models_fmt` models could not reliably complete the whole-scenario request — their serving stacks rejected the structured-output call, exhausted completion budgets mid-response, or timed out — and instead answered the same prompt template over subsets of the requested outputs, one to three outputs per request (@tbl-model-runs). Subsetting gives each response fewer requested outputs and a fresh completion budget over the same household facts, so the accommodation, if it moves scores at all, should favor the chunked models; their scores are not strictly comparable to whole-scenario scores. This accommodation is closed going forward: a model added after this snapshot either answers the canonical whole-scenario request or is listed as not scorable rather than accommodated.
 
 ### Frozen snapshot and open-set status
 
@@ -1114,7 +1137,7 @@ md_table(snapshot_provenance)
 
 ```{python}
 #| label: tbl-model-runs
-#| tbl-cap: "Model run configuration in the frozen manuscript snapshot. Every model uses its provider's structured-output transport with no external tools, provider-default temperature and sampling, and the identical prompt template; the reasoning column is the only per-model configuration."
+#| tbl-cap: "Model run configuration in the frozen manuscript snapshot. Every model uses its provider's structured-output transport with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same prompt template over the same household facts; request shape and reasoning setup are the only per-model serving configuration. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text."
 md_table(model_runs)
 ```
 
@@ -1257,6 +1280,7 @@ Third, structured-output reliability is part of the benchmark contract. Missing 
 PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:
 
 - output-contract reliability required a repair workflow; raw provider responses, including failed attempts, are retained within the canonical prediction files, and cells that never parsed score zero
+- request shape is not identical across models: `{python} n_chunked_models` of `{python} r.n_models_fmt` models answered the prompt template over subsets of the requested outputs rather than the whole scenario (@tbl-model-runs), an accommodation that, if it moves scores at all, should favor those models; later additions must answer the whole-scenario request or are listed as not scorable
 - zero-heavy outputs require separate positive-case interpretation
 - the choice of headline metric (exact match), near-miss companion (within-1%), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate
 - the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail
