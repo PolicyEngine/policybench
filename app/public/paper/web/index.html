@@ -169,7 +169,8 @@ div.csl-indent {
 <p>All requested US outputs are annual amounts or annual eligibility indicators for tax year 2026, scored under the tolerances defined above. Missing, unparseable, or non-0/1 answers receive zero score for that requested output.</p>
 <p>Aggregation proceeds in three steps. First, each household-output prediction receives a <code>0-100</code> score. Second, each household receives one model score: requested output rows are weighted by output-group weights constructed from the full weighting population, then renormalized within the household over outputs that are actually requested for that household. Person-level coverage flags are scored at the person row; their output-group weight is split across the relevant people in the household and is based on PolicyEngine value proxies where available. Third, the country score averages those household scores with equal household weight. The leaderboard reports US results on this fixed test set. Equal-output-group scores and other alternative views are reported as sensitivity checks.</p>
 <p>The benchmark requires each model response to include numeric answers and one explanation per requested output. Both the exact-match rate and the bounded score use only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.</p>
-<p>Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are <code>0</code>, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output and the reasoning configuration documented per model in <a href="#tbl-model-runs" class="quarto-xref">Table&nbsp;2</a>: models whose provider enables reasoning by default run with extended thinking against a fixed shared completion budget, and no model receives reasoning-control parameters — every model in the frozen snapshot runs at its provider’s default reasoning configuration. Sampling parameters are never set; temperature and related decoding controls stay at provider defaults for every model. (An earlier June run pinned GPT-5.5’s reasoning effort to low; the pin was traced to a harness token-budget artifact and that run was replaced before the freeze, so the frozen GPT-5.5 wave is a default-effort run like every other model.)</p>
+<p>Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are <code>0</code>, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output, the request shape, and the reasoning configuration documented per model in <a href="#tbl-model-runs" class="quarto-xref">Table&nbsp;2</a>: models whose provider enables reasoning by default run with extended thinking against a fixed shared completion budget, and no model receives reasoning-control parameters — every model in the frozen snapshot runs at its provider’s default reasoning configuration. Sampling parameters are never set; temperature and related decoding controls stay at provider defaults for every model. (An earlier June run pinned GPT-5.5’s reasoning effort to low; the pin was traced to a harness token-budget artifact and that run was replaced before the freeze, so the frozen GPT-5.5 wave is a default-effort run like every other model.)</p>
+<p>Request shape is the one dimension on which requests were not identical across models. 10 of the 24 models could not reliably complete the whole-scenario request — their serving stacks rejected the structured-output call, exhausted completion budgets mid-response, or timed out — and instead answered the same prompt template over subsets of the requested outputs, one to three outputs per request (<a href="#tbl-model-runs" class="quarto-xref">Table&nbsp;2</a>). Subsetting gives each response fewer requested outputs and a fresh completion budget over the same household facts, so the accommodation, if it moves scores at all, should favor the chunked models; their scores are not strictly comparable to whole-scenario scores. This accommodation is closed going forward: a model added after this snapshot either answers the canonical whole-scenario request or is listed as not scorable rather than accommodated.</p>
 <h3 id="frozen-snapshot-and-open-set-status" class="anchored">Frozen snapshot and open-set status</h3>
 <p>Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen source-run exports in <a href="#tbl-snapshot" class="quarto-xref">Table&nbsp;1</a> rather than to the live site. The committed source-run exports are the manuscript artifacts. The public site exposes the current prompts, predictions, explanations, and reference outputs for transparency. This makes the public leaderboard open-set: models, model providers, or benchmark users could learn from the released cases before later runs. Protected leaderboard claims would require a separate held-out or rotating set.</p>
 <div class="cell" data-execution_count="2">
@@ -206,7 +207,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <td>Frozen export</td>
-<td>paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json</td>
+<td>paper/​snapshot/​20260501/​runs/​us_full_run_20260612_policyengine_4_16_1_populace/​data.json</td>
 </tr>
 <tr class="odd">
 <td>Frozen export SHA-256 prefix</td>
@@ -214,11 +215,11 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <td>Snapshot manifest</td>
-<td>paper/snapshot/20260501/manifest.json</td>
+<td>paper/​snapshot/​20260501/​manifest.json</td>
 </tr>
 <tr class="odd">
 <td>Audit annotations</td>
-<td>annotations/us_full_run_20260612_policyengine_4_16_1_populace</td>
+<td>annotations/​us_full_run_20260612_policyengine_4_16_1_populace</td>
 </tr>
 <tr class="even">
 <td>US scenarios SHA-256 prefix</td>
@@ -291,17 +292,18 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <div id="tbl-model-runs" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="3">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-model-runs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every model uses its provider’s structured-output transport with no external tools, provider-default temperature and sampling, and the identical prompt template; the reasoning column is the only per-model configuration.
+Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every model uses its provider’s structured-output transport with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same prompt template over the same household facts; request shape and reasoning setup are the only per-model serving configuration. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text.
 </figcaption>
 <div aria-describedby="tbl-model-runs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output cell-output-display cell-output-markdown" data-execution_count="3">
-<table class="cell caption-top">
+<table class="cell caption-top" style="width:100%;">
 <colgroup>
-<col style="width: 20%">
-<col style="width: 20%">
-<col style="width: 20%">
-<col style="width: 20%">
-<col style="width: 20%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -309,6 +311,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <th>PolicyBench ID</th>
 <th>Provider ID</th>
 <th>Parsed</th>
+<th>Request shape</th>
 <th>Reasoning setup</th>
 </tr>
 </thead>
@@ -317,169 +320,193 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Claude Fable 5</td>
 <td>claude-fable-5</td>
 <td>claude-fable-5</td>
-<td>1,984/1,984</td>
-<td>extended thinking on (model default); thinking and answer share a 16,384-token completion budget</td>
+<td>1,984/​1,984</td>
+<td>1 output/​request</td>
+<td>extended thinking (default); 16,384-token shared budget</td>
 </tr>
 <tr class="even">
 <td>Claude Haiku 4.5</td>
 <td>claude-haiku-4.5</td>
 <td>claude-haiku-4-5-20251001</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>1,984/​1,984</td>
+<td>1 output/​request</td>
+<td>provider default</td>
 </tr>
 <tr class="odd">
 <td>Claude Opus 4.7</td>
 <td>claude-opus-4.7</td>
 <td>claude-opus-4-7</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>1,984/​1,984</td>
+<td>1 output/​request</td>
+<td>provider default</td>
 </tr>
 <tr class="even">
 <td>Claude Opus 4.8</td>
 <td>claude-opus-4.8</td>
 <td>claude-opus-4-8</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>1,984/​1,984</td>
+<td>1 output/​request</td>
+<td>provider default</td>
 </tr>
 <tr class="odd">
 <td>Claude Sonnet 4.6</td>
 <td>claude-sonnet-4.6</td>
 <td>claude-sonnet-4-6</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>1,984/​1,984</td>
+<td>1 output/​request</td>
+<td>provider default</td>
 </tr>
 <tr class="even">
 <td>Claude Sonnet 5</td>
 <td>claude-sonnet-5</td>
 <td>claude-sonnet-5</td>
-<td>1,984/1,984</td>
-<td>extended thinking on (model default); thinking and answer share a 16,384-token completion budget</td>
+<td>1,984/​1,984</td>
+<td>1 output/​request</td>
+<td>extended thinking (default); 16,384-token shared budget</td>
 </tr>
 <tr class="odd">
 <td>DeepSeek V4 Pro</td>
 <td>deepseek-v4-pro</td>
-<td>deepseek/deepseek-v4-pro</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default); reasoning and answer share a 16,384-token completion budget</td>
+<td>deepseek/​deepseek-v4-pro</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default; 16,384-token shared budget</td>
 </tr>
 <tr class="even">
 <td>Gemini 3 Flash Preview</td>
 <td>gemini-3-flash-preview</td>
-<td>gemini/gemini-3-flash-preview</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>gemini/​gemini-3-flash-preview</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default</td>
 </tr>
 <tr class="odd">
 <td>Gemini 3.1 Flash Lite Preview</td>
 <td>gemini-3.1-flash-lite-preview</td>
-<td>gemini/gemini-3.1-flash-lite-preview</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>gemini/​gemini-3.1-flash-lite-preview</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default</td>
 </tr>
 <tr class="even">
 <td>Gemini 3.1 Pro Preview</td>
 <td>gemini-3.1-pro-preview</td>
-<td>gemini/gemini-3.1-pro-preview</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>gemini/​gemini-3.1-pro-preview</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default</td>
 </tr>
 <tr class="odd">
 <td>Gemini 3.5 Flash</td>
 <td>gemini-3.5-flash</td>
-<td>gemini/gemini-3.5-flash</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>gemini/​gemini-3.5-flash</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default</td>
 </tr>
 <tr class="even">
 <td>GLM-5.2</td>
 <td>glm-5.2</td>
-<td>openrouter/z-ai/glm-5.2</td>
-<td>1,845/1,984</td>
-<td>no reasoning parameters sent (provider default); reasoning and answer share a 16,384-token completion budget</td>
+<td>openrouter/​z-ai/​glm-5.2</td>
+<td>1,845/​1,984</td>
+<td>3 outputs/​request</td>
+<td>provider default; 16,384-token shared budget</td>
 </tr>
 <tr class="odd">
 <td>GPT-5.4 mini</td>
 <td>gpt-5.4-mini</td>
 <td>gpt-5.4-mini</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default</td>
 </tr>
 <tr class="even">
 <td>GPT-5.4 nano</td>
 <td>gpt-5.4-nano</td>
 <td>gpt-5.4-nano</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default</td>
 </tr>
 <tr class="odd">
 <td>GPT-5.5</td>
 <td>gpt-5.5</td>
 <td>gpt-5.5</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default); reasoning and answer share a 16,384-token completion budget</td>
+<td>1,984/​1,984</td>
+<td>3 outputs/​request</td>
+<td>provider default; 16,384-token shared budget</td>
 </tr>
 <tr class="even">
 <td>GPT-5.6 Luna</td>
 <td>gpt-5.6-luna</td>
 <td>gpt-5.6-luna</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default); reasoning and answer share a 16,384-token completion budget</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default; 16,384-token shared budget</td>
 </tr>
 <tr class="odd">
 <td>GPT-5.6 Sol</td>
 <td>gpt-5.6-sol</td>
 <td>gpt-5.6-sol</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default); reasoning and answer share a 16,384-token completion budget</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default; 16,384-token shared budget</td>
 </tr>
 <tr class="even">
 <td>GPT-5.6 Terra</td>
 <td>gpt-5.6-terra</td>
 <td>gpt-5.6-terra</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default); reasoning and answer share a 16,384-token completion budget</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default; 16,384-token shared budget</td>
 </tr>
 <tr class="odd">
 <td>Grok 4.3</td>
 <td>grok-4.3</td>
-<td>xai/grok-4.3</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>xai/​grok-4.3</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default</td>
 </tr>
 <tr class="even">
 <td>Grok 4.5</td>
 <td>grok-4.5</td>
-<td>xai/grok-4.5</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default); reasoning and answer share a 16,384-token completion budget</td>
+<td>xai/​grok-4.5</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default; 16,384-token shared budget</td>
 </tr>
 <tr class="odd">
 <td>Grok Build 0.1</td>
 <td>grok-build-0.1</td>
-<td>xai/grok-build-0.1</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default)</td>
+<td>xai/​grok-build-0.1</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default</td>
 </tr>
 <tr class="even">
 <td>Kimi K2.6</td>
 <td>kimi-k2.6</td>
-<td>openrouter/moonshotai/kimi-k2.6</td>
-<td>1,558/1,984</td>
-<td>no reasoning parameters sent (provider default); reasoning and answer share a 16,384-token completion budget</td>
+<td>openrouter/​moonshotai/​kimi-k2.6</td>
+<td>1,558/​1,984</td>
+<td>3 outputs/​request</td>
+<td>provider default; 16,384-token shared budget</td>
 </tr>
 <tr class="odd">
 <td>MiniMax M3</td>
 <td>minimax-m3</td>
-<td>openrouter/minimax/minimax-m3</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default); reasoning and answer share a 16,384-token completion budget</td>
+<td>openrouter/​minimax/​minimax-m3</td>
+<td>1,984/​1,984</td>
+<td>whole scenario</td>
+<td>provider default; 16,384-token shared budget</td>
 </tr>
 <tr class="even">
 <td>Qwen3.7-max</td>
 <td>qwen-3.7-max</td>
-<td>openrouter/qwen/qwen3.7-max</td>
-<td>1,984/1,984</td>
-<td>no reasoning parameters sent (provider default); reasoning and answer share a 16,384-token completion budget</td>
+<td>openrouter/​qwen/​qwen3.7-max</td>
+<td>1,984/​1,984</td>
+<td>3 outputs/​request</td>
+<td>provider default; 16,384-token shared budget</td>
 </tr>
 </tbody>
 </table>
@@ -523,7 +550,7 @@ Table&nbsp;3: Output-selection rationale.
 </tr>
 <tr class="odd">
 <td>Binary coverage outputs</td>
-<td>Requested as 0/1 eligibility flags and scored as classification tasks; their dollar values are used only as impact-weight proxies, not as requested model outputs.</td>
+<td>Requested as 0/​1 eligibility flags and scored as classification tasks; their dollar values are used only as impact-weight proxies, not as requested model outputs.</td>
 </tr>
 <tr class="even">
 <td>WIC</td>
@@ -566,12 +593,12 @@ Table&nbsp;4: Development discrepancy review before the frozen snapshot.
 <td>Reviewed cases where explanations omitted EITC or refundable CTC; discrepancies reflected model credit-treatment errors, not PolicyEngine errors.</td>
 </tr>
 <tr class="even">
-<td>US health coverage (Medicaid/CHIP)</td>
-<td>Reviewed threshold-cluster suspects; all dissolved against 42 CFR 435 pathway rules (aged/disabled income tests, tax-dependent household composition, CHIP’s exclusion of Medicaid-eligible children) confirmed in engine traces.</td>
+<td>US health coverage (Medicaid/​CHIP)</td>
+<td>Reviewed threshold-cluster suspects; all dissolved against 42 CFR 435 pathway rules (aged/​disabled income tests, tax-dependent household composition, CHIP’s exclusion of Medicaid-eligible children) confirmed in engine traces.</td>
 </tr>
 <tr class="odd">
 <td>US SNAP, SSI, and school meals</td>
-<td>Reviewed false-zero suspects; references confirmed against categorical-eligibility, aged/blind/disabled, and universal-free-meal rules. One SNAP cell traced to a scenario encoding that omits the disability its prompt implies (disclosed under Limitations).</td>
+<td>Reviewed false-zero suspects; references confirmed against categorical-eligibility, aged/​blind/​disabled, and universal-free-meal rules. One SNAP cell traced to a scenario encoding that omits the disability its prompt implies (disclosed under Limitations).</td>
 </tr>
 <tr class="even">
 <td>US state and local income tax</td>
@@ -616,7 +643,7 @@ Table&nbsp;5: Exhaustive annotation coverage for scored misses in the frozen sna
 <th>Wrong rows audited</th>
 <th>LLM response errors</th>
 <th>Parse-contract failures</th>
-<th>Unresolved prompt/reference rows</th>
+<th>Unresolved prompt/​reference rows</th>
 <th>Missing row annotations</th>
 <th>Missing case notes</th>
 </tr>
@@ -1598,6 +1625,7 @@ Table&nbsp;13: US within-10% accuracy on federal vs state refundable credits and
 <p>PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:</p>
 <ul>
 <li>output-contract reliability required a repair workflow; raw provider responses, including failed attempts, are retained within the canonical prediction files, and cells that never parsed score zero</li>
+<li>request shape is not identical across models: 10 of 24 models answered the prompt template over subsets of the requested outputs rather than the whole scenario (<a href="#tbl-model-runs" class="quarto-xref">Table&nbsp;2</a>), an accommodation that, if it moves scores at all, should favor those models; later additions must answer the whole-scenario request or are listed as not scorable</li>
 <li>zero-heavy outputs require separate positive-case interpretation</li>
 <li>the choice of headline metric (exact match), near-miss companion (within-1%), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate</li>
 <li>the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail</li>

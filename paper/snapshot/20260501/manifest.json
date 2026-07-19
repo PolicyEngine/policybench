@@ -1,7 +1,7 @@
 {
   "audit_annotation_artifacts": {
     "files": {
-      "us_audit_row_annotations.csv": "d9628a20c54ba07da484709393c098edec2b3ecd4ced1283b08c3becd6cfb013",
+      "us_audit_row_annotations.csv": "5fc38f7bf0128f5eaedf12c225e079407fd876f750080594eeefeafc3f656a8b",
       "us_case_notes.csv": "5ac0fa3fe923496d98ea017beeb702e1d92e745daa49b38770cfe282fdc4bf54",
       "us_case_reference_explanations.csv": "a3fc7504dcf3d8abe11e98c2228c786a5171a825640b980835e1e210d3afa198"
     },
@@ -21,11 +21,11 @@
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 66366891,
+    "bytes": 68131583,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "fd77509de2011c6c81e2dc3e7d2c62db3b076c1ee00e248c9008ac3ab0f40482",
-    "tag": "dashboard-data-20260710",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260710/dashboard-data.json"
+    "sha256": "ca8b2f6e237bbad73c486cd6a3a149b113dec7030ead38878f68fd4c08562581",
+    "tag": "dashboard-data-20260719",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260719/dashboard-data.json"
   },
   "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under published_dashboard_artifact, which equals the combined export of the source run data.json files listed under source_run_artifacts. Future refreshes publish a new artifact (policybench publish-dashboard) and either update this manifest or use a new snapshot directory.",
   "model_response_date": "2026-06-12 to 2026-07-10",
@@ -56,12 +56,12 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "8ba9631f2f6a23d5bba0218575e3b705b154e934eccd7651aade58c84621f80e"
+      "sha256": "53d40563c7b912e51bcbef344e79b61807b8a8139ff7e0151671a805a2df97ed"
     },
     "web": {
       "files": {
         "figures/positive_zero_scatter.png": "0d1fc6d1854c69e5274a5e50bcd6908a0c7af918722bee21bc41c84b17b93ebe",
-        "index.html": "db494691fd1af5c421ace14d0f00f93fd420eaf9c4b88302aeb834d59932e1dc",
+        "index.html": "7a42c3e12069aa812e48f43b8a0f986573cdac6b4b97d9dc763fbc2373a5254b",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",

@@ -543,11 +543,16 @@ def _completion_controls(
         # explanation path got in #101, or default-effort reasoning exhausts
         # the small dynamic budget before any output. Unused headroom is
         # free.
+        cap = (
+            card.completion_token_cap
+            if card.completion_token_cap is not None
+            else THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP
+        )
         budget = _completion_token_budget(
-            THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
+            cap,
             variables,
             include_explanations,
-            cap=THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
+            cap=cap,
         )
         # xAI rejects max_completion_tokens outright (litellm
         # UnsupportedParamsError); it takes the same budget as max_tokens.
