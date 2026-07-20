@@ -11,6 +11,8 @@ import {
   getProviderForModel,
   orderModels,
   type ProviderKey,
+  MODEL_ORDER,
+  MODEL_RELEASE_DATES,
 } from "../src/modelMeta";
 
 describe("model metadata", () => {
@@ -55,9 +57,7 @@ describe("model metadata", () => {
   });
 
   test("falls back to GPT-5.5 for a frozen bundle without Sol", () => {
-    expect(frontierModelsFor(["gpt-5.5", "gpt-5.4-mini"])).toEqual([
-      "gpt-5.5",
-    ]);
+    expect(frontierModelsFor(["gpt-5.5", "gpt-5.4-mini"])).toEqual(["gpt-5.5"]);
     expect(frontierModelsFor(["gpt-5.6-sol", "gpt-5.5"])).toEqual([
       "gpt-5.6-sol",
     ]);
@@ -105,5 +105,13 @@ describe("orderModels", () => {
       "future-model-a",
       "future-model-z",
     ]);
+  });
+});
+
+describe("MODEL_RELEASE_DATES", () => {
+  test("covers every ordered model with an ISO date", () => {
+    for (const model of MODEL_ORDER) {
+      expect(MODEL_RELEASE_DATES[model]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
   });
 });

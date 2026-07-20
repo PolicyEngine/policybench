@@ -7,7 +7,11 @@ import type {
   CountryCode,
 } from "../types";
 import { getVariableLabel } from "../types";
-import { MODEL_LABELS, getProviderForModel } from "../modelMeta";
+import {
+  MODEL_LABELS,
+  MODEL_RELEASE_DATES,
+  getProviderForModel,
+} from "../modelMeta";
 import ProviderMark from "./ProviderMark";
 import { ProgramFilterPanel } from "./ProgramFilterDropdown";
 import { programIsActive, type ProgramOption } from "../lib/programFilters";
@@ -296,8 +300,15 @@ export default function ModelLeaderboard({
           <div role="columnheader" className="col-span-1">
             #
           </div>
-          <div role="columnheader" className="col-span-7">
+          <div role="columnheader" className="col-span-5">
             Model
+          </div>
+          <div
+            role="columnheader"
+            className="col-span-2 text-right"
+            title="First public availability (paid tiers count; trusted-tester previews do not)"
+          >
+            Released
           </div>
           <div
             role="columnheader"
@@ -357,7 +368,11 @@ export default function ModelLeaderboard({
                       </Link>
                     </div>
                     <div className="mt-1.5 pl-[26px] font-[family-name:var(--font-mono)] text-[11px] text-text-muted">
-                      {fmtCost(m.costPerHousehold, currencySymbol)} per household
+                      {fmtCost(m.costPerHousehold, currencySymbol)} per
+                      household
+                      {MODEL_RELEASE_DATES[m.model]
+                        ? ` · released ${MODEL_RELEASE_DATES[m.model]}`
+                        : ""}
                     </div>
                   </div>
 
@@ -377,7 +392,7 @@ export default function ModelLeaderboard({
                   </span>
                 </div>
 
-                <div className="col-span-7 flex min-w-0 items-center gap-2.5">
+                <div className="col-span-5 flex min-w-0 items-center gap-2.5">
                   <ProviderMark
                     provider={getProviderForModel(m.model)}
                     size={14}
@@ -391,6 +406,10 @@ export default function ModelLeaderboard({
                   </Link>
                 </div>
 
+                <div className="col-span-2 text-right font-[family-name:var(--font-mono)] text-sm text-text-muted">
+                  {MODEL_RELEASE_DATES[m.model] ?? "—"}
+                </div>
+
                 <div
                   className="col-span-2 text-right font-[family-name:var(--font-mono)] text-sm text-text-secondary"
                   title={
@@ -401,7 +420,6 @@ export default function ModelLeaderboard({
                 >
                   {fmtCost(m.costPerHousehold, currencySymbol)}
                 </div>
-
 
                 <div className="col-span-2 text-right">
                   <Badge
