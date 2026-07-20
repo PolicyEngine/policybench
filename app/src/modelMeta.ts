@@ -72,6 +72,38 @@ export type ProviderKey =
   | "xai"
   | "zai";
 
+// First public availability (paid tiers count; trusted-tester previews do
+// not). Mirrors policybench/paper_results.py MODEL_RELEASE_DATES, where each
+// date carries its source; update both together.
+export const MODEL_RELEASE_DATES: Record<string, string> = {
+  "claude-fable-5": "2026-06-09",
+  "claude-sonnet-5": "2026-06-30",
+  "claude-opus-4.8": "2026-05-28",
+  "claude-opus-4.7": "2026-04-16",
+  "claude-haiku-4.5": "2025-10-15",
+  "claude-sonnet-4.6": "2026-02-17",
+  "gemini-3-flash-preview": "2025-12-17",
+  "gemini-3.1-pro-preview": "2026-02-19",
+  "gemini-3.5-flash": "2026-05-19",
+  "gemini-3.1-flash-lite-preview": "2026-03-03",
+  "gpt-5.4-mini": "2026-03-17",
+  "gpt-5.4-nano": "2026-03-17",
+  "gpt-5.5": "2026-04-23",
+  "gpt-5.6-sol": "2026-07-09",
+  "gpt-5.6-terra": "2026-07-09",
+  "gpt-5.6-luna": "2026-07-09",
+  "grok-4.3": "2026-04-17",
+  "grok-4.5": "2026-07-08",
+  "grok-build-0.1": "2026-05-29",
+  "deepseek-v4-pro": "2026-04-24",
+  "deepseek-v4-flash": "2026-04-24",
+  "kimi-k2.6": "2026-04-20",
+  "kimi-k3": "2026-07-16",
+  "glm-5.2": "2026-06-13",
+  "minimax-m3": "2026-06-01",
+  "qwen-3.7-max": "2026-05-19",
+};
+
 export const PROVIDER_LABELS: Record<ProviderKey, string> = {
   alibaba: "Alibaba",
   anthropic: "Anthropic",
