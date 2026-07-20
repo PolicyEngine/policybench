@@ -47,6 +47,7 @@ MODEL_DISPLAY_NAMES = {
     "claude-sonnet-5": "Claude Sonnet 5",
     "grok-4.5": "Grok 4.5",
     "deepseek-v4-pro": "DeepSeek V4 Pro",
+    "kimi-k3": "Kimi K3",
     "kimi-k2.6": "Kimi K2.6",
     "glm-5.2": "GLM-5.2",
     "minimax-m3": "MiniMax M3",
@@ -593,3 +594,76 @@ class PaperResults:
 # Module-level singleton, imported by the paper as ``from
 # policybench.paper_results import r``.
 r = PaperResults()
+
+
+# Public release date per model: the first day any member of the public could
+# use it (paid tiers count; trusted-tester previews do not). Compiled
+# 2026-07-19 from vendor announcements and contemporaneous press; per-model
+# sources follow each entry.
+MODEL_RELEASE_DATES: dict[str, str] = {
+    # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
+    "claude-fable-5": "2026-06-09",
+    # anthropic.com/news/claude-sonnet-5 (2026-06-30)
+    "claude-sonnet-5": "2026-06-30",
+    # anthropic.com/news/claude-opus-4-8; macrumors.com 2026-05-28
+    "claude-opus-4.8": "2026-05-28",
+    # github.blog/changelog/2026-04-16-claude-opus-4-7-is-generally-available
+    "claude-opus-4.7": "2026-04-16",
+    # anthropic.com/news/claude-haiku-4-5 (2025-10-15)
+    "claude-haiku-4.5": "2025-10-15",
+    # anthropic.com/news/claude-sonnet-4-6 (2026-02-17)
+    "claude-sonnet-4.6": "2026-02-17",
+    # techcrunch.com 2025-12-17 gemini-3-flash launch
+    "gemini-3-flash-preview": "2025-12-17",
+    # blog.google gemini-3-1-pro; 9to5google.com 2026-02-19
+    "gemini-3.1-pro-preview": "2026-02-19",
+    # blog.google gemini-3-5 (2026-05-19, Google I/O)
+    "gemini-3.5-flash": "2026-05-19",
+    # blog.google gemini-3-1-flash-lite; siliconangle.com 2026-03-03
+    "gemini-3.1-flash-lite-preview": "2026-03-03",
+    # openai.com/index/introducing-gpt-5-4-mini-and-nano; 9to5mac 2026-03-17
+    "gpt-5.4-mini": "2026-03-17",
+    "gpt-5.4-nano": "2026-03-17",
+    # en.wikipedia.org/wiki/GPT-5.5 (2026-04-23; API 04-24)
+    "gpt-5.5": "2026-04-23",
+    # techcrunch.com 2026-07-09 gpt-5-6 family GA (trusted-partner preview
+    # 2026-06-26 excluded under the public-availability rule)
+    "gpt-5.6-sol": "2026-07-09",
+    "gpt-5.6-terra": "2026-07-09",
+    "gpt-5.6-luna": "2026-07-09",
+    # piunikaweb.com 2026-04-17 SuperGrok beta (paid public tier)
+    "grok-4.3": "2026-04-17",
+    # x.ai/news/grok-4-5; techcrunch.com 2026-07-08
+    "grok-4.5": "2026-07-08",
+    # API public beta per secondary trackers (bighatgroup.com xai-weekly
+    # 2026-06-03); no vendor-dated announcement exists
+    "grok-build-0.1": "2026-05-29",
+    # api-docs.deepseek.com/news/news260424 (MIT weights same day)
+    "deepseek-v4-pro": "2026-04-24",
+    "deepseek-v4-flash": "2026-04-24",
+    # verdent.ai kimi-k2.6 guide; huggingface.co/moonshotai/Kimi-K2.6
+    "kimi-k2.6": "2026-04-20",
+    # simonwillison.net/2026/Jul/16/kimi-k3 (API launch; weights announced
+    # for 2026-07-27, not yet published at the snapshot date)
+    "kimi-k3": "2026-07-16",
+    # felloai.com glm-5-2 (API 2026-06-13; MIT weights 2026-06-16/17)
+    "glm-5.2": "2026-06-13",
+    # techtimes.com 2026-06-01; weights on Hugging Face by 2026-06-07
+    "minimax-m3": "2026-06-01",
+    # yottalabs.ai qwen-3-7-max (2026-05-19); CLOSED — API-only, no weights
+    "qwen-3.7-max": "2026-05-19",
+}
+
+# Models whose weights are publicly downloadable. Qwen 3.7 Max is API-only
+# despite Alibaba's open mid-tier line; Kimi K3's weights were announced for
+# 2026-07-27, after the snapshot date, so it is open-weight by commitment.
+OPEN_WEIGHT_MODELS: frozenset[str] = frozenset(
+    {
+        "deepseek-v4-pro",
+        "deepseek-v4-flash",
+        "kimi-k2.6",
+        "kimi-k3",
+        "glm-5.2",
+        "minimax-m3",
+    }
+)
