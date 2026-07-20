@@ -739,6 +739,18 @@ def request_shape(model: str) -> str:
     return f"{chunk} output{plural}/request"
 
 
+def released(model: str) -> str:
+    """First public availability (paid tiers count; trusted previews do not).
+
+    Dates and per-model sources live in paper_results.MODEL_RELEASE_DATES;
+    open-weight models carry a dagger explained in the table caption.
+    """
+    from policybench.paper_results import MODEL_RELEASE_DATES, OPEN_WEIGHT_MODELS
+
+    date = MODEL_RELEASE_DATES[model]
+    return f"{date}†" if model in OPEN_WEIGHT_MODELS else date
+
+
 def model_run_table(top_n: int | None = None) -> pd.DataFrame:
     rows = []
     models = sorted(us_model["model"])
@@ -747,8 +759,8 @@ def model_run_table(top_n: int | None = None) -> pd.DataFrame:
         rows.append(
             {
                 "Model": model_display_name(model),
-                "PolicyBench ID": model,
                 "Provider ID": MODELS.get(model, "not in default registry"),
+                "Released": released(model),
                 "Parsed": f"{int(us_row.nParsed):,}/{int(us_row.n):,}",
                 "Request shape": request_shape(model),
                 "Reasoning setup": reasoning_setup(model),
@@ -1137,7 +1149,7 @@ md_table(snapshot_provenance)
 
 ```{python}
 #| label: tbl-model-runs
-#| tbl-cap: "Model run configuration in the frozen manuscript snapshot. Every model uses its provider's structured-output transport with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same prompt template over the same household facts; request shape and reasoning setup are the only per-model serving configuration. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text."
+#| tbl-cap: "Model run configuration in the frozen manuscript snapshot. Every model uses its provider's structured-output transport with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same prompt template over the same household facts; request shape and reasoning setup are the only per-model serving configuration. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights were announced for July 27, 2026, after this snapshot, so it is open-weight by commitment [@willison2026kimik3]."
 md_table(model_runs)
 ```
 
@@ -1258,6 +1270,50 @@ us_positive_cases
 ```
 
 ![Output-level performance on zero-reference and positive-reference cases.](figures/positive_zero_scatter.png){#fig-positive-zero fig-alt="Scatter plot comparing percent correct on zero-reference cases with percent correct on positive-reference cases by output group."}
+
+### Open-weight time lag {#sec-open-weight-lag}
+
+```{python}
+#| label: open-weight-lag
+#| echo: false
+from datetime import date as _date
+
+from policybench.paper_results import MODEL_RELEASE_DATES, OPEN_WEIGHT_MODELS
+
+
+def _rel(model: str) -> _date:
+    return _date.fromisoformat(MODEL_RELEASE_DATES[model])
+
+
+def _lag(frame):
+    open_rows = frame[frame["model"].isin(OPEN_WEIGHT_MODELS)]
+    best_open = open_rows.sort_values("exact", ascending=False).iloc[0]
+    closed_above = frame[
+        (~frame["model"].isin(OPEN_WEIGHT_MODELS))
+        & (frame["exact"] > best_open.exact)
+    ]
+    anchor = min(closed_above["model"], key=_rel)
+    days = (_rel(best_open.model) - _rel(anchor)).days
+    return best_open, anchor, days
+
+
+_pre_july = us_model[
+    us_model["model"].map(_rel) < _date(2026, 7, 1)
+]
+june_open, june_anchor, june_days = _lag(_pre_july)
+full_open, full_anchor, full_days = _lag(us_model)
+june_months = f"{june_days / 30.44:.1f}"
+full_weights_days = (_date(2026, 7, 27) - _rel(full_anchor)).days
+
+
+def _prose_date(model: str) -> str:
+    d = _rel(model)
+    return f"{d.strftime('%B')} {d.day}, {d.year}"
+```
+
+The leaderboard also measures time. Following the lag construction the UK AI Security Institute applied to cyber capabilities [@aisi2026openweight], the open-weight lag is the time between the closed frontier first reaching a score and the leading open-weight model matching it. Two cuts of the frozen roster give the trajectory. Among models released before July 2026, the leading open-weight model is `{python} model_display_name(june_open.model)` at `{python} f"{june_open.exact:.1f}"`% exact, whose weights shipped on `{python} _prose_date(june_open.model)` [@deepseek2026v4]; the earliest-released closed model above that score is `{python} model_display_name(june_anchor)`, released `{python} _prose_date(june_anchor)` [@techcrunch2025gemini3flash] — a lag of `{python} str(june_days)` days, about `{python} june_months` months. On the full roster, `{python} model_display_name(full_open.model)` at `{python} f"{full_open.exact:.1f}"`% exact trails only `{python} model_display_name(full_anchor)`, generally available `{python} _prose_date(full_anchor)` [@techcrunch2026gpt56], putting the lag at `{python} str(full_days)` days by API availability, or `{python} str(full_weights_days)` days dated to Kimi K3's announced July 27 weight release [@willison2026kimik3].
+
+Both figures are lower bounds in one direction: a closed model outside the evaluated roster that crossed either score earlier would lengthen the corresponding lag. They also carry the uncertainty of any single-benchmark, single-domain estimate — the AISI analysis reports substantially longer lags on cyber tasks — and a lag measured at a moving frontier compresses mechanically when a strong open-weight release lands days after a frontier release.
 
 ## Failure modes
 
