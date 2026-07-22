@@ -266,10 +266,10 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_wrong_rows = {
-        "us": 6_235,
+        "us": 6_437,
     }
     expected_sources = {
-        "us": {"llm_error": 5_606, "parse_contract_failure": 629},
+        "us": {"llm_error": 5_808, "parse_contract_failure": 629},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
