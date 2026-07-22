@@ -47,6 +47,7 @@ MODEL_DISPLAY_NAMES = {
     "claude-sonnet-5": "Claude Sonnet 5",
     "grok-4.5": "Grok 4.5",
     "deepseek-v4-pro": "DeepSeek V4 Pro",
+    "gemini-3.6-flash": "Gemini 3.6 Flash",
     "kimi-k3": "Kimi K3",
     "kimi-k2.6": "Kimi K2.6",
     "glm-5.2": "GLM-5.2",
@@ -619,6 +620,8 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "gemini-3.1-pro-preview": "2026-02-19",
     # blog.google gemini-3-5 (2026-05-19, Google I/O)
     "gemini-3.5-flash": "2026-05-19",
+    # 9to5google.com 2026-07-21 gemini-3-6-flash launch
+    "gemini-3.6-flash": "2026-07-21",
     # blog.google gemini-3-1-flash-lite; siliconangle.com 2026-03-03
     "gemini-3.1-flash-lite-preview": "2026-03-03",
     # openai.com/index/introducing-gpt-5-4-mini-and-nano; 9to5mac 2026-03-17

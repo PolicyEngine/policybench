@@ -133,6 +133,19 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "documents; converges at 3 variables/call."
         ),
     ),
+    "gemini/gemini-3.6-flash": ModelCard(
+        litellm_id="gemini/gemini-3.6-flash",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.07,
+        notes=(
+            "Onboarded 2026-07-21: forced tool contract passed 3/3 and "
+            "16/16 whole-scenario (8,567 completion tokens), unlike the "
+            "older Gemini roster, which runs the JSON contract by family "
+            "heuristic. Cost estimated from the full-scenario probe at "
+            "launch pricing ($1.50/$7.50 per 1M)."
+        ),
+    ),
     "openrouter/moonshotai/kimi-k3": ModelCard(
         litellm_id="openrouter/moonshotai/kimi-k3",
         answer_contract="json",

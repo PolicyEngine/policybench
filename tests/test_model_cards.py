@@ -32,6 +32,7 @@ EXPECTED = {
     "gemini/gemini-3.1-pro-preview": ("json", None, 120, 16_384),
     "gemini/gemini-3-flash-preview": ("json", None, 120, 16_384),
     "gemini/gemini-3.5-flash": ("json", None, 120, 16_384),
+    "gemini/gemini-3.6-flash": ("tool", None, 300, 16_384),
     "gemini/gemini-3.1-flash-lite-preview": ("json", None, 120, 16_384),
     "gpt-5.4-mini": ("tool", None, 20, 4_096),
     "gpt-5.4-nano": ("tool", None, 20, 4_096),

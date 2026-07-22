@@ -49,6 +49,7 @@ MODELS = {
     "gpt-5.4-nano": "gpt-5.4-nano",
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
     "gemini-3.5-flash": "gemini/gemini-3.5-flash",
+    "gemini-3.6-flash": "gemini/gemini-3.6-flash",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
@@ -76,6 +77,9 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # kimi-k3: $3 / $15 per 1M input/output tokens (OpenRouter model listing,
     # 2026-07-17); litellm's price map does not yet cover the id.
     "kimi-k3": {"input": 3.0, "output": 15.0},
+    # gemini-3.6-flash: $1.50 / $7.50 per 1M input/output tokens (Google
+    # launch pricing, 2026-07-21); litellm's price map does not yet cover it.
+    "gemini-3.6-flash": {"input": 1.5, "output": 7.5},
     # claude-fable-5: $10 / $50 per 1M input/output tokens
     # (https://platform.claude.com/docs/en/about-claude/models/overview).
     "claude-fable-5": {"input": 10.0, "output": 50.0},
