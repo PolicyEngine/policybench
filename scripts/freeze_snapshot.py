@@ -45,14 +45,14 @@ from policybench.analysis import score_single_prediction
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the July 2026 US-only populace refresh (25-model board,
+# Configuration for the July 2026 US-only populace refresh (26-model board,
 # corrected v1.1 references).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
-SNAPSHOT_DATE = "2026-07-19"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-07-19"
+SNAPSHOT_DATE = "2026-07-21"
+MODEL_RESPONSE_DATE = "2026-06-12 to 2026-07-21"
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
 SOURCE_RUN = ROOT / "results" / RUN_LABEL / "us"
@@ -477,7 +477,7 @@ def build_manifest(
             "run metadata (scenarios.csv.meta.json) records the "
             "populace_us_2024 build actually loaded.",
             "Model APIs and upstream model aliases may change after the "
-            "recorded 2026-06-12 to 2026-07-19 response window, so exact "
+            "recorded 2026-06-12 to 2026-07-21 response window, so exact "
             "reruns can diverge even with the committed household inputs, "
             "reference outputs, parsed dashboard export, and analysis "
             "summaries.",
@@ -485,7 +485,7 @@ def build_manifest(
         "scope": {
             "households": {"us": 100},
             "output_groups": {"us": 18},
-            "models": 25,
+            "models": 26,
             "condition": (
                 "No tools, no web access, one structured response per household "
                 "with numeric answers and non-empty explanations."
