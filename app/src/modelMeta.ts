@@ -81,7 +81,7 @@ export type ProviderKey =
 // date carries its source; update both together.
 export const MODEL_RELEASE_DATES: Record<string, string> = {
   "claude-fable-5": "2026-06-09",
-  "claude-opus-5": "2026-07-23",
+  "claude-opus-5": "2026-07-24",
   "claude-sonnet-5": "2026-06-30",
   "claude-opus-4.8": "2026-05-28",
   "claude-opus-4.7": "2026-04-16",

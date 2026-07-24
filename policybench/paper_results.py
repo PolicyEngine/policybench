@@ -605,9 +605,9 @@ r = PaperResults()
 MODEL_RELEASE_DATES: dict[str, str] = {
     # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
     "claude-fable-5": "2026-06-09",
-    # silent phased rollout began 2026-07-23; fortune.com 2026-07-24 covered
-    # the debut (no vendor press release at rollout)
-    "claude-opus-5": "2026-07-23",
+    # announced and available 2026-07-24 (fortune.com, bloomberg.com,
+    # 9to5google.com all dated 2026-07-24)
+    "claude-opus-5": "2026-07-24",
     # anthropic.com/news/claude-sonnet-5 (2026-06-30)
     "claude-sonnet-5": "2026-06-30",
     # anthropic.com/news/claude-opus-4-8; macrumors.com 2026-05-28
