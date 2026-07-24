@@ -130,7 +130,7 @@ CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
 # the thinking param (ours do — models run at their API defaults). Hard single
 # outputs can think for minutes, so both get a longer timeout than the rest of
 # the Claude family.
-THINKING_DEFAULT_CLAUDE_MODELS = ("claude-fable-5", "claude-sonnet-5")
+THINKING_DEFAULT_CLAUDE_MODELS = ("claude-fable-5", "claude-sonnet-5", "claude-opus-5")
 THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS", 300
 )
@@ -171,6 +171,20 @@ ANSWER_FUNCTION_NAME = "submit_outputs"
 EXPLANATION_FUNCTION_NAME = "submit_explanations"
 PROMPT_CONTRACT_VERSION = "2026-05-13-nested-output-explanations"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 1
+# The Claude roster that shipped under the pre-canonical-prompt regime keeps
+# its 1-output-per-request treatment; chunking is closed to new models, so
+# Claude models added after July 2026 (claude-opus-5 onward) answer the
+# whole-scenario request like every other new model.
+GRANDFATHERED_CHUNKED_CLAUDE_MODELS = frozenset(
+    {
+        "claude-fable-5",
+        "claude-sonnet-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+    }
+)
 
 
 class RequestWallTimeoutError(TimeoutError):
@@ -471,7 +485,7 @@ def _required_explanation_chunk_size(
     card = card_for(model_id)
     if card is not None and card.explanation_chunk_size is not None:
         return card.explanation_chunk_size
-    if model_id.startswith("claude-"):
+    if model_id in GRANDFATHERED_CHUNKED_CLAUDE_MODELS:
         return CLAUDE_EXPLANATION_CHUNK_SIZE
     return None
 

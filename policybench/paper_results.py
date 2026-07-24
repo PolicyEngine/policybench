@@ -47,6 +47,7 @@ MODEL_DISPLAY_NAMES = {
     "claude-sonnet-5": "Claude Sonnet 5",
     "grok-4.5": "Grok 4.5",
     "deepseek-v4-pro": "DeepSeek V4 Pro",
+    "claude-opus-5": "Claude Opus 5",
     "gemini-3.6-flash": "Gemini 3.6 Flash",
     "kimi-k3": "Kimi K3",
     "kimi-k2.6": "Kimi K2.6",
@@ -604,6 +605,9 @@ r = PaperResults()
 MODEL_RELEASE_DATES: dict[str, str] = {
     # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
     "claude-fable-5": "2026-06-09",
+    # silent phased rollout began 2026-07-23; fortune.com 2026-07-24 covered
+    # the debut (no vendor press release at rollout)
+    "claude-opus-5": "2026-07-23",
     # anthropic.com/news/claude-sonnet-5 (2026-06-30)
     "claude-sonnet-5": "2026-06-30",
     # anthropic.com/news/claude-opus-4-8; macrumors.com 2026-05-28
