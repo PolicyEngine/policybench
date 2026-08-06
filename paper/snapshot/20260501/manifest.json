@@ -2,21 +2,21 @@
   "audit_annotation_artifacts": {
     "files": {
       "us_audit_row_annotations.csv": "8ae8dd77089bc84187c6eae6386266bf24a313709e41c2af2aef76504e6bcaa8",
-      "us_case_notes.csv": "b557b7e967263d67b1acc60e434cfba6f5fe9ba5cf6c316cdcd6010f86943f46",
+      "us_case_notes.csv": "7e340f1dc6e22e2bbae18fd92579eab1d886918725377d3bf28be63f08ef5030",
       "us_case_reference_explanations.csv": "a3fc7504dcf3d8abe11e98c2228c786a5171a825640b980835e1e210d3afa198"
     },
     "note": "Model-assisted, developer-adjudicated row and case audit annotations for every wrong prediction row in the frozen snapshot, produced under the decisive-diagnosis contract (per-model diagnoses grounded in engine facts; hedged verdicts mechanically rejected and re-judged). Row-level failure_source values are llm_error for substantive misses and parse_contract_failure for missing or unparseable answers; zero rows are reference-suspect. Case notes are stored as us_case_notes.csv with case_failure_sources / case_failure_subtypes columns. Reference narratives the judge and dashboard display are frozen as us_case_reference_explanations.csv.",
     "path": "annotations/us_full_run_20260612_policyengine_4_16_1_populace"
   },
   "committed_snapshot_artifacts": {
-    "us_impact_summary_by_model.csv": "98bc36df93c87904dfaa3932249b1e2da82f9eecf40b5c7bc45016cc75352964",
+    "us_impact_summary_by_model.csv": "6de83b553e62efe29099db4a54b10b31de617d4fe0b29b97366384d3c9981213",
     "us_reference_outputs.csv": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
     "us_scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"
   },
   "files": [
     {
       "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json",
-      "sha256": "1bebdfbf4b5527664be594165a17bf66e0d5b71844c2833ba10233dd05f10760"
+      "sha256": "4396793ec0bb0c0e0652629b5874abac0299a048094b600531fd4e0e1b7d8a6c"
     }
   ],
   "live_dashboard_artifact": {
@@ -28,7 +28,7 @@
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260805/dashboard-data.json"
   },
   "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under published_dashboard_artifact, which equals the combined export of the source run data.json files listed under source_run_artifacts. Future refreshes publish a new artifact (policybench publish-dashboard) and either update this manifest or use a new snapshot directory.",
-  "model_response_date": "2026-06-12 to 2026-07-24",
+  "model_response_date": "2026-06-12 to 2026-08-05",
   "policy_period": {
     "us": "tax year 2026"
   },
@@ -39,13 +39,13 @@
   },
   "published_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 73010187,
-    "sha256": "38453b0225bee779500551b4aa0699a51c6c6c8ba4372d6c130bbd81afd4813d",
-    "tag": "dashboard-data-20260724",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260724/dashboard-data.json"
+    "bytes": 77819217,
+    "sha256": "5463a5d13281e33246ccaf9270726ab0ca1c228b030c7bdb991a768df974fbc5",
+    "tag": "dashboard-data-20260805",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260805/dashboard-data.json"
   },
   "reference_output_refresh": {
-    "date": "2026-07-24",
+    "date": "2026-08-05",
     "policyengine_us_data_artifact_sha256": "f32c2e5e9098bc6540724fdd5debf963af495da4c29b3a7a63fb53c2a4bb5a34",
     "policyengine_us_data_build_id": "populace-us-2024-5da5a95-20260611",
     "policyengine_us_dataset": "populace_us_2024",
@@ -56,12 +56,12 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "9b1728a8dc037ea392b2278831116469cfa81e998ffb6669edaf804485e9c091"
+      "sha256": "9595e5337ccc73b65465e8d167dfd7f6dc3f1283f1239a979777fb335f54b199"
     },
     "web": {
       "files": {
-        "figures/positive_zero_scatter.png": "70ed97a9aa4ee901e449372010ed7ec1887f441ad60cafe973fafb529731c2e6",
-        "index.html": "c306da4f050c76f86b5ab20f19ebe486e996d143c4f0911aafc3df8dbead9eda",
+        "figures/positive_zero_scatter.png": "84adde00967f3a1740e3af2b16d0b97f6a6c66b4b13fd2fe9d8cd8ea20cb6998",
+        "index.html": "ffb68d7a74e61e319443dada1439ae3df02cfc7dfa0bb9587cef37bf18a4fc62",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -104,24 +104,24 @@
     "households": {
       "us": 100
     },
-    "models": 27,
+    "models": 29,
     "output_groups": {
       "us": 18
     }
   },
-  "snapshot_date": "2026-07-24",
+  "snapshot_date": "2026-08-05",
   "source_run_artifacts": {
     "note": "Compact copies of run outputs used to verify this snapshot. The run data.json retains parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime metadata used by the dashboard. predictions.csv.gz is a deterministic gzip of the run's raw provider responses.",
     "us_full_run_20260612_policyengine_4_16_1_populace": {
       "files": {
-        "analysis/impact_summary_by_model.csv": "98bc36df93c87904dfaa3932249b1e2da82f9eecf40b5c7bc45016cc75352964",
-        "analysis/metrics.csv": "972f6b6269344657f9fb3cf60bb01bbb3928c3f6f9491ff72753da8bbfa9412c",
-        "analysis/report.md": "4e157124fe795be4b121691b9f1f39390d32cd805b293c8b6472d01b09bc1824",
-        "analysis/summary_by_model.csv": "7f816a094b8170f53769dad24139a28524f2567e7d3019b8f5e47e17f2961735",
-        "analysis/summary_by_variable.csv": "eed9d261b9b84bc6f3e681a50566d25dd18e78abd2db40fd978b2acf7f8f4e50",
-        "analysis/usage_summary.csv": "836e099c55bb94495f25511dd3b351ccd235331e87fb141610fc4f86ac468f74",
-        "data.json": "1bebdfbf4b5527664be594165a17bf66e0d5b71844c2833ba10233dd05f10760",
-        "predictions.csv.gz": "5251bfb6dd8c547d695c3022748577b37fc42ca9967468490323ba3d12b119e0",
+        "analysis/impact_summary_by_model.csv": "6de83b553e62efe29099db4a54b10b31de617d4fe0b29b97366384d3c9981213",
+        "analysis/metrics.csv": "07fb00315896f06aeef35cfba2d14dc6d61f6ff1695be4723be2b10813bec715",
+        "analysis/report.md": "8bc23f883039cedc1fc3a2100ce9b2989f8ba14349cd4846a407e44ab1fb68f9",
+        "analysis/summary_by_model.csv": "81c6f73cf4163cf9a46ac13274c9d5fefbbbf35521901330d998c7e962e83adc",
+        "analysis/summary_by_variable.csv": "3c552673ab33f2b980a8aca8bc42d9d5a1c956d8448bbaa63521246ee4356a9a",
+        "analysis/usage_summary.csv": "cf999e6e57b1e55947e18bfb950866e1bf025a2b4d183b68bea4483c30a356a0",
+        "data.json": "4396793ec0bb0c0e0652629b5874abac0299a048094b600531fd4e0e1b7d8a6c",
+        "predictions.csv.gz": "017217ff51c94b4e05812dad4701f44e456827f45c3143d23560c89c7d092d64",
         "reference_outputs.csv": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
         "reference_outputs.csv.meta.json": "4ea7911857fabf72fc0f74feab90566e9f6d98cab4958e0c1401043e58c94210",
         "scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
