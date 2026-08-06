@@ -60,6 +60,8 @@ MODELS = {
     "glm-5.2": "openrouter/z-ai/glm-5.2",
     "minimax-m3": "openrouter/minimax/minimax-m3",
     "qwen-3.7-max": "openrouter/qwen/qwen3.7-max",
+    "qwen3.8-max": "openrouter/qwen/qwen3.8-max",
+    "inkling": "openrouter/thinkingmachines/inkling",
 }
 
 # Per-1M-token USD prices for models litellm's cost map does not yet cover
@@ -78,6 +80,13 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # kimi-k3: $3 / $15 per 1M input/output tokens (OpenRouter model listing,
     # 2026-07-17); litellm's price map does not yet cover the id.
     "kimi-k3": {"input": 3.0, "output": 15.0},
+    # qwen3.8-max: $2 / $6 per 1M input/output tokens (QwenCloud launch
+    # pricing, mirrored on the OpenRouter listing, 2026-08-03); litellm's
+    # price map does not yet cover the id.
+    "qwen3.8-max": {"input": 2.0, "output": 6.0},
+    # inkling: $1 / $4.05 per 1M input/output tokens (OpenRouter model
+    # listing, 2026-08-03); litellm's price map does not yet cover the id.
+    "inkling": {"input": 1.0, "output": 4.05},
     # gemini-3.6-flash: $1.50 / $7.50 per 1M input/output tokens (Google
     # launch pricing, 2026-07-21); litellm's price map does not yet cover it.
     "gemini-3.6-flash": {"input": 1.5, "output": 7.5},
