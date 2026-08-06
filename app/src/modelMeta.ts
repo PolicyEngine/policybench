@@ -31,6 +31,8 @@ export const MODEL_ORDER = [
   "kimi-k2.6",
   "glm-5.2",
   "minimax-m3",
+  "inkling",
+  "qwen3.8-max",
   "qwen-3.7-max",
 ] as const;
 
@@ -63,6 +65,8 @@ export const MODEL_LABELS: Record<string, string> = {
   "glm-5.2": "GLM-5.2",
   "minimax-m3": "MiniMax M3",
   "qwen-3.7-max": "Qwen 3.7 Max",
+  "qwen3.8-max": "Qwen 3.8 Max",
+  inkling: "Inkling",
 };
 
 export type ProviderKey =
@@ -73,6 +77,7 @@ export type ProviderKey =
   | "minimax"
   | "moonshot"
   | "openai"
+  | "thinkingmachines"
   | "xai"
   | "zai";
 
@@ -108,6 +113,8 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "glm-5.2": "2026-06-13",
   "minimax-m3": "2026-06-01",
   "qwen-3.7-max": "2026-05-19",
+  "qwen3.8-max": "2026-08-03",
+  inkling: "2026-07-15",
 };
 
 export const PROVIDER_LABELS: Record<ProviderKey, string> = {
@@ -118,6 +125,7 @@ export const PROVIDER_LABELS: Record<ProviderKey, string> = {
   minimax: "MiniMax",
   moonshot: "Moonshot AI",
   openai: "OpenAI",
+  thinkingmachines: "Thinking Machines",
   xai: "xAI",
   zai: "Z.ai",
 };
@@ -131,7 +139,8 @@ export function getProviderForModel(model: string): ProviderKey | null {
   if (model.startsWith("grok-")) return "xai";
   if (model.startsWith("kimi-")) return "moonshot";
   if (model.startsWith("minimax-")) return "minimax";
-  if (model.startsWith("qwen-")) return "alibaba";
+  if (model.startsWith("qwen")) return "alibaba";
+  if (model.startsWith("inkling")) return "thinkingmachines";
   return null;
 }
 
@@ -159,7 +168,8 @@ const FRONTIER_MODEL_GROUPS = [
   ["kimi-k3", "kimi-k2.6"],
   ["glm-5.2"],
   ["minimax-m3"],
-  ["qwen-3.7-max"],
+  ["inkling"],
+  ["qwen3.8-max", "qwen-3.7-max"],
 ] as const;
 
 export const FRONTIER_MODELS: readonly string[] = FRONTIER_MODEL_GROUPS.map(

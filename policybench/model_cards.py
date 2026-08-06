@@ -168,6 +168,45 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "1M tokens."
         ),
     ),
+    "openrouter/qwen/qwen3.8-max": ModelCard(
+        litellm_id="openrouter/qwen/qwen3.8-max",
+        answer_contract="json",
+        request_timeout_seconds=2400,
+        thinking_budget=True,
+        completion_token_cap=98_304,
+        expected_cost_per_scenario_usd=0.219,
+        notes=(
+            "Onboarded 2026-08-05: the heaviest reasoner on the roster. "
+            "Alibaba rejects forced tool_choice (same "
+            "invalid_parameter_error as qwen3.7-max), so it runs the "
+            "JSON contract — whole-scenario, per the canonical-prompt "
+            "rule. Reasoning is per-call and enormous: a 3-variable "
+            "probe used 40,423 completion tokens (871s) and the full "
+            "16-variable probe 36,083 (738s), both finish=stop; at the "
+            "K3 cap of 49,152 one probe died at finish=length with "
+            "nothing parseable, so the cap is 98,304 and the timeout "
+            "2400s (~50 tok/s observed; unused headroom is free). "
+            "$2/$6 per 1M on OpenRouter/QwenCloud."
+        ),
+    ),
+    "openrouter/thinkingmachines/inkling": ModelCard(
+        litellm_id="openrouter/thinkingmachines/inkling",
+        answer_contract="tool",
+        request_timeout_seconds=1200,
+        thinking_budget=True,
+        completion_token_cap=49_152,
+        expected_cost_per_scenario_usd=0.088,
+        notes=(
+            "Onboarded 2026-08-03: forced tool contract passed 3/3 and "
+            "the whole-scenario 16-variable probe 16/16 once given "
+            "reasoning headroom (the default 64-token/variable budget "
+            "died at finish=length — reasoning bills as completion). The "
+            "full probe used 21,161 completion tokens, over the shared "
+            "16,384 ceiling, so the cap stays at 49,152 and the timeout "
+            "at 1200s (~80 tok/s observed; unused headroom is free). "
+            "$1/$4.05 per 1M on OpenRouter."
+        ),
+    ),
     "openrouter/z-ai/glm-5.2": ModelCard(
         litellm_id="openrouter/z-ai/glm-5.2",
         answer_contract="json",

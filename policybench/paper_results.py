@@ -54,6 +54,8 @@ MODEL_DISPLAY_NAMES = {
     "glm-5.2": "GLM-5.2",
     "minimax-m3": "MiniMax M3",
     "qwen-3.7-max": "Qwen3.7-max",
+    "qwen3.8-max": "Qwen3.8-Max",
+    "inkling": "Inkling",
     "grok-build-0.1": "Grok Build 0.1",
     "claude-opus-4.8": "Claude Opus 4.8",
     "claude-opus-4.7": "Claude Opus 4.7",
@@ -659,11 +661,20 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "minimax-m3": "2026-06-01",
     # yottalabs.ai qwen-3-7-max (2026-05-19); CLOSED — API-only, no weights
     "qwen-3.7-max": "2026-05-19",
+    # marktechpost.com 2026-08-03 (GA on QwenCloud + OpenRouter); the
+    # 2026-07-19 WAIC preview was Qoder-platform-only, excluded under the
+    # first-paid-public-availability rule. Weights promised but not yet
+    # published as of 2026-08-03 — closed until they appear.
+    "qwen3.8-max": "2026-08-03",
+    # techcrunch.com 2026-07-15; weights on Hugging Face the same day
+    # under Apache 2.0 (Thinking Machines Lab's first from-scratch model)
+    "inkling": "2026-07-15",
 }
 
-# Models whose weights are publicly downloadable. Qwen 3.7 Max is API-only
-# despite Alibaba's open mid-tier line; Kimi K3's weights were announced for
-# 2026-07-27, after the snapshot date, so it is open-weight by commitment.
+# Models whose weights are publicly downloadable. Qwen 3.7 Max and 3.8 Max
+# are API-only as of 2026-08-03 (3.8's weights are promised but unpublished);
+# Kimi K3's weights shipped on Hugging Face 2026-07-26/27 under a custom
+# license; Inkling's shipped day one (2026-07-15) under Apache 2.0.
 OPEN_WEIGHT_MODELS: frozenset[str] = frozenset(
     {
         "deepseek-v4-pro",
@@ -672,5 +683,6 @@ OPEN_WEIGHT_MODELS: frozenset[str] = frozenset(
         "kimi-k3",
         "glm-5.2",
         "minimax-m3",
+        "inkling",
     }
 )

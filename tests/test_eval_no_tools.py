@@ -1482,8 +1482,15 @@ def test_gpt_56_provider_resolves_without_remote_cost_map(model_id):
     assert provider == "openai"
     entry = litellm.model_cost[model_id]
     assert entry["supports_reasoning"] is True
-    input_rate = PRICE_OVERRIDES_PER_1M[model_id]["input"] / 1_000_000
-    output_rate = PRICE_OVERRIDES_PER_1M[model_id]["output"] / 1_000_000
+    # Assert the cost map's internal shape, not its absolute rates: OpenAI cut
+    # Terra/Luna prices 2026-07-30, so litellm's current map no longer matches
+    # PRICE_OVERRIDES_PER_1M — which intentionally keeps the rates the recorded
+    # July runs were billed at, so historical costUsd reconstructions stay
+    # byte-stable. The multipliers (10% cache read, 1.25x cache write, 2x/1.5x
+    # long-context) are OpenAI's published structure and survive repricing.
+    input_rate = entry["input_cost_per_token"]
+    output_rate = entry["output_cost_per_token"]
+    assert input_rate > 0 and output_rate > 0
     assert entry["cache_read_input_token_cost"] == pytest.approx(input_rate * 0.1)
     assert entry["cache_creation_input_token_cost"] == pytest.approx(input_rate * 1.25)
     assert entry["input_cost_per_token_above_272k_tokens"] == pytest.approx(
@@ -1499,12 +1506,10 @@ def test_gpt_56_provider_resolves_without_remote_cost_map(model_id):
     cache_write_cost, _ = litellm.cost_per_token(
         model=model_id, cache_creation_input_tokens=1_000_000
     )
-    assert cached_input_cost == pytest.approx(
-        PRICE_OVERRIDES_PER_1M[model_id]["input"] * 0.1
-    )
-    assert cache_write_cost == pytest.approx(
-        PRICE_OVERRIDES_PER_1M[model_id]["input"] * 1.25
-    )
+    # Same map-internal comparison as above: cost_per_token must price cache
+    # traffic off the entry's own rates, whatever OpenAI's current list is.
+    assert cached_input_cost == pytest.approx(input_rate * 0.1 * 1_000_000)
+    assert cache_write_cost == pytest.approx(input_rate * 1.25 * 1_000_000)
 
 
 @pytest.mark.parametrize(
