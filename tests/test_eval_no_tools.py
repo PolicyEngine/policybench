@@ -2516,3 +2516,16 @@ def test_tool_choice_env_override_flips_to_auto(mini_scenario, monkeypatch):
     _, auto = _chat_completion_request_kwargs(mini_scenario, variables, "claude-opus-5")
     assert auto["tool_choice"] == "auto"
     assert auto["tools"], "the answer tool stays declared under auto"
+
+
+def test_chunk_override_env_runs_whole_scenario(monkeypatch):
+    """POLICYBENCH_CHUNK_OVERRIDE=none is the sensitivity-run sibling of the
+    tool_choice knob: grandfathered chunked Claudes run whole-scenario so
+    their sensitivity runs share the roster's request shape."""
+    from policybench.eval_no_tools import _required_explanation_chunk_size
+
+    assert _required_explanation_chunk_size("claude-fable-5", True) == 1
+
+    monkeypatch.setenv("POLICYBENCH_CHUNK_OVERRIDE", "none")
+    assert _required_explanation_chunk_size("claude-fable-5", True) is None
+    assert _required_explanation_chunk_size("claude-sonnet-5", True) is None

@@ -482,6 +482,12 @@ def _required_explanation_chunk_size(
 ) -> int | None:
     if not include_explanations:
         return None
+    # Sensitivity-run escape hatch, sibling of POLICYBENCH_TOOL_CHOICE:
+    # POLICYBENCH_CHUNK_OVERRIDE=none runs grandfathered chunked models on
+    # the canonical whole-scenario request so their sensitivity runs are
+    # shaped like the rest of the roster. Never set for leaderboard runs.
+    if os.environ.get("POLICYBENCH_CHUNK_OVERRIDE") == "none":
+        return None
     card = card_for(model_id)
     if card is not None and card.explanation_chunk_size is not None:
         return card.explanation_chunk_size

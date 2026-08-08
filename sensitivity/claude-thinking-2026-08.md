@@ -26,31 +26,38 @@ Two findings, verified live against the harness's own request builder:
    usage through litellm, which does not populate reasoning-token fields
    for Anthropic even when thinking blocks are present.
 
-## Sensitivity run
+## Sensitivity runs
 
-Claude Opus 5 over the full benchmark — all 100 households, identical
-prompt, identical parse pipeline — with `tool_choice: "auto"` instead of
-forced (via the `POLICYBENCH_TOOL_CHOICE=auto` escape hatch in
-`policybench/eval_no_tools.py`):
+All three thinking-by-default Claude models over the full benchmark — all
+100 households, identical prompt, identical parse pipeline — with
+`tool_choice: "auto"` instead of forced (via the
+`POLICYBENCH_TOOL_CHOICE=auto` escape hatch in
+`policybench/eval_no_tools.py`). Claude Fable 5 and Claude Sonnet 5 run
+chunked (one output per request) on the leaderboard, so their sensitivity
+runs also use the canonical whole-scenario request
+(`POLICYBENCH_CHUNK_OVERRIDE=none`); their deltas therefore combine two
+shape changes, while Claude Opus 5's isolates thinking alone.
 
-| | forced tool (leaderboard) | tool_choice auto (this run) |
-|---|---|---|
-| exact (within $1, weighted) | 79.8 (#9 of 29) | **85.6** (would rank #3) |
-| completion tokens | 150,760 | 490,254 |
-| median seconds per household | 16 | 51 |
-| cost per household | $0.067 | $0.152 |
-| answers parsed | 1,984 / 1,984 | 1,984 / 1,984 |
+| | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
+|---|---|---|---|---|---|---|---|
+| Claude Fable 5 | 79.9 (#8) | **86.9** | +7.0 | **#2** | $0.541 → $0.323 | 54 | 1,984/1,984 |
+| Claude Opus 5 | 79.8 (#9) | **85.6** | +5.8 | #3 | $0.067 → $0.152 | 51 | 1,984/1,984 |
+| Claude Sonnet 5 | 69.4 (#27) | **80.2** | +10.8 | #8 | $0.086 | 64 | 1,928/1,984 |
 
-Under `auto` the model chose to call the answer tool on every one of its
-1,984 responses, so the parse path held without repairs.
+Under `auto`, Fable 5 and Opus 5 chose to call the answer tool on every
+response; Sonnet 5 failed to produce a parseable tool call on 56 of its
+1,984 answers, which score as misses inside its 80.2. Fable 5's
+sensitivity run also costs less than its leaderboard run: whole-scenario
+requests drop its per-household spend from $0.541 to $0.323 even with
+thinking on.
 
 ## Status
 
 The leaderboard is unchanged: the frozen board holds every model to the
 identical request, and this run sits beside it as a labeled sensitivity,
-not in it. The run's predictions are attached to the
+not in it. Each run's predictions are attached to the
 `dashboard-data-20260805` release as
-`sensitivity-claude-opus-5-thinking-predictions.csv.gz`. The manuscript's
+`sensitivity-claude-{fable,opus,sonnet}-5-thinking-predictions.csv.gz`. The manuscript's
 serving-configuration table documents the interaction. A future board
 version may move every model to `tool_choice: "auto"` so each provider's
 default reasoning posture engages under a still-identical request shape;
