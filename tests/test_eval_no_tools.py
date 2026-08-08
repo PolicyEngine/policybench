@@ -2497,3 +2497,22 @@ def test_load_repeated_predictions_adds_run_id_from_filename(tmp_path):
     df = load_repeated_predictions(str(tmp_path))
 
     assert set(df["run_id"]) == {"run_000", "already_set"}
+
+
+def test_tool_choice_env_override_flips_to_auto(mini_scenario, monkeypatch):
+    """POLICYBENCH_TOOL_CHOICE=auto is the sensitivity-run escape hatch:
+    Anthropic models skip thinking under a forced tool, so sensitivity runs
+    need auto — while the default (canonical board) stays forced."""
+    from policybench.eval_no_tools import _chat_completion_request_kwargs
+
+    variables = ["snap"]
+
+    _, forced = _chat_completion_request_kwargs(
+        mini_scenario, variables, "claude-opus-5"
+    )
+    assert forced["tool_choice"]["function"]["name"] == "submit_outputs"
+
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    _, auto = _chat_completion_request_kwargs(mini_scenario, variables, "claude-opus-5")
+    assert auto["tool_choice"] == "auto"
+    assert auto["tools"], "the answer tool stays declared under auto"

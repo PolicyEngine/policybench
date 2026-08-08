@@ -724,15 +724,21 @@ def _chat_completion_request_kwargs(
             country=scenario.country,
             include_explanations=include_explanations,
         )
-        request_kwargs.update(
-            {
-                "tools": [tool],
-                "tool_choice": {
-                    "type": "function",
-                    "function": {"name": ANSWER_FUNCTION_NAME},
-                },
-            }
-        )
+        tool_choice: str | dict = {
+            "type": "function",
+            "function": {"name": ANSWER_FUNCTION_NAME},
+        }
+        # Sensitivity-run escape hatch: POLICYBENCH_TOOL_CHOICE=auto lets the
+        # model decide when to call the answer tool. Anthropic models skip
+        # thinking when the tool is forced (verified on claude-opus-5: forced
+        # tool or forced tool + explicit adaptive produce no thinking blocks;
+        # tool_choice auto produces them), so the canonical board — which
+        # always forces the tool — runs Claude without thinking while
+        # reasoning-by-default providers reason regardless. Never set this for
+        # leaderboard runs; scores under auto are not comparable to the board.
+        if os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto":
+            tool_choice = "auto"
+        request_kwargs.update({"tools": [tool], "tool_choice": tool_choice})
     else:
         request_kwargs["response_format"] = {"type": "json_object"}
     return messages, request_kwargs
