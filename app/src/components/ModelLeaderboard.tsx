@@ -273,6 +273,39 @@ export default function ModelLeaderboard({
       >
         Model rankings
       </h2>
+      {selectedView === "us" && (
+        <div
+          className="card mt-5 px-5 py-4 animate-fade-up"
+          style={{ animationDelay: "120ms" }}
+        >
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+            Serving sensitivity · August 2026
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+            Claude models skip extended thinking when the answer tool call is
+            forced, as it is in the identical request this board holds every
+            model to; other reasoning-by-default providers reason regardless.
+            Re-run with <code>tool_choice: auto</code>, Claude Fable 5 scores
+            86.9 (would rank #2), Claude Opus 5 85.6 (#3), and Claude Sonnet 5
+            80.2 (#8). The board below is unchanged — those runs sit beside it
+            as a{" "}
+            <a
+              href="https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md"
+              className="text-primary hover:underline"
+            >
+              labeled sensitivity
+            </a>{" "}
+            — and the{" "}
+            <a
+              href="https://github.com/PolicyEngine/policybench/issues/139"
+              className="text-primary hover:underline"
+            >
+              next board version
+            </a>{" "}
+            moves every model to auto.
+          </p>
+        </div>
+      )}
       <div
         role="region"
         aria-labelledby="leaderboard-heading"

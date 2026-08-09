@@ -58,12 +58,13 @@ identical request, and this run sits beside it as a labeled sensitivity,
 not in it. Each run's predictions are attached to the
 `dashboard-data-20260805` release as
 `sensitivity-claude-{fable,opus,sonnet}-5-thinking-predictions.csv.gz`. The manuscript's
-serving-configuration table documents the interaction. A future board
-version may move every model to `tool_choice: "auto"` so each provider's
-default reasoning posture engages under a still-identical request shape;
-that change requires roster-wide probes confirming reliable tool calling
-under `auto` and would ship as a versioned re-run, not an edit to existing
-scores.
+serving-configuration table will document the interaction at its next
+refreeze. The next board version moves every model to
+`tool_choice: "auto"` so each provider's default reasoning posture engages
+under a still-identical request shape — expedited, gated on roster-wide
+probes confirming reliable tool calling under `auto`, and shipped as a
+versioned re-run, never an edit to existing scores; the plan is
+[policybench#139](https://github.com/PolicyEngine/policybench/issues/139).
 
 ## Reproducing
 
