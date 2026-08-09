@@ -130,8 +130,11 @@ export default function Methodology({
       <div className="grid lg:grid-cols-2 gap-4 mt-8">
         <SectionCard title="Task">
           Each model sees the same household description and must return all
-          scored outputs plus a short explanation for each output in one
-          response, with no tool use. The exact provider-specific prompts are
+          scored outputs plus a short explanation for each output, with no
+          external tools — no calculator, search, or PolicyEngine access.
+          Answers come back through a forced answer-schema tool call; a few
+          models are served one output per request for parse reliability, per
+          the repo&apos;s model cards. The exact provider-specific prompts are
           visible in the scenario explorer, so you can inspect the contract
           instead of inferring it.
         </SectionCard>

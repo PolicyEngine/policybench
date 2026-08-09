@@ -5,7 +5,7 @@
     {
       "id": "1.1",
       "label": "1.1",
-      "description": "Corrected ground truth (policyengine-us 1.755.4); every model at unconfigured provider defaults - 29 models",
+      "description": "Corrected ground truth (policyengine-us 1.755.4); identical forced-tool request for every model - 29 models",
       "snapshotLabel": null,
       "artifact": {
         "pointer": "live"
