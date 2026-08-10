@@ -892,6 +892,78 @@ def test_run_single_no_tools_repairs_partial_batch_response(
     assert '"responses"' in result["raw_response"]
 
 
+@patch("policybench.eval_no_tools._request_predictions_once")
+def test_repair_does_not_overwrite_valid_prediction(
+    mock_request_predictions,
+    mini_scenario,
+    caplog,
+):
+    mock_request_predictions.side_effect = [
+        {
+            "predictions": {"income_tax": 3_500.0},
+            "explanations": {"income_tax": None},
+            "raw_response": "initial",
+        },
+        {
+            "predictions": {"income_tax": 3_400.0},
+            "explanations": {
+                "income_tax": "Repair explanation. value = 3500",
+            },
+            "raw_response": "repair",
+        },
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "claude-opus-4-6",
+        include_explanations=True,
+        _allow_chunking=False,
+    )
+
+    assert result["prediction"] == 3_500.0
+    assert result["predictions"]["income_tax"] == 3_500.0
+    assert result["explanations"]["income_tax"].endswith("value = 3500")
+    assert result["repair_disagreements"] == [
+        {
+            "variable": "income_tax",
+            "field": "prediction",
+            "original": 3_500.0,
+            "repair": 3_400.0,
+        }
+    ]
+    assert "income_tax" in caplog.text
+    assert "repair" in caplog.text.lower()
+
+
+@patch("policybench.eval_no_tools._request_predictions_once")
+def test_repair_fills_missing_prediction(mock_request_predictions, mini_scenario):
+    mock_request_predictions.side_effect = [
+        {
+            "predictions": {"income_tax": None},
+            "explanations": {"income_tax": None},
+            "raw_response": "initial",
+        },
+        {
+            "predictions": {"income_tax": 3_500.0},
+            "explanations": {},
+            "raw_response": "repair",
+        },
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "claude-opus-4-6",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert result["prediction"] == 3_500.0
+    assert result["predictions"]["income_tax"] == 3_500.0
+    assert result["repair_disagreements"] == []
+
+
 @patch("policybench.eval_no_tools.completion")
 def test_run_single_no_tools_repairs_missing_explanations(
     mock_completion, mini_scenario

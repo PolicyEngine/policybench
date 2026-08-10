@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 import os
 import re
 import signal
@@ -30,6 +31,8 @@ from policybench.prompts import (
 )
 from policybench.scenarios import Scenario, scenario_to_dict
 from policybench.spec import expand_programs_for_scenario, metric_type_for_output
+
+logger = logging.getLogger(__name__)
 
 # litellm resolves an unprefixed model's provider (and prices it) through its
 # model-cost map, whose remote refresh can time out mid-run and whose bundled
@@ -1090,6 +1093,7 @@ def _empty_failed_result(
         "explanations": {variable: None for variable in variables},
         "prediction": None,
         "error": _format_error(error),
+        "repair_disagreements": [],
         **_aggregate_request_results([]),
     }
 
@@ -1271,6 +1275,49 @@ def _extract_terminal_explanation_value(explanation: str) -> float | None:
 
 def _numeric_values_match(left: float, right: float) -> bool:
     return abs(left - right) <= 1e-6 * max(1.0, abs(left), abs(right))
+
+
+def _merge_repair_cells(
+    base: dict,
+    repair: dict,
+    *,
+    field: str,
+    disagreements: list[dict],
+) -> dict:
+    """Fill invalid cells from a repair response without changing valid cells."""
+    merged = dict(base)
+    for variable, repair_value in repair.items():
+        if repair_value is None:
+            continue
+        original_value = merged.get(variable)
+        if original_value is None:
+            merged[variable] = repair_value
+            continue
+
+        if field == "prediction":
+            disagrees = not _numeric_values_match(
+                float(original_value), float(repair_value)
+            )
+        else:
+            disagrees = original_value != repair_value
+        if not disagrees:
+            continue
+
+        diagnostic = {
+            "variable": variable,
+            "field": field,
+            "original": original_value,
+            "repair": repair_value,
+        }
+        disagreements.append(diagnostic)
+        logger.warning(
+            "Ignoring repair disagreement for %s %s: original=%r repair=%r",
+            variable,
+            field,
+            original_value,
+            repair_value,
+        )
+    return merged
 
 
 def _enforce_explanation_value_contract(
@@ -1867,6 +1914,11 @@ def run_single_no_tools(
             "provider_resolved_model": _first_non_null(
                 result.get("provider_resolved_model") for result in chunk_results
             ),
+            "repair_disagreements": [
+                disagreement
+                for result in chunk_results
+                for disagreement in result.get("repair_disagreements", [])
+            ],
         }
 
     request_results = []
@@ -1886,6 +1938,7 @@ def run_single_no_tools(
         _missing_explanations(explanations, variables) if include_explanations else []
     )
     repair_errors = []
+    repair_disagreements = []
     for _ in range(MAX_REPAIR_ROUNDS):
         repair_targets = sorted(set(missing) | set(missing_explanations))
         if not repair_targets:
@@ -1902,13 +1955,17 @@ def run_single_no_tools(
             repair_errors.append(_format_error(error))
             break
         request_results.append(repair_result)
-        predictions = _merge_predictions(predictions, repair_result["predictions"])
-        explanations.update(
-            {
-                variable: value
-                for variable, value in repair_result.get("explanations", {}).items()
-                if value is not None
-            }
+        predictions = _merge_repair_cells(
+            predictions,
+            repair_result["predictions"],
+            field="prediction",
+            disagreements=repair_disagreements,
+        )
+        explanations = _merge_repair_cells(
+            explanations,
+            repair_result.get("explanations", {}),
+            field="explanation",
+            disagreements=repair_disagreements,
         )
         missing = _missing_variables(predictions)
         missing_explanations = (
@@ -1961,6 +2018,7 @@ def run_single_no_tools(
         "explanations": explanations,
         "prediction": predictions[variables[0]] if len(variables) == 1 else None,
         "error": "; ".join(repair_errors) if repair_errors else None,
+        "repair_disagreements": repair_disagreements,
         **aggregated,
     }
 
