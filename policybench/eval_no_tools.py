@@ -21,7 +21,12 @@ from policybench.config import (
     PRICE_OVERRIDES_PER_1M,
     PROGRAMS,
 )
-from policybench.model_cards import card_for
+from policybench.model_cards import (
+    PROMPT_CONTRACT_VERSION,
+    answer_contract_for,
+    card_for,
+    explanation_chunk_size_for,
+)
 from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.prompts import (
     get_variable_description,
@@ -172,22 +177,6 @@ EXPLANATION_TOKENS_PER_VARIABLE = 96
 ANSWER_COMPLETION_BUFFER_TOKENS = 96
 ANSWER_FUNCTION_NAME = "submit_outputs"
 EXPLANATION_FUNCTION_NAME = "submit_explanations"
-PROMPT_CONTRACT_VERSION = "2026-05-13-nested-output-explanations"
-CLAUDE_EXPLANATION_CHUNK_SIZE = 1
-# The Claude roster that shipped under the pre-canonical-prompt regime keeps
-# its 1-output-per-request treatment; chunking is closed to new models, so
-# Claude models added after July 2026 (claude-opus-5 onward) answer the
-# whole-scenario request like every other new model.
-GRANDFATHERED_CHUNKED_CLAUDE_MODELS = frozenset(
-    {
-        "claude-fable-5",
-        "claude-sonnet-5",
-        "claude-opus-4-8",
-        "claude-opus-4-7",
-        "claude-sonnet-4-6",
-        "claude-haiku-4-5-20251001",
-    }
-)
 
 
 class RequestWallTimeoutError(TimeoutError):
@@ -489,14 +478,10 @@ def _required_explanation_chunk_size(
     # POLICYBENCH_CHUNK_OVERRIDE=none runs grandfathered chunked models on
     # the canonical whole-scenario request so their sensitivity runs are
     # shaped like the rest of the roster. Never set for leaderboard runs.
-    if os.environ.get("POLICYBENCH_CHUNK_OVERRIDE") == "none":
-        return None
-    card = card_for(model_id)
-    if card is not None and card.explanation_chunk_size is not None:
-        return card.explanation_chunk_size
-    if model_id in GRANDFATHERED_CHUNKED_CLAUDE_MODELS:
-        return CLAUDE_EXPLANATION_CHUNK_SIZE
-    return None
+    return explanation_chunk_size_for(
+        model_id,
+        chunk_override=os.environ.get("POLICYBENCH_CHUNK_OVERRIDE"),
+    )
 
 
 def _chunk_variables(variables: list[str], chunk_size: int) -> list[list[str]]:
@@ -686,12 +671,7 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
 
 
 def _answer_contract_for_model(model_id: str) -> str:
-    card = card_for(model_id)
-    if card is not None and card.answer_contract is not None:
-        return card.answer_contract
-    if model_id.startswith("deepseek/") or model_id.startswith("gemini/"):
-        return "json"
-    return "tool"
+    return answer_contract_for(model_id)
 
 
 def _uses_responses_api(model_id: str) -> bool:

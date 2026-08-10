@@ -31,7 +31,12 @@ from pathlib import Path
 import pandas as pd
 
 from policybench.config import MODELS
-from policybench.model_cards import card_for
+from policybench.model_cards import (
+    PROMPT_CONTRACT_VERSION,
+    answer_contract_for,
+    card_for,
+    explanation_chunk_size_for,
+)
 
 HEARTBEAT_FILENAME = "run_state.json"
 SCENARIO_DIR = "scenarios"
@@ -98,6 +103,7 @@ class Supervisor:
         self.max_rounds = max_rounds
         self.python = python or sys.executable
         self.env = {**os.environ, **(env or {})}
+        self.treatment_fingerprint = self._treatment_fingerprint()
         self.scenario_ids = self._load_scenario_ids()
         self.state = RunState(
             model=model,
@@ -136,6 +142,71 @@ class Supervisor:
         return [
             i for i in range(len(self.scenario_ids)) if not self._scenario_complete(i)
         ]
+
+    def _treatment_fingerprint(self) -> dict:
+        return {
+            "model_id": self.litellm_id,
+            "answer_contract": answer_contract_for(self.litellm_id),
+            "tool_choice_mode": (
+                "auto"
+                if self.env.get("POLICYBENCH_TOOL_CHOICE") == "auto"
+                else "forced"
+            ),
+            "chunk_size": explanation_chunk_size_for(
+                self.litellm_id,
+                chunk_override=self.env.get("POLICYBENCH_CHUNK_OVERRIDE"),
+            ),
+            "prompt_contract_version": PROMPT_CONTRACT_VERSION,
+        }
+
+    def _validate_resume(self) -> dict | None:
+        state_path = self.run_dir / HEARTBEAT_FILENAME
+        scenario_dir = self.run_dir / SCENARIO_DIR
+        has_scenario_outputs = scenario_dir.exists() and any(
+            scenario_dir.glob("scenario_*.csv")
+        )
+        if not state_path.exists():
+            if has_scenario_outputs:
+                raise ValueError(
+                    f"Cannot resume run at {self.run_dir}: existing scenario outputs "
+                    f"are missing {HEARTBEAT_FILENAME}. Use a fresh run directory."
+                )
+            return None
+
+        try:
+            existing = json.loads(state_path.read_text())
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(
+                f"Cannot resume run at {self.run_dir}: could not read "
+                f"{HEARTBEAT_FILENAME}: {error}"
+            ) from error
+        if not isinstance(existing, dict):
+            raise ValueError(
+                f"Cannot resume run at {self.run_dir}: {HEARTBEAT_FILENAME} "
+                "must contain a JSON object."
+            )
+        if existing.get("model") != self.model:
+            raise ValueError(
+                "Cannot resume: run state field 'model' differs "
+                f"(stored={existing.get('model')!r}, requested={self.model!r})."
+            )
+
+        stored_fingerprint = existing.get("treatment_fingerprint")
+        if not isinstance(stored_fingerprint, dict):
+            raise ValueError(
+                "Cannot resume: run state field 'treatment_fingerprint' is missing. "
+                "Use a fresh run directory."
+            )
+        for field_name, requested in self.treatment_fingerprint.items():
+            stored = stored_fingerprint.get(field_name)
+            if stored != requested:
+                raise ValueError(
+                    "Cannot resume: treatment fingerprint field "
+                    f"'{field_name}' differs "
+                    f"(stored={stored!r}, requested={requested!r}). "
+                    "Use a fresh run directory."
+                )
+        return existing
 
     # -- budget ------------------------------------------------------------
 
@@ -247,6 +318,7 @@ class Supervisor:
             "workers": self.state.workers,
             "stopped_reason": self.state.stopped_reason,
             "projection_warning": self.projection_warning,
+            "treatment_fingerprint": self.treatment_fingerprint,
             "started_at": self.state.started_at,
             "updated_at": self.state.updated_at,
         }
@@ -321,7 +393,22 @@ class Supervisor:
     # -- main loop -----------------------------------------------------------
 
     def run(self, poll_seconds: float = 2.0) -> RunState:
-        self.state.started_at = time.time()
+        existing_state = self._validate_resume()
+        existing_started_at = (
+            existing_state.get("started_at") if existing_state is not None else None
+        )
+        self.state.started_at = (
+            float(existing_started_at)
+            if isinstance(existing_started_at, (int, float)) and existing_started_at > 0
+            else time.time()
+        )
+        self.state.completed = [
+            scenario_id
+            for index, scenario_id in enumerate(self.scenario_ids)
+            if self._scenario_complete(index)
+        ]
+        self.state.spent_usd = self._spent()
+        self.write_heartbeat()
         queue: list[int] = []
         rounds: dict[int, int] = {}
         for round_no in range(self.max_rounds):

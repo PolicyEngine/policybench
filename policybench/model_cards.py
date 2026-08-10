@@ -27,6 +27,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+PROMPT_CONTRACT_VERSION = "2026-05-13-nested-output-explanations"
+CLAUDE_EXPLANATION_CHUNK_SIZE = 1
+
+# The Claude roster that shipped under the pre-canonical-prompt regime keeps
+# its 1-output-per-request treatment; chunking is closed to new models, so
+# Claude models added after July 2026 answer the whole-scenario request.
+GRANDFATHERED_CHUNKED_CLAUDE_MODELS = frozenset(
+    {
+        "claude-fable-5",
+        "claude-sonnet-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+    }
+)
+
 
 @dataclass(frozen=True)
 class ModelCard:
@@ -244,3 +261,29 @@ MODEL_CARDS: dict[str, ModelCard] = {
 
 def card_for(model_id: str) -> ModelCard | None:
     return MODEL_CARDS.get(model_id)
+
+
+def answer_contract_for(model_id: str) -> str:
+    """Return the effective structured-answer contract for a model."""
+    card = card_for(model_id)
+    if card is not None and card.answer_contract is not None:
+        return card.answer_contract
+    if model_id.startswith("deepseek/") or model_id.startswith("gemini/"):
+        return "json"
+    return "tool"
+
+
+def explanation_chunk_size_for(
+    model_id: str,
+    *,
+    chunk_override: str | None = None,
+) -> int | None:
+    """Return the effective explanation-output chunk size for a model."""
+    if chunk_override == "none":
+        return None
+    card = card_for(model_id)
+    if card is not None and card.explanation_chunk_size is not None:
+        return card.explanation_chunk_size
+    if model_id in GRANDFATHERED_CHUNKED_CLAUDE_MODELS:
+        return CLAUDE_EXPLANATION_CHUNK_SIZE
+    return None

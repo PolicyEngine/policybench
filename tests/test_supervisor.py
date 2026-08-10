@@ -14,6 +14,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from policybench.config import MODELS
 from policybench.supervisor import (
     ADAPTIVE_WINDOW,
     BUDGET_STOP_FRACTION,
@@ -84,13 +85,24 @@ def test_happy_path_completes_all_and_combines(manifest, tmp_path, monkeypatch):
     assert combined.scenario_id.nunique() == N_SCENARIOS
     heartbeat = json.loads((supervisor.run_dir / "run_state.json").read_text())
     assert heartbeat["completed"] == N_SCENARIOS
+    assert heartbeat["treatment_fingerprint"] == {
+        "model_id": "test-model",
+        "answer_contract": "tool",
+        "tool_choice_mode": "forced",
+        "chunk_size": None,
+        "prompt_contract_version": "2026-05-13-nested-output-explanations",
+    }
 
 
 def test_resume_skips_completed_scenarios(manifest, tmp_path, monkeypatch):
+    initial = make_supervisor(manifest, tmp_path)
+    stub_worker(initial, monkeypatch)
+    for index in (0, 1):
+        initial._spawn(index).wait()
+    initial.write_heartbeat()
+
     supervisor = make_supervisor(manifest, tmp_path)
     stub_worker(supervisor, monkeypatch)
-    for index in (0, 1):
-        supervisor._spawn(index).wait()
     spawned: list[int] = []
     original = supervisor._spawn
 
@@ -99,9 +111,70 @@ def test_resume_skips_completed_scenarios(manifest, tmp_path, monkeypatch):
         return original(index)
 
     monkeypatch.setattr(supervisor, "_spawn", tracking_spawn)
-    supervisor.run(poll_seconds=0.01)
+    state = supervisor.run(poll_seconds=0.01)
     assert 0 not in spawned and 1 not in spawned
     assert sorted(spawned) == [2, 3, 4, 5]
+    assert len(state.completed) == N_SCENARIOS
+
+
+def test_resume_rejects_changed_model_id(manifest, tmp_path, monkeypatch):
+    monkeypatch.setitem(MODELS, "test-model", "provider/model-a")
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+
+    monkeypatch.setitem(MODELS, "test-model", "provider/model-b")
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("mismatched resume dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="model_id"):
+        resumed.run(poll_seconds=0.01)
+
+
+def test_resume_rejects_changed_tool_choice(manifest, tmp_path, monkeypatch):
+    initial = make_supervisor(
+        manifest,
+        tmp_path,
+        env={"POLICYBENCH_TOOL_CHOICE": "forced"},
+    )
+    initial.write_heartbeat()
+
+    resumed = make_supervisor(
+        manifest,
+        tmp_path,
+        env={"POLICYBENCH_TOOL_CHOICE": "auto"},
+    )
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("mismatched resume dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="tool_choice_mode"):
+        resumed.run(poll_seconds=0.01)
+
+
+def test_resume_rejects_scenario_outputs_without_run_state(
+    manifest,
+    tmp_path,
+    monkeypatch,
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    stub_worker(supervisor, monkeypatch)
+    supervisor._spawn(0).wait()
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("unvalidated resume dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="run_state.json"):
+        resumed.run(poll_seconds=0.01)
 
 
 def test_failed_scenarios_retry_up_to_max_rounds(manifest, tmp_path, monkeypatch):
