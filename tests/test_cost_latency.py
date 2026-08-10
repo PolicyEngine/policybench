@@ -79,5 +79,16 @@ def test_missing_cost_without_override_is_omitted_not_zero():
     assert out["a"]["latencySeconds"] == pytest.approx(5.0)
 
 
+def test_all_null_latency_is_omitted_not_zero():
+    preds = pd.DataFrame(
+        [
+            _row("a", "s1", 0.10, np.nan),
+            _row("a", "s2", 0.20, np.nan),
+        ]
+    )
+    out = model_cost_latency(preds)
+    assert "latencySeconds" not in out["a"]
+
+
 def test_empty_predictions_returns_empty():
     assert model_cost_latency(pd.DataFrame()) == {}

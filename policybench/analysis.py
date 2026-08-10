@@ -1432,7 +1432,7 @@ def model_cost_latency(
     if "elapsed_seconds" in predictions.columns:
         latency_median = (
             predictions.groupby(["model", "scenario_id"])["elapsed_seconds"]
-            .sum()
+            .sum(min_count=1)
             .groupby("model")
             .median()
         )

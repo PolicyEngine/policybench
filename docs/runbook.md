@@ -228,6 +228,9 @@ The runner skips complete chunks and rewrites per-model merged CSVs on resume.
 Provider transport, timeout, rate-limit, server, authentication, and
 request-configuration errors are infrastructure failures; chunks containing
 those errors remain incomplete and should be retried or rerun.
+Each evaluation CSV also has a `.spend.jsonl` call ledger. It records initial,
+failed, and repair calls separately; the supervisor uses this sidecar for its
+disk spend total and falls back to the legacy CSV total when no ledger exists.
 
 ## 4b. Batch Mode (Anthropic, OpenAI, Gemini)
 
@@ -256,6 +259,10 @@ both deliberate: latency columns are left empty (batch round-trips include
 provider queue time, which is not model latency), and cost columns are
 reconstructed at standard synchronous rates so the leaderboard basis stays
 comparable while actual spend is roughly half.
+The per-model `batches/<model>.spend.jsonl` ledger retains every initial and
+repair result and de-duplicates a resumed batch by its provider batch id and
+custom id. Completed runs mirror it next to the per-model CSV so the combined
+predictions ledger includes batch calls.
 
 ## 5. Retry Broken Full Responses
 

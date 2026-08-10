@@ -8,12 +8,14 @@ import re
 import signal
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
+from uuid import uuid4
 
 import litellm
 import pandas as pd
-from litellm import completion, completion_cost, responses
+from litellm import completion, responses
 
 from policybench.config import (
     GPT_56_MODELS,
@@ -36,6 +38,7 @@ from policybench.prompts import (
 )
 from policybench.scenarios import Scenario, scenario_to_dict
 from policybench.spec import expand_programs_for_scenario, metric_type_for_output
+from policybench.spend_ledger import spend_ledger_path, upsert_spend_ledger
 
 logger = logging.getLogger(__name__)
 
@@ -305,6 +308,30 @@ def _get_usage_value(obj, key: str):
     return getattr(obj, key, None)
 
 
+@dataclass(frozen=True)
+class ReconstructedCost:
+    """A token-cost reconstruction and whether it came from LiteLLM's map."""
+
+    usd: float | None
+    is_estimated: bool | None
+
+
+def _price_override_for(
+    model_name: str, model_id: str
+) -> tuple[str, dict[str, float]] | None:
+    """Resolve a canonical price by display name, provider id, or roster alias."""
+    for candidate in (model_name, model_id):
+        override = PRICE_OVERRIDES_PER_1M.get(candidate)
+        if override is not None:
+            return candidate, override
+    for display_name, configured_id in MODELS.items():
+        if configured_id == model_id:
+            override = PRICE_OVERRIDES_PER_1M.get(display_name)
+            if override is not None:
+                return display_name, override
+    return None
+
+
 def _reconstruct_token_cost(
     *,
     model_name: str,
@@ -313,35 +340,44 @@ def _reconstruct_token_cost(
     completion_tokens: int | None,
     cached_prompt_tokens: int | None = None,
     cache_write_prompt_tokens: int | None = None,
-) -> float | None:
+) -> ReconstructedCost:
     """Reconstruct standard synchronous token cost from provider usage.
 
-    GPT-5.6 needs an explicit path until LiteLLM carries the release: cache
-    writes cost 1.25x, reads 0.1x, and requests above 272K input tokens price
-    the full request at 2x input / 1.5x output.
+    PolicyBench's explicit prices are authoritative. LiteLLM's mutable model
+    map is used only when no override exists, and that fallback is marked as
+    estimated. GPT-5.6 overrides include their documented cache and
+    long-context pricing; other overrides apply their standard rate to the
+    inclusive prompt-token count.
     """
     if prompt_tokens is None or completion_tokens is None:
-        return None
+        return ReconstructedCost(None, None)
     cached = max(0, min(int(cached_prompt_tokens or 0), int(prompt_tokens)))
     cache_write = max(
         0,
         min(int(cache_write_prompt_tokens or 0), int(prompt_tokens) - cached),
     )
 
-    if model_id in GPT_56_MODELS:
-        rates = PRICE_OVERRIDES_PER_1M[model_id]
+    resolved_override = _price_override_for(model_name, model_id)
+    if resolved_override is not None:
+        override_name, rates = resolved_override
         input_rate = rates["input"] / 1_000_000
         output_rate = rates["output"] / 1_000_000
-        if prompt_tokens > 272_000:
-            input_rate *= 2
-            output_rate *= 1.5
-        uncached = int(prompt_tokens) - cached - cache_write
-        return (
-            uncached * input_rate
-            + cached * input_rate * 0.1
-            + cache_write * input_rate * 1.25
-            + int(completion_tokens) * output_rate
-        )
+        if override_name in GPT_56_MODELS:
+            if prompt_tokens > 272_000:
+                input_rate *= 2
+                output_rate *= 1.5
+            uncached = int(prompt_tokens) - cached - cache_write
+            cost = (
+                uncached * input_rate
+                + cached * input_rate * 0.1
+                + cache_write * input_rate * 1.25
+                + int(completion_tokens) * output_rate
+            )
+        else:
+            cost = (
+                int(prompt_tokens) * input_rate + int(completion_tokens) * output_rate
+            )
+        return ReconstructedCost(float(cost), False)
 
     try:
         input_cost, output_cost = litellm.cost_per_token(
@@ -351,15 +387,9 @@ def _reconstruct_token_cost(
             cache_read_input_tokens=cached,
             cache_creation_input_tokens=cache_write,
         )
-        return float(input_cost + output_cost)
+        return ReconstructedCost(float(input_cost + output_cost), True)
     except Exception:
-        override = PRICE_OVERRIDES_PER_1M.get(model_name)
-        if override is None:
-            return None
-        return (
-            int(prompt_tokens) * override["input"]
-            + int(completion_tokens) * override["output"]
-        ) / 1_000_000
+        return ReconstructedCost(None, None)
 
 
 def _extract_provider_fingerprint(response) -> dict:
@@ -375,6 +405,15 @@ def _extract_provider_fingerprint(response) -> dict:
         "provider_system_fingerprint": _get_usage_value(response, "system_fingerprint"),
         "provider_resolved_model": _get_usage_value(response, "model"),
     }
+
+
+def _response_cache_hit(response) -> bool:
+    hidden = (
+        response.get("_hidden_params")
+        if isinstance(response, dict)
+        else getattr(response, "_hidden_params", None)
+    )
+    return isinstance(hidden, dict) and hidden.get("cache_hit") is True
 
 
 def _extract_usage_metadata(
@@ -409,42 +448,26 @@ def _extract_usage_metadata(
         )
 
     provider_reported_cost_usd = _get_usage_value(usage, "cost")
-    reconstructed_cost_usd = None
-    if model_id in GPT_56_MODELS:
-        reconstructed_cost_usd = _reconstruct_token_cost(
-            model_name=model_id,
-            model_id=model_id,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            cached_prompt_tokens=cached_prompt_tokens,
-            cache_write_prompt_tokens=cache_write_prompt_tokens,
-        )
-    else:
-        try:
-            cost_kwargs = {
-                "completion_response": response,
-                "model": model_id,
-            }
-            if messages:
-                cost_kwargs["messages"] = messages
-            if content:
-                cost_kwargs["completion"] = content
-            reconstructed_cost_usd = completion_cost(**cost_kwargs)
-        except Exception:
-            reconstructed_cost_usd = None
+    override = _price_override_for(model_id, model_id)
+    reconstructed = _reconstruct_token_cost(
+        model_name=model_id,
+        model_id=model_id,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+        cache_write_prompt_tokens=cache_write_prompt_tokens,
+    )
+    reconstructed_cost_usd = reconstructed.usd
 
-    if model_id in GPT_56_MODELS and reconstructed_cost_usd is not None:
-        # OpenAI responses do not report dollar cost; current LiteLLM fills
-        # ``usage.cost`` from a map that predates GPT-5.6 cache-write pricing.
+    if override is not None and reconstructed_cost_usd is not None:
         total_cost_usd = reconstructed_cost_usd
-        cost_is_estimated = True
+        cost_is_estimated = False
+    elif reconstructed_cost_usd is not None:
+        total_cost_usd = reconstructed_cost_usd
+        cost_is_estimated = reconstructed.is_estimated
     else:
         total_cost_usd = provider_reported_cost_usd
-        if total_cost_usd is None:
-            total_cost_usd = reconstructed_cost_usd
-        cost_is_estimated = (
-            provider_reported_cost_usd is None and total_cost_usd is not None
-        )
+        cost_is_estimated = False if provider_reported_cost_usd is not None else None
 
     return {
         "prompt_tokens": prompt_tokens,
@@ -460,6 +483,101 @@ def _extract_usage_metadata(
         "estimated_cost_usd": total_cost_usd,
         **_extract_provider_fingerprint(response),
     }
+
+
+_SPEND_LEDGER_USAGE_FIELDS = (
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "reasoning_tokens",
+    "cached_prompt_tokens",
+    "cache_write_prompt_tokens",
+    "provider_reported_cost_usd",
+    "reconstructed_cost_usd",
+    "total_cost_usd",
+    "cost_is_estimated",
+    "estimated_cost_usd",
+    "provider_response_id",
+    "provider_system_fingerprint",
+    "provider_resolved_model",
+)
+
+
+def _spend_ledger_record(
+    *,
+    call_key: str,
+    phase: str,
+    attempt: int,
+    status: str,
+    scenario: Scenario,
+    variables: list[str],
+    model_id: str,
+    request_started_at: float | None,
+    request_completed_at: float | None,
+    elapsed_seconds: float | None,
+    usage: dict | None = None,
+    error: str | None = None,
+    cache_hit: bool = False,
+) -> dict:
+    """Build one audit row for a physical synchronous provider request."""
+    usage = usage or {}
+    usage_fields = {field: usage.get(field) for field in _SPEND_LEDGER_USAGE_FIELDS}
+    cached_response_cost_usd = None
+    if cache_hit:
+        cached_response_cost_usd = usage_fields["total_cost_usd"]
+        for field in (
+            "provider_reported_cost_usd",
+            "reconstructed_cost_usd",
+            "total_cost_usd",
+            "estimated_cost_usd",
+        ):
+            usage_fields[field] = 0.0
+        usage_fields["cost_is_estimated"] = False
+    return {
+        "call_key": call_key,
+        "mode": "sync",
+        "phase": phase,
+        "attempt": attempt,
+        "status": status,
+        "model_id": model_id,
+        "scenario_id": scenario.id,
+        "variables": list(variables),
+        "request_started_at": request_started_at,
+        "request_completed_at": request_completed_at,
+        "elapsed_seconds": elapsed_seconds,
+        "error": error,
+        "cache_hit": cache_hit,
+        "cached_response_cost_usd": cached_response_cost_usd,
+        **usage_fields,
+    }
+
+
+def _spend_records(source) -> list[dict]:
+    records = (
+        source.get("spend_ledger", [])
+        if isinstance(source, dict)
+        else getattr(source, "spend_ledger", [])
+    )
+    return [dict(record) for record in records]
+
+
+def _attach_spend_records(error: Exception, records: list[dict]) -> None:
+    error.spend_ledger = [*records, *_spend_records(error)]
+
+
+def _emit_spend_records(
+    spend_callback: Callable[[list[dict]], None] | None,
+    records: list[dict],
+) -> None:
+    """Persist records without letting storage errors masquerade as call errors."""
+    if spend_callback is None:
+        return
+    try:
+        spend_callback(records)
+    except Exception as error:
+        _attach_spend_records(error, records)
+        error._policybench_spend_persistence_failure = True
+        raise
 
 
 def _parse_standalone_number(text: str) -> float | None:
@@ -977,6 +1095,19 @@ def _merge_predictions(
     return merged
 
 
+def _combined_cost_is_estimated(results: list[dict]) -> bool | None:
+    flags = [
+        result.get("cost_is_estimated")
+        for result in results
+        if result.get("total_cost_usd") is not None
+    ]
+    if any(flag is True for flag in flags):
+        return True
+    if any(flag is False for flag in flags):
+        return False
+    return None
+
+
 def _aggregate_request_results(results: list[dict]) -> dict:
     if not results:
         return {
@@ -999,14 +1130,6 @@ def _aggregate_request_results(results: list[dict]) -> dict:
             "provider_system_fingerprint": None,
             "provider_resolved_model": None,
         }
-
-    cost_flags = [result.get("cost_is_estimated") for result in results]
-    if any(flag is True for flag in cost_flags):
-        cost_is_estimated = True
-    elif any(flag is False for flag in cost_flags):
-        cost_is_estimated = False
-    else:
-        cost_is_estimated = None
 
     return {
         "raw_response": _combine_raw_responses(
@@ -1048,7 +1171,7 @@ def _aggregate_request_results(results: list[dict]) -> dict:
         "total_cost_usd": _sum_optional_numbers(
             result.get("total_cost_usd") for result in results
         ),
-        "cost_is_estimated": cost_is_estimated,
+        "cost_is_estimated": _combined_cost_is_estimated(results),
         "estimated_cost_usd": _sum_optional_numbers(
             result.get("estimated_cost_usd") for result in results
         ),
@@ -1074,6 +1197,7 @@ def _empty_failed_result(
         "prediction": None,
         "error": _format_error(error),
         "repair_disagreements": [],
+        "spend_ledger": _spend_records(error),
         **_aggregate_request_results([]),
     }
 
@@ -1587,6 +1711,7 @@ def _request_explanations_once(
     variables: list[str],
     answers: dict[str, float],
     model_id: str,
+    spend_callback: Callable[[list[dict]], None] | None = None,
 ) -> dict:
     answer_contract = _answer_contract_for_model(model_id)
     prompt = make_explanation_repair_prompt(
@@ -1654,51 +1779,95 @@ def _request_explanations_once(
             request_kwargs["response_format"] = {"type": "json_object"}
         request_fn = completion
 
+    call_key = f"sync:{uuid4().hex}"
     request_started_at = time.time()
     started_at = time.perf_counter()
-    response = _run_request_with_wall_timeout(request_fn, request_kwargs)
-    elapsed_seconds = time.perf_counter() - started_at
-    request_completed_at = time.time()
-    if _uses_responses_api(model_id):
-        content, tool_calls = _responses_content_and_tool_calls(response)
-        function_call = None
-    else:
-        message = response.choices[0].message
-        content = getattr(message, "content", None)
-        tool_calls = getattr(message, "tool_calls", None)
-        function_call = getattr(message, "function_call", None)
-    raw_response = _serialize_response_payload(
-        content=content,
-        tool_calls=tool_calls,
-        function_call=function_call,
-    )
-    explanations = _extract_repaired_explanations(
-        content,
-        variables,
-        tool_calls=tool_calls,
-        function_call=function_call,
-    )
-    for variable in variables:
-        explanation = explanations.get(variable)
-        if not isinstance(explanation, str) or not explanation.strip():
-            explanations[variable] = None
-            continue
-        explanation_value = _extract_terminal_explanation_value(explanation)
-        answer = answers.get(variable)
-        if explanation_value is None or answer is None:
-            explanations[variable] = None
-            continue
-        if not _numeric_values_match(explanation_value, float(answer)):
-            explanations[variable] = None
-    usage = _extract_usage_metadata(response, model_id, messages, content or "")
-    return {
-        "explanations": explanations,
-        "raw_response": raw_response,
-        "elapsed_seconds": elapsed_seconds,
-        "request_started_at": request_started_at,
-        "request_completed_at": request_completed_at,
-        **usage,
-    }
+    usage: dict = {}
+    try:
+        response = _run_request_with_wall_timeout(request_fn, request_kwargs)
+        elapsed_seconds = time.perf_counter() - started_at
+        request_completed_at = time.time()
+        if _uses_responses_api(model_id):
+            content, tool_calls = _responses_content_and_tool_calls(response)
+            function_call = None
+        else:
+            message = response.choices[0].message
+            content = getattr(message, "content", None)
+            tool_calls = getattr(message, "tool_calls", None)
+            function_call = getattr(message, "function_call", None)
+        raw_response = _serialize_response_payload(
+            content=content,
+            tool_calls=tool_calls,
+            function_call=function_call,
+        )
+        explanations = _extract_repaired_explanations(
+            content,
+            variables,
+            tool_calls=tool_calls,
+            function_call=function_call,
+        )
+        for variable in variables:
+            explanation = explanations.get(variable)
+            if not isinstance(explanation, str) or not explanation.strip():
+                explanations[variable] = None
+                continue
+            explanation_value = _extract_terminal_explanation_value(explanation)
+            answer = answers.get(variable)
+            if explanation_value is None or answer is None:
+                explanations[variable] = None
+                continue
+            if not _numeric_values_match(explanation_value, float(answer)):
+                explanations[variable] = None
+        usage = _extract_usage_metadata(response, model_id, messages, content or "")
+        spend_record = _spend_ledger_record(
+            call_key=call_key,
+            phase="explanation_repair",
+            attempt=1,
+            status=(
+                "parse_error"
+                if any(explanations.get(variable) is None for variable in variables)
+                else "ok"
+            ),
+            scenario=scenario,
+            variables=variables,
+            model_id=model_id,
+            request_started_at=request_started_at,
+            request_completed_at=request_completed_at,
+            elapsed_seconds=elapsed_seconds,
+            usage=usage,
+            cache_hit=_response_cache_hit(response),
+        )
+        _emit_spend_records(spend_callback, [spend_record])
+        return {
+            "explanations": explanations,
+            "raw_response": raw_response,
+            "elapsed_seconds": elapsed_seconds,
+            "request_started_at": request_started_at,
+            "request_completed_at": request_completed_at,
+            **usage,
+            "spend_ledger": [spend_record],
+        }
+    except Exception as error:
+        if getattr(error, "_policybench_spend_persistence_failure", False):
+            raise
+        request_completed_at = time.time()
+        spend_record = _spend_ledger_record(
+            call_key=call_key,
+            phase="explanation_repair",
+            attempt=1,
+            status="provider_error",
+            scenario=scenario,
+            variables=variables,
+            model_id=model_id,
+            request_started_at=request_started_at,
+            request_completed_at=request_completed_at,
+            elapsed_seconds=time.perf_counter() - started_at,
+            usage=usage,
+            error=_format_error(error),
+        )
+        _emit_spend_records(spend_callback, [spend_record])
+        _attach_spend_records(error, [spend_record])
+        raise
 
 
 def _request_predictions_once(
@@ -1708,6 +1877,7 @@ def _request_predictions_once(
     *,
     repair: bool = False,
     include_explanations: bool = True,
+    spend_callback: Callable[[list[dict]], None] | None = None,
 ) -> dict:
     if _uses_responses_api(model_id):
         messages, request_kwargs = _responses_request_kwargs(
@@ -1728,10 +1898,14 @@ def _request_predictions_once(
         )
         request_fn = completion
 
+    spend_records = []
+    phase = "repair" if repair else "initial"
     for attempt in range(MAX_ATTEMPTS):
+        call_key = f"sync:{uuid4().hex}"
+        request_started_at = time.time()
+        started_at = time.perf_counter()
+        usage: dict = {}
         try:
-            request_started_at = time.time()
-            started_at = time.perf_counter()
             response = _run_request_with_wall_timeout(request_fn, request_kwargs)
             elapsed_seconds = time.perf_counter() - started_at
             request_completed_at = time.time()
@@ -1765,6 +1939,38 @@ def _request_predictions_once(
                 explanations,
                 variables,
             )
+            usage = _extract_usage_metadata(
+                response,
+                model_id,
+                messages,
+                raw_response or content,
+            )
+            has_parse_error = any(
+                predictions.get(variable) is None for variable in variables
+            ) or (
+                include_explanations
+                and any(
+                    not str(explanations.get(variable) or "").strip()
+                    for variable in variables
+                )
+            )
+            spend_records.append(
+                _spend_ledger_record(
+                    call_key=call_key,
+                    phase=phase,
+                    attempt=attempt + 1,
+                    status="parse_error" if has_parse_error else "ok",
+                    scenario=scenario,
+                    variables=variables,
+                    model_id=model_id,
+                    request_started_at=request_started_at,
+                    request_completed_at=request_completed_at,
+                    elapsed_seconds=elapsed_seconds,
+                    usage=usage,
+                    cache_hit=_response_cache_hit(response),
+                )
+            )
+            _emit_spend_records(spend_callback, [spend_records[-1]])
             return {
                 "predictions": predictions,
                 "explanations": explanations,
@@ -1772,15 +1978,33 @@ def _request_predictions_once(
                 "elapsed_seconds": elapsed_seconds,
                 "request_started_at": request_started_at,
                 "request_completed_at": request_completed_at,
-                **_extract_usage_metadata(
-                    response,
-                    model_id,
-                    messages,
-                    raw_response or content,
-                ),
+                **usage,
+                "spend_ledger": spend_records,
             }
         except Exception as e:
+            if getattr(e, "_policybench_spend_persistence_failure", False):
+                raise
+            request_completed_at = time.time()
+            elapsed_seconds = time.perf_counter() - started_at
+            spend_records.append(
+                _spend_ledger_record(
+                    call_key=call_key,
+                    phase=phase,
+                    attempt=attempt + 1,
+                    status="provider_error",
+                    scenario=scenario,
+                    variables=variables,
+                    model_id=model_id,
+                    request_started_at=request_started_at,
+                    request_completed_at=request_completed_at,
+                    elapsed_seconds=elapsed_seconds,
+                    usage=usage,
+                    error=_format_error(e),
+                )
+            )
+            _emit_spend_records(spend_callback, [spend_records[-1]])
             if attempt == MAX_ATTEMPTS - 1 or not _should_retry(e):
+                _attach_spend_records(e, spend_records)
                 raise
             delay = RETRY_BASE_DELAY * (2**attempt)
             print(f"  Retry {attempt + 1}: {e!r:.60s}... {delay}s")
@@ -1795,6 +2019,7 @@ def run_single_no_tools(
     model_id: str,
     include_explanations: bool = True,
     _allow_chunking: bool = True,
+    _spend_callback: Callable[[list[dict]], None] | None = None,
 ) -> dict:
     """Run a single scenario for one or more variables without tools."""
     variables = _normalize_variables(variable)
@@ -1812,9 +2037,18 @@ def run_single_no_tools(
                     model_id,
                     include_explanations=include_explanations,
                     _allow_chunking=False,
+                    _spend_callback=_spend_callback,
                 )
             except Exception as error:
                 if _is_model_fatal_error(error):
+                    _attach_spend_records(
+                        error,
+                        [
+                            record
+                            for result in chunk_results
+                            for record in _spend_records(result)
+                        ],
+                    )
                     raise
                 chunk_result = _empty_failed_result(chunk, error)
             chunk_results.append(chunk_result)
@@ -1829,11 +2063,6 @@ def run_single_no_tools(
             if chunk_result.get("error"):
                 errors.append(chunk_result["error"])
 
-        cost_rows = [
-            result
-            for result in chunk_results
-            if result.get("total_cost_usd") is not None
-        ]
         raw_response = json.dumps(
             {
                 "chunked_responses": [
@@ -1881,11 +2110,7 @@ def run_single_no_tools(
                 chunk_results, "reconstructed_cost_usd"
             ),
             "total_cost_usd": _sum_optional_field(chunk_results, "total_cost_usd"),
-            "cost_is_estimated": (
-                all(bool(result.get("cost_is_estimated")) for result in cost_rows)
-                if cost_rows
-                else None
-            ),
+            "cost_is_estimated": _combined_cost_is_estimated(chunk_results),
             "estimated_cost_usd": _sum_optional_field(
                 chunk_results, "estimated_cost_usd"
             ),
@@ -1903,6 +2128,9 @@ def run_single_no_tools(
                 for result in chunk_results
                 for disagreement in result.get("repair_disagreements", [])
             ],
+            "spend_ledger": [
+                record for result in chunk_results for record in _spend_records(result)
+            ],
         }
 
     request_results = []
@@ -1912,8 +2140,10 @@ def run_single_no_tools(
         model_id,
         repair=False,
         include_explanations=include_explanations,
+        spend_callback=_spend_callback,
     )
     request_results.append(initial_result)
+    spend_records = _spend_records(initial_result)
     predictions = dict(initial_result["predictions"])
     explanations = dict(initial_result.get("explanations", {}))
 
@@ -1934,11 +2164,14 @@ def run_single_no_tools(
                 model_id,
                 repair=True,
                 include_explanations=include_explanations,
+                spend_callback=_spend_callback,
             )
         except Exception as error:
+            spend_records.extend(_spend_records(error))
             repair_errors.append(_format_error(error))
             break
         request_results.append(repair_result)
+        spend_records.extend(_spend_records(repair_result))
         predictions = _merge_repair_cells(
             predictions,
             repair_result["predictions"],
@@ -1971,8 +2204,10 @@ def run_single_no_tools(
                     list(explanation_answers),
                     explanation_answers,
                     model_id,
+                    spend_callback=_spend_callback,
                 )
                 request_results.append(explanation_result)
+                spend_records.extend(_spend_records(explanation_result))
                 explanations.update(
                     {
                         variable: value
@@ -1984,6 +2219,7 @@ def run_single_no_tools(
                 )
                 missing_explanations = _missing_explanations(explanations, variables)
             except Exception as error:
+                spend_records.extend(_spend_records(error))
                 repair_errors.append(_format_error(error))
 
     if missing:
@@ -2003,6 +2239,7 @@ def run_single_no_tools(
         "prediction": predictions[variables[0]] if len(variables) == 1 else None,
         "error": "; ".join(repair_errors) if repair_errors else None,
         "repair_disagreements": repair_disagreements,
+        "spend_ledger": spend_records,
         **aggregated,
     }
 
@@ -2135,6 +2372,7 @@ def _write_resume_metadata(output_path: str | None, metadata: dict) -> None:
     metadata_path = _output_metadata_path(output_path)
     if metadata_path is None:
         return
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(
         json.dumps(metadata, indent=2, sort_keys=True),
         encoding="utf-8",
@@ -2150,11 +2388,15 @@ def _validate_resume_metadata(output_path: str | None, expected: dict) -> None:
     if metadata_path is None:
         return
 
-    if not path.exists() or path.stat().st_size == 0:
+    ledger_path = spend_ledger_path(path)
+    has_output = path.exists() and path.stat().st_size > 0
+    has_ledger = ledger_path.exists() and ledger_path.stat().st_size > 0
+    if not has_output and not has_ledger:
         return
     if not metadata_path.exists():
         raise ValueError(
-            f"Existing output at {path} is missing its resume metadata sidecar "
+            f"Existing output or spend ledger at {path} is missing its resume "
+            "metadata sidecar "
             f"at {metadata_path}. Delete the stale output or use a fresh path."
         )
 
@@ -2199,6 +2441,53 @@ def _save_checkpoint(
         return
     pd.DataFrame(rows).to_csv(path, index=False)
     _write_resume_metadata(output_path, metadata)
+
+
+def _persist_spend_records(
+    output_path: str | None,
+    source,
+    *,
+    model_name: str,
+    model_id: str,
+    scenario_id: str,
+    run_id: str | None,
+) -> None:
+    if not output_path:
+        return
+    records = _spend_records(source)
+    if not records:
+        return
+    for record in records:
+        record.setdefault("model", model_name)
+        record.setdefault("model_id", model_id)
+        record.setdefault("scenario_id", scenario_id)
+        if run_id is not None:
+            record.setdefault("run_id", run_id)
+    upsert_spend_ledger(spend_ledger_path(output_path), records)
+
+
+def _make_spend_callback(
+    output_path: str | None,
+    *,
+    model_name: str,
+    model_id: str,
+    scenario_id: str,
+    run_id: str | None,
+) -> Callable[[list[dict]], None] | None:
+    if not output_path:
+        return None
+
+    def persist(records: list[dict]) -> None:
+        _persist_spend_records(
+            output_path,
+            {"spend_ledger": records},
+            model_name=model_name,
+            model_id=model_id,
+            scenario_id=scenario_id,
+            run_id=run_id,
+        )
+
+    return persist
 
 
 def _load_existing_single_output_rows(
@@ -2265,6 +2554,7 @@ def run_no_tools_eval(
         include_explanations=include_explanations,
     )
     _validate_resume_metadata(output_path, resume_metadata)
+    _write_resume_metadata(output_path, resume_metadata)
     all_rows, completed = _load_existing_rows(
         output_path,
         scenarios,
@@ -2287,6 +2577,21 @@ def run_no_tools_eval(
                     scenario_programs,
                     model_id,
                     include_explanations=include_explanations,
+                    _spend_callback=_make_spend_callback(
+                        output_path,
+                        model_name=model_name,
+                        model_id=model_id,
+                        scenario_id=scenario.id,
+                        run_id=run_id,
+                    ),
+                )
+                _persist_spend_records(
+                    output_path,
+                    result,
+                    model_name=model_name,
+                    model_id=model_id,
+                    scenario_id=scenario.id,
+                    run_id=run_id,
                 )
                 error = result.get("error")
                 if _is_fatal_error_text(error):
@@ -2303,6 +2608,14 @@ def run_no_tools_eval(
                         _save_checkpoint(output_path, all_rows, resume_metadata)
                     raise RuntimeError(error)
             except Exception as e:
+                _persist_spend_records(
+                    output_path,
+                    e,
+                    model_name=model_name,
+                    model_id=model_id,
+                    scenario_id=scenario.id,
+                    run_id=run_id,
+                )
                 error = _format_error(e)
                 print(f"  ERROR [{model_name}] {scenario.id}: {error}")
                 if _is_model_fatal_error(e):
@@ -2476,6 +2789,7 @@ def run_no_tools_single_output_eval(
         include_explanations=include_explanations,
     )
     _validate_resume_metadata(output_path, resume_metadata)
+    _write_resume_metadata(output_path, resume_metadata)
     all_rows, completed = _load_existing_single_output_rows(
         output_path,
         include_explanations=include_explanations,
@@ -2502,6 +2816,21 @@ def run_no_tools_single_output_eval(
                         variable,
                         model_id,
                         include_explanations=include_explanations,
+                        _spend_callback=_make_spend_callback(
+                            output_path,
+                            model_name=model_name,
+                            model_id=model_id,
+                            scenario_id=scenario.id,
+                            run_id=run_id,
+                        ),
+                    )
+                    _persist_spend_records(
+                        output_path,
+                        result,
+                        model_name=model_name,
+                        model_id=model_id,
+                        scenario_id=scenario.id,
+                        run_id=run_id,
                     )
                     error = result.get("error")
                     if _is_fatal_error_text(error):
@@ -2518,6 +2847,14 @@ def run_no_tools_single_output_eval(
                             _save_checkpoint(output_path, all_rows, resume_metadata)
                         raise RuntimeError(error)
                 except Exception as e:
+                    _persist_spend_records(
+                        output_path,
+                        e,
+                        model_name=model_name,
+                        model_id=model_id,
+                        scenario_id=scenario.id,
+                        run_id=run_id,
+                    )
                     error = _format_error(e)
                     print(f"  ERROR [{model_name}] {scenario.id} {variable}: {error}")
                     if _is_model_fatal_error(e):

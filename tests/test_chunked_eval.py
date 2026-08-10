@@ -8,11 +8,17 @@ import pytest
 from policybench.chunked_eval import (
     chunk_is_complete,
     chunk_scenario_ranges,
+    merge_chunks,
     merge_model_outputs,
     run_chunk,
     run_chunk_with_retries,
     run_chunked_eval,
     run_model_chunks,
+)
+from policybench.spend_ledger import (
+    read_spend_ledger,
+    spend_ledger_path,
+    upsert_spend_ledger,
 )
 
 
@@ -294,6 +300,58 @@ def test_merge_model_outputs_writes_combined_predictions(tmp_path):
     combined = pd.read_csv(output)
     assert combined["model"].tolist() == ["m1", "m2"]
     assert combined["prediction"].tolist() == [1.0, 2.0]
+
+
+def test_chunk_and_model_merges_preserve_call_ledgers(tmp_path):
+    chunks = [tmp_path / "chunk0.csv", tmp_path / "chunk1.csv"]
+    for index, path in enumerate(chunks):
+        pd.DataFrame(
+            {
+                "model": ["m"],
+                "scenario_id": [f"s{index}"],
+                "variable": ["income_tax"],
+                "prediction": [float(index)],
+            }
+        ).to_csv(path, index=False)
+        upsert_spend_ledger(
+            spend_ledger_path(path),
+            [
+                {
+                    "call_key": f"sync:{index}",
+                    "phase": "repair" if index else "initial",
+                    "status": "ok",
+                    "total_cost_usd": 0.1,
+                }
+            ],
+        )
+
+    model_output = tmp_path / "by_model" / "m.csv"
+    merge_chunks(model="m", chunk_paths=chunks, output_path=model_output)
+    model_ledger = read_spend_ledger(spend_ledger_path(model_output))
+    assert {record["call_key"] for record in model_ledger} == {"sync:0", "sync:1"}
+
+    upsert_spend_ledger(
+        spend_ledger_path(model_output),
+        [
+            {
+                "call_key": "sync:stale",
+                "phase": "initial",
+                "status": "ok",
+                "total_cost_usd": 99.0,
+            }
+        ],
+    )
+    merge_chunks(model="m", chunk_paths=chunks, output_path=model_output)
+    model_ledger = read_spend_ledger(spend_ledger_path(model_output))
+    assert {record["call_key"] for record in model_ledger} == {"sync:0", "sync:1"}
+
+    combined_output = tmp_path / "predictions.csv"
+    merge_model_outputs(
+        model_output_paths=[model_output],
+        output_path=combined_output,
+    )
+    combined_ledger = read_spend_ledger(spend_ledger_path(combined_output))
+    assert combined_ledger == model_ledger
 
 
 def test_run_chunked_eval_runs_requested_models_and_merges(monkeypatch, tmp_path):

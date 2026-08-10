@@ -47,6 +47,14 @@ from policybench.eval_no_tools import (
 )
 from policybench.scenarios import Scenario
 from policybench.spec import expand_programs_for_scenario
+from policybench.spend_ledger import (
+    read_spend_ledger,
+    replace_spend_ledger,
+    upsert_spend_ledger,
+)
+from policybench.spend_ledger import (
+    spend_ledger_path as ledger_path_for,
+)
 
 BATCH_STATE_DIRNAME = "batches"
 DEFAULT_POLL_SECONDS = 30
@@ -513,6 +521,7 @@ class BatchRunState:
     submitted_at: float
     units: dict[str, dict] = field(default_factory=dict)
     completed_at: float | None = None
+    model_id: str | None = None
 
     def path(self, run_dir: Path) -> Path:
         return (
@@ -655,10 +664,10 @@ def rows_from_unit(
                     result.cache_write_prompt_tokens if result else None
                 ),
                 "provider_reported_cost_usd": None,
-                "reconstructed_cost_usd": split(reconstructed),
-                "total_cost_usd": split(reconstructed),
-                "cost_is_estimated": False if reconstructed is not None else None,
-                "estimated_cost_usd": split(reconstructed),
+                "reconstructed_cost_usd": split(reconstructed.usd),
+                "total_cost_usd": split(reconstructed.usd),
+                "cost_is_estimated": reconstructed.is_estimated,
+                "estimated_cost_usd": split(reconstructed.usd),
                 "provider_response_id": result.provider_response_id if result else None,
                 "provider_system_fingerprint": None,
                 "provider_resolved_model": (
@@ -667,6 +676,125 @@ def rows_from_unit(
             }
         )
     return rows
+
+
+def _batch_spend_record(
+    *,
+    state: BatchRunState,
+    unit: BatchUnit,
+    model_name: str,
+    model_id: str,
+    result: NormalizedResult | None,
+    predictions: dict,
+    explanations: dict,
+    error: str | None,
+    status_override: str | None = None,
+) -> dict:
+    """Return one accounting record for one physical batch request."""
+    prompt_tokens = result.prompt_tokens if result else None
+    completion_tokens = result.completion_tokens if result else None
+    reconstructed = _reconstruct_token_cost(
+        model_name=model_name,
+        model_id=model_id,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=(result.cached_prompt_tokens if result else None),
+        cache_write_prompt_tokens=(
+            result.cache_write_prompt_tokens if result else None
+        ),
+    )
+    total_tokens = (
+        prompt_tokens + completion_tokens
+        if prompt_tokens is not None and completion_tokens is not None
+        else None
+    )
+    if status_override is not None:
+        status = status_override
+    elif result is None:
+        status = "missing"
+    elif result.error:
+        status = "provider_error"
+    elif any(predictions.get(variable) is None for variable in unit.variables) or any(
+        not str(explanations.get(variable) or "").strip() for variable in unit.variables
+    ):
+        status = "parse_error"
+    else:
+        status = "ok"
+
+    return {
+        "call_key": f"batch:{state.batch_id}:{unit.custom_id}",
+        "mode": "batch",
+        "phase": "repair" if unit.repair else "initial",
+        "status": status,
+        "provider": state.provider,
+        "batch_id": state.batch_id,
+        "custom_id": unit.custom_id,
+        "round_index": state.round_index,
+        "model": model_name,
+        "model_id": model_id,
+        "scenario_id": unit.scenario_id,
+        "variables": list(unit.variables),
+        "error": error,
+        # Batch queue time is not model latency, so these remain explicitly null.
+        "elapsed_seconds": None,
+        "request_started_at": None,
+        "request_completed_at": None,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+        "reasoning_tokens": result.reasoning_tokens if result else None,
+        "cached_prompt_tokens": result.cached_prompt_tokens if result else None,
+        "cache_write_prompt_tokens": (
+            result.cache_write_prompt_tokens if result else None
+        ),
+        "provider_reported_cost_usd": None,
+        "reconstructed_cost_usd": reconstructed.usd,
+        "total_cost_usd": reconstructed.usd,
+        "cost_is_estimated": reconstructed.is_estimated,
+        "estimated_cost_usd": reconstructed.usd,
+        "provider_response_id": result.provider_response_id if result else None,
+        "provider_system_fingerprint": None,
+        "provider_resolved_model": result.provider_resolved_model if result else None,
+    }
+
+
+def _apply_spend_ledger_costs(frame: pd.DataFrame, records: list[dict]) -> None:
+    """Apportion every paid batch attempt across its requested output cells."""
+    costs: dict[tuple[str, str], float] = {}
+    flags: dict[tuple[str, str], list[bool | None]] = {}
+    for record in records:
+        raw_cost = record.get("total_cost_usd")
+        variables = record.get("variables")
+        scenario_id = record.get("scenario_id")
+        if raw_cost is None or not variables or scenario_id is None:
+            continue
+        try:
+            cost = float(raw_cost)
+        except (TypeError, ValueError):
+            continue
+        if pd.isna(cost):
+            continue
+        share = cost / len(variables)
+        for variable in variables:
+            key = (str(scenario_id), str(variable))
+            costs[key] = costs.get(key, 0.0) + share
+            flags.setdefault(key, []).append(record.get("cost_is_estimated"))
+
+    for index, row in frame.iterrows():
+        key = (str(row["scenario_id"]), str(row["variable"]))
+        if key not in costs:
+            continue
+        frame.at[index, "reconstructed_cost_usd"] = costs[key]
+        frame.at[index, "total_cost_usd"] = costs[key]
+        frame.at[index, "estimated_cost_usd"] = costs[key]
+        cell_flags = flags[key]
+        frame.at[index, "cost_is_estimated"] = (
+            True
+            if any(flag is True for flag in cell_flags)
+            else False
+            if any(flag is False for flag in cell_flags)
+            else None
+        )
 
 
 def run_batch_eval(
@@ -702,6 +830,7 @@ def run_batch_eval(
     scenario_by_id = {scenario.id: scenario for scenario in scenarios}
     rows_by_key: dict[tuple[str, str], dict] = {}
     units = build_units(scenarios, programs, model_id)
+    spend_ledger_path = run_dir / BATCH_STATE_DIRNAME / f"{model_name}.spend.jsonl"
 
     for round_index in range(1 + MAX_REPAIR_ROUNDS):
         if not units:
@@ -727,6 +856,7 @@ def run_batch_eval(
             batch_id = adapter.submit(requests, model_id)
             state = BatchRunState(
                 model=model_name,
+                model_id=model_id,
                 round_index=round_index,
                 batch_id=batch_id,
                 provider=adapter.provider,
@@ -743,23 +873,17 @@ def run_batch_eval(
             )
             state.save(run_dir)
         else:
+            if state.model_id != model_id:
+                raise ValueError(
+                    "Cannot resume batch: state field 'model_id' differs "
+                    f"(stored={state.model_id!r}, requested={model_id!r})."
+                )
+            if state.provider != adapter.provider:
+                raise ValueError(
+                    "Cannot resume batch: state field 'provider' differs "
+                    f"(stored={state.provider!r}, requested={adapter.provider!r})."
+                )
             log(f"[{model_name}] round {round_index}: resuming batch {state.batch_id}")
-
-        deadline = clock() + max_wait_seconds
-        while True:
-            status = adapter.status(state.batch_id)
-            if status == "ended":
-                break
-            if status == "failed":
-                raise RuntimeError(
-                    f"Batch {state.batch_id} for {model_name} ended as failed"
-                )
-            if clock() > deadline:
-                raise TimeoutError(
-                    f"Batch {state.batch_id} for {model_name} still running "
-                    f"after {max_wait_seconds}s; rerun to resume polling"
-                )
-            sleep(poll_seconds)
 
         unit_index = {
             custom_id: BatchUnit(
@@ -770,6 +894,48 @@ def run_batch_eval(
             )
             for custom_id, meta in state.units.items()
         }
+
+        def record_unreturned_units(status: str, error: str) -> None:
+            records = []
+            for unit in unit_index.values():
+                missing = {variable: None for variable in unit.variables}
+                records.append(
+                    _batch_spend_record(
+                        state=state,
+                        unit=unit,
+                        model_name=model_name,
+                        model_id=model_id,
+                        result=None,
+                        predictions=missing,
+                        explanations=missing,
+                        error=error,
+                        status_override=status,
+                    )
+                )
+            upsert_spend_ledger(spend_ledger_path, records)
+
+        record_unreturned_units(
+            "pending",
+            f"Batch {state.batch_id} submitted; result not yet collected",
+        )
+        deadline = clock() + max_wait_seconds
+        while True:
+            status = adapter.status(state.batch_id)
+            if status == "ended":
+                break
+            if status == "failed":
+                error = f"Batch {state.batch_id} for {model_name} ended as failed"
+                record_unreturned_units("provider_error", error)
+                raise RuntimeError(error)
+            if clock() > deadline:
+                error = (
+                    f"Batch {state.batch_id} for {model_name} still running "
+                    f"after {max_wait_seconds}s; rerun to resume polling"
+                )
+                record_unreturned_units("pending", error)
+                raise TimeoutError(error)
+            sleep(poll_seconds)
+
         seen: set[str] = set()
         for result in adapter.results(state.batch_id):
             unit = unit_index.get(result.custom_id)
@@ -778,6 +944,21 @@ def run_batch_eval(
             seen.add(result.custom_id)
             predictions, explanations, raw_response, error = parse_unit_result(
                 unit, result
+            )
+            upsert_spend_ledger(
+                spend_ledger_path,
+                [
+                    _batch_spend_record(
+                        state=state,
+                        unit=unit,
+                        model_name=model_name,
+                        model_id=model_id,
+                        result=result,
+                        predictions=predictions,
+                        explanations=explanations,
+                        error=error,
+                    )
+                ],
             )
             for row in rows_from_unit(
                 model_name=model_name,
@@ -802,14 +983,32 @@ def run_batch_eval(
         for custom_id, unit in unit_index.items():
             if custom_id in seen:
                 continue
+            missing_error = "batch_missing: no result entry returned"
+            missing_predictions = {variable: None for variable in unit.variables}
+            missing_explanations = dict(missing_predictions)
+            upsert_spend_ledger(
+                spend_ledger_path,
+                [
+                    _batch_spend_record(
+                        state=state,
+                        unit=unit,
+                        model_name=model_name,
+                        model_id=model_id,
+                        result=None,
+                        predictions=missing_predictions,
+                        explanations=missing_explanations,
+                        error=missing_error,
+                    )
+                ],
+            )
             for row in rows_from_unit(
                 model_name=model_name,
                 model_id=model_id,
                 unit=unit,
-                predictions={variable: None for variable in unit.variables},
-                explanations={variable: None for variable in unit.variables},
+                predictions=missing_predictions,
+                explanations=missing_explanations,
                 raw_response=None,
-                error="batch_missing: no result entry returned",
+                error=missing_error,
                 result=None,
             ):
                 rows_by_key.setdefault((row["scenario_id"], row["variable"]), row)
@@ -830,10 +1029,12 @@ def run_batch_eval(
             )
 
     frame = pd.DataFrame(list(rows_by_key.values()))
+    _apply_spend_ledger_costs(frame, read_spend_ledger(spend_ledger_path))
     by_model = run_dir / "by_model"
     by_model.mkdir(parents=True, exist_ok=True)
     output = by_model / f"{model_name}.csv"
     frame.to_csv(output, index=False)
+    replace_spend_ledger(ledger_path_for(output), read_spend_ledger(spend_ledger_path))
     log(f"[{model_name}] wrote {output} ({len(frame):,} rows)")
     return frame
 

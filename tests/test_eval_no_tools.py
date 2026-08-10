@@ -18,6 +18,7 @@ from policybench.eval_no_tools import (
     RequestWallTimeoutError,
     _build_answer_tool,
     _build_resume_metadata,
+    _combined_cost_is_estimated,
     _completion_controls,
     _enforce_explanation_value_contract,
     _request_explanations_once,
@@ -766,9 +767,10 @@ def test_run_single_no_tools(mock_responses, mini_scenario):
     assert result["cached_prompt_tokens"] == 4
     assert result["cache_write_prompt_tokens"] is None
     assert result["provider_reported_cost_usd"] == 0.00123
-    assert result["total_cost_usd"] == 0.00123
-    assert result["cost_is_estimated"] is False
-    assert result["estimated_cost_usd"] == 0.00123
+    assert result["reconstructed_cost_usd"] is not None
+    assert result["total_cost_usd"] == result["reconstructed_cost_usd"]
+    assert result["cost_is_estimated"] is True
+    assert result["estimated_cost_usd"] == result["total_cost_usd"]
     assert result["elapsed_seconds"] is not None
     assert result["elapsed_seconds"] >= 0
     mock_responses.assert_called_once()
@@ -900,6 +902,14 @@ def test_run_single_no_tools_repairs_partial_batch_response(
     assert result["prompt_tokens"] == 16
     assert result["completion_tokens"] == 5
     assert result["total_tokens"] == 21
+    assert [record["phase"] for record in result["spend_ledger"]] == [
+        "initial",
+        "repair",
+    ]
+    assert [record["status"] for record in result["spend_ledger"]] == [
+        "parse_error",
+        "ok",
+    ]
     assert mock_completion.call_count == 2
     repair_prompt = mock_completion.call_args_list[1].kwargs["messages"][0]["content"]
     assert (
@@ -1278,7 +1288,58 @@ def test_run_single_no_tools_preserves_successful_chunks_after_provider_failure(
     )
     assert result["predictions"]["federal_refundable_credits"] is None
     assert "RequestWallTimeoutError" in result["error"]
+    assert [record["status"] for record in result["spend_ledger"]] == [
+        "ok",
+        "provider_error",
+    ]
     assert mock_completion.call_count == 2
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_fatal_later_chunk_keeps_prior_call_spend(mock_completion, mini_scenario):
+    message = MagicMock()
+    message.content = None
+    message.tool_calls = [
+        SimpleNamespace(
+            function=SimpleNamespace(
+                name="submit_outputs",
+                arguments=(
+                    '{"outputs":{"federal_income_tax_before_refundable_credits":'
+                    '{"value":3500,"explanation":"Tax result. value = 3500"}}}'
+                ),
+            )
+        )
+    ]
+    message.function_call = None
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(
+        prompt_tokens=10,
+        completion_tokens=5,
+        total_tokens=15,
+    )
+    auth_error = litellm.AuthenticationError(
+        message="bad key",
+        llm_provider="anthropic",
+        model="claude-sonnet-4-6",
+    )
+    mock_completion.side_effect = [response, auth_error]
+
+    with pytest.raises(litellm.AuthenticationError) as raised:
+        run_single_no_tools(
+            mini_scenario,
+            [
+                "federal_income_tax_before_refundable_credits",
+                "federal_refundable_credits",
+            ],
+            "claude-sonnet-4-6",
+            include_explanations=True,
+        )
+
+    assert [record["status"] for record in raised.value.spend_ledger] == [
+        "ok",
+        "provider_error",
+    ]
 
 
 @patch("policybench.eval_no_tools.completion")
@@ -1634,7 +1695,48 @@ def test_gpt_56_responses_usage_reconstructs_cache_and_long_context_cost(
     assert usage["total_cost_usd"] == pytest.approx(expected)
     assert usage["provider_reported_cost_usd"] == pytest.approx(0.01)
     assert usage["cache_write_prompt_tokens"] == details.get("cache_write_tokens")
-    assert usage["cost_is_estimated"] is True
+    assert usage["cost_is_estimated"] is False
+
+
+def test_combined_cost_is_estimated_when_any_call_uses_map():
+    assert (
+        _combined_cost_is_estimated(
+            [
+                {"total_cost_usd": 0.1, "cost_is_estimated": False},
+                {"total_cost_usd": 0.2, "cost_is_estimated": True},
+            ]
+        )
+        is True
+    )
+
+
+@patch("policybench.eval_no_tools.litellm.cost_per_token")
+def test_price_override_is_canonical_and_resolves_display_alias(mock_cost_per_token):
+    """PolicyBench prices beat provider/map prices, including display-name keys."""
+    from policybench.eval_no_tools import _extract_usage_metadata
+
+    response = SimpleNamespace(
+        usage=SimpleNamespace(
+            prompt_tokens=100,
+            completion_tokens=10,
+            total_tokens=110,
+            cost=99.0,
+        )
+    )
+
+    usage = _extract_usage_metadata(
+        response,
+        "deepseek/deepseek-v4-pro",
+        [{"role": "user", "content": "x"}],
+        "answer",
+    )
+    expected = (100 * 0.435 + 10 * 0.87) / 1_000_000
+
+    assert usage["provider_reported_cost_usd"] == 99.0
+    assert usage["reconstructed_cost_usd"] == pytest.approx(expected)
+    assert usage["total_cost_usd"] == pytest.approx(expected)
+    assert usage["cost_is_estimated"] is False
+    mock_cost_per_token.assert_not_called()
 
 
 def test_deepseek_models_are_public_defaults():
@@ -1812,11 +1914,14 @@ def test_request_wall_timeout_interrupts_hung_request(monkeypatch):
         _run_request_with_wall_timeout(slow_request, {"timeout": 0.05})
 
 
-@patch("policybench.eval_no_tools.completion_cost", return_value=0.00456)
+@patch(
+    "policybench.eval_no_tools.litellm.cost_per_token",
+    return_value=(0.003, 0.00156),
+)
 @patch("policybench.eval_no_tools.responses")
-def test_run_single_no_tools_falls_back_to_completion_cost(
+def test_run_single_no_tools_falls_back_to_litellm_cost_map(
     mock_responses,
-    mock_completion_cost,
+    mock_cost_per_token,
     mini_scenario,
 ):
     """Responses cost should be reconstructed when the provider omits billed cost."""
@@ -1859,7 +1964,13 @@ def test_run_single_no_tools_falls_back_to_completion_cost(
     assert result["cost_is_estimated"] is True
     assert result["estimated_cost_usd"] == 0.00456
     assert result["reasoning_tokens"] == 1
-    mock_completion_cost.assert_called_once()
+    mock_cost_per_token.assert_called_once_with(
+        model="gpt-5.4",
+        prompt_tokens=9,
+        completion_tokens=2,
+        cache_read_input_tokens=0,
+        cache_creation_input_tokens=0,
+    )
 
 
 @patch("policybench.eval_no_tools.run_single_no_tools")

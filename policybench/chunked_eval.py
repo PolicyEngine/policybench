@@ -14,6 +14,11 @@ from policybench.config import DEFAULT_PROGRAM_SET, MODELS, get_programs
 from policybench.eval_no_tools import is_infrastructure_error_text
 from policybench.scenarios import load_scenarios_from_manifest
 from policybench.spec import expand_programs_for_scenario
+from policybench.spend_ledger import (
+    read_spend_ledger,
+    replace_spend_ledger,
+    spend_ledger_path,
+)
 
 SERIAL_ONLY_MODEL_PREFIXES = ("claude-",)
 
@@ -215,7 +220,17 @@ def merge_chunks(
         raise ValueError(f"{model} has {duplicate_count} duplicate output rows.")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     merged.to_csv(output_path, index=False)
+    _merge_spend_ledgers(chunk_paths, output_path)
     print(f"Wrote {output_path} ({len(merged):,} rows)")
+
+
+def _merge_spend_ledgers(input_paths: list[Path], output_path: Path) -> None:
+    records = [
+        record
+        for path in input_paths
+        for record in read_spend_ledger(spend_ledger_path(path))
+    ]
+    replace_spend_ledger(spend_ledger_path(output_path), records)
 
 
 def merge_model_outputs(*, model_output_paths: list[Path], output_path: Path) -> Path:
@@ -226,6 +241,7 @@ def merge_model_outputs(*, model_output_paths: list[Path], output_path: Path) ->
         raise ValueError(f"Combined output has {duplicate_count} duplicate rows.")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     merged.to_csv(output_path, index=False)
+    _merge_spend_ledgers(model_output_paths, output_path)
     print(f"Wrote {output_path} ({len(merged):,} rows)")
     return output_path
 

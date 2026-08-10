@@ -20,6 +20,7 @@ the response cache.
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import sys
@@ -36,6 +37,10 @@ from policybench.model_cards import (
     answer_contract_for,
     card_for,
     explanation_chunk_size_for,
+)
+from policybench.spend_ledger import (
+    SPEND_LEDGER_SUFFIX,
+    read_spend_ledger,
 )
 
 HEARTBEAT_FILENAME = "run_state.json"
@@ -116,6 +121,7 @@ class Supervisor:
         self._credits_baseline = self._credits_usage()
         self._credits_checked_at = float("-inf")
         self._credits_spent = 0.0
+        self._credits_spent_offset = 0.0
 
     # -- setup -------------------------------------------------------------
 
@@ -162,8 +168,9 @@ class Supervisor:
     def _validate_resume(self) -> dict | None:
         state_path = self.run_dir / HEARTBEAT_FILENAME
         scenario_dir = self.run_dir / SCENARIO_DIR
-        has_scenario_outputs = scenario_dir.exists() and any(
-            scenario_dir.glob("scenario_*.csv")
+        has_scenario_outputs = scenario_dir.exists() and (
+            any(scenario_dir.glob("scenario_*.csv"))
+            or any(scenario_dir.glob(f"scenario_*.csv{SPEND_LEDGER_SUFFIX}"))
         )
         if not state_path.exists():
             if has_scenario_outputs:
@@ -248,7 +255,7 @@ class Supervisor:
             if usage is not None:
                 self._credits_spent = max(0.0, usage - self._credits_baseline)
         if self._credits_baseline is not None:
-            return self._credits_spent
+            return self._credits_spent_offset + self._credits_spent
         return self._spent_from_disk()
 
     def _spent_from_disk(self) -> float:
@@ -256,7 +263,33 @@ class Supervisor:
         scen_dir = self.run_dir / SCENARIO_DIR
         if not scen_dir.exists():
             return 0.0
+
+        ledger_backed_csvs: set[Path] = set()
+        for path in scen_dir.glob(f"scenario_*.csv{SPEND_LEDGER_SUFFIX}"):
+            records = read_spend_ledger(path)
+            if not records:
+                continue
+            ledger_total = 0.0
+            has_ledger_cost = False
+            for record in records:
+                cost = record.get("total_cost_usd")
+                if cost is None:
+                    continue
+                try:
+                    parsed_cost = float(cost)
+                except (TypeError, ValueError):
+                    continue
+                if not math.isfinite(parsed_cost):
+                    continue
+                ledger_total += parsed_cost
+                has_ledger_cost = True
+            if has_ledger_cost:
+                ledger_backed_csvs.add(Path(str(path)[: -len(SPEND_LEDGER_SUFFIX)]))
+                total += ledger_total
+
         for path in scen_dir.glob("scenario_*.csv"):
+            if path in ledger_backed_csvs:
+                continue
             try:
                 frame = pd.read_csv(path)
             except Exception:
@@ -394,6 +427,10 @@ class Supervisor:
 
     def run(self, poll_seconds: float = 2.0) -> RunState:
         existing_state = self._validate_resume()
+        if self._credits_baseline is not None and existing_state is not None:
+            prior_spend = existing_state.get("spent_usd")
+            if isinstance(prior_spend, (int, float)) and prior_spend > 0:
+                self._credits_spent_offset = float(prior_spend)
         existing_started_at = (
             existing_state.get("started_at") if existing_state is not None else None
         )
