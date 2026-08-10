@@ -517,9 +517,27 @@ def test_answer_tool_constrains_binary_outputs():
     assert value_schema["enum"] == [0, 1]
 
 
-def test_terminal_explanation_value_overrides_mismatched_value_field():
+def test_structured_value_wins_over_mismatched_explanation_trailer(caplog):
     predictions, explanations = _enforce_explanation_value_contract(
         {"head_medicare_eligible": 1.0},
+        {
+            "head_medicare_eligible": (
+                "Head is age 63, so Medicare eligibility is no. value = 0"
+            )
+        },
+        ["head_medicare_eligible"],
+    )
+
+    assert predictions["head_medicare_eligible"] == 1.0
+    assert explanations["head_medicare_eligible"].endswith("value = 0")
+    assert "head_medicare_eligible" in caplog.text
+    assert "structured" in caplog.text.lower()
+    assert "explanation" in caplog.text.lower()
+
+
+def test_terminal_explanation_value_rescues_missing_structured_value():
+    predictions, explanations = _enforce_explanation_value_contract(
+        {"head_medicare_eligible": None},
         {
             "head_medicare_eligible": (
                 "Head is age 63, so Medicare eligibility is no. value = 0"

@@ -1325,14 +1325,13 @@ def _enforce_explanation_value_contract(
     explanations: dict[str, str | None],
     variables: list[str],
 ) -> tuple[dict[str, float | None], dict[str, str | None]]:
-    """Use the required terminal explanation value as the canonical parsed value.
+    """Use the terminal explanation value only when structured output is unusable.
 
     The response contract requires every explanation to end with a ``value = X``
-    line. That terminal value is canonical: when it disagrees with the separately
-    parsed structured/tool value, the explanation trailer wins and replaces the
-    structured value; a structured value whose explanation has no usable trailer
-    drops the explanation rather than the value. This override applies to every
-    scored row — it is a deliberate, load-bearing choice, not a fill-only step.
+    line. A valid structured/tool value is canonical. The explanation trailer only
+    rescues a missing or unparseable structured value; disagreements are logged and
+    leave the structured value unchanged. A structured value whose explanation has
+    no usable trailer drops the explanation rather than the value.
     """
     checked_predictions = dict(predictions)
     checked_explanations = dict(explanations)
@@ -1345,11 +1344,16 @@ def _enforce_explanation_value_contract(
             checked_explanations[variable] = None
             continue
         prediction = checked_predictions.get(variable)
-        # Trailer is canonical: override a missing OR disagreeing structured value.
-        if prediction is None or not _numeric_values_match(
-            prediction, explanation_value
-        ):
+        if prediction is None:
             checked_predictions[variable] = explanation_value
+        elif not _numeric_values_match(prediction, explanation_value):
+            logger.warning(
+                "Structured value disagrees with explanation trailer for %s: "
+                "structured=%r explanation=%r; keeping structured value",
+                variable,
+                prediction,
+                explanation_value,
+            )
     return checked_predictions, checked_explanations
 
 

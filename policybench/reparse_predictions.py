@@ -189,11 +189,9 @@ def reparse_predictions_frame(
     """Return predictions with missing values repaired from raw responses.
 
     Existing parsed values are not cleared merely because a later parser cannot
-    interpret a provider-specific raw representation. They can still change when
-    ``include_explanations`` is set: the response contract's terminal
-    ``value = X`` explanation line is re-applied as canonical (see
-    ``_enforce_explanation_value_contract``), so a stored value that disagrees
-    with its explanation's terminal value is replaced by the latter.
+    interpret a provider-specific raw representation. A structured value remains
+    canonical when it disagrees with an explanation's terminal ``value = X``;
+    that trailer is only used when the structured value cannot be parsed.
     """
     reparsed = predictions.copy()
     if "explanation" not in reparsed.columns:
