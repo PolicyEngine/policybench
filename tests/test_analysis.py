@@ -1802,3 +1802,97 @@ class TestBootstrapHeadlineCIs:
         )
         assert set(cis["model"]) == {"good", "mixed", "bad"}
         assert cis.loc[cis["model"] == "good", "point"].iloc[0] == pytest.approx(1.0)
+
+
+def test_dashboard_model_stats_are_sorted_by_headline_exact():
+    scenario_ids = ["s1", "s2", "s3"]
+    ground_truth = pd.DataFrame(
+        {
+            "scenario_id": scenario_ids,
+            "variable": ["income_tax"] * 3,
+            "value": [10_000.0] * 3,
+        }
+    )
+    predictions = pd.DataFrame(
+        {
+            "model": ["model-a"] * 3 + ["model-b"] * 3,
+            "scenario_id": scenario_ids * 2,
+            "variable": ["income_tax"] * 6,
+            # model-a wins within 1%, but model-b wins the site's exact metric.
+            "prediction": [10_000.0, 10_050.0, 10_050.0, 10_000.0, 10_000.0, 10_200.0],
+        }
+    )
+    scenarios = pd.DataFrame(
+        {
+            "scenario_id": scenario_ids,
+            "state": ["CA"] * 3,
+            "filing_status": ["single"] * 3,
+            "num_adults": [1] * 3,
+            "num_children": [0] * 3,
+            "total_income": [50_000.0] * 3,
+        }
+    )
+
+    payload = build_dashboard_payload(
+        ground_truth,
+        predictions,
+        analyze_no_tools(ground_truth, predictions, scenarios=scenarios),
+        scenarios,
+    )
+
+    assert payload["modelStats"][0]["model"] == "model-b"
+    assert payload["modelStats"][0]["exact"] > payload["modelStats"][1]["exact"]
+    assert (
+        payload["modelStats"][0]["within1pct"] < payload["modelStats"][1]["within1pct"]
+    )
+
+
+def _minimal_analysis_for_export(metrics: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    return {
+        "metrics": metrics,
+        "model_summary": summary_by_model(metrics),
+        "variable_summary": summary_by_variable(metrics),
+        "usage_summary": pd.DataFrame(),
+    }
+
+
+def _export_guard_metrics() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "model": ["a", "b"],
+            "variable": ["income_tax", "income_tax"],
+            "score": [0.8, 0.7],
+            "exact": [0.6, 0.5],
+            "within_1pct": [0.7, 0.6],
+            "within_5pct": [0.8, 0.7],
+            "threshold_score": [0.75, 0.65],
+            "mae": [100.0, 200.0],
+            "mape": [0.1, 0.2],
+            "within_10pct": [0.9, 0.8],
+            "accuracy": [float("nan"), float("nan")],
+            "coverage": [1.0, 1.0],
+            "n": [3, 3],
+            "n_parsed": [3, 3],
+        }
+    )
+
+
+def test_export_analysis_rejects_duplicate_model_summary_entries(tmp_path):
+    metrics_df = _export_guard_metrics()
+    analysis = _minimal_analysis_for_export(metrics_df)
+    analysis["model_summary"] = pd.concat(
+        [analysis["model_summary"], analysis["model_summary"].iloc[[0]]],
+        ignore_index=True,
+    )
+
+    with pytest.raises(ValueError, match="duplicate model"):
+        export_analysis(analysis, tmp_path)
+
+
+def test_export_analysis_rejects_unit_score_out_of_range(tmp_path):
+    metrics_df = _export_guard_metrics()
+    analysis = _minimal_analysis_for_export(metrics_df)
+    analysis["model_summary"].loc[0, "mean_score"] = 1.01
+
+    with pytest.raises(ValueError, match="mean_score"):
+        export_analysis(analysis, tmp_path)

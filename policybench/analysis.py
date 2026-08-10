@@ -2323,7 +2323,7 @@ def build_dashboard_payload(
         item.update(cost_latency.get(str(row["model"]), {}))
         model_stats.append({k: v for k, v in item.items() if v is not None})
     model_stats.sort(
-        key=lambda row: (row.get("within1pct", row["score"]), row["score"]),
+        key=lambda row: (row.get("exact", row["score"]), row["score"]),
         reverse=True,
     )
 
@@ -2552,11 +2552,81 @@ def build_scenario_prompt_map(
     return prompt_map
 
 
+_UNIT_SCORE_COLUMNS = frozenset(
+    {
+        "score",
+        "exact",
+        "within_1pct",
+        "within_5pct",
+        "within_10pct",
+        "threshold_score",
+        "accuracy",
+        "coverage",
+        "bounded_score",
+        "amount_accuracy",
+        "participation_accuracy",
+        "equal_score",
+        "aggregate_score",
+    }
+)
+
+
+def _is_unit_score_column(column: str) -> bool:
+    if column in _UNIT_SCORE_COLUMNS:
+        return True
+    for prefix in ("mean_", "weighted_"):
+        if (
+            column.startswith(prefix)
+            and column.removeprefix(prefix) in _UNIT_SCORE_COLUMNS
+        ):
+            return True
+    return column.startswith(
+        ("score_run_", "within10pct_run_", "coverage_run_", "accuracy_run_")
+    )
+
+
+def _validate_analysis_export(analysis: dict[str, pd.DataFrame]) -> None:
+    for table_name in (
+        "model_summary",
+        "bounded_summary",
+        "usage_summary",
+        "run_stability",
+    ):
+        frame = analysis.get(table_name)
+        if not isinstance(frame, pd.DataFrame) or "model" not in frame.columns:
+            continue
+        duplicates = sorted(
+            frame.loc[frame["model"].duplicated(keep=False), "model"]
+            .astype(str)
+            .unique()
+        )
+        if duplicates:
+            raise ValueError(f"{table_name} has duplicate model entries: {duplicates}")
+
+    for table_name, frame in analysis.items():
+        if not isinstance(frame, pd.DataFrame):
+            continue
+        for column in frame.columns:
+            if not _is_unit_score_column(str(column)):
+                continue
+            numeric = pd.to_numeric(frame[column], errors="coerce")
+            invalid = frame[column].notna() & (
+                ~np.isfinite(numeric) | numeric.lt(0) | numeric.gt(1)
+            )
+            if invalid.any():
+                values = frame.loc[invalid, column].head(5).tolist()
+                raise ValueError(
+                    f"{table_name}.{column} has score-like values outside "
+                    f"[0, 1]: {values}"
+                )
+
+
 def export_analysis(
     analysis: dict[str, pd.DataFrame],
     output_dir: str | Path,
 ) -> dict[str, Path]:
     """Write production analysis artifacts to disk."""
+    _validate_analysis_export(analysis)
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 

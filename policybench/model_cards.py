@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-PROMPT_CONTRACT_VERSION = "2026-05-13-nested-output-explanations"
+PROMPT_CONTRACT_VERSION = "2026-08-09-v2-scoring-contract"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 1
 
 # The Claude roster that shipped under the pre-canonical-prompt regime keeps

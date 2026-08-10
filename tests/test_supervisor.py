@@ -90,7 +90,7 @@ def test_happy_path_completes_all_and_combines(manifest, tmp_path, monkeypatch):
         "answer_contract": "tool",
         "tool_choice_mode": "forced",
         "chunk_size": None,
-        "prompt_contract_version": "2026-05-13-nested-output-explanations",
+        "prompt_contract_version": "2026-08-09-v2-scoring-contract",
     }
 
 

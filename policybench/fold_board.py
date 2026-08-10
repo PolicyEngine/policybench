@@ -19,6 +19,11 @@ class FoldError(ValueError):
 
 
 def _rows_per_model(base: pd.DataFrame) -> int:
+    duplicate_rows = int(base.duplicated(["model", "scenario_id", "variable"]).sum())
+    if duplicate_rows:
+        raise FoldError(
+            f"base board has {duplicate_rows} duplicate model/scenario/variable rows"
+        )
     counts = base.groupby("model").size()
     if counts.nunique() != 1:
         raise FoldError(
@@ -37,31 +42,36 @@ def fold_board(
     base = pd.read_csv(base_predictions, low_memory=False)
     expected_rows = _rows_per_model(base)
 
+    base_models = set(base["model"])
+    seen_additions = set()
+    accepted: list[tuple[str, pd.DataFrame]] = []
+    excluded: dict[str, str] = {}
+    for path in additions:
+        frame = pd.read_csv(path, low_memory=False)
+        models = frame["model"].unique()
+        if len(models) != 1:
+            raise FoldError(f"{path}: expected one model, found {list(models)}")
+        name = models[0]
+        dupes = int(frame.duplicated(["scenario_id", "variable"]).sum())
+        if dupes:
+            raise FoldError(f"{name}: {dupes} duplicate scenario/variable rows")
+        if name in base_models:
+            raise FoldError(f"{name}: model already on the base board")
+        if name in seen_additions:
+            raise FoldError(f"{name}: duplicate model addition")
+        seen_additions.add(name)
+        if len(frame) != expected_rows:
+            excluded[name] = f"{len(frame)} rows (need {expected_rows})"
+            continue
+        accepted.append((name, frame))
+
     out_dir = Path(out_dir)
     by_model_dir = out_dir / "by_model"
     by_model_dir.mkdir(parents=True, exist_ok=True)
 
     frames = [base]
     folded: list[str] = []
-    excluded: dict[str, str] = {}
-    for path in additions:
-        frame = pd.read_csv(path, low_memory=False)
-        models = frame["model"].unique()
-        if len(models) != 1:
-            excluded[str(path)] = f"expected one model, found {list(models)}"
-            continue
-        name = models[0]
-        dupes = int(frame.duplicated(["scenario_id", "variable"]).sum())
-        problems = []
-        if len(frame) != expected_rows:
-            problems.append(f"{len(frame)} rows (need {expected_rows})")
-        if dupes:
-            problems.append(f"{dupes} duplicate scenario/variable rows")
-        if name in set(base["model"]):
-            problems.append("model already on the base board")
-        if problems:
-            excluded[name] = "; ".join(problems)
-            continue
+    for name, frame in accepted:
         frame.to_csv(by_model_dir / f"{name}.csv", index=False)
         # Keep additive schema improvements (for example newly captured usage
         # metadata) instead of silently truncating each addition to the older

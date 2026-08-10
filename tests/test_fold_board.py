@@ -84,26 +84,49 @@ def test_excludes_short_run(board, tmp_path):
     assert result["models"] == 2
 
 
-def test_excludes_duplicates_and_existing_model(board, tmp_path):
+def test_rejects_duplicate_rows(board, tmp_path):
     base_path, scoring = board
     dupes = predictions("model-c", 3)
     dupes = pd.concat([dupes, dupes.iloc[:1]], ignore_index=True)
     dupes_path = tmp_path / "dupes.csv"
     dupes.to_csv(dupes_path, index=False)
+
+    with pytest.raises(FoldError, match="duplicate scenario/variable"):
+        fold_board(base_path, [dupes_path], scoring, tmp_path / "out", export=False)
+
+
+def test_rejects_existing_model(board, tmp_path):
+    base_path, scoring = board
     existing = tmp_path / "existing.csv"
     predictions("model-a", 3).to_csv(existing, index=False)
-    result = fold_board(
-        base_path, [dupes_path, existing], scoring, tmp_path / "out", export=False
-    )
-    assert result["folded"] == []
-    assert "duplicate" in result["excluded"]["model-c"]
-    assert "already on the base board" in result["excluded"]["model-a"]
+
+    with pytest.raises(FoldError, match="already on the base board"):
+        fold_board(base_path, [existing], scoring, tmp_path / "out", export=False)
+
+
+def test_rejects_duplicate_model_additions(board, tmp_path):
+    base_path, scoring = board
+    first = tmp_path / "first.csv"
+    second = tmp_path / "second.csv"
+    predictions("model-c", 3).to_csv(first, index=False)
+    predictions("model-c", 3).to_csv(second, index=False)
+
+    with pytest.raises(FoldError, match="duplicate model addition"):
+        fold_board(
+            base_path,
+            [first, second],
+            scoring,
+            tmp_path / "out",
+            export=False,
+        )
 
 
 def test_unbalanced_base_raises(board, tmp_path):
     base_path, scoring = board
     frame = pd.read_csv(base_path)
-    frame = pd.concat([frame, frame.iloc[:1]], ignore_index=True)
+    extra = frame.iloc[:1].copy()
+    extra["variable"] = "var_extra"
+    frame = pd.concat([frame, extra], ignore_index=True)
     frame.to_csv(base_path, index=False)
     with pytest.raises(FoldError, match="unequal per-model row counts"):
         fold_board(base_path, [], scoring, tmp_path / "out", export=False)
