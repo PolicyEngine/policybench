@@ -14,6 +14,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from policybench.config import MODELS
+from policybench.spend_ledger import spend_ledger_path
 from policybench.supervisor import (
     ADAPTIVE_WINDOW,
     BUDGET_STOP_FRACTION,
@@ -84,13 +86,24 @@ def test_happy_path_completes_all_and_combines(manifest, tmp_path, monkeypatch):
     assert combined.scenario_id.nunique() == N_SCENARIOS
     heartbeat = json.loads((supervisor.run_dir / "run_state.json").read_text())
     assert heartbeat["completed"] == N_SCENARIOS
+    assert heartbeat["treatment_fingerprint"] == {
+        "model_id": "test-model",
+        "answer_contract": "tool",
+        "tool_choice_mode": "forced",
+        "chunk_size": None,
+        "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+    }
 
 
 def test_resume_skips_completed_scenarios(manifest, tmp_path, monkeypatch):
+    initial = make_supervisor(manifest, tmp_path)
+    stub_worker(initial, monkeypatch)
+    for index in (0, 1):
+        initial._spawn(index).wait()
+    initial.write_heartbeat()
+
     supervisor = make_supervisor(manifest, tmp_path)
     stub_worker(supervisor, monkeypatch)
-    for index in (0, 1):
-        supervisor._spawn(index).wait()
     spawned: list[int] = []
     original = supervisor._spawn
 
@@ -99,9 +112,96 @@ def test_resume_skips_completed_scenarios(manifest, tmp_path, monkeypatch):
         return original(index)
 
     monkeypatch.setattr(supervisor, "_spawn", tracking_spawn)
-    supervisor.run(poll_seconds=0.01)
+    state = supervisor.run(poll_seconds=0.01)
     assert 0 not in spawned and 1 not in spawned
     assert sorted(spawned) == [2, 3, 4, 5]
+    assert len(state.completed) == N_SCENARIOS
+
+
+def test_resume_rejects_changed_model_id(manifest, tmp_path, monkeypatch):
+    monkeypatch.setitem(MODELS, "test-model", "provider/model-a")
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+
+    monkeypatch.setitem(MODELS, "test-model", "provider/model-b")
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("mismatched resume dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="model_id"):
+        resumed.run(poll_seconds=0.01)
+
+
+def test_resume_rejects_changed_tool_choice(manifest, tmp_path, monkeypatch):
+    initial = make_supervisor(
+        manifest,
+        tmp_path,
+        env={"POLICYBENCH_TOOL_CHOICE": "forced"},
+    )
+    initial.write_heartbeat()
+
+    resumed = make_supervisor(
+        manifest,
+        tmp_path,
+        env={"POLICYBENCH_TOOL_CHOICE": "auto"},
+    )
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("mismatched resume dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="tool_choice_mode"):
+        resumed.run(poll_seconds=0.01)
+
+
+def test_resume_rejects_scenario_outputs_without_run_state(
+    manifest,
+    tmp_path,
+    monkeypatch,
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    stub_worker(supervisor, monkeypatch)
+    supervisor._spawn(0).wait()
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("unvalidated resume dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="run_state.json"):
+        resumed.run(poll_seconds=0.01)
+
+
+def test_resume_rejects_orphan_spend_ledger_without_run_state(
+    manifest, tmp_path, monkeypatch
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    ledger_path = spend_ledger_path(supervisor.scenario_csv(0))
+    ledger_path.parent.mkdir(parents=True)
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "call_key": "sync:stale",
+                "status": "ok",
+                "total_cost_usd": 1.0,
+            }
+        )
+        + "\n"
+    )
+    monkeypatch.setattr(
+        supervisor,
+        "_spawn",
+        lambda _index: pytest.fail("orphan ledger dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="run_state.json"):
+        supervisor.run(poll_seconds=0.01)
 
 
 def test_failed_scenarios_retry_up_to_max_rounds(manifest, tmp_path, monkeypatch):
@@ -167,6 +267,24 @@ def test_spend_prefers_credits_delta_over_disk(manifest, tmp_path, monkeypatch):
     assert supervisor._spent() == pytest.approx(0.5)
 
 
+def test_openrouter_resume_keeps_prior_spend_offset(manifest, tmp_path, monkeypatch):
+    usage = {"value": 100.0}
+    monkeypatch.setitem(MODELS, "test-model", "openrouter/example/model")
+    monkeypatch.setattr(Supervisor, "_credits_usage", lambda self: usage["value"])
+    initial = make_supervisor(manifest, tmp_path, max_rounds=0)
+    initial.state.spent_usd = 1.25
+    initial.write_heartbeat()
+
+    usage["value"] = 101.0
+    resumed = make_supervisor(manifest, tmp_path, max_rounds=0)
+    state = resumed.run(poll_seconds=0)
+    assert state.spent_usd == pytest.approx(1.25)
+
+    usage["value"] = 101.5
+    resumed._credits_checked_at = float("-inf")
+    assert resumed._spent() == pytest.approx(1.75)
+
+
 def test_spend_falls_back_to_disk_without_credits(manifest, tmp_path, monkeypatch):
     monkeypatch.setattr(Supervisor, "_credits_usage", lambda self: None)
     supervisor = make_supervisor(manifest, tmp_path)
@@ -176,6 +294,110 @@ def test_spend_falls_back_to_disk_without_credits(manifest, tmp_path, monkeypatc
         {"scenario_id": ["scenario_000"], "prediction": [1.0], "total_cost_usd": [0.7]}
     ).to_csv(stub / "scenario_000.csv", index=False)
     assert supervisor._spent() == pytest.approx(0.7)
+
+
+def test_spend_prefers_scenario_ledger_over_matching_csv(
+    manifest, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(Supervisor, "_credits_usage", lambda self: None)
+    supervisor = make_supervisor(manifest, tmp_path)
+    scenario_path = supervisor.scenario_csv(0)
+    scenario_path.parent.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "scenario_id": ["scenario_000"],
+            "prediction": [1.0],
+            "total_cost_usd": [9.9],
+        }
+    ).to_csv(scenario_path, index=False)
+    spend_ledger_path(scenario_path).write_text(
+        "\nnot-json\n"
+        + json.dumps(
+            {
+                "call_key": "sync:initial",
+                "status": "parse_error",
+                "total_cost_usd": 0.2,
+            }
+        )
+        + "\n"
+        + json.dumps(
+            {
+                "call_key": "sync:repair",
+                "status": "ok",
+                "total_cost_usd": 0.3,
+            }
+        )
+        + "\n"
+    )
+
+    assert supervisor._spent() == pytest.approx(0.5)
+
+
+def test_spend_falls_back_to_csv_when_ledger_has_no_valid_records(
+    manifest, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(Supervisor, "_credits_usage", lambda self: None)
+    supervisor = make_supervisor(manifest, tmp_path)
+    scenario_path = supervisor.scenario_csv(0)
+    scenario_path.parent.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "scenario_id": ["scenario_000"],
+            "prediction": [1.0],
+            "total_cost_usd": [0.7],
+        }
+    ).to_csv(scenario_path, index=False)
+    spend_ledger_path(scenario_path).write_text("interrupted-json")
+
+    assert supervisor._spent() == pytest.approx(0.7)
+
+
+def test_spend_falls_back_to_csv_when_ledger_has_only_null_costs(
+    manifest, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(Supervisor, "_credits_usage", lambda self: None)
+    supervisor = make_supervisor(manifest, tmp_path)
+    scenario_path = supervisor.scenario_csv(0)
+    scenario_path.parent.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "scenario_id": ["scenario_000"],
+            "prediction": [1.0],
+            "total_cost_usd": [0.7],
+        }
+    ).to_csv(scenario_path, index=False)
+    spend_ledger_path(scenario_path).write_text(
+        json.dumps(
+            {
+                "call_key": "sync:pending",
+                "status": "pending",
+                "total_cost_usd": None,
+            }
+        )
+        + "\n"
+    )
+
+    assert supervisor._spent() == pytest.approx(0.7)
+
+
+def test_spend_includes_orphan_failed_scenario_ledger(manifest, tmp_path, monkeypatch):
+    monkeypatch.setattr(Supervisor, "_credits_usage", lambda self: None)
+    supervisor = make_supervisor(manifest, tmp_path)
+    scenario_path = supervisor.scenario_csv(4)
+    scenario_path.parent.mkdir(parents=True)
+    spend_ledger_path(scenario_path).write_text(
+        json.dumps(
+            {
+                "call_key": "sync:provider-error",
+                "status": "provider_error",
+                "total_cost_usd": 0.4,
+            }
+        )
+        + "\n"
+    )
+
+    assert scenario_path.exists() is False
+    assert supervisor._spent() == pytest.approx(0.4)
 
 
 def test_non_openrouter_model_ignores_openrouter_account_meter(

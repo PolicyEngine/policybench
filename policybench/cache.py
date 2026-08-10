@@ -5,6 +5,8 @@ import os
 import litellm
 from litellm.caching.caching import Cache
 
+from policybench.model_cards import PROMPT_CONTRACT_VERSION
+
 # Resolved relative to the process CWD unless POLICYBENCH_CACHE_DIR is set.
 # Chunked/resumed runs shell out to subprocesses that inherit the parent CWD, so
 # set the env var (to an absolute path) when launching commands from different
@@ -19,4 +21,8 @@ def enable_cache(cache_dir: str | None = None):
     ``$POLICYBENCH_CACHE_DIR``, else ``.policybench_cache`` in the current
     working directory.
     """
-    litellm.cache = Cache(type="disk", disk_cache_dir=cache_dir or CACHE_DIR)
+    litellm.cache = Cache(
+        type="disk",
+        disk_cache_dir=cache_dir or CACHE_DIR,
+        namespace=f"policybench:{PROMPT_CONTRACT_VERSION}",
+    )

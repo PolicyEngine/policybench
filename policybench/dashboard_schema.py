@@ -31,6 +31,33 @@ _SCENARIO_REQUIRED_KEYS = ("country", "state", "numAdults", "numChildren")
 
 _MODEL_STAT_REQUIRED_KEYS = ("model", "condition", "score", "n")
 
+_PERCENT_SCORE_KEYS = frozenset(
+    {
+        "score",
+        "outputGroupScore",
+        "exact",
+        "within1pct",
+        "within5pct",
+        "within10pct",
+        "thresholdScore",
+        "coverage",
+        "accuracy",
+        "boundedScore",
+        "amountAccuracy",
+        "participationAccuracy",
+        "equalScore",
+        "aggregateScore",
+        "scoreRunMean",
+        "scoreRunStd",
+        "scoreRunMin",
+        "scoreRunMax",
+        "within10pctRunMean",
+        "within10pctRunStd",
+        "within10pctRunMin",
+        "within10pctRunMax",
+    }
+)
+
 
 class DashboardValidationError(ValueError):
     """A dashboard payload failed structural validation."""
@@ -51,6 +78,49 @@ def _is_number(value: Any) -> bool:
 
 def _is_finite_number(value: Any) -> bool:
     return _is_number(value) and math.isfinite(value)
+
+
+def _validate_percent_scores(value: Any, path: str, errors: list[str]) -> None:
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_percent_scores(item, f"{path}[{index}]", errors)
+        return
+    if not isinstance(value, dict):
+        return
+
+    for key, item in value.items():
+        item_path = f"{path}.{key}"
+        is_percent_score = key in _PERCENT_SCORE_KEYS or (
+            isinstance(key, str) and key.endswith("Pct")
+        )
+        if (
+            is_percent_score
+            and item is not None
+            and (not _is_finite_number(item) or not 0 <= item <= 100)
+        ):
+            errors.append(
+                f"{item_path} must be a finite number in [0, 100], got {item!r}"
+            )
+        _validate_percent_scores(item, item_path, errors)
+
+
+def _validate_global_weights(bench: dict, prefix: str, errors: list[str]) -> None:
+    weights = bench.get("globalWeights")
+    if weights is None:
+        return
+    if not isinstance(weights, dict):
+        errors.append(f"{prefix}.globalWeights must be an object")
+        return
+    for view, variable_weights in weights.items():
+        if not isinstance(variable_weights, dict):
+            errors.append(f"{prefix}.globalWeights.{view} must be an object")
+            continue
+        for variable, weight in variable_weights.items():
+            if not _is_finite_number(weight) or not 0 <= weight <= 1:
+                errors.append(
+                    f"{prefix}.globalWeights.{view}.{variable} must be a finite "
+                    f"number in [0, 1], got {weight!r}"
+                )
 
 
 def validate_country_payload(
@@ -107,6 +177,8 @@ def validate_country_payload(
     if not isinstance(model_stats, list) or not model_stats:
         errors.append(f"{prefix}.modelStats must be a non-empty array")
     else:
+        seen_models = set()
+        duplicate_models = set()
         for index, row in enumerate(model_stats):
             if not isinstance(row, dict):
                 errors.append(f"{prefix}.modelStats[{index}] must be an object")
@@ -118,11 +190,15 @@ def validate_country_payload(
                     f"missing keys {row_missing}"
                 )
                 continue
-            if not _is_finite_number(row["score"]):
-                errors.append(
-                    f"{prefix}.modelStats[{index}] ({row['model']}): score must "
-                    f"be a finite number, got {row['score']!r}"
-                )
+            model = row["model"]
+            if model in seen_models:
+                duplicate_models.add(model)
+            seen_models.add(model)
+        if duplicate_models:
+            errors.append(
+                f"{prefix}.modelStats has duplicate model entries: "
+                f"{sorted(str(model) for model in duplicate_models)}"
+            )
         conditions = {
             row.get("condition") for row in model_stats if isinstance(row, dict)
         }
@@ -208,6 +284,9 @@ def validate_country_payload(
         errors.append(
             f"{prefix}.failureModes must be an object with 'programs' and 'households'"
         )
+
+    _validate_percent_scores(bench, prefix, errors)
+    _validate_global_weights(bench, prefix, errors)
 
     return errors
 

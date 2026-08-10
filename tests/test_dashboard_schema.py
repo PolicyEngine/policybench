@@ -178,6 +178,77 @@ def test_nan_score_reported():
     assert any("finite number" in error for error in errors)
 
 
+def test_duplicate_model_stats_are_rejected():
+    bench = make_bench()
+    bench["modelStats"].append(dict(bench["modelStats"][0]))
+
+    errors = validate_country_payload(bench, country="us")
+
+    assert any("duplicate model" in error for error in errors)
+    with pytest.raises(DashboardValidationError, match="duplicate model"):
+        dump_country_payload(bench, country="us")
+
+
+@pytest.mark.parametrize(
+    ("section", "field", "value"),
+    [
+        ("modelStats", "exact", -0.1),
+        ("programStats", "score", 100.1),
+        ("heatmap", "accuracy", 101),
+    ],
+)
+def test_percent_score_fields_must_be_between_zero_and_100(
+    section,
+    field,
+    value,
+):
+    bench = make_bench()
+    bench[section][0][field] = value
+
+    errors = validate_country_payload(bench, country="us")
+
+    assert any(field in error and "[0, 100]" in error for error in errors)
+
+
+def test_scenario_prediction_scores_are_range_checked():
+    bench = make_bench()
+    record = bench["scenarioPredictions"]["scenario_001"]["snap"]["model-a"]
+    record["thresholdScore"] = 100.1
+
+    errors = validate_country_payload(bench, country="us")
+
+    assert any("thresholdScore" in error and "[0, 100]" in error for error in errors)
+
+
+def test_failure_mode_percentages_are_range_checked():
+    bench = make_bench()
+    bench["failureModes"]["programs"].append(
+        {"variable": "snap", "overallCorrectPct": -0.1}
+    )
+
+    errors = validate_country_payload(bench, country="us")
+
+    assert any("overallCorrectPct" in error and "[0, 100]" in error for error in errors)
+
+
+def test_global_weights_must_be_between_zero_and_one():
+    bench = make_bench()
+    bench["globalWeights"] = {"household": {"snap": 1.01}}
+
+    errors = validate_country_payload(bench, country="us")
+
+    assert any("globalWeights.household.snap" in error for error in errors)
+    assert any("[0, 1]" in error for error in errors)
+
+
+def test_unbounded_error_metrics_are_not_score_range_checked():
+    bench = make_bench()
+    bench["modelStats"][0]["mae"] = 10_000
+    bench["modelStats"][0]["mape"] = 111.0
+
+    assert validate_country_payload(bench, country="us") == []
+
+
 def test_dump_rejects_nan_anywhere():
     payload = make_payload()
     payload["countries"]["us"]["programStats"][0]["mae"] = float("nan")

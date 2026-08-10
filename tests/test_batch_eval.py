@@ -25,6 +25,7 @@ from policybench.batch_eval import (
 from policybench.eval_no_tools import _chat_completion_request_kwargs
 from policybench.scenarios import Person, Scenario
 from policybench.spec import expand_programs_for_scenario
+from policybench.spend_ledger import read_spend_ledger, spend_ledger_path
 
 
 @pytest.fixture
@@ -295,11 +296,10 @@ def test_rows_apportion_usage_and_omit_latency():
     # Cost reconstructed at standard sync rates for leaderboard parity.
     assert rows[0]["reconstructed_cost_usd"] is not None
     assert rows[0]["total_cost_usd"] == rows[0]["reconstructed_cost_usd"]
+    assert rows[0]["cost_is_estimated"] is True
 
 
-def test_anthropic_batch_cost_includes_uncached_read_and_write_tokens():
-    import litellm
-
+def test_anthropic_batch_cost_uses_policybench_price_override():
     unit = BatchUnit("scenario_000", ["eitc"], 0)
     result = NormalizedResult(
         custom_id=unit.custom_id,
@@ -318,15 +318,10 @@ def test_anthropic_batch_cost_includes_uncached_read_and_write_tokens():
         error=None,
         result=result,
     )
-    rates = litellm.model_cost["claude-sonnet-5"]
-    expected = (
-        100 * rates["input_cost_per_token"]
-        + 20 * rates["cache_read_input_token_cost"]
-        + 10 * rates["cache_creation_input_token_cost"]
-        + 50 * rates["output_cost_per_token"]
-    )
+    expected = 130 * 3e-6 + 50 * 15e-6
 
     assert rows[0]["reconstructed_cost_usd"] == pytest.approx(expected)
+    assert rows[0]["cost_is_estimated"] is False
     assert rows[0]["cache_write_prompt_tokens"] == 10
 
 
@@ -468,8 +463,25 @@ def test_run_batch_eval_end_to_end_with_repair(tmp_path, scenario, second_scenar
     # State files persisted for both rounds.
     assert (tmp_path / "batches" / "claude-sonnet-5.round0.json").exists()
     assert (tmp_path / "batches" / "claude-sonnet-5.round1.json").exists()
+    ledger_path = tmp_path / "batches" / "claude-sonnet-5.spend.jsonl"
+    ledger = read_spend_ledger(ledger_path)
+    assert len(ledger) == len(adapter.submissions[0]) + len(adapter.submissions[1])
+    assert len({record["call_key"] for record in ledger}) == len(ledger)
+    assert {record["phase"] for record in ledger} == {"initial", "repair"}
+    assert any(record["status"] == "parse_error" for record in ledger)
+    repaired_calls = [record for record in ledger if record["phase"] == "repair"]
+    assert repaired_calls
+    assert all(record["status"] == "ok" for record in repaired_calls)
+    assert all(record["total_cost_usd"] is not None for record in ledger)
+    assert all("provider_reported_cost_usd" in record for record in ledger)
+    assert all("provider_resolved_model" in record for record in ledger)
+    assert frame["total_cost_usd"].sum() == pytest.approx(
+        sum(record["total_cost_usd"] for record in ledger)
+    )
     assert (tmp_path / "by_model" / "claude-sonnet-5.csv").exists()
-    written = pd.read_csv(tmp_path / "by_model" / "claude-sonnet-5.csv")
+    model_output = tmp_path / "by_model" / "claude-sonnet-5.csv"
+    written = pd.read_csv(model_output)
+    assert read_spend_ledger(spend_ledger_path(model_output)) == ledger
     assert set(written.columns) >= {
         "call_id",
         "model",
@@ -517,6 +529,7 @@ def test_run_batch_eval_resumes_existing_round_without_resubmitting(tmp_path, sc
     prior_requests = [(unit.custom_id, {"variables": unit.variables}) for unit in units]
     state = BatchRunState(
         model="claude-sonnet-5",
+        model_id="claude-sonnet-5",
         round_index=0,
         batch_id="batch_1",
         provider="fake",
@@ -549,3 +562,153 @@ def test_run_batch_eval_resumes_existing_round_without_resubmitting(tmp_path, sc
     # submissions grew only if a repair round was needed (it wasn't).
     assert len(adapter.submissions) == 1
     assert frame["prediction"].notna().all()
+
+    ledger_path = tmp_path / "batches" / "claude-sonnet-5.spend.jsonl"
+    first_ledger = read_spend_ledger(ledger_path)
+    assert len(first_ledger) == len(prior_requests)
+
+    # Re-polling the same completed provider batch upserts by batch/custom id
+    # instead of charging the same physical calls twice.
+    second_adapter = ResumeAdapter(prior_requests)
+    run_batch_eval(
+        scenarios=[scenario],
+        programs=programs,
+        model_name="claude-sonnet-5",
+        model_id="claude-sonnet-5",
+        run_dir=tmp_path,
+        adapter=second_adapter,
+        poll_seconds=0,
+        sleep=lambda _s: None,
+        log=lambda *_a, **_k: None,
+    )
+    second_ledger = read_spend_ledger(ledger_path)
+    assert len(second_ledger) == len(first_ledger)
+    assert {record["call_key"] for record in second_ledger} == {
+        record["call_key"] for record in first_ledger
+    }
+
+
+def test_batch_resume_rejects_changed_model_id(tmp_path, scenario):
+    units = build_units([scenario], ["eitc"], "claude-sonnet-5")
+    prior_requests = [(unit.custom_id, {"variables": unit.variables}) for unit in units]
+    state = BatchRunState(
+        model="claude-sonnet-5",
+        model_id="different-provider/model",
+        round_index=0,
+        batch_id="batch_1",
+        provider="fake",
+        submitted_at=0.0,
+        units={
+            unit.custom_id: {
+                "scenario_id": unit.scenario_id,
+                "variables": unit.variables,
+                "chunk_index": unit.chunk_index,
+                "repair": False,
+            }
+            for unit in units
+        },
+    )
+    state.save(tmp_path)
+
+    with pytest.raises(ValueError, match="model_id"):
+        run_batch_eval(
+            scenarios=[scenario],
+            programs=["eitc"],
+            model_name="claude-sonnet-5",
+            model_id="claude-sonnet-5",
+            run_dir=tmp_path,
+            adapter=ResumeAdapter(prior_requests),
+            poll_seconds=0,
+            sleep=lambda _s: None,
+            log=lambda *_a, **_k: None,
+        )
+
+
+def test_batch_spend_ledger_records_provider_errors_and_missing_results(
+    tmp_path, scenario, monkeypatch
+):
+    class ErrorAndMissingAdapter(FakeAdapter):
+        def results(self, batch_id):
+            custom_id, _body = self.submissions[0][0]
+            yield NormalizedResult(custom_id=custom_id, error="batch_errored: denied")
+
+    monkeypatch.setattr("policybench.batch_eval.MAX_REPAIR_ROUNDS", 0)
+    adapter = ErrorAndMissingAdapter()
+    run_batch_eval(
+        scenarios=[scenario],
+        programs=["eitc", "snap"],
+        model_name="claude-sonnet-5",
+        model_id="claude-sonnet-5",
+        run_dir=tmp_path,
+        adapter=adapter,
+        poll_seconds=0,
+        sleep=lambda _s: None,
+        log=lambda *_a, **_k: None,
+    )
+
+    ledger = read_spend_ledger(tmp_path / "batches" / "claude-sonnet-5.spend.jsonl")
+    assert len(ledger) == 2
+    assert {record["status"] for record in ledger} == {
+        "provider_error",
+        "missing",
+    }
+    for record in ledger:
+        assert record["prompt_tokens"] is None
+        assert record["completion_tokens"] is None
+        assert record["total_cost_usd"] is None
+        assert record["provider_response_id"] is None
+        assert record["provider_resolved_model"] is None
+
+
+def test_terminal_batch_failure_records_submitted_calls(tmp_path, scenario):
+    class FailedBatchAdapter(FakeAdapter):
+        def status(self, batch_id):
+            return "failed"
+
+    adapter = FailedBatchAdapter()
+    with pytest.raises(RuntimeError, match="ended as failed"):
+        run_batch_eval(
+            scenarios=[scenario],
+            programs=["eitc"],
+            model_name="claude-sonnet-5",
+            model_id="claude-sonnet-5",
+            run_dir=tmp_path,
+            adapter=adapter,
+            poll_seconds=0,
+            sleep=lambda _s: None,
+            log=lambda *_a, **_k: None,
+        )
+
+    ledger = read_spend_ledger(tmp_path / "batches" / "claude-sonnet-5.spend.jsonl")
+    assert len(ledger) == len(adapter.submissions[0])
+    assert {record["status"] for record in ledger} == {"provider_error"}
+    assert all(record["total_cost_usd"] is None for record in ledger)
+
+
+def test_batch_result_iteration_failure_preserves_all_submitted_calls(
+    tmp_path, scenario
+):
+    class InterruptedResultsAdapter(FakeAdapter):
+        def results(self, batch_id):
+            results = super().results(batch_id)
+            yield next(results)
+            raise RuntimeError("result stream interrupted")
+
+    adapter = InterruptedResultsAdapter()
+    with pytest.raises(RuntimeError, match="result stream interrupted"):
+        run_batch_eval(
+            scenarios=[scenario],
+            programs=["eitc", "snap"],
+            model_name="claude-sonnet-5",
+            model_id="claude-sonnet-5",
+            run_dir=tmp_path,
+            adapter=adapter,
+            poll_seconds=0,
+            sleep=lambda _s: None,
+            log=lambda *_a, **_k: None,
+        )
+
+    ledger = read_spend_ledger(tmp_path / "batches" / "claude-sonnet-5.spend.jsonl")
+    assert len(ledger) == len(adapter.submissions[0])
+    assert ledger[0]["status"] == "ok"
+    assert {record["status"] for record in ledger[1:]} == {"pending"}
