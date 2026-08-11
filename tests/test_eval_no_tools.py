@@ -75,6 +75,39 @@ def mini_scenario():
     )
 
 
+def _chat_tool_response(
+    arguments: str | None,
+    *,
+    finish_reason: str,
+    prompt_tokens: int = 12,
+    completion_tokens: int = 3,
+    function_name: str = "submit_outputs",
+):
+    tool_calls = []
+    if arguments is not None:
+        tool_calls = [
+            SimpleNamespace(
+                function=SimpleNamespace(
+                    name=function_name,
+                    arguments=arguments,
+                )
+            )
+        ]
+    message = SimpleNamespace(
+        content=None,
+        tool_calls=tool_calls,
+        function_call=None,
+    )
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=message, finish_reason=finish_reason)],
+        usage=litellm.Usage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+        ),
+    )
+
+
 @pytest.fixture
 def rich_scenario():
     return Scenario(
@@ -918,6 +951,548 @@ def test_run_single_no_tools_repairs_partial_batch_response(
     assert "- federal_refundable_credits:" in repair_prompt
     assert "- federal_income_tax_before_refundable_credits:" not in repair_prompt
     assert '"responses"' in result["raw_response"]
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_length_empty_retries_same_request_with_doubled_budget(
+    mock_completion,
+    mini_scenario,
+    monkeypatch,
+    caplog,
+):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 0)
+    mock_completion.side_effect = [
+        _chat_tool_response(None, finish_reason="length", completion_tokens=256),
+        _chat_tool_response(
+            '{"outputs":{"income_tax":{"value":3500}}}',
+            finish_reason="stop",
+        ),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "claude-opus-4-6",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert result["prediction"] == 3500.0
+    assert result["budget_escalation_count"] == 1
+    first_kwargs, second_kwargs = [
+        call.kwargs for call in mock_completion.call_args_list
+    ]
+    assert first_kwargs["max_completion_tokens"] == 256
+    assert second_kwargs["max_completion_tokens"] == 512
+    assert second_kwargs["messages"] == first_kwargs["messages"]
+    assert "model=claude-opus-4-6" in caplog.text
+    assert "scenario=mini" in caplog.text
+    assert "from_budget=256 to_budget=512" in caplog.text
+    assert [
+        record["completion_budget_tokens"] for record in result["spend_ledger"]
+    ] == [
+        256,
+        512,
+    ]
+    assert result["spend_ledger"][1]["escalated_from_budget_tokens"] == 256
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_xai_length_empty_uses_max_tokens_across_multiple_escalations(
+    mock_completion,
+    mini_scenario,
+    monkeypatch,
+):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 0)
+    mock_completion.side_effect = [
+        _chat_tool_response(None, finish_reason="length", completion_tokens=256),
+        _chat_tool_response(None, finish_reason="length", completion_tokens=512),
+        _chat_tool_response(
+            '{"outputs":{"income_tax":{"value":3500}}}',
+            finish_reason="stop",
+        ),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "xai/grok-4-1-fast-non-reasoning",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert result["prediction"] == 3500.0
+    assert [call.kwargs["max_tokens"] for call in mock_completion.call_args_list] == [
+        256,
+        512,
+        1024,
+    ]
+    assert result["budget_escalation_count"] == 2
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_length_partial_keeps_valid_cells_and_escalates_only_missing_cells(
+    mock_completion,
+    mini_scenario,
+    monkeypatch,
+):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 0)
+    first_variable = "federal_income_tax_before_refundable_credits"
+    second_variable = "federal_refundable_credits"
+    mock_completion.side_effect = [
+        _chat_tool_response(
+            '{"outputs":{"federal_income_tax_before_refundable_credits":'
+            '{"value":3500}}}',
+            finish_reason="length",
+            completion_tokens=256,
+        ),
+        _chat_tool_response(
+            '{"outputs":{"federal_income_tax_before_refundable_credits":'
+            '{"value":9999},"federal_refundable_credits":{"value":1200}}}',
+            finish_reason="stop",
+        ),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        [first_variable, second_variable],
+        "claude-opus-4-6",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert result["predictions"] == {
+        first_variable: 3500.0,
+        second_variable: 1200.0,
+    }
+    assert result["budget_escalation_count"] == 1
+    retry_kwargs = mock_completion.call_args_list[1].kwargs
+    assert retry_kwargs["max_completion_tokens"] == 512
+    retry_prompt = retry_kwargs["messages"][0]["content"]
+    assert f"- {second_variable}:" in retry_prompt
+    assert f"- {first_variable}:" not in retry_prompt
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_length_missing_explanation_escalates_completion_budget(
+    mock_completion,
+    mini_scenario,
+    monkeypatch,
+):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 0)
+    mock_completion.side_effect = [
+        _chat_tool_response(
+            '{"outputs":{"income_tax":{"value":3500}}}',
+            finish_reason="length",
+            completion_tokens=4096,
+        ),
+        _chat_tool_response(
+            '{"outputs":{"income_tax":{"value":3500,'
+            '"explanation":"Computed tax. value = 3500"}}}',
+            finish_reason="stop",
+        ),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "claude-opus-4-6",
+        include_explanations=True,
+        _allow_chunking=False,
+    )
+
+    assert result["prediction"] == 3500.0
+    assert result["explanations"]["income_tax"].endswith("value = 3500")
+    assert [
+        call.kwargs["max_completion_tokens"] for call in mock_completion.call_args_list
+    ] == [4096, 8192]
+    assert result["budget_escalation_count"] == 1
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_stop_finish_never_escalates(
+    mock_completion,
+    mini_scenario,
+    monkeypatch,
+):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 0)
+    mock_completion.return_value = _chat_tool_response(None, finish_reason="stop")
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "claude-opus-4-6",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert result["prediction"] is None
+    assert result["budget_escalation_count"] == 0
+    mock_completion.assert_called_once()
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_length_exhaustion_at_ceiling_is_distinct_ordinary_miss(
+    mock_completion,
+    mini_scenario,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "policybench.eval_no_tools._completion_budget_ceiling",
+        lambda _model_id: 256,
+        raising=False,
+    )
+    mock_completion.return_value = _chat_tool_response(
+        None,
+        finish_reason="length",
+        completion_tokens=256,
+    )
+
+    result = run_no_tools_eval(
+        [mini_scenario],
+        models={"Claude": "claude-opus-4-6"},
+        programs=["income_tax"],
+        include_explanations=False,
+    )
+
+    row = result.iloc[0]
+    assert row["prediction"] is None
+    assert row["failure_source"] == "budget_exhausted_at_ceiling"
+    assert "budget_escalation_count" not in result.columns
+    mock_completion.assert_called_once()
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_escalation_lands_exactly_on_provider_ceiling(
+    mock_completion,
+    mini_scenario,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "policybench.eval_no_tools._completion_budget_ceiling",
+        lambda _model_id: 300,
+    )
+    mock_completion.side_effect = [
+        _chat_tool_response(None, finish_reason="length", completion_tokens=256),
+        _chat_tool_response(None, finish_reason="length", completion_tokens=300),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "claude-opus-4-6",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert [
+        call.kwargs["max_completion_tokens"] for call in mock_completion.call_args_list
+    ] == [256, 300]
+    assert result["failure_sources"] == {"income_tax": "budget_exhausted_at_ceiling"}
+
+
+@patch("policybench.eval_no_tools.responses")
+def test_responses_incomplete_max_output_tokens_escalates(
+    mock_responses, mini_scenario
+):
+    mock_responses.side_effect = [
+        SimpleNamespace(
+            status="incomplete",
+            incomplete_details=SimpleNamespace(reason="max_output_tokens"),
+            output_text="",
+            output=[],
+            usage=SimpleNamespace(
+                input_tokens=12,
+                output_tokens=256,
+                total_tokens=268,
+            ),
+        ),
+        SimpleNamespace(
+            status="completed",
+            incomplete_details=None,
+            output_text="",
+            output=[
+                SimpleNamespace(
+                    type="function_call",
+                    name="submit_outputs",
+                    arguments='{"outputs":{"income_tax":{"value":3500}}}',
+                )
+            ],
+            usage=SimpleNamespace(
+                input_tokens=12,
+                output_tokens=3,
+                total_tokens=15,
+            ),
+        ),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "gpt-5.4",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert result["prediction"] == 3500.0
+    assert [
+        call.kwargs["max_output_tokens"] for call in mock_responses.call_args_list
+    ] == [
+        256,
+        512,
+    ]
+
+
+@patch("policybench.eval_no_tools.responses")
+def test_responses_bare_incomplete_at_requested_budget_escalates(
+    mock_responses, mini_scenario
+):
+    mock_responses.side_effect = [
+        SimpleNamespace(
+            status="incomplete",
+            incomplete_details=None,
+            output_text="",
+            output=[],
+            usage=SimpleNamespace(
+                input_tokens=12,
+                output_tokens=256,
+                total_tokens=268,
+            ),
+        ),
+        SimpleNamespace(
+            status="completed",
+            incomplete_details=None,
+            output_text="",
+            output=[
+                SimpleNamespace(
+                    type="function_call",
+                    name="submit_outputs",
+                    arguments='{"outputs":{"income_tax":{"value":3500}}}',
+                )
+            ],
+            usage=SimpleNamespace(
+                input_tokens=12,
+                output_tokens=3,
+                total_tokens=15,
+            ),
+        ),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "gpt-5.4",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert result["prediction"] == 3500.0
+    assert [
+        call.kwargs["max_output_tokens"] for call in mock_responses.call_args_list
+    ] == [256, 512]
+
+
+@patch("policybench.eval_no_tools.responses")
+def test_responses_bare_incomplete_below_requested_budget_does_not_escalate(
+    mock_responses,
+    mini_scenario,
+    monkeypatch,
+):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 0)
+    mock_responses.return_value = SimpleNamespace(
+        status="incomplete",
+        incomplete_details=None,
+        output_text="",
+        output=[],
+        usage=SimpleNamespace(
+            input_tokens=12,
+            output_tokens=100,
+            total_tokens=112,
+        ),
+    )
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "gpt-5.4",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert result["prediction"] is None
+    assert result["budget_escalation_count"] == 0
+    mock_responses.assert_called_once()
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_budget_escalation_count_lands_in_eval_manifest(
+    mock_completion,
+    mini_scenario,
+    tmp_path,
+):
+    mock_completion.side_effect = [
+        _chat_tool_response(None, finish_reason="length", completion_tokens=256),
+        _chat_tool_response(
+            '{"outputs":{"income_tax":{"value":3500}}}',
+            finish_reason="stop",
+        ),
+    ]
+    output_path = tmp_path / "predictions.csv"
+
+    run_no_tools_eval(
+        [mini_scenario],
+        models={"Claude": "claude-opus-4-6"},
+        programs=["income_tax"],
+        output_path=str(output_path),
+        include_explanations=False,
+    )
+
+    manifest = json.loads((tmp_path / "predictions.csv.meta.json").read_text())
+    assert manifest["budget_escalation_count"] == 1
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_escalated_repair_error_preserves_partial_payload_and_count(
+    mock_completion,
+    mini_scenario,
+    monkeypatch,
+):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 1)
+    first_variable = "federal_income_tax_before_refundable_credits"
+    second_variable = "federal_refundable_credits"
+    mock_completion.side_effect = [
+        _chat_tool_response(None, finish_reason="stop"),
+        _chat_tool_response(
+            '{"outputs":{"federal_income_tax_before_refundable_credits":'
+            '{"value":3500}}}',
+            finish_reason="length",
+            completion_tokens=256,
+        ),
+        RequestWallTimeoutError("escalated request timed out"),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        [first_variable, second_variable],
+        "claude-opus-4-6",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert result["predictions"] == {
+        first_variable: 3500.0,
+        second_variable: None,
+    }
+    assert result["budget_escalation_count"] == 1
+    assert len(result["spend_ledger"]) == 3
+    assert "RequestWallTimeoutError" in result["error"]
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_escalated_initial_error_preserves_partial_payload_and_count(
+    mock_completion,
+    mini_scenario,
+    monkeypatch,
+):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 0)
+    first_variable = "federal_income_tax_before_refundable_credits"
+    second_variable = "federal_refundable_credits"
+    mock_completion.side_effect = [
+        _chat_tool_response(
+            '{"outputs":{"federal_income_tax_before_refundable_credits":'
+            '{"value":3500}}}',
+            finish_reason="length",
+            completion_tokens=256,
+        ),
+        RequestWallTimeoutError("escalated request timed out"),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        [first_variable, second_variable],
+        "claude-opus-4-6",
+        include_explanations=False,
+        _allow_chunking=False,
+    )
+
+    assert result["predictions"] == {
+        first_variable: 3500.0,
+        second_variable: None,
+    }
+    assert result["budget_escalation_count"] == 1
+    assert len(result["spend_ledger"]) == 2
+    assert "RequestWallTimeoutError" in result["error"]
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_escalated_initial_error_without_valid_cells_propagates(
+    mock_completion,
+    mini_scenario,
+):
+    mock_completion.side_effect = [
+        _chat_tool_response(
+            None,
+            finish_reason="length",
+            completion_tokens=256,
+        ),
+        RequestWallTimeoutError("escalated request timed out"),
+    ]
+
+    with pytest.raises(RequestWallTimeoutError, match="escalated request timed out"):
+        run_single_no_tools(
+            mini_scenario,
+            "income_tax",
+            "claude-opus-4-6",
+            include_explanations=False,
+            _allow_chunking=False,
+        )
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_length_empty_explanation_followup_escalates_budget(
+    mock_completion,
+    mini_scenario,
+    monkeypatch,
+):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 0)
+    mock_completion.side_effect = [
+        _chat_tool_response(
+            '{"outputs":{"income_tax":{"value":3500}}}',
+            finish_reason="stop",
+            completion_tokens=100,
+        ),
+        _chat_tool_response(
+            None,
+            finish_reason="length",
+            completion_tokens=4096,
+            function_name="submit_explanations",
+        ),
+        _chat_tool_response(
+            '{"income_tax":"Computed tax. value = 3500"}',
+            finish_reason="stop",
+            function_name="submit_explanations",
+        ),
+    ]
+
+    result = run_single_no_tools(
+        mini_scenario,
+        "income_tax",
+        "claude-opus-4-6",
+        include_explanations=True,
+        _allow_chunking=False,
+    )
+
+    assert result["prediction"] == 3500.0
+    assert result["explanations"]["income_tax"].endswith("value = 3500")
+    assert [
+        call.kwargs["max_completion_tokens"] for call in mock_completion.call_args_list
+    ] == [4096, 4096, 8192]
+    assert result["budget_escalation_count"] == 1
+    assert [record["phase"] for record in result["spend_ledger"]] == [
+        "initial",
+        "explanation_repair",
+        "explanation_repair",
+    ]
 
 
 @patch("policybench.eval_no_tools._request_predictions_once")
@@ -2358,6 +2933,11 @@ def test_run_no_tools_eval_writes_resume_metadata(
         == "outputs.{variable}.{value,explanation}"
     )
     assert len(metadata["response_contract"]["prompt_template_sha256"]) == 64
+    assert metadata["completion_budget_escalation"] == {
+        "default_ceiling": 128000,
+        "model_ceilings": {"gpt-5.4": 128000},
+        "strategy": "double_on_length_with_missing_payload",
+    }
 
 
 @patch("policybench.eval_no_tools.run_single_no_tools")

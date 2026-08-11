@@ -49,6 +49,7 @@ class WrongModel:
     model: str
     prediction: str
     explanation: str
+    failure_source: str = ""
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,11 @@ class AuditCase:
 
     def to_manifest_row(self) -> dict:
         row = asdict(self)
+        row["recorded_failure_sources"] = {
+            model.model: model.failure_source
+            for model in self.wrong_models
+            if model.failure_source == "budget_exhausted_at_ceiling"
+        }
         row["wrong_models"] = [m.model for m in self.wrong_models]
         missing = [m.model for m in self.wrong_models if m.prediction == MISSING_VALUE]
         row["missing_models"] = missing
@@ -127,6 +133,7 @@ def build_audit_cases(
                     r["prediction"], country=country, variable=variable
                 ),
                 explanation=_clean(r.get("explanation")),
+                failure_source=_clean(r.get("failure_source")),
             )
             for _, r in deduped.iterrows()
         )
@@ -315,6 +322,8 @@ value looks wrong (PolicyEngine logic / underlying data). Use with \
 reference_suspect=true and a concrete contradiction.
 - parse_contract_failure: the model's answer was missing or unparseable, not a \
 substantive error.
+- budget_exhausted_at_ceiling: the provider length-terminated every retry through \
+its maximum allowed completion budget.
 - needs_review: genuinely cannot tell; name precisely what information is \
 missing.
 
@@ -486,7 +495,14 @@ def parse_verdict(path: Path) -> dict | None:
 
 def _row_failure_source(meta: dict, model: str, requested_source: str) -> str:
     """Keep parse-contract labels scoped to genuinely missing predictions."""
+    recorded_source = meta.get("recorded_failure_sources", {}).get(model)
+    if recorded_source == "budget_exhausted_at_ceiling":
+        return recorded_source
     source = validate_failure_source(requested_source)
+    if source == "budget_exhausted_at_ceiling":
+        if model in set(meta.get("missing_models", [])):
+            return "parse_contract_failure"
+        return "llm_error"
     if source == "parse_contract_failure" and model not in set(
         meta.get("missing_models", [])
     ):
@@ -520,14 +536,20 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
             # Every wrong model simply returned no value — a parse failure, not
             # a substantive error. Classified deterministically, no classifier.
             note = "All wrong responses were missing or unparseable predictions."
+            row_sources = []
             for model in meta["wrong_models"]:
+                failure_source = meta.get("recorded_failure_sources", {}).get(
+                    model,
+                    "parse_contract_failure",
+                )
+                row_sources.append(failure_source)
                 row_records.append(
                     {
                         "country": country,
                         "scenario_id": meta["scenario_id"],
                         "variable": meta["variable"],
                         "model": model,
-                        "failure_source": "parse_contract_failure",
+                        "failure_source": failure_source,
                         "failure_subtype": "missing_output",
                         "reference_suspect": False,
                         "annotation": note,
@@ -539,7 +561,11 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
                     "scenario_id": meta["scenario_id"],
                     "variable": meta["variable"],
                     "wrong_model_count": len(meta["wrong_models"]),
-                    "case_failure_source": "parse_contract_failure",
+                    "case_failure_source": (
+                        row_sources[0]
+                        if len(set(row_sources)) == 1
+                        else "parse_contract_failure"
+                    ),
                     "case_failure_subtype": "missing_output",
                     "reference_suspect": False,
                     "reference_bug_hypothesis": "",
@@ -552,6 +578,18 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
             missing.append(case_id)
             continue
         case_source = validate_failure_source(verdict["case_failure_source"])
+        recorded_sources = set(meta.get("recorded_failure_sources", {}).values())
+        if (
+            case_source == "budget_exhausted_at_ceiling"
+            and "budget_exhausted_at_ceiling" not in recorded_sources
+        ):
+            wrong_models = set(meta.get("wrong_models", []))
+            missing_models = set(meta.get("missing_models", []))
+            case_source = (
+                "parse_contract_failure"
+                if wrong_models and wrong_models <= missing_models
+                else "llm_error"
+            )
         case_subtype = validate_failure_subtype(verdict["case_failure_subtype"])
         reference_suspect = bool(verdict.get("reference_suspect"))
         rationale = str(verdict.get("rationale", "")).strip()

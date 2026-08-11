@@ -36,10 +36,12 @@ from policybench.model_cards import (
     PROMPT_CONTRACT_VERSION,
     answer_contract_for,
     card_for,
+    completion_budget_ceiling_for,
     explanation_chunk_size_for,
 )
 from policybench.spend_ledger import (
     SPEND_LEDGER_SUFFIX,
+    count_budget_escalations,
     read_spend_ledger,
 )
 
@@ -79,6 +81,7 @@ class RunState:
     stopped_reason: str | None = None
     started_at: float = 0.0
     updated_at: float = 0.0
+    budget_escalation_count: int = 0
 
     def projected_total_usd(self) -> float | None:
         if not self.completed:
@@ -163,6 +166,7 @@ class Supervisor:
                 chunk_override=self.env.get("POLICYBENCH_CHUNK_OVERRIDE"),
             ),
             "prompt_contract_version": PROMPT_CONTRACT_VERSION,
+            "completion_budget_ceiling": completion_budget_ceiling_for(self.litellm_id),
         }
 
     def _validate_resume(self) -> dict | None:
@@ -338,8 +342,18 @@ class Supervisor:
 
     # -- heartbeat ----------------------------------------------------------
 
+    def _budget_escalation_count_from_disk(self) -> int:
+        scenario_dir = self.run_dir / SCENARIO_DIR
+        if not scenario_dir.exists():
+            return 0
+        return sum(
+            count_budget_escalations(read_spend_ledger(path))
+            for path in scenario_dir.glob(f"scenario_*.csv{SPEND_LEDGER_SUFFIX}")
+        )
+
     def write_heartbeat(self) -> None:
         self.state.updated_at = time.time()
+        self.state.budget_escalation_count = self._budget_escalation_count_from_disk()
         payload = {
             "model": self.state.model,
             "total": self.state.total,
@@ -351,6 +365,7 @@ class Supervisor:
             "workers": self.state.workers,
             "stopped_reason": self.state.stopped_reason,
             "projection_warning": self.projection_warning,
+            "budget_escalation_count": self.state.budget_escalation_count,
             "treatment_fingerprint": self.treatment_fingerprint,
             "started_at": self.state.started_at,
             "updated_at": self.state.updated_at,

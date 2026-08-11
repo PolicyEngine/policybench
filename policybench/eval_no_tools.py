@@ -17,6 +17,12 @@ import litellm
 import pandas as pd
 from litellm import completion, responses
 
+from policybench.completion_budget import (
+    MAX_ESCALATED_COMPLETION_TOKENS,
+    completion_budget_from_kwargs,
+    next_completion_budget,
+    with_completion_budget,
+)
 from policybench.config import (
     GPT_56_MODELS,
     MODELS,
@@ -27,6 +33,7 @@ from policybench.model_cards import (
     PROMPT_CONTRACT_VERSION,
     answer_contract_for,
     card_for,
+    completion_budget_ceiling_for,
     explanation_chunk_size_for,
 )
 from policybench.policyengine_runtime import policyengine_bundles_for_countries
@@ -38,7 +45,12 @@ from policybench.prompts import (
 )
 from policybench.scenarios import Scenario, scenario_to_dict
 from policybench.spec import expand_programs_for_scenario, metric_type_for_output
-from policybench.spend_ledger import spend_ledger_path, upsert_spend_ledger
+from policybench.spend_ledger import (
+    count_budget_escalations,
+    read_spend_ledger,
+    spend_ledger_path,
+    upsert_spend_ledger,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +161,7 @@ REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
 MAX_REPAIR_ROUNDS = _env_int("POLICYBENCH_MAX_REPAIR_ROUNDS", 2)
-RESUME_METADATA_VERSION = 2
+RESUME_METADATA_VERSION = 3
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 EXPLANATION_MAX_COMPLETION_TOKENS = 4096
@@ -518,6 +530,8 @@ def _spend_ledger_record(
     usage: dict | None = None,
     error: str | None = None,
     cache_hit: bool = False,
+    completion_budget_tokens: int | None = None,
+    escalated_from_budget_tokens: int | None = None,
 ) -> dict:
     """Build one audit row for a physical synchronous provider request."""
     usage = usage or {}
@@ -548,6 +562,8 @@ def _spend_ledger_record(
         "error": error,
         "cache_hit": cache_hit,
         "cached_response_cost_usd": cached_response_cost_usd,
+        "completion_budget_tokens": completion_budget_tokens,
+        "escalated_from_budget_tokens": escalated_from_budget_tokens,
         **usage_fields,
     }
 
@@ -629,7 +645,7 @@ def _completion_token_budget(
     return min(max(base_tokens, dynamic_tokens), cap)
 
 
-def _completion_controls(
+def _uncapped_completion_controls(
     model_id: str,
     include_explanations: bool = True,
     variables: list[str] | None = None,
@@ -723,6 +739,29 @@ def _completion_controls(
             DEFAULT_MAX_COMPLETION_TOKENS, variables, include_explanations
         )
     }
+
+
+def _completion_budget_ceiling(model_id: str) -> int:
+    """Return the largest completion budget PolicyBench may request."""
+    return completion_budget_ceiling_for(model_id)
+
+
+def _completion_controls(
+    model_id: str,
+    include_explanations: bool = True,
+    variables: list[str] | None = None,
+) -> dict:
+    """Return initial controls capped by a documented provider maximum."""
+    controls = _uncapped_completion_controls(
+        model_id,
+        include_explanations=include_explanations,
+        variables=variables,
+    )
+    budget = completion_budget_from_kwargs(controls)
+    ceiling = _completion_budget_ceiling(model_id)
+    if budget is not None and budget > ceiling:
+        return with_completion_budget(controls, ceiling)
+    return controls
 
 
 def _request_timeout_seconds(model_id: str) -> int:
@@ -1191,13 +1230,16 @@ def _empty_failed_result(
     variables: list[str],
     error: Exception,
 ) -> dict:
+    spend_records = _spend_records(error)
     return {
         "predictions": {variable: None for variable in variables},
         "explanations": {variable: None for variable in variables},
         "prediction": None,
         "error": _format_error(error),
         "repair_disagreements": [],
-        "spend_ledger": _spend_records(error),
+        "failure_sources": {},
+        "budget_escalation_count": count_budget_escalations(spend_records),
+        "spend_ledger": spend_records,
         **_aggregate_request_results([]),
     }
 
@@ -1612,6 +1654,61 @@ def _responses_content_and_tool_calls(response) -> tuple[str | None, list[dict]]
     return content, tool_calls
 
 
+def _response_finish_reason(
+    response,
+    *,
+    responses_api: bool,
+    completion_budget_tokens: int | None = None,
+) -> str | None:
+    """Normalize provider completion-limit signals to ``length``."""
+    if not responses_api:
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            return None
+        reason = _get_response_item_attr(choices[0], "finish_reason")
+        return str(reason) if isinstance(reason, str) else None
+
+    reason = _get_response_item_attr(response, "finish_reason")
+    if reason == "length":
+        return "length"
+    status = _get_response_item_attr(response, "status")
+    details = _get_response_item_attr(response, "incomplete_details")
+    incomplete_reason = _get_response_item_attr(details, "reason")
+    if status == "incomplete" and incomplete_reason in {
+        "max_output_tokens",
+        "max_tokens",
+        "length",
+    }:
+        return "length"
+    if (
+        status == "incomplete"
+        and incomplete_reason is None
+        and completion_budget_tokens is not None
+    ):
+        usage = _get_response_item_attr(response, "usage")
+        output_tokens = _get_usage_value(usage, "completion_tokens")
+        if output_tokens is None:
+            output_tokens = _get_usage_value(usage, "output_tokens")
+        if (
+            isinstance(output_tokens, (int, float))
+            and not isinstance(output_tokens, bool)
+            and output_tokens >= completion_budget_tokens
+        ):
+            # LiteLLM's chat-to-Responses adapter currently drops the
+            # underlying chat ``finish_reason``. A bare incomplete response
+            # that consumed the requested output budget is the remaining
+            # observable completion-cap signal; lower-token incomplete
+            # responses (for example filters/refusals) are not escalated.
+            return "length"
+    if status == "length":
+        return "length"
+    if status == "completed":
+        return "stop"
+    if isinstance(reason, str):
+        return reason
+    return str(status) if isinstance(status, str) else None
+
+
 def extract_predictions(
     content: str | None,
     variables: list[str],
@@ -1712,6 +1809,9 @@ def _request_explanations_once(
     answers: dict[str, float],
     model_id: str,
     spend_callback: Callable[[list[dict]], None] | None = None,
+    *,
+    completion_budget_tokens: int | None = None,
+    escalated_from_budget_tokens: int | None = None,
 ) -> dict:
     answer_contract = _answer_contract_for_model(model_id)
     prompt = make_explanation_repair_prompt(
@@ -1779,6 +1879,12 @@ def _request_explanations_once(
             request_kwargs["response_format"] = {"type": "json_object"}
         request_fn = completion
 
+    if completion_budget_tokens is not None:
+        request_kwargs = with_completion_budget(
+            request_kwargs,
+            completion_budget_tokens,
+        )
+    request_completion_budget = completion_budget_from_kwargs(request_kwargs)
     call_key = f"sync:{uuid4().hex}"
     request_started_at = time.time()
     started_at = time.perf_counter()
@@ -1795,6 +1901,11 @@ def _request_explanations_once(
             content = getattr(message, "content", None)
             tool_calls = getattr(message, "tool_calls", None)
             function_call = getattr(message, "function_call", None)
+        finish_reason = _response_finish_reason(
+            response,
+            responses_api=_uses_responses_api(model_id),
+            completion_budget_tokens=request_completion_budget,
+        )
         raw_response = _serialize_response_payload(
             content=content,
             tool_calls=tool_calls,
@@ -1836,6 +1947,8 @@ def _request_explanations_once(
             elapsed_seconds=elapsed_seconds,
             usage=usage,
             cache_hit=_response_cache_hit(response),
+            completion_budget_tokens=request_completion_budget,
+            escalated_from_budget_tokens=escalated_from_budget_tokens,
         )
         _emit_spend_records(spend_callback, [spend_record])
         return {
@@ -1844,6 +1957,8 @@ def _request_explanations_once(
             "elapsed_seconds": elapsed_seconds,
             "request_started_at": request_started_at,
             "request_completed_at": request_completed_at,
+            "finish_reason": finish_reason,
+            "completion_budget": request_completion_budget,
             **usage,
             "spend_ledger": [spend_record],
         }
@@ -1864,10 +1979,109 @@ def _request_explanations_once(
             elapsed_seconds=time.perf_counter() - started_at,
             usage=usage,
             error=_format_error(error),
+            completion_budget_tokens=request_completion_budget,
+            escalated_from_budget_tokens=escalated_from_budget_tokens,
         )
         _emit_spend_records(spend_callback, [spend_record])
         _attach_spend_records(error, [spend_record])
         raise
+
+
+def _request_explanations_with_budget_escalation(
+    scenario: Scenario,
+    variables: list[str],
+    answers: dict[str, float],
+    model_id: str,
+    *,
+    base_explanations: dict[str, str | None],
+    repair_disagreements: list[dict],
+    spend_callback: Callable[[list[dict]], None] | None,
+) -> dict:
+    """Repair explanations, escalating length-truncated missing cells."""
+    explanations = dict(base_explanations)
+    request_results: list[dict] = []
+    exhausted_variables: set[str] = set()
+    escalation_count = 0
+    request_variables = list(variables)
+    budget_override: int | None = None
+    escalated_from: int | None = None
+
+    while True:
+        try:
+            result = _request_explanations_once(
+                scenario,
+                request_variables,
+                {variable: answers[variable] for variable in request_variables},
+                model_id,
+                spend_callback=spend_callback,
+                completion_budget_tokens=budget_override,
+                escalated_from_budget_tokens=escalated_from,
+            )
+        except Exception as error:
+            prior_spend = [
+                record
+                for prior_result in request_results
+                for record in _spend_records(prior_result)
+            ]
+            if prior_spend:
+                _attach_spend_records(error, prior_spend)
+            error._policybench_partial_explanation_round = {
+                "explanations": explanations,
+                "request_results": request_results,
+                "exhausted_variables": exhausted_variables,
+                "budget_escalation_count": escalation_count,
+            }
+            raise
+
+        request_results.append(result)
+        explanations = _merge_repair_cells(
+            explanations,
+            result.get("explanations", {}),
+            field="explanation",
+            disagreements=repair_disagreements,
+        )
+        remaining = [
+            variable
+            for variable in request_variables
+            if not str(explanations.get(variable) or "").strip()
+        ]
+        if result.get("finish_reason") != "length" or not remaining:
+            break
+
+        current_budget = result.get("completion_budget")
+        if current_budget is None:
+            break
+        next_budget = next_completion_budget(
+            int(current_budget),
+            _completion_budget_ceiling(model_id),
+        )
+        if next_budget is None:
+            exhausted_variables.update(remaining)
+            break
+
+        logger.warning(
+            "Escalating completion budget: model=%s scenario=%s "
+            "from_budget=%s to_budget=%s",
+            model_id,
+            scenario.id,
+            current_budget,
+            next_budget,
+        )
+        escalation_count += 1
+        if any(
+            str(result["explanations"].get(variable) or "").strip()
+            for variable in request_variables
+        ):
+            request_variables = remaining
+        budget_override = next_budget
+        escalated_from = int(current_budget)
+
+    return {
+        "explanations": explanations,
+        "request_results": request_results,
+        "exhausted_variables": exhausted_variables,
+        "budget_escalation_count": escalation_count,
+    }
 
 
 def _request_predictions_once(
@@ -1878,6 +2092,8 @@ def _request_predictions_once(
     repair: bool = False,
     include_explanations: bool = True,
     spend_callback: Callable[[list[dict]], None] | None = None,
+    completion_budget_tokens: int | None = None,
+    escalated_from_budget_tokens: int | None = None,
 ) -> dict:
     if _uses_responses_api(model_id):
         messages, request_kwargs = _responses_request_kwargs(
@@ -1898,6 +2114,12 @@ def _request_predictions_once(
         )
         request_fn = completion
 
+    if completion_budget_tokens is not None:
+        request_kwargs = with_completion_budget(
+            request_kwargs,
+            completion_budget_tokens,
+        )
+    request_completion_budget = completion_budget_from_kwargs(request_kwargs)
     spend_records = []
     phase = "repair" if repair else "initial"
     for attempt in range(MAX_ATTEMPTS):
@@ -1917,6 +2139,11 @@ def _request_predictions_once(
                 content = getattr(message, "content", None)
                 tool_calls = getattr(message, "tool_calls", None)
                 function_call = getattr(message, "function_call", None)
+            finish_reason = _response_finish_reason(
+                response,
+                responses_api=_uses_responses_api(model_id),
+                completion_budget_tokens=request_completion_budget,
+            )
             raw_response = _serialize_response_payload(
                 content=content,
                 tool_calls=tool_calls,
@@ -1968,6 +2195,10 @@ def _request_predictions_once(
                     elapsed_seconds=elapsed_seconds,
                     usage=usage,
                     cache_hit=_response_cache_hit(response),
+                    completion_budget_tokens=request_completion_budget,
+                    escalated_from_budget_tokens=(
+                        escalated_from_budget_tokens if attempt == 0 else None
+                    ),
                 )
             )
             _emit_spend_records(spend_callback, [spend_records[-1]])
@@ -1978,6 +2209,11 @@ def _request_predictions_once(
                 "elapsed_seconds": elapsed_seconds,
                 "request_started_at": request_started_at,
                 "request_completed_at": request_completed_at,
+                "finish_reason": finish_reason,
+                "completion_budget": request_completion_budget,
+                "budget_escalation_count": int(
+                    escalated_from_budget_tokens is not None
+                ),
                 **usage,
                 "spend_ledger": spend_records,
             }
@@ -2000,6 +2236,10 @@ def _request_predictions_once(
                     elapsed_seconds=elapsed_seconds,
                     usage=usage,
                     error=_format_error(e),
+                    completion_budget_tokens=request_completion_budget,
+                    escalated_from_budget_tokens=(
+                        escalated_from_budget_tokens if attempt == 0 else None
+                    ),
                 )
             )
             _emit_spend_records(spend_callback, [spend_records[-1]])
@@ -2011,6 +2251,127 @@ def _request_predictions_once(
             time.sleep(delay)
 
     raise RuntimeError("Request loop exited unexpectedly")
+
+
+def _request_predictions_with_budget_escalation(
+    scenario: Scenario,
+    variables: list[str],
+    model_id: str,
+    *,
+    repair: bool,
+    include_explanations: bool,
+    base_predictions: dict[str, float | None],
+    base_explanations: dict[str, str | None],
+    repair_disagreements: list[dict],
+    spend_callback: Callable[[list[dict]], None] | None,
+) -> dict:
+    """Run one logical request, escalating only length-truncated misses."""
+    predictions = dict(base_predictions)
+    explanations = dict(base_explanations)
+    request_results: list[dict] = []
+    exhausted_variables: set[str] = set()
+    escalation_count = 0
+    request_variables = list(variables)
+    request_is_repair = repair
+    budget_override: int | None = None
+    escalated_from: int | None = None
+
+    while True:
+        try:
+            result = _request_predictions_once(
+                scenario,
+                request_variables,
+                model_id,
+                repair=request_is_repair,
+                include_explanations=include_explanations,
+                spend_callback=spend_callback,
+                completion_budget_tokens=budget_override,
+                escalated_from_budget_tokens=escalated_from,
+            )
+        except Exception as error:
+            prior_spend = [
+                record
+                for prior_result in request_results
+                for record in _spend_records(prior_result)
+            ]
+            if prior_spend:
+                _attach_spend_records(error, prior_spend)
+            error._policybench_partial_budget_round = {
+                "predictions": predictions,
+                "explanations": explanations,
+                "request_results": request_results,
+                "exhausted_variables": exhausted_variables,
+                "budget_escalation_count": escalation_count,
+            }
+            raise
+
+        request_results.append(result)
+        predictions = _merge_repair_cells(
+            predictions,
+            result["predictions"],
+            field="prediction",
+            disagreements=repair_disagreements,
+        )
+        explanations = _merge_repair_cells(
+            explanations,
+            result.get("explanations", {}),
+            field="explanation",
+            disagreements=repair_disagreements,
+        )
+
+        remaining = [
+            variable
+            for variable in request_variables
+            if predictions.get(variable) is None
+            or (
+                include_explanations
+                and not str(explanations.get(variable) or "").strip()
+            )
+        ]
+        if result.get("finish_reason") != "length" or not remaining:
+            break
+
+        current_budget = result.get("completion_budget")
+        if current_budget is None:
+            break
+        next_budget = next_completion_budget(
+            int(current_budget),
+            _completion_budget_ceiling(model_id),
+        )
+        if next_budget is None:
+            exhausted_variables.update(remaining)
+            break
+
+        logger.warning(
+            "Escalating completion budget: model=%s scenario=%s "
+            "from_budget=%s to_budget=%s",
+            model_id,
+            scenario.id,
+            current_budget,
+            next_budget,
+        )
+        escalation_count += 1
+        yielded_valid_cell = any(
+            result["predictions"].get(variable) is not None
+            or (
+                include_explanations
+                and bool(str(result["explanations"].get(variable) or "").strip())
+            )
+            for variable in request_variables
+        )
+        if yielded_valid_cell:
+            request_variables = remaining
+            request_is_repair = True
+        budget_override = next_budget
+        escalated_from = int(current_budget)
+
+    return {
+        "predictions": predictions,
+        "explanations": explanations,
+        "request_results": request_results,
+        "exhausted_variables": exhausted_variables,
+        "budget_escalation_count": escalation_count,
+    }
 
 
 def run_single_no_tools(
@@ -2128,62 +2489,119 @@ def run_single_no_tools(
                 for result in chunk_results
                 for disagreement in result.get("repair_disagreements", [])
             ],
+            "failure_sources": {
+                variable: source
+                for result in chunk_results
+                for variable, source in result.get("failure_sources", {}).items()
+            },
+            "budget_escalation_count": sum(
+                int(result.get("budget_escalation_count", 0))
+                for result in chunk_results
+            ),
             "spend_ledger": [
                 record for result in chunk_results for record in _spend_records(result)
             ],
         }
 
-    request_results = []
-    initial_result = _request_predictions_once(
-        scenario,
-        variables,
-        model_id,
-        repair=False,
-        include_explanations=include_explanations,
-        spend_callback=_spend_callback,
-    )
-    request_results.append(initial_result)
-    spend_records = _spend_records(initial_result)
-    predictions = dict(initial_result["predictions"])
-    explanations = dict(initial_result.get("explanations", {}))
+    request_results: list[dict] = []
+    spend_records: list[dict] = []
+    predictions = {variable: None for variable in variables}
+    explanations = {variable: None for variable in variables}
+    repair_errors = []
+    repair_disagreements: list[dict] = []
+    exhausted_variables: set[str] = set()
+    budget_escalation_count = 0
+    request_failed = False
+
+    try:
+        initial_round = _request_predictions_with_budget_escalation(
+            scenario,
+            variables,
+            model_id,
+            repair=False,
+            include_explanations=include_explanations,
+            base_predictions=predictions,
+            base_explanations=explanations,
+            repair_disagreements=repair_disagreements,
+            spend_callback=_spend_callback,
+        )
+    except Exception as error:
+        partial_round = getattr(error, "_policybench_partial_budget_round", None)
+        has_valid_partial = partial_round and any(
+            value is not None for value in partial_round["predictions"].values()
+        )
+        if not has_valid_partial:
+            raise
+        initial_round = partial_round
+        spend_records.extend(_spend_records(error))
+        repair_errors.append(_format_error(error))
+        request_failed = True
+    request_results.extend(initial_round["request_results"])
+    if not request_failed:
+        spend_records.extend(
+            record
+            for result in initial_round["request_results"]
+            for record in _spend_records(result)
+        )
+    predictions = initial_round["predictions"]
+    explanations = initial_round["explanations"]
+    exhausted_variables.update(initial_round["exhausted_variables"])
+    budget_escalation_count += initial_round["budget_escalation_count"]
 
     missing = _missing_variables(predictions)
     missing_explanations = (
         _missing_explanations(explanations, variables) if include_explanations else []
     )
-    repair_errors = []
-    repair_disagreements = []
-    for _ in range(MAX_REPAIR_ROUNDS):
-        repair_targets = sorted(set(missing) | set(missing_explanations))
+    for _ in range(0 if request_failed else MAX_REPAIR_ROUNDS):
+        repair_targets = sorted(
+            (set(missing) | set(missing_explanations)) - exhausted_variables
+        )
         if not repair_targets:
             break
         try:
-            repair_result = _request_predictions_once(
+            repair_round = _request_predictions_with_budget_escalation(
                 scenario,
                 repair_targets,
                 model_id,
                 repair=True,
                 include_explanations=include_explanations,
+                base_predictions=predictions,
+                base_explanations=explanations,
+                repair_disagreements=repair_disagreements,
                 spend_callback=_spend_callback,
             )
         except Exception as error:
             spend_records.extend(_spend_records(error))
+            request_failed = True
+            partial_round = getattr(
+                error,
+                "_policybench_partial_budget_round",
+                None,
+            )
+            if partial_round:
+                request_results.extend(partial_round["request_results"])
+                predictions = partial_round["predictions"]
+                explanations = partial_round["explanations"]
+                exhausted_variables.update(partial_round["exhausted_variables"])
+                budget_escalation_count += partial_round["budget_escalation_count"]
+                missing = _missing_variables(predictions)
+                missing_explanations = (
+                    _missing_explanations(explanations, variables)
+                    if include_explanations
+                    else []
+                )
             repair_errors.append(_format_error(error))
             break
-        request_results.append(repair_result)
-        spend_records.extend(_spend_records(repair_result))
-        predictions = _merge_repair_cells(
-            predictions,
-            repair_result["predictions"],
-            field="prediction",
-            disagreements=repair_disagreements,
+        request_results.extend(repair_round["request_results"])
+        spend_records.extend(
+            record
+            for result in repair_round["request_results"]
+            for record in _spend_records(result)
         )
-        explanations = _merge_repair_cells(
-            explanations,
-            repair_result.get("explanations", {}),
-            field="explanation",
-            disagreements=repair_disagreements,
-        )
+        predictions = repair_round["predictions"]
+        explanations = repair_round["explanations"]
+        exhausted_variables.update(repair_round["exhausted_variables"])
+        budget_escalation_count += repair_round["budget_escalation_count"]
         missing = _missing_variables(predictions)
         missing_explanations = (
             _missing_explanations(explanations, variables)
@@ -2191,45 +2609,82 @@ def run_single_no_tools(
             else []
         )
 
-    if include_explanations and not missing and missing_explanations:
+    if (
+        include_explanations
+        and not request_failed
+        and not missing
+        and missing_explanations
+    ):
         explanation_answers = {
             variable: predictions[variable]
             for variable in missing_explanations
             if predictions.get(variable) is not None
+            and variable not in exhausted_variables
         }
         if explanation_answers:
             try:
-                explanation_result = _request_explanations_once(
+                explanation_round = _request_explanations_with_budget_escalation(
                     scenario,
                     list(explanation_answers),
                     explanation_answers,
                     model_id,
+                    base_explanations=explanations,
+                    repair_disagreements=repair_disagreements,
                     spend_callback=_spend_callback,
                 )
-                request_results.append(explanation_result)
-                spend_records.extend(_spend_records(explanation_result))
-                explanations.update(
-                    {
-                        variable: value
-                        for variable, value in explanation_result.get(
-                            "explanations", {}
-                        ).items()
-                        if value is not None
-                    }
+                request_results.extend(explanation_round["request_results"])
+                spend_records.extend(
+                    record
+                    for result in explanation_round["request_results"]
+                    for record in _spend_records(result)
                 )
+                explanations = explanation_round["explanations"]
+                exhausted_variables.update(explanation_round["exhausted_variables"])
+                budget_escalation_count += explanation_round["budget_escalation_count"]
                 missing_explanations = _missing_explanations(explanations, variables)
             except Exception as error:
                 spend_records.extend(_spend_records(error))
+                partial_round = getattr(
+                    error,
+                    "_policybench_partial_explanation_round",
+                    None,
+                )
+                if partial_round:
+                    request_results.extend(partial_round["request_results"])
+                    explanations = partial_round["explanations"]
+                    exhausted_variables.update(partial_round["exhausted_variables"])
+                    budget_escalation_count += partial_round["budget_escalation_count"]
+                    missing_explanations = _missing_explanations(
+                        explanations,
+                        variables,
+                    )
                 repair_errors.append(_format_error(error))
 
-    if missing:
+    exhausted_missing = sorted(set(missing) & exhausted_variables)
+    ordinary_missing = sorted(set(missing) - exhausted_variables)
+    if exhausted_missing:
         repair_errors.append(
-            "Missing predictions after repair: " + ", ".join(sorted(missing))
+            "budget_exhausted_at_ceiling: " + ", ".join(exhausted_missing)
         )
-    if include_explanations and missing_explanations:
+    if ordinary_missing:
+        repair_errors.append(
+            "Missing predictions after repair: " + ", ".join(ordinary_missing)
+        )
+    ordinary_missing_explanations = sorted(
+        set(missing_explanations) - exhausted_variables
+    )
+    exhausted_missing_explanations = sorted(
+        (set(missing_explanations) & exhausted_variables) - set(missing)
+    )
+    if include_explanations and exhausted_missing_explanations:
+        repair_errors.append(
+            "budget_exhausted_at_ceiling (explanation): "
+            + ", ".join(exhausted_missing_explanations)
+        )
+    if include_explanations and ordinary_missing_explanations:
         repair_errors.append(
             "Missing explanations after repair: "
-            + ", ".join(sorted(missing_explanations))
+            + ", ".join(ordinary_missing_explanations)
         )
 
     aggregated = _aggregate_request_results(request_results)
@@ -2239,6 +2694,10 @@ def run_single_no_tools(
         "prediction": predictions[variables[0]] if len(variables) == 1 else None,
         "error": "; ".join(repair_errors) if repair_errors else None,
         "repair_disagreements": repair_disagreements,
+        "failure_sources": {
+            variable: "budget_exhausted_at_ceiling" for variable in exhausted_missing
+        },
+        "budget_escalation_count": budget_escalation_count,
         "spend_ledger": spend_records,
         **aggregated,
     }
@@ -2365,6 +2824,14 @@ def _build_resume_metadata(
         "models": {name: models[name] for name in sorted(models)},
         "policyengine_bundles": policyengine_bundles_for_countries(countries),
         "response_contract": _response_contract_metadata(),
+        "completion_budget_escalation": {
+            "strategy": "double_on_length_with_missing_payload",
+            "default_ceiling": MAX_ESCALATED_COMPLETION_TOKENS,
+            "model_ceilings": {
+                name: _completion_budget_ceiling(models[name])
+                for name in sorted(models)
+            },
+        },
     }
 
 
@@ -2372,9 +2839,13 @@ def _write_resume_metadata(output_path: str | None, metadata: dict) -> None:
     metadata_path = _output_metadata_path(output_path)
     if metadata_path is None:
         return
+    runtime_metadata = dict(metadata)
+    runtime_metadata["budget_escalation_count"] = count_budget_escalations(
+        read_spend_ledger(spend_ledger_path(output_path))
+    )
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(
-        json.dumps(metadata, indent=2, sort_keys=True),
+        json.dumps(runtime_metadata, indent=2, sort_keys=True),
         encoding="utf-8",
     )
 
@@ -2413,6 +2884,7 @@ def _validate_resume_metadata(output_path: str | None, expected: dict) -> None:
         "models",
         "policyengine_bundles",
         "response_contract",
+        "completion_budget_escalation",
     ):
         if existing.get(key) != expected.get(key):
             mismatches.append(key)
@@ -2535,10 +3007,10 @@ def run_no_tools_eval(
     ``CHECKPOINT_EVERY_ROWS`` rows.
 
     Returns DataFrame with columns:
-        model, scenario_id, variable, prediction, explanation, raw_response,
-        error, elapsed_seconds, prompt_tokens, completion_tokens, total_tokens,
-        reasoning_tokens, cached_prompt_tokens, cache_write_prompt_tokens,
-        estimated_cost_usd
+        model, scenario_id, variable, prediction, explanation, failure_source,
+        raw_response, error, elapsed_seconds, prompt_tokens, completion_tokens,
+        total_tokens, reasoning_tokens, cached_prompt_tokens,
+        cache_write_prompt_tokens, estimated_cost_usd
     """
     if models is None:
         models = MODELS
@@ -2648,6 +3120,8 @@ def run_no_tools_eval(
                     "total_cost_usd": None,
                     "cost_is_estimated": None,
                     "estimated_cost_usd": None,
+                    "failure_sources": {},
+                    "budget_escalation_count": 0,
                 }
 
             batch_size = len(scenario_programs)
@@ -2678,6 +3152,9 @@ def run_no_tools_eval(
                         "variable": variable,
                         "prediction": prediction,
                         "explanation": explanation,
+                        "failure_source": result.get("failure_sources", {}).get(
+                            variable
+                        ),
                         "raw_response": result["raw_response"],
                         "error": error,
                         "elapsed_seconds": (
@@ -2890,6 +3367,8 @@ def run_no_tools_single_output_eval(
                         "provider_response_id": None,
                         "provider_system_fingerprint": None,
                         "provider_resolved_model": None,
+                        "failure_sources": {},
+                        "budget_escalation_count": 0,
                     }
 
                 call_id = ":".join(
@@ -2908,6 +3387,9 @@ def run_no_tools_single_output_eval(
                         "variable": variable,
                         "prediction": result["predictions"].get(variable),
                         "explanation": result.get("explanations", {}).get(variable),
+                        "failure_source": result.get("failure_sources", {}).get(
+                            variable
+                        ),
                         "raw_response": result["raw_response"],
                         "error": error,
                         "elapsed_seconds": result.get("elapsed_seconds"),

@@ -27,6 +27,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from policybench.completion_budget import MAX_ESCALATED_COMPLETION_TOKENS
+
 PROMPT_CONTRACT_VERSION = "2026-08-09-v2-scoring-contract"
 CLAUDE_EXPLANATION_CHUNK_SIZE = 1
 
@@ -57,10 +59,13 @@ class ModelCard:
     # True → 16,384-token completion budget on both explanation arms
     # (reasoning bills against the same budget as the answer).
     thinking_budget: bool | None = None
-    # Overrides the thinking-budget completion ceiling for models whose
-    # reasoning tail overflows 16,384. Headroom is free — only tokens
-    # actually generated bill.
+    # Overrides the thinking-class starting budget for models whose reasoning
+    # tail overflows 16,384. Headroom is free — only generated tokens bill.
     completion_token_cap: int | None = None
+    # Hard provider output limit, when it is lower than PolicyBench's 128k
+    # escalation ceiling. This is distinct from ``completion_token_cap``,
+    # which selects the model's starting budget rather than limiting retries.
+    provider_max_completion_tokens: int | None = None
     # Measured during onboarding; informs the run supervisor's projection
     # before live per-scenario costs exist.
     expected_cost_per_scenario_usd: float | None = None
@@ -111,6 +116,36 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "truncated it at exactly the ceiling."
         ),
     ),
+    "claude-sonnet-4-6": ModelCard(
+        litellm_id="claude-sonnet-4-6",
+        provider_max_completion_tokens=64_000,
+        notes="Provider output ceiling recorded by the serving metadata.",
+    ),
+    "claude-haiku-4-5-20251001": ModelCard(
+        litellm_id="claude-haiku-4-5-20251001",
+        provider_max_completion_tokens=64_000,
+        notes="Provider output ceiling recorded by the serving metadata.",
+    ),
+    "gemini/gemini-3.1-pro-preview": ModelCard(
+        litellm_id="gemini/gemini-3.1-pro-preview",
+        provider_max_completion_tokens=65_536,
+        notes="Provider output ceiling recorded by the serving metadata.",
+    ),
+    "gemini/gemini-3.1-flash-lite-preview": ModelCard(
+        litellm_id="gemini/gemini-3.1-flash-lite-preview",
+        provider_max_completion_tokens=65_536,
+        notes="Provider output ceiling recorded by the serving metadata.",
+    ),
+    "gemini/gemini-3.5-flash": ModelCard(
+        litellm_id="gemini/gemini-3.5-flash",
+        provider_max_completion_tokens=65_535,
+        notes="Provider output ceiling recorded by the serving metadata.",
+    ),
+    "gemini/gemini-3-flash-preview": ModelCard(
+        litellm_id="gemini/gemini-3-flash-preview",
+        provider_max_completion_tokens=65_535,
+        notes="Provider output ceiling recorded by the serving metadata.",
+    ),
     "xai/grok-4.5": ModelCard(
         litellm_id="xai/grok-4.5",
         answer_contract="tool",
@@ -154,6 +189,7 @@ MODEL_CARDS: dict[str, ModelCard] = {
         litellm_id="gemini/gemini-3.6-flash",
         answer_contract="tool",
         thinking_budget=True,
+        provider_max_completion_tokens=65_536,
         expected_cost_per_scenario_usd=0.07,
         notes=(
             "Onboarded 2026-07-21: forced tool contract passed 3/3 and "
@@ -261,6 +297,17 @@ MODEL_CARDS: dict[str, ModelCard] = {
 
 def card_for(model_id: str) -> ModelCard | None:
     return MODEL_CARDS.get(model_id)
+
+
+def completion_budget_ceiling_for(model_id: str) -> int:
+    """Return the documented hard provider cap or PolicyBench's 128k default."""
+    card = card_for(model_id)
+    provider_max = card.provider_max_completion_tokens if card is not None else None
+    if provider_max is None:
+        return MAX_ESCALATED_COMPLETION_TOKENS
+    if provider_max <= 0:
+        raise ValueError("provider_max_completion_tokens must be positive")
+    return min(MAX_ESCALATED_COMPLETION_TOKENS, provider_max)
 
 
 def answer_contract_for(model_id: str) -> str:

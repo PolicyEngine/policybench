@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from litellm import completion, responses
 
 from policybench import eval_no_tools as harness
+from policybench.completion_budget import completion_budget_from_kwargs
 from policybench.model_cards import ModelCard
 
 PROBE_FULL_VARIABLE_COUNT = 16
@@ -176,11 +177,7 @@ def _run_probe(name, scenario, variables, model_id, contract) -> ProbeResult:
         messages, kwargs, request_fn = _probe_request(
             scenario, variables, model_id, contract
         )
-        budget = (
-            kwargs.get("max_completion_tokens")
-            or kwargs.get("max_output_tokens")
-            or kwargs.get("max_tokens")
-        )
+        budget = completion_budget_from_kwargs(kwargs)
         response = harness._run_request_with_wall_timeout(request_fn, kwargs)
     except Exception as error:
         return ProbeResult(

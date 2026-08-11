@@ -11,11 +11,12 @@ import pytest
 from policybench.config import MODELS
 from policybench.eval_no_tools import (
     _answer_contract_for_model,
+    _completion_budget_ceiling,
     _completion_controls,
     _request_timeout_seconds,
     _required_explanation_chunk_size,
 )
-from policybench.model_cards import card_for
+from policybench.model_cards import ModelCard, card_for
 
 # model_id -> (contract, chunk_size, timeout_s, budget_for_16_vars_with_expl)
 EXPECTED = {
@@ -92,3 +93,46 @@ def test_no_chunking_when_explanations_off():
 )
 def test_gpt_56_cards_record_measured_full_run_cost(model_id, expected_cost):
     assert card_for(model_id).expected_cost_per_scenario_usd == expected_cost
+
+
+@pytest.mark.parametrize(
+    ("provider_max", "expected"), [(30_000, 30_000), (200_000, 128_000)]
+)
+def test_provider_max_limits_escalation_ceiling(monkeypatch, provider_max, expected):
+    card = ModelCard(
+        litellm_id="provider/model",
+        provider_max_completion_tokens=provider_max,
+    )
+    monkeypatch.setattr("policybench.model_cards.card_for", lambda _model_id: card)
+
+    assert _completion_budget_ceiling("provider/model") == expected
+
+
+def test_provider_max_clamps_initial_completion_budget(monkeypatch):
+    card = ModelCard(
+        litellm_id="gpt-5-provider-capped",
+        provider_max_completion_tokens=2_000,
+    )
+    monkeypatch.setattr("policybench.model_cards.card_for", lambda _model_id: card)
+
+    assert _completion_controls(
+        "gpt-5-provider-capped",
+        include_explanations=True,
+        variables=["income_tax"],
+    ) == {"max_completion_tokens": 2_000}
+
+
+@pytest.mark.parametrize(
+    ("model_id", "expected"),
+    [
+        ("claude-sonnet-4-6", 64_000),
+        ("claude-haiku-4-5-20251001", 64_000),
+        ("gemini/gemini-3.1-pro-preview", 65_536),
+        ("gemini/gemini-3.1-flash-lite-preview", 65_536),
+        ("gemini/gemini-3.5-flash", 65_535),
+        ("gemini/gemini-3-flash-preview", 65_535),
+        ("gemini/gemini-3.6-flash", 65_536),
+    ],
+)
+def test_roster_model_provider_maximums_limit_escalation(model_id, expected):
+    assert _completion_budget_ceiling(model_id) == expected

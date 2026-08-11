@@ -10,6 +10,7 @@ FAILURE_SOURCE_VALUES = (
     "reference_model_issue_fixed",
     "reference_data_issue_fixed",
     "parse_contract_failure",
+    "budget_exhausted_at_ceiling",
     "needs_review",
 )
 

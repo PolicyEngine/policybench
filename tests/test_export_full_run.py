@@ -2,10 +2,12 @@ from pathlib import Path
 
 import pandas as pd
 
+from policybench.case_annotations import wrong_prediction_rows
 from policybench.full_run_export import (
     load_annotations,
     load_case_annotations,
     load_predictions,
+    merge_annotations,
     merge_case_annotations,
 )
 
@@ -230,6 +232,196 @@ def test_merge_case_annotations_attaches_notes_to_prediction_rows() -> None:
     assert merged["case_annotation"].tolist() == ["Shared case note."]
     assert merged["case_failure_sources"].tolist() == ["llm_error"]
     assert merged["case_failure_subtypes"].tolist() == ["thresholds_rates"]
+
+
+def test_merge_annotations_preserves_unannotated_budget_exhaustion() -> None:
+    predictions = pd.DataFrame(
+        [
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "failure_source": "budget_exhausted_at_ceiling",
+            },
+            {
+                "model": "model_b",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "failure_source": None,
+            },
+        ]
+    )
+    annotations = pd.DataFrame(
+        [
+            {
+                "model": "model_b",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "annotation": "Used the wrong bracket.",
+                "failure_source": "llm_error",
+                "failure_subtype": "thresholds_rates",
+            }
+        ]
+    )
+
+    merged = merge_annotations(predictions, annotations)
+
+    assert merged.loc[merged["model"] == "model_a", "failure_source"].iloc[0] == (
+        "budget_exhausted_at_ceiling"
+    )
+
+
+def test_merge_annotations_cannot_overwrite_recorded_budget_exhaustion() -> None:
+    predictions = pd.DataFrame(
+        [
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "failure_source": "budget_exhausted_at_ceiling",
+            }
+        ]
+    )
+    annotations = pd.DataFrame(
+        [
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "annotation": "Stale parse annotation.",
+                "failure_source": "parse_contract_failure",
+                "failure_subtype": "missing_output",
+            }
+        ]
+    )
+
+    merged = merge_annotations(predictions, annotations)
+
+    assert merged["failure_source"].tolist() == ["budget_exhausted_at_ceiling"]
+
+
+def test_merge_annotations_cannot_invent_budget_exhaustion() -> None:
+    predictions = pd.DataFrame(
+        [
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "prediction": 100.0,
+            },
+            {
+                "model": "model_b",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "prediction": None,
+            },
+        ]
+    )
+    annotations = pd.DataFrame(
+        [
+            {
+                "model": model,
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "annotation": "Incorrect reserved source.",
+                "failure_source": "budget_exhausted_at_ceiling",
+                "failure_subtype": "missing_output",
+            }
+            for model in ("model_a", "model_b")
+        ]
+    )
+
+    merged = merge_annotations(predictions, annotations)
+
+    assert merged["failure_source"].tolist() == [
+        "llm_error",
+        "parse_contract_failure",
+    ]
+
+
+def test_wrong_prediction_rows_keeps_recorded_budget_source_over_annotation(
+    tmp_path: Path,
+) -> None:
+    country_dir = tmp_path / "full_run" / "us"
+    country_dir.mkdir(parents=True)
+    pd.DataFrame(
+        [{"scenario_id": "s001", "variable": "income_tax", "value": 100.0}]
+    ).to_csv(country_dir / "reference_outputs.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "prediction": None,
+                "failure_source": "budget_exhausted_at_ceiling",
+            }
+        ]
+    ).to_csv(country_dir / "predictions.csv", index=False)
+    annotations_dir = country_dir.parent / "annotations"
+    annotations_dir.mkdir()
+    pd.DataFrame(
+        [
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "annotation": "Stale parse annotation.",
+                "failure_source": "parse_contract_failure",
+                "failure_subtype": "missing_output",
+            }
+        ]
+    ).to_csv(annotations_dir / "us_tax_annotations.csv", index=False)
+
+    wrong = wrong_prediction_rows(country_dir)
+
+    assert wrong["failure_source"].tolist() == ["budget_exhausted_at_ceiling"]
+
+
+def test_wrong_prediction_rows_cannot_invent_budget_source(tmp_path: Path) -> None:
+    country_dir = tmp_path / "full_run" / "us"
+    country_dir.mkdir(parents=True)
+    pd.DataFrame(
+        [{"scenario_id": "s001", "variable": "income_tax", "value": 100.0}]
+    ).to_csv(country_dir / "reference_outputs.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "model": "model_a",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "prediction": 200.0,
+            },
+            {
+                "model": "model_b",
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "prediction": None,
+            },
+        ]
+    ).to_csv(country_dir / "predictions.csv", index=False)
+    annotations_dir = country_dir.parent / "annotations"
+    annotations_dir.mkdir()
+    pd.DataFrame(
+        [
+            {
+                "model": model,
+                "scenario_id": "s001",
+                "variable": "income_tax",
+                "annotation": "Incorrect reserved source.",
+                "failure_source": "budget_exhausted_at_ceiling",
+                "failure_subtype": "missing_output",
+            }
+            for model in ("model_a", "model_b")
+        ]
+    ).to_csv(annotations_dir / "us_tax_annotations.csv", index=False)
+
+    wrong = wrong_prediction_rows(country_dir).sort_values("model")
+
+    assert wrong["failure_source"].tolist() == [
+        "llm_error",
+        "parse_contract_failure",
+    ]
 
 
 def test_available_countries_detects_only_populated_dirs(tmp_path):

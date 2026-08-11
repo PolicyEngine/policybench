@@ -24,7 +24,11 @@ from policybench.full_run_export import (
 # labels these without a classifier). Everything else — reference-suspect
 # classes, prompt ambiguity, needs_review — is unresolved for a frozen
 # snapshot.
-FINAL_FAILURE_SOURCES = {"llm_error", "parse_contract_failure"}
+FINAL_FAILURE_SOURCES = {
+    "llm_error",
+    "parse_contract_failure",
+    "budget_exhausted_at_ceiling",
+}
 
 
 def _expected_prediction_rows(
