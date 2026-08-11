@@ -217,13 +217,47 @@ def merge_annotations(
         for column in ["annotation", "failure_source", "failure_subtype"]
         if column in predictions.columns
     ]
-    if existing_columns:
-        predictions = predictions.drop(columns=existing_columns)
-    return predictions.merge(
+    recorded_columns = {column: f"_recorded_{column}" for column in existing_columns}
+    if recorded_columns:
+        predictions = predictions.rename(columns=recorded_columns)
+    merged = predictions.merge(
         annotations,
         on=["model", "scenario_id", "variable"],
         how="left",
     )
+    recorded_ceiling_exhaustion = pd.Series(False, index=merged.index)
+    for column, recorded_column in recorded_columns.items():
+        if column not in merged.columns:
+            merged[column] = merged[recorded_column]
+        else:
+            merged[column] = merged[column].combine_first(merged[recorded_column])
+        if column == "failure_source":
+            recorded_ceiling_exhaustion = (
+                merged[recorded_column].astype("string")
+                == "budget_exhausted_at_ceiling"
+            ).fillna(False)
+            merged.loc[recorded_ceiling_exhaustion, column] = (
+                "budget_exhausted_at_ceiling"
+            )
+        merged = merged.drop(columns=recorded_column)
+    invented_ceiling_exhaustion = (
+        merged["failure_source"].astype("string") == "budget_exhausted_at_ceiling"
+    ).fillna(False) & ~recorded_ceiling_exhaustion
+    if invented_ceiling_exhaustion.any():
+        prediction_missing = (
+            merged["prediction"].isna()
+            if "prediction" in merged.columns
+            else pd.Series(True, index=merged.index)
+        )
+        merged.loc[
+            invented_ceiling_exhaustion & prediction_missing,
+            "failure_source",
+        ] = "parse_contract_failure"
+        merged.loc[
+            invented_ceiling_exhaustion & ~prediction_missing,
+            "failure_source",
+        ] = "llm_error"
+    return merged
 
 
 def merge_case_annotations(

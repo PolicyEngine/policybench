@@ -14,6 +14,7 @@ from policybench.annotation_taxonomy import (
 )
 from policybench.audit import (
     AUDIT_OUTPUT_SCHEMA,
+    _row_failure_source,
     build_audit_cases,
     collect_audit,
     is_hedged,
@@ -420,6 +421,57 @@ def test_parse_failure_only_case_skips_codex_and_is_deterministic(tmp_path: Path
     assert list(s0_rows["model"]) == ["m2"]
     assert s0_rows.iloc[0]["failure_source"] == "parse_contract_failure"
     assert s0_rows.iloc[0]["failure_subtype"] == "missing_output"
+
+
+def test_budget_exhaustion_source_survives_deterministic_missing_audit(
+    tmp_path: Path,
+):
+    d = tmp_path / "us"
+    d.mkdir()
+    pd.DataFrame([{"scenario_id": "s0", "variable": "snap", "value": 0.0}]).to_csv(
+        d / "reference_outputs.csv", index=False
+    )
+    pd.DataFrame(
+        [
+            {
+                "model": "m1",
+                "scenario_id": "s0",
+                "variable": "snap",
+                "prediction": None,
+                "explanation": None,
+                "error": "budget_exhausted_at_ceiling: snap",
+                "failure_source": "budget_exhausted_at_ceiling",
+            }
+        ]
+    ).to_csv(d / "predictions.csv", index=False)
+    audit_dir = tmp_path / "audit"
+
+    prepare_audit(d, audit_dir)
+    out = collect_audit(d, audit_dir)
+
+    assert out["row"].iloc[0]["failure_source"] == "budget_exhausted_at_ceiling"
+
+
+def test_classifier_cannot_invent_budget_exhaustion_source():
+    missing_meta = {"missing_models": ["m1"], "recorded_failure_sources": {}}
+    parsed_meta = {"missing_models": [], "recorded_failure_sources": {}}
+
+    assert (
+        _row_failure_source(
+            missing_meta,
+            "m1",
+            "budget_exhausted_at_ceiling",
+        )
+        == "parse_contract_failure"
+    )
+    assert (
+        _row_failure_source(
+            parsed_meta,
+            "m1",
+            "budget_exhausted_at_ceiling",
+        )
+        == "llm_error"
+    )
 
 
 def test_reprepare_drops_stale_verdict_when_case_changed(tmp_path: Path):

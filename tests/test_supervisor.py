@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 
 from policybench.config import MODELS
-from policybench.spend_ledger import spend_ledger_path
+from policybench.spend_ledger import spend_ledger_path, upsert_spend_ledger
 from policybench.supervisor import (
     ADAPTIVE_WINDOW,
     BUDGET_STOP_FRACTION,
@@ -51,10 +51,12 @@ def stub_worker(
     cost_per_scenario: float = 0.1,
     fail_indices: set[int] | None = None,
     timeout_indices: set[int] | None = None,
+    budget_escalation_counts: dict[int, int] | None = None,
 ):
     """Replace _spawn with a no-op process and synthesize the scenario CSV."""
     fail_indices = fail_indices or set()
     timeout_indices = timeout_indices or set()
+    budget_escalation_counts = budget_escalation_counts or {}
 
     def fake_spawn(index: int):
         if index not in fail_indices:
@@ -67,6 +69,19 @@ def stub_worker(
                     "total_cost_usd": [cost_per_scenario / 2] * 2,
                 }
             ).to_csv(out, index=False)
+            escalation_count = budget_escalation_counts.get(index, 0)
+            if escalation_count:
+                upsert_spend_ledger(
+                    spend_ledger_path(out),
+                    [
+                        {
+                            "call_key": f"sync:{index}:{escalation_index}",
+                            "escalated_from_budget_tokens": 256 * 2**escalation_index,
+                            "completion_budget_tokens": 512 * 2**escalation_index,
+                        }
+                        for escalation_index in range(escalation_count)
+                    ],
+                )
         if index in timeout_indices:
             log = supervisor.scenario_csv(index).with_suffix(".log")
             log.parent.mkdir(parents=True, exist_ok=True)
@@ -92,7 +107,31 @@ def test_happy_path_completes_all_and_combines(manifest, tmp_path, monkeypatch):
         "tool_choice_mode": "forced",
         "chunk_size": None,
         "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+        "completion_budget_ceiling": 128000,
     }
+
+
+def test_budget_escalation_counts_land_in_run_state(
+    manifest,
+    tmp_path,
+    monkeypatch,
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    stub_worker(
+        supervisor,
+        monkeypatch,
+        budget_escalation_counts={0: 2, 3: 1},
+    )
+
+    state = supervisor.run(poll_seconds=0.01)
+
+    assert state.budget_escalation_count == 3
+    heartbeat = json.loads((supervisor.run_dir / "run_state.json").read_text())
+    assert heartbeat["budget_escalation_count"] == 3
+
+    resumed = make_supervisor(manifest, tmp_path)
+    resumed_state = resumed.run(poll_seconds=0)
+    assert resumed_state.budget_escalation_count == 3
 
 
 def test_resume_skips_completed_scenarios(manifest, tmp_path, monkeypatch):

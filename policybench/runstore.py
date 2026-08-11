@@ -85,8 +85,15 @@ STATUS_VALUES = ("ok", "parse_error", "llm_error", "replaced")
 
 #: Parse statuses recorded per prediction row. ``ok`` is a parsed value;
 #: ``missing`` is a row that exists (the response was attempted) but produced no
-#: numeric prediction; ``replaced`` is a superseded row.
-PREDICTION_PARSE_STATUSES = ("ok", "missing", "replaced", "error")
+#: numeric prediction; ``budget_exhausted_at_ceiling`` is a length-terminated
+#: miss after the escalation ladder; ``replaced`` is a superseded row.
+PREDICTION_PARSE_STATUSES = (
+    "ok",
+    "missing",
+    "budget_exhausted_at_ceiling",
+    "replaced",
+    "error",
+)
 
 # ---------------------------------------------------------------------------
 # Column model for predictions.csv
@@ -894,6 +901,8 @@ class RunStore:
     def _prediction_parse_status(record: dict[str, Any]) -> str:
         if not _is_missing(record.get("prediction")):
             return "ok"
+        if record.get("failure_source") == "budget_exhausted_at_ceiling":
+            return "budget_exhausted_at_ceiling"
         from policybench.eval_no_tools import is_infrastructure_error_text
 
         error = record.get("error")

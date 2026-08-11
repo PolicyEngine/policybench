@@ -45,6 +45,13 @@ def read_spend_ledger(path: str | Path) -> list[dict]:
     return records
 
 
+def count_budget_escalations(records: Iterable[dict]) -> int:
+    """Count requests that moved to a larger completion budget."""
+    return sum(
+        record.get("escalated_from_budget_tokens") is not None for record in records
+    )
+
+
 def _deduplicate_records(records: Iterable[dict]) -> list[dict]:
     indexed: dict[str, dict] = {}
     for record in records:

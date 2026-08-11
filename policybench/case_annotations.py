@@ -86,10 +86,15 @@ def _expected_prediction_rows(
 
     prediction_columns = ["model", "scenario_id", "variable", "prediction"]
     optional_columns = [
-        column for column in ["explanation", "error"] if column in predictions.columns
+        column
+        for column in ["explanation", "error", "failure_source"]
+        if column in predictions.columns
     ]
     prediction_details = predictions[prediction_columns + optional_columns].rename(
-        columns={"error": "prediction_error"}
+        columns={
+            "error": "prediction_error",
+            "failure_source": "recorded_failure_source",
+        }
     )
     merged = expected.merge(
         prediction_details,
@@ -139,6 +144,27 @@ def wrong_prediction_rows(country_dir: Path) -> pd.DataFrame:
     for column in ["failure_source", "failure_subtype"]:
         if column not in wrong.columns:
             wrong[column] = pd.NA
+    recorded_ceiling_exhaustion = pd.Series(False, index=wrong.index)
+    if "recorded_failure_source" in wrong.columns:
+        recorded_ceiling_exhaustion = (
+            wrong["recorded_failure_source"].astype("string")
+            == "budget_exhausted_at_ceiling"
+        ).fillna(False)
+        wrong.loc[
+            recorded_ceiling_exhaustion,
+            "failure_source",
+        ] = "budget_exhausted_at_ceiling"
+    invented_ceiling_exhaustion = (
+        wrong["failure_source"].astype("string") == "budget_exhausted_at_ceiling"
+    ).fillna(False) & ~recorded_ceiling_exhaustion
+    wrong.loc[
+        invented_ceiling_exhaustion & wrong["prediction"].isna(),
+        "failure_source",
+    ] = "parse_contract_failure"
+    wrong.loc[
+        invented_ceiling_exhaustion & wrong["prediction"].notna(),
+        "failure_source",
+    ] = "llm_error"
     missing_categories = (
         wrong["annotation"].astype("string").fillna("").str.strip() != ""
     ) & (
@@ -149,12 +175,30 @@ def wrong_prediction_rows(country_dir: Path) -> pd.DataFrame:
         inferred = wrong.loc[missing_categories, "annotation"].map(
             infer_failure_category
         )
-        wrong.loc[missing_categories, "failure_source"] = [
-            category.failure_source for category in inferred
-        ]
-        wrong.loc[missing_categories, "failure_subtype"] = [
-            category.failure_subtype for category in inferred
-        ]
+        inferred_sources = pd.Series(
+            [category.failure_source for category in inferred],
+            index=inferred.index,
+        )
+        inferred_subtypes = pd.Series(
+            [category.failure_subtype for category in inferred],
+            index=inferred.index,
+        )
+        missing_source = (
+            wrong["failure_source"].astype("string").fillna("").str.strip() == ""
+        )
+        missing_subtype = (
+            wrong["failure_subtype"].astype("string").fillna("").str.strip() == ""
+        )
+        source_rows = missing_categories & missing_source
+        subtype_rows = missing_categories & missing_subtype
+        source_index = wrong.index[source_rows]
+        subtype_index = wrong.index[subtype_rows]
+        wrong.loc[source_index, "failure_source"] = inferred_sources.reindex(
+            source_index
+        )
+        wrong.loc[subtype_index, "failure_subtype"] = inferred_subtypes.reindex(
+            subtype_index
+        )
     return wrong
 
 

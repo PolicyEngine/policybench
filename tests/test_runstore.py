@@ -429,6 +429,29 @@ def test_status_counts_shape(tmp_path):
     store.close()
 
 
+def test_status_counts_bucket_budget_exhaustion_separately(tmp_path):
+    store = RunStore(tmp_path / "run.db")
+    store.create_run("r1")
+    frame = _make_predictions_frame(
+        models=("model-a",),
+        scenarios=("scenario_000",),
+        variables=("snap", "ssi"),
+    )
+    frame["run_id"] = "r1"
+    exhausted = frame["variable"] == "ssi"
+    frame.loc[exhausted, "prediction"] = None
+    frame.loc[exhausted, "failure_source"] = "budget_exhausted_at_ceiling"
+
+    store.upsert_predictions(frame)
+    counts = store.status_counts("r1")["predictions_by_model_parse_status"]
+
+    assert {(row["model"], row["parse_status"]): row["n"] for row in counts} == {
+        ("model-a", "budget_exhausted_at_ceiling"): 1,
+        ("model-a", "ok"): 1,
+    }
+    store.close()
+
+
 # ---------------------------------------------------------------------------
 # Import / export round-trip on synthetic data
 # ---------------------------------------------------------------------------
