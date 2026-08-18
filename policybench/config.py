@@ -51,6 +51,7 @@ MODELS = {
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
     "gemini-3.5-flash": "gemini/gemini-3.5-flash",
     "gemini-3.6-flash": "gemini/gemini-3.6-flash",
+    "gemini-3.7-flash": "gemini/gemini-3.7-flash",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
@@ -90,6 +91,9 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # gemini-3.6-flash: $1.50 / $7.50 per 1M input/output tokens (Google
     # launch pricing, 2026-07-21); litellm's price map does not yet cover it.
     "gemini-3.6-flash": {"input": 1.5, "output": 7.5},
+    # gemini-3.7-flash: $0.75 / $3.75 per 1M input/output tokens (Google
+    # introductory pricing at the 2026-08-13 launch; doubles 2027-01-01).
+    "gemini-3.7-flash": {"input": 0.75, "output": 3.75},
     # claude-fable-5: $10 / $50 per 1M input/output tokens
     # (https://platform.claude.com/docs/en/about-claude/models/overview).
     "claude-fable-5": {"input": 10.0, "output": 50.0},
