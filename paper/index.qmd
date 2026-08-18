@@ -29,13 +29,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from policybench.config import MODELS, SEED
+from policybench.config import SEED
 from policybench.analysis import score_single_prediction
-from policybench.eval_no_tools import (
-    REASONING_EFFORT_OVERRIDES,
-    THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
-    THINKING_DEFAULT_CLAUDE_MODELS,
-)
 from policybench.paper_results import MODEL_DISPLAY_NAMES, r
 from policybench.spec import (
     get_output_ids,
@@ -46,7 +41,7 @@ from policybench.spec import (
 
 pd.set_option("display.max_colwidth", None)
 
-# The July 2026 refresh is US-only (the UK leg is deferred). Every constant
+# The August 2026 refresh is US-only (the UK leg is deferred). Every constant
 # below is derived from the frozen manifest so a future refresh updates the
 # manuscript without prose edits; ``r`` (policybench.paper_results) exposes the
 # already-formatted numbers the prose interpolates.
@@ -55,6 +50,9 @@ if not (ROOT / "results").exists():
     ROOT = ROOT.parent
 IMPACT_SNAPSHOT_DIR = "paper/snapshot/20260501"
 MANIFEST = json.loads((ROOT / IMPACT_SNAPSHOT_DIR / "manifest.json").read_text())
+SERVING_CONFIG = json.loads(
+    (ROOT / IMPACT_SNAPSHOT_DIR / "model_serving_config.json").read_text()
+)["models"]
 
 SNAPSHOT_DATE = MANIFEST["snapshot_date"]
 MODEL_RESPONSE_DATE = MANIFEST["model_response_date"]
@@ -684,61 +682,6 @@ def sensitivity_rows() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# Reasoning-effort overrides in force when the frozen snapshot's runs were
-# made: none. Every model in this snapshot ran at unconfigured provider
-# defaults. (An earlier June run pinned gpt-5.5 to low effort; that run was
-# replaced after the pin was traced to a harness token-budget artifact, and
-# the frozen gpt-5.5 wave is a default-effort rerun.) Assert containment so
-# a *new* live override can never ship undocumented in the manuscript.
-SNAPSHOT_REASONING_EFFORT_OVERRIDES: dict[str, str] = {}
-assert all(
-    SNAPSHOT_REASONING_EFFORT_OVERRIDES.get(k) == v
-    for k, v in REASONING_EFFORT_OVERRIDES.items()
-), "Live reasoning overrides not recorded in the snapshot config table."
-
-
-def reasoning_setup(model: str) -> str:
-    """Per-model reasoning configuration for the frozen snapshot's runs.
-
-    Thinking-model text derives from the live harness constants (unchanged
-    since those runs); effort overrides come from the snapshot record above.
-    """
-    if model in THINKING_DEFAULT_CLAUDE_MODELS:
-        cap = f"{THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP:,}"
-        return f"extended thinking (default); {cap}-token shared budget"
-    if model in SNAPSHOT_REASONING_EFFORT_OVERRIDES:
-        return (
-            "reasoning effort pinned to "
-            f"{SNAPSHOT_REASONING_EFFORT_OVERRIDES[model]!r}"
-        )
-    from policybench.model_cards import card_for
-
-    card = card_for(MODELS.get(model, model))
-    if card is not None and card.thinking_budget:
-        cap = f"{THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP:,}"
-        return f"provider default; {cap}-token shared budget"
-    return "provider default"
-
-
-def request_shape(model: str) -> str:
-    """Per-model request shape in the frozen snapshot's runs.
-
-    Derived from the live harness treatment (cards and family heuristics,
-    unchanged since those runs): None means the model answered the whole
-    scenario in one request; an integer means the same template was applied
-    over subsets of that many requested outputs per request.
-    """
-    from policybench.eval_no_tools import _required_explanation_chunk_size
-
-    chunk = _required_explanation_chunk_size(
-        MODELS.get(model, model), include_explanations=True
-    )
-    if chunk is None:
-        return "whole scenario"
-    plural = "" if chunk == 1 else "s"
-    return f"{chunk} output{plural}/request"
-
-
 def released(model: str) -> str:
     """First public availability (paid tiers count; trusted previews do not).
 
@@ -756,14 +699,15 @@ def model_run_table(top_n: int | None = None) -> pd.DataFrame:
     models = sorted(us_model["model"])
     for model in models[:top_n]:
         us_row = us_model.loc[us_model["model"] == model].iloc[0]
+        serving = SERVING_CONFIG[model]
         rows.append(
             {
                 "Model": model_display_name(model),
-                "Provider ID": MODELS.get(model, "not in default registry"),
+                "Provider ID": serving["provider_id"],
                 "Released": released(model),
                 "Parsed": f"{int(us_row.nParsed):,}/{int(us_row.n):,}",
-                "Request shape": request_shape(model),
-                "Reasoning setup": reasoning_setup(model),
+                "Request shape": serving["request_shape"],
+                "Reasoning setup": serving["reasoning_setup"],
             }
         )
     return pd.DataFrame(rows)
@@ -1029,11 +973,12 @@ parse_repair_summary = pd.DataFrame(
         [
             "Final parse coverage",
             (
-                "565 of the "
-                f"{r.n_canonical_rows_fmt} canonical model-output rows (1.2%) "
-                "have no parsable numeric value despite retries — 426 from "
-                "Kimi K2.6 and 139 from GLM-5.2 — and score zero as "
-                "parse-contract failures. Every other row has a parsed "
+                f"{r.parse_contract_failure_count_fmt} of the "
+                f"{r.n_canonical_rows_fmt} canonical model-output rows "
+                f"({r.parse_contract_failure_pct_fmt}%) have no parsable "
+                "numeric value after retries. The failures comprise "
+                f"{r.parse_contract_failure_breakdown_fmt}. They score zero "
+                "as parse-contract failures. Every other row has a parsed "
                 "numeric value and a non-empty explanation."
             ),
         ],
@@ -1079,7 +1024,7 @@ conclusion_snapshot_summary = country_top_sentence(us_top_model)
 
 ## Abstract {.unnumbered}
 
-PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine `{python} r.dataset_label` microdataset, scored through policyengine.py `{python} r.policyengine_version`. It evaluates `{python} r.n_models_fmt` frontier models on `{python} r.n_households_fmt` households across `{python} r.n_output_groups_fmt` output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match on a household-impact-weighted leaderboard: `{python} r.zero_share_pct_fmt`% of US reference outputs are exact zeros, and the weighting concentrates scores in the high-dollar output groups a hedge-to-zero strategy cannot answer, so the top model leads an always-zero baseline of `{python} r.always_zero_exact_fmt`% weighted exact by `{python} r.top_exact_margin_fmt` points (Section 3.1 details the construction). The manuscript snapshot is a `{python} r.n_households_fmt`-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` Within model families, newer is not always stronger: Claude Opus 4.8 scores `{python} r.opus48_score_fmt`% exact, below the `{python} r.opus47_score_fmt`% of the earlier Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. Every wrong cell is audited, with reference-suspect flags adjudicated against primary sources and engine traces; the frozen release has no known reference-computation defects, and every one of the `{python} r.wrong_row_count_fmt` scored misses traces to a model-side failure (including the 1.2% of cells with a missing or unparsable answer, scored as misses rather than dropped). The live benchmark is available at <https://policybench.org>.
+PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine `{python} r.dataset_label` microdataset, scored through policyengine.py `{python} r.policyengine_version`. It evaluates `{python} r.n_models_fmt` frontier models on `{python} r.n_households_fmt` households across `{python} r.n_output_groups_fmt` output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match on a household-impact-weighted leaderboard: `{python} r.zero_share_pct_fmt`% of US reference outputs are exact zeros, and the weighting concentrates scores in the high-dollar output groups a hedge-to-zero strategy cannot answer, so the top model leads an always-zero baseline of `{python} r.always_zero_exact_fmt`% weighted exact by `{python} r.top_exact_margin_fmt` points (Section 3.1 details the construction). The manuscript snapshot is a `{python} r.n_households_fmt`-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` Within model families, newer is not always stronger: Claude Opus 4.8 scores `{python} r.opus48_score_fmt`% exact, below the `{python} r.opus47_score_fmt`% of the earlier Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. Every wrong cell is audited, with reference-suspect flags adjudicated against primary sources and engine traces; the frozen release has no known reference-computation defects, and every one of the `{python} r.wrong_row_count_fmt` scored misses traces to a model-side failure (including the `{python} r.parse_contract_failure_pct_fmt`% of cells with a missing or unparsable answer, scored as misses rather than dropped). The live benchmark is available at <https://policybench.org>.
 
 ## Introduction
 
@@ -1133,7 +1078,9 @@ Aggregation proceeds in three steps. First, each household-output prediction rec
 
 The benchmark requires each model response to include numeric answers and one explanation per requested output. Both the exact-match rate and the bounded score use only the numeric answers. Explanations are retained for scenario exploration and qualitative error analysis; they should not be interpreted as faithful traces of model reasoning.
 
-Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts, the same requested outputs, and no web or tool access. The prompt states that unlisted numeric inputs are `0`, unlisted boolean or status facts are false, and household characteristics are constant over the tax-benefit year. Provider-specific differences are limited to the response transport needed to obtain structured output, the request shape, and the reasoning configuration documented per model in @tbl-model-runs: models whose provider enables reasoning by default run with extended thinking against a fixed shared completion budget, and no model receives reasoning-control parameters — every model in the frozen snapshot runs at its provider's default reasoning configuration. Sampling parameters are never set; temperature and related decoding controls stay at provider defaults for every model. (An earlier June run pinned GPT-5.5's reasoning effort to low; the pin was traced to a harness token-budget artifact and that run was replaced before the freeze, so the frozen GPT-5.5 wave is a default-effort run like every other model.)
+Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts and requested outputs. They receive no web or external tool access. The prompt sets unlisted numeric inputs to `0`, unlisted boolean or status facts to false, and household characteristics as constant over the tax-benefit year. Provider-specific differences are limited to structured-output transport, request shape, and the reasoning setup in @tbl-model-runs. The harness sends no reasoning-control or sampling parameters. It leaves reasoning effort, temperature, and related decoding controls at provider defaults. The frozen GPT-5.5 wave uses provider-default reasoning effort.
+
+The forced `tool_choice` suppresses Claude's extended thinking in this snapshot ([`sensitivity/claude-thinking-2026-08.md`](https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md)). A labeled sensitivity with `tool_choice: "auto"` is published beside the board. The next board version moves every model to `tool_choice: "auto"` so each provider's default reasoning posture can engage.
 
 Request shape is the one dimension on which requests were not identical across models. `{python} n_chunked_models` of the `{python} r.n_models_fmt` models could not reliably complete the whole-scenario request — their serving stacks rejected the structured-output call, exhausted completion budgets mid-response, or timed out — and instead answered the same prompt template over subsets of the requested outputs, one to three outputs per request (@tbl-model-runs). Subsetting gives each response fewer requested outputs and a fresh completion budget over the same household facts, so the accommodation, if it moves scores at all, should favor the chunked models; their scores are not strictly comparable to whole-scenario scores. This accommodation is closed going forward: a model added after this snapshot either answers the canonical whole-scenario request or is listed as not scorable rather than accommodated.
 
@@ -1149,7 +1096,7 @@ md_table(snapshot_provenance)
 
 ```{python}
 #| label: tbl-model-runs
-#| tbl-cap: "Model run configuration in the frozen manuscript snapshot. Every model uses its provider's structured-output transport with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same prompt template over the same household facts; request shape and reasoning setup are the only per-model serving configuration. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights, announced at its API launch [@willison2026kimik3], shipped on Hugging Face on July 27, 2026 under a custom license [@techtimes2026kimik3weights]."
+#| tbl-cap: "Model run configuration in the frozen manuscript snapshot. Every model uses its provider's structured-output transport with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same prompt template over the same household facts. The snapshot pins request shape and reasoning setup from the harness registry and model cards. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights, announced at its API launch [@willison2026kimik3], shipped on Hugging Face on July 27, 2026 under a custom license [@techtimes2026kimik3weights]."
 md_table(model_runs)
 ```
 
@@ -1329,7 +1276,7 @@ Second, joint accuracy across interacting components is lower than marginal accu
 federal_state_joint
 ```
 
-Third, structured-output reliability is part of the benchmark contract. Missing or unparseable numeric values are not dropped. Appendix A documents parser recovery and the supervised runner's bounded retry rounds; the 565 cells (1.2%) that still returned no parsable value after retries stand in the canonical files and score zero as parse-contract failures (Appendix A gives the per-model breakdown).
+Third, structured-output reliability is part of the benchmark contract. Missing or unparseable numeric values are not dropped. Appendix A documents parser recovery and the supervised runner's bounded retry rounds. The `{python} r.parse_contract_failure_count_fmt` cells (`{python} r.parse_contract_failure_pct_fmt`%) that still returned no parsable value after retries remain in the canonical files and score zero as parse-contract failures. Appendix A gives the per-model breakdown.
 
 ## Limitations
 
@@ -1365,7 +1312,7 @@ The benchmark requires one numeric value and one explanation for every requested
 md_table(parse_repair_summary)
 ```
 
-Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds, so no separate retry artifacts exist; repairs are folded into each model's canonical prediction file. After retries, 565 cells (1.2% of canonical rows, concentrated in Kimi K2.6 and GLM-5.2) still returned no parsable numeric value. These stand in the canonical files with their raw responses preserved and score zero as parse-contract failures — the denominator is never reduced.
+Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds. No separate retry artifacts exist; repairs are folded into each model's canonical prediction file. After retries, `{python} r.parse_contract_failure_count_fmt` cells (`{python} r.parse_contract_failure_pct_fmt`% of canonical rows) still returned no parsable numeric value. They comprise `{python} r.parse_contract_failure_breakdown_fmt`. These cells remain in the canonical files with their raw responses preserved. They score zero as parse-contract failures, and the denominator is never reduced.
 
 ## Competing interests {.unnumbered}
 

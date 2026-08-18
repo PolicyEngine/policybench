@@ -17,8 +17,8 @@ Sources, in order of authority:
   within-1% scores, per-output ``programStats`` and ``failureModes``
   breakdowns, household and scored-output counts.
 * the frozen audit annotations dir (``manifest['audit_annotation_artifacts']``)
-  -- the count of wrong rows, the fact that every wrong row is an ``llm_error``,
-  and that zero rows are reference-suspect (no PolicyEngine bugs found).
+  -- the count of wrong rows, their adjudicated failure sources, and the fact
+  that zero rows are reference-suspect (no PolicyEngine bugs found).
 
 The qmd imports ``r`` once in an ``#| echo: false`` setup cell and then every
 inline number is a ```{python} r.field``` placeholder, so a future
@@ -48,6 +48,7 @@ MODEL_DISPLAY_NAMES = {
     "grok-4.5": "Grok 4.5",
     "deepseek-v4-pro": "DeepSeek V4 Pro",
     "claude-opus-5": "Claude Opus 5",
+    "gemini-3.7-flash": "Gemini 3.7 Flash",
     "gemini-3.6-flash": "Gemini 3.6 Flash",
     "kimi-k3": "Kimi K3",
     "kimi-k2.6": "Kimi K2.6",
@@ -279,6 +280,39 @@ class PaperResults:
     @property
     def n_canonical_rows_fmt(self) -> str:
         return f"{self.n_canonical_rows:,}"
+
+    @cached_property
+    def parse_contract_failure_counts(self) -> Counter:
+        """Missing or unparseable frozen dashboard rows, counted by model."""
+        counts: Counter = Counter()
+        for variable_map in self.dashboard["scenarioPredictions"].values():
+            for model_map in variable_map.values():
+                for model, row in model_map.items():
+                    if row.get("failureSource") == "parse_contract_failure":
+                        counts[model] += 1
+        return counts
+
+    @property
+    def parse_contract_failure_count(self) -> int:
+        return sum(self.parse_contract_failure_counts.values())
+
+    @property
+    def parse_contract_failure_count_fmt(self) -> str:
+        return f"{self.parse_contract_failure_count:,}"
+
+    @property
+    def parse_contract_failure_pct_fmt(self) -> str:
+        pct = 100 * self.parse_contract_failure_count / self.n_canonical_rows
+        return f"{pct:.1f}"
+
+    @property
+    def parse_contract_failure_breakdown_fmt(self) -> str:
+        """Model-level parse failures, descending, with readable names."""
+        items = [
+            f"{self.model_name(model)} ({count:,})"
+            for model, count in self.parse_contract_failure_counts.most_common()
+        ]
+        return _ordinal_join(items)
 
     # ----- populace dataset construction ---------------------------------
     @property
@@ -602,7 +636,7 @@ r = PaperResults()
 
 # Public release date per model: the first day any member of the public could
 # use it (paid tiers count; trusted-tester previews do not). Compiled
-# 2026-07-19 from vendor announcements and contemporaneous press; per-model
+# 2026-08-17 from vendor announcements and contemporaneous press; per-model
 # sources follow each entry.
 MODEL_RELEASE_DATES: dict[str, str] = {
     # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
@@ -628,6 +662,8 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "gemini-3.5-flash": "2026-05-19",
     # 9to5google.com 2026-07-21 gemini-3-6-flash launch
     "gemini-3.6-flash": "2026-07-21",
+    # blog.google/products/gemini/gemini-3-7-flash (2026-08-13)
+    "gemini-3.7-flash": "2026-08-13",
     # blog.google gemini-3-1-flash-lite; siliconangle.com 2026-03-03
     "gemini-3.1-flash-lite-preview": "2026-03-03",
     # openai.com/index/introducing-gpt-5-4-mini-and-nano; 9to5mac 2026-03-17
