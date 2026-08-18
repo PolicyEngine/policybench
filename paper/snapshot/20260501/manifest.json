@@ -21,11 +21,11 @@
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 77819217,
+    "bytes": 80150275,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "5463a5d13281e33246ccaf9270726ab0ca1c228b030c7bdb991a768df974fbc5",
-    "tag": "dashboard-data-20260805",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260805/dashboard-data.json"
+    "sha256": "a71de04ab9b3aa6d20e99fb8c7f90ec60ce4fdb708e2546bfb68ddbd968409fe",
+    "tag": "dashboard-data-20260817",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260817/dashboard-data.json"
   },
   "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under published_dashboard_artifact, which equals the combined export of the source run data.json files listed under source_run_artifacts. Future refreshes publish a new artifact (policybench publish-dashboard) and either update this manifest or use a new snapshot directory.",
   "model_response_date": "2026-06-12 to 2026-08-05",

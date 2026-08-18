@@ -199,6 +199,18 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "launch pricing ($1.50/$7.50 per 1M)."
         ),
     ),
+    "gemini/gemini-3.7-flash": ModelCard(
+        litellm_id="gemini/gemini-3.7-flash",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.012,
+        notes=(
+            "Onboarded 2026-08-17: forced tool contract passed 3/3 and "
+            "16/16 whole-scenario (2,709 completion tokens). Introductory "
+            "pricing $0.75/$3.75 per 1M through 2026-12-31; doubles "
+            "2027-01-01."
+        ),
+    ),
     "openrouter/moonshotai/kimi-k3": ModelCard(
         litellm_id="openrouter/moonshotai/kimi-k3",
         answer_contract="json",
