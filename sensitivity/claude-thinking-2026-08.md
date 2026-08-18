@@ -66,6 +66,39 @@ probes confirming reliable tool calling under `auto`, and shipped as a
 versioned re-run, never an edit to existing scores; the plan is
 [policybench#139](https://github.com/PolicyEngine/policybench/issues/139).
 
+## Where thinking helps (Claude Fable 5, per program)
+
+Per-variable within-$1 rates, board (forced) vs `auto`. These are
+unweighted leaf rates from the heatmap; the headline weights by dollar
+magnitude, so these do not average to 86.9.
+
+| program | board | auto | delta |
+|---|---|---|---|
+| federal_income_tax_before_refundable_credits | 52.0 | 69.0 | +17.0 |
+| federal_refundable_credits | 86.0 | 95.0 | +9.0 |
+| state_income_tax_before_refundable_credits | 55.0 | 64.0 | +9.0 |
+| person_medicare_eligible | 88.7 | 96.6 | +7.9 |
+| payroll_tax | 82.0 | 89.0 | +7.0 |
+| state_refundable_credits | 80.0 | 84.0 | +4.0 |
+| self_employment_tax | 97.0 | 99.0 | +2.0 |
+| person_medicaid_eligible | 93.8 | 95.5 | +1.7 |
+| snap | 77.0 | 78.0 | +1.0 |
+| ssi | 96.0 | 97.0 | +1.0 |
+| person_wic_eligible | 99.4 | 100.0 | +0.6 |
+| local_income_tax | 100.0 | 100.0 | +0.0 |
+| person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
+| person_head_start_eligible | 100.0 | 100.0 | +0.0 |
+| tanf | 99.0 | 99.0 | +0.0 |
+| free_school_meals_eligible | 99.0 | 98.0 | -1.0 |
+| person_chip_eligible | 98.9 | 97.2 | -1.7 |
+| reduced_price_school_meals_eligible | 100.0 | 98.0 | -2.0 |
+
+Thinking pays off on the hardest arithmetic: the two income-tax lines,
+refundable credits, and payroll tax. Near-ceiling programs stay flat;
+the three small negatives sit at noise scale for n=100-177. Per-variable
+CSVs for all three models are attached to the `dashboard-data-20260805`
+release as `sensitivity-claude-*-thinking-by-variable.csv.gz`.
+
 ## Reproducing
 
 ```
