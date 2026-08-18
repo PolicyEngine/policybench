@@ -74,24 +74,24 @@ magnitude, so these do not average to 86.9.
 
 | program | board | auto | delta |
 |---|---|---|---|
-| person_medicare_eligible | 88.7 | 95.2 | +6.5 |
-| snap | 77.0 | 76.9 | -0.1 |
-| ssi | 96.0 | 95.7 | -0.3 |
-| state_income_tax_before_refundable_credits | 55.0 | 54.4 | -0.6 |
-| tanf | 99.0 | 98.4 | -0.6 |
-| local_income_tax | 100.0 | 99.0 | -1.0 |
-| free_school_meals_eligible | 99.0 | 97.8 | -1.2 |
-| self_employment_tax | 97.0 | 95.8 | -1.2 |
-| federal_income_tax_before_refundable_credits | 52.0 | 50.7 | -1.3 |
-| state_refundable_credits | 80.0 | 78.0 | -2.0 |
-| person_early_head_start_eligible | 100.0 | 97.9 | -2.1 |
-| person_wic_eligible | 99.4 | 97.1 | -2.3 |
-| reduced_price_school_meals_eligible | 100.0 | 97.6 | -2.4 |
-| federal_refundable_credits | 86.0 | 82.8 | -3.2 |
-| person_chip_eligible | 98.9 | 95.2 | -3.7 |
-| person_head_start_eligible | 100.0 | 96.1 | -3.9 |
-| person_medicaid_eligible | 93.8 | 89.4 | -4.4 |
-| payroll_tax | 82.0 | 73.6 | -8.4 |
+| federal_income_tax_before_refundable_credits | 52.0 | 69.0 | +17.0 |
+| federal_refundable_credits | 86.0 | 95.0 | +9.0 |
+| state_income_tax_before_refundable_credits | 55.0 | 64.0 | +9.0 |
+| person_medicare_eligible | 88.7 | 96.6 | +7.9 |
+| payroll_tax | 82.0 | 89.0 | +7.0 |
+| state_refundable_credits | 80.0 | 84.0 | +4.0 |
+| self_employment_tax | 97.0 | 99.0 | +2.0 |
+| person_medicaid_eligible | 93.8 | 95.5 | +1.7 |
+| snap | 77.0 | 78.0 | +1.0 |
+| ssi | 96.0 | 97.0 | +1.0 |
+| person_wic_eligible | 99.4 | 100.0 | +0.6 |
+| local_income_tax | 100.0 | 100.0 | +0.0 |
+| person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
+| person_head_start_eligible | 100.0 | 100.0 | +0.0 |
+| tanf | 99.0 | 99.0 | +0.0 |
+| free_school_meals_eligible | 99.0 | 98.0 | -1.0 |
+| person_chip_eligible | 98.9 | 97.2 | -1.7 |
+| reduced_price_school_meals_eligible | 100.0 | 98.0 | -2.0 |
 
 Thinking pays off on the hardest arithmetic: the two income-tax lines,
 refundable credits, and payroll tax. Near-ceiling programs stay flat;
