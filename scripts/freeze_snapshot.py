@@ -11,18 +11,20 @@ There is no UK leg in this refresh, so all UK artifacts are removed.
 What it freezes (all paths relative to the repo root):
 
 * ``paper/snapshot/<dir>/runs/<label>/`` — compact copies of the run:
-  ``data.json`` (copied byte-for-byte so the published-dashboard hash is
-  preserved), ``predictions.csv.gz`` (deterministic gzip of the run's
+  ``data.json`` (extracted from the byte-pinned published dashboard),
+  ``predictions.csv.gz`` (deterministic gzip of the run's
   ``predictions.csv``), ``scenarios.csv`` (+ ``.meta.json``),
   ``reference_outputs.csv`` (+ ``.meta.json``), and ``analysis/`` CSVs
   (``metrics``, ``summary_by_model``, ``summary_by_variable``,
   ``usage_summary``, ``report.md``, and the legacy
   ``impact_summary_by_model.csv``).
 * ``paper/snapshot/<dir>/us_*.csv`` — committed snapshot artifacts.
+* ``paper/snapshot/<dir>/model_serving_config.json`` — the roster's serving
+  treatments, captured from the current registry and model cards at freeze.
 * ``annotations/<run>/`` — frozen developer audit annotations the snapshot
-  tests read: ``us_audit_row_annotations.csv`` (row-level) and
-  ``us_case_notes.csv`` (case-level, renamed to the column contract the
-  validator expects).
+  tests read: ``us_audit_row_annotations.csv`` (row-level),
+  ``us_case_notes.csv`` (case-level), and
+  ``us_case_reference_explanations.csv`` (reference narratives).
 * ``paper/snapshot/<dir>/manifest.json`` — the full manifest.
 
 Run from the repo root::
@@ -45,17 +47,41 @@ from policybench.analysis import score_single_prediction
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the August 2026 US-only populace refresh (29-model board,
+# Configuration for the August 2026 US-only populace refresh (30-model board,
 # corrected v1.1 references).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
-SNAPSHOT_DATE = "2026-08-05"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-08-05"
+SNAPSHOT_DATE = "2026-08-17"
+MODEL_RESPONSE_DATE = "2026-06-12 to 2026-08-17"
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
-SOURCE_RUN = ROOT / "results" / RUN_LABEL / "us"
+SOURCE_RUN = (
+    ROOT / "../../policybench/results/local/gemini37/publish" / RUN_LABEL
+).resolve()
+SOURCE_US = SOURCE_RUN / "us"
+SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
+
+# The publication driver adds Claude Fable 5's recorded usage after exporting
+# SOURCE_RUN. This is the exact payload uploaded as dashboard-data-20260817.
+PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board30.json"
+PUBLISHED_DASHBOARD_ARTIFACT = {
+    "tag": "dashboard-data-20260817",
+    "asset": "dashboard-data.json",
+    "url": (
+        "https://github.com/PolicyEngine/policybench/releases/download/"
+        "dashboard-data-20260817/dashboard-data.json"
+    ),
+    "sha256": "a71de04ab9b3aa6d20e99fb8c7f90ec60ce4fdb708e2546bfb68ddbd968409fe",
+    "bytes": 80_150_275,
+}
+
+# The publish bundle omits this immutable reference-generation sidecar. Pair
+# the original completed-run copy only after checking that its reference CSV
+# is byte-identical to the publish bundle's CSV.
+ORIGINAL_US_RUN = (ROOT / "../../policybench/results" / RUN_LABEL / "us").resolve()
+REFERENCE_META_SOURCE = ORIGINAL_US_RUN / "reference_outputs.csv.meta.json"
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
 RUN_DEST = SNAPSHOT_DIR / "runs" / RUN_LABEL
@@ -233,11 +259,11 @@ def regenerate_analysis(dest_dir: Path) -> None:
             "policybench.cli",
             "analyze",
             "-g",
-            str(SOURCE_RUN / "reference_outputs.csv"),
+            str(SOURCE_US / "reference_outputs.csv"),
             "-p",
-            str(SOURCE_RUN / "predictions.csv"),
+            str(SOURCE_US / "predictions.csv"),
             "-s",
-            str(SOURCE_RUN / "scenarios.csv"),
+            str(SOURCE_US / "scenarios.csv"),
             "-o",
             str(dest_dir),
             "--app-data-output",
@@ -249,36 +275,57 @@ def regenerate_analysis(dest_dir: Path) -> None:
     )
     throwaway.unlink(missing_ok=True)
 
-    ground_truth = pd.read_csv(SOURCE_RUN / "reference_outputs.csv")
-    predictions = pd.read_csv(SOURCE_RUN / "predictions.csv")
+    ground_truth = pd.read_csv(SOURCE_US / "reference_outputs.csv")
+    predictions = pd.read_csv(SOURCE_US / "predictions.csv")
     impact = household_impact_summary_by_model(ground_truth, predictions)
     impact.to_csv(dest_dir / "impact_summary_by_model.csv", index=False)
 
 
 def freeze_run() -> dict[str, str]:
     """Freeze the compact run artifacts and return their file->sha256 map."""
+    published_bytes = PUBLISHED_DASHBOARD_SOURCE.read_bytes()
+    if len(published_bytes) != PUBLISHED_DASHBOARD_ARTIFACT["bytes"]:
+        raise SystemExit(
+            "Published dashboard byte count does not match the frozen release pin."
+        )
+    if sha256_bytes(published_bytes) != PUBLISHED_DASHBOARD_ARTIFACT["sha256"]:
+        raise SystemExit(
+            "Published dashboard hash does not match the frozen release pin."
+        )
+
+    publish_reference = SOURCE_US / "reference_outputs.csv"
+    original_reference = ORIGINAL_US_RUN / "reference_outputs.csv"
+    if sha256_file(publish_reference) != sha256_file(original_reference):
+        raise SystemExit(
+            "Publish and original reference outputs differ; cannot pair metadata."
+        )
+
     if RUN_DEST.exists():
         shutil.rmtree(RUN_DEST)
     RUN_DEST.mkdir(parents=True, exist_ok=True)
 
-    # data.json: copy byte-for-byte (do not re-serialize).
-    copy_exact(SOURCE_RUN / "data.json", RUN_DEST / "data.json")
+    # Extract the country payload with the same default JSON serialization the
+    # dashboard exporter and snapshot recombination test use.
+    dashboard = json.loads(published_bytes)
+    country_payload = dashboard["countries"]["us"]
+    recombined = json.dumps({"countries": {"us": country_payload}}).encode("utf-8")
+    if recombined != published_bytes:
+        raise SystemExit(
+            "Extracted country payload does not recombine to the published artifact."
+        )
+    (RUN_DEST / "data.json").write_text(json.dumps(country_payload))
 
     # predictions.csv -> deterministic gzip.
     gzip_deterministic(
-        SOURCE_RUN / "predictions.csv",
+        SOURCE_US / "predictions.csv",
         RUN_DEST / "predictions.csv.gz",
         stored_name="predictions.csv",
     )
 
     # scenarios + reference outputs (+ meta).
-    for name in (
-        "scenarios.csv",
-        "scenarios.csv.meta.json",
-        "reference_outputs.csv",
-        "reference_outputs.csv.meta.json",
-    ):
-        copy_exact(SOURCE_RUN / name, RUN_DEST / name)
+    for name in ("scenarios.csv", "scenarios.csv.meta.json", "reference_outputs.csv"):
+        copy_exact(SOURCE_US / name, RUN_DEST / name)
+    copy_exact(REFERENCE_META_SOURCE, RUN_DEST / "reference_outputs.csv.meta.json")
 
     # analysis/ CSVs + report.md.
     analysis_dest = RUN_DEST / "analysis"
@@ -314,44 +361,110 @@ def freeze_committed_artifacts() -> dict[str, str]:
     for committed_name, src in mapping.items():
         copy_exact(src, SNAPSHOT_DIR / committed_name)
         committed[committed_name] = sha256_file(SNAPSHOT_DIR / committed_name)
+    serving_config_name = "model_serving_config.json"
+    freeze_serving_configuration(SNAPSHOT_DIR / serving_config_name)
+    committed[serving_config_name] = sha256_file(SNAPSHOT_DIR / serving_config_name)
     return committed
+
+
+def freeze_serving_configuration(destination: Path) -> None:
+    """Pin the current roster's effective serving treatments for the paper."""
+    from policybench.config import MODELS
+    from policybench.eval_no_tools import (
+        REASONING_EFFORT_OVERRIDES,
+        THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
+        THINKING_DEFAULT_CLAUDE_MODELS,
+    )
+    from policybench.model_cards import (
+        answer_contract_for,
+        card_for,
+        explanation_chunk_size_for,
+    )
+
+    country_payload = json.loads((RUN_DEST / "data.json").read_text())
+    frozen_models = sorted(
+        row["model"]
+        for row in country_payload["modelStats"]
+        if row["condition"] == "no_tools"
+    )
+    missing = set(frozen_models) - set(MODELS)
+    if missing:
+        raise SystemExit(
+            f"Frozen models missing from the current registry: {sorted(missing)}"
+        )
+
+    models = {}
+    for model in frozen_models:
+        provider_id = MODELS[model]
+        answer_contract = answer_contract_for(provider_id)
+        chunk_size = explanation_chunk_size_for(provider_id)
+        card = card_for(provider_id)
+
+        if model in THINKING_DEFAULT_CLAUDE_MODELS:
+            if answer_contract != "tool":
+                raise SystemExit(
+                    "Thinking-default Claude model is not on the tool contract: "
+                    f"{model}"
+                )
+            reasoning_setup = "thinking does not engage under forced tool call"
+            shared_budget = THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP
+        elif provider_id in REASONING_EFFORT_OVERRIDES:
+            effort = REASONING_EFFORT_OVERRIDES[provider_id]
+            reasoning_setup = f"reasoning effort pinned to {effort!r}"
+            shared_budget = None
+        elif card is not None and card.thinking_budget:
+            shared_budget = (
+                card.completion_token_cap
+                if card.completion_token_cap is not None
+                else THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP
+            )
+            reasoning_setup = f"provider default; {shared_budget:,}-token shared budget"
+        else:
+            reasoning_setup = "provider default"
+            shared_budget = None
+
+        if chunk_size is None:
+            request_shape = "whole scenario"
+        else:
+            plural = "" if chunk_size == 1 else "s"
+            request_shape = f"{chunk_size} output{plural}/request"
+
+        models[model] = {
+            "answer_contract": answer_contract,
+            "provider_id": provider_id,
+            "reasoning_setup": reasoning_setup,
+            "request_shape": request_shape,
+            "shared_completion_budget_tokens": shared_budget,
+            "tool_choice": "forced" if answer_contract == "tool" else None,
+        }
+
+    payload = {
+        "models": models,
+        "sources": [
+            "policybench.config.MODELS",
+            "policybench.model_cards",
+            "policybench.eval_no_tools",
+        ],
+    }
+    destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def freeze_annotations() -> dict[str, str]:
     """Freeze audit annotations under the path the snapshot tests read.
 
-    Row annotations keep their ``us_audit_row_annotations.csv`` name (matches
-    the ``us_*_annotations.csv`` glob the validator uses). Case annotations are
-    written as ``us_case_notes.csv`` with the ``case_failure_sources`` /
-    ``case_failure_subtypes`` column names the validator's case contract
-    expects.
+    The publish bundle already uses the validator's committed names and column
+    contract, so copy all three files byte-for-byte.
     """
     if ANNOTATIONS_DEST.exists():
         shutil.rmtree(ANNOTATIONS_DEST)
     ANNOTATIONS_DEST.mkdir(parents=True, exist_ok=True)
 
-    audit = SOURCE_RUN / "audit"
-    copy_exact(
-        audit / "us_audit_row_annotations.csv",
-        ANNOTATIONS_DEST / "us_audit_row_annotations.csv",
-    )
-
-    case = pd.read_csv(audit / "us_audit_case_annotations.csv")
-    case = case.rename(
-        columns={
-            "case_failure_source": "case_failure_sources",
-            "case_failure_subtype": "case_failure_subtypes",
-        }
-    )
-    case.to_csv(ANNOTATIONS_DEST / "us_case_notes.csv", index=False)
-
-    # Trace-grounded reference narratives (added after the June freeze) are
-    # part of the frozen audit story: the judge reads them and the dashboard
-    # displays them, so they freeze alongside the annotations.
-    copy_exact(
-        SOURCE_RUN / "audit" / "us_case_reference_explanations.csv",
-        ANNOTATIONS_DEST / "us_case_reference_explanations.csv",
-    )
+    for name in (
+        "us_audit_row_annotations.csv",
+        "us_case_notes.csv",
+        "us_case_reference_explanations.csv",
+    ):
+        copy_exact(SOURCE_ANNOTATIONS / name, ANNOTATIONS_DEST / name)
 
     return {
         "us_audit_row_annotations.csv": sha256_file(
@@ -384,7 +497,7 @@ def remove_stale_artifacts() -> None:
 
 def read_reference_refresh() -> dict[str, str]:
     """Read the real PE bundle versions from the run's reference meta."""
-    meta = json.loads((SOURCE_RUN / "reference_outputs.csv.meta.json").read_text())
+    meta = json.loads(REFERENCE_META_SOURCE.read_text())
     bundle = meta["policyengine_bundles"]["us"]
     return {
         "date": SNAPSHOT_DATE,
@@ -417,6 +530,10 @@ def build_manifest(
 ) -> dict:
     reference_refresh = read_reference_refresh()
     data_json_sha = run_files["data.json"]
+    country_payload = json.loads((RUN_DEST / "data.json").read_text())
+    model_count = sum(
+        row["condition"] == "no_tools" for row in country_payload["modelStats"]
+    )
 
     population_weight_path = ROOT / "policybench" / "population_weights.json"
     pointer = json.loads((ROOT / "app" / "src" / "data.artifact.json").read_text())
@@ -427,11 +544,11 @@ def build_manifest(
         "live_dashboard_note": (
             "The live dashboard payload is a published release asset; the "
             "committed pointer app/src/data.artifact.json must reference the "
-            "artifact pinned under published_dashboard_artifact, which equals "
-            "the combined export of the source run data.json files listed under "
-            "source_run_artifacts. Future refreshes publish a new artifact "
-            "(policybench publish-dashboard) and either update this manifest or "
-            "use a new snapshot directory."
+            "artifact pinned under live_dashboard_artifact. The separate "
+            "published_dashboard_artifact freezes the combined export of the "
+            "source run data.json files listed under source_run_artifacts. A "
+            "later publication may advance the live entry without changing "
+            "the frozen pin."
         ),
         "source_run_labels": {"us": RUN_LABEL},
         "source_run_artifacts": {
@@ -456,7 +573,7 @@ def build_manifest(
             "artifacts copied under "
             f"paper/snapshot/{SNAPSHOT_DIR_NAME}/runs/.",
             "Model responses were collected in waves between June 12 and "
-            "July 10, 2026, as models were added to the board; each model's "
+            "August 17, 2026, as models were added to the board; each model's "
             "full 100-household run is a single consistent wave. Reference "
             "outputs were generated with policyengine.py "
             f"{reference_refresh['policyengine_version']} and policyengine-us "
@@ -477,15 +594,15 @@ def build_manifest(
             "run metadata (scenarios.csv.meta.json) records the "
             "populace_us_2024 build actually loaded.",
             "Model APIs and upstream model aliases may change after the "
-            "recorded 2026-06-12 to 2026-07-24 response window, so exact "
+            f"recorded {MODEL_RESPONSE_DATE} response window, so exact "
             "reruns can diverge even with the committed household inputs, "
             "reference outputs, parsed dashboard export, and analysis "
             "summaries.",
         ],
         "scope": {
-            "households": {"us": 100},
-            "output_groups": {"us": 18},
-            "models": 29,
+            "households": {"us": len(country_payload["scenarios"])},
+            "output_groups": {"us": len(country_payload["programStats"])},
+            "models": model_count,
             "condition": (
                 "No tools, no web access, one structured response per household "
                 "with numeric answers and non-empty explanations."
@@ -546,13 +663,7 @@ def build_manifest(
                 "100-household snapshot."
             ),
         },
-        "published_dashboard_artifact": {
-            "tag": pointer["tag"],
-            "asset": pointer["asset"],
-            "url": pointer["url"],
-            "sha256": pointer["sha256"],
-            "bytes": pointer["bytes"],
-        },
+        "published_dashboard_artifact": PUBLISHED_DASHBOARD_ARTIFACT,
         "live_dashboard_artifact": {
             "tag": pointer["tag"],
             "asset": pointer["asset"],
@@ -639,6 +750,10 @@ def repin_rendered_paper_artifacts() -> dict:
 def main() -> None:
     if not SOURCE_RUN.exists():
         raise SystemExit(f"Source run not found: {SOURCE_RUN}")
+    if not PUBLISHED_DASHBOARD_SOURCE.exists():
+        raise SystemExit(f"Published dashboard not found: {PUBLISHED_DASHBOARD_SOURCE}")
+    if not REFERENCE_META_SOURCE.exists():
+        raise SystemExit(f"Reference metadata not found: {REFERENCE_META_SOURCE}")
 
     remove_stale_artifacts()
     run_files = freeze_run()

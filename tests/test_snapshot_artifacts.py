@@ -248,6 +248,32 @@ def test_snapshot_source_run_payloads_match_scope():
         assert top_model["model"] == "gpt-5.6-sol"
 
 
+def test_snapshot_serving_configuration_matches_frozen_roster():
+    config = json.loads((SNAPSHOT_DIR / "model_serving_config.json").read_text())
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    country_payloads = _snapshot_country_payloads(manifest)
+    frozen_models = {
+        row["model"]
+        for payload in country_payloads.values()
+        for row in payload["modelStats"]
+        if row["condition"] == "no_tools"
+    }
+
+    assert set(config["models"]) == frozen_models
+    for model in ("claude-fable-5", "claude-opus-5", "claude-sonnet-5"):
+        assert config["models"][model]["reasoning_setup"] == (
+            "thinking does not engage under forced tool call"
+        )
+        assert config["models"][model]["tool_choice"] == "forced"
+
+    assert config["models"]["kimi-k3"]["reasoning_setup"] == (
+        "provider default; 49,152-token shared budget"
+    )
+    assert config["models"]["qwen3.8-max"]["reasoning_setup"] == (
+        "provider default; 98,304-token shared budget"
+    )
+
+
 def test_snapshot_copied_artifacts_match_source_runs():
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
 
@@ -266,10 +292,10 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_wrong_rows = {
-        "us": 7_125,
+        "us": 7_329,
     }
     expected_sources = {
-        "us": {"llm_error": 6_496, "parse_contract_failure": 629},
+        "us": {"llm_error": 6_700, "parse_contract_failure": 629},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
