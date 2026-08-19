@@ -78,20 +78,29 @@ export default function ExpandPage() {
           </Link>{" "}
           tests 30 frontier models on 100 real households.
           The best model computes 88.7% of amounts within $1. On SNAP cases
-          where the family is owed benefits, models answer exactly $0 in 42%
-          of cells, and no model gets more than 1 case in 20 right. A family
+          where the family is owed benefits, models answer exactly $0 in 42% of
+          answers, and no model gets more than 1 case in 20 right.
+          On Medicaid eligibility, the median model misclassifies 1 person in
+          15; the weakest, nearly 1 in 3. A family
           told &ldquo;$0&rdquo; does not apply. Those are national numbers —
           nobody measures this for your region.
         </p>
 
         <p className="mt-4 text-base leading-relaxed text-text-secondary">
-          A PolicyBench slice measures it. We draw households from certified
+          A PolicyBench slice measures it. We draw households from
           survey microdata weighted to your population, cover your programs,
-          benchmark the models your people actually use, and compute every
+          benchmark the models behind the tools your people use, and compute every
           reference from the law with PolicyEngine. Every miss gets a
           diagnosed failure mode. You get a public slice leaderboard, a
           written analysis of where models fail your population, and a
-          briefing.
+          briefing. The answer key checks itself in public: references come
+          from open-source code, cross-checked against other calculators
+          where they exist, and challenged values get adjudicated against
+          the statute — the{" "}
+          <Link href="/paper" className="text-primary hover:underline">
+            methodology and adjudication record
+          </Link>{" "}
+          are published.
         </p>
 
         <div className="grid sm:grid-cols-3 gap-4 mt-10">
@@ -115,7 +124,10 @@ export default function ExpandPage() {
 
         <p className="mt-8 text-sm leading-relaxed text-text-secondary">
           We size samples to the confidence width your question needs, from
-          your population — not a fixed household count.
+          your population — not a fixed household count. Multi-state
+          observatories and portfolio-wide coverage are scoped directly.
+          Grantee tools that expose an API can run the same households as the
+          board — ask us.
         </p>
 
         <div className="card px-5 py-4 mt-8">
@@ -143,7 +155,9 @@ export default function ExpandPage() {
           </span>
         </div>
         <p className="mt-4 text-base leading-relaxed text-text-secondary">
-          We also brief funder networks — one slice presented to a convened
+          PolicyBench is a project of PolicyEngine, a 501(c)(3) nonprofit —
+          engagements work as grants or contracts. We also brief funder
+          networks — one slice presented to a convened
           room goes further than a dozen pitches, and we are glad to present
           at yours.
         </p>
