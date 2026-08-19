@@ -947,10 +947,14 @@ def main():
 
     # Enable disk cache for ordinary eval calls. Contract-failure retry/repair
     # commands bypass cache by default, otherwise they can replay the same bad
-    # provider response indefinitely.
+    # provider response indefinitely. eval-no-tools-repeated is deliberately
+    # NOT in this set: repeat requests are byte-identical across runs, so a
+    # shared disk cache would replay run 1's responses into runs 2..K and
+    # every stability metric would measure the cache, not the model
+    # (docs/stability_spec.md, "Cache discipline"). stability-report enforces
+    # this by hard-failing on cache_hit records in the runs' spend ledgers.
     if args.command in {
         "eval-no-tools",
-        "eval-no-tools-repeated",
         "eval-no-tools-chunked",
     } or (
         args.command in {"retry-failed-responses", "repair-failed-rows"}

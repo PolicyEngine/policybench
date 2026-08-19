@@ -2781,6 +2781,14 @@ def _response_contract_metadata() -> dict:
         "explanation_value_contract": "terminal explanation value equals numeric value",
         "prompt_template_sha256": _package_file_sha256("prompts.py"),
         "benchmark_spec_sha256": _package_file_sha256("benchmark_specs.json"),
+        # Serving-condition escape hatches change what the models are asked to
+        # do, so they are part of the resume/pooling fingerprint: a run under
+        # tool_choice auto (or with chunking overridden) must never resume or
+        # pool with a canonical-condition run.
+        "tool_choice_condition": (
+            "auto" if os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto" else "forced"
+        ),
+        "chunk_override": os.environ.get("POLICYBENCH_CHUNK_OVERRIDE") or None,
     }
 
 
@@ -3438,6 +3446,66 @@ def run_no_tools_single_output_eval(
     return df
 
 
+def _write_runs_metadata(
+    output_path: Path,
+    *,
+    scenarios: list[Scenario],
+    repeats: int,
+    models: dict[str, str],
+    programs: list[str],
+    include_explanations: bool,
+    single_output: bool,
+) -> None:
+    """Record the repeat set's shared fingerprint for stability pooling.
+
+    stability-report refuses to pool runs directories whose fingerprints
+    mismatch; the serving condition rides in the response contract.
+    """
+    import litellm
+
+    metadata = _build_resume_metadata(
+        task="eval_no_tools_repeated",
+        scenarios=scenarios,
+        models=models,
+        programs=programs,
+        run_id=None,
+        include_explanations=include_explanations,
+    )
+    metadata.update(
+        {
+            "repeats": repeats,
+            "single_output": single_output,
+            "cache_enabled": litellm.cache is not None,
+        }
+    )
+    metadata_path = output_path / "runs_metadata.json"
+    if metadata_path.exists():
+        existing = json.loads(metadata_path.read_text(encoding="utf-8"))
+        mismatched = [
+            key
+            for key in (
+                "scenario_hash",
+                "programs",
+                "models",
+                "response_contract",
+                "include_explanations",
+                "single_output",
+            )
+            if existing.get(key) != metadata.get(key)
+        ]
+        if mismatched:
+            raise ValueError(
+                f"Existing repeat set at {output_path} was produced with "
+                f"different settings ({', '.join(mismatched)}). Use one runs "
+                "directory per model group; do not mix groups or conditions "
+                "in one directory."
+            )
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
 def run_repeated_no_tools_eval(
     scenarios: list[Scenario],
     repeats: int,
@@ -3450,6 +3518,15 @@ def run_repeated_no_tools_eval(
     """Run repeated AI-alone evaluations, saving one artifact per run."""
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+    _write_runs_metadata(
+        output_path,
+        scenarios=scenarios,
+        repeats=repeats,
+        models=models if models is not None else MODELS,
+        programs=programs if programs is not None else PROGRAMS,
+        include_explanations=include_explanations,
+        single_output=single_output,
+    )
 
     frames = []
     for run_index in range(repeats):
