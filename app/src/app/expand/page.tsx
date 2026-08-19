@@ -64,7 +64,7 @@ export default function ExpandPage() {
         }}
       />
       <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-12 pb-20">
-        <div className="eyebrow mb-3">PolicyBench &middot; for funders</div>
+        <div className="eyebrow mb-3">PolicyBench &middot; expansion</div>
         <h1 className="font-[family-name:var(--font-display)] text-4xl md:text-5xl text-text tracking-tight">
           Expand PolicyBench to your region, population, or program
         </h1>
