@@ -387,6 +387,12 @@ export default function App() {
           </a>{" "}
           &middot;{" "}
           <a
+            href="/expand"
+            className="text-text-secondary hover:text-primary transition-colors"
+          >
+            Expand
+          </a>
+          <a
             href="https://github.com/PolicyEngine/policybench"
             className="text-text-secondary hover:text-primary transition-colors"
           >
