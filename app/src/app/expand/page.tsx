@@ -103,7 +103,7 @@ export default function ExpandPage() {
           are published.
         </p>
 
-        <div className="grid sm:grid-cols-2 gap-4 mt-10">
+        <div className="grid sm:grid-cols-3 gap-4 mt-10">
           <Package title="Program deep-dive" price="from $7,500">
             One program family — SNAP, Medicaid, child care, tax credits —
             across all 30 board models. Per-model accuracy, diagnosed failure
@@ -115,11 +115,6 @@ export default function ExpandPage() {
             slice leaderboard beside the national board, the full audit, the
             analysis, and a briefing for your team or grantees.
           </Package>
-          <Package title="Standing coverage" price="from $30,000 / year">
-            Your slice stays current. New models fold in as they ship,
-            quarterly refresh and re-analysis, and technical assistance to
-            grantees building AI tools for your population.
-          </Package>
           <Package title="National or portfolio" price="let&rsquo;s talk">
             A 50-state observatory, or coverage across a whole grantee
             portfolio — including your grantees&rsquo; own tools, run through
@@ -129,7 +124,10 @@ export default function ExpandPage() {
 
         <p className="mt-8 text-sm leading-relaxed text-text-secondary">
           We size samples to the confidence width your question needs, from
-          your population — not a fixed household count.
+          your population — not a fixed household count. Any slice can add
+          standing coverage: quarterly refresh and re-analysis, new models as
+          they ship, and technical assistance to grantees building AI tools —
+          priced with the slice.
         </p>
 
         <div className="card px-5 py-4 mt-8">
