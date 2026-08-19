@@ -21,6 +21,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.7,
     },
+    {
+      url: "https://policybench.org/expand",
+      changeFrequency: "monthly",
+      priority: 0.5,
+    },
     ...modelEntries,
   ];
 }
