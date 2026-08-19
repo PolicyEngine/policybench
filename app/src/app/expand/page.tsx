@@ -114,12 +114,8 @@ export default function ExpandPage() {
         </div>
 
         <p className="mt-8 text-sm leading-relaxed text-text-secondary">
-          Model inference is the small part. A 100-household sweep of all 30
-          models costs about $200 in tokens; adding one new model this week
-          cost $1.44. The price buys scenario curation, certified references,
-          a diagnosed audit of every miss, publication, and the analysis. We
-          size samples to the confidence width your question needs, from your
-          population — not a fixed household count.
+          We size samples to the confidence width your question needs, from
+          your population — not a fixed household count.
         </p>
 
         <div className="card px-5 py-4 mt-8">
@@ -128,21 +124,26 @@ export default function ExpandPage() {
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
             Funders buy coverage: households, programs, regions, refresh
-            cadence. Funding never buys scores, rankings, or placement. We
-            take no money from model vendors. Every slice stays public —
+            cadence. Funding never buys scores, rankings, or placement. No
+            model vendor pays for evaluation — vendor funding for separate
+            projects never touches the benchmark. Every slice stays public —
             prompts, references, predictions, and diagnoses.
           </p>
         </div>
 
-        <p className="mt-8 text-base leading-relaxed text-text-secondary">
-          Write to Max Ghenis at{" "}
+        <div className="mt-10 flex flex-col sm:flex-row sm:items-center gap-4">
           <a
-            href="mailto:max@policyengine.org"
-            className="text-primary hover:underline"
+            href="mailto:contact@policybench.org?subject=Expanding%20PolicyBench"
+            className="inline-flex items-center justify-center rounded-full bg-primary text-white px-6 py-3 text-sm font-semibold hover:opacity-90 transition-opacity"
           >
-            max@policyengine.org
+            Contact us
           </a>
-          . We also brief funder networks — one slice presented to a convened
+          <span className="text-sm text-text-secondary">
+            contact@policybench.org
+          </span>
+        </div>
+        <p className="mt-4 text-base leading-relaxed text-text-secondary">
+          We also brief funder networks — one slice presented to a convened
           room goes further than a dozen pitches, and we are glad to present
           at yours.
         </p>
