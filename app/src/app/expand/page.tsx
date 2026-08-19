@@ -146,7 +146,8 @@ export default function ExpandPage() {
         <div className="mt-10 flex flex-col sm:flex-row sm:items-center gap-4">
           <a
             href="mailto:contact@policybench.org?subject=Expanding%20PolicyBench"
-            className="inline-flex items-center justify-center rounded-full bg-primary text-white px-6 py-3 text-sm font-semibold hover:opacity-90 transition-opacity"
+            className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold hover:opacity-90 transition-opacity"
+            style={{ color: "var(--background)" }}
           >
             Contact us
           </a>
