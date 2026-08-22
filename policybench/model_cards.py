@@ -159,6 +159,18 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "tail scenarios."
         ),
     ),
+    "xai/grok-4.6": ModelCard(
+        litellm_id="xai/grok-4.6",
+        answer_contract="tool",
+        request_timeout_seconds=600,
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.07,
+        notes=(
+            "Provisional card mirroring grok-4.5 ahead of the 2026-08-20 "
+            "gauntlet; flagship successor released 2026-08-12 at $2/$6 "
+            "per 1M (litellm map)."
+        ),
+    ),
     "deepseek/deepseek-v4-pro": ModelCard(
         litellm_id="deepseek/deepseek-v4-pro",
         answer_contract="json",
@@ -209,6 +221,20 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "16/16 whole-scenario (2,709 completion tokens). Introductory "
             "pricing $0.75/$3.75 per 1M through 2026-12-31; doubles "
             "2027-01-01."
+        ),
+    ),
+    "openrouter/stealth/ox-alpha": ModelCard(
+        litellm_id="openrouter/stealth/ox-alpha",
+        answer_contract="tool",
+        request_timeout_seconds=600,
+        thinking_budget=True,
+        provider_max_completion_tokens=131_072,
+        expected_cost_per_scenario_usd=0.0,
+        notes=(
+            "Cloaked OpenRouter preview, free window from 2026-08-21; "
+            "identity unconfirmed. Provisional card for the preview run — "
+            "publishes beside the board, never in it. Contract set by the "
+            "2026-08-20 gauntlet."
         ),
     ),
     "openrouter/moonshotai/kimi-k3": ModelCard(
