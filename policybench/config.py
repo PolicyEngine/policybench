@@ -53,8 +53,8 @@ MODELS = {
     "gemini-3.5-flash": "gemini/gemini-3.5-flash",
     "gemini-3.6-flash": "gemini/gemini-3.6-flash",
     "gemini-3.7-flash": "gemini/gemini-3.7-flash",
-    # Cloaked OpenRouter preview (free window from 2026-08-21); identity
-    # unconfirmed. Preview runs publish beside the board, never in it.
+    # Cloaked OpenRouter preview listed 2026-08-21 (free window); maker
+    # unconfirmed. On the board as a labeled preview row.
     "ox-alpha": "openrouter/stealth/ox-alpha",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",

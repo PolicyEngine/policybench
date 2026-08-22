@@ -166,9 +166,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
         thinking_budget=True,
         expected_cost_per_scenario_usd=0.07,
         notes=(
-            "Provisional card mirroring grok-4.5 ahead of the 2026-08-20 "
-            "gauntlet; flagship successor released 2026-08-12 at $2/$6 "
-            "per 1M (litellm map)."
+            "Onboarded 2026-08-20: forced tool contract passed 3/3 and "
+            "16/16 whole-scenario. Heavy reasoner — the 3-variable probe "
+            "spent 26,260 tokens over 391s, so the timeout is 600s and the "
+            "thinking-class budget applies. Released 2026-08-12 at $2/$6 "
+            "per 1M (litellm map). The 100-scenario run cost $8.70."
         ),
     ),
     "deepseek/deepseek-v4-pro": ModelCard(
@@ -231,10 +233,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
         provider_max_completion_tokens=131_072,
         expected_cost_per_scenario_usd=0.0,
         notes=(
-            "Cloaked OpenRouter preview, free window from 2026-08-21; "
-            "identity unconfirmed. Provisional card for the preview run — "
-            "publishes beside the board, never in it. Contract set by the "
-            "2026-08-20 gauntlet."
+            "Cloaked OpenRouter preview listed 2026-08-21 (free window); "
+            "maker unconfirmed. Board row labeled as a preview: public and "
+            "callable under the identical request, dated by its listing. "
+            "Tool contract passed the 2026-08-20 gauntlet 3/3 and 16/16 "
+            "after the thinking-class budget."
         ),
     ),
     "openrouter/moonshotai/kimi-k3": ModelCard(

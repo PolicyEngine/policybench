@@ -6,11 +6,11 @@ Community fingerprinting points to a Zhipu GLM lineage. Nothing is
 confirmed. We ran it through the full benchmark because free previews of
 unreleased frontier models are worth measuring while they exist.
 
-This is a preview run beside the board, not a board row. A board row needs
-a release date, a named provider, and a model that stays callable for
-re-runs. A stealth preview has none of those, and the real model may ship
-under its own name later. When it does, it gets onboarded normally, with
-this run as its early read.
+It sits on the board as a labeled preview row. It is publicly callable
+under the identical request, so it meets the board's inclusion rule; what
+it lacks is a named maker and durability. The row is dated by its
+OpenRouter listing (2026-08-21). If the model later ships under its own
+name, that model gets onboarded normally, with this run as its early read.
 
 ## Result
 
@@ -19,10 +19,10 @@ tool call, no reasoning parameters, 100 households, 18 outputs.
 
 | | exact | would rank | within 1% | parsed |
 |---|---|---|---|---|
-| ox-alpha | **84.2** | #4 of 31 | 86.4 | 1,984 / 1,984 |
+| ox-alpha | **84.2** | #4 of 32 | 86.4 | 1,984 / 1,984 |
 
 Only GPT-5.6 Sol (88.7), Kimi K3 (86.2), and GPT-5.6 Luna (84.5) score
-higher on the live board. Inference cost was $0 in the free window; the
+higher on the board. Inference cost was $0 in the free window; the
 tool contract passed the gauntlet 3/3 and 16/16 after a thinking-class
 completion budget (the 384-token probe budget starved it, the known
 reasoning-model trap).
