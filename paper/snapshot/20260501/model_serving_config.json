@@ -184,6 +184,14 @@
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
+    "grok-4.6": {
+      "answer_contract": "tool",
+      "provider_id": "xai/grok-4.6",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "request_shape": "whole scenario",
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
     "grok-build-0.1": {
       "answer_contract": "tool",
       "provider_id": "xai/grok-build-0.1",
@@ -219,6 +227,14 @@
     "minimax-m3": {
       "answer_contract": "tool",
       "provider_id": "openrouter/minimax/minimax-m3",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "request_shape": "whole scenario",
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "ox-alpha": {
+      "answer_contract": "tool",
+      "provider_id": "openrouter/stealth/ox-alpha",
       "reasoning_setup": "provider default; 16,384-token shared budget",
       "request_shape": "whole scenario",
       "shared_completion_budget_tokens": 16384,
