@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 
 from policybench.counterfactual import (
-    ZERO_DELTA_BASELINE_MODEL,
     CF_ID_SUFFIX,
+    ZERO_DELTA_BASELINE_MODEL,
     binomial_ci_exact,
     build_counterfactual_manifest,
     build_counterfactual_twin,
@@ -205,7 +205,9 @@ class TestMatchedDeltaFrame:
             ],
             ignore_index=True,
         )
-        matched = matched_delta_frame(base, _predictions(perturbed=True), _truth_deltas())
+        matched = matched_delta_frame(
+            base, _predictions(perturbed=True), _truth_deltas()
+        )
         assert set(matched["base_run_id"]) == {"run_000", "run_001"}
         assert len(matched) == 2 * len(_truth_deltas())
 
@@ -247,7 +249,14 @@ class TestDeltaMetrics:
             ]
         )
         base = pd.DataFrame(
-            [{"model": "m", "scenario_id": "s0", "variable": "state_refundable_credits", "prediction": 100.0}]
+            [
+                {
+                    "model": "m",
+                    "scenario_id": "s0",
+                    "variable": "state_refundable_credits",
+                    "prediction": 100.0,
+                }
+            ]
         )
         pert = base.assign(prediction=104.0)  # pred_delta = 4.0, error $0.17
         matched = matched_delta_frame(base, pert, truth)

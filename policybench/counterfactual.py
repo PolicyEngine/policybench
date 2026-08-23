@@ -118,9 +118,7 @@ def compute_truth_deltas(
             "variable": merged["variable"],
             "base_value": merged["value_base"],
             "perturbed_value": merged["value_perturbed"],
-            "true_delta": (
-                (merged["value_perturbed"] - merged["value_base"]).round(2)
-            ),
+            "true_delta": ((merged["value_perturbed"] - merged["value_base"]).round(2)),
             "is_binary": merged["variable"].map(_is_binary_variable),
             "output_group": merged["variable"].map(output_group_id),
             "first_dollar": merged["scenario_id"].map(first_dollar).fillna(False),
@@ -303,8 +301,8 @@ def delta_metrics_by_model(
     amount = matched[~matched["is_binary"] & matched["both_parsed"]].copy()
     amount["nonzero_true"] = amount["true_delta"].abs() > DELTA_EXACT_TOLERANCE
     amount["exact"] = (
-        (amount["pred_delta"] - amount["true_delta"]).abs() <= DELTA_EXACT_TOLERANCE
-    )
+        amount["pred_delta"] - amount["true_delta"]
+    ).abs() <= DELTA_EXACT_TOLERANCE
     amount["within_band"] = [
         _delta_within_band(p, t)
         for p, t in zip(amount["pred_delta"], amount["true_delta"], strict=True)
@@ -545,10 +543,7 @@ def signal_vs_noise_test(
                 [signal_by_scenario[scenarios[i]] for i in draw]
             )
             floor_values = np.concatenate(
-                [
-                    floor_by_scenario.get(scenarios[i], np.array([]))
-                    for i in draw
-                ]
+                [floor_by_scenario.get(scenarios[i], np.array([])) for i in draw]
             )
             if not len(floor_values):
                 continue

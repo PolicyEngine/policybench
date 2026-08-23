@@ -85,16 +85,14 @@ LABEL_GLOSSARY: dict[str, str] = {
         "employer-sponsored insurance, Medicaid/CHIP/Medicare coverage logic"
     ),
     "age_disability": (
-        "age limits, disability or blindness status, Medicare age, "
-        "child-age windows"
+        "age limits, disability or blindness status, Medicare age, child-age windows"
     ),
     "period_annualization": (
         "converting between monthly, weekly, and annual amounts or "
         "certification periods"
     ),
     "payroll_tax_base": (
-        "payroll or self-employment tax: Social Security, Medicare, FICA, "
-        "wage bases"
+        "payroll or self-employment tax: Social Security, Medicare, FICA, wage bases"
     ),
     "state_local_rule": (
         "a state or local rule, parameter, supplement, conformity election, "
@@ -165,7 +163,11 @@ FEW_SHOT_EXAMPLES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "per person rather than as a pooled household total, the absence of "
         "any qualifying member results in zero SSI benefits for the "
         "household.",
-        ("categorical_eligibility", "age_disability", "household_unit_or_filing_status"),
+        (
+            "categorical_eligibility",
+            "age_disability",
+            "household_unit_or_filing_status",
+        ),
     ),
 )
 
@@ -232,7 +234,9 @@ def judge_cache_key(judge_model: str, variable: str, text, grade_pass: int = 0) 
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def build_judge_prompt(text: str, variable: str, country: str = "us", year: int = 2026) -> str:
+def build_judge_prompt(
+    text: str, variable: str, country: str = "us", year: int = 2026
+) -> str:
     glossary = "\n".join(
         f"- {label}: {definition}" for label, definition in LABEL_GLOSSARY.items()
     )
@@ -294,7 +298,10 @@ async def _extract_one(
     item: dict,
 ) -> dict:
     prompt = build_judge_prompt(
-        item["text"], item["variable"], item.get("country", "us"), item.get("year", 2026)
+        item["text"],
+        item["variable"],
+        item.get("country", "us"),
+        item.get("year", 2026),
     )
     last_error = ""
     async with semaphore:
@@ -320,7 +327,9 @@ async def _extract_one(
     return {"labels": None, "error": last_error or "invalid judge response", "raw": ""}
 
 
-async def _extract_batch(items: list[dict], judge_model: str, concurrency: int) -> list[dict]:
+async def _extract_batch(
+    items: list[dict], judge_model: str, concurrency: int
+) -> list[dict]:
     semaphore = asyncio.Semaphore(max(1, concurrency))
     return await asyncio.gather(
         *(_extract_one(semaphore, judge_model, item) for item in items)
@@ -420,8 +429,12 @@ def explanation_pair_frame(
     }
     records = []
     for row in pairs.itertuples():
-        pred_a, text_a = lookup.get((row.model, row.run_a, row.scenario_id, row.variable), (None, None))
-        pred_b, text_b = lookup.get((row.model, row.run_b, row.scenario_id, row.variable), (None, None))
+        pred_a, text_a = lookup.get(
+            (row.model, row.run_a, row.scenario_id, row.variable), (None, None)
+        )
+        pred_b, text_b = lookup.get(
+            (row.model, row.run_b, row.scenario_id, row.variable), (None, None)
+        )
         norm_a = normalize_explanation_text(text_a)
         norm_b = normalize_explanation_text(text_b)
         stable = bool(row.both_parsed and row.mutually_exact)
@@ -478,7 +491,9 @@ def reasoning_stability_by_model(
     frame = pairs.copy()
     labels_a = frame["text_key_a"].map(labels_by_text_key)
     labels_b = frame["text_key_b"].map(labels_by_text_key)
-    frame["judged"] = frame["verbatim_identical"] | (labels_a.notna() & labels_b.notna())
+    frame["judged"] = frame["verbatim_identical"] | (
+        labels_a.notna() & labels_b.notna()
+    )
     same = []
     jaccard = []
     claim_jaccard = []
@@ -543,10 +558,14 @@ def reasoning_stability_by_model(
         nonidentical = _rate(stable_exact & judged & ~verbatim, ~group["same_labels"])
         adjusted = float("nan")
         if pair_noise_floor is not None and not math.isnan(headline):
-            adjusted = max(0.0, (headline - pair_noise_floor) / (1.0 - pair_noise_floor))
+            adjusted = max(
+                0.0, (headline - pair_noise_floor) / (1.0 - pair_noise_floor)
+            )
         standardized = float("nan")
         if not composition.empty:
-            model_comp = composition[composition["model"] == model].set_index("output_group")
+            model_comp = composition[composition["model"] == model].set_index(
+                "output_group"
+            )
             if not model_comp.empty:
                 weights = standard_weights.reindex(model_comp.index).fillna(0.0)
                 if weights.sum() > 0:
@@ -563,7 +582,9 @@ def reasoning_stability_by_model(
                 "n_judged_stable_exact_pairs": n_judged_se,
                 "n_unjudged_stable_pairs": int((stable & ~judged).sum()),
                 "short_circuit_share_stable": _rate(stable, verbatim),
-                "mechanism_agreement_rate_stable": _rate(stable & judged, group["same_labels"]),
+                "mechanism_agreement_rate_stable": _rate(
+                    stable & judged, group["same_labels"]
+                ),
                 "mechanism_agreement_rate_stable_exact": agreement_se,
                 "right_answer_unstable_reasoning_rate": headline,
                 "right_answer_unstable_reasoning_rate_nonidentical": nonidentical,
@@ -572,7 +593,9 @@ def reasoning_stability_by_model(
                     (stable_exact & group["divergent"]).sum() / len(group)
                 ),
                 "standardized_unstable_reasoning_rate": standardized,
-                "mechanism_jaccard_mean_stable": _rate(stable & judged, group["label_jaccard"]),
+                "mechanism_jaccard_mean_stable": _rate(
+                    stable & judged, group["label_jaccard"]
+                ),
                 "mechanism_jaccard_mean_stable_exact": _rate(
                     stable_exact & judged, group["label_jaccard"]
                 ),
@@ -583,7 +606,8 @@ def reasoning_stability_by_model(
                     stable_exact, group["claim_disjoint"]
                 ),
                 "reasoning_unstable_strict_rate": _rate(
-                    stable_exact & judged, ~group["same_labels"] | group["claim_disjoint"]
+                    stable_exact & judged,
+                    ~group["same_labels"] | group["claim_disjoint"],
                 ),
                 "headline_suppressed": n_judged_se < min_stable_exact_pairs,
             }
@@ -738,7 +762,14 @@ def evaluate_against_gold(
                 "gold_positives": int(sum(gold_flags)),
                 "judge_positives": int(sum(judge_flags)),
                 "agreement": (
-                    float(np.mean([g == j for g, j in zip(gold_flags, judge_flags, strict=True)]))
+                    float(
+                        np.mean(
+                            [
+                                g == j
+                                for g, j in zip(gold_flags, judge_flags, strict=True)
+                            ]
+                        )
+                    )
                     if n_graded
                     else float("nan")
                 ),
@@ -759,7 +790,9 @@ def evaluate_against_gold(
     }
 
 
-def validation_sample_keys(text_keys: list[str], modulus: int = VALIDATION_SAMPLE_MODULUS) -> list[str]:
+def validation_sample_keys(
+    text_keys: list[str], modulus: int = VALIDATION_SAMPLE_MODULUS
+) -> list[str]:
     """Deterministic ~1/modulus sample of unique texts for re-grading."""
     return [key for key in sorted(set(text_keys)) if int(key[:8], 16) % modulus == 0]
 
@@ -786,9 +819,13 @@ def pair_agreement_summary(
             {
                 "label": label,
                 "prevalence": occurrences / (2 * n),
-                "raw_agreement": float(np.mean([x == y for x, y in zip(a_flags, b_flags, strict=True)])),
+                "raw_agreement": float(
+                    np.mean([x == y for x, y in zip(a_flags, b_flags, strict=True)])
+                ),
                 "gwet_ac1": gwet_ac1(a_flags, b_flags),
-                "cohen_kappa": cohen_kappa(a_flags, b_flags) if occurrences >= 20 else float("nan"),
+                "cohen_kappa": cohen_kappa(a_flags, b_flags)
+                if occurrences >= 20
+                else float("nan"),
             }
         )
     return {

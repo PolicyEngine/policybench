@@ -35,7 +35,14 @@ class TestRunsMetadata:
     ):
         monkeypatch.delenv("POLICYBENCH_TOOL_CHOICE", raising=False)
 
-        def fake_run(scenarios, models=None, programs=None, output_path=None, run_id=None, include_explanations=True):
+        def fake_run(
+            scenarios,
+            models=None,
+            programs=None,
+            output_path=None,
+            run_id=None,
+            include_explanations=True,
+        ):
             frame = pd.DataFrame(
                 {
                     "run_id": [run_id],
@@ -70,7 +77,14 @@ class TestRunsMetadata:
     ):
         monkeypatch.delenv("POLICYBENCH_TOOL_CHOICE", raising=False)
 
-        def fake_run(scenarios, models=None, programs=None, output_path=None, run_id=None, include_explanations=True):
+        def fake_run(
+            scenarios,
+            models=None,
+            programs=None,
+            output_path=None,
+            run_id=None,
+            include_explanations=True,
+        ):
             frame = pd.DataFrame(
                 {
                     "run_id": [run_id],

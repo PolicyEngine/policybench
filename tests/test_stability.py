@@ -103,10 +103,34 @@ def _repeated_predictions():
         ("run_001", 250.0, 1.0, None, 0.5),
     ]:
         rows += [
-            {"run_id": run_id, "model": "m", "scenario_id": "s1", "variable": "snap", "prediction": snap1},
-            {"run_id": run_id, "model": "m", "scenario_id": "s1", "variable": "person_wic_eligible", "prediction": wic1},
-            {"run_id": run_id, "model": "m", "scenario_id": "s2", "variable": "snap", "prediction": snap2},
-            {"run_id": run_id, "model": "m", "scenario_id": "s2", "variable": "person_wic_eligible", "prediction": wic2},
+            {
+                "run_id": run_id,
+                "model": "m",
+                "scenario_id": "s1",
+                "variable": "snap",
+                "prediction": snap1,
+            },
+            {
+                "run_id": run_id,
+                "model": "m",
+                "scenario_id": "s1",
+                "variable": "person_wic_eligible",
+                "prediction": wic1,
+            },
+            {
+                "run_id": run_id,
+                "model": "m",
+                "scenario_id": "s2",
+                "variable": "snap",
+                "prediction": snap2,
+            },
+            {
+                "run_id": run_id,
+                "model": "m",
+                "scenario_id": "s2",
+                "variable": "person_wic_eligible",
+                "prediction": wic2,
+            },
         ]
     return pd.DataFrame(rows)
 
@@ -123,7 +147,11 @@ class TestRunPairFrame:
         assert bool(snap1["exact_a"]) and not bool(snap1["exact_b"])
 
         wic1 = by_row.loc[("s1", "person_wic_eligible")]
-        assert bool(wic1["mutually_exact"]) and bool(wic1["exact_a"]) and bool(wic1["exact_b"])
+        assert (
+            bool(wic1["mutually_exact"])
+            and bool(wic1["exact_a"])
+            and bool(wic1["exact_b"])
+        )
 
         snap2 = by_row.loc[("s2", "snap")]
         assert not bool(snap2["both_parsed"])
@@ -196,8 +224,12 @@ class TestRowStability:
             assert row[f"{metric}_ci_low"] <= row[metric] <= row[f"{metric}_ci_high"]
 
     def test_bootstrap_deterministic_under_seed(self):
-        a = row_stability_by_model(_repeated_predictions(), _ground_truth(), n_boot=30, seed=3)
-        b = row_stability_by_model(_repeated_predictions(), _ground_truth(), n_boot=30, seed=3)
+        a = row_stability_by_model(
+            _repeated_predictions(), _ground_truth(), n_boot=30, seed=3
+        )
+        b = row_stability_by_model(
+            _repeated_predictions(), _ground_truth(), n_boot=30, seed=3
+        )
         pd.testing.assert_frame_equal(a, b)
 
     def test_empty_inputs(self):
@@ -224,7 +256,13 @@ class TestVarianceDecomposition:
         ]:
             for sid, p in zip(["s1", "s2", "s3", "s4"], preds, strict=True):
                 rows.append(
-                    {"run_id": run_id, "model": "m", "scenario_id": sid, "variable": "snap", "prediction": p}
+                    {
+                        "run_id": run_id,
+                        "model": "m",
+                        "scenario_id": sid,
+                        "variable": "snap",
+                        "prediction": p,
+                    }
                 )
         return gt, pd.DataFrame(rows), {"s1": 0.0, "s2": 0.0, "s3": 0.0, "s4": 0.0}
 
@@ -236,7 +274,11 @@ class TestVarianceDecomposition:
         # Run scores: 1.0, 0.5, 1.0 -> std = 0.288675.
         assert row["run_score_mean"] == pytest.approx(5 / 6, abs=1e-6)
         assert row["run_score_std"] == pytest.approx(0.288675, abs=1e-5)
-        assert row["run_score_std_ci_low"] < row["run_score_std"] < row["run_score_std_ci_high"]
+        assert (
+            row["run_score_std_ci_low"]
+            < row["run_score_std"]
+            < row["run_score_std_ci_high"]
+        )
         assert row["sampling_se"] > 0
         assert row["run_to_sampling_ratio"] == pytest.approx(
             row["run_score_std"] / row["sampling_se"]
@@ -278,7 +320,9 @@ class TestCacheGuard:
         return runs
 
     def test_clean_ledger_passes(self, tmp_path):
-        runs = self._write_ledger(tmp_path, [{"cache_hit": False}, {"cache_hit": False}])
+        runs = self._write_ledger(
+            tmp_path, [{"cache_hit": False}, {"cache_hit": False}]
+        )
         report = scan_runs_for_cache_hits([runs])
         assert report["cache_hits"] == 0
         assert report["records"] == 2
@@ -311,7 +355,12 @@ class TestCacheGuard:
             }
         )
         assert cross_run_response_id_duplicates(preds) == 1
-        assert cross_run_response_id_duplicates(preds.drop(columns=["provider_response_id"])) is None
+        assert (
+            cross_run_response_id_duplicates(
+                preds.drop(columns=["provider_response_id"])
+            )
+            is None
+        )
 
 
 class TestLoadRunsDirs:

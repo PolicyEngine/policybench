@@ -289,8 +289,7 @@ def _row_level_frame(
                     if binary_flag(p) is None:
                         numeric_non_flag = True
             all_pairwise_exact = all(
-                mutually_exact(variable, a, b)
-                for a, b in combinations(predictions, 2)
+                mutually_exact(variable, a, b) for a, b in combinations(predictions, 2)
             )
             exact_flags = [
                 bool(row_hit_scores(variable, gt_row.value, p)["exact"])
@@ -323,8 +322,9 @@ def _scenario_aggregates(
     pair = pair_frame.assign(
         flip_num=lambda df: df["both_parsed"] & ~df["mutually_exact"],
         flip_den=lambda df: df["both_parsed"],
-        verdict_parsed_num=lambda df: df["both_parsed"]
-        & (df["exact_a"] != df["exact_b"]),
+        verdict_parsed_num=lambda df: (
+            df["both_parsed"] & (df["exact_a"] != df["exact_b"])
+        ),
         verdict_parsed_den=lambda df: df["both_parsed"],
         verdict_all_num=lambda df: df["exact_a"] != df["exact_b"],
         verdict_all_den=1,
@@ -440,7 +440,9 @@ def row_stability_by_model(
             num_sum = wide[num].values[draw].sum(axis=0)
             den_sum = wide[den].values[draw].sum(axis=0)
             with np.errstate(invalid="ignore", divide="ignore"):
-                boot_values[metric].append(np.where(den_sum > 0, num_sum / den_sum, np.nan))
+                boot_values[metric].append(
+                    np.where(den_sum > 0, num_sum / den_sum, np.nan)
+                )
 
     run_ids = sorted(repeated_predictions["run_id"].dropna().unique())
     result_rows = []
@@ -521,7 +523,13 @@ def stability_variance_decomposition(
         household_scores.groupby(["model", "run_id"])["score"]
         .agg(["mean", "std", "count"])
         .reset_index()
-        .rename(columns={"mean": "run_score", "std": "household_std", "count": "n_households"})
+        .rename(
+            columns={
+                "mean": "run_score",
+                "std": "household_std",
+                "count": "n_households",
+            }
+        )
     )
     run_level["run_sampling_se"] = run_level["household_std"] / np.sqrt(
         run_level["n_households"]
@@ -572,7 +580,9 @@ def stability_variance_decomposition(
     pooled: dict = {}
     if pooled_df > 0:
         pooled_std = math.sqrt(pooled_ss / pooled_df)
-        mean_sampling_se = float(np.mean(sampling_ses)) if sampling_ses else float("nan")
+        mean_sampling_se = (
+            float(np.mean(sampling_ses)) if sampling_ses else float("nan")
+        )
         pooled_ci_low = pooled_std * math.sqrt(pooled_df / chi2_ppf(0.95, pooled_df))
         pooled_ci_high = pooled_std * math.sqrt(pooled_df / chi2_ppf(0.05, pooled_df))
         total_ss = pooled_ss if pooled_ss > 0 else float("nan")

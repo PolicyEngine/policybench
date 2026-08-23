@@ -94,7 +94,9 @@ class TestNormalizationAndPrompt:
 
 class TestParseJudgeLabels:
     def test_parses_json_object(self):
-        assert parse_judge_labels('{"labels": ["payroll_tax_base", "thresholds_rates"]}') == [
+        assert parse_judge_labels(
+            '{"labels": ["payroll_tax_base", "thresholds_rates"]}'
+        ) == [
             "payroll_tax_base",
             "thresholds_rates",
         ]
@@ -121,15 +123,34 @@ def _judge_response(content: str):
 class TestExtractionRunner:
     def test_dedups_identical_texts_and_caches_to_disk(self, tmp_path):
         items = [
-            {"variable": "snap", "country": "us", "year": 2026, "text": "Income exceeds 130% FPL."},
-            {"variable": "snap", "country": "us", "year": 2026, "text": "income exceeds 130% fpl."},
-            {"variable": "ssi", "country": "us", "year": 2026, "text": "Neither adult is aged or disabled."},
+            {
+                "variable": "snap",
+                "country": "us",
+                "year": 2026,
+                "text": "Income exceeds 130% FPL.",
+            },
+            {
+                "variable": "snap",
+                "country": "us",
+                "year": 2026,
+                "text": "income exceeds 130% fpl.",
+            },
+            {
+                "variable": "ssi",
+                "country": "us",
+                "year": 2026,
+                "text": "Neither adult is aged or disabled.",
+            },
         ]
         cache = tmp_path / "labels.jsonl"
         acompletion = AsyncMock(
             side_effect=[
-                _judge_response('{"labels": ["categorical_eligibility", "thresholds_rates"]}'),
-                _judge_response('{"labels": ["categorical_eligibility", "age_disability"]}'),
+                _judge_response(
+                    '{"labels": ["categorical_eligibility", "thresholds_rates"]}'
+                ),
+                _judge_response(
+                    '{"labels": ["categorical_eligibility", "age_disability"]}'
+                ),
             ]
         )
         with patch("policybench.reasoning_stability.litellm.acompletion", acompletion):
@@ -138,7 +159,10 @@ class TestExtractionRunner:
         assert acompletion.call_count == 2
         assert len(results) == 2
         snap_key = judge_cache_key("judge", "snap", items[0]["text"], 0)
-        assert results[snap_key]["labels"] == ["categorical_eligibility", "thresholds_rates"]
+        assert results[snap_key]["labels"] == [
+            "categorical_eligibility",
+            "thresholds_rates",
+        ]
         # Second invocation is served entirely from the cache file.
         acompletion.reset_mock()
         with patch("policybench.reasoning_stability.litellm.acompletion", acompletion):
@@ -165,7 +189,9 @@ class TestExtractionRunner:
         items = [{"variable": "snap", "country": "us", "year": 2026, "text": "x"}]
         acompletion = AsyncMock(return_value=_judge_response('{"labels": ["other"]}'))
         with patch("policybench.reasoning_stability.litellm.acompletion", acompletion):
-            run_label_extraction(items, judge_model="judge", cache_path=tmp_path / "c.jsonl")
+            run_label_extraction(
+                items, judge_model="judge", cache_path=tmp_path / "c.jsonl"
+            )
         kwargs = acompletion.call_args.kwargs
         assert kwargs["caching"] is False
         assert kwargs["temperature"] == 0
@@ -175,9 +201,14 @@ class TestExtractionRunner:
         items = [{"variable": "snap", "country": "us", "year": 2026, "text": "x"}]
         acompletion = AsyncMock(return_value=_judge_response('{"labels": ["other"]}'))
         with patch("policybench.reasoning_stability.litellm.acompletion", acompletion):
-            run_label_extraction(items, judge_model="judge", cache_path=tmp_path / "c.jsonl")
             run_label_extraction(
-                items, judge_model="judge", cache_path=tmp_path / "c.jsonl", grade_pass=1
+                items, judge_model="judge", cache_path=tmp_path / "c.jsonl"
+            )
+            run_label_extraction(
+                items,
+                judge_model="judge",
+                cache_path=tmp_path / "c.jsonl",
+                grade_pass=1,
             )
         assert acompletion.call_count == 2
 
@@ -214,7 +245,12 @@ def _repeated_predictions():
         ),
     ]:
         for (sid, var), pred, text in zip(
-            [("s1", "snap"), ("s1", "payroll_tax"), ("s2", "snap"), ("s2", "payroll_tax")],
+            [
+                ("s1", "snap"),
+                ("s1", "payroll_tax"),
+                ("s2", "snap"),
+                ("s2", "payroll_tax"),
+            ],
             preds,
             texts,
             strict=True,
@@ -267,7 +303,10 @@ class TestReasoningMetrics:
             pairs,
             {
                 "Net income test applied.": {"thresholds_rates"},
-                "Gross income under 130% FPL.": {"categorical_eligibility", "thresholds_rates"},
+                "Gross income under 130% FPL.": {
+                    "categorical_eligibility",
+                    "thresholds_rates",
+                },
                 "Asset test failed.": {"asset_resource"},
                 "Gross test.": {"thresholds_rates"},
             },
@@ -281,13 +320,17 @@ class TestReasoningMetrics:
         assert row["mechanism_agreement_rate_stable_exact"] == pytest.approx(0.5)
         assert row["right_answer_unstable_reasoning_rate"] == pytest.approx(0.5)
         # Restricted to non-identical texts: only s1/snap remains -> 1.0.
-        assert row["right_answer_unstable_reasoning_rate_nonidentical"] == pytest.approx(1.0)
+        assert row[
+            "right_answer_unstable_reasoning_rate_nonidentical"
+        ] == pytest.approx(1.0)
         assert row["short_circuit_share_stable"] == pytest.approx(1 / 3)
         # Joint rate over ALL pairs: one stable∧exact∧divergent pair of 4.
         assert row["joint_unstable_reasoning_rate_all_pairs"] == pytest.approx(0.25)
         # Stable stratum (3 pairs): s1/snap differ, s1/payroll same, s2/snap differ.
         assert row["mechanism_agreement_rate_stable"] == pytest.approx(1 / 3)
-        assert row["mechanism_jaccard_mean_stable_exact"] == pytest.approx((0.5 + 1.0) / 2)
+        assert row["mechanism_jaccard_mean_stable_exact"] == pytest.approx(
+            (0.5 + 1.0) / 2
+        )
         assert bool(row["headline_suppressed"]) is False
 
     def test_suppression_rule(self):
@@ -327,7 +370,8 @@ class TestReasoningMetrics:
     def test_numeric_claim_channel(self):
         preds = _repeated_predictions()
         preds.loc[
-            (preds["scenario_id"] == "s1") & (preds["variable"] == "snap"), "explanation"
+            (preds["scenario_id"] == "s1") & (preds["variable"] == "snap"),
+            "explanation",
         ] = ["Deduction of $177 and 30% rate.", "Deduction of $177 and 24% rate."]
         pairs = explanation_pair_frame(preds, _ground_truth())
         result = reasoning_stability_by_model(pairs, {}, min_stable_exact_pairs=1)
@@ -374,7 +418,9 @@ class TestReferenceAlignment:
             ("s2", "snap"): frozenset({"thresholds_rates"}),
             ("s2", "payroll_tax"): frozenset({"payroll_tax_base"}),
         }
-        table = reference_alignment_by_model(preds, _ground_truth(), labels, reference_labels)
+        table = reference_alignment_by_model(
+            preds, _ground_truth(), labels, reference_labels
+        )
         row = table.set_index("model").loc["m"]
         # Exact-correct run-explanations: s1/snap x2, s1/payroll x2, s2/payroll run_000.
         # Labeled among them: s1/snap (1 of 2 aligned), s1/payroll (2 aligned).
@@ -395,8 +441,12 @@ class TestAgreementStatistics:
         assert gwet_ac1([True, False], [True, False]) == pytest.approx(1.0)
 
     def test_kappa_perfect_and_chance(self):
-        assert cohen_kappa([True, False, True, False], [True, False, True, False]) == pytest.approx(1.0)
-        assert cohen_kappa([True, True, False, False], [True, False, True, False]) == pytest.approx(0.0)
+        assert cohen_kappa(
+            [True, False, True, False], [True, False, True, False]
+        ) == pytest.approx(1.0)
+        assert cohen_kappa(
+            [True, True, False, False], [True, False, True, False]
+        ) == pytest.approx(0.0)
 
     def test_krippendorff_alpha_jaccard(self):
         perfect = [
@@ -429,7 +479,10 @@ class TestGoldEvaluation:
             {
                 "variable": ["snap", "ssi"],
                 "explanation": ["Income exceeds 130% FPL.", "Not aged or disabled."],
-                "labels": ["categorical_eligibility|thresholds_rates", "age_disability"],
+                "labels": [
+                    "categorical_eligibility|thresholds_rates",
+                    "age_disability",
+                ],
             }
         )
         labels_by_key = {
