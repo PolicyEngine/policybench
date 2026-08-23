@@ -34,6 +34,7 @@ Run from the repo root::
 
 from __future__ import annotations
 
+import csv
 import gzip
 import hashlib
 import json
@@ -47,34 +48,34 @@ from policybench.analysis import score_single_prediction
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the August 2026 US-only populace refresh (30-model board,
+# Configuration for the August 2026 US-only populace refresh (32-model board,
 # corrected v1.1 references).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
-SNAPSHOT_DATE = "2026-08-17"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-08-17"
+SNAPSHOT_DATE = "2026-08-22"
+MODEL_RESPONSE_DATE = "2026-06-12 to 2026-08-22"
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
 SOURCE_RUN = (
-    ROOT / "../../policybench/results/local/gemini37/publish" / RUN_LABEL
+    ROOT / "../../policybench/results/local/board32/publish" / RUN_LABEL
 ).resolve()
 SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
-# The publication driver adds Claude Fable 5's recorded usage after exporting
-# SOURCE_RUN. This is the exact payload uploaded as dashboard-data-20260817.
-PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board30.json"
+# The publication driver adds release metadata after exporting SOURCE_RUN. This
+# is the exact payload uploaded as dashboard-data-20260822.
+PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board32.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
-    "tag": "dashboard-data-20260817",
+    "tag": "dashboard-data-20260822",
     "asset": "dashboard-data.json",
     "url": (
         "https://github.com/PolicyEngine/policybench/releases/download/"
-        "dashboard-data-20260817/dashboard-data.json"
+        "dashboard-data-20260822/dashboard-data.json"
     ),
-    "sha256": "a71de04ab9b3aa6d20e99fb8c7f90ec60ce4fdb708e2546bfb68ddbd968409fe",
-    "bytes": 80_150_275,
+    "sha256": "b883ec669d510ea29c9c18f18c30030c5bbd29f770bcd90d257779940929a895",
+    "bytes": 85_042_876,
 }
 
 # The publish bundle omits this immutable reference-generation sidecar. Pair
@@ -97,6 +98,24 @@ ANALYSIS_CSVS = (
     "summary_by_variable.csv",
     "usage_summary.csv",
     "impact_summary_by_model.csv",
+)
+
+CASE_NOTE_SUPPLEMENTS = (
+    {
+        "country": "us",
+        "scenario_id": "scenario_048",
+        "variable": "head_medicare_eligible",
+        "wrong_model_count": 1,
+        "case_failure_sources": "llm_error",
+        "case_failure_subtypes": "other",
+        "reference_suspect": False,
+        "reference_bug_hypothesis": "",
+        "case_annotation": (
+            "The model identified the age-based Medicare eligibility pathway "
+            "but encoded its eligible conclusion as 0. The required binary "
+            "value is 1."
+        ),
+    },
 )
 
 
@@ -466,6 +485,13 @@ def freeze_annotations() -> dict[str, str]:
     ):
         copy_exact(SOURCE_ANNOTATIONS / name, ANNOTATIONS_DEST / name)
 
+    # The publish bundle added an Ox Alpha row annotation without its matching
+    # case note. Add that deterministic aggregate note before hashing.
+    case_notes_path = ANNOTATIONS_DEST / "us_case_notes.csv"
+    with case_notes_path.open("a", newline="") as fileobj:
+        writer = csv.DictWriter(fileobj, fieldnames=CASE_NOTE_SUPPLEMENTS[0])
+        writer.writerows(CASE_NOTE_SUPPLEMENTS)
+
     return {
         "us_audit_row_annotations.csv": sha256_file(
             ANNOTATIONS_DEST / "us_audit_row_annotations.csv"
@@ -573,7 +599,7 @@ def build_manifest(
             "artifacts copied under "
             f"paper/snapshot/{SNAPSHOT_DIR_NAME}/runs/.",
             "Model responses were collected in waves between June 12 and "
-            "August 17, 2026, as models were added to the board; each model's "
+            "August 22, 2026, as models were added to the board; each model's "
             "full 100-household run is a single consistent wave. Reference "
             "outputs were generated with policyengine.py "
             f"{reference_refresh['policyengine_version']} and policyengine-us "
