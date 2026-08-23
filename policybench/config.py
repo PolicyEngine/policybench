@@ -43,6 +43,7 @@ MODELS = {
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
     "grok-4.3": "xai/grok-4.3",
     "grok-4.5": "xai/grok-4.5",
+    "grok-4.6": "xai/grok-4.6",
     "grok-build-0.1": "xai/grok-build-0.1",
     **GPT_56_MODELS,
     "gpt-5.5": "gpt-5.5",
@@ -52,6 +53,9 @@ MODELS = {
     "gemini-3.5-flash": "gemini/gemini-3.5-flash",
     "gemini-3.6-flash": "gemini/gemini-3.6-flash",
     "gemini-3.7-flash": "gemini/gemini-3.7-flash",
+    # Cloaked OpenRouter preview listed 2026-08-21 (free window); maker
+    # unconfirmed. On the board as a labeled preview row.
+    "ox-alpha": "openrouter/stealth/ox-alpha",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",

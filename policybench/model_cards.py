@@ -159,6 +159,20 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "tail scenarios."
         ),
     ),
+    "xai/grok-4.6": ModelCard(
+        litellm_id="xai/grok-4.6",
+        answer_contract="tool",
+        request_timeout_seconds=600,
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.07,
+        notes=(
+            "Onboarded 2026-08-20: forced tool contract passed 3/3 and "
+            "16/16 whole-scenario. Heavy reasoner — the 3-variable probe "
+            "spent 26,260 tokens over 391s, so the timeout is 600s and the "
+            "thinking-class budget applies. Released 2026-08-12 at $2/$6 "
+            "per 1M (litellm map). The 100-scenario run cost $8.70."
+        ),
+    ),
     "deepseek/deepseek-v4-pro": ModelCard(
         litellm_id="deepseek/deepseek-v4-pro",
         answer_contract="json",
@@ -209,6 +223,21 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "16/16 whole-scenario (2,709 completion tokens). Introductory "
             "pricing $0.75/$3.75 per 1M through 2026-12-31; doubles "
             "2027-01-01."
+        ),
+    ),
+    "openrouter/stealth/ox-alpha": ModelCard(
+        litellm_id="openrouter/stealth/ox-alpha",
+        answer_contract="tool",
+        request_timeout_seconds=600,
+        thinking_budget=True,
+        provider_max_completion_tokens=131_072,
+        expected_cost_per_scenario_usd=0.0,
+        notes=(
+            "Cloaked OpenRouter preview listed 2026-08-21 (free window); "
+            "maker unconfirmed. Board row labeled as a preview: public and "
+            "callable under the identical request, dated by its listing. "
+            "Tool contract passed the 2026-08-20 gauntlet 3/3 and 16/16 "
+            "after the thinking-class budget."
         ),
     ),
     "openrouter/moonshotai/kimi-k3": ModelCard(
