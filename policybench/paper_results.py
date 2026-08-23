@@ -45,7 +45,9 @@ MODEL_DISPLAY_NAMES = {
     "gpt-5.6-luna": "GPT-5.6 Luna",
     "claude-fable-5": "Claude Fable 5",
     "claude-sonnet-5": "Claude Sonnet 5",
+    "ox-alpha": "Ox Alpha (preview)",
     "grok-4.5": "Grok 4.5",
+    "grok-4.6": "Grok 4.6",
     "deepseek-v4-pro": "DeepSeek V4 Pro",
     "claude-opus-5": "Claude Opus 5",
     "gemini-3.7-flash": "Gemini 3.7 Flash",
@@ -636,7 +638,7 @@ r = PaperResults()
 
 # Public release date per model: the first day any member of the public could
 # use it (paid tiers count; trusted-tester previews do not). Compiled
-# 2026-08-17 from vendor announcements and contemporaneous press; per-model
+# 2026-08-22 from vendor announcements and contemporaneous press; per-model
 # sources follow each entry.
 MODEL_RELEASE_DATES: dict[str, str] = {
     # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
@@ -680,6 +682,8 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "grok-4.3": "2026-04-17",
     # x.ai/news/grok-4-5; techcrunch.com 2026-07-08
     "grok-4.5": "2026-07-08",
+    # x.ai/news/grok-4-6 (2026-08-12)
+    "grok-4.6": "2026-08-12",
     # API public beta per secondary trackers (bighatgroup.com xai-weekly
     # 2026-06-03); no vendor-dated announcement exists
     "grok-build-0.1": "2026-05-29",
@@ -705,6 +709,8 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # techcrunch.com 2026-07-15; weights on Hugging Face the same day
     # under Apache 2.0 (Thinking Machines Lab's first from-scratch model)
     "inkling": "2026-07-15",
+    # OpenRouter stealth listing; maker unnamed (2026-08-21)
+    "ox-alpha": "2026-08-21",
 }
 
 # Models whose weights are publicly downloadable. Qwen 3.7 Max and 3.8 Max
