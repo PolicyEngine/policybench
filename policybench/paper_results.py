@@ -682,6 +682,11 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "grok-4.3": "2026-04-17",
     # x.ai/news/grok-4-5; techcrunch.com 2026-07-08
     "grok-4.5": "2026-07-08",
+    # x.ai API listing; litellm model map (2026-08-12)
+    "grok-4.6": "2026-08-12",
+    # OpenRouter stealth listing date (no named maker); the board lists it as
+    # a labeled preview row dated by the listing.
+    "ox-alpha": "2026-08-21",
     # x.ai/news/grok-4-6 (2026-08-12)
     "grok-4.6": "2026-08-12",
     # API public beta per secondary trackers (bighatgroup.com xai-weekly
