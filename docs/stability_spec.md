@@ -235,6 +235,48 @@ cache guard, and emits `stability_metadata.json` including each run's
 effective serving config diffed against
 `paper/snapshot/20260501/model_serving_config.json`.
 
+Layers 2 and 3 continue from the same repeats:
+
+```bash
+# Layer 2 (judge spend only; --deterministic-only for the free channels).
+uv run policybench reasoning-stability \
+  --runs-dir "$RUN_DIR/us/runs/openai" \
+  --runs-dir "$RUN_DIR/us/runs/gemini" \
+  -g "$FROZEN_REFS" \
+  -o "$RUN_DIR/us/reasoning"
+
+# Layer 3 truth arm (free, local PolicyEngine; ~3 minutes).
+uv run policybench counterfactual-manifest -o "$RUN_DIR/us/cf"
+
+# Layer 3 model arm (paid): run the perturbed manifest once per model with
+# the ordinary runner, then report against the repeats as the base arm.
+uv run policybench eval-no-tools-chunked \
+  --country us \
+  --scenario-manifest "$RUN_DIR/us/cf/cf_scenarios.csv" \
+  --output-dir "$RUN_DIR/us/cf_arm" \
+  --model gpt-5.4-mini --model gemini-3.7-flash \
+  --chunk-size 5 --parallel 1 --model-parallel 1 --chunk-attempts 1
+
+uv run policybench counterfactual-report \
+  --perturbed-predictions "$RUN_DIR/us/cf_arm/predictions.csv" \
+  --truth-deltas "$RUN_DIR/us/cf/truth_deltas.csv" \
+  --base-runs-dir "$RUN_DIR/us/runs/openai" \
+  --base-runs-dir "$RUN_DIR/us/runs/gemini" \
+  -o "$RUN_DIR/us/cf_report"
+
+# Price any rung from logged usage before spending.
+uv run policybench stability-cost-plan \
+  -p paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/predictions.csv.gz \
+  --repeats 3 --cf-arms 1
+```
+
+The rung-0 dry run of these commands (2026-08-23, free): the truth arm
+reproduces the measured distribution exactly (247 nonzero amount rows, 0
+binary flips, zero-delta share 0.8755), and the cost plan prices the
+30-model roster at $1,302 for 4 arms + ≈$140 judge — Claude Fable 5
+reported `unpriced` (its snapshot usage is run-level) and priced
+separately at ≈$216/4 arms, consistent with the ladder's ≈$1,520.
+
 ## Layer 2 — reasoning stability
 
 **Question**: when a model gives the same answer twice, does it cite the
@@ -312,9 +354,14 @@ wage base maps to `{payroll_tax_base, thresholds_rates}`).
 
 ### Validation battery (the load-bearing control)
 
-1. **Gold-set validity gate.** A committed, stratified gold set of ~100
-   explanations (drawn from reference explanations across output groups),
-   labeled by the developers and versioned in-repo. The gate: judge
+1. **Gold-set validity gate.** A committed, stratified gold set of 90
+   explanations — 5 per output group from the reference-explanation CSV,
+   sampled with seed 20260818 — labeled against the taxonomy and versioned
+   at `annotations/stability_reasoning_gold_set.csv` (labeled 2026-08-23 by
+   the maintainer agent as developer adjudication, pending maintainer
+   review; label prevalence ranges from thresholds_rates 59/90 to
+   period_annualization 2/90, with `other` at zero as expected for
+   reference explanations). The gate: judge
    exact-set accuracy vs gold ≥ 0.80, flagged CI-aware (fail when the 95%
    lower bound sits below 0.70). Per-label agreement and prevalence
    tables publish alongside. Thresholds are provisional until the rung-1
