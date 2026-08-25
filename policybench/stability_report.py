@@ -23,6 +23,7 @@ from policybench.analysis import (
 from policybench.config import MODELS, PRICE_OVERRIDES_PER_1M
 from policybench.counterfactual import (
     CF_DEFAULT_AMOUNT,
+    CF_ID_SUFFIX,
     build_counterfactual_manifest,
     compute_truth_deltas,
     delta_metrics_by_model,
@@ -400,7 +401,9 @@ def run_counterfactual_report(
         "provider_system_fingerprint" in perturbed.columns
     ):
         pert = perturbed.copy()
-        pert["scenario_id"] = pert["scenario_id"].str.replace("__cf1k", "", regex=False)
+        pert["scenario_id"] = pert["scenario_id"].str.replace(
+            CF_ID_SUFFIX, "", regex=False
+        )
         joined = base.merge(
             pert[["model", "scenario_id", "variable", "provider_system_fingerprint"]],
             on=["model", "scenario_id", "variable"],
