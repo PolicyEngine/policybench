@@ -48,7 +48,8 @@ PolicyBench is exposed in three places:
 Everything ships under the frozen-board discipline of
 `sensitivity/claude-thinking-2026-08.md` and
 [policybench#139](https://github.com/PolicyEngine/policybench/issues/139):
-the 30-model board is never edited; stability results publish as labeled
+frozen board scores are never edited (32 models as of the 2026-08-22
+refreeze that added Grok 4.6 and Ox Alpha); stability results publish as labeled
 sensitivity artifacts (a `sensitivity/*.md` doc plus release-attached
 CSVs), or fold into the v2 board protocol as a versioned re-run.
 
@@ -273,9 +274,10 @@ uv run policybench stability-cost-plan \
 The rung-0 dry run of these commands (2026-08-23, free): the truth arm
 reproduces the measured distribution exactly (247 nonzero amount rows, 0
 binary flips, zero-delta share 0.8755), and the cost plan prices the
-30-model roster at $1,302 for 4 arms + ≈$140 judge — Claude Fable 5
-reported `unpriced` (its snapshot usage is run-level) and priced
-separately at ≈$216/4 arms, consistent with the ladder's ≈$1,520.
+32-model roster at $1,337 for 4 arms + ≈$149 judge — Claude Fable 5
+and Ox Alpha report `unpriced` (run-level and stealth-preview usage
+respectively) rather than guessed; Fable prices separately at ≈$216/4
+arms, consistent with the ladder's ≈$1,550+.
 
 ## Layer 2 — reasoning stability
 
@@ -558,7 +560,11 @@ reported):
 
 One full-roster board-condition run ≈ $316 recorded + Claude Fable 5
 ≈$54.10 (run-level usage; $0.541/hh) + two unpriced models at override
-prices (grok-build-0.1 ≈$4.50, gemini-3.6-flash ≈$5.50) ≈ **$380/run**.
+prices (grok-build-0.1 ≈$4.50, gemini-3.6-flash ≈$5.50) ≈ **$380/run**
+for the original 30 models; the 2026-08-22 refreeze adds grok-4.6
+($8.70/run logged) and ox-alpha (stealth preview, no logged or listed
+price — reported unpriced, never guessed), bringing the priced roster
+total to ≈$389/run + Fable ≈$54.
 Repeats run cache-free, so arms price at full run cost. Judge basis:
 ≈800 input + 30 output tokens/call at gemini-3.7-flash overrides
 ($0.75/$3.75 per 1M) = $0.0007125/call; 5,952 calls per model per K=3
@@ -570,8 +576,12 @@ pilot reports the realized rate); one-time reference-anchor extraction
 |---|---|---|---|---|
 | 0 (this PR) | mocks + fixtures; free local truth-deltas | $0 | $0 | metrics, tests, dry run |
 | 1 pilot | gpt-5.4-mini ($0.58/run) + gemini-3.7-flash ($1.44/run) × (3 repeats + 1 cf arm) | ≈ $8 | ≈ $17 double-graded (2 models × 3 runs × 1,984 × 2 passes), plus $1.41 anchors | end-to-end validation; gold-set + cross-judge gates |
-| 2 subset | top-8 board models as ranked (sol, kimi-k3, luna, inkling, gpt-5.5, terra, grok-4.5, fable) = $158.5/run × 4 arms | ≈ $634 (≈$446 without kimi-k3; ≈$418 without fable) | ≈ $39 (incl. 10% validation) | reportable sensitivity doc |
-| 3 full | 30-model v1 roster × 4 arms ≈ $1,520, or fold into the 20-model v2 protocol | — | ≈ $141 (incl. validation + anchors) | board-grade artifact |
+| 2 subset | top-8 as ranked on the 32-model board (sol, kimi-k3, luna, ox-alpha†, inkling, gpt-5.5, terra, grok-4.6) = $105.8/run priced × 4 arms | ≈ $423 + ox-alpha† (≈$235 without kimi-k3) | ≈ $39 (incl. 10% validation) | reportable sensitivity doc |
+| 3 full | 32-model v1 roster × 4 arms ≈ $1,553 + ox-alpha† + Fable ≈$216, or fold into the 20-model v2 protocol | — | ≈ $149 (incl. validation + anchors) | board-grade artifact |
+
+† ox-alpha is an unpriced stealth preview: its usage logged $0 and no
+list price exists, so `stability-cost-plan` reports it `unpriced`; its
+spend must be observed at rung time, not estimated here.
 
 Optional −$1,000 arm (55 households): ≈0.55 × one arm per model. Every
 paid rung is gated on explicit approval; boring before billed.
