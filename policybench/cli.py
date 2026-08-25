@@ -11,6 +11,7 @@ from policybench.config import (
     DEFAULT_PROGRAM_SET,
     MODELS,
     PROGRAMS,
+    TAX_YEAR,
     get_programs,
 )
 
@@ -774,6 +775,141 @@ def main():
         help="Optional directory of repeated-run CSVs for stability analysis",
     )
 
+    # Stability suite (docs/stability_spec.md). Layer 1: answer stability.
+    stability_parser = subparsers.add_parser(
+        "stability-report",
+        help="Answer-stability export over cache-free repeated runs (spec layer 1)",
+    )
+    stability_parser.add_argument(
+        "--runs-dir",
+        action="append",
+        dest="runs_dirs",
+        required=True,
+        help=(
+            "Directory of run_NNN.csv repeats; repeat the flag for per-provider-"
+            "group directories (model sets must be disjoint, run ids identical)"
+        ),
+    )
+    stability_parser.add_argument(
+        "-g", "--reference-outputs", required=True, help="PolicyEngine reference CSV"
+    )
+    stability_parser.add_argument(
+        "-s",
+        "--scenario-manifest",
+        required=True,
+        help="Scenario manifest (supplies total_income for headline weights)",
+    )
+    stability_parser.add_argument("-o", "--output-dir", required=True)
+    stability_parser.add_argument("--n-boot", type=int, default=1000)
+    stability_parser.add_argument("--seed", type=int, default=20260818)
+    stability_parser.add_argument(
+        "--serving-config",
+        default="paper/snapshot/20260501/model_serving_config.json",
+        help="Board serving registry to diff effective treatments against",
+    )
+
+    # Layer 2: reasoning stability.
+    reasoning_parser = subparsers.add_parser(
+        "reasoning-stability",
+        help="Mechanism-label judge over answer-stable repeat pairs (spec layer 2)",
+    )
+    reasoning_parser.add_argument(
+        "--runs-dir", action="append", dest="runs_dirs", required=True
+    )
+    reasoning_parser.add_argument("-g", "--reference-outputs", required=True)
+    reasoning_parser.add_argument(
+        "--reference-explanations",
+        default=(
+            "annotations/us_full_run_20260612_policyengine_4_16_1_populace/"
+            "us_case_reference_explanations.csv"
+        ),
+        help="Reference explanations used as per-row mechanism anchors",
+    )
+    reasoning_parser.add_argument(
+        "--gold-set",
+        default="annotations/stability_reasoning_gold_set.csv",
+        help="Developer-labeled gold set for the judge validity gate",
+    )
+    reasoning_parser.add_argument("--judge-model", default="gemini/gemini-3.7-flash")
+    reasoning_parser.add_argument("--cross-judge-model", default="gpt-5.4-mini")
+    reasoning_parser.add_argument(
+        "--no-cross-judge", action="store_true", help="Skip cross-judge validation"
+    )
+    reasoning_parser.add_argument("--cache-dir", default=None)
+    reasoning_parser.add_argument(
+        "--deterministic-only",
+        action="store_true",
+        help="Run every deterministic channel and skip the LLM judge",
+    )
+    reasoning_parser.add_argument("--concurrency", type=int, default=8)
+    reasoning_parser.add_argument("--validation-modulus", type=int, default=10)
+    reasoning_parser.add_argument("--min-stable-exact-pairs", type=int, default=200)
+    reasoning_parser.add_argument("--country", default="us")
+    reasoning_parser.add_argument("--year", type=int, default=TAX_YEAR)
+    reasoning_parser.add_argument("-o", "--output-dir", required=True)
+
+    # Layer 3: counterfactual consistency.
+    cf_manifest_parser = subparsers.add_parser(
+        "counterfactual-manifest",
+        help="Build +$1,000 head-wage twins and both-arm PolicyEngine references",
+    )
+    cf_manifest_parser.add_argument(
+        "-s",
+        "--scenario-manifest",
+        default="paper/snapshot/20260501/us_scenarios.csv",
+    )
+    cf_manifest_parser.add_argument("-o", "--output-dir", required=True)
+    cf_manifest_parser.add_argument("--amount", type=float, default=1000.0)
+    cf_manifest_parser.add_argument(
+        "--country", choices=sorted(COUNTRY_PROGRAMS), default="us"
+    )
+    cf_manifest_parser.add_argument("--program-set", default=DEFAULT_PROGRAM_SET)
+    cf_manifest_parser.add_argument("--year", type=int, default=TAX_YEAR)
+    cf_manifest_parser.add_argument(
+        "--skip-reference-outputs",
+        action="store_true",
+        help="Write the twin manifest only (no PolicyEngine computation)",
+    )
+    cf_manifest_parser.add_argument(
+        "--frozen-reference-outputs",
+        default="paper/snapshot/20260501/us_reference_outputs.csv",
+        help="Frozen references to report base-arm drift against",
+    )
+
+    cf_report_parser = subparsers.add_parser(
+        "counterfactual-report",
+        help="Compare predicted deltas to PolicyEngine true deltas (spec layer 3)",
+    )
+    cf_report_parser.add_argument("--perturbed-predictions", required=True)
+    cf_report_parser.add_argument("--truth-deltas", required=True)
+    cf_report_parser.add_argument(
+        "--base-predictions", default=None, help="Single base-arm predictions CSV"
+    )
+    cf_report_parser.add_argument(
+        "--base-runs-dir",
+        action="append",
+        dest="base_runs_dirs",
+        default=None,
+        help="Layer-1 repeats as the base arm (enables the noise floor)",
+    )
+    cf_report_parser.add_argument("-o", "--output-dir", required=True)
+    cf_report_parser.add_argument("--n-boot", type=int, default=1000)
+    cf_report_parser.add_argument("--seed", type=int, default=20260818)
+
+    cost_parser = subparsers.add_parser(
+        "stability-cost-plan",
+        help="Price repeats + counterfactual arms + judge from logged usage",
+    )
+    cost_parser.add_argument("-p", "--predictions", required=True)
+    cost_parser.add_argument("--repeats", type=int, default=3)
+    cost_parser.add_argument("--cf-arms", type=int, default=1)
+    cost_parser.add_argument("--model", action="append", dest="models", default=None)
+    cost_parser.add_argument("--judge-input-tokens", type=int, default=800)
+    cost_parser.add_argument("--judge-output-tokens", type=int, default=30)
+    cost_parser.add_argument("--judge-price-in", type=float, default=0.75)
+    cost_parser.add_argument("--judge-price-out", type=float, default=3.75)
+    cost_parser.add_argument("-o", "--output", default=None, help="Optional CSV path")
+
     # Defined inline (not via policybench.runstore) so building the parser
     # never imports pandas; the dispatch below imports lazily like every
     # other subcommand.
@@ -947,10 +1083,14 @@ def main():
 
     # Enable disk cache for ordinary eval calls. Contract-failure retry/repair
     # commands bypass cache by default, otherwise they can replay the same bad
-    # provider response indefinitely.
+    # provider response indefinitely. eval-no-tools-repeated is deliberately
+    # NOT in this set: repeat requests are byte-identical across runs, so a
+    # shared disk cache would replay run 1's responses into runs 2..K and
+    # every stability metric would measure the cache, not the model
+    # (docs/stability_spec.md, "Cache discipline"). stability-report enforces
+    # this by hard-failing on cache_hit records in the runs' spend ledgers.
     if args.command in {
         "eval-no-tools",
-        "eval-no-tools-repeated",
         "eval-no-tools-chunked",
     } or (
         args.command in {"retry-failed-responses", "repair-failed-rows"}
@@ -1285,7 +1425,6 @@ def main():
         )
 
     elif args.command == "population-weights":
-        from policybench.config import TAX_YEAR
         from policybench.population_weights import write_population_weight_payload
 
         year = TAX_YEAR if args.year is None else args.year
@@ -1426,6 +1565,126 @@ def main():
         print("\n=== Exported Artifacts ===")
         for name, path in exported.items():
             print(f"{name}: {path}")
+
+    elif args.command == "stability-report":
+        from policybench.stability_report import run_stability_report
+
+        try:
+            result = run_stability_report(
+                runs_dirs=args.runs_dirs,
+                reference_outputs=args.reference_outputs,
+                scenario_manifest=args.scenario_manifest,
+                output_dir=args.output_dir,
+                n_boot=args.n_boot,
+                seed=args.seed,
+                serving_config=args.serving_config,
+            )
+        except (ValueError, RuntimeError) as exc:
+            raise SystemExit(str(exc)) from exc
+        print(f"Stability report written to {args.output_dir}")
+        pooled = result["pooled"]
+        if pooled:
+            print(
+                "Pooled run-to-sampling ratio: "
+                f"{pooled['pooled_run_to_sampling_ratio']:.3f} "
+                f"(sampling dominates: {pooled['pooled_sampling_dominates']})"
+            )
+
+    elif args.command == "reasoning-stability":
+        from policybench.stability_report import run_reasoning_stability
+
+        try:
+            result = run_reasoning_stability(
+                runs_dirs=args.runs_dirs,
+                reference_outputs=args.reference_outputs,
+                output_dir=args.output_dir,
+                reference_explanations=args.reference_explanations,
+                gold_set=args.gold_set,
+                judge_model=args.judge_model,
+                cross_judge_model=None
+                if args.no_cross_judge
+                else args.cross_judge_model,
+                cache_dir=args.cache_dir,
+                deterministic_only=args.deterministic_only,
+                concurrency=args.concurrency,
+                validation_modulus=args.validation_modulus,
+                min_stable_exact_pairs=args.min_stable_exact_pairs,
+                country=args.country,
+                year=args.year,
+            )
+        except (ValueError, RuntimeError) as exc:
+            raise SystemExit(str(exc)) from exc
+        print(f"Reasoning-stability report written to {args.output_dir}")
+        validation = result["validation"]
+        if validation:
+            gates = {
+                key: value.get("status")
+                for key, value in validation.items()
+                if key.endswith("_gate")
+            }
+            print(f"Judge gates: {gates}")
+
+    elif args.command == "counterfactual-manifest":
+        from policybench.stability_report import run_counterfactual_manifest
+
+        try:
+            metadata = run_counterfactual_manifest(
+                scenario_manifest=args.scenario_manifest,
+                output_dir=args.output_dir,
+                programs=get_programs(args.country, args.program_set),
+                year=args.year,
+                amount=args.amount,
+                compute_references=not args.skip_reference_outputs,
+                frozen_reference_outputs=args.frozen_reference_outputs,
+            )
+        except (ValueError, RuntimeError) as exc:
+            raise SystemExit(str(exc)) from exc
+        print(f"Counterfactual manifest written to {metadata['cf_scenarios']}")
+        summary = metadata.get("truth_delta_summary")
+        if summary:
+            print(
+                f"True deltas: {summary['n_nonzero_amount_rows']} nonzero amount rows, "
+                f"{summary['n_binary_flips']} binary flips, "
+                f"zero-delta share {summary['zero_delta_share']:.4f}"
+            )
+
+    elif args.command == "counterfactual-report":
+        from policybench.stability_report import run_counterfactual_report
+
+        try:
+            run_counterfactual_report(
+                perturbed_predictions=args.perturbed_predictions,
+                truth_deltas=args.truth_deltas,
+                output_dir=args.output_dir,
+                base_predictions=args.base_predictions,
+                base_runs_dirs=args.base_runs_dirs,
+                n_boot=args.n_boot,
+                seed=args.seed,
+            )
+        except (ValueError, RuntimeError) as exc:
+            raise SystemExit(str(exc)) from exc
+        print(f"Counterfactual report written to {args.output_dir}")
+
+    elif args.command == "stability-cost-plan":
+        import pandas as pd
+
+        from policybench.stability_report import stability_cost_plan
+
+        plan = stability_cost_plan(
+            pd.read_csv(args.predictions, low_memory=False),
+            repeats=args.repeats,
+            cf_arms=args.cf_arms,
+            models=args.models,
+            judge_input_tokens=args.judge_input_tokens,
+            judge_output_tokens=args.judge_output_tokens,
+            judge_price_in_per_1m=args.judge_price_in,
+            judge_price_out_per_1m=args.judge_price_out,
+        )
+        with pd.option_context("display.max_rows", 200, "display.width", 200):
+            print(plan.round(3).to_string(index=False))
+        if args.output:
+            plan.to_csv(args.output, index=False)
+            print(f"Cost plan written to {args.output}")
 
     elif args.command == "runstore":
         from policybench.runstore import run_runstore_command
