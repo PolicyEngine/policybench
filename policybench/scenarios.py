@@ -596,6 +596,13 @@ def load_certified_us_person_frame() -> tuple[pd.DataFrame, int, str]:
     from policybench.policyengine_runtime import make_us_microsimulation
 
     sim = make_us_microsimulation()
+    # Keep the dataset's native period for provenance, but read promptable
+    # inputs at the benchmark year (TAX_YEAR) so households are represented at
+    # the year they are scored. PolicyEngine uprates monetary inputs across
+    # periods, so reading at the dataset period (e.g. 2024) leaves incomes
+    # several percent below their TAX_YEAR level and out of step with the
+    # population weights, which are computed at TAX_YEAR. The UK loader already
+    # reads at TAX_YEAR; this keeps the US path consistent.
     dataset_year = sim.default_input_period
     dataset_label = str(sim.policyengine_bundle["default_dataset"])
     input_specs = get_promptable_input_specs()
@@ -605,7 +612,7 @@ def load_certified_us_person_frame() -> tuple[pd.DataFrame, int, str]:
         values[output_name] = np.asarray(
             sim.calculate(
                 variable_name,
-                dataset_year,
+                TAX_YEAR,
                 map_to="person",
                 use_weights=False,
             )
@@ -615,7 +622,7 @@ def load_certified_us_person_frame() -> tuple[pd.DataFrame, int, str]:
         values[spec.output_name] = np.asarray(
             sim.calculate(
                 spec.source_name,
-                dataset_year,
+                TAX_YEAR,
                 map_to="person",
                 use_weights=False,
             )
