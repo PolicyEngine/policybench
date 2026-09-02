@@ -1,7 +1,7 @@
 {
   "audit_annotation_artifacts": {
     "files": {
-      "us_audit_row_annotations.csv": "f4b89cdb075d1725e4f1808a73e36c3eb79c72bc851d2553083f6688da2f5b7c",
+      "us_audit_row_annotations.csv": "3dc93ca5252f1b86be2907807db576997b633055e7fbbfda59053f5fa2766556",
       "us_case_notes.csv": "2ada8bb8cbb2d69233969d78e5341ea9e80a116419c44ba14d5795a9133339f3",
       "us_case_reference_explanations.csv": "a3fc7504dcf3d8abe11e98c2228c786a5171a825640b980835e1e210d3afa198"
     },
@@ -22,11 +22,11 @@
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 85042876,
+    "bytes": 87392615,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "b883ec669d510ea29c9c18f18c30030c5bbd29f770bcd90d257779940929a895",
-    "tag": "dashboard-data-20260822",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260822/dashboard-data.json"
+    "sha256": "1b2de0966daa97238f34c30e06de52b88ecd5f18ae4d34a3ae2b007bdd5f3dea",
+    "tag": "dashboard-data-20260901",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260901/dashboard-data.json"
   },
   "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under live_dashboard_artifact. The separate published_dashboard_artifact freezes the combined export of the source run data.json files listed under source_run_artifacts. A later publication may advance the live entry without changing the frozen pin.",
   "model_response_date": "2026-06-12 to 2026-08-22",

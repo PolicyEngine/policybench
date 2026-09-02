@@ -99,6 +99,65 @@ the three small negatives sit at noise scale for n=100-177. Per-variable
 CSVs for all three models are attached to the `dashboard-data-20260805`
 release as `sensitivity-claude-*-thinking-by-variable.csv.gz`.
 
+## Claude Fable 5.1 (September 2026)
+
+Claude Fable 5.1, released September 1, 2026, closes the interaction from
+the API side. It rejects forced tool use with a 400 (`tool_choice` of type
+`tool` or `any`), and Anthropic's documentation gives the reason this page
+found in August: thinking is always on for the model, and a forced call
+would skip it. The leaderboard therefore cannot send it the forced-tool
+request. Its board row runs the JSON contract, the accommodation Kimi K3
+and Qwen 3.8 Max already have; under litellm that request carries the
+prompt alone (`response_format: json_object` maps to no Anthropic
+parameter), so the board row reasons at the API default.
+
+The sensitivity run for this model isolates request shape under thinking
+rather than thinking itself: the answer tool declared with `tool_choice:
+"auto"` (`POLICYBENCH_CONTRACT_OVERRIDE=tool` together with
+`POLICYBENCH_TOOL_CHOICE=auto`), against the JSON board row. Both rows
+reason.
+
+| | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
+|---|---|---|---|---|---|---|---|
+| Claude Fable 5.1 | 86.3 (#2) | **87.5** | +1.2 | #2 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
+
+The two rows sit 1.2 points apart, and no program moves more than three
+points between them (table below). Read against Claude Fable 5, the
+picture matches August: Fable 5.1's JSON board row (86.3) is 6.4 points
+above Fable 5's forced-tool board row (79.9) and 0.6 below Fable 5's
+`auto` run (86.9); Fable 5.1's own `auto` run (87.5) is 0.6 above Fable
+5's under the identical request. The model called the answer tool on every
+one of its 1,984 answers under `auto`.
+
+Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
+(tool declared); unweighted leaf rates, as above.
+
+| program | board (JSON) | auto (tool declared) | delta |
+|---|---|---|---|
+| federal_income_tax_before_refundable_credits | 69.0 | 72.0 | +3.0 |
+| person_medicare_eligible | 93.8 | 95.5 | +1.7 |
+| free_school_meals_eligible | 98.0 | 99.0 | +1.0 |
+| reduced_price_school_meals_eligible | 98.0 | 99.0 | +1.0 |
+| ssi | 96.0 | 97.0 | +1.0 |
+| state_income_tax_before_refundable_credits | 63.0 | 64.0 | +1.0 |
+| person_medicaid_eligible | 96.6 | 97.2 | +0.6 |
+| local_income_tax | 100.0 | 100.0 | +0.0 |
+| payroll_tax | 88.0 | 88.0 | +0.0 |
+| person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
+| person_head_start_eligible | 100.0 | 100.0 | +0.0 |
+| person_wic_eligible | 100.0 | 100.0 | +0.0 |
+| self_employment_tax | 100.0 | 100.0 | +0.0 |
+| snap | 79.0 | 79.0 | +0.0 |
+| tanf | 99.0 | 99.0 | +0.0 |
+| federal_refundable_credits | 97.0 | 96.0 | -1.0 |
+| state_refundable_credits | 89.0 | 88.0 | -1.0 |
+| person_chip_eligible | 97.2 | 96.0 | -1.1 |
+
+The run's predictions and per-variable rates are attached to the
+`dashboard-data-20260901` release as
+`sensitivity-claude-fable-5-1-thinking-predictions.csv.gz` and
+`sensitivity-claude-fable-5-1-thinking-by-variable.csv.gz`.
+
 ## Reproducing
 
 ```
@@ -108,6 +167,10 @@ POLICYBENCH_TOOL_CHOICE=auto python -m policybench.cli run \
   --run-dir results/local/opus5_thinking/run \
   --budget-usd 40 --max-workers 6
 ```
+
+For a JSON-contract model such as Claude Fable 5.1, add
+`POLICYBENCH_CONTRACT_OVERRIDE=tool` so the answer tool is declared for
+`auto` to act on.
 
 The three-request probe that isolated the mechanism builds the harness's
 exact request via `_chat_completion_request_kwargs` and varies only

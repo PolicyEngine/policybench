@@ -163,7 +163,9 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "and 4,799 completion tokens, 46s and 56s). Unlike Fable 5's "
             "forced-tool board row, this row reasons. The JSON contract "
             "has no batch translation, so it runs on the sync path. Cost "
-            "estimated from the full-scenario probe at $10/$50 per 1M."
+            "estimated from the full-scenario probe at $10/$50 per 1M; the "
+            "100-scenario run cost $25.70 (median 49s per household, "
+            "1,984/1,984 parsed, no budget escalations)."
         ),
     ),
     "xai/grok-4.5": ModelCard(
