@@ -325,6 +325,55 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
         )
 
 
+def test_snapshot_audit_annotations_have_no_orphan_rows():
+    """Every row annotation must describe a wrong cell of the frozen roster:
+    an annotation key absent from the frozen wrong rows means the pinned CSV
+    has drifted ahead of (or away from) the snapshot it certifies."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    for country in manifest["source_run_labels"]:
+        result = validate_snapshot_audit(
+            snapshot_dir=SNAPSHOT_DIR,
+            annotations_dir=ANNOTATIONS_DIR,
+            country=country,
+        )
+        keys = ["model", "scenario_id", "variable"]
+        annotations = pd.concat(
+            pd.read_csv(path)
+            for path in sorted(ANNOTATIONS_DIR.glob(f"{country}_*_annotations.csv"))
+        )
+        orphans = annotations[keys].merge(
+            result["wrong"][keys].drop_duplicates(), on=keys, how="left", indicator=True
+        )
+        assert (orphans["_merge"] == "both").all(), orphans[
+            orphans["_merge"] != "both"
+        ].head()
+        assert len(annotations) == len(result["wrong"])
+
+
+def test_snapshot_case_notes_agree_with_row_annotations():
+    """Case notes aggregate the row annotations: one case per wrong
+    (scenario, output) pair, and wrong_model_count equals the number of
+    annotated rows in that case."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    for country in manifest["source_run_labels"]:
+        rows = pd.concat(
+            pd.read_csv(path)
+            for path in sorted(ANNOTATIONS_DIR.glob(f"{country}_*_annotations.csv"))
+        )
+        cases = pd.read_csv(ANNOTATIONS_DIR / f"{country}_case_notes.csv")
+        row_counts = (
+            rows.groupby(["scenario_id", "variable"]).size().rename("row_count")
+        )
+        joined = cases.set_index(["scenario_id", "variable"]).join(
+            row_counts, how="outer"
+        )
+        assert joined["wrong_model_count"].notna().all(), "rows without a case"
+        assert joined["row_count"].notna().all(), "cases without rows"
+        assert (
+            joined["wrong_model_count"].astype(int) == joined["row_count"].astype(int)
+        ).all(), joined[joined["wrong_model_count"] != joined["row_count"]].head()
+
+
 def test_dashboard_pointer_matches_live_snapshot_artifact():
     """The committed artifact pointer must reference the manifest's live
     dashboard artifact — the machine-checked version of live_dashboard_note.

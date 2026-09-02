@@ -73,17 +73,18 @@ SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
-# is the exact payload uploaded as dashboard-data-20260901.
+# is the exact payload uploaded as dashboard-data-20260901b (20260901 carried
+# case-level labels from stale case notes and is superseded).
 PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board33.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
-    "tag": "dashboard-data-20260901",
+    "tag": "dashboard-data-20260901b",
     "asset": "dashboard-data.json",
     "url": (
         "https://github.com/PolicyEngine/policybench/releases/download/"
-        "dashboard-data-20260901/dashboard-data.json"
+        "dashboard-data-20260901b/dashboard-data.json"
     ),
-    "sha256": "1b2de0966daa97238f34c30e06de52b88ecd5f18ae4d34a3ae2b007bdd5f3dea",
-    "bytes": 87_392_615,
+    "sha256": "1ff522e022bbca91732639acdd34e97f48c1e1e6378819fb648b075e721a7e6a",
+    "bytes": 87_410_551,
 }
 
 # The publish bundle omits this immutable reference-generation sidecar. Pair

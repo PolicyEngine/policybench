@@ -283,12 +283,15 @@ export default function ModelLeaderboard({
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
             Claude models skip extended thinking when the answer tool call is
-            forced, as it is in the identical request this board holds every
-            model to; other reasoning-by-default providers reason regardless.
-            Re-run with <code>tool_choice: auto</code>, Claude Fable 5 scores
-            86.9 (would rank #2), Claude Opus 5 85.6 (#3), and Claude Sonnet 5
-            80.2 (#8). The board below is unchanged — those runs sit beside it
-            as a{" "}
+            forced, as it is in the request this board sends every model whose
+            provider accepts a forced tool; other reasoning-by-default providers
+            reason regardless. Re-run with <code>tool_choice: auto</code>,
+            Claude Fable 5 scores 86.9 (would rank #3), Claude Opus 5 85.6 (#4),
+            and Claude Sonnet 5 80.2 (#9). Claude Fable 5.1 rejects forced tool
+            calls outright, so its board row answers as a JSON object and
+            reasons at the provider default; with the tool declared under{" "}
+            <code>auto</code> it scores 87.5 (still #2). The board below is
+            unchanged — those runs sit beside it as a{" "}
             <a
               href="https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md"
               className="text-primary hover:underline"

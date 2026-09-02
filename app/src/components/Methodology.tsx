@@ -132,11 +132,14 @@ export default function Methodology({
           Each model sees the same household description and must return all
           scored outputs plus a short explanation for each output, with no
           external tools — no calculator, search, or PolicyEngine access.
-          Answers come back through a forced answer-schema tool call; a few
-          models are served one output per request for parse reliability, per
-          the repo&apos;s model cards. The exact provider-specific prompts are
-          visible in the scenario explorer, so you can inspect the contract
-          instead of inferring it.
+          Answers come back through each provider&apos;s structured-output
+          transport: a forced answer-schema tool call where the provider accepts
+          one, and a JSON object where it does not (Kimi K3, Qwen 3.8 Max,
+          DeepSeek, the older Gemini models, and Claude Fable 5.1, which rejects
+          forced tool calls). A few models are served one output per request for
+          parse reliability, per the repo&apos;s model cards. The exact
+          provider-specific prompts are visible in the scenario explorer, so you
+          can inspect the contract instead of inferring it.
         </SectionCard>
 
         <SectionCard title="Open-set status">
@@ -200,9 +203,9 @@ export default function Methodology({
           multiplier. The leaderboard reports the exact-match rate as the
           headline deployability bar, with within-1% as a near-miss-tolerant
           companion and bounded score, amount accuracy, and participation
-          accuracy as further diagnostics. Equal-weight and
-          budget-weighted variants are reported alongside for transparency. The
-          leaderboard is a point estimate on this fixed test set.
+          accuracy as further diagnostics. Equal-weight and budget-weighted
+          variants are reported alongside for transparency. The leaderboard is a
+          point estimate on this fixed test set.
         </SectionCard>
 
         <SectionCard title="Sensitivity checks">

@@ -2,7 +2,7 @@
   "audit_annotation_artifacts": {
     "files": {
       "us_audit_row_annotations.csv": "3dc93ca5252f1b86be2907807db576997b633055e7fbbfda59053f5fa2766556",
-      "us_case_notes.csv": "2ada8bb8cbb2d69233969d78e5341ea9e80a116419c44ba14d5795a9133339f3",
+      "us_case_notes.csv": "7b969f0ad2f305da44c5c040bb48afef865bc31660d475e312e17c6ecce18cf5",
       "us_case_reference_explanations.csv": "a3fc7504dcf3d8abe11e98c2228c786a5171a825640b980835e1e210d3afa198"
     },
     "note": "Model-assisted, developer-adjudicated row and case audit annotations for every wrong prediction row in the frozen snapshot, produced under the decisive-diagnosis contract (per-model diagnoses grounded in engine facts; hedged verdicts mechanically rejected and re-judged). Row-level failure_source values are llm_error for substantive misses and parse_contract_failure for missing or unparseable answers; zero rows are reference-suspect. Case notes are stored as us_case_notes.csv with case_failure_sources / case_failure_subtypes columns. Reference narratives the judge and dashboard display are frozen as us_case_reference_explanations.csv.",
@@ -17,16 +17,16 @@
   "files": [
     {
       "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json",
-      "sha256": "07e5de1c27248ef90bed81f9f745be268419c798bb664ff89ef0dd323793adb3"
+      "sha256": "9c183d1a6ae20ae5987a248ce22f77e73fa67bf59e2486a31ef401dcffb9a62b"
     }
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 87392615,
+    "bytes": 87410551,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "1b2de0966daa97238f34c30e06de52b88ecd5f18ae4d34a3ae2b007bdd5f3dea",
-    "tag": "dashboard-data-20260901",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260901/dashboard-data.json"
+    "sha256": "1ff522e022bbca91732639acdd34e97f48c1e1e6378819fb648b075e721a7e6a",
+    "tag": "dashboard-data-20260901b",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260901b/dashboard-data.json"
   },
   "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under live_dashboard_artifact. The separate published_dashboard_artifact freezes the combined export of the source run data.json files listed under source_run_artifacts. A later publication may advance the live entry without changing the frozen pin.",
   "model_response_date": "2026-06-12 to 2026-09-01",
@@ -40,10 +40,10 @@
   },
   "published_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 87392615,
-    "sha256": "1b2de0966daa97238f34c30e06de52b88ecd5f18ae4d34a3ae2b007bdd5f3dea",
-    "tag": "dashboard-data-20260901",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260901/dashboard-data.json"
+    "bytes": 87410551,
+    "sha256": "1ff522e022bbca91732639acdd34e97f48c1e1e6378819fb648b075e721a7e6a",
+    "tag": "dashboard-data-20260901b",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260901b/dashboard-data.json"
   },
   "reference_output_refresh": {
     "date": "2026-09-01",
@@ -57,12 +57,12 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "4d950654a57848af893bcb956d4f0b4cb5ff9ea3fdfb62cefd6d1e14ad5d41ac"
+      "sha256": "9b8ad6970ab21eae1292420ba0ccd1d0688ef51790777bc0f3bce1c0622c19fa"
     },
     "web": {
       "files": {
         "figures/positive_zero_scatter.png": "ab45ad994420d5242d6905b83e015b50fcb4aa07babc20e10702cfee5dbda138",
-        "index.html": "868557cf9d4f6aa690d739a46146544d80776e23cfed0a248a4167f6b7dfe0ae",
+        "index.html": "f6b9340648542286c4d1676637e555ae15d10df48444360b9e0cd9c3fac455ce",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -121,7 +121,7 @@
         "analysis/summary_by_model.csv": "cba35cab84442c98af0328db832f1f79bd8f809e8e35e3af282901634511e0bb",
         "analysis/summary_by_variable.csv": "e2f34896befe83cde9e0e891280ee48fa88549c6c0d9e25122d59e34c23ff254",
         "analysis/usage_summary.csv": "a0761acf191bb847b571a4a0f42e74c1f6347ae1ab62af820c9d152ca657b30e",
-        "data.json": "07e5de1c27248ef90bed81f9f745be268419c798bb664ff89ef0dd323793adb3",
+        "data.json": "9c183d1a6ae20ae5987a248ce22f77e73fa67bf59e2486a31ef401dcffb9a62b",
         "predictions.csv.gz": "f1f3e5e27dbd77c788644a440c696f80eeb2797c3ece524decbf40677394063f",
         "reference_outputs.csv": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
         "reference_outputs.csv.meta.json": "4ea7911857fabf72fc0f74feab90566e9f6d98cab4958e0c1401043e58c94210",
