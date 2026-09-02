@@ -1,0 +1,38 @@
+{
+  "model": "claude-fable-5.1",
+  "sensitivity_model_id": "claude-fable-5.1-thinking",
+  "condition": "answer tool declared, tool_choice auto (POLICYBENCH_CONTRACT_OVERRIDE=tool POLICYBENCH_TOOL_CHOICE=auto), whole scenario",
+  "run_date": "2026-09-01",
+  "release": "dashboard-data-20260901c",
+  "assets": {
+    "sensitivity-claude-fable-5-1-thinking-predictions.csv.gz": {
+      "sha256": "452bf5165540462561748ea75dcfa71f5a023ef0281f303aeac7c7ea39c1f1bd",
+      "bytes": 183014
+    },
+    "sensitivity-claude-fable-5-1-thinking-by-variable.csv.gz": {
+      "sha256": "da63aa966307f11971516d8f469da346ee26d98bf318dae1f546cf04399e2f25",
+      "bytes": 722
+    }
+  },
+  "board": {
+    "exact": 86.309,
+    "within1pct": 89.262,
+    "score": 95.289,
+    "cost_per_household": 0.257,
+    "latency_seconds": 49.12,
+    "n_parsed": 1984,
+    "n": 1984
+  },
+  "sensitivity": {
+    "exact": 87.55,
+    "within1pct": 90.375,
+    "score": 95.738,
+    "cost_per_household": 0.3481,
+    "cost_usd": 34.81,
+    "latency_seconds": 52.54,
+    "n_parsed": 1984,
+    "n": 1984
+  },
+  "delta_exact": 1.241,
+  "scored_against": "the frozen 33-model board's reference outputs and household output-group weights (paper/snapshot/20260501); the fold used results/local/fable51/predictions32.csv as the incumbent base"
+}

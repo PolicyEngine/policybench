@@ -33,6 +33,8 @@ from collections import Counter
 from functools import cached_property
 from pathlib import Path
 
+import pandas as pd
+
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
@@ -316,6 +318,68 @@ class PaperResults:
             for model, count in self.parse_contract_failure_counts.most_common()
         ]
         return _ordinal_join(items)
+
+    @cached_property
+    def explanation_missing_counts(self) -> Counter:
+        """Frozen rows with a parsed numeric value but no explanation, by model."""
+        counts: Counter = Counter()
+        for variable_map in self.dashboard["scenarioPredictions"].values():
+            for model_map in variable_map.values():
+                for model, row in model_map.items():
+                    if row.get("prediction") is None:
+                        continue
+                    if not str(row.get("explanation") or "").strip():
+                        counts[model] += 1
+        return counts
+
+    @property
+    def explanation_missing_count(self) -> int:
+        return sum(self.explanation_missing_counts.values())
+
+    @property
+    def explanation_missing_count_fmt(self) -> str:
+        return f"{self.explanation_missing_count:,}"
+
+    @property
+    def explanation_missing_breakdown_fmt(self) -> str:
+        items = [
+            f"{self.model_name(model)} ({count:,})"
+            for model, count in self.explanation_missing_counts.most_common()
+        ]
+        return _ordinal_join(items)
+
+    @property
+    def contract_violation_count_fmt(self) -> str:
+        """Rows short of the numeric-plus-explanation contract, either way."""
+        return f"{self.parse_contract_failure_count + self.explanation_missing_count:,}"
+
+    @cached_property
+    def blank_raw_response_counts(self) -> Counter:
+        """Frozen prediction rows whose raw_response is empty, by model.
+
+        Rows served through the Anthropic batch adapter carry no raw payload,
+        and some parse failures never captured one; the manuscript states the
+        preservation rule with these exceptions rather than as absolute.
+        """
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        frame = pd.read_csv(
+            run_dir / "predictions.csv.gz", usecols=["model", "raw_response"]
+        )
+        blank = frame["raw_response"].isna() | (
+            frame["raw_response"].astype(str).str.strip() == ""
+        )
+        return Counter(frame.loc[blank, "model"].value_counts().to_dict())
+
+    @property
+    def blank_raw_response_note(self) -> str:
+        """Prose clause naming the rows without a retained raw response."""
+        items = [
+            f"{self.model_name(model)} ({count:,} rows)"
+            for model, count in self.blank_raw_response_counts.most_common()
+        ]
+        if not items:
+            return "every row carries its raw provider response"
+        return "no raw payload is retained for " + _ordinal_join(items)
 
     # ----- populace dataset construction ---------------------------------
     @property

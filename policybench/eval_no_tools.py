@@ -177,7 +177,7 @@ REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
 MAX_REPAIR_ROUNDS = _env_int("POLICYBENCH_MAX_REPAIR_ROUNDS", 2)
-RESUME_METADATA_VERSION = 3
+RESUME_METADATA_VERSION = 4
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 EXPLANATION_MAX_COMPLETION_TOKENS = 4096
@@ -927,6 +927,7 @@ def _responses_request_kwargs(
     repair: bool = False,
     include_explanations: bool = True,
 ) -> tuple[list[dict], dict]:
+    _reject_sensitivity_knobs_for_responses(model_id)
     answer_contract = _answer_contract_for_model(model_id)
     prompt_builder = (
         make_no_tools_batch_repair_prompt if repair else make_no_tools_batch_prompt
@@ -1851,6 +1852,7 @@ def _request_explanations_once(
         answer_contract=answer_contract,
     )
     if _uses_responses_api(model_id):
+        _reject_sensitivity_knobs_for_responses(model_id)
         messages = [{"role": "user", "content": prompt}]
         request_kwargs = {
             "model": model_id,
@@ -2849,6 +2851,7 @@ def _build_resume_metadata(
         "scenario_hash": hashlib.sha256(scenario_signature.encode("utf-8")).hexdigest(),
         "programs": sorted(programs),
         "models": {name: models[name] for name in sorted(models)},
+        "treatment": _treatment_metadata(models, include_explanations),
         "policyengine_bundles": policyengine_bundles_for_countries(countries),
         "response_contract": _response_contract_metadata(),
         "completion_budget_escalation": {
@@ -2860,6 +2863,58 @@ def _build_resume_metadata(
             },
         },
     }
+
+
+def _treatment_metadata(models: dict[str, str], include_explanations: bool) -> dict:
+    """Effective per-model serving treatment recorded beside a resumable output.
+
+    A resumed file must not mix rows from different answer contracts,
+    tool_choice modes, or chunk sizes: the sensitivity knobs
+    (POLICYBENCH_TOOL_CHOICE, POLICYBENCH_CONTRACT_OVERRIDE,
+    POLICYBENCH_CHUNK_OVERRIDE) change the request without changing the model
+    id, so the resume check compares this block too.
+    """
+    return {
+        name: {
+            "answer_contract": _answer_contract_for_model(model_id),
+            "tool_choice_mode": (
+                "auto"
+                if os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto"
+                else "forced"
+            ),
+            "explanation_chunk_size": _required_explanation_chunk_size(
+                model_id, include_explanations
+            ),
+            "contract_override": os.environ.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+        }
+        for name, model_id in sorted(models.items())
+    }
+
+
+def _reject_sensitivity_knobs_for_responses(
+    model_id: str, env: dict | None = None
+) -> None:
+    """Refuse the sensitivity knobs on the Responses API transport.
+
+    The Responses builders (initial answer and explanation repair) send the
+    forced answer tool only; POLICYBENCH_TOOL_CHOICE=auto and
+    POLICYBENCH_CONTRACT_OVERRIDE are implemented for the chat transport alone.
+    Failing fast keeps a run from being fingerprinted as auto/JSON while every
+    request it sent was forced-tool (policybench#139 tracks the Responses
+    equivalents).
+    """
+    source = os.environ if env is None else env
+    knobs = sorted(
+        key
+        for key in ("POLICYBENCH_TOOL_CHOICE", "POLICYBENCH_CONTRACT_OVERRIDE")
+        if source.get(key)
+    )
+    if knobs and _uses_responses_api(model_id):
+        raise ValueError(
+            f"{model_id} runs on the Responses API transport, which sends the "
+            f"forced answer tool only; {', '.join(knobs)} are not implemented "
+            "for it (policybench#139). Unset them or choose a chat-transport model."
+        )
 
 
 def _write_resume_metadata(output_path: str | None, metadata: dict) -> None:
@@ -2909,6 +2964,7 @@ def _validate_resume_metadata(output_path: str | None, expected: dict) -> None:
         "scenario_hash",
         "programs",
         "models",
+        "treatment",
         "policyengine_bundles",
         "response_contract",
         "completion_budget_escalation",

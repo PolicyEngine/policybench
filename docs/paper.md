@@ -39,7 +39,9 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
 
 - the source run dashboard exports and snapshot CSV hashes
 - the per-run compact artefacts (`runs/<run_label>/`) including
-  `predictions.csv.gz` with raw provider responses
+  `predictions.csv.gz` with raw provider responses wherever the transport
+  exposed them (blank for Claude Fable 5's batch-served rows and 64 Kimi K3
+  parse failures)
 - the rendered PDF and web bundle hashes
 - the UK calibrated transfer dataset's pinned commit, public URL, and sha256
 - reproducibility notes covering model-alias instability and what is not

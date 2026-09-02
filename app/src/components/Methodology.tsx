@@ -129,17 +129,16 @@ export default function Methodology({
 
       <div className="grid lg:grid-cols-2 gap-4 mt-8">
         <SectionCard title="Task">
-          Each model sees the same household description and must return all
-          scored outputs plus a short explanation for each output, with no
-          external tools — no calculator, search, or PolicyEngine access.
-          Answers come back through each provider&apos;s structured-output
-          transport: a forced answer-schema tool call where the provider accepts
-          one, and a JSON object where it does not (Kimi K3, Qwen 3.8 Max,
-          DeepSeek, the older Gemini models, and Claude Fable 5.1, which rejects
-          forced tool calls). A few models are served one output per request for
-          parse reliability, per the repo&apos;s model cards. The exact
-          provider-specific prompts are visible in the scenario explorer, so you
-          can inspect the contract instead of inferring it.
+          Each model sees the same household facts and requested outputs and
+          must return every scored output plus a short explanation for each,
+          with no external tools — no calculator, search, or PolicyEngine
+          access. The answer instructions follow the provider&apos;s transport:
+          a forced answer-schema tool call where the provider accepts one, and a
+          JSON object where it does not. Ten of the 33 models answer the same
+          facts in subsets of one or three outputs per request, an accommodation
+          that predates the whole-scenario rule. The per-model transport and
+          request shape are recorded in the paper&apos;s serving-configuration
+          table and the repo&apos;s model cards.
         </SectionCard>
 
         <SectionCard title="Open-set status">

@@ -1,12 +1,14 @@
 # Claude thinking sensitivity (August 2026)
 
-The leaderboard's canonical condition sends every model the identical
-whole-scenario prompt and forces the answer tool call
+The leaderboard's canonical condition sends every model the same household
+facts and requested outputs and forces the answer tool call
 (`tool_choice: {type: "tool", name: "submit_outputs"}`) wherever the
 provider accepts one, with no reasoning-control parameters for any
-provider. Models whose providers reject a forced tool answer the same prompt
-as a JSON object; Claude Fable 5.1 is one of them (see its section below). A reader reviewing the run
-artifacts noticed that every Claude row logged zero reasoning tokens while
+provider. Ten models answer in one- or three-output subsets per request, and
+models whose providers reject a forced tool answer as a JSON object; the
+per-model treatment is the manuscript's serving-configuration table, and
+Claude Fable 5.1 is the newest JSON-transport row (see its section below). A
+reader reviewing the run artifacts noticed that every Claude row logged zero reasoning tokens while
 the other reasoning-by-default providers spent most of their tokens on
 reasoning.
 
@@ -156,7 +158,7 @@ Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
 | person_chip_eligible | 97.2 | 96.0 | -1.1 |
 
 The run's predictions and per-variable rates are attached to the
-`dashboard-data-20260901b` release as
+`dashboard-data-20260901c` release as
 `sensitivity-claude-fable-5-1-thinking-predictions.csv.gz` and
 `sensitivity-claude-fable-5-1-thinking-by-variable.csv.gz`.
 

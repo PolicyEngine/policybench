@@ -978,11 +978,25 @@ parse_repair_summary = pd.DataFrame(
                 f"({r.parse_contract_failure_pct_fmt}%) have no parsable "
                 "numeric value after retries. The failures comprise "
                 f"{r.parse_contract_failure_breakdown_fmt}. They score zero "
-                "as parse-contract failures. Every other row has a parsed "
-                "numeric value and a non-empty explanation."
+                "as parse-contract failures. A further "
+                f"{r.explanation_missing_count_fmt} rows "
+                f"({r.explanation_missing_breakdown_fmt}) carry a parsed "
+                "numeric value but no explanation; they are scored on the "
+                "numeric value and counted here as explanation-contract "
+                f"violations, so {r.contract_violation_count_fmt} rows in all "
+                "fall short of the numeric-plus-explanation contract. Every "
+                "other row has both."
             ),
         ],
-        ["Preservation rule", "The snapshot retains the raw provider responses in the compressed source-run prediction files, including the responses behind unparsable rows."],
+        [
+            "Preservation rule",
+            (
+                "The snapshot retains raw provider responses in the compressed "
+                "source-run prediction files wherever the transport exposed "
+                f"them; {r.blank_raw_response_note} (batch-adapter rows carry "
+                "no per-row payload, and those parse failures captured none)."
+            ),
+        ],
     ],
     columns=["Step", "Finding"],
 )
@@ -1289,7 +1303,7 @@ Third, structured-output reliability is part of the benchmark contract. Missing 
 
 PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:
 
-- output-contract reliability required a repair workflow; raw provider responses, including failed attempts, are retained within the canonical prediction files, and cells that never parsed score zero
+- output-contract reliability required a repair workflow; raw provider responses are retained within the canonical prediction files wherever the transport exposed them (`{python} r.blank_raw_response_note`), and cells that never parsed score zero
 - request shape is not identical across models: `{python} n_chunked_models` of `{python} r.n_models_fmt` models answered the prompt template over subsets of the requested outputs rather than the whole scenario (@tbl-model-runs), an accommodation that, if it moves scores at all, should favor those models; later additions must answer the whole-scenario request or are listed as not scorable
 - zero-heavy outputs require separate positive-case interpretation
 - the choice of headline metric (exact match), near-miss companion (within-1%), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate

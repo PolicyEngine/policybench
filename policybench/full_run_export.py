@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 from typing import Sequence
 
@@ -331,12 +332,34 @@ def export_country(country_dir: Path) -> dict:
         analysis,
         scenarios,
         scenario_prompts=scenario_prompts,
+        policyengine_bundles=reference_policyengine_bundles(ground_truth_path, country),
     )
     (country_dir / "data.json").write_text(
         dump_country_payload(payload, country=country, source=str(country_dir)),
         encoding="utf-8",
     )
     return payload
+
+
+def reference_policyengine_bundles(
+    ground_truth_path: Path, country: str
+) -> dict | None:
+    """PolicyEngine provenance of the reference outputs, from their sidecar.
+
+    ``reference_outputs.csv.meta.json`` is written by the reference generator
+    and records the model package version that produced the values. The export
+    must carry that provenance, not the exporting machine's installed runtime:
+    the v1.1 references were regenerated with a newer policyengine-us than the
+    export environment runs. Returns None when no sidecar exists.
+    """
+    sidecar = ground_truth_path.with_name(ground_truth_path.name + ".meta.json")
+    if not sidecar.exists():
+        return None
+    bundles = json.loads(sidecar.read_text()).get("policyengine_bundles") or {}
+    bundle = bundles.get(country)
+    if bundle is None:
+        return None
+    return {country: dict(bundle)}
 
 
 def _available_countries(run_path: Path) -> list[str]:

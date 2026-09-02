@@ -2258,6 +2258,116 @@ def test_contract_override_declares_the_tool_on_a_json_model(
     assert "response_format" not in sensitivity
 
 
+def test_resume_metadata_records_the_effective_treatment(mini_scenario, monkeypatch):
+    """The sensitivity knobs change the request without changing the model id,
+    so the resume sidecar must carry the treatment or a resumed file could
+    splice rows from two conditions."""
+    from policybench.eval_no_tools import RESUME_METADATA_VERSION
+
+    base = _build_resume_metadata(
+        task="eval_no_tools_batch",
+        scenarios=[mini_scenario],
+        models={"fable": "claude-fable-5-1"},
+        programs=["income_tax"],
+        run_id=None,
+        include_explanations=True,
+    )
+    assert base["metadata_version"] == RESUME_METADATA_VERSION == 4
+    assert base["treatment"]["fable"] == {
+        "answer_contract": "json",
+        "tool_choice_mode": "forced",
+        "explanation_chunk_size": None,
+        "contract_override": None,
+    }
+
+    monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "tool")
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    sensitivity = _build_resume_metadata(
+        task="eval_no_tools_batch",
+        scenarios=[mini_scenario],
+        models={"fable": "claude-fable-5-1"},
+        programs=["income_tax"],
+        run_id=None,
+        include_explanations=True,
+    )
+    assert sensitivity["treatment"]["fable"] == {
+        "answer_contract": "tool",
+        "tool_choice_mode": "auto",
+        "explanation_chunk_size": None,
+        "contract_override": "tool",
+    }
+    assert sensitivity["treatment"] != base["treatment"]
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_rejects_resume_under_a_different_treatment(
+    mock_run_single_no_tools, mini_scenario, tmp_path, monkeypatch
+):
+    """A board-condition output must not be resumed under the auto knob."""
+    pd = pytest.importorskip("pandas")
+    output_path = tmp_path / "predictions.csv"
+    pd.DataFrame(
+        [
+            {
+                "model": "fable",
+                "scenario_id": "mini",
+                "variable": "income_tax",
+                "prediction": 123.0,
+                "raw_response": "123",
+                "error": None,
+            }
+        ]
+    ).to_csv(output_path, index=False)
+    _write_resume_sidecar(
+        output_path,
+        [mini_scenario],
+        models={"fable": "claude-fable-5-1"},
+        programs=["income_tax"],
+    )
+
+    monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "tool")
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    with pytest.raises(ValueError, match="treatment"):
+        run_no_tools_eval(
+            [mini_scenario],
+            models={"fable": "claude-fable-5-1"},
+            programs=["income_tax"],
+            output_path=str(output_path),
+        )
+    mock_run_single_no_tools.assert_not_called()
+
+
+def test_sensitivity_knobs_are_rejected_on_the_responses_transport(
+    mini_scenario, monkeypatch
+):
+    """The Responses builders send the forced tool only; a knobbed run on a
+    gpt-5 model must fail fast instead of being fingerprinted as auto."""
+    from policybench.eval_no_tools import _responses_request_kwargs
+
+    _responses_request_kwargs(mini_scenario, ["snap"], "gpt-5.6-sol")
+
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    with pytest.raises(ValueError, match="Responses API"):
+        _responses_request_kwargs(mini_scenario, ["snap"], "gpt-5.6-sol")
+
+    monkeypatch.delenv("POLICYBENCH_TOOL_CHOICE")
+    monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "json")
+    with pytest.raises(ValueError, match="POLICYBENCH_CONTRACT_OVERRIDE"):
+        _responses_request_kwargs(mini_scenario, ["snap"], "gpt-5.6-sol")
+
+
+@patch("policybench.eval_no_tools.responses")
+def test_explanation_repair_rejects_knobs_on_the_responses_transport(
+    mock_responses, mini_scenario, monkeypatch
+):
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    with pytest.raises(ValueError, match="Responses API"):
+        _request_explanations_once(
+            mini_scenario, ["income_tax"], {"income_tax": 123.0}, "gpt-5.6-sol"
+        )
+    mock_responses.assert_not_called()
+
+
 @pytest.mark.parametrize("model_id", ["claude-fable-5", "claude-fable-5-1"])
 def test_claude_fable_line_resolves_without_remote_cost_map(model_id):
     from litellm import get_llm_provider

@@ -220,7 +220,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <td>Frozen export SHA-256 prefix</td>
-<td>US 9c183d1a6ae2</td>
+<td>US 80bb1988adcb</td>
 </tr>
 <tr class="even">
 <td>Snapshot manifest</td>
@@ -248,7 +248,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <td>Scoring code SHA-256 prefix</td>
-<td>2815262586e2</td>
+<td>9859636205af</td>
 </tr>
 <tr class="odd">
 <td>US run label</td>
@@ -1834,7 +1834,7 @@ Table&nbsp;13: US within-10% accuracy on federal vs state refundable credits and
 <h2 id="limitations" class="anchored">Limitations</h2>
 <p>PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:</p>
 <ul>
-<li>output-contract reliability required a repair workflow; raw provider responses, including failed attempts, are retained within the canonical prediction files, and cells that never parsed score zero</li>
+<li>output-contract reliability required a repair workflow; raw provider responses are retained within the canonical prediction files wherever the transport exposed them (no raw payload is retained for Claude Fable 5 (1,984 rows) and Kimi K3 (64 rows)), and cells that never parsed score zero</li>
 <li>request shape is not identical across models: 10 of 33 models answered the prompt template over subsets of the requested outputs rather than the whole scenario (<a href="#tbl-model-runs" class="quarto-xref">Table&nbsp;2</a>), an accommodation that, if it moves scores at all, should favor those models; later additions must answer the whole-scenario request or are listed as not scorable</li>
 <li>zero-heavy outputs require separate positive-case interpretation</li>
 <li>the choice of headline metric (exact match), near-miss companion (within-1%), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate</li>
@@ -1885,11 +1885,11 @@ Table&nbsp;14: Structured-output parser audit and repair sequence.
 </tr>
 <tr class="even">
 <td>Final parse coverage</td>
-<td>629 of the 65,472 canonical model-output rows (1.0%) have no parsable numeric value after retries. The failures comprise Kimi K2.6 (426), GLM-5.2 (139), and Kimi K3 (64). They score zero as parse-contract failures. Every other row has a parsed numeric value and a non-empty explanation.</td>
+<td>629 of the 65,472 canonical model-output rows (1.0%) have no parsable numeric value after retries. The failures comprise Kimi K2.6 (426), GLM-5.2 (139), and Kimi K3 (64). They score zero as parse-contract failures. A further 61 rows (Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)) carry a parsed numeric value but no explanation; they are scored on the numeric value and counted here as explanation-contract violations, so 690 rows in all fall short of the numeric-plus-explanation contract. Every other row has both.</td>
 </tr>
 <tr class="odd">
 <td>Preservation rule</td>
-<td>The snapshot retains the raw provider responses in the compressed source-run prediction files, including the responses behind unparsable rows.</td>
+<td>The snapshot retains raw provider responses in the compressed source-run prediction files wherever the transport exposed them; no raw payload is retained for Claude Fable 5 (1,984 rows) and Kimi K3 (64 rows) (batch-adapter rows carry no per-row payload, and those parse failures captured none).</td>
 </tr>
 </tbody>
 </table>

@@ -104,6 +104,11 @@ class Supervisor:
     ):
         self.model = model
         self.litellm_id = MODELS.get(model, model)
+        from policybench.eval_no_tools import _reject_sensitivity_knobs_for_responses
+
+        _reject_sensitivity_knobs_for_responses(
+            self.litellm_id, env={**os.environ, **(env or {})}
+        )
         self.manifest = Path(manifest)
         self.run_dir = Path(run_dir)
         self.budget_usd = budget_usd

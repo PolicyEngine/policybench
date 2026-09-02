@@ -475,3 +475,19 @@ def test_non_openrouter_model_ignores_openrouter_account_meter(
 
     assert supervisor._credits_baseline is None
     assert called is False
+
+
+def test_supervisor_rejects_sensitivity_knobs_for_responses_models(
+    manifest, tmp_path, monkeypatch
+):
+    """gpt-5 models run on the Responses transport, whose builders send the
+    forced tool only; a knobbed run must fail before any request is sent
+    rather than be fingerprinted as auto."""
+    monkeypatch.setitem(MODELS, "test-model", "gpt-5.6-sol")
+    make_supervisor(manifest, tmp_path)
+    with pytest.raises(ValueError, match="Responses API"):
+        make_supervisor(manifest, tmp_path, env={"POLICYBENCH_TOOL_CHOICE": "auto"})
+    with pytest.raises(ValueError, match="POLICYBENCH_CONTRACT_OVERRIDE"):
+        make_supervisor(
+            manifest, tmp_path, env={"POLICYBENCH_CONTRACT_OVERRIDE": "json"}
+        )

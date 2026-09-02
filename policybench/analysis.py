@@ -2131,8 +2131,15 @@ def build_dashboard_payload(
     analysis: dict[str, pd.DataFrame],
     scenarios: pd.DataFrame,
     scenario_prompts: dict[str, dict[str, dict[str, str]]] | None = None,
+    policyengine_bundles: dict | None = None,
 ) -> dict:
-    """Build the dashboard payload consumed by the app frontend."""
+    """Build the dashboard payload consumed by the app frontend.
+
+    ``policyengine_bundles`` is the provenance of the reference outputs being
+    scored (the run's ``reference_outputs.csv.meta.json``). Without it the
+    payload falls back to the exporting process's installed runtime, which is
+    not the same thing once references were regenerated elsewhere.
+    """
     merged = _prediction_detail_rows(ground_truth, predictions)
 
     metrics = analysis["metrics"].copy()
@@ -2470,7 +2477,11 @@ def build_dashboard_payload(
 
     return {
         "country": payload_country,
-        "policyengineBundles": policyengine_bundles_for_countries({payload_country}),
+        "policyengineBundles": (
+            policyengine_bundles
+            if policyengine_bundles is not None
+            else policyengine_bundles_for_countries({payload_country})
+        ),
         "scenarios": scenario_payload,
         "modelStats": model_stats,
         "programStats": program_stats,

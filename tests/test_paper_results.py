@@ -35,3 +35,29 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     assert r.parse_contract_failure_count == 629
     assert r.parse_contract_failure_count_fmt == "629"
     assert r.parse_contract_failure_pct_fmt == "1.0"
+
+
+def test_contract_violations_are_counted_both_ways():
+    """629 rows never parsed a number; 61 more parsed a number but carry no
+    explanation. The manuscript reports both, not just the first."""
+    assert dict(r.explanation_missing_counts) == {
+        "grok-4.3": 56,
+        "kimi-k2.6": 4,
+        "claude-haiku-4.5": 1,
+    }
+    assert r.explanation_missing_count_fmt == "61"
+    assert r.contract_violation_count_fmt == "690"
+    assert r.explanation_missing_breakdown_fmt == (
+        "Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)"
+    )
+
+
+def test_raw_response_preservation_is_stated_with_its_exceptions():
+    assert dict(r.blank_raw_response_counts) == {
+        "claude-fable-5": 1984,
+        "kimi-k3": 64,
+    }
+    assert r.blank_raw_response_note == (
+        "no raw payload is retained for Claude Fable 5 (1,984 rows) and "
+        "Kimi K3 (64 rows)"
+    )

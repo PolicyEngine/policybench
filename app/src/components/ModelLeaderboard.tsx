@@ -16,6 +16,17 @@ import ProviderMark from "./ProviderMark";
 import { ProgramFilterPanel } from "./ProgramFilterDropdown";
 import { programIsActive, type ProgramOption } from "../lib/programFilters";
 import { canonicalScoreByModel } from "../lib/canonicalScore";
+import { wouldRank } from "../lib/wouldRank";
+
+// Exact-match scores of the tool_choice: auto sensitivity runs
+// (sensitivity/claude-thinking-2026-08.md). Their "would rank" positions are
+// derived from the live board rows at render time, never typed by hand.
+const SENSITIVITY_EXACT = {
+  "claude-fable-5": 86.9,
+  "claude-opus-5": 85.6,
+  "claude-sonnet-5": 80.2,
+  "claude-fable-5.1": 87.5,
+} as const;
 import {
   rankWithFallbackScore,
   rankWithRecomputedScores,
@@ -286,12 +297,18 @@ export default function ModelLeaderboard({
             forced, as it is in the request this board sends every model whose
             provider accepts a forced tool; other reasoning-by-default providers
             reason regardless. Re-run with <code>tool_choice: auto</code>,
-            Claude Fable 5 scores 86.9 (would rank #3), Claude Opus 5 85.6 (#4),
-            and Claude Sonnet 5 80.2 (#9). Claude Fable 5.1 rejects forced tool
-            calls outright, so its board row answers as a JSON object and
-            reasons at the provider default; with the tool declared under{" "}
-            <code>auto</code> it scores 87.5 (still #2). The board below is
-            unchanged — those runs sit beside it as a{" "}
+            Claude Fable 5 scores {SENSITIVITY_EXACT["claude-fable-5"]} (would
+            rank #{wouldRank(SENSITIVITY_EXACT["claude-fable-5"], baseNoTools)}
+            ), Claude Opus 5 {SENSITIVITY_EXACT["claude-opus-5"]} (#
+            {wouldRank(SENSITIVITY_EXACT["claude-opus-5"], baseNoTools)}), and
+            Claude Sonnet 5 {SENSITIVITY_EXACT["claude-sonnet-5"]} (#
+            {wouldRank(SENSITIVITY_EXACT["claude-sonnet-5"], baseNoTools)}).
+            Claude Fable 5.1 rejects forced tool calls outright, so its board
+            row answers as a JSON object and reasons at the provider default;
+            with the tool declared under <code>auto</code> it scores{" "}
+            {SENSITIVITY_EXACT["claude-fable-5.1"]} (#
+            {wouldRank(SENSITIVITY_EXACT["claude-fable-5.1"], baseNoTools)}).
+            The board below is unchanged — those runs sit beside it as a{" "}
             <a
               href="https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md"
               className="text-primary hover:underline"

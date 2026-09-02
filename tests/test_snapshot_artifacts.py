@@ -407,3 +407,18 @@ def test_dashboard_blob_is_not_committed():
         check=True,
     ).stdout.strip()
     assert tracked == ""
+
+
+def test_frozen_payload_provenance_matches_the_reference_sidecar():
+    """The frozen data.json must name the policyengine-us that generated the
+    references it scores against, as recorded by the reference sidecar and the
+    manifest, not the exporting machine's installed runtime."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    expected = manifest["reference_output_refresh"]["policyengine_us_version"]
+    for country, run_label in manifest["source_run_labels"].items():
+        run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+        payload = json.loads((run_dir / "data.json").read_text())
+        sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+        sidecar_version = sidecar["policyengine_bundles"][country]["model_version"]
+        assert sidecar_version == expected
+        assert payload["policyengineBundles"][country]["model_version"] == expected

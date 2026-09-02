@@ -73,17 +73,19 @@ SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
-# is the exact payload uploaded as dashboard-data-20260901b (20260901 carried
-# case-level labels from stale case notes and is superseded).
+# is the exact payload uploaded as dashboard-data-20260901c. Two earlier tags
+# are superseded: 20260901 carried case-level labels from stale case notes,
+# and 20260901b carried the exporting runtime's policyengine-us version as
+# the reference provenance.
 PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board33.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
-    "tag": "dashboard-data-20260901b",
+    "tag": "dashboard-data-20260901c",
     "asset": "dashboard-data.json",
     "url": (
         "https://github.com/PolicyEngine/policybench/releases/download/"
-        "dashboard-data-20260901b/dashboard-data.json"
+        "dashboard-data-20260901c/dashboard-data.json"
     ),
-    "sha256": "1ff522e022bbca91732639acdd34e97f48c1e1e6378819fb648b075e721a7e6a",
+    "sha256": "ee342fc3a756d3523bb742c09ab08403c1a6b206b393e0c76b499b47f1b34736",
     "bytes": 87_410_551,
 }
 
@@ -631,7 +633,10 @@ def build_manifest(
             "failed or timed-out scenarios in bounded rounds; every model's "
             "canonical file covers all 100 households.",
             "Raw provider responses are retained in the compressed source-run "
-            "predictions.csv.gz file. The separate LiteLLM cache remains "
+            "predictions.csv.gz file wherever the transport exposed them; rows "
+            "served through the Anthropic batch adapter (Claude Fable 5) and "
+            "64 Kimi K3 parse failures carry no raw payload. The separate "
+            "LiteLLM cache remains "
             "local-only because it is a generated request cache, not the "
             "canonical snapshot artifact.",
             "The frozen scenarios.csv source_dataset column carries a stale "
@@ -649,8 +654,10 @@ def build_manifest(
             "output_groups": {"us": len(country_payload["programStats"])},
             "models": model_count,
             "condition": (
-                "No tools, no web access, one structured response per household "
-                "with numeric answers and non-empty explanations."
+                "No tools, no web access; structured responses carrying a "
+                "numeric answer and an explanation for every requested "
+                "output, sent whole-scenario or in one- or three-output "
+                "subsets per model as recorded in model_serving_config.json."
             ),
         },
         "model_response_date": MODEL_RESPONSE_DATE,

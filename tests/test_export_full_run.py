@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -441,3 +442,29 @@ def test_export_full_run_errors_clearly_when_no_country_dirs(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="No country subdirectory"):
         export_full_run(tmp_path, skip_app_data=True)
+
+
+def test_reference_policyengine_bundles_come_from_the_sidecar(tmp_path):
+    """The payload's PolicyEngine provenance describes the references being
+    scored, which the reference generator records beside them; the exporting
+    machine's installed runtime is not evidence about them."""
+    from policybench.full_run_export import reference_policyengine_bundles
+
+    ground_truth = tmp_path / "reference_outputs.csv"
+    ground_truth.write_text("scenario_id,variable,value\n")
+    assert reference_policyengine_bundles(ground_truth, "us") is None
+
+    sidecar = tmp_path / "reference_outputs.csv.meta.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "policyengine_bundles": {
+                    "us": {"model_version": "1.755.4", "bundle_id": "us-4.16.1"}
+                }
+            }
+        )
+    )
+    assert reference_policyengine_bundles(ground_truth, "us") == {
+        "us": {"model_version": "1.755.4", "bundle_id": "us-4.16.1"}
+    }
+    assert reference_policyengine_bundles(ground_truth, "uk") is None

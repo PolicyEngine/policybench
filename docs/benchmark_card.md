@@ -43,7 +43,7 @@ PolicyBench has one canonical evaluation mode.
 
 `Benchmark runs`
 - canonical leaderboard artifacts
-- one structured response per household
+- structured responses: whole-scenario, or one- or three-output subsets for the models recorded in the snapshot's `model_serving_config.json`
 - numeric answers for every requested output
 - one required non-empty explanation for each output
 
