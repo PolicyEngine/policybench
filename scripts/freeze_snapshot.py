@@ -48,40 +48,48 @@ from policybench.analysis import score_single_prediction
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the August 2026 US-only populace refresh (32-model board,
-# corrected v1.1 references).
+# Configuration for the September 2026 US-only populace refresh (33-model
+# board, corrected v1.1 references).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
-SNAPSHOT_DATE = "2026-08-22"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-08-22"
+SNAPSHOT_DATE = "2026-09-01"
+MODEL_RESPONSE_DATE = "2026-06-12 to 2026-09-01"
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
-SOURCE_RUN = (
-    ROOT / "../../policybench/results/local/board32/publish" / RUN_LABEL
-).resolve()
+# Completed runs live under the main clone's gitignored results/local. A
+# refreeze may run from that clone or from a worktree beside it.
+_MAIN_CLONE = next(
+    (
+        candidate
+        for candidate in (ROOT, (ROOT / "../../policybench").resolve())
+        if (candidate / "results" / "local").is_dir()
+    ),
+    ROOT,
+)
+SOURCE_RUN = (_MAIN_CLONE / "results/local/fable51/publish" / RUN_LABEL).resolve()
 SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
-# is the exact payload uploaded as dashboard-data-20260822.
-PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board32.json"
+# is the exact payload uploaded as dashboard-data-20260901.
+PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board33.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
-    "tag": "dashboard-data-20260822",
+    "tag": "dashboard-data-20260901",
     "asset": "dashboard-data.json",
     "url": (
         "https://github.com/PolicyEngine/policybench/releases/download/"
-        "dashboard-data-20260822/dashboard-data.json"
+        "dashboard-data-20260901/dashboard-data.json"
     ),
-    "sha256": "b883ec669d510ea29c9c18f18c30030c5bbd29f770bcd90d257779940929a895",
-    "bytes": 85_042_876,
+    "sha256": "1b2de0966daa97238f34c30e06de52b88ecd5f18ae4d34a3ae2b007bdd5f3dea",
+    "bytes": 87_392_615,
 }
 
 # The publish bundle omits this immutable reference-generation sidecar. Pair
 # the original completed-run copy only after checking that its reference CSV
 # is byte-identical to the publish bundle's CSV.
-ORIGINAL_US_RUN = (ROOT / "../../policybench/results" / RUN_LABEL / "us").resolve()
+ORIGINAL_US_RUN = (_MAIN_CLONE / "results" / RUN_LABEL / "us").resolve()
 REFERENCE_META_SOURCE = ORIGINAL_US_RUN / "reference_outputs.csv.meta.json"
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
@@ -488,9 +496,19 @@ def freeze_annotations() -> dict[str, str]:
     # The publish bundle added an Ox Alpha row annotation without its matching
     # case note. Add that deterministic aggregate note before hashing.
     case_notes_path = ANNOTATIONS_DEST / "us_case_notes.csv"
-    with case_notes_path.open("a", newline="") as fileobj:
-        writer = csv.DictWriter(fileobj, fieldnames=CASE_NOTE_SUPPLEMENTS[0])
-        writer.writerows(CASE_NOTE_SUPPLEMENTS)
+    with case_notes_path.open(newline="") as fileobj:
+        present = {
+            (row["scenario_id"], row["variable"]) for row in csv.DictReader(fileobj)
+        }
+    missing = [
+        note
+        for note in CASE_NOTE_SUPPLEMENTS
+        if (note["scenario_id"], note["variable"]) not in present
+    ]
+    if missing:
+        with case_notes_path.open("a", newline="") as fileobj:
+            writer = csv.DictWriter(fileobj, fieldnames=CASE_NOTE_SUPPLEMENTS[0])
+            writer.writerows(missing)
 
     return {
         "us_audit_row_annotations.csv": sha256_file(
@@ -599,7 +617,7 @@ def build_manifest(
             "artifacts copied under "
             f"paper/snapshot/{SNAPSHOT_DIR_NAME}/runs/.",
             "Model responses were collected in waves between June 12 and "
-            "August 22, 2026, as models were added to the board; each model's "
+            "September 1, 2026, as models were added to the board; each model's "
             "full 100-household run is a single consistent wave. Reference "
             "outputs were generated with policyengine.py "
             f"{reference_refresh['policyengine_version']} and policyengine-us "

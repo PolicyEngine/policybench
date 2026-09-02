@@ -43,6 +43,7 @@ MODEL_DISPLAY_NAMES = {
     "gpt-5.6-sol": "GPT-5.6 Sol",
     "gpt-5.6-terra": "GPT-5.6 Terra",
     "gpt-5.6-luna": "GPT-5.6 Luna",
+    "claude-fable-5.1": "Claude Fable 5.1",
     "claude-fable-5": "Claude Fable 5",
     "claude-sonnet-5": "Claude Sonnet 5",
     "ox-alpha": "Ox Alpha (preview)",
@@ -638,9 +639,12 @@ r = PaperResults()
 
 # Public release date per model: the first day any member of the public could
 # use it (paid tiers count; trusted-tester previews do not). Compiled
-# 2026-08-22 from vendor announcements and contemporaneous press; per-model
+# 2026-09-01 from vendor announcements and contemporaneous press; per-model
 # sources follow each entry.
 MODEL_RELEASE_DATES: dict[str, str] = {
+    # platform.claude.com/docs/en/models/fable-5-1/overview ("Released
+    # September 1, 2026")
+    "claude-fable-5.1": "2026-09-01",
     # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
     "claude-fable-5": "2026-06-09",
     # announced and available 2026-07-24 (fortune.com, bloomberg.com,

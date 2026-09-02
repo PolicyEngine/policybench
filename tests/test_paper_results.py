@@ -9,12 +9,14 @@ from policybench.paper_results import (
 )
 
 
-def test_frozen_roster_has_32_display_names_and_release_dates():
+def test_frozen_roster_has_33_display_names_and_release_dates():
     roster = {row["model"] for row in r.model_stats}
 
-    assert len(roster) == 32
+    assert len(roster) == 33
     assert set(MODEL_DISPLAY_NAMES) == roster
     assert roster <= set(MODEL_RELEASE_DATES)
+    assert MODEL_DISPLAY_NAMES["claude-fable-5.1"] == "Claude Fable 5.1"
+    assert MODEL_RELEASE_DATES["claude-fable-5.1"] == "2026-09-01"
     assert MODEL_DISPLAY_NAMES["gemini-3.7-flash"] == "Gemini 3.7 Flash"
     assert MODEL_RELEASE_DATES["gemini-3.7-flash"] == "2026-08-13"
     assert MODEL_DISPLAY_NAMES["grok-4.6"] == "Grok 4.6"

@@ -8,11 +8,12 @@ Top model: `gpt-5.6-sol` with `bounded_score=0.953` and `within_1pct=0.909`.
 
 ## Usage
 
-Total cost: `324.251` USD. Cumulative request-time: `7350.7 min` (summed across concurrent calls; not wall-clock). Run wall-clock: `73616.4 min`.
+Total cost: `349.950` USD. Cumulative request-time: `7444.3 min` (summed across concurrent calls; not wall-clock). Run wall-clock: `88838.8 min`.
 
 | model | total_cost_usd | cost_rows_estimated | cumulative_request_time | wall_clock | total_tokens | reasoning_tokens | parsed_rows | total_rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | claude-fable-5 | n/a | 0 | n/a | n/a | n/a | n/a | 1984 | 1984 |
+| claude-fable-5.1 | 25.698 | 0 | 93.6 min | 23.3 min | 680865.000 | 0.000 | 1984 | 1984 |
 | claude-haiku-4.5 | 5.541 | 1984 | 98.8 min | n/a | 3836025.000 | 0.000 | 1984 | 1984 |
 | claude-opus-4.7 | 29.303 | 1984 | 103.4 min | n/a | 4569140.000 | 0.000 | 1984 | 1984 |
 | claude-opus-4.8 | 25.506 | 1984 | 105.7 min | n/a | 3782202.000 | 0.000 | 1984 | 1984 |
@@ -50,6 +51,7 @@ Total cost: `324.251` USD. Cumulative request-time: `7350.7 min` (summed across 
 | model | mean_score | mean_exact | mean_within_1pct | mean_within_5pct | mean_within_10pct | mean_binary_accuracy | mean_mae | total_n |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | gpt-5.6-sol | 0.968 | 0.930 | 0.940 | 0.953 | 0.959 | 0.986 | 58.050 | 1984 |
+| claude-fable-5.1 | 0.969 | 0.924 | 0.938 | 0.950 | 0.959 | 0.979 | 63.356 | 1984 |
 | inkling | 0.958 | 0.903 | 0.917 | 0.929 | 0.939 | 0.991 | 96.700 | 1984 |
 | gpt-5.6-terra | 0.956 | 0.907 | 0.915 | 0.931 | 0.943 | 0.984 | 105.502 | 1984 |
 | grok-4.6 | 0.960 | 0.905 | 0.913 | 0.930 | 0.937 | 0.983 | 123.643 | 1984 |
@@ -89,6 +91,7 @@ Households receive equal weight. The score is a weighted average of row scores: 
 | model | bounded_score | amount_accuracy | participation_accuracy |
 | --- | ---: | ---: | ---: |
 | claude-fable-5 | 0.915 | 0.777 | 0.964 |
+| claude-fable-5.1 | 0.953 | 0.868 | 0.977 |
 | claude-haiku-4.5 | 0.821 | 0.588 | 0.910 |
 | claude-opus-4.7 | 0.887 | 0.774 | 0.939 |
 | claude-opus-4.8 | 0.831 | 0.714 | 0.922 |
@@ -128,21 +131,21 @@ Amount variables use the tolerance columns. Binary coverage flags use `mean_accu
 
 | variable | metric_type | mean_score | mean_exact | mean_within_1pct | mean_within_5pct | mean_within_10pct | mean_accuracy | mean_mae | total_n |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| federal_income_tax_before_refundable_credits | amount_tolerance | 0.769 | 0.504 | 0.529 | 0.588 | 0.630 | n/a | 2010.713 | 3200 |
-| federal_refundable_credits | amount_tolerance | 0.887 | 0.827 | 0.838 | 0.852 | 0.864 | n/a | 241.497 | 3200 |
-| free_school_meals_eligible | binary_accuracy | 0.979 | 0.979 | 0.979 | 0.979 | 0.979 | 0.979 | 0.016 | 3200 |
-| local_income_tax | amount_tolerance | 0.991 | 0.991 | 0.991 | 0.991 | 0.991 | n/a | 9.152 | 3200 |
-| payroll_tax | amount_tolerance | 0.933 | 0.739 | 0.777 | 0.833 | 0.883 | n/a | 331.913 | 3200 |
-| person_chip_eligible | binary_accuracy | 0.951 | 0.951 | 0.951 | 0.951 | 0.951 | 0.951 | 0.041 | 5664 |
-| person_early_head_start_eligible | binary_accuracy | 0.980 | 0.980 | 0.980 | 0.980 | 0.980 | 0.980 | 0.014 | 1216 |
-| person_head_start_eligible | binary_accuracy | 0.963 | 0.963 | 0.963 | 0.963 | 0.963 | 0.963 | 0.031 | 1216 |
-| person_medicaid_eligible | binary_accuracy | 0.897 | 0.897 | 0.897 | 0.897 | 0.897 | 0.897 | 0.095 | 5664 |
-| person_medicare_eligible | binary_accuracy | 0.955 | 0.955 | 0.955 | 0.955 | 0.955 | 0.955 | 0.040 | 5664 |
-| person_wic_eligible | binary_accuracy | 0.973 | 0.973 | 0.973 | 0.973 | 0.973 | 0.973 | 0.021 | 5664 |
-| reduced_price_school_meals_eligible | binary_accuracy | 0.977 | 0.977 | 0.977 | 0.977 | 0.977 | 0.977 | 0.019 | 3200 |
-| self_employment_tax | amount_tolerance | 0.969 | 0.961 | 0.967 | 0.968 | 0.968 | n/a | 29.496 | 3200 |
-| snap | amount_tolerance | 0.845 | 0.770 | 0.781 | 0.805 | 0.817 | n/a | 361.999 | 3200 |
-| ssi | amount_tolerance | 0.970 | 0.958 | 0.961 | 0.964 | 0.966 | n/a | 189.562 | 3200 |
-| state_income_tax_before_refundable_credits | amount_tolerance | 0.792 | 0.544 | 0.566 | 0.634 | 0.679 | n/a | 387.669 | 3200 |
-| state_refundable_credits | amount_tolerance | 0.816 | 0.781 | 0.782 | 0.786 | 0.790 | n/a | 72.603 | 3200 |
-| tanf | amount_tolerance | 0.987 | 0.984 | 0.984 | 0.984 | 0.985 | n/a | 39.086 | 3200 |
+| federal_income_tax_before_refundable_credits | amount_tolerance | 0.774 | 0.510 | 0.537 | 0.596 | 0.638 | n/a | 1960.968 | 3300 |
+| federal_refundable_credits | amount_tolerance | 0.890 | 0.831 | 0.842 | 0.855 | 0.868 | n/a | 234.952 | 3300 |
+| free_school_meals_eligible | binary_accuracy | 0.979 | 0.979 | 0.979 | 0.979 | 0.979 | 0.979 | 0.016 | 3300 |
+| local_income_tax | amount_tolerance | 0.991 | 0.991 | 0.991 | 0.991 | 0.991 | n/a | 8.874 | 3300 |
+| payroll_tax | amount_tolerance | 0.935 | 0.743 | 0.781 | 0.835 | 0.885 | n/a | 325.226 | 3300 |
+| person_chip_eligible | binary_accuracy | 0.952 | 0.952 | 0.952 | 0.952 | 0.952 | 0.952 | 0.041 | 5841 |
+| person_early_head_start_eligible | binary_accuracy | 0.981 | 0.981 | 0.981 | 0.981 | 0.981 | 0.981 | 0.014 | 1254 |
+| person_head_start_eligible | binary_accuracy | 0.964 | 0.964 | 0.964 | 0.964 | 0.964 | 0.964 | 0.030 | 1254 |
+| person_medicaid_eligible | binary_accuracy | 0.900 | 0.900 | 0.900 | 0.900 | 0.900 | 0.900 | 0.093 | 5841 |
+| person_medicare_eligible | binary_accuracy | 0.954 | 0.954 | 0.954 | 0.954 | 0.954 | 0.954 | 0.041 | 5841 |
+| person_wic_eligible | binary_accuracy | 0.974 | 0.974 | 0.974 | 0.974 | 0.974 | 0.974 | 0.021 | 5841 |
+| reduced_price_school_meals_eligible | binary_accuracy | 0.977 | 0.977 | 0.977 | 0.977 | 0.977 | 0.977 | 0.019 | 3300 |
+| self_employment_tax | amount_tolerance | 0.970 | 0.962 | 0.968 | 0.968 | 0.969 | n/a | 28.602 | 3300 |
+| snap | amount_tolerance | 0.846 | 0.771 | 0.783 | 0.807 | 0.819 | n/a | 355.255 | 3300 |
+| ssi | amount_tolerance | 0.970 | 0.958 | 0.961 | 0.964 | 0.965 | n/a | 192.667 | 3300 |
+| state_income_tax_before_refundable_credits | amount_tolerance | 0.796 | 0.547 | 0.570 | 0.639 | 0.685 | n/a | 379.408 | 3300 |
+| state_refundable_credits | amount_tolerance | 0.819 | 0.784 | 0.786 | 0.789 | 0.793 | n/a | 71.227 | 3300 |
+| tanf | amount_tolerance | 0.988 | 0.984 | 0.984 | 0.984 | 0.985 | n/a | 39.739 | 3300 |

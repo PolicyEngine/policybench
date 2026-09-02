@@ -8,6 +8,14 @@
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
+    "claude-fable-5.1": {
+      "answer_contract": "json",
+      "provider_id": "claude-fable-5-1",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "request_shape": "whole scenario",
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": null
+    },
     "claude-haiku-4.5": {
       "answer_contract": "tool",
       "provider_id": "claude-haiku-4-5-20251001",

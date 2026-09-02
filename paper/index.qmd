@@ -1080,7 +1080,7 @@ The benchmark requires each model response to include numeric answers and one ex
 
 Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts and requested outputs. They receive no web or external tool access. The prompt sets unlisted numeric inputs to `0`, unlisted boolean or status facts to false, and household characteristics as constant over the tax-benefit year. Provider-specific differences are limited to structured-output transport, request shape, and the reasoning setup in @tbl-model-runs. The harness sends no reasoning-control or sampling parameters. It leaves reasoning effort, temperature, and related decoding controls at provider defaults. The frozen GPT-5.5 wave uses provider-default reasoning effort.
 
-The forced `tool_choice` suppresses Claude's extended thinking in this snapshot ([`sensitivity/claude-thinking-2026-08.md`](https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md)). A labeled sensitivity with `tool_choice: "auto"` is published beside the board. The next board version moves every model to `tool_choice: "auto"` so each provider's default reasoning posture can engage.
+The forced `tool_choice` suppresses Claude's extended thinking in this snapshot ([`sensitivity/claude-thinking-2026-08.md`](https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md)). A labeled sensitivity with `tool_choice: "auto"` is published beside the board. Claude Fable 5.1, released September 1, 2026, closes the interaction from the API side: it rejects forced tool use with an error, so its row answers through the JSON transport and reasons at the provider default; a sensitivity run with the tool declared under `tool_choice: "auto"` scores 1.2 points above that row. The next board version moves every model to `tool_choice: "auto"` so each provider's default reasoning posture can engage.
 
 Request shape is the one dimension on which requests were not identical across models. `{python} n_chunked_models` of the `{python} r.n_models_fmt` models could not reliably complete the whole-scenario request — their serving stacks rejected the structured-output call, exhausted completion budgets mid-response, or timed out — and instead answered the same prompt template over subsets of the requested outputs, one to three outputs per request (@tbl-model-runs). Subsetting gives each response fewer requested outputs and a fresh completion budget over the same household facts, so the accommodation, if it moves scores at all, should favor the chunked models; their scores are not strictly comparable to whole-scenario scores. This accommodation is closed going forward: a model added after this snapshot either answers the canonical whole-scenario request or is listed as not scorable rather than accommodated.
 
@@ -1243,14 +1243,19 @@ def _lag(frame):
     ]
     anchor = min(closed_above["model"], key=_rel)
     days = (_rel(best_open.model) - _rel(anchor)).days
-    return best_open, anchor, days
+    return best_open, anchor, days, len(closed_above)
+
+
+def _closed_models_phrase(n: int) -> str:
+    word = {1: "one", 2: "two", 3: "three", 4: "four"}.get(n, str(n))
+    return f"{word} closed model{'' if n == 1 else 's'}"
 
 
 _pre_july = us_model[
     us_model["model"].map(_rel) < _date(2026, 7, 1)
 ]
-june_open, june_anchor, june_days = _lag(_pre_july)
-full_open, full_anchor, full_days = _lag(us_model)
+june_open, june_anchor, june_days, _ = _lag(_pre_july)
+full_open, full_anchor, full_days, full_n_closed_above = _lag(us_model)
 june_months = f"{june_days / 30.44:.1f}"
 full_weights_days = (_date(2026, 7, 27) - _rel(full_anchor)).days
 
@@ -1260,7 +1265,7 @@ def _prose_date(model: str) -> str:
     return f"{d.strftime('%B')} {d.day}, {d.year}"
 ```
 
-The leaderboard also measures time. Following the lag construction the UK AI Security Institute applied to cyber capabilities [@aisi2026openweight], the open-weight lag is the time between the closed frontier first reaching a score and the leading open-weight model matching it. Two cuts of the frozen roster give the trajectory. Among models released before July 2026, the leading open-weight model is `{python} model_display_name(june_open.model)` at `{python} f"{june_open.exact:.1f}"`% exact, whose weights shipped on `{python} _prose_date(june_open.model)` [@deepseek2026v4]; the earliest-released closed model above that score is `{python} model_display_name(june_anchor)`, released `{python} _prose_date(june_anchor)` [@techcrunch2025gemini3flash] — a lag of `{python} str(june_days)` days, about `{python} june_months` months. On the full roster, `{python} model_display_name(full_open.model)` at `{python} f"{full_open.exact:.1f}"`% exact trails only `{python} model_display_name(full_anchor)`, generally available `{python} _prose_date(full_anchor)` [@techcrunch2026gpt56], putting the lag at `{python} str(full_days)` days by API availability, or `{python} str(full_weights_days)` days dated to Kimi K3's July 27 weight release on Hugging Face [@techtimes2026kimik3weights].
+The leaderboard also measures time. Following the lag construction the UK AI Security Institute applied to cyber capabilities [@aisi2026openweight], the open-weight lag is the time between the closed frontier first reaching a score and the leading open-weight model matching it. Two cuts of the frozen roster give the trajectory. Among models released before July 2026, the leading open-weight model is `{python} model_display_name(june_open.model)` at `{python} f"{june_open.exact:.1f}"`% exact, whose weights shipped on `{python} _prose_date(june_open.model)` [@deepseek2026v4]; the earliest-released closed model above that score is `{python} model_display_name(june_anchor)`, released `{python} _prose_date(june_anchor)` [@techcrunch2025gemini3flash] — a lag of `{python} str(june_days)` days, about `{python} june_months` months. On the full roster, `{python} model_display_name(full_open.model)` at `{python} f"{full_open.exact:.1f}"`% exact trails `{python} _closed_models_phrase(full_n_closed_above)`; the earliest released of them, `{python} model_display_name(full_anchor)`, generally available `{python} _prose_date(full_anchor)` [@techcrunch2026gpt56], puts the lag at `{python} str(full_days)` days by API availability, or `{python} str(full_weights_days)` days dated to Kimi K3's July 27 weight release on Hugging Face [@techtimes2026kimik3weights].
 
 Both figures are lower bounds in one direction: a closed model outside the evaluated roster that crossed either score earlier would lengthen the corresponding lag. They also carry the uncertainty of any single-benchmark, single-domain estimate — the AISI analysis reports substantially longer lags on cyber tasks — and a lag measured at a moving frontier compresses mechanically when a strong open-weight release lands days after a frontier release.
 
