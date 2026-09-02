@@ -155,7 +155,10 @@ class Supervisor:
     def _treatment_fingerprint(self) -> dict:
         return {
             "model_id": self.litellm_id,
-            "answer_contract": answer_contract_for(self.litellm_id),
+            "answer_contract": answer_contract_for(
+                self.litellm_id,
+                contract_override=self.env.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+            ),
             "tool_choice_mode": (
                 "auto"
                 if self.env.get("POLICYBENCH_TOOL_CHOICE") == "auto"

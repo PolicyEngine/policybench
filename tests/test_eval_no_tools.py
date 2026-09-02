@@ -2199,6 +2199,77 @@ def test_json_contract_explanation_repair_stays_in_json_mode(
     assert result["explanations"]["income_tax"].endswith("value = 123")
 
 
+@patch("policybench.eval_no_tools.completion")
+def test_explanation_repair_honors_the_tool_choice_escape_hatch(
+    mock_completion, mini_scenario, monkeypatch
+):
+    """A tool_choice=auto sensitivity run must not force the tool on its
+    repair calls: Fable 5.1 rejects a forced tool outright, and on other
+    Claudes a forced repair would silently drop thinking mid-scenario."""
+    message = MagicMock()
+    message.content = json.dumps(
+        {"income_tax": "Calculated from the supplied answer. value = 123"}
+    )
+    message.tool_calls = None
+    message.function_call = None
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(
+        prompt_tokens=10, completion_tokens=5, total_tokens=15
+    )
+    mock_completion.return_value = response
+
+    _request_explanations_once(
+        mini_scenario, ["income_tax"], {"income_tax": 123.0}, "claude-opus-5"
+    )
+    forced = mock_completion.call_args.kwargs
+    assert forced["tool_choice"]["function"]["name"] == "submit_explanations"
+
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    _request_explanations_once(
+        mini_scenario, ["income_tax"], {"income_tax": 123.0}, "claude-opus-5"
+    )
+    auto = mock_completion.call_args.kwargs
+    assert auto["tool_choice"] == "auto"
+    assert auto["tools"], "the explanation tool stays declared under auto"
+
+
+def test_contract_override_declares_the_tool_on_a_json_model(
+    mini_scenario, monkeypatch
+):
+    """Fable 5.1's board row runs the JSON contract because the API rejects a
+    forced tool; its thinking sensitivity run declares the tool and leaves the
+    choice to the model, which needs both escape hatches together."""
+    from policybench.eval_no_tools import _chat_completion_request_kwargs
+
+    _, board = _chat_completion_request_kwargs(
+        mini_scenario, ["snap"], "claude-fable-5-1"
+    )
+    assert board["response_format"] == {"type": "json_object"}
+    assert "tools" not in board
+
+    monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "tool")
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    _, sensitivity = _chat_completion_request_kwargs(
+        mini_scenario, ["snap"], "claude-fable-5-1"
+    )
+    assert sensitivity["tool_choice"] == "auto"
+    assert sensitivity["tools"][0]["function"]["name"] == "submit_outputs"
+    assert "response_format" not in sensitivity
+
+
+@pytest.mark.parametrize("model_id", ["claude-fable-5", "claude-fable-5-1"])
+def test_claude_fable_line_resolves_without_remote_cost_map(model_id):
+    from litellm import get_llm_provider
+
+    assert model_id in litellm.model_cost
+    _, provider, _, _ = get_llm_provider(model_id)
+    assert provider == "anthropic"
+    entry = litellm.model_cost[model_id]
+    assert entry["input_cost_per_token"] == pytest.approx(10e-6)
+    assert entry["output_cost_per_token"] == pytest.approx(50e-6)
+
+
 @pytest.mark.parametrize("model_id", sorted(GPT_56_MODELS))
 def test_gpt_56_provider_resolves_without_remote_cost_map(model_id):
     from litellm import get_llm_provider

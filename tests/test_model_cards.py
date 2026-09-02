@@ -8,7 +8,7 @@ deliberate, but it must show up in the diff of this file too.
 
 import pytest
 
-from policybench.config import MODELS
+from policybench.config import MODELS, PRICE_OVERRIDES_PER_1M
 from policybench.eval_no_tools import (
     _answer_contract_for_model,
     _completion_budget_ceiling,
@@ -16,7 +16,7 @@ from policybench.eval_no_tools import (
     _request_timeout_seconds,
     _required_explanation_chunk_size,
 )
-from policybench.model_cards import ModelCard, card_for
+from policybench.model_cards import MODEL_CARDS, ModelCard, card_for
 
 # model_id -> (contract, chunk_size, timeout_s, budget_for_16_vars_with_expl)
 EXPECTED = {
@@ -25,6 +25,7 @@ EXPECTED = {
     "gpt-5.6-luna": ("tool", None, 300, 16_384),
     "gpt-5.5": ("tool", 3, 60, 16_384),
     "claude-fable-5": ("tool", 1, 300, 16_384),
+    "claude-fable-5-1": ("json", None, 600, 16_384),
     "claude-opus-5": ("tool", None, 300, 16_384),
     "claude-sonnet-5": ("tool", 1, 300, 16_384),
     "claude-opus-4-8": ("tool", 1, 120, 4_096),
@@ -139,3 +140,32 @@ def test_provider_max_clamps_initial_completion_budget(monkeypatch):
 )
 def test_roster_model_provider_maximums_limit_escalation(model_id, expected):
     assert _completion_budget_ceiling(model_id) == expected
+
+
+def test_every_card_belongs_to_a_roster_model_under_its_own_id():
+    """A card keyed off a mistyped or retired id silently falls back to the
+    family heuristic; keep every card attached to a live roster id."""
+    roster_ids = set(MODELS.values())
+    orphans = sorted(set(MODEL_CARDS) - roster_ids)
+    assert not orphans, f"cards for models not in config.MODELS: {orphans}"
+    for model_id, card in MODEL_CARDS.items():
+        assert card.litellm_id == model_id
+
+
+def test_every_price_override_names_a_roster_model():
+    unknown = sorted(set(PRICE_OVERRIDES_PER_1M) - set(MODELS))
+    assert not unknown, f"price overrides for unknown display ids: {unknown}"
+
+
+def test_contract_override_is_the_sensitivity_escape_hatch(monkeypatch):
+    """POLICYBENCH_CONTRACT_OVERRIDE=tool lets a JSON-contract model run with
+    the answer tool declared, so a tool_choice=auto sensitivity run has a tool
+    for the model to choose. Unset, the card decides."""
+    assert _answer_contract_for_model("claude-fable-5-1") == "json"
+
+    monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "tool")
+    assert _answer_contract_for_model("claude-fable-5-1") == "tool"
+
+    monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "xml")
+    with pytest.raises(ValueError, match="POLICYBENCH_CONTRACT_OVERRIDE"):
+        _answer_contract_for_model("claude-fable-5-1")

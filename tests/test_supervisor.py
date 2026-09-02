@@ -111,6 +111,22 @@ def test_happy_path_completes_all_and_combines(manifest, tmp_path, monkeypatch):
     }
 
 
+def test_fingerprint_records_the_contract_override(manifest, tmp_path):
+    """A sensitivity run that declares the tool on a JSON-contract model must
+    fingerprint the contract it actually sent, so a resume under the default
+    contract is refused rather than spliced in."""
+    supervisor = make_supervisor(
+        manifest,
+        tmp_path,
+        env={
+            "POLICYBENCH_CONTRACT_OVERRIDE": "json",
+            "POLICYBENCH_TOOL_CHOICE": "auto",
+        },
+    )
+    assert supervisor.treatment_fingerprint["answer_contract"] == "json"
+    assert supervisor.treatment_fingerprint["tool_choice_mode"] == "auto"
+
+
 def test_budget_escalation_counts_land_in_run_state(
     manifest,
     tmp_path,

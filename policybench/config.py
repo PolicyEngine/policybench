@@ -35,6 +35,7 @@ GPT_56_MODELS = {
 
 MODELS = {
     "claude-fable-5": "claude-fable-5",
+    "claude-fable-5.1": "claude-fable-5-1",
     "claude-opus-5": "claude-opus-5",
     "claude-opus-4.8": "claude-opus-4-8",
     "claude-opus-4.7": "claude-opus-4-7",
@@ -101,6 +102,10 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # claude-fable-5: $10 / $50 per 1M input/output tokens
     # (https://platform.claude.com/docs/en/about-claude/models/overview).
     "claude-fable-5": {"input": 10.0, "output": 50.0},
+    # claude-fable-5-1: same $10 / $50 (platform.claude.com/docs/en/models/
+    # fable-5-1/overview, released 2026-09-01). litellm's map lacked the id at
+    # launch; eval_no_tools registers it locally, as for Fable 5.
+    "claude-fable-5.1": {"input": 10.0, "output": 50.0},
     # claude-sonnet-5: $3 / $15 per 1M standard rate (same source). litellm's
     # map carries the same figures; this fallback keeps the leaderboard priced
     # if reconstruction is unavailable. Introductory billing ($2 / $10 through

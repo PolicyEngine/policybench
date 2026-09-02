@@ -56,21 +56,32 @@ logger = logging.getLogger(__name__)
 
 # litellm resolves an unprefixed model's provider (and prices it) through its
 # model-cost map, whose remote refresh can time out mid-run and whose bundled
-# backup lags brand-new models. Register Claude Fable 5 locally so provider
-# routing and cost reconstruction never depend on the remote fetch.
-if "claude-fable-5" not in litellm.model_cost:
+# backup lags brand-new models. Register the Claude Fable line locally so
+# provider routing and cost reconstruction never depend on the remote fetch.
+# Prices per token from platform.claude.com/docs/en/models/<model>/overview;
+# Fable 5.1 cuts cache reads to a quarter of Fable 5's.
+_LOCAL_CLAUDE_FABLE_CACHE_READ_COST = {
+    "claude-fable-5": 1e-6,
+    "claude-fable-5-1": 0.25e-6,
+}
+for _model_id, _cache_read_cost in _LOCAL_CLAUDE_FABLE_CACHE_READ_COST.items():
+    if _model_id in litellm.model_cost:
+        continue
     litellm.register_model(
         {
-            "claude-fable-5": {
+            _model_id: {
                 "max_tokens": 128000,
                 "max_input_tokens": 1000000,
                 "max_output_tokens": 128000,
                 "input_cost_per_token": 10e-6,
                 "output_cost_per_token": 50e-6,
+                "cache_read_input_token_cost": _cache_read_cost,
+                "cache_creation_input_token_cost": 12.5e-6,
                 "litellm_provider": "anthropic",
                 "mode": "chat",
                 "supports_function_calling": True,
                 "supports_tool_choice": True,
+                "supports_reasoning": True,
                 "supports_vision": True,
                 "supports_prompt_caching": True,
             }
@@ -148,12 +159,17 @@ GEMINI_REQUEST_TIMEOUT_SECONDS = _env_int(
 CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_CLAUDE_REQUEST_TIMEOUT_SECONDS", 120
 )
-# Claude models whose requests run thinking without us asking: Fable 5 cannot
-# disable it, and Sonnet 5 defaults to adaptive thinking when the request omits
-# the thinking param (ours do — models run at their API defaults). Hard single
-# outputs can think for minutes, so both get a longer timeout than the rest of
-# the Claude family.
-THINKING_DEFAULT_CLAUDE_MODELS = ("claude-fable-5", "claude-sonnet-5", "claude-opus-5")
+# Claude models whose requests run thinking without us asking: the Fable line
+# cannot disable it, and Sonnet 5 defaults to adaptive thinking when the
+# request omits the thinking param (ours do — models run at their API
+# defaults). Hard single outputs can think for minutes, so they get a longer
+# timeout than the rest of the Claude family.
+THINKING_DEFAULT_CLAUDE_MODELS = (
+    "claude-fable-5",
+    "claude-fable-5-1",
+    "claude-sonnet-5",
+    "claude-opus-5",
+)
 THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS", 300
 )
@@ -828,7 +844,33 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
 
 
 def _answer_contract_for_model(model_id: str) -> str:
-    return answer_contract_for(model_id)
+    # Sensitivity-run escape hatch, sibling of POLICYBENCH_TOOL_CHOICE and
+    # POLICYBENCH_CHUNK_OVERRIDE: POLICYBENCH_CONTRACT_OVERRIDE=tool runs a
+    # JSON-contract model with the answer tool declared, so a tool_choice=auto
+    # sensitivity run has a tool for the model to choose. Never set for
+    # leaderboard runs.
+    return answer_contract_for(
+        model_id,
+        contract_override=os.environ.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+    )
+
+
+def _tool_choice_for(function_name: str) -> str | dict:
+    """Return the tool_choice every chat-path builder sends for its tool.
+
+    The canonical board forces the tool. POLICYBENCH_TOOL_CHOICE=auto is the
+    sensitivity-run escape hatch that lets the model decide when to call it:
+    Anthropic models skip thinking when the tool is forced (verified on
+    claude-opus-5: forced tool or forced tool + explicit adaptive produce no
+    thinking blocks; tool_choice auto produces them), so the board runs those
+    Claudes without thinking while reasoning-by-default providers reason
+    regardless. Never set this for leaderboard runs; scores under auto are
+    not comparable to the board. The answer and explanation-repair builders
+    both call this so a sensitivity run never mixes modes mid-scenario.
+    """
+    if os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto":
+        return "auto"
+    return {"type": "function", "function": {"name": function_name}}
 
 
 def _uses_responses_api(model_id: str) -> bool:
@@ -870,21 +912,9 @@ def _chat_completion_request_kwargs(
             country=scenario.country,
             include_explanations=include_explanations,
         )
-        tool_choice: str | dict = {
-            "type": "function",
-            "function": {"name": ANSWER_FUNCTION_NAME},
-        }
-        # Sensitivity-run escape hatch: POLICYBENCH_TOOL_CHOICE=auto lets the
-        # model decide when to call the answer tool. Anthropic models skip
-        # thinking when the tool is forced (verified on claude-opus-5: forced
-        # tool or forced tool + explicit adaptive produce no thinking blocks;
-        # tool_choice auto produces them), so the canonical board — which
-        # always forces the tool — runs Claude without thinking while
-        # reasoning-by-default providers reason regardless. Never set this for
-        # leaderboard runs; scores under auto are not comparable to the board.
-        if os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto":
-            tool_choice = "auto"
-        request_kwargs.update({"tools": [tool], "tool_choice": tool_choice})
+        request_kwargs.update(
+            {"tools": [tool], "tool_choice": _tool_choice_for(ANSWER_FUNCTION_NAME)}
+        )
     else:
         request_kwargs["response_format"] = {"type": "json_object"}
     return messages, request_kwargs
@@ -1869,10 +1899,7 @@ def _request_explanations_once(
                             country=scenario.country,
                         )
                     ],
-                    "tool_choice": {
-                        "type": "function",
-                        "function": {"name": EXPLANATION_FUNCTION_NAME},
-                    },
+                    "tool_choice": _tool_choice_for(EXPLANATION_FUNCTION_NAME),
                 }
             )
         else:
