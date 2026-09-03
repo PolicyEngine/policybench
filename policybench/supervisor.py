@@ -19,6 +19,7 @@ the response cache.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -117,9 +118,11 @@ class Supervisor:
         self.max_rounds = max_rounds
         self.python = python or sys.executable
         self.env = {**os.environ, **(env or {})}
+        self.scenarios = self._load_scenarios()
+        self.scenario_ids = [scenario.id for scenario in self.scenarios]
         self.initial_request_variables = self._load_initial_request_variables()
         self.treatment_fingerprint = self._treatment_fingerprint()
-        self.scenario_ids = self._load_scenario_ids()
+        self.workload = self._workload()
         self.state = RunState(
             model=model,
             total=len(self.scenario_ids),
@@ -135,22 +138,39 @@ class Supervisor:
 
     # -- setup -------------------------------------------------------------
 
-    def _load_scenario_ids(self) -> list[str]:
-        frame = pd.read_csv(self.manifest)
-        return list(frame["scenario_id"])
-
-    def _load_initial_request_variables(self) -> list[str]:
-        """Expand the first manifest row exactly as the worker CLI will."""
+    def _load_scenarios(self):
         from policybench.scenarios import load_scenarios_from_manifest
-        from policybench.spec import expand_programs_for_scenario
 
         scenarios = load_scenarios_from_manifest(self.manifest)
         if not scenarios:
             raise ValueError("Scenario manifest must contain at least one scenario.")
-        return expand_programs_for_scenario(PROGRAMS, scenarios[0])
+        return scenarios
+
+    def _load_initial_request_variables(self) -> list[str]:
+        """Expand the first manifest row exactly as the worker CLI will."""
+        from policybench.spec import expand_programs_for_scenario
+
+        return expand_programs_for_scenario(PROGRAMS, self.scenarios[0])
+
+    @staticmethod
+    def _joined_sha256(values: list[str]) -> str:
+        return hashlib.sha256("\n".join(values).encode("utf-8")).hexdigest()
+
+    def _workload(self) -> dict:
+        return {
+            "manifest_sha256": hashlib.sha256(self.manifest.read_bytes()).hexdigest(),
+            "scenario_ids_sha256": self._joined_sha256(self.scenario_ids),
+            "output_set_sha256": self._joined_sha256(sorted(PROGRAMS)),
+            "prompt_contract_version": PROMPT_CONTRACT_VERSION,
+        }
 
     def scenario_csv(self, index: int) -> Path:
         return self.run_dir / SCENARIO_DIR / f"scenario_{index:03d}.csv"
+
+    def _expected_outputs_for_scenario(self, index: int) -> list[str]:
+        from policybench.spec import expand_programs_for_scenario
+
+        return expand_programs_for_scenario(PROGRAMS, self.scenarios[index])
 
     def _scenario_complete(self, index: int) -> bool:
         path = self.scenario_csv(index)
@@ -158,11 +178,79 @@ class Supervisor:
             return False
         try:
             frame = pd.read_csv(path)
-        except Exception:
-            return False
-        return len(frame) > 0 and set(frame["scenario_id"]) == {
-            self.scenario_ids[index]
-        }
+        except Exception as error:
+            self._raise_stale_scenario_output(path, f"could not read CSV: {error}")
+
+        required_columns = {"scenario_id", "variable"}
+        missing_columns = sorted(required_columns - set(frame.columns))
+        if missing_columns:
+            self._raise_stale_scenario_output(
+                path,
+                f"missing columns {missing_columns}",
+            )
+
+        expected_scenario_id = self.scenario_ids[index]
+        actual_scenario_ids = frame["scenario_id"].tolist()
+        if not actual_scenario_ids or any(
+            scenario_id != expected_scenario_id for scenario_id in actual_scenario_ids
+        ):
+            self._raise_stale_scenario_output(
+                path,
+                f"scenario_id rows do not exactly equal {expected_scenario_id!r}",
+            )
+
+        expected_outputs = self._expected_outputs_for_scenario(index)
+        actual_outputs = frame["variable"].tolist()
+        if len(actual_outputs) != len(expected_outputs) or set(actual_outputs) != set(
+            expected_outputs
+        ):
+            missing = sorted(set(expected_outputs) - set(actual_outputs))
+            unexpected = sorted(set(actual_outputs) - set(expected_outputs))
+            self._raise_stale_scenario_output(
+                path,
+                "output rows differ from the current workload "
+                f"(missing={missing}, unexpected={unexpected})",
+            )
+
+        metadata_path = Path(f"{path}.meta.json")
+        if metadata_path.exists():
+            try:
+                metadata = json.loads(metadata_path.read_text())
+            except (OSError, json.JSONDecodeError) as error:
+                self._raise_stale_scenario_output(
+                    path,
+                    f"could not read {metadata_path.name}: {error}",
+                    extra_path=metadata_path,
+                )
+            from policybench.eval_no_tools import _scenario_hash
+
+            expected_hash = _scenario_hash([self.scenarios[index]])
+            if (
+                not isinstance(metadata, dict)
+                or metadata.get("scenario_hash") != expected_hash
+            ):
+                self._raise_stale_scenario_output(
+                    path,
+                    f"{metadata_path.name} scenario_hash does not match the manifest",
+                    extra_path=metadata_path,
+                )
+        return True
+
+    def _raise_stale_scenario_output(
+        self,
+        path: Path,
+        reason: str,
+        *,
+        extra_path: Path | None = None,
+    ) -> None:
+        offending = [path]
+        if extra_path is not None:
+            offending.append(extra_path)
+        raise ValueError(
+            "Cannot resume: stale scenario output files "
+            f"{', '.join(str(item) for item in offending)}: {reason}. "
+            "Use a fresh run directory."
+        )
 
     def pending_indices(self) -> list[int]:
         return [
@@ -250,6 +338,43 @@ class Supervisor:
             raise ValueError(
                 "Cannot resume: run state field 'model' differs "
                 f"(stored={existing.get('model')!r}, requested={self.model!r})."
+            )
+
+        stored_workload = existing.get("workload")
+        if not isinstance(stored_workload, dict):
+            raise ValueError(
+                "Cannot resume: run state field 'workload' is missing. "
+                "Use a fresh run directory."
+            )
+        missing_workload_fields = sorted(set(self.workload) - set(stored_workload))
+        if missing_workload_fields:
+            raise ValueError(
+                "Cannot resume: stored workload is missing fields: "
+                f"{', '.join(missing_workload_fields)}. Use a fresh run directory."
+            )
+        for field_name, requested in self.workload.items():
+            stored = stored_workload.get(field_name)
+            if stored != requested:
+                raise ValueError(
+                    "Cannot resume: workload field "
+                    f"'{field_name}' differs "
+                    f"(stored={stored!r}, requested={requested!r}). "
+                    "Use a fresh run directory."
+                )
+
+        expected_csvs = {
+            self.scenario_csv(index) for index in range(len(self.scenario_ids))
+        }
+        unexpected_csvs = sorted(
+            path
+            for path in scenario_dir.glob("scenario_*.csv")
+            if path not in expected_csvs
+        )
+        if unexpected_csvs:
+            raise ValueError(
+                "Cannot resume: stale scenario output files "
+                f"{', '.join(str(path) for path in unexpected_csvs)} are outside "
+                "the current workload. Use a fresh run directory."
             )
 
         stored_fingerprint = existing.get("treatment_fingerprint")
@@ -425,6 +550,7 @@ class Supervisor:
             "stopped_reason": self.state.stopped_reason,
             "projection_warning": self.projection_warning,
             "budget_escalation_count": self.state.budget_escalation_count,
+            "workload": self.workload,
             "treatment_fingerprint": self.treatment_fingerprint,
             "started_at": self.state.started_at,
             "updated_at": self.state.updated_at,
@@ -569,15 +695,25 @@ class Supervisor:
 
     def combine(self) -> Path | None:
         scen_dir = self.run_dir / SCENARIO_DIR
-        parts = sorted(scen_dir.glob("scenario_*.csv")) if scen_dir.exists() else []
+        parts = (
+            [
+                self.scenario_csv(index)
+                for index in range(len(self.scenario_ids))
+                if self.scenario_csv(index).exists()
+            ]
+            if scen_dir.exists()
+            else []
+        )
         if not parts:
             return None
         frames = []
-        for path in parts:
-            try:
-                frames.append(pd.read_csv(path))
-            except Exception:
-                continue
+        for index, path in (
+            (index, self.scenario_csv(index))
+            for index in range(len(self.scenario_ids))
+            if self.scenario_csv(index).exists()
+        ):
+            self._scenario_complete(index)
+            frames.append(pd.read_csv(path))
         if not frames:
             return None
         combined = pd.concat(frames, ignore_index=True)

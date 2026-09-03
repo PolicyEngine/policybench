@@ -7,6 +7,7 @@ concurrency, and combine behaviors are exercised on real files.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -14,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from policybench.config import MODELS
+from policybench.config import MODELS, PROGRAMS
 from policybench.model_cards import MODEL_CARDS, ModelCard
 from policybench.scenarios import Person, Scenario, scenario_to_dict
 from policybench.spend_ledger import spend_ledger_path, upsert_spend_ledger
@@ -79,11 +80,14 @@ def stub_worker(
         if index not in fail_indices:
             out = supervisor.scenario_csv(index)
             out.parent.mkdir(parents=True, exist_ok=True)
+            variables = supervisor._expected_outputs_for_scenario(index)
             pd.DataFrame(
                 {
-                    "scenario_id": [supervisor.scenario_ids[index]] * 2,
-                    "prediction": [1.0, 2.0],
-                    "total_cost_usd": [cost_per_scenario / 2] * 2,
+                    "scenario_id": [supervisor.scenario_ids[index]] * len(variables),
+                    "variable": variables,
+                    "prediction": list(range(len(variables))),
+                    "total_cost_usd": [cost_per_scenario / len(variables)]
+                    * len(variables),
                 }
             ).to_csv(out, index=False)
             escalation_count = budget_escalation_counts.get(index, 0)
@@ -118,6 +122,16 @@ def test_happy_path_completes_all_and_combines(manifest, tmp_path, monkeypatch):
     assert combined.scenario_id.nunique() == N_SCENARIOS
     heartbeat = json.loads((supervisor.run_dir / "run_state.json").read_text())
     assert heartbeat["completed"] == N_SCENARIOS
+    assert heartbeat["workload"] == {
+        "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        "scenario_ids_sha256": hashlib.sha256(
+            "\n".join(supervisor.scenario_ids).encode("utf-8")
+        ).hexdigest(),
+        "output_set_sha256": hashlib.sha256(
+            "\n".join(sorted(PROGRAMS)).encode("utf-8")
+        ).hexdigest(),
+        "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+    }
     assert heartbeat["treatment_fingerprint"] == {
         "fingerprint_version": TREATMENT_FINGERPRINT_VERSION,
         "model_id": "test-model",
@@ -221,6 +235,82 @@ def test_resume_rejects_changed_model_id(manifest, tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="model_id"):
         resumed.run(poll_seconds=0.01)
+
+
+def test_resume_rejects_changed_manifest(manifest, tmp_path, monkeypatch):
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+    manifest.write_text(manifest.read_text() + "\n")
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("changed manifest dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="manifest_sha256") as exc_info:
+        resumed.run(poll_seconds=0.01)
+    assert "fresh run directory" in str(exc_info.value)
+
+
+def test_resume_rejects_stale_scenario_csv_with_wrong_outputs(
+    manifest, tmp_path, monkeypatch
+):
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+    scenario_path = initial.scenario_csv(0)
+    scenario_path.parent.mkdir(parents=True)
+    variables = initial._expected_outputs_for_scenario(0)[:-1]
+    pd.DataFrame(
+        {
+            "scenario_id": [initial.scenario_ids[0]] * len(variables),
+            "variable": variables,
+            "prediction": [0.0] * len(variables),
+        }
+    ).to_csv(scenario_path, index=False)
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("stale output dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="output rows differ") as exc_info:
+        resumed.run(poll_seconds=0.01)
+    assert str(scenario_path) in str(exc_info.value)
+
+
+def test_resume_rejects_stale_scenario_csv_with_wrong_hash(
+    manifest, tmp_path, monkeypatch
+):
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+    scenario_path = initial.scenario_csv(0)
+    scenario_path.parent.mkdir(parents=True)
+    variables = initial._expected_outputs_for_scenario(0)
+    pd.DataFrame(
+        {
+            "scenario_id": [initial.scenario_ids[0]] * len(variables),
+            "variable": variables,
+            "prediction": [0.0] * len(variables),
+        }
+    ).to_csv(scenario_path, index=False)
+    metadata_path = Path(f"{scenario_path}.meta.json")
+    metadata_path.write_text(json.dumps({"scenario_hash": "stale"}))
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("stale output dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="scenario_hash") as exc_info:
+        resumed.run(poll_seconds=0.01)
+    assert str(scenario_path) in str(exc_info.value)
+    assert str(metadata_path) in str(exc_info.value)
 
 
 def test_resume_rejects_unversioned_treatment_fingerprint(

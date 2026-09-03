@@ -2970,15 +2970,7 @@ def _serialize_scenario(scenario: Scenario) -> str:
     )
 
 
-def _build_resume_metadata(
-    *,
-    task: str,
-    scenarios: list[Scenario],
-    models: dict[str, str],
-    programs: list[str],
-    run_id: str | None,
-    include_explanations: bool,
-) -> dict:
+def _scenario_hash(scenarios: list[Scenario]) -> str:
     scenario_signature = json.dumps(
         [
             {
@@ -2990,6 +2982,18 @@ def _build_resume_metadata(
         separators=(",", ":"),
         sort_keys=True,
     )
+    return hashlib.sha256(scenario_signature.encode("utf-8")).hexdigest()
+
+
+def _build_resume_metadata(
+    *,
+    task: str,
+    scenarios: list[Scenario],
+    models: dict[str, str],
+    programs: list[str],
+    run_id: str | None,
+    include_explanations: bool,
+) -> dict:
     countries = {(scenario.country or "us").lower() for scenario in scenarios}
     return {
         "metadata_version": RESUME_METADATA_VERSION,
@@ -2997,7 +3001,7 @@ def _build_resume_metadata(
         "run_id": run_id,
         "include_explanations": include_explanations,
         "scenario_count": len(scenarios),
-        "scenario_hash": hashlib.sha256(scenario_signature.encode("utf-8")).hexdigest(),
+        "scenario_hash": _scenario_hash(scenarios),
         "programs": sorted(programs),
         "models": {name: models[name] for name in sorted(models)},
         "treatment": _treatment_metadata(
