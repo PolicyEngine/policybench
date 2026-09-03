@@ -22,6 +22,7 @@ LEADERBOARD = ROOT / "app" / "src" / "components" / "ModelLeaderboard.tsx"
 SENSITIVITY_DOC = ROOT / "sensitivity" / "claude-thinking-2026-08.md"
 BENCHMARK_CARD = ROOT / "docs" / "benchmark_card.md"
 MODEL_PAGE = ROOT / "app" / "src" / "app" / "model" / "[id]" / "page.tsx"
+EXPAND_PAGE = ROOT / "app" / "src" / "app" / "expand" / "page.tsx"
 SCENARIO_EXPLORER = ROOT / "app" / "src" / "components" / "ScenarioExplorer.tsx"
 PAPER = ROOT / "paper" / "index.qmd"
 PAPER_HTML = ROOT / "app" / "public" / "paper" / "web" / "index.html"
@@ -132,11 +133,21 @@ def test_current_board_copy_makes_no_identical_request_claim():
         SENSITIVITY_DOC,
         BENCHMARK_CARD,
         MODEL_PAGE,
+        EXPAND_PAGE,
         PAPER,
     ):
         text = re.sub(r"\s+", " ", path.read_text())
         for claim in FALSE_CLAIMS:
             assert claim not in text, f"{path.name} still says {claim!r}"
+
+
+def test_expand_page_has_no_literal_model_roster_count():
+    text = EXPAND_PAGE.read_text()
+    assert re.search(
+        r"\b\d+\s+(?:frontier|board)\s+models?\b",
+        text,
+        re.IGNORECASE,
+    ) is None
 
 
 def test_scenario_explorer_retires_exact_every_model_prompt_claims():
