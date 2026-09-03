@@ -88,11 +88,11 @@
     },
     {
       "label": "TANF non-cash parameters",
-      "href": "https://github.com/PolicyEngine/policyengine-us/tree/master/policyengine_us/parameters/gov/hhs/tanf/non_cash"
+      "href": "https://github.com/PolicyEngine/policyengine-us/tree/main/policyengine_us/parameters/gov/hhs/tanf/non_cash"
     },
     {
       "label": "SNAP minimum-allotment parameters",
-      "href": "https://github.com/PolicyEngine/policyengine-us/tree/master/policyengine_us/parameters/gov/usda/snap/min_allotment"
+      "href": "https://github.com/PolicyEngine/policyengine-us/tree/main/policyengine_us/parameters/gov/usda/snap/min_allotment"
     }
   ],
   "boardSnapshot": "2026-09-01",
