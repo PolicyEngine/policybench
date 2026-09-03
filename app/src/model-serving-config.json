@@ -50,7 +50,9 @@
         ],
         "kind": "run_state",
         "legacy_tool_choice_label": "forced",
+        "rows_match": true,
         "run": "fable51",
+        "source_predictions_sha256": "698cfd20c313fffdc3ecb42c900c9931f21b70d8d440206bd8a2136a4d78392f",
         "treatment_fingerprint": {
           "answer_contract": "json",
           "chunk_size": null,
@@ -336,7 +338,9 @@
           "tool_choice_mode"
         ],
         "kind": "run_state",
+        "rows_match": true,
         "run": "gemini37",
+        "source_predictions_sha256": "85c4c5a8a501a5af3d6b8ea66f43250063ec42b22dbdcc331b7152e7de3086d3",
         "treatment_fingerprint": {
           "answer_contract": "tool",
           "chunk_size": null,
@@ -559,7 +563,9 @@
           "tool_choice_mode"
         ],
         "kind": "run_state",
+        "rows_match": true,
         "run": "grok46",
+        "source_predictions_sha256": "bfd6adf61123fdefea75253ef19cb292988cb3f623457b2c9d3c65d2d72bc16e",
         "treatment_fingerprint": {
           "answer_contract": "tool",
           "chunk_size": null,
@@ -698,7 +704,9 @@
           "tool_choice_mode"
         ],
         "kind": "run_state",
+        "rows_match": true,
         "run": "oxalpha",
+        "source_predictions_sha256": "f2f4e3582a4b587ffe52f65916d6f1b5fa508349e7f9809b4d6d5c8bcb4653a0",
         "treatment_fingerprint": {
           "answer_contract": "tool",
           "chunk_size": null,
@@ -763,7 +771,7 @@
       "tool_choice": null
     }
   },
-  "registry_commit": "5dfe535630685af2a0a53020d6b0bfae9ddda87e",
+  "registry_commit": "cdca71bd09d551c62e51b08ebd478ecc77f16844",
   "sources": [
     "policybench.config.MODELS",
     "policybench.model_cards",

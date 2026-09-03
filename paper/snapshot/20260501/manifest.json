@@ -9,11 +9,12 @@
     "path": "annotations/us_full_run_20260612_policyengine_4_16_1_populace"
   },
   "committed_snapshot_artifacts": {
-    "model_serving_config.json": "2b6908aa123d75fc1ca4dfdbf55e6d343973ef262808b7c9ced70758ed837442",
+    "model_serving_config.json": "934bab025e5f85854364b56e0391f85ff432b30983600087a1387c57ceca1a2a",
     "us_impact_summary_by_model.csv": "9cab19bf5486b403bd200aa27d9f19eb40e2f6166d4338dd379bb8f1934284f3",
     "us_reference_outputs.csv": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
     "us_scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"
   },
+  "description": "The 2026-09-01 scored manuscript snapshot reports the household-impact-weighted exact-match rate as its headline metric.",
   "files": [
     {
       "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json",
