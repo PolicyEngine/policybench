@@ -2,7 +2,8 @@
 
 ## State
 
-The `/notes` feature is implemented; full repository verification is underway.
+The `/notes` feature and its delivery report are complete and verified. The
+branch is ready to push and open as a draft pull request.
 
 ## Done
 
@@ -22,8 +23,13 @@ The `/notes` feature is implemented; full repository verification is underway.
 - Added app coverage for note ordering, slugs, placeholders, and rendered
   content. Lint and all 95 app tests pass; a webpack production build also
   prerenders `/notes` and both detail pages successfully.
+- Ran the full Python gate: Ruff passes and pytest reports 623 passed, 5
+  skipped. Re-ran the exact app lint and test commands from CI successfully.
+- Wrote the required delivery report to `out.md` with derived facts, pathway
+  results, exact test output, and the local build limitation.
 
 ## Next
 
-- Run the requested Python and app verification suites.
-- Write `out.md`, push `notes-route`, and open a draft PR against `add-fable-5-1`.
+- Push `notes-route` and open a draft PR against `add-fable-5-1`.
+- Add the draft PR URL to `out.md`, mark delivery complete, and push that final
+  report commit.
