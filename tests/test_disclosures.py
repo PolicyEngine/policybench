@@ -183,24 +183,29 @@ def test_rendered_pdf_makes_no_false_request_claims():
     _assert_no_false_paper_claims(PAPER_PDF, _pdf_text())
 
 
+def _straight_quotes(text: str) -> str:
+    """Pandoc renders apostrophes as U+2019; compare against the source form."""
+    return text.replace("\u2019", "'").replace("\u2018", "'")
+
+
 def _serving_evidence_sentence() -> str:
     config = json.loads(SERVING_CONFIG.read_text())
     summary = config["evidence_summary"]
     return (
         f"Serving treatments for {summary['run_state']} rows are pinned from "
         "supervised-run fingerprints; the remaining "
-        f"{summary['registry']} are the registry at commit "
-        f"{config['registry_commit']}."
+        f"{summary['registry']} are the harness registry as frozen in the "
+        "snapshot's serving-configuration file."
     )
 
 
 def test_rendered_html_reports_serving_evidence_summary():
     parser = _VisibleTextParser()
     parser.feed(PAPER_HTML.read_text())
-    html_text = re.sub(r"\s+", " ", " ".join(parser.parts))
+    html_text = _straight_quotes(re.sub(r"\s+", " ", " ".join(parser.parts)))
     assert _serving_evidence_sentence() in html_text
 
 
 def test_rendered_pdf_reports_serving_evidence_summary():
-    pdf_text = re.sub(r"\s+", " ", _pdf_text())
+    pdf_text = _straight_quotes(re.sub(r"\s+", " ", _pdf_text()))
     assert _serving_evidence_sentence() in pdf_text

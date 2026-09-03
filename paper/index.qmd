@@ -778,11 +778,15 @@ n_chunked_models = int(
 baseline_summary = simple_baselines()
 
 
-def md_table(frame: pd.DataFrame) -> "Markdown":
+def md_table(
+    frame: pd.DataFrame, caption: str | None = None, label: str | None = None
+) -> "Markdown":
     """Render a DataFrame as a pandoc pipe table so long cells wrap in PDF.
 
     Raw DataFrame output reaches LaTeX as fixed-width boxes that clip at the
     page margin; pipe tables get relative column widths and wrapped cells.
+    A computed caption goes in pandoc's caption line with the cross-reference
+    label, because Quarto does not evaluate inline code inside ``tbl-cap``.
     """
     from IPython.display import Markdown
 
@@ -799,7 +803,11 @@ def md_table(frame: pd.DataFrame) -> "Markdown":
         "| " + " | ".join(clean(v) for v in record) + " |"
         for record in frame.itertuples(index=False)
     ]
-    return Markdown("\n".join([header, rule, *rows]))
+    table = "\n".join([header, rule, *rows])
+    if caption is not None:
+        suffix = f" {{#{label}}}" if label else ""
+        table = f"{table}\n\n: {caption}{suffix}"
+    return Markdown(table)
 
 
 def fmt_latency_seconds(seconds) -> str:
@@ -1114,9 +1122,12 @@ md_table(snapshot_provenance)
 ```
 
 ```{python}
-#| label: tbl-model-runs
-#| tbl-cap: "Model run configuration in the frozen manuscript snapshot. Every model answers through the transport its model card records, with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same household facts and requested outputs. Transport is the answer contract: a forced answer-schema tool call (`tool_choice` set to the answer tool) or a JSON object, the latter where the provider rejects a forced tool or where the model card selects JSON. `{python} r.serving_evidence_caption` Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights, announced at its API launch [@willison2026kimik3], shipped on Hugging Face on July 27, 2026 under a custom license [@techtimes2026kimik3weights]. Ox Alpha is an OpenRouter stealth listing with no named maker; its Released date is its August 21, 2026 listing date."
-md_table(model_runs)
+model_runs_caption = (
+    "Model run configuration in the frozen manuscript snapshot. Every model answers through the transport its model card records, with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same household facts and requested outputs. Transport is the answer contract: a forced answer-schema tool call (`tool_choice` set to the answer tool) or a JSON object, the latter where the provider rejects a forced tool or where the model card selects JSON. "
+    + r.serving_evidence_caption
+    + " Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights, announced at its API launch [@willison2026kimik3], shipped on Hugging Face on July 27, 2026 under a custom license [@techtimes2026kimik3weights]. Ox Alpha is an OpenRouter stealth listing with no named maker; its Released date is its August 21, 2026 listing date."
+)
+md_table(model_runs, caption=model_runs_caption, label="tbl-model-runs")
 ```
 
 ## Data and scenario construction

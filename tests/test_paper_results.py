@@ -72,5 +72,6 @@ def test_serving_evidence_caption_comes_from_frozen_configuration():
     assert r.serving_evidence_caption == (
         f"Serving treatments for {summary['run_state']} rows are pinned from "
         "supervised-run fingerprints; the remaining "
-        f"{summary['registry']} are the registry at commit {commit}."
+        f"{summary['registry']} are the harness registry as frozen in the "
+        "snapshot's serving-configuration file."
     )

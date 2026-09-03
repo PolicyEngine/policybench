@@ -257,11 +257,11 @@ class PaperResults:
     @property
     def serving_evidence_caption(self) -> str:
         summary = self.serving_config["evidence_summary"]
-        commit = self.serving_config["registry_commit"]
         return (
             f"Serving treatments for {summary['run_state']} rows are pinned from "
             "supervised-run fingerprints; the remaining "
-            f"{summary['registry']} are the registry at commit {commit}."
+            f"{summary['registry']} are the harness registry as frozen in the "
+            "snapshot's serving-configuration file."
         )
 
     @property
