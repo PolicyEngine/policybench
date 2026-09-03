@@ -546,8 +546,13 @@ def read_reference_refresh() -> dict[str, str]:
     """Read the real PE bundle versions from the run's reference meta."""
     meta = json.loads(REFERENCE_META_SOURCE.read_text())
     bundle = meta["policyengine_bundles"]["us"]
+    # ``date`` is when the references were generated (the sidecar's own
+    # timestamp), not when the snapshot was published: the reference CSV is
+    # byte-identical across the August and September freezes.
     return {
-        "date": SNAPSHOT_DATE,
+        "date": meta["generated_at_utc"][:10],
+        "generated_at_utc": meta["generated_at_utc"],
+        "snapshot_date": SNAPSHOT_DATE,
         "policyengine_version": bundle["policyengine_version"],
         "policyengine_us_version": bundle["model_version"],
         "policyengine_us_data_build_id": bundle["certified_data_build_id"],

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -31,6 +32,9 @@ def board(tmp_path: Path):
     scoring = tmp_path / "scoring"
     scoring.mkdir()
     (scoring / "reference_outputs.csv").write_text("scenario_id\n")
+    (scoring / "reference_outputs.csv.meta.json").write_text(
+        json.dumps({"policyengine_bundles": {"us": {"model_version": "1.755.4"}}})
+    )
     (scoring / "scenarios.csv").write_text("scenario_id\n")
     return base_path, scoring
 
@@ -130,3 +134,28 @@ def test_unbalanced_base_raises(board, tmp_path):
     frame.to_csv(base_path, index=False)
     with pytest.raises(FoldError, match="unequal per-model row counts"):
         fold_board(base_path, [], scoring, tmp_path / "out", export=False)
+
+
+def test_fold_copies_the_reference_sidecar(board, tmp_path):
+    """The exporter reads reference_outputs.csv.meta.json for the payload's
+    PolicyEngine provenance, so a folded board must carry it."""
+    base_path, scoring = board
+    add = tmp_path / "new.csv"
+    predictions("model-c", 3).to_csv(add, index=False)
+    fold_board(base_path, [add], scoring, tmp_path / "out", export=False)
+    copied = tmp_path / "out" / "us" / "reference_outputs.csv.meta.json"
+    assert copied.exists()
+    assert json.loads(copied.read_text())["policyengine_bundles"]["us"] == {
+        "model_version": "1.755.4"
+    }
+
+
+def test_export_refuses_a_scoring_source_without_the_sidecar(board, tmp_path):
+    """Without the sidecar the export would fall back to the exporting
+    machine's installed policyengine-us as the reference provenance."""
+    base_path, scoring = board
+    (scoring / "reference_outputs.csv.meta.json").unlink()
+    add = tmp_path / "new.csv"
+    predictions("model-c", 3).to_csv(add, index=False)
+    with pytest.raises(ValueError, match="reference_outputs.csv.meta.json"):
+        fold_board(base_path, [add], scoring, tmp_path / "out", export=True)

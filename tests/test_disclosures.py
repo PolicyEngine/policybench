@@ -16,6 +16,8 @@ VERSIONS = ROOT / "app" / "src" / "data.versions.json"
 LEADERBOARD = ROOT / "app" / "src" / "components" / "ModelLeaderboard.tsx"
 SENSITIVITY_DOC = ROOT / "sensitivity" / "claude-thinking-2026-08.md"
 BENCHMARK_CARD = ROOT / "docs" / "benchmark_card.md"
+MODEL_PAGE = ROOT / "app" / "src" / "app" / "model" / "[id]" / "page.tsx"
+PAPER = ROOT / "paper" / "index.qmd"
 
 NUMBER_WORDS = {
     1: "one",
@@ -37,6 +39,9 @@ FALSE_CLAIMS = (
     "identical prompt for every model",
     "one structured response per household",
     "identical request this board holds every",
+    "holds every model to the identical request",
+    "still-identical request shape",
+    "Every model uses its provider's structured-output transport",
 )
 
 
@@ -54,7 +59,9 @@ def test_methodology_states_the_chunked_count_from_the_serving_config():
     text = METHODOLOGY.read_text()
     phrase = f"{NUMBER_WORDS[len(chunked)].capitalize()} of the {len(rows)}"
     assert phrase in re.sub(r"\s+", " ", text), phrase
-    assert "JSON object where it does not" in re.sub(r"\s+", " ", text)
+    assert "JSON object where the provider rejects a forced tool" in re.sub(
+        r"\s+", " ", text
+    )
 
 
 def test_serving_config_has_both_transports():
@@ -68,7 +75,15 @@ def test_serving_config_has_both_transports():
 
 
 def test_current_board_copy_makes_no_identical_request_claim():
-    for path in (METHODOLOGY, VERSIONS, LEADERBOARD, SENSITIVITY_DOC, BENCHMARK_CARD):
+    for path in (
+        METHODOLOGY,
+        VERSIONS,
+        LEADERBOARD,
+        SENSITIVITY_DOC,
+        BENCHMARK_CARD,
+        MODEL_PAGE,
+        PAPER,
+    ):
         text = re.sub(r"\s+", " ", path.read_text())
         for claim in FALSE_CLAIMS:
             assert claim not in text, f"{path.name} still says {claim!r}"
@@ -83,3 +98,26 @@ def test_sensitivity_doc_names_the_subset_count_from_the_serving_config():
         "three-output subsets"
     )
     assert phrase in text, phrase
+
+
+def test_paper_serving_table_publishes_the_transport_per_model():
+    """The paper's serving table is what the copy points to as the per-model
+    transport record, so it must carry the answer contract, not only request
+    shape and reasoning setup."""
+    text = PAPER.read_text()
+    assert '"Transport": (' in text
+    assert 'serving["answer_contract"]' in text
+    rows = _serving_rows()
+    assert {row["tool_choice"] for row in rows} == {"forced", None}
+    for row in rows:
+        assert (row["answer_contract"] == "tool") == (row["tool_choice"] == "forced")
+
+
+def test_json_transport_copy_names_both_reasons():
+    """JSON rows exist for two reasons — a provider that rejects a forced tool,
+    and a model card that selects JSON for a family — and the copy must not
+    attribute all of them to provider capability."""
+    for path in (METHODOLOGY, BENCHMARK_CARD):
+        text = re.sub(r"\s+", " ", path.read_text())
+        assert "rejects a forced tool" in text, path.name
+        assert "selects JSON" in text, path.name

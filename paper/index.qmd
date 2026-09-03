@@ -706,6 +706,9 @@ def model_run_table(top_n: int | None = None) -> pd.DataFrame:
                 "Provider ID": serving["provider_id"],
                 "Released": released(model),
                 "Parsed": f"{int(us_row.nParsed):,}/{int(us_row.n):,}",
+                "Transport": (
+                    "forced tool" if serving["answer_contract"] == "tool" else "JSON"
+                ),
                 "Request shape": serving["request_shape"],
                 "Reasoning setup": serving["reasoning_setup"],
             }
@@ -1112,7 +1115,7 @@ md_table(snapshot_provenance)
 
 ```{python}
 #| label: tbl-model-runs
-#| tbl-cap: "Model run configuration in the frozen manuscript snapshot. Every model uses its provider's structured-output transport with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same prompt template over the same household facts. The snapshot pins request shape and reasoning setup from the harness registry and model cards. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights, announced at its API launch [@willison2026kimik3], shipped on Hugging Face on July 27, 2026 under a custom license [@techtimes2026kimik3weights]. Ox Alpha is an OpenRouter stealth listing with no named maker; its Released date is its August 21, 2026 listing date."
+#| tbl-cap: "Model run configuration in the frozen manuscript snapshot. Every model answers through the transport its model card records, with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same household facts and requested outputs. Transport is the answer contract: a forced answer-schema tool call (`tool_choice` set to the answer tool) or a JSON object, the latter where the provider rejects a forced tool or where the model card selects JSON. The snapshot pins transport, request shape, and reasoning setup from the harness registry and model cards. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights, announced at its API launch [@willison2026kimik3], shipped on Hugging Face on July 27, 2026 under a custom license [@techtimes2026kimik3weights]. Ox Alpha is an OpenRouter stealth listing with no named maker; its Released date is its August 21, 2026 listing date."
 md_table(model_runs)
 ```
 
@@ -1333,7 +1336,7 @@ The benchmark requires one numeric value and one explanation for every requested
 md_table(parse_repair_summary)
 ```
 
-Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds. No separate retry artifacts exist; repairs are folded into each model's canonical prediction file. After retries, `{python} r.parse_contract_failure_count_fmt` cells (`{python} r.parse_contract_failure_pct_fmt`% of canonical rows) still returned no parsable numeric value. They comprise `{python} r.parse_contract_failure_breakdown_fmt`. These cells remain in the canonical files with their raw responses preserved. They score zero as parse-contract failures, and the denominator is never reduced.
+Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds. No separate retry artifacts exist; repairs are folded into each model's canonical prediction file. After retries, `{python} r.parse_contract_failure_count_fmt` cells (`{python} r.parse_contract_failure_pct_fmt`% of canonical rows) still returned no parsable numeric value. They comprise `{python} r.parse_contract_failure_breakdown_fmt`. These cells remain in the canonical files, with their raw responses preserved wherever the transport exposed one (`{python} r.blank_raw_response_note`). They score zero as parse-contract failures, and the denominator is never reduced.
 
 ## Competing interests {.unnumbered}
 

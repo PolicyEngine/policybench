@@ -301,18 +301,19 @@ Table&nbsp;1: Frozen manuscript snapshot.
 <div id="tbl-model-runs" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="3">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-model-runs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every model uses its provider’s structured-output transport with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same prompt template over the same household facts. The snapshot pins request shape and reasoning setup from the harness registry and model cards. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1’s date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3’s weights, announced at its API launch <span class="citation" data-cites="willison2026kimik3">(Willison 2026)</span>, shipped on Hugging Face on July 27, 2026 under a custom license <span class="citation" data-cites="techtimes2026kimik3weights">(Tech Times 2026)</span>. Ox Alpha is an OpenRouter stealth listing with no named maker; its Released date is its August 21, 2026 listing date.
+Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every model answers through the transport its model card records, with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same household facts and requested outputs. Transport is the answer contract: a forced answer-schema tool call (<code>tool_choice</code> set to the answer tool) or a JSON object, the latter where the provider rejects a forced tool or where the model card selects JSON. The snapshot pins transport, request shape, and reasoning setup from the harness registry and model cards. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1’s date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3’s weights, announced at its API launch <span class="citation" data-cites="willison2026kimik3">(Willison 2026)</span>, shipped on Hugging Face on July 27, 2026 under a custom license <span class="citation" data-cites="techtimes2026kimik3weights">(Tech Times 2026)</span>. Ox Alpha is an OpenRouter stealth listing with no named maker; its Released date is its August 21, 2026 listing date.
 </figcaption>
 <div aria-describedby="tbl-model-runs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output cell-output-display cell-output-markdown" data-execution_count="3">
 <table class="cell caption-top" style="width:100%;">
 <colgroup>
-<col style="width: 16%">
-<col style="width: 16%">
-<col style="width: 16%">
-<col style="width: 16%">
-<col style="width: 16%">
-<col style="width: 16%">
+<col style="width: 14%">
+<col style="width: 14%">
+<col style="width: 14%">
+<col style="width: 14%">
+<col style="width: 14%">
+<col style="width: 14%">
+<col style="width: 14%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -320,6 +321,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <th>Provider ID</th>
 <th>Released</th>
 <th>Parsed</th>
+<th>Transport</th>
 <th>Request shape</th>
 <th>Reasoning setup</th>
 </tr>
@@ -330,6 +332,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>claude-fable-5</td>
 <td>2026-06-09</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>1 output/​request</td>
 <td>thinking does not engage under forced tool call</td>
 </tr>
@@ -338,6 +341,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>claude-fable-5-1</td>
 <td>2026-09-01</td>
 <td>1,984/​1,984</td>
+<td>JSON</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -346,6 +350,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>claude-haiku-4-5-20251001</td>
 <td>2025-10-15</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>1 output/​request</td>
 <td>provider default</td>
 </tr>
@@ -354,6 +359,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>claude-opus-4-7</td>
 <td>2026-04-16</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>1 output/​request</td>
 <td>provider default</td>
 </tr>
@@ -362,6 +368,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>claude-opus-4-8</td>
 <td>2026-05-28</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>1 output/​request</td>
 <td>provider default</td>
 </tr>
@@ -370,6 +377,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>claude-opus-5</td>
 <td>2026-07-24</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>thinking does not engage under forced tool call</td>
 </tr>
@@ -378,6 +386,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>claude-sonnet-4-6</td>
 <td>2026-02-17</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>1 output/​request</td>
 <td>provider default</td>
 </tr>
@@ -386,6 +395,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>claude-sonnet-5</td>
 <td>2026-06-30</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>1 output/​request</td>
 <td>thinking does not engage under forced tool call</td>
 </tr>
@@ -394,6 +404,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>deepseek/​deepseek-v4-pro</td>
 <td>2026-04-24†</td>
 <td>1,984/​1,984</td>
+<td>JSON</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -402,6 +413,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gemini/​gemini-3-flash-preview</td>
 <td>2025-12-17</td>
 <td>1,984/​1,984</td>
+<td>JSON</td>
 <td>whole scenario</td>
 <td>provider default</td>
 </tr>
@@ -410,6 +422,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gemini/​gemini-3.1-flash-lite-preview</td>
 <td>2026-03-03</td>
 <td>1,984/​1,984</td>
+<td>JSON</td>
 <td>whole scenario</td>
 <td>provider default</td>
 </tr>
@@ -418,6 +431,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gemini/​gemini-3.1-pro-preview</td>
 <td>2026-02-19</td>
 <td>1,984/​1,984</td>
+<td>JSON</td>
 <td>whole scenario</td>
 <td>provider default</td>
 </tr>
@@ -426,6 +440,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gemini/​gemini-3.5-flash</td>
 <td>2026-05-19</td>
 <td>1,984/​1,984</td>
+<td>JSON</td>
 <td>whole scenario</td>
 <td>provider default</td>
 </tr>
@@ -434,6 +449,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gemini/​gemini-3.6-flash</td>
 <td>2026-07-21</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -442,6 +458,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gemini/​gemini-3.7-flash</td>
 <td>2026-08-13</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -450,6 +467,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>openrouter/​z-ai/​glm-5.2</td>
 <td>2026-06-13†</td>
 <td>1,845/​1,984</td>
+<td>JSON</td>
 <td>3 outputs/​request</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -458,6 +476,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gpt-5.4-mini</td>
 <td>2026-03-17</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default</td>
 </tr>
@@ -466,6 +485,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gpt-5.4-nano</td>
 <td>2026-03-17</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default</td>
 </tr>
@@ -474,6 +494,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gpt-5.5</td>
 <td>2026-04-23</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>3 outputs/​request</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -482,6 +503,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gpt-5.6-luna</td>
 <td>2026-07-09</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -490,6 +512,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gpt-5.6-sol</td>
 <td>2026-07-09</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -498,6 +521,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>gpt-5.6-terra</td>
 <td>2026-07-09</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -506,6 +530,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>xai/​grok-4.3</td>
 <td>2026-04-17</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default</td>
 </tr>
@@ -514,6 +539,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>xai/​grok-4.5</td>
 <td>2026-07-08</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -522,6 +548,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>xai/​grok-4.6</td>
 <td>2026-08-12</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -530,6 +557,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>xai/​grok-build-0.1</td>
 <td>2026-05-29</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default</td>
 </tr>
@@ -538,6 +566,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>openrouter/​thinkingmachines/​inkling</td>
 <td>2026-07-15†</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 49,152-token shared budget</td>
 </tr>
@@ -546,6 +575,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>openrouter/​moonshotai/​kimi-k2.6</td>
 <td>2026-04-20†</td>
 <td>1,558/​1,984</td>
+<td>JSON</td>
 <td>3 outputs/​request</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -554,6 +584,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>openrouter/​moonshotai/​kimi-k3</td>
 <td>2026-07-16†</td>
 <td>1,920/​1,984</td>
+<td>JSON</td>
 <td>whole scenario</td>
 <td>provider default; 49,152-token shared budget</td>
 </tr>
@@ -562,6 +593,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>openrouter/​minimax/​minimax-m3</td>
 <td>2026-06-01†</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -570,6 +602,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>openrouter/​stealth/​ox-alpha</td>
 <td>2026-08-21</td>
 <td>1,984/​1,984</td>
+<td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -578,6 +611,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>openrouter/​qwen/​qwen3.7-max</td>
 <td>2026-05-19</td>
 <td>1,984/​1,984</td>
+<td>JSON</td>
 <td>3 outputs/​request</td>
 <td>provider default; 16,384-token shared budget</td>
 </tr>
@@ -586,6 +620,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>openrouter/​qwen/​qwen3.8-max</td>
 <td>2026-08-03</td>
 <td>1,984/​1,984</td>
+<td>JSON</td>
 <td>whole scenario</td>
 <td>provider default; 98,304-token shared budget</td>
 </tr>
@@ -1898,7 +1933,7 @@ Table&nbsp;14: Structured-output parser audit and repair sequence.
 </figure>
 </div>
 </div>
-<p>Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds. No separate retry artifacts exist; repairs are folded into each model’s canonical prediction file. After retries, 629 cells (1.0% of canonical rows) still returned no parsable numeric value. They comprise Kimi K2.6 (426), GLM-5.2 (139), and Kimi K3 (64). These cells remain in the canonical files with their raw responses preserved. They score zero as parse-contract failures, and the denominator is never reduced.</p>
+<p>Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds. No separate retry artifacts exist; repairs are folded into each model’s canonical prediction file. After retries, 629 cells (1.0% of canonical rows) still returned no parsable numeric value. They comprise Kimi K2.6 (426), GLM-5.2 (139), and Kimi K3 (64). These cells remain in the canonical files, with their raw responses preserved wherever the transport exposed one (no raw payload is retained for Claude Fable 5 (1,984 rows) and Kimi K3 (64 rows)). They score zero as parse-contract failures, and the denominator is never reduced.</p>
 <h2 class="unnumbered anchored" id="competing-interests">Competing interests</h2>
 <p>The author leads PolicyEngine, which develops the microsimulation software used to produce the benchmark reference outputs, and is a founder of the Axiom Foundation, a nonprofit developing deterministic rules-as-code infrastructure. Both organizations’ missions are advanced by the finding that unaided language models do not reliably reproduce rule calculations.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">

@@ -395,6 +395,10 @@ def answer_contract_for(
     card = card_for(model_id)
     if card is not None and card.answer_contract is not None:
         return card.answer_contract
+    # Family heuristic, not a capability fact: the older Gemini and DeepSeek
+    # rows answer as JSON objects whether or not their provider accepts a
+    # forced tool call. The disclosures name this alongside the providers
+    # that reject forced tools.
     if model_id.startswith("deepseek/") or model_id.startswith("gemini/"):
         return "json"
     return "tool"

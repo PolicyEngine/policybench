@@ -51,7 +51,9 @@ function getAvailableViews(dashboard: DashboardBundle): CountryCode[] {
 }
 
 /** Default UK visitors to the UK benchmark; everyone else starts on the US benchmark. */
-function detectVisitorCountry(availableViews: readonly CountryCode[]): CountryCode {
+function detectVisitorCountry(
+  availableViews: readonly CountryCode[],
+): CountryCode {
   if (typeof window === "undefined" || typeof navigator === "undefined") {
     return availableViews.includes("us") ? "us" : (availableViews[0] ?? "us");
   }
@@ -61,17 +63,16 @@ function detectVisitorCountry(availableViews: readonly CountryCode[]): CountryCo
   } catch {
     timezone = "";
   }
-  const langs = (navigator.languages ?? [navigator.language ?? ""])
-    .map((value) => value.toLowerCase());
+  const langs = (navigator.languages ?? [navigator.language ?? ""]).map(
+    (value) => value.toLowerCase(),
+  );
   const matchesUK =
     timezone === "Europe/London" ||
     timezone === "Europe/Belfast" ||
     timezone === "Europe/Guernsey" ||
     timezone === "Europe/Isle_of_Man" ||
     timezone === "Europe/Jersey" ||
-    langs.some((lang) =>
-      ["en-gb", "cy-gb", "gd-gb", "en-uk"].includes(lang),
-    );
+    langs.some((lang) => ["en-gb", "cy-gb", "gd-gb", "en-uk"].includes(lang));
   if (matchesUK && availableViews.includes("uk")) return "uk";
   return availableViews.includes("us") ? "us" : (availableViews[0] ?? "us");
 }
@@ -83,7 +84,10 @@ function countryFromQuery(
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
   const raw = (params.get("country") ?? params.get("view") ?? "").toLowerCase();
-  if ((raw === "uk" || raw === "us") && availableViews.includes(raw as CountryCode)) {
+  if (
+    (raw === "uk" || raw === "us") &&
+    availableViews.includes(raw as CountryCode)
+  ) {
     return raw as CountryCode;
   }
   return null;
@@ -323,11 +327,16 @@ export default function App() {
             onResetPrograms={resetPrograms}
             onToggleProgram={toggleProgram}
             onSelectOnlyProgram={selectOnlyProgram}
+            versionId={versionId}
+            liveVersionId={DEFAULT_VERSION_ID}
           />
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-        <section id="programs" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
+        <section
+          id="programs"
+          className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
+        >
           <ProgramHeatmap
             data={data}
             programOptions={programOptions}
@@ -340,7 +349,10 @@ export default function App() {
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-        <section id="scenarios" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
+        <section
+          id="scenarios"
+          className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
+        >
           <ScenarioExplorer
             key={`${versionId}:${data.country}`}
             data={data}
@@ -357,8 +369,16 @@ export default function App() {
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-        <section id="methodology" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
-          <Methodology data={data} selectedView={resolvedView} />
+        <section
+          id="methodology"
+          className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
+        >
+          <Methodology
+            data={data}
+            selectedView={resolvedView}
+            versionId={versionId}
+            liveVersionId={DEFAULT_VERSION_ID}
+          />
         </section>
       </main>
 

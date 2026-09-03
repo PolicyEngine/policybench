@@ -17,6 +17,7 @@ import { ProgramFilterPanel } from "./ProgramFilterDropdown";
 import { programIsActive, type ProgramOption } from "../lib/programFilters";
 import { canonicalScoreByModel } from "../lib/canonicalScore";
 import { wouldRank } from "../lib/wouldRank";
+import { isCurrentBoard } from "../lib/boardScope";
 
 // Exact-match scores of the tool_choice: auto sensitivity runs
 // (sensitivity/claude-thinking-2026-08.md). Their "would rank" positions are
@@ -91,10 +92,14 @@ export default function ModelLeaderboard({
   onResetPrograms,
   onToggleProgram,
   onSelectOnlyProgram,
+  versionId,
+  liveVersionId,
 }: {
   data: BenchData;
   selectedView: CountryCode;
   dashboard: DashboardBundle;
+  versionId: string;
+  liveVersionId: string;
   programOptions: ProgramOption[];
   activeProgramIds: Set<string>;
   activeProgramSummary: string;
@@ -284,7 +289,7 @@ export default function ModelLeaderboard({
       >
         Model rankings
       </h2>
-      {selectedView === "us" && (
+      {selectedView === "us" && isCurrentBoard(versionId, liveVersionId) && (
         <div
           className="card mt-5 px-5 py-4 animate-fade-up"
           style={{ animationDelay: "120ms" }}

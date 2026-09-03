@@ -6,6 +6,7 @@ import {
   type BenchData,
   type CountryCode,
 } from "../types";
+import { isCurrentBoard } from "../lib/boardScope";
 
 function StatCard({
   value,
@@ -55,10 +56,15 @@ function SectionCard({
 
 export default function Methodology({
   data,
+  versionId,
+  liveVersionId,
 }: {
   data: BenchData;
   selectedView: CountryCode;
+  versionId: string;
+  liveVersionId: string;
 }) {
+  const currentBoard = isCurrentBoard(versionId, liveVersionId);
   const benchData = data;
   const country = benchData.country;
   const noToolsModels = benchData.modelStats.filter(
@@ -134,11 +140,23 @@ export default function Methodology({
           with no external tools — no calculator, search, or PolicyEngine
           access. The answer instructions follow the provider&apos;s transport:
           a forced answer-schema tool call where the provider accepts one, and a
-          JSON object where it does not. Ten of the 33 models answer the same
-          facts in subsets of one or three outputs per request, an accommodation
-          that predates the whole-scenario rule. The per-model transport and
-          request shape are recorded in the paper&apos;s serving-configuration
-          table and the repo&apos;s model cards.
+          JSON object where the provider rejects a forced tool or the model card
+          selects JSON for the family (the older Gemini and DeepSeek rows).{" "}
+          {currentBoard ? (
+            <>
+              Ten of the 33 models answer the same facts in subsets of one or
+              three outputs per request, an accommodation that predates the
+              whole-scenario rule. The per-model transport and request shape are
+              recorded in the paper&apos;s serving-configuration table and the
+              repo&apos;s model cards.
+            </>
+          ) : (
+            <>
+              This archived snapshot has its own roster and serving treatments;
+              the per-model record for the current board is the paper&apos;s
+              serving-configuration table.
+            </>
+          )}
         </SectionCard>
 
         <SectionCard title="Open-set status">

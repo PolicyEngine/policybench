@@ -46,23 +46,25 @@
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260901c/dashboard-data.json"
   },
   "reference_output_refresh": {
-    "date": "2026-09-01",
+    "date": "2026-07-03",
+    "generated_at_utc": "2026-07-03T04:21:31.815629+00:00",
     "policyengine_us_data_artifact_sha256": "f32c2e5e9098bc6540724fdd5debf963af495da4c29b3a7a63fb53c2a4bb5a34",
     "policyengine_us_data_build_id": "populace-us-2024-5da5a95-20260611",
     "policyengine_us_dataset": "populace_us_2024",
     "policyengine_us_dataset_uri": "hf://policyengine/populace-us/populace_us_2024.h5@populace-us-2024-5da5a95-20260611",
     "policyengine_us_version": "1.755.4",
-    "policyengine_version": "4.16.1"
+    "policyengine_version": "4.16.1",
+    "snapshot_date": "2026-09-01"
   },
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "b4840abc4e8617fc8ffe0b17fd2d04ff05b904df63a21eb0236df5fc0e12ac8c"
+      "sha256": "857cf18af71d5b67e31f662a2c465aa5c1b4b81ca8a9afdeab37450826f13cad"
     },
     "web": {
       "files": {
         "figures/positive_zero_scatter.png": "ab45ad994420d5242d6905b83e015b50fcb4aa07babc20e10702cfee5dbda138",
-        "index.html": "b57ab2efcf4f7f3f607c2fb9e89bac2b2c0d0c76529f5293ef93bc6c8709f853",
+        "index.html": "405731ede32a837942d5952778c4b37f0e2ab7d3e9c28d3e4cfcda35c48c1db2",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",

@@ -13,7 +13,11 @@ import {
   modelCountrySummaries,
   programRows,
 } from "../../../lib/modelPage";
-import { MODEL_LABELS, getProviderForModel, PROVIDER_LABELS } from "../../../modelMeta";
+import {
+  MODEL_LABELS,
+  getProviderForModel,
+  PROVIDER_LABELS,
+} from "../../../modelMeta";
 import {
   getVariableLabel,
   VIEW_LABELS,
@@ -149,9 +153,7 @@ export default async function ModelPage({
               aria-labelledby={`country-${summary.country}`}
               className="mt-12"
             >
-              <div className="eyebrow mb-3">
-                {VIEW_LABELS[summary.country]}
-              </div>
+              <div className="eyebrow mb-3">{VIEW_LABELS[summary.country]}</div>
               <h2
                 id={`country-${summary.country}`}
                 className="font-[family-name:var(--font-display)] text-2xl sm:text-3xl text-text tracking-tight"
@@ -166,7 +168,9 @@ export default async function ModelPage({
                 />
                 <ScorePill
                   label="Bounded score"
-                  value={formatPct(summary.stat.boundedScore ?? summary.stat.score)}
+                  value={formatPct(
+                    summary.stat.boundedScore ?? summary.stat.score,
+                  )}
                 />
                 <ScorePill
                   label="Parse rate"
@@ -179,9 +183,7 @@ export default async function ModelPage({
                 <ScorePill
                   label="Eligibility flags"
                   value={
-                    coverage
-                      ? `${coverage.correct}/${coverage.total}`
-                      : "—"
+                    coverage ? `${coverage.correct}/${coverage.total}` : "—"
                   }
                 />
               </div>
@@ -275,7 +277,10 @@ export default async function ModelPage({
                               {" "}
                               · predicted{" "}
                               <span className="font-[family-name:var(--font-mono)]">
-                                {formatCurrency(entry.prediction, currencySymbol)}
+                                {formatCurrency(
+                                  entry.prediction,
+                                  currencySymbol,
+                                )}
                               </span>
                             </>
                           )}
@@ -298,9 +303,14 @@ export default async function ModelPage({
 
         <p className="mt-12 text-xs text-text-muted max-w-2xl leading-relaxed">
           Scores are from the frozen manuscript snapshot under the AI-alone
-          condition: one structured response per household, no tools, graded
-          against PolicyEngine reference outputs. See the{" "}
-          <Link href="/" className="underline underline-offset-2 hover:text-text">
+          condition: structured responses over the same household facts
+          (whole-scenario or in output subsets, per the serving-configuration
+          table), no tools, graded against PolicyEngine reference outputs. See
+          the{" "}
+          <Link
+            href="/"
+            className="underline underline-offset-2 hover:text-text"
+          >
             leaderboard
           </Link>{" "}
           and{" "}

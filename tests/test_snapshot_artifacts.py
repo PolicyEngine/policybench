@@ -422,3 +422,18 @@ def test_frozen_payload_provenance_matches_the_reference_sidecar():
         sidecar_version = sidecar["policyengine_bundles"][country]["model_version"]
         assert sidecar_version == expected
         assert payload["policyengineBundles"][country]["model_version"] == expected
+
+
+def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
+    """The references were generated once (the sidecar's timestamp) and are
+    byte-identical across freezes; the manifest must not advance their date
+    with each publication."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    refresh = manifest["reference_output_refresh"]
+    run_label = manifest["source_run_labels"]["us"]
+    run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    assert refresh["generated_at_utc"] == sidecar["generated_at_utc"]
+    assert refresh["date"] == sidecar["generated_at_utc"][:10]
+    assert refresh["snapshot_date"] == manifest["snapshot_date"]
+    assert refresh["date"] <= refresh["snapshot_date"]
