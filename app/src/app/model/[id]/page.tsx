@@ -162,7 +162,11 @@ export default async function ModelPage({
   return (
     <main id="main" className="min-h-screen bg-void">
       <SiteHeader
-        actionLink={{ label: "Leaderboard", href: "/", type: "internal" }}
+        actionLinks={[
+          { label: "Leaderboard", href: "/", type: "internal" },
+          { label: "Paper", href: "/paper", type: "internal" },
+          { label: "Notes", href: "/notes", type: "internal" },
+        ]}
         expandedContent={expanded}
         alwaysExpanded
       />

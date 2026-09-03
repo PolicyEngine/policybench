@@ -151,6 +151,7 @@ export type SiteHeaderProps = {
   onSelectView?: (view: CountryCode) => void;
   availableViews?: CountryCode[];
   actionLink?: HeaderActionLink;
+  actionLinks?: readonly HeaderActionLink[];
   /** Active dataset-version id; when set with `onSelectVersion`, shows the
    *  dataset selector in the header. */
   versionId?: string;
@@ -179,6 +180,7 @@ export default function SiteHeader({
   onSelectView,
   availableViews,
   actionLink,
+  actionLinks,
   versionId,
   pendingVersionId,
   onSelectVersion,
@@ -209,6 +211,10 @@ export default function SiteHeader({
     availableViews && availableViews.length > 0 && selectedView && onSelectView;
   const showVersionSelector = versionId != null && onSelectVersion != null;
   const headerPositionClass = alwaysExpanded ? "relative z-40" : "sticky top-0 z-40";
+  const resolvedActionLinks = [
+    ...(actionLinks ?? []),
+    ...(actionLink ? [actionLink] : []),
+  ];
 
   return (
     <header className={headerPositionClass}>
@@ -304,25 +310,28 @@ export default function SiteHeader({
             </div>
           )}
 
-          {actionLink && (
-            <div className="order-3 shrink-0 sm:order-none">
-              {actionLink.type === "external" ? (
+          {resolvedActionLinks.map((link) => (
+            <div
+              key={`${link.label}:${link.href}`}
+              className="order-3 shrink-0 sm:order-none"
+            >
+              {link.type === "external" ? (
                 <a
-                  href={actionLink.href}
+                  href={link.href}
                   className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary backdrop-blur hover:border-primary/40 hover:text-primary whitespace-nowrap"
                 >
-                  {actionLink.label}
+                  {link.label}
                 </a>
               ) : (
                 <Link
-                  href={actionLink.href}
+                  href={link.href}
                   className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-text-secondary backdrop-blur hover:border-primary/40 hover:text-primary whitespace-nowrap"
                 >
-                  {actionLink.label}
+                  {link.label}
                 </Link>
               )}
             </div>
-          )}
+          ))}
 
           <a
             href="https://policyengine.org"

@@ -2,7 +2,7 @@
 
 ## State
 
-Both notes and their frozen-evidence fact tests are implemented.
+The `/notes` feature is implemented; full repository verification is underway.
 
 ## Done
 
@@ -17,9 +17,13 @@ Both notes and their frozen-evidence fact tests are implemented.
 - Added Python coverage that derives every placeholder fact, the explanation
   mention counts, categorical pathway counts, asset-case error bands, and
   engine versions from committed evidence. The focused suite passes (5 tests).
+- Added the `/notes` list and static detail routes, shared fact-aware rendering,
+  canonical metadata, navigation links, and sitemap entries.
+- Added app coverage for note ordering, slugs, placeholders, and rendered
+  content. Lint and all 95 app tests pass; a webpack production build also
+  prerenders `/notes` and both detail pages successfully.
 
 ## Next
 
-- Add the `/notes` routes, navigation, scenario deep links, sitemap entries, and app tests.
 - Run the requested Python and app verification suites.
 - Write `out.md`, push `notes-route`, and open a draft PR against `add-fable-5-1`.

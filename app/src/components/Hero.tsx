@@ -1,6 +1,9 @@
 import { DEFAULT_VERSION_ID } from "../lib/dataVersionsRuntime";
 import type { BenchData, CountryCode } from "../types";
-import SiteHeader, { type HeaderNavItem } from "./SiteHeader";
+import SiteHeader, {
+  type HeaderActionLink,
+  type HeaderNavItem,
+} from "./SiteHeader";
 
 export default function Hero({
   selectedView,
@@ -9,6 +12,7 @@ export default function Hero({
   availableViews,
   navItems,
   activeNav,
+  actionLinks,
   versionId,
   pendingVersionId,
   onSelectVersion,
@@ -20,6 +24,7 @@ export default function Hero({
   availableViews: CountryCode[];
   navItems: readonly HeaderNavItem[];
   activeNav: string;
+  actionLinks: readonly HeaderActionLink[];
   versionId: string;
   pendingVersionId: string | null;
   onSelectVersion: (id: string) => void;
@@ -56,7 +61,7 @@ export default function Hero({
         versionId={versionId}
         pendingVersionId={pendingVersionId}
         onSelectVersion={onSelectVersion}
-        actionLink={{ label: "Paper", href: "/paper", type: "internal" }}
+        actionLinks={actionLinks}
       />
 
       <section
