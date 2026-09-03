@@ -18,8 +18,9 @@
  *                        public/data/<slug>/explanations-*.json (lazy sidecars)
  *   - live board      -> src/model-serving-config.json        (bundled with app)
  *
- * Runs before `next dev` and `next build` (see package.json). Outputs are
- * generated artifacts and gitignored.
+ * Runs before `next dev` and `next build` (see package.json). Dashboard data
+ * outputs are generated and gitignored; the serving configuration refreshes
+ * a tracked fallback used when a deployment sees only app/.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -80,6 +81,11 @@ function prepareServingConfiguration(): void {
   if (!existsSync(servingConfigSourcePath)) {
     // Builds that see only app/ (Vercel's root directory) keep the tracked
     // copy; tests/test_snapshot_artifacts.py pins it to the frozen file.
+    if (!existsSync(servingConfigOutputPath)) {
+      throw new Error(
+        `prepare-data: frozen serving configuration is not reachable at ${servingConfigSourcePath} and tracked fallback is missing at ${servingConfigOutputPath}`,
+      );
+    }
     console.log(
       `prepare-data: frozen serving configuration not reachable at ${servingConfigSourcePath}; keeping tracked ${servingConfigOutputPath}`,
     );

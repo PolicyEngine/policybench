@@ -543,3 +543,10 @@ def test_app_copy_of_serving_configuration_matches_the_frozen_file():
     frozen = ROOT / "paper" / "snapshot" / "20260501" / "model_serving_config.json"
     app_copy = ROOT / "app" / "src" / "model-serving-config.json"
     assert app_copy.read_bytes() == frozen.read_bytes()
+
+
+def test_app_clean_preserves_the_tracked_serving_configuration():
+    package = json.loads((ROOT / "app" / "package.json").read_text())
+    clean_command = package["scripts"]["clean"]
+
+    assert "src/model-serving-config.json" not in clean_command
