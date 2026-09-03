@@ -2,8 +2,8 @@
 
 ## State
 
-All eight findings are implemented. The required freeze, paper render, re-pin,
-and final verification remain.
+All eight findings are implemented, frozen, rendered, and verified. The final
+report is ready and no code or artifact work remains.
 
 ## Done
 
@@ -23,10 +23,16 @@ and final verification remain.
   Python lint/format and app lint pass.
 - Pre-freeze full pytest: 627 passed, 5 skipped, 7 expected failures against
   the not-yet-regenerated serving config, HTML, and PDF.
+- Exact app install, lint, and test steps pass with 97 tests. The default
+  Turbopack build is blocked by the managed sandbox's port restriction; the
+  equivalent webpack production build compiles, type-checks, and generates all
+  40 static pages.
+- Refroze serving configuration, rendered fresh HTML and PDF, and re-pinned the
+  rendered hashes in the manifest.
+- Post-render full pytest: 634 passed, 5 skipped, 10 warnings.
+- Audited the final diff and committed the generated artifacts at
+  `8d6b3188ad8761008cc68a95623d3d9eab0b7c51`.
 
 ## Next
 
-- Complete the exact app install/lint/test/build chain.
-- Freeze the snapshot, render PDF/web, and re-pin rendered hashes.
-- Run the post-render full Python suite and final app verification.
-- Write `out.md`, commit all intended artifacts, and report the final commit.
+- Main author review and push. No push was performed here.
