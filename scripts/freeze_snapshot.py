@@ -157,6 +157,163 @@ def sha256_file(path: Path) -> str:
     return sha256_bytes(path.read_bytes())
 
 
+SUPPORTED_TREATMENT_FINGERPRINT_VERSIONS = (1, 2, 3)
+LEGACY_TREATMENT_FINGERPRINT_FIELDS = {
+    "model_id",
+    "answer_contract",
+    "tool_choice_mode",
+    "chunk_size",
+    "prompt_contract_version",
+    "completion_budget_ceiling",
+}
+V2_TREATMENT_FINGERPRINT_FIELDS = {
+    "fingerprint_version",
+    "initial_completion_budget_tokens",
+    "thinking",
+    "request_timeout_seconds",
+}
+V3_TREATMENT_FINGERPRINT_FIELDS = {"max_repair_rounds"}
+
+
+def _validate_treatment_fingerprint(
+    fingerprint: dict,
+    expected: dict,
+    *,
+    model: str,
+    run_state_path: Path,
+) -> tuple[int, bool]:
+    fingerprint_version = fingerprint.get("fingerprint_version", 1)
+    if fingerprint_version not in SUPPORTED_TREATMENT_FINGERPRINT_VERSIONS:
+        raise SystemExit(
+            f"Unsupported treatment fingerprint version for {model} "
+            f"in {run_state_path}: {fingerprint_version!r}"
+        )
+
+    required_fields = set(LEGACY_TREATMENT_FINGERPRINT_FIELDS)
+    if fingerprint_version >= 2:
+        required_fields.update(V2_TREATMENT_FINGERPRINT_FIELDS)
+    if fingerprint_version >= 3:
+        required_fields.update(V3_TREATMENT_FINGERPRINT_FIELDS)
+    missing_fields = required_fields - set(fingerprint)
+    if missing_fields:
+        raise SystemExit(
+            f"Incomplete treatment fingerprint for {model} in {run_state_path}: "
+            f"missing {sorted(missing_fields)}"
+        )
+
+    comparable_fields = set(fingerprint) & set(expected)
+    actual = {key: fingerprint.get(key) for key in comparable_fields}
+    legacy_tool_choice = (
+        fingerprint_version == 1
+        and expected["answer_contract"] == "json"
+        and actual.get("tool_choice_mode") == "forced"
+        and expected["tool_choice_mode"] is None
+    )
+    if legacy_tool_choice:
+        actual["tool_choice_mode"] = None
+    disagreements = {
+        key: (actual[key], expected_value)
+        for key, expected_value in expected.items()
+        if key in comparable_fields
+        if actual[key] != expected_value
+    }
+    if disagreements:
+        raise SystemExit(
+            f"Run-state treatment disagrees with registry for {model}: {disagreements}"
+        )
+    return fingerprint_version, legacy_tool_choice
+
+
+def _model_prediction_rows(frame: pd.DataFrame, model: str) -> pd.DataFrame:
+    columns = ["scenario_id", "variable", "prediction"]
+    missing_columns = set(["model", *columns]) - set(frame.columns)
+    if missing_columns:
+        raise ValueError(f"missing columns {sorted(missing_columns)}")
+    rows = frame.loc[frame["model"] == model, columns].copy()
+    rows["scenario_id"] = rows["scenario_id"].astype(str)
+    rows["variable"] = rows["variable"].astype(str)
+    rows["prediction"] = pd.to_numeric(rows["prediction"], errors="raise")
+    return rows.sort_values(columns, na_position="last").reset_index(drop=True)
+
+
+def _prediction_rows_match(
+    source_predictions: pd.DataFrame,
+    frozen_predictions: pd.DataFrame,
+    model: str,
+) -> bool:
+    source_rows = _model_prediction_rows(source_predictions, model)
+    frozen_rows = _model_prediction_rows(frozen_predictions, model)
+    if len(source_rows) != len(frozen_rows):
+        return False
+    key_columns = ["scenario_id", "variable"]
+    if not source_rows[key_columns].equals(frozen_rows[key_columns]):
+        return False
+    source_values = source_rows["prediction"].to_numpy(dtype=float, na_value=np.nan)
+    frozen_values = frozen_rows["prediction"].to_numpy(dtype=float, na_value=np.nan)
+    return bool(
+        np.isclose(
+            source_values,
+            frozen_values,
+            rtol=0,
+            atol=1e-9,
+            equal_nan=True,
+        ).all()
+    )
+
+
+def _run_state_prediction_evidence(
+    run_state_path: Path,
+    frozen_predictions: pd.DataFrame,
+    model: str,
+) -> dict:
+    source_path = run_state_path.with_name("predictions.csv")
+    if not source_path.is_file():
+        return {
+            "kind": "registry",
+            "source_predictions_sha256": None,
+            "rows_match": False,
+            "note": (
+                "Source predictions.csv is missing beside run_state.json; "
+                "serving fields fall back to the registry."
+            ),
+        }
+
+    source_sha256 = sha256_file(source_path)
+    try:
+        source_predictions = pd.read_csv(source_path, low_memory=False)
+        rows_match = _prediction_rows_match(
+            source_predictions,
+            frozen_predictions,
+            model,
+        )
+    except (OSError, ValueError, TypeError) as error:
+        return {
+            "kind": "registry",
+            "source_predictions_sha256": source_sha256,
+            "rows_match": False,
+            "note": (
+                "Source predictions.csv could not be compared with the frozen "
+                f"rows ({type(error).__name__}); serving fields fall back to "
+                "the registry."
+            ),
+        }
+    if not rows_match:
+        return {
+            "kind": "registry",
+            "source_predictions_sha256": source_sha256,
+            "rows_match": False,
+            "note": (
+                "Source predictions.csv rows do not match the frozen model rows; "
+                "serving fields fall back to the registry."
+            ),
+        }
+    return {
+        "kind": "run_state",
+        "source_predictions_sha256": source_sha256,
+        "rows_match": True,
+    }
+
+
 def copy_exact(src: Path, dst: Path) -> None:
     """Copy a file byte-for-byte without re-serializing."""
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -425,6 +582,7 @@ def freeze_serving_configuration(destination: Path) -> None:
         THINKING_DEFAULT_CLAUDE_MODELS,
         _first_request_variables,
         _initial_completion_budget_tokens,
+        _max_repair_rounds,
         _request_timeout_seconds,
         _thinking_configuration,
     )
@@ -454,6 +612,10 @@ def freeze_serving_configuration(destination: Path) -> None:
     if not scenarios:
         raise SystemExit("Frozen serving configuration has no scenarios.")
     first_scenario_variables = expand_programs_for_scenario(PROGRAMS, scenarios[0])
+    frozen_predictions = pd.read_csv(
+        RUN_DEST / "predictions.csv.gz",
+        low_memory=False,
+    )
 
     models = {}
     evidence_counts = {"run_state": 0, "registry": 0}
@@ -531,100 +693,63 @@ def freeze_serving_configuration(destination: Path) -> None:
                             f"Invalid treatment fingerprint for {model} in "
                             f"{run_state_path}"
                         )
-                    legacy_fingerprint_keys = {
-                        "model_id",
-                        "answer_contract",
-                        "tool_choice_mode",
-                        "chunk_size",
-                        "prompt_contract_version",
-                        "completion_budget_ceiling",
-                    }
-                    fingerprint_version = fingerprint.get("fingerprint_version", 1)
-                    if fingerprint_version not in (1, 2):
-                        raise SystemExit(
-                            f"Unsupported treatment fingerprint version for {model} "
-                            f"in {run_state_path}: {fingerprint_version!r}"
-                        )
-                    required_fingerprint_keys = set(legacy_fingerprint_keys)
-                    if fingerprint_version == 2:
-                        required_fingerprint_keys.update(
-                            {
-                                "fingerprint_version",
-                                "initial_completion_budget_tokens",
-                                "thinking",
-                                "request_timeout_seconds",
-                            }
-                        )
-                    missing_fingerprint_keys = required_fingerprint_keys - set(
-                        fingerprint
+                    prediction_evidence = _run_state_prediction_evidence(
+                        run_state_path,
+                        frozen_predictions,
+                        model,
                     )
-                    if missing_fingerprint_keys:
-                        raise SystemExit(
-                            f"Incomplete treatment fingerprint for {model} in "
-                            f"{run_state_path}: missing "
-                            f"{sorted(missing_fingerprint_keys)}"
+                    if prediction_evidence["kind"] == "run_state":
+                        expected = {
+                            "model_id": provider_id,
+                            "answer_contract": answer_contract,
+                            "chunk_size": chunk_size,
+                            "tool_choice_mode": tool_choice,
+                            "prompt_contract_version": PROMPT_CONTRACT_VERSION,
+                            "completion_budget_ceiling": (
+                                completion_budget_ceiling_for(provider_id)
+                            ),
+                            "initial_completion_budget_tokens": (
+                                initial_completion_budget_tokens
+                            ),
+                            "thinking": thinking,
+                            "request_timeout_seconds": request_timeout_seconds,
+                            "max_repair_rounds": _max_repair_rounds(env={}),
+                        }
+                        fingerprint_version, legacy_tool_choice = (
+                            _validate_treatment_fingerprint(
+                                fingerprint,
+                                expected,
+                                model=model,
+                                run_state_path=run_state_path,
+                            )
                         )
-                    expected = {
-                        "model_id": provider_id,
-                        "answer_contract": answer_contract,
-                        "chunk_size": chunk_size,
-                        "tool_choice_mode": tool_choice,
-                        "prompt_contract_version": PROMPT_CONTRACT_VERSION,
-                        "completion_budget_ceiling": completion_budget_ceiling_for(
-                            provider_id
-                        ),
-                        "initial_completion_budget_tokens": (
-                            initial_completion_budget_tokens
-                        ),
-                        "thinking": thinking,
-                        "request_timeout_seconds": request_timeout_seconds,
-                    }
-                    comparable_fields = set(fingerprint) & set(expected)
-                    actual = {key: fingerprint.get(key) for key in comparable_fields}
-                    legacy_tool_choice = (
-                        fingerprint_version == 1
-                        and answer_contract == "json"
-                        and actual.get("tool_choice_mode") == "forced"
-                        and tool_choice is None
-                    )
-                    if legacy_tool_choice:
-                        actual["tool_choice_mode"] = None
-                    disagreements = {
-                        key: (actual[key], expected_value)
-                        for key, expected_value in expected.items()
-                        if key in comparable_fields
-                        if actual[key] != expected_value
-                    }
-                    if disagreements:
-                        raise SystemExit(
-                            f"Run-state treatment disagrees with registry for {model}: "
-                            f"{disagreements}"
-                        )
-                    run_dir = Path(run_state_relative).parts[2]
-                    evidence = {
-                        "kind": "run_state",
-                        "run": run_dir,
-                        "fields": sorted(fingerprint),
-                        "treatment_fingerprint": fingerprint,
-                    }
-                    if legacy_tool_choice:
-                        evidence["legacy_tool_choice_label"] = "forced"
+                        run_dir = Path(run_state_relative).parts[2]
+                        evidence = {
+                            **prediction_evidence,
+                            "run": run_dir,
+                            "fields": sorted(fingerprint),
+                            "treatment_fingerprint": fingerprint,
+                        }
+                        if legacy_tool_choice:
+                            evidence["legacy_tool_choice_label"] = "forced"
 
-                    pinned_serving_fields = {
-                        "answer_contract",
-                        "provider_id",
-                        "request_shape",
-                        "tool_choice",
-                    }
-                    if fingerprint_version == 2:
-                        pinned_serving_fields.update(
-                            {
-                                "reasoning_setup",
-                                "request_timeout_seconds",
-                                "shared_completion_budget_tokens",
-                            }
-                        )
-                    registry_derived -= pinned_serving_fields
+                        pinned_serving_fields = {
+                            "answer_contract",
+                            "provider_id",
+                            "request_shape",
+                            "tool_choice",
+                        }
+                        if fingerprint_version >= 2:
+                            pinned_serving_fields.update(
+                                {
+                                    "reasoning_setup",
+                                    "request_timeout_seconds",
+                                    "shared_completion_budget_tokens",
+                                }
+                            )
+                        registry_derived -= pinned_serving_fields
+                    else:
+                        evidence = prediction_evidence
 
         evidence_counts[evidence["kind"]] += 1
         models[model] = {
@@ -780,6 +905,10 @@ def build_manifest(
     pointer = json.loads((ROOT / "app" / "src" / "data.artifact.json").read_text())
 
     return {
+        "description": (
+            f"The {SNAPSHOT_DATE} scored manuscript snapshot reports the "
+            "household-impact-weighted exact-match rate as its headline metric."
+        ),
         "snapshot_date": SNAPSHOT_DATE,
         "policy_period": {"us": "tax year 2026"},
         "live_dashboard_note": (

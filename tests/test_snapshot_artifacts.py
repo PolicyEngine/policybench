@@ -299,7 +299,15 @@ def test_snapshot_serving_configuration_records_evidence_schema():
         kind = evidence["kind"]
         observed[kind] += 1
         if kind == "registry":
-            assert evidence == {"kind": "registry"}
+            if set(evidence) != {"kind"}:
+                assert set(evidence) == {
+                    "kind",
+                    "note",
+                    "rows_match",
+                    "source_predictions_sha256",
+                }
+                assert evidence["rows_match"] is False
+                assert evidence["note"]
             assert set(row["registry_derived"]) == {
                 "answer_contract",
                 "provider_id",
@@ -312,15 +320,26 @@ def test_snapshot_serving_configuration_records_evidence_schema():
             continue
 
         assert set(evidence) in (
-            {"kind", "run", "fields", "treatment_fingerprint"},
             {
                 "kind",
                 "run",
                 "fields",
+                "rows_match",
+                "source_predictions_sha256",
+                "treatment_fingerprint",
+            },
+            {
+                "kind",
+                "run",
+                "fields",
+                "rows_match",
+                "source_predictions_sha256",
                 "treatment_fingerprint",
                 "legacy_tool_choice_label",
             },
         )
+        assert evidence["rows_match"] is True
+        assert re.fullmatch(r"[0-9a-f]{64}", evidence["source_predictions_sha256"])
         assert evidence["fields"] == sorted(evidence["treatment_fingerprint"])
         assert set(row["registry_derived"]) == {
             "reasoning_setup",
@@ -330,6 +349,86 @@ def test_snapshot_serving_configuration_records_evidence_schema():
         assert not evidence["run"].endswith("_thinking")
 
     assert observed == summary
+
+
+def test_freezer_downgrades_run_state_when_prediction_rows_differ(tmp_path):
+    from scripts.freeze_snapshot import _run_state_prediction_evidence
+
+    run_state_path = tmp_path / "run" / "run_state.json"
+    run_state_path.parent.mkdir()
+    run_state_path.write_text("{}")
+    source_path = run_state_path.with_name("predictions.csv")
+    pd.DataFrame(
+        {
+            "model": ["example-model"],
+            "scenario_id": ["scenario_000"],
+            "variable": ["snap"],
+            "prediction": [1.0],
+        }
+    ).to_csv(source_path, index=False)
+    frozen = pd.DataFrame(
+        {
+            "model": ["example-model"],
+            "scenario_id": ["scenario_000"],
+            "variable": ["snap"],
+            "prediction": [2.0],
+        }
+    )
+
+    evidence = _run_state_prediction_evidence(
+        run_state_path,
+        frozen,
+        "example-model",
+    )
+
+    assert evidence == {
+        "kind": "registry",
+        "source_predictions_sha256": sha256(source_path),
+        "rows_match": False,
+        "note": (
+            "Source predictions.csv rows do not match the frozen model rows; "
+            "serving fields fall back to the registry."
+        ),
+    }
+
+
+def test_freezer_accepts_v3_fingerprint_and_compares_repair_rounds(tmp_path):
+    from scripts.freeze_snapshot import (
+        SUPPORTED_TREATMENT_FINGERPRINT_VERSIONS,
+        _validate_treatment_fingerprint,
+    )
+
+    expected = {
+        "model_id": "provider/model",
+        "answer_contract": "tool",
+        "tool_choice_mode": "forced",
+        "chunk_size": None,
+        "prompt_contract_version": "contract-v1",
+        "completion_budget_ceiling": 128_000,
+        "initial_completion_budget_tokens": 4_096,
+        "thinking": None,
+        "request_timeout_seconds": 20,
+        "max_repair_rounds": 2,
+    }
+    fingerprint = {"fingerprint_version": 3, **expected}
+    run_state_path = tmp_path / "run_state.json"
+
+    assert SUPPORTED_TREATMENT_FINGERPRINT_VERSIONS == (1, 2, 3)
+    assert _validate_treatment_fingerprint(
+        fingerprint,
+        expected,
+        model="example-model",
+        run_state_path=run_state_path,
+    ) == (3, False)
+
+    fingerprint["max_repair_rounds"] = 3
+    with pytest.raises(SystemExit, match="max_repair_rounds"):
+        _validate_treatment_fingerprint(
+            fingerprint,
+            expected,
+            model="example-model",
+            run_state_path=run_state_path,
+        )
 
 
 def test_run_state_serving_evidence_agrees_with_registry_fields():

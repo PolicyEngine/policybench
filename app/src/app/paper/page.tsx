@@ -7,7 +7,7 @@ import SiteHeader from "../../components/SiteHeader";
 const SNAPSHOT_DATE_LABEL = "Snapshot 2026-09-01";
 
 const PAPER_DESCRIPTION =
-  "PolicyBench paper — the 2026-09-01 household-equal scored manuscript snapshot, with June 12–September 1 model responses and PolicyEngine reference outputs on the populace US microdata.";
+  "PolicyBench paper: the 2026-09-01 manuscript snapshot reporting the household-impact-weighted exact-match rate, with model responses collected from June 12 through September 1 and PolicyEngine reference outputs on the US populace microdata.";
 
 export const metadata: Metadata = {
   title: "Paper",
@@ -50,8 +50,8 @@ export default function PaperPage() {
       <p className="max-w-2xl text-sm leading-relaxed text-text-secondary sm:text-base">
         Benchmarking no-tool tax-and-benefit estimation in frontier language
         models. This page embeds the 2026-09-01 scored manuscript snapshot: a
-        100-household public preview using household-equal impact scores against
-        PolicyEngine reference outputs.
+        100-household public preview reporting the household-impact-weighted
+        exact-match rate against PolicyEngine reference outputs.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-text-secondary">

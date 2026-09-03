@@ -24,6 +24,7 @@ BENCHMARK_CARD = ROOT / "docs" / "benchmark_card.md"
 PAPER_GUIDE = ROOT / "docs" / "paper.md"
 MODEL_PAGE = ROOT / "app" / "src" / "app" / "model" / "[id]" / "page.tsx"
 EXPAND_PAGE = ROOT / "app" / "src" / "app" / "expand" / "page.tsx"
+PAPER_PAGE = ROOT / "app" / "src" / "app" / "paper" / "page.tsx"
 SNAPSHOT_MANIFEST = ROOT / "paper" / "snapshot" / "20260501" / "manifest.json"
 SCENARIO_EXPLORER = ROOT / "app" / "src" / "components" / "ScenarioExplorer.tsx"
 PAPER = ROOT / "paper" / "index.qmd"
@@ -153,6 +154,27 @@ def test_expand_page_has_no_literal_model_roster_count():
         )
         is None
     )
+
+
+def test_public_scoring_copy_names_the_headline_metric():
+    manifest = json.loads(SNAPSHOT_MANIFEST.read_text())
+    expected_metric = "household-impact-weighted exact-match rate"
+    surfaces = {
+        PAPER_PAGE: PAPER_PAGE.read_text(),
+        SNAPSHOT_MANIFEST: manifest["description"],
+        MODEL_PAGE: MODEL_PAGE.read_text(),
+        METHODOLOGY: METHODOLOGY.read_text(),
+    }
+
+    assert expected_metric in surfaces[PAPER_PAGE]
+    assert expected_metric in surfaces[SNAPSHOT_MANIFEST]
+    for path, text in surfaces.items():
+        normalized = re.sub(r"\s+", " ", text)
+        for sentence in re.split(r"(?<=[.!?])\s+", normalized):
+            if "household-equal" not in sentence.lower():
+                continue
+            assert "legacy" in sentence.lower(), path
+            assert "secondary metric" in sentence.lower(), path
 
 
 def test_paper_checklist_names_existing_manifest_keys():
