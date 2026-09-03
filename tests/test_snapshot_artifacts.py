@@ -532,3 +532,14 @@ def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
     assert refresh["date"] == sidecar["generated_at_utc"][:10]
     assert refresh["snapshot_date"] == manifest["snapshot_date"]
     assert refresh["date"] <= refresh["snapshot_date"]
+
+
+def test_app_copy_of_serving_configuration_matches_the_frozen_file():
+    """The scenario explorer bundles a copy of the frozen serving config.
+
+    prepare-data refreshes it when the repository is present; the copy is
+    tracked so tests and Vercel builds that see only app/ still have it.
+    """
+    frozen = ROOT / "paper" / "snapshot" / "20260501" / "model_serving_config.json"
+    app_copy = ROOT / "app" / "src" / "model-serving-config.json"
+    assert app_copy.read_bytes() == frozen.read_bytes()

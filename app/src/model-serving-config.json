@@ -1,0 +1,772 @@
+{
+  "evidence_field_labels": {
+    "registry_for_run_state": [
+      "reasoning setup",
+      "timeouts"
+    ],
+    "run_state": [
+      "answer contract",
+      "request shape",
+      "tool choice",
+      "completion ceiling"
+    ]
+  },
+  "evidence_summary": {
+    "registry": 29,
+    "run_state": 4
+  },
+  "models": {
+    "claude-fable-5": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "claude-fable-5",
+      "reasoning_setup": "thinking does not engage under forced tool call",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "1 output/request",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "claude-fable-5.1": {
+      "answer_contract": "json",
+      "evidence": {
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
+        "kind": "run_state",
+        "legacy_tool_choice_label": "forced",
+        "run": "fable51",
+        "treatment_fingerprint": {
+          "answer_contract": "json",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "model_id": "claude-fable-5-1",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "claude-fable-5-1",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 600,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": null
+    },
+    "claude-haiku-4.5": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "claude-haiku-4-5-20251001",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "1 output/request",
+      "request_timeout_seconds": 120,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": "forced"
+    },
+    "claude-opus-4.7": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "claude-opus-4-7",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "1 output/request",
+      "request_timeout_seconds": 120,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": "forced"
+    },
+    "claude-opus-4.8": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "claude-opus-4-8",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "1 output/request",
+      "request_timeout_seconds": 120,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": "forced"
+    },
+    "claude-opus-5": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "claude-opus-5",
+      "reasoning_setup": "thinking does not engage under forced tool call",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "claude-sonnet-4.6": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "claude-sonnet-4-6",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "1 output/request",
+      "request_timeout_seconds": 120,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": "forced"
+    },
+    "claude-sonnet-5": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "claude-sonnet-5",
+      "reasoning_setup": "thinking does not engage under forced tool call",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "1 output/request",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "deepseek-v4-pro": {
+      "answer_contract": "json",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "deepseek/deepseek-v4-pro",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": null
+    },
+    "gemini-3-flash-preview": {
+      "answer_contract": "json",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gemini/gemini-3-flash-preview",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 120,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": null
+    },
+    "gemini-3.1-flash-lite-preview": {
+      "answer_contract": "json",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gemini/gemini-3.1-flash-lite-preview",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 120,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": null
+    },
+    "gemini-3.1-pro-preview": {
+      "answer_contract": "json",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gemini/gemini-3.1-pro-preview",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 120,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": null
+    },
+    "gemini-3.5-flash": {
+      "answer_contract": "json",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gemini/gemini-3.5-flash",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 120,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": null
+    },
+    "gemini-3.6-flash": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gemini/gemini-3.6-flash",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "gemini-3.7-flash": {
+      "answer_contract": "tool",
+      "evidence": {
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
+        "kind": "run_state",
+        "run": "gemini37",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "model_id": "gemini/gemini-3.7-flash",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "gemini/gemini-3.7-flash",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "glm-5.2": {
+      "answer_contract": "json",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "openrouter/z-ai/glm-5.2",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "3 outputs/request",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": null
+    },
+    "gpt-5.4-mini": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gpt-5.4-mini",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 20,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": "forced"
+    },
+    "gpt-5.4-nano": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gpt-5.4-nano",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 20,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": "forced"
+    },
+    "gpt-5.5": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gpt-5.5",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "3 outputs/request",
+      "request_timeout_seconds": 60,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "gpt-5.6-luna": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gpt-5.6-luna",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "gpt-5.6-sol": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gpt-5.6-sol",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "gpt-5.6-terra": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "gpt-5.6-terra",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "grok-4.3": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "xai/grok-4.3",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 420,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": "forced"
+    },
+    "grok-4.5": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "xai/grok-4.5",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 420,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "grok-4.6": {
+      "answer_contract": "tool",
+      "evidence": {
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
+        "kind": "run_state",
+        "run": "grok46",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "model_id": "xai/grok-4.6",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "xai/grok-4.6",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 600,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "grok-build-0.1": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "xai/grok-build-0.1",
+      "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 420,
+      "shared_completion_budget_tokens": null,
+      "tool_choice": "forced"
+    },
+    "inkling": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "openrouter/thinkingmachines/inkling",
+      "reasoning_setup": "provider default; 49,152-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 1200,
+      "shared_completion_budget_tokens": 49152,
+      "tool_choice": "forced"
+    },
+    "kimi-k2.6": {
+      "answer_contract": "json",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "openrouter/moonshotai/kimi-k2.6",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "3 outputs/request",
+      "request_timeout_seconds": 600,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": null
+    },
+    "kimi-k3": {
+      "answer_contract": "json",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "openrouter/moonshotai/kimi-k3",
+      "reasoning_setup": "provider default; 49,152-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 1200,
+      "shared_completion_budget_tokens": 49152,
+      "tool_choice": null
+    },
+    "minimax-m3": {
+      "answer_contract": "tool",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "openrouter/minimax/minimax-m3",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "ox-alpha": {
+      "answer_contract": "tool",
+      "evidence": {
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
+        "kind": "run_state",
+        "run": "oxalpha",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "model_id": "openrouter/stealth/ox-alpha",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "openrouter/stealth/ox-alpha",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 600,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "qwen-3.7-max": {
+      "answer_contract": "json",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "openrouter/qwen/qwen3.7-max",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "3 outputs/request",
+      "request_timeout_seconds": 600,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": null
+    },
+    "qwen3.8-max": {
+      "answer_contract": "json",
+      "evidence": {
+        "kind": "registry"
+      },
+      "provider_id": "openrouter/qwen/qwen3.8-max",
+      "reasoning_setup": "provider default; 98,304-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 2400,
+      "shared_completion_budget_tokens": 98304,
+      "tool_choice": null
+    }
+  },
+  "registry_commit": "5dfe535630685af2a0a53020d6b0bfae9ddda87e",
+  "sources": [
+    "policybench.config.MODELS",
+    "policybench.model_cards",
+    "policybench.eval_no_tools"
+  ]
+}

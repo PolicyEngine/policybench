@@ -77,6 +77,14 @@ function toAsciiJson(value: unknown): string {
 }
 
 function prepareServingConfiguration(): void {
+  if (!existsSync(servingConfigSourcePath)) {
+    // Builds that see only app/ (Vercel's root directory) keep the tracked
+    // copy; tests/test_snapshot_artifacts.py pins it to the frozen file.
+    console.log(
+      `prepare-data: frozen serving configuration not reachable at ${servingConfigSourcePath}; keeping tracked ${servingConfigOutputPath}`,
+    );
+    return;
+  }
   const bytes = readFileSync(servingConfigSourcePath);
   const payload = JSON.parse(bytes.toString("utf8")) as {
     models?: unknown;
