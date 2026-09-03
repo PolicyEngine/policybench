@@ -58,25 +58,24 @@ logger = logging.getLogger(__name__)
 # model-cost map, whose remote refresh can time out mid-run and whose bundled
 # backup lags brand-new models. Register the Claude Fable line locally so
 # provider routing and cost reconstruction never depend on the remote fetch.
-# Prices per token from platform.claude.com/docs/en/models/<model>/overview;
-# Fable 5.1 cuts cache reads to a quarter of Fable 5's.
-_LOCAL_CLAUDE_FABLE_CACHE_READ_COST = {
-    "claude-fable-5": 1e-6,
-    "claude-fable-5-1": 0.25e-6,
-}
-for _model_id, _cache_read_cost in _LOCAL_CLAUDE_FABLE_CACHE_READ_COST.items():
+# Prices come from the canonical per-million overrides so registration and
+# PolicyBench's reconstruction cannot drift apart.
+_LOCAL_CLAUDE_FABLE_MODELS = ("claude-fable-5", "claude-fable-5.1")
+for _display_id in _LOCAL_CLAUDE_FABLE_MODELS:
+    _model_id = MODELS[_display_id]
     if _model_id in litellm.model_cost:
         continue
+    _prices = PRICE_OVERRIDES_PER_1M[_display_id]
     litellm.register_model(
         {
             _model_id: {
                 "max_tokens": 128000,
                 "max_input_tokens": 1000000,
                 "max_output_tokens": 128000,
-                "input_cost_per_token": 10e-6,
-                "output_cost_per_token": 50e-6,
-                "cache_read_input_token_cost": _cache_read_cost,
-                "cache_creation_input_token_cost": 12.5e-6,
+                "input_cost_per_token": _prices["input"] / 1_000_000,
+                "output_cost_per_token": _prices["output"] / 1_000_000,
+                "cache_read_input_token_cost": _prices["cache_read"] / 1_000_000,
+                "cache_creation_input_token_cost": (_prices["cache_write"] / 1_000_000),
                 "litellm_provider": "anthropic",
                 "mode": "chat",
                 "supports_function_calling": True,
@@ -379,8 +378,9 @@ def _reconstruct_token_cost(
     PolicyBench's explicit prices are authoritative. LiteLLM's mutable model
     map is used only when no override exists, and that fallback is marked as
     estimated. GPT-5.6 overrides include their documented cache and
-    long-context pricing; other overrides apply their standard rate to the
-    inclusive prompt-token count.
+    long-context pricing. Other overrides can declare cache-read and
+    cache-write rates; overrides without them apply their standard rate to
+    the inclusive prompt-token count.
     """
     if prompt_tokens is None or completion_tokens is None:
         return ReconstructedCost(None, None)
@@ -404,6 +404,16 @@ def _reconstruct_token_cost(
                 uncached * input_rate
                 + cached * input_rate * 0.1
                 + cache_write * input_rate * 1.25
+                + int(completion_tokens) * output_rate
+            )
+        elif "cache_read" in rates or "cache_write" in rates:
+            uncached = int(prompt_tokens) - cached - cache_write
+            cache_read_rate = rates.get("cache_read", rates["input"]) / 1_000_000
+            cache_write_rate = rates.get("cache_write", rates["input"]) / 1_000_000
+            cost = (
+                uncached * input_rate
+                + cached * cache_read_rate
+                + cache_write * cache_write_rate
                 + int(completion_tokens) * output_rate
             )
         else:

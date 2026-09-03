@@ -23,6 +23,7 @@ from policybench.eval_no_tools import (
     _combined_cost_is_estimated,
     _completion_controls,
     _enforce_explanation_value_contract,
+    _reconstruct_token_cost,
     _request_explanations_once,
     _request_timeout_seconds,
     _request_wall_timeout_seconds,
@@ -2458,12 +2459,22 @@ def test_explanation_repair_rejects_knobs_on_the_responses_transport(
 def test_claude_fable_line_resolves_without_remote_cost_map(model_id):
     from litellm import get_llm_provider
 
+    display_id = next(
+        name for name, configured in MODELS.items() if configured == model_id
+    )
+    prices = PRICE_OVERRIDES_PER_1M[display_id]
     assert model_id in litellm.model_cost
     _, provider, _, _ = get_llm_provider(model_id)
     assert provider == "anthropic"
     entry = litellm.model_cost[model_id]
-    assert entry["input_cost_per_token"] == pytest.approx(10e-6)
-    assert entry["output_cost_per_token"] == pytest.approx(50e-6)
+    assert entry["input_cost_per_token"] == pytest.approx(prices["input"] / 1_000_000)
+    assert entry["output_cost_per_token"] == pytest.approx(prices["output"] / 1_000_000)
+    assert entry["cache_read_input_token_cost"] == pytest.approx(
+        prices["cache_read"] / 1_000_000
+    )
+    assert entry["cache_creation_input_token_cost"] == pytest.approx(
+        prices["cache_write"] / 1_000_000
+    )
 
 
 @pytest.mark.parametrize("model_id", sorted(GPT_56_MODELS))
@@ -2596,7 +2607,47 @@ def test_claude_fable_5_is_a_public_default():
     assert PRICE_OVERRIDES_PER_1M["claude-fable-5"] == {
         "input": 10.0,
         "output": 50.0,
+        "cache_read": 1.0,
+        "cache_write": 12.5,
     }
+
+
+@pytest.mark.parametrize(
+    ("cached_prompt_tokens", "cache_write_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0.25),
+        (0, 1_000_000, 12.5),
+    ],
+)
+def test_claude_fable_5_1_override_reconstructs_cache_costs(
+    cached_prompt_tokens,
+    cache_write_prompt_tokens,
+    expected,
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="claude-fable-5.1",
+        model_id="claude-fable-5-1",
+        prompt_tokens=1_000_000,
+        completion_tokens=0,
+        cached_prompt_tokens=cached_prompt_tokens,
+        cache_write_prompt_tokens=cache_write_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+def test_override_without_cache_rates_keeps_inclusive_prompt_pricing():
+    reconstructed = _reconstruct_token_cost(
+        model_name="deepseek-v4-pro",
+        model_id="deepseek/deepseek-v4-pro",
+        prompt_tokens=1_000_000,
+        completion_tokens=0,
+        cached_prompt_tokens=1_000_000,
+    )
+
+    assert reconstructed.usd == pytest.approx(0.435)
+    assert reconstructed.is_estimated is False
 
 
 def test_claude_fable_5_provider_resolves_without_remote_cost_map():
