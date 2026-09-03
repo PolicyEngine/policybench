@@ -159,3 +159,37 @@ def test_export_refuses_a_scoring_source_without_the_sidecar(board, tmp_path):
     predictions("model-c", 3).to_csv(add, index=False)
     with pytest.raises(ValueError, match="reference_outputs.csv.meta.json"):
         fold_board(base_path, [add], scoring, tmp_path / "out", export=True)
+
+
+def test_reused_output_removes_stale_reference_sidecar_before_export(board, tmp_path):
+    base_path, scoring = board
+    (scoring / "reference_outputs.csv.meta.json").unlink()
+    out_dir = tmp_path / "out"
+    stale_sidecar = out_dir / "us" / "reference_outputs.csv.meta.json"
+    stale_sidecar.parent.mkdir(parents=True)
+    stale_sidecar.write_text(
+        json.dumps({"policyengine_bundles": {"us": {"model_version": "stale"}}})
+    )
+
+    with pytest.raises(ValueError, match="Reference provenance sidecar is missing"):
+        fold_board(base_path, [], scoring, out_dir, export=True)
+
+    assert not stale_sidecar.exists()
+
+
+def test_reused_output_replaces_reference_sidecar_from_source(board, tmp_path):
+    base_path, scoring = board
+    out_dir = tmp_path / "out"
+    destination = out_dir / "us" / "reference_outputs.csv.meta.json"
+    destination.parent.mkdir(parents=True)
+    destination.write_text(
+        json.dumps({"policyengine_bundles": {"us": {"model_version": "stale"}}})
+    )
+    source = scoring / "reference_outputs.csv.meta.json"
+    source.write_text(
+        json.dumps({"policyengine_bundles": {"us": {"model_version": "fresh"}}})
+    )
+
+    fold_board(base_path, [], scoring, out_dir, export=False)
+
+    assert destination.read_bytes() == source.read_bytes()

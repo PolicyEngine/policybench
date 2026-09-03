@@ -17,6 +17,7 @@ import {
   type ProviderKey,
 } from "../modelMeta";
 import { binaryFlag } from "../lib/scoring";
+import { modelPageHref } from "../lib/boardScope";
 import { mergeScenarioExplanations } from "../lib/explanations";
 import {
   useExplanations,
@@ -106,9 +107,11 @@ function pickRandomScenario(
 export default function ScenarioExplorer({
   data,
   versionId,
+  liveVersionId,
 }: {
   data: BenchData;
   versionId: string;
+  liveVersionId: string;
 }) {
   const country = data.country;
   const [promptFormat, setPromptFormat] = useState<"tool" | "json">("tool");
@@ -839,6 +842,8 @@ export default function ScenarioExplorer({
         country={country}
         currencySymbol={currencySymbol}
         explanationsStatus={explanationsStatus}
+        versionId={versionId}
+        liveVersionId={liveVersionId}
         onClose={closeModal}
       />
 
@@ -909,6 +914,8 @@ type DetailDialogProps = {
   country: CountryCode;
   currencySymbol: "$" | "£";
   explanationsStatus: ExplanationsStatus;
+  versionId: string;
+  liveVersionId: string;
   onClose: () => void;
 };
 
@@ -920,6 +927,8 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
       country,
       currencySymbol,
       explanationsStatus,
+      versionId,
+      liveVersionId,
       onClose,
     },
     ref,
@@ -948,6 +957,8 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
             country={country}
             currencySymbol={currencySymbol}
             explanationsStatus={explanationsStatus}
+            versionId={versionId}
+            liveVersionId={liveVersionId}
             onClose={onClose}
           />
         ) : null}
@@ -962,6 +973,8 @@ type DetailContentProps = {
   country: CountryCode;
   currencySymbol: "$" | "£";
   explanationsStatus: ExplanationsStatus;
+  versionId: string;
+  liveVersionId: string;
   onClose: () => void;
 };
 
@@ -971,6 +984,8 @@ function DetailContent({
   country,
   currencySymbol,
   explanationsStatus,
+  versionId,
+  liveVersionId,
   onClose,
 }: DetailContentProps) {
   const { variable, model } = selectedCell;
@@ -1025,7 +1040,7 @@ function DetailContent({
               className="flex-shrink-0"
             />
             <a
-              href={`/model/${model}`}
+              href={modelPageHref(model, versionId, liveVersionId)}
               className="hover:text-primary-strong"
             >
               {MODEL_LABELS[model] ?? model}

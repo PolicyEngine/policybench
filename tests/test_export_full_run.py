@@ -1,10 +1,13 @@
 import json
+import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from policybench.case_annotations import wrong_prediction_rows
 from policybench.full_run_export import (
+    ReferenceProvenanceError,
     load_annotations,
     load_case_annotations,
     load_predictions,
@@ -452,7 +455,11 @@ def test_reference_policyengine_bundles_come_from_the_sidecar(tmp_path):
 
     ground_truth = tmp_path / "reference_outputs.csv"
     ground_truth.write_text("scenario_id,variable,value\n")
-    assert reference_policyengine_bundles(ground_truth, "us") is None
+    with pytest.raises(
+        ReferenceProvenanceError,
+        match="Reference provenance sidecar is missing",
+    ):
+        reference_policyengine_bundles(ground_truth, "us")
 
     sidecar = tmp_path / "reference_outputs.csv.meta.json"
     sidecar.write_text(
@@ -467,4 +474,42 @@ def test_reference_policyengine_bundles_come_from_the_sidecar(tmp_path):
     assert reference_policyengine_bundles(ground_truth, "us") == {
         "us": {"model_version": "1.755.4", "bundle_id": "us-4.16.1"}
     }
-    assert reference_policyengine_bundles(ground_truth, "uk") is None
+    with pytest.raises(
+        ReferenceProvenanceError,
+        match="no policyengine_bundles entry for country 'uk'",
+    ):
+        reference_policyengine_bundles(ground_truth, "uk")
+
+
+def test_export_full_run_cli_fails_closed_without_reference_sidecar(
+    tmp_path, monkeypatch
+):
+    from policybench.cli import main
+
+    run_dir = tmp_path / "run"
+    country_dir = run_dir / "us"
+    country_dir.mkdir(parents=True)
+    (country_dir / "reference_outputs.csv").write_text(
+        "scenario_id,variable,value\ns001,income_tax,100\n"
+    )
+    (country_dir / "scenarios.csv").write_text("scenario_id,country\ns001,us\n")
+    app_payload = tmp_path / "data.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "policybench",
+            "export-full-run",
+            "--run-dir",
+            str(run_dir),
+            "--app-data-output",
+            str(app_payload),
+        ],
+    )
+
+    with pytest.raises(SystemExit, match="Reference provenance sidecar is missing"):
+        main()
+
+    assert not (country_dir / "data.json").exists()
+    assert not (run_dir / "data.json").exists()
+    assert not app_payload.exists()

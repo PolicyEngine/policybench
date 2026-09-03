@@ -17,7 +17,7 @@ import { ProgramFilterPanel } from "./ProgramFilterDropdown";
 import { programIsActive, type ProgramOption } from "../lib/programFilters";
 import { canonicalScoreByModel } from "../lib/canonicalScore";
 import { wouldRank } from "../lib/wouldRank";
-import { isCurrentBoard } from "../lib/boardScope";
+import { isCurrentBoard, modelPageHref } from "../lib/boardScope";
 
 // Exact-match scores of the tool_choice: auto sensitivity runs
 // (sensitivity/claude-thinking-2026-08.md). Their "would rank" positions are
@@ -419,7 +419,11 @@ export default function ModelLeaderboard({
                         className="flex-shrink-0"
                       />
                       <Link
-                        href={`/model/${m.model}`}
+                        href={modelPageHref(
+                          m.model,
+                          versionId,
+                          liveVersionId,
+                        )}
                         className="truncate text-sm font-medium text-text hover:text-primary-strong"
                       >
                         {MODEL_LABELS[m.model] || m.model}
@@ -457,7 +461,7 @@ export default function ModelLeaderboard({
                     className="flex-shrink-0"
                   />
                   <Link
-                    href={`/model/${m.model}`}
+                    href={modelPageHref(m.model, versionId, liveVersionId)}
                     className="truncate text-text font-medium text-sm hover:text-primary-strong"
                   >
                     {MODEL_LABELS[m.model] || m.model}

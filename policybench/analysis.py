@@ -12,7 +12,6 @@ from policybench.config import (
     SEED,
 )
 from policybench.dashboard_schema import dump_dashboard_payload
-from policybench.policyengine_runtime import policyengine_bundles_for_countries
 from policybench.population_weights import (
     matching_population_weight_series,
     normalize_weights,
@@ -2130,15 +2129,16 @@ def build_dashboard_payload(
     predictions: pd.DataFrame,
     analysis: dict[str, pd.DataFrame],
     scenarios: pd.DataFrame,
+    *,
+    policyengine_bundles: dict,
     scenario_prompts: dict[str, dict[str, dict[str, str]]] | None = None,
-    policyengine_bundles: dict | None = None,
 ) -> dict:
     """Build the dashboard payload consumed by the app frontend.
 
     ``policyengine_bundles`` is the provenance of the reference outputs being
-    scored (the run's ``reference_outputs.csv.meta.json``). Without it the
-    payload falls back to the exporting process's installed runtime, which is
-    not the same thing once references were regenerated elsewhere.
+    scored (the run's ``reference_outputs.csv.meta.json``). Callers must pass
+    it explicitly so exports cannot accidentally describe the exporting
+    process's installed runtime instead.
     """
     merged = _prediction_detail_rows(ground_truth, predictions)
 
@@ -2477,11 +2477,7 @@ def build_dashboard_payload(
 
     return {
         "country": payload_country,
-        "policyengineBundles": (
-            policyengine_bundles
-            if policyengine_bundles is not None
-            else policyengine_bundles_for_countries({payload_country})
-        ),
+        "policyengineBundles": policyengine_bundles,
         "scenarios": scenario_payload,
         "modelStats": model_stats,
         "programStats": program_stats,
@@ -2502,6 +2498,8 @@ def export_dashboard_data(
     analysis: dict[str, pd.DataFrame],
     scenarios: pd.DataFrame,
     output_path: str | Path,
+    *,
+    policyengine_bundles: dict,
     scenario_prompts: dict[str, dict[str, dict[str, str]]] | None = None,
 ) -> Path:
     """Write the frontend dashboard payload to disk.
@@ -2518,6 +2516,7 @@ def export_dashboard_data(
         predictions,
         analysis,
         scenarios,
+        policyengine_bundles=policyengine_bundles,
         scenario_prompts=scenario_prompts,
     )
     combined = {"countries": {payload["country"]: payload}}

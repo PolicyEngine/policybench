@@ -45,6 +45,8 @@ from policybench.config import (
     get_programs,
 )
 
+TEST_POLICYENGINE_BUNDLES = {"us": {"model_version": "test"}}
+
 
 class TestBasicMetrics:
     def test_mae_perfect(self):
@@ -679,6 +681,23 @@ class TestSummaries:
         assert exported["usage_summary"].exists()
         assert exported["report"].exists()
 
+    def test_build_dashboard_payload_requires_reference_bundles(self, monkeypatch):
+        def unexpected_runtime_lookup(_countries):
+            raise AssertionError("installed PolicyEngine runtime was consulted")
+
+        monkeypatch.setattr(
+            "policybench.policyengine_runtime.policyengine_bundles_for_countries",
+            unexpected_runtime_lookup,
+        )
+
+        with pytest.raises(TypeError, match="policyengine_bundles"):
+            build_dashboard_payload(
+                pd.DataFrame(),
+                pd.DataFrame(),
+                {},
+                pd.DataFrame(),
+            )
+
     def test_build_dashboard_payload_matches_frontend_shape(self):
         ground_truth_df = pd.DataFrame(
             {
@@ -724,6 +743,7 @@ class TestSummaries:
             predictions_df,
             analysis,
             scenarios_df,
+            policyengine_bundles=TEST_POLICYENGINE_BUNDLES,
         )
 
         assert set(payload) == {
@@ -742,6 +762,7 @@ class TestSummaries:
         for view_weights in payload["globalWeights"].values():
             assert isinstance(view_weights, dict)
         assert payload["country"] == "us"
+        assert payload["policyengineBundles"] == TEST_POLICYENGINE_BUNDLES
         assert payload["scenarios"]["s1"]["country"] == "us"
         assert payload["scenarios"]["s1"]["filingStatus"] == "single"
         assert payload["modelStats"][0]["condition"] == "no_tools"
@@ -843,6 +864,7 @@ class TestSummaries:
             predictions_df,
             analysis,
             scenarios_df,
+            policyengine_bundles=TEST_POLICYENGINE_BUNDLES,
         )
 
         parsed = payload["scenarioPredictions"]["s1"]["income_tax"]["model_a"]
@@ -945,6 +967,7 @@ class TestSummaries:
             predictions_df,
             analysis,
             scenarios_df,
+            policyengine_bundles=TEST_POLICYENGINE_BUNDLES,
             scenario_prompts=prompt_map,
         )
 
@@ -1058,6 +1081,7 @@ class TestSummaries:
             analysis,
             scenarios_df,
             output_path,
+            policyengine_bundles=TEST_POLICYENGINE_BUNDLES,
         )
 
         assert exported.exists()
@@ -1838,6 +1862,7 @@ def test_dashboard_model_stats_are_sorted_by_headline_exact():
         predictions,
         analyze_no_tools(ground_truth, predictions, scenarios=scenarios),
         scenarios,
+        policyengine_bundles=TEST_POLICYENGINE_BUNDLES,
     )
 
     assert payload["modelStats"][0]["model"] == "model-b"

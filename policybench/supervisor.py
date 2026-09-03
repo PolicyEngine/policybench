@@ -55,6 +55,7 @@ ADAPTIVE_WINDOW = 8
 # Dispatching stops once projected spend for in-flight + queued work would
 # cross this share of the budget.
 BUDGET_STOP_FRACTION = 0.9
+TREATMENT_FINGERPRINT_VERSION = 1
 
 
 @dataclass
@@ -158,16 +159,22 @@ class Supervisor:
         ]
 
     def _treatment_fingerprint(self) -> dict:
+        answer_contract = answer_contract_for(
+            self.litellm_id,
+            contract_override=self.env.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+        )
         return {
+            "fingerprint_version": TREATMENT_FINGERPRINT_VERSION,
             "model_id": self.litellm_id,
-            "answer_contract": answer_contract_for(
-                self.litellm_id,
-                contract_override=self.env.get("POLICYBENCH_CONTRACT_OVERRIDE"),
-            ),
+            "answer_contract": answer_contract,
             "tool_choice_mode": (
-                "auto"
-                if self.env.get("POLICYBENCH_TOOL_CHOICE") == "auto"
-                else "forced"
+                None
+                if answer_contract != "tool"
+                else (
+                    "auto"
+                    if self.env.get("POLICYBENCH_TOOL_CHOICE") == "auto"
+                    else "forced"
+                )
             ),
             "chunk_size": explanation_chunk_size_for(
                 self.litellm_id,

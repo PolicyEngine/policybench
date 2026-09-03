@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -272,6 +273,73 @@ def test_snapshot_serving_configuration_matches_frozen_roster():
     assert config["models"]["qwen3.8-max"]["reasoning_setup"] == (
         "provider default; 98,304-token shared budget"
     )
+
+
+def test_snapshot_serving_configuration_records_evidence_schema():
+    config = json.loads((SNAPSHOT_DIR / "model_serving_config.json").read_text())
+    summary = config["evidence_summary"]
+
+    assert re.fullmatch(r"[0-9a-f]{40}", config["registry_commit"])
+    assert set(summary) == {"run_state", "registry"}
+    assert sum(summary.values()) == len(config["models"])
+    assert summary["run_state"] > 0
+
+    observed = {"run_state": 0, "registry": 0}
+    for row in config["models"].values():
+        evidence = row["evidence"]
+        kind = evidence["kind"]
+        observed[kind] += 1
+        if kind == "registry":
+            assert evidence == {"kind": "registry"}
+            continue
+
+        assert set(evidence) in (
+            {"kind", "run", "treatment_fingerprint"},
+            {
+                "kind",
+                "run",
+                "treatment_fingerprint",
+                "legacy_tool_choice_label",
+            },
+        )
+        assert not evidence["run"].endswith("_thinking")
+
+    assert observed == summary
+
+
+def test_run_state_serving_evidence_agrees_with_registry_fields():
+    config = json.loads((SNAPSHOT_DIR / "model_serving_config.json").read_text())
+
+    for row in config["models"].values():
+        evidence = row["evidence"]
+        if evidence["kind"] != "run_state":
+            continue
+
+        fingerprint = evidence["treatment_fingerprint"]
+        assert {
+            "model_id",
+            "answer_contract",
+            "tool_choice_mode",
+            "chunk_size",
+            "prompt_contract_version",
+            "completion_budget_ceiling",
+        } <= set(fingerprint)
+        assert fingerprint["model_id"] == row["provider_id"]
+        assert fingerprint["answer_contract"] == row["answer_contract"]
+        chunk_size = (
+            None
+            if row["request_shape"] == "whole scenario"
+            else int(row["request_shape"].split()[0])
+        )
+        assert fingerprint["chunk_size"] == chunk_size
+
+        fingerprint_tool_choice = fingerprint["tool_choice_mode"]
+        if "legacy_tool_choice_label" in evidence:
+            assert row["answer_contract"] == "json"
+            assert row["tool_choice"] is None
+            assert fingerprint_tool_choice == evidence["legacy_tool_choice_label"]
+        else:
+            assert fingerprint_tool_choice == row["tool_choice"]
 
 
 def test_snapshot_copied_artifacts_match_source_runs():

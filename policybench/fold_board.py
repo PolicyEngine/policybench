@@ -86,15 +86,19 @@ def fold_board(
     combined.to_csv(us_dir / "predictions.csv", index=False)
     # The reference sidecar records which policyengine-us generated the
     # references; the exporter reads it for the payload's provenance.
-    for name in (
+    reference_files = (
         "reference_outputs.csv",
         "reference_outputs.csv.meta.json",
         "scenarios.csv",
         "scenarios.csv.meta.json",
-    ):
+    )
+    for name in reference_files:
+        (us_dir / name).unlink(missing_ok=True)
+    for name in reference_files:
         source = Path(scoring_source) / name
+        destination = us_dir / name
         if source.exists():
-            (us_dir / name).write_bytes(source.read_bytes())
+            destination.write_bytes(source.read_bytes())
 
     summary = None
     if export:
@@ -103,15 +107,7 @@ def fold_board(
             reference_policyengine_bundles,
         )
 
-        if (
-            reference_policyengine_bundles(us_dir / "reference_outputs.csv", "us")
-            is None
-        ):
-            raise ValueError(
-                f"{scoring_source} has no reference_outputs.csv.meta.json with a "
-                "us bundle; exporting would record the exporting machine's "
-                "installed policyengine-us as the reference provenance."
-            )
+        reference_policyengine_bundles(us_dir / "reference_outputs.csv", "us")
 
         export_country(us_dir)
         summary_path = us_dir / "analysis" / "summary_by_model.csv"

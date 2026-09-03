@@ -7,7 +7,12 @@ same facts, so the prose is checked against it rather than trusted.
 
 import json
 import re
+import shutil
+import subprocess
+from html.parser import HTMLParser
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVING_CONFIG = ROOT / "paper" / "snapshot" / "20260501" / "model_serving_config.json"
@@ -18,6 +23,8 @@ SENSITIVITY_DOC = ROOT / "sensitivity" / "claude-thinking-2026-08.md"
 BENCHMARK_CARD = ROOT / "docs" / "benchmark_card.md"
 MODEL_PAGE = ROOT / "app" / "src" / "app" / "model" / "[id]" / "page.tsx"
 PAPER = ROOT / "paper" / "index.qmd"
+PAPER_HTML = ROOT / "app" / "public" / "paper" / "web" / "index.html"
+PAPER_PDF = ROOT / "app" / "public" / "paper" / "policybench.pdf"
 
 NUMBER_WORDS = {
     1: "one",
@@ -43,6 +50,48 @@ FALSE_CLAIMS = (
     "still-identical request shape",
     "Every model uses its provider's structured-output transport",
 )
+
+PAPER_FALSE_CLAIM_PATTERNS = (
+    r"single\s+structured\s+response",
+    r"one\s+response\s+per\s+household",
+    r"one\s+structured\s+response",
+    r"identical\s+request",
+    r"identical\s+forced-tool\s+request",
+    r"(?<!not\s)identical\s+across\s+models",
+)
+
+
+class _VisibleTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+
+def _assert_no_false_paper_claims(path: Path, text: str) -> None:
+    normalized = re.sub(r"\s+", " ", text)
+    for pattern in PAPER_FALSE_CLAIM_PATTERNS:
+        assert re.search(pattern, normalized, re.IGNORECASE) is None, (
+            f"{path} still matches {pattern!r}"
+        )
+
+
+def _pdf_text() -> str:
+    pdftotext = shutil.which("pdftotext")
+    if pdftotext is not None:
+        result = subprocess.run(
+            [pdftotext, str(PAPER_PDF), "-"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout
+
+    pypdf = pytest.importorskip("pypdf")
+    reader = pypdf.PdfReader(PAPER_PDF)
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
 def _serving_rows() -> list[dict]:
@@ -121,3 +170,37 @@ def test_json_transport_copy_names_both_reasons():
         text = re.sub(r"\s+", " ", path.read_text())
         assert "rejects a forced tool" in text, path.name
         assert "selects JSON" in text, path.name
+
+
+def test_paper_source_and_rendered_html_make_no_false_request_claims():
+    _assert_no_false_paper_claims(PAPER, PAPER.read_text())
+    parser = _VisibleTextParser()
+    parser.feed(PAPER_HTML.read_text())
+    _assert_no_false_paper_claims(PAPER_HTML, " ".join(parser.parts))
+
+
+def test_rendered_pdf_makes_no_false_request_claims():
+    _assert_no_false_paper_claims(PAPER_PDF, _pdf_text())
+
+
+def _serving_evidence_sentence() -> str:
+    config = json.loads(SERVING_CONFIG.read_text())
+    summary = config["evidence_summary"]
+    return (
+        f"Serving treatments for {summary['run_state']} rows are pinned from "
+        "supervised-run fingerprints; the remaining "
+        f"{summary['registry']} are the registry at commit "
+        f"{config['registry_commit']}."
+    )
+
+
+def test_rendered_html_reports_serving_evidence_summary():
+    parser = _VisibleTextParser()
+    parser.feed(PAPER_HTML.read_text())
+    html_text = re.sub(r"\s+", " ", " ".join(parser.parts))
+    assert _serving_evidence_sentence() in html_text
+
+
+def test_rendered_pdf_reports_serving_evidence_summary():
+    pdf_text = re.sub(r"\s+", " ", _pdf_text())
+    assert _serving_evidence_sentence() in pdf_text

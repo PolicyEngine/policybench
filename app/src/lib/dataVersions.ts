@@ -30,8 +30,8 @@ export type DataVersion = {
   /** One-line human description of what changed in this version. */
   description: string;
   /**
-   * Snapshot chip label shown in the hero for archived versions (e.g.
-   * "Snapshot 2026-06-25"). When null the hero keeps its own live constant.
+   * Snapshot chip label shown in the hero (e.g. "Snapshot 2026-06-25"). Null
+   * is accepted for backward-compatible registries but has no dated fallback.
    */
   snapshotLabel: string | null;
   artifact: VersionArtifact;

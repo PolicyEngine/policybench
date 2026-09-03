@@ -26,6 +26,10 @@ from policybench.dashboard_schema import (
 from policybench.spec import get_output_ids, output_group_id
 
 
+class ReferenceProvenanceError(ValueError):
+    """Reference-output provenance is unavailable for a dashboard export."""
+
+
 def _canonical_output_ids(country: str) -> set[str]:
     return set(get_output_ids(country, "headline"))
 
@@ -300,6 +304,16 @@ def export_country(country_dir: Path) -> dict:
         raise FileNotFoundError(f"Missing {scenarios_path}.")
 
     ground_truth = pd.read_csv(ground_truth_path)
+    scenarios = pd.read_csv(scenarios_path)
+    country = (
+        str(scenarios["country"].dropna().iloc[0]).lower()
+        if "country" in scenarios.columns and not scenarios["country"].dropna().empty
+        else country_dir.name.lower().split("_", 1)[0]
+    )
+    policyengine_bundles = reference_policyengine_bundles(
+        ground_truth_path,
+        country,
+    )
     predictions = load_predictions(country_dir)
     predictions = merge_annotations(predictions, load_annotations(country_dir))
     predictions = merge_case_annotations(
@@ -309,12 +323,6 @@ def export_country(country_dir: Path) -> dict:
     predictions = merge_case_reference_explanations(
         predictions,
         load_case_reference_explanations(country_dir),
-    )
-    scenarios = pd.read_csv(scenarios_path)
-    country = (
-        str(scenarios["country"].dropna().iloc[0]).lower()
-        if "country" in scenarios.columns and not scenarios["country"].dropna().empty
-        else country_dir.name.lower().split("_", 1)[0]
     )
     ground_truth = _filter_to_canonical_outputs(ground_truth, country)
     predictions = _filter_to_canonical_outputs(predictions, country)
@@ -332,7 +340,7 @@ def export_country(country_dir: Path) -> dict:
         analysis,
         scenarios,
         scenario_prompts=scenario_prompts,
-        policyengine_bundles=reference_policyengine_bundles(ground_truth_path, country),
+        policyengine_bundles=policyengine_bundles,
     )
     (country_dir / "data.json").write_text(
         dump_country_payload(payload, country=country, source=str(country_dir)),
@@ -341,24 +349,29 @@ def export_country(country_dir: Path) -> dict:
     return payload
 
 
-def reference_policyengine_bundles(
-    ground_truth_path: Path, country: str
-) -> dict | None:
+def reference_policyengine_bundles(ground_truth_path: Path, country: str) -> dict:
     """PolicyEngine provenance of the reference outputs, from their sidecar.
 
     ``reference_outputs.csv.meta.json`` is written by the reference generator
     and records the model package version that produced the values. The export
     must carry that provenance, not the exporting machine's installed runtime:
     the v1.1 references were regenerated with a newer policyengine-us than the
-    export environment runs. Returns None when no sidecar exists.
+    export environment runs. Missing or incomplete provenance is an export
+    error rather than permission to substitute an installed runtime.
     """
     sidecar = ground_truth_path.with_name(ground_truth_path.name + ".meta.json")
     if not sidecar.exists():
-        return None
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar is missing: {sidecar}. "
+            f"Cannot export country {country!r}."
+        )
     bundles = json.loads(sidecar.read_text()).get("policyengine_bundles") or {}
     bundle = bundles.get(country)
     if bundle is None:
-        return None
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar {sidecar} has no "
+            f"policyengine_bundles entry for country {country!r}."
+        )
     return {country: dict(bundle)}
 
 

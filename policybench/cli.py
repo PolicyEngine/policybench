@@ -1055,15 +1055,18 @@ def main():
     elif args.command == "run":
         from policybench.supervisor import Supervisor
 
-        supervisor = Supervisor(
-            model=args.model,
-            manifest=Path(args.scenario_manifest),
-            run_dir=Path(args.run_dir),
-            budget_usd=args.budget_usd,
-            max_workers=args.max_workers,
-            max_rounds=args.max_rounds,
-        )
-        state = supervisor.run()
+        try:
+            supervisor = Supervisor(
+                model=args.model,
+                manifest=Path(args.scenario_manifest),
+                run_dir=Path(args.run_dir),
+                budget_usd=args.budget_usd,
+                max_workers=args.max_workers,
+                max_rounds=args.max_rounds,
+            )
+            state = supervisor.run()
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
         print(
             f"{state.model}: {len(state.completed)}/{state.total} scenarios, "
             f"${state.spent_usd:.2f} spent"
@@ -1213,7 +1216,10 @@ def main():
                 raise SystemExit(str(exc)) from exc
 
     elif args.command == "export-full-run":
-        from policybench.full_run_export import export_full_run
+        from policybench.full_run_export import (
+            ReferenceProvenanceError,
+            export_full_run,
+        )
 
         try:
             export_full_run(
@@ -1222,7 +1228,7 @@ def main():
                 app_data_output=args.app_data_output,
                 skip_app_data=args.skip_app_data,
             )
-        except FileNotFoundError as exc:
+        except (FileNotFoundError, ReferenceProvenanceError) as exc:
             raise SystemExit(str(exc)) from exc
 
     elif args.command == "audit-prepare":
@@ -1357,6 +1363,10 @@ def main():
             export_dashboard_data,
         )
         from policybench.eval_no_tools import load_repeated_predictions
+        from policybench.full_run_export import (
+            ReferenceProvenanceError,
+            reference_policyengine_bundles,
+        )
 
         gt = pd.read_csv(args.ground_truth)
         no_tools = pd.read_csv(args.predictions)
@@ -1366,8 +1376,22 @@ def main():
 
         scenario_manifest_path = Path(args.scenario_manifest)
         scenarios = None
+        policyengine_bundles = None
         if scenario_manifest_path.exists():
             scenarios = pd.read_csv(scenario_manifest_path)
+            country = (
+                str(scenarios["country"].dropna().iloc[0]).lower()
+                if "country" in scenarios.columns
+                and not scenarios["country"].dropna().empty
+                else "us"
+            )
+            try:
+                policyengine_bundles = reference_policyengine_bundles(
+                    Path(args.ground_truth),
+                    country,
+                )
+            except ReferenceProvenanceError as exc:
+                raise SystemExit(str(exc)) from exc
 
         analysis = analyze_no_tools(
             gt,
@@ -1402,6 +1426,7 @@ def main():
                 analysis,
                 scenarios,
                 args.app_data_output,
+                policyengine_bundles=policyengine_bundles,
                 scenario_prompts=scenario_prompts,
             )
             exported["dashboard_data"] = dashboard_path

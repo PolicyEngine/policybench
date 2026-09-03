@@ -20,6 +20,7 @@ from policybench.supervisor import (
     ADAPTIVE_WINDOW,
     BUDGET_STOP_FRACTION,
     DEFAULT_MAX_WORKERS,
+    TREATMENT_FINGERPRINT_VERSION,
     ScenarioResult,
     Supervisor,
 )
@@ -102,6 +103,7 @@ def test_happy_path_completes_all_and_combines(manifest, tmp_path, monkeypatch):
     heartbeat = json.loads((supervisor.run_dir / "run_state.json").read_text())
     assert heartbeat["completed"] == N_SCENARIOS
     assert heartbeat["treatment_fingerprint"] == {
+        "fingerprint_version": TREATMENT_FINGERPRINT_VERSION,
         "model_id": "test-model",
         "answer_contract": "tool",
         "tool_choice_mode": "forced",
@@ -124,7 +126,7 @@ def test_fingerprint_records_the_contract_override(manifest, tmp_path):
         },
     )
     assert supervisor.treatment_fingerprint["answer_contract"] == "json"
-    assert supervisor.treatment_fingerprint["tool_choice_mode"] == "auto"
+    assert supervisor.treatment_fingerprint["tool_choice_mode"] is None
 
 
 def test_budget_escalation_counts_land_in_run_state(
@@ -187,6 +189,27 @@ def test_resume_rejects_changed_model_id(manifest, tmp_path, monkeypatch):
     )
 
     with pytest.raises(ValueError, match="model_id"):
+        resumed.run(poll_seconds=0.01)
+
+
+def test_resume_rejects_unversioned_treatment_fingerprint(
+    manifest, tmp_path, monkeypatch
+):
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+    state_path = initial.run_dir / "run_state.json"
+    state = json.loads(state_path.read_text())
+    del state["treatment_fingerprint"]["fingerprint_version"]
+    state_path.write_text(json.dumps(state))
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("unversioned resume dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="fingerprint_version"):
         resumed.run(poll_seconds=0.01)
 
 
@@ -491,3 +514,30 @@ def test_supervisor_rejects_sensitivity_knobs_for_responses_models(
         make_supervisor(
             manifest, tmp_path, env={"POLICYBENCH_CONTRACT_OVERRIDE": "json"}
         )
+
+
+def test_run_cli_maps_sensitivity_knob_error_to_system_exit(
+    manifest, tmp_path, monkeypatch
+):
+    from policybench.cli import main
+
+    run_dir = tmp_path / "run"
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "policybench",
+            "run",
+            "--model",
+            "gpt-5.6-sol",
+            "--scenario-manifest",
+            str(manifest),
+            "--run-dir",
+            str(run_dir),
+        ],
+    )
+
+    with pytest.raises(SystemExit, match="Responses API"):
+        main()
+
+    assert not run_dir.exists()

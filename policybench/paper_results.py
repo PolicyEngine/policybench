@@ -16,6 +16,8 @@ Sources, in order of authority:
   dashboard payload: the frozen model roster, ``modelStats`` exact-match and
   within-1% scores, per-output ``programStats`` and ``failureModes``
   breakdowns, household and scored-output counts.
+* ``paper/snapshot/20260501/model_serving_config.json`` -- the per-model
+  serving treatments, their evidence kinds, and the registry commit.
 * the frozen audit annotations dir (``manifest['audit_annotation_artifacts']``)
   -- the count of wrong rows, their adjudicated failure sources, and the fact
   that zero rows are reference-suspect (no PolicyEngine bugs found).
@@ -158,6 +160,10 @@ class PaperResults:
         return json.loads((run_dir / "data.json").read_text())
 
     @cached_property
+    def serving_config(self) -> dict:
+        return json.loads((SNAPSHOT_DIR / "model_serving_config.json").read_text())
+
+    @cached_property
     def reference_meta(self) -> dict:
         run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
         meta = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
@@ -247,6 +253,16 @@ class PaperResults:
     @property
     def n_models_fmt(self) -> str:
         return str(self.n_models)
+
+    @property
+    def serving_evidence_caption(self) -> str:
+        summary = self.serving_config["evidence_summary"]
+        commit = self.serving_config["registry_commit"]
+        return (
+            f"Serving treatments for {summary['run_state']} rows are pinned from "
+            "supervised-run fingerprints; the remaining "
+            f"{summary['registry']} are the registry at commit {commit}."
+        )
 
     @property
     def n_households(self) -> int:

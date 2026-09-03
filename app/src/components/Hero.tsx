@@ -2,8 +2,6 @@ import { DEFAULT_VERSION_ID } from "../lib/dataVersionsRuntime";
 import type { BenchData, CountryCode } from "../types";
 import SiteHeader, { type HeaderNavItem } from "./SiteHeader";
 
-const SNAPSHOT_DATE_LABEL = "Snapshot 2026-09-01";
-
 export default function Hero({
   selectedView,
   onSelectView,
@@ -23,7 +21,7 @@ export default function Hero({
   activeNav: string;
   versionId: string;
   onSelectVersion: (id: string) => void;
-  /** Snapshot chip label for the active version; null keeps the live default. */
+  /** Snapshot chip label for the active version. */
   snapshotLabel: string | null;
 }) {
   const rankedNoTools = [...data.modelStats]
@@ -42,9 +40,7 @@ export default function Hero({
     { value: `${data.programStats.length}`, label: "Outputs" },
   ];
 
-  // Archived versions carry their own snapshot label; the live default keeps
-  // the constant above.
-  const snapshotChipLabel = snapshotLabel ?? SNAPSHOT_DATE_LABEL;
+  const snapshotChipLabel = snapshotLabel ?? "Snapshot date unavailable";
   const isArchived = versionId !== DEFAULT_VERSION_ID;
 
   return (

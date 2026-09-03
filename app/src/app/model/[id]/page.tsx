@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import rawData from "../../../data-summary.json";
+import versionRegistryJson from "../../../data.versions.json";
+import ArchivedBoardNotice from "../../../components/ArchivedBoardNotice";
 import SiteHeader from "../../../components/SiteHeader";
 import ProviderMark from "../../../components/ProviderMark";
 import { formatCurrency } from "../../../format";
@@ -23,8 +25,24 @@ import {
   VIEW_LABELS,
   type DashboardBundle,
 } from "../../../types";
+import { parseDataVersionRegistry } from "../../../lib/dataVersions";
 
 const dashboard = rawData as DashboardBundle;
+const versionRegistry = parseDataVersionRegistry(versionRegistryJson);
+const liveVersion = versionRegistry.versions.find(
+  (version) => version.id === versionRegistry.default,
+)!;
+const snapshotPrefix = "Snapshot ";
+if (!liveVersion.snapshotLabel?.startsWith(snapshotPrefix)) {
+  throw new Error(
+    `Live dataset ${liveVersion.id} must provide a "Snapshot YYYY-MM-DD" label`,
+  );
+}
+const liveSnapshotDate = liveVersion.snapshotLabel.slice(snapshotPrefix.length);
+const versionLabels = versionRegistry.versions.map(({ id, label }) => ({
+  id,
+  label,
+}));
 
 export const dynamicParams = false;
 
@@ -110,6 +128,9 @@ export default async function ModelPage({
               {providerLabel} · AI alone, no tools
             </div>
           )}
+          <div className="mt-1 text-xs text-text-muted">
+            Current board, snapshot {liveSnapshotDate}
+          </div>
         </div>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 max-w-3xl">
@@ -140,6 +161,11 @@ export default async function ModelPage({
       />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 pb-20">
+        <ArchivedBoardNotice
+          liveVersionId={liveVersion.id}
+          liveSnapshotDate={liveSnapshotDate}
+          versions={versionLabels}
+        />
         {summaries.map((summary) => {
           const bench = dashboard.countries[summary.country];
           if (!bench) return null;

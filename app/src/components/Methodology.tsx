@@ -1,4 +1,5 @@
 import { MODEL_LABELS } from "../modelMeta";
+import versionRegistryJson from "../data.versions.json";
 import {
   getVariableCategory,
   getVariableLabel,
@@ -7,6 +8,9 @@ import {
   type CountryCode,
 } from "../types";
 import { isCurrentBoard } from "../lib/boardScope";
+import { parseDataVersionRegistry } from "../lib/dataVersions";
+
+const versionRegistry = parseDataVersionRegistry(versionRegistryJson);
 
 function StatCard({
   value,
@@ -65,6 +69,9 @@ export default function Methodology({
   liveVersionId: string;
 }) {
   const currentBoard = isCurrentBoard(versionId, liveVersionId);
+  const versionLabel =
+    versionRegistry.versions.find((version) => version.id === versionId)
+      ?.label ?? versionId;
   const benchData = data;
   const country = benchData.country;
   const noToolsModels = benchData.modelStats.filter(
@@ -83,10 +90,13 @@ export default function Methodology({
     country === "uk" ? "UK transfer households" : "populace households";
   const referenceOutputSource =
     country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
-  const benchmarkDescription =
-    country === "uk"
+  const benchmarkDescription = currentBoard
+    ? country === "uk"
       ? "This app shows the current no-tools UK benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for fiscal year 2026-27."
-      : "This app shows the current no-tools US benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2026.";
+      : "This app shows the current no-tools US benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2026."
+    : country === "uk"
+      ? `This app is showing the archived ${versionLabel} board on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for fiscal year 2026-27.`
+      : `This app is showing the archived ${versionLabel} board on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2026.`;
 
   return (
     <div>
@@ -251,10 +261,12 @@ export default function Methodology({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-              Current benchmark scope
+              {currentBoard ? "Current benchmark scope" : "Archived board scope"}
             </div>
             <div className="mt-1 text-text-secondary text-sm leading-relaxed">
-              Latest {VIEW_LABELS[country]} run in this app evaluates{" "}
+              {currentBoard
+                ? `Latest ${VIEW_LABELS[country]} run in this app evaluates `
+                : `The archived ${versionLabel} run evaluates `}
               {modelNames.join(", ")} on {scoredPoints.toLocaleString()} scored
               outputs.
             </div>

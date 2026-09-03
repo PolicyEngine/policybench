@@ -177,7 +177,7 @@ REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
 MAX_REPAIR_ROUNDS = _env_int("POLICYBENCH_MAX_REPAIR_ROUNDS", 2)
-RESUME_METADATA_VERSION = 4
+RESUME_METADATA_VERSION = 5
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 EXPLANATION_MAX_COMPLETION_TOKENS = 4096
@@ -214,8 +214,13 @@ class RequestWallTimeoutError(TimeoutError):
     """Raised when a provider request exceeds PolicyBench's local wall timeout."""
 
 
+class SensitivityKnobError(ValueError):
+    """Raised when a serving sensitivity knob is unsupported by a transport."""
+
+
 NON_RETRYABLE_ERRORS = (
     RequestWallTimeoutError,
+    SensitivityKnobError,
     litellm.AuthenticationError,
     litellm.BadRequestError,
     litellm.ContextWindowExceededError,
@@ -1991,6 +1996,8 @@ def _request_explanations_once(
             **usage,
             "spend_ledger": [spend_record],
         }
+    except SensitivityKnobError:
+        raise
     except Exception as error:
         if getattr(error, "_policybench_spend_persistence_failure", False):
             raise
@@ -2046,6 +2053,8 @@ def _request_explanations_with_budget_escalation(
                 completion_budget_tokens=budget_override,
                 escalated_from_budget_tokens=escalated_from,
             )
+        except SensitivityKnobError:
+            raise
         except Exception as error:
             prior_spend = [
                 record
@@ -2246,6 +2255,8 @@ def _request_predictions_once(
                 **usage,
                 "spend_ledger": spend_records,
             }
+        except SensitivityKnobError:
+            raise
         except Exception as e:
             if getattr(e, "_policybench_spend_persistence_failure", False):
                 raise
@@ -2317,6 +2328,8 @@ def _request_predictions_with_budget_escalation(
                 completion_budget_tokens=budget_override,
                 escalated_from_budget_tokens=escalated_from,
             )
+        except SensitivityKnobError:
+            raise
         except Exception as error:
             prior_spend = [
                 record
@@ -2429,6 +2442,8 @@ def run_single_no_tools(
                     _allow_chunking=False,
                     _spend_callback=_spend_callback,
                 )
+            except SensitivityKnobError:
+                raise
             except Exception as error:
                 if _is_model_fatal_error(error):
                     _attach_spend_records(
@@ -2554,6 +2569,8 @@ def run_single_no_tools(
             repair_disagreements=repair_disagreements,
             spend_callback=_spend_callback,
         )
+    except SensitivityKnobError:
+        raise
     except Exception as error:
         partial_round = getattr(error, "_policybench_partial_budget_round", None)
         has_valid_partial = partial_round and any(
@@ -2599,6 +2616,8 @@ def run_single_no_tools(
                 repair_disagreements=repair_disagreements,
                 spend_callback=_spend_callback,
             )
+        except SensitivityKnobError:
+            raise
         except Exception as error:
             spend_records.extend(_spend_records(error))
             request_failed = True
@@ -2671,6 +2690,8 @@ def run_single_no_tools(
                 exhausted_variables.update(explanation_round["exhausted_variables"])
                 budget_escalation_count += explanation_round["budget_escalation_count"]
                 missing_explanations = _missing_explanations(explanations, variables)
+            except SensitivityKnobError:
+                raise
             except Exception as error:
                 spend_records.extend(_spend_records(error))
                 partial_round = getattr(
@@ -2874,21 +2895,26 @@ def _treatment_metadata(models: dict[str, str], include_explanations: bool) -> d
     POLICYBENCH_CHUNK_OVERRIDE) change the request without changing the model
     id, so the resume check compares this block too.
     """
-    return {
-        name: {
-            "answer_contract": _answer_contract_for_model(model_id),
+    treatment = {}
+    for name, model_id in sorted(models.items()):
+        answer_contract = _answer_contract_for_model(model_id)
+        treatment[name] = {
+            "answer_contract": answer_contract,
             "tool_choice_mode": (
-                "auto"
-                if os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto"
-                else "forced"
+                None
+                if answer_contract != "tool"
+                else (
+                    "auto"
+                    if os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto"
+                    else "forced"
+                )
             ),
             "explanation_chunk_size": _required_explanation_chunk_size(
                 model_id, include_explanations
             ),
             "contract_override": os.environ.get("POLICYBENCH_CONTRACT_OVERRIDE"),
         }
-        for name, model_id in sorted(models.items())
-    }
+    return treatment
 
 
 def _reject_sensitivity_knobs_for_responses(
@@ -2910,7 +2936,7 @@ def _reject_sensitivity_knobs_for_responses(
         if source.get(key)
     )
     if knobs and _uses_responses_api(model_id):
-        raise ValueError(
+        raise SensitivityKnobError(
             f"{model_id} runs on the Responses API transport, which sends the "
             f"forced answer tool only; {', '.join(knobs)} are not implemented "
             "for it (policybench#139). Unset them or choose a chat-transport model."
@@ -3100,6 +3126,9 @@ def run_no_tools_eval(
     if programs is None:
         programs = PROGRAMS
 
+    for model_id in models.values():
+        _reject_sensitivity_knobs_for_responses(model_id)
+
     resume_metadata = _build_resume_metadata(
         task="eval_no_tools_batch",
         scenarios=scenarios,
@@ -3162,6 +3191,8 @@ def run_no_tools_eval(
                     if output_path:
                         _save_checkpoint(output_path, all_rows, resume_metadata)
                     raise RuntimeError(error)
+            except SensitivityKnobError:
+                raise
             except Exception as e:
                 _persist_spend_records(
                     output_path,
@@ -3340,6 +3371,9 @@ def run_no_tools_single_output_eval(
     if programs is None:
         programs = PROGRAMS
 
+    for model_id in models.values():
+        _reject_sensitivity_knobs_for_responses(model_id)
+
     resume_metadata = _build_resume_metadata(
         task="eval_no_tools_single_output",
         scenarios=scenarios,
@@ -3406,6 +3440,8 @@ def run_no_tools_single_output_eval(
                         if output_path:
                             _save_checkpoint(output_path, all_rows, resume_metadata)
                         raise RuntimeError(error)
+                except SensitivityKnobError:
+                    raise
                 except Exception as e:
                     _persist_spend_records(
                         output_path,

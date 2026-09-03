@@ -24,6 +24,7 @@ import {
   selectOnlyProgram as selectOnlyProgramFilter,
   toggleProgramSelection,
 } from "./lib/programFilters";
+import { loadLatestVersion } from "./lib/versionSelection";
 import type { CountryCode, DashboardBundle } from "./types";
 import { VIEW_LABELS } from "./types";
 
@@ -31,7 +32,7 @@ const defaultDashboard = rawData as DashboardBundle;
 
 export type { DashboardBundle } from "./types";
 
-/** Snapshot chip label for a version id, or null to keep the live default. */
+/** Snapshot chip label for a version id, or null when none was published. */
 function snapshotLabelFor(versionId: string): string | null {
   return getVersionById(versionId)?.snapshotLabel ?? null;
 }
@@ -98,6 +99,7 @@ export default function App() {
   // switching versions lazy-loads that version's summary and swaps it in.
   const [versionId, setVersionId] = useState<string>(DEFAULT_VERSION_ID);
   const [dashboard, setDashboard] = useState<DashboardBundle>(defaultDashboard);
+  const versionSelectionSequence = useRef(0);
 
   const availableViews = useMemo(
     () => getAvailableViews(dashboard),
@@ -122,7 +124,9 @@ export default function App() {
     if (fromUrl === DEFAULT_VERSION_ID) return;
     let cancelled = false;
     setVersionId(fromUrl);
-    loadVersionSummary(fromUrl).then(
+    loadLatestVersion(
+      versionSelectionSequence,
+      () => loadVersionSummary(fromUrl),
       (loaded) => {
         if (!cancelled) setDashboard(loaded);
       },
@@ -160,7 +164,9 @@ export default function App() {
         }
         window.history.replaceState(null, "", url);
       }
-      loadVersionSummary(nextVersionId).then(
+      loadLatestVersion(
+        versionSelectionSequence,
+        () => loadVersionSummary(nextVersionId),
         (loaded) => setDashboard(loaded),
         () => {
           // Roll back to the default on failure rather than showing stale data.
@@ -357,6 +363,7 @@ export default function App() {
             key={`${versionId}:${data.country}`}
             data={data}
             versionId={versionId}
+            liveVersionId={DEFAULT_VERSION_ID}
           />
         </section>
 

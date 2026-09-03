@@ -16,6 +16,7 @@ from policybench.config import (
 )
 from policybench.eval_no_tools import (
     RequestWallTimeoutError,
+    SensitivityKnobError,
     _build_answer_tool,
     _build_resume_metadata,
     _combined_cost_is_estimated,
@@ -2272,10 +2273,10 @@ def test_resume_metadata_records_the_effective_treatment(mini_scenario, monkeypa
         run_id=None,
         include_explanations=True,
     )
-    assert base["metadata_version"] == RESUME_METADATA_VERSION == 4
+    assert base["metadata_version"] == RESUME_METADATA_VERSION == 5
     assert base["treatment"]["fable"] == {
         "answer_contract": "json",
-        "tool_choice_mode": "forced",
+        "tool_choice_mode": None,
         "explanation_chunk_size": None,
         "contract_override": None,
     }
@@ -2347,13 +2348,73 @@ def test_sensitivity_knobs_are_rejected_on_the_responses_transport(
     _responses_request_kwargs(mini_scenario, ["snap"], "gpt-5.6-sol")
 
     monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
-    with pytest.raises(ValueError, match="Responses API"):
+    with pytest.raises(SensitivityKnobError, match="Responses API"):
         _responses_request_kwargs(mini_scenario, ["snap"], "gpt-5.6-sol")
 
     monkeypatch.delenv("POLICYBENCH_TOOL_CHOICE")
     monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "json")
-    with pytest.raises(ValueError, match="POLICYBENCH_CONTRACT_OVERRIDE"):
+    with pytest.raises(SensitivityKnobError, match="POLICYBENCH_CONTRACT_OVERRIDE"):
         _responses_request_kwargs(mini_scenario, ["snap"], "gpt-5.6-sol")
+
+
+@pytest.mark.parametrize(
+    "runner",
+    [run_no_tools_eval, run_no_tools_single_output_eval],
+)
+def test_eval_entrypoints_reject_responses_sensitivity_before_writing(
+    runner, mini_scenario, monkeypatch, tmp_path
+):
+    output = tmp_path / f"{runner.__name__}.csv"
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+
+    with patch("policybench.eval_no_tools.run_single_no_tools") as request:
+        with pytest.raises(SensitivityKnobError, match="Responses API"):
+            runner(
+                [mini_scenario],
+                models={"gpt": "gpt-5.6-sol"},
+                programs=["income_tax"],
+                output_path=str(output),
+            )
+
+    request.assert_not_called()
+    assert not output.exists()
+    assert not output.with_suffix(".csv.meta.json").exists()
+
+
+def test_eval_no_tools_cli_rejects_responses_sensitivity_without_predictions(
+    mini_scenario, monkeypatch, tmp_path
+):
+    from policybench.cli import main
+
+    output = tmp_path / "predictions.csv"
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    monkeypatch.setattr(
+        "policybench.cli._load_eval_scenarios", lambda _args: [mini_scenario]
+    )
+    monkeypatch.setattr("policybench.cache.enable_cache", lambda: None)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "policybench",
+            "eval-no-tools",
+            "--num-scenarios",
+            "1",
+            "--model",
+            "gpt-5.6-sol",
+            "--program",
+            "snap",
+            "--output",
+            str(output),
+        ],
+    )
+
+    with patch("policybench.eval_no_tools.responses") as request:
+        with pytest.raises(SystemExit, match="Responses API"):
+            main()
+
+    request.assert_not_called()
+    assert not output.exists()
+    assert not output.with_suffix(".csv.meta.json").exists()
 
 
 @patch("policybench.eval_no_tools.responses")

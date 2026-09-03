@@ -20,7 +20,8 @@ What it freezes (all paths relative to the repo root):
   ``impact_summary_by_model.csv``).
 * ``paper/snapshot/<dir>/us_*.csv`` — committed snapshot artifacts.
 * ``paper/snapshot/<dir>/model_serving_config.json`` — the roster's serving
-  treatments, captured from the current registry and model cards at freeze.
+  treatments, using supervised-run fingerprints where available and the
+  current registry otherwise.
 * ``annotations/<run>/`` — frozen developer audit annotations the snapshot
   tests read: ``us_audit_row_annotations.csv`` (row-level),
   ``us_case_notes.csv`` (case-level), and
@@ -39,6 +40,7 @@ import gzip
 import hashlib
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -98,6 +100,23 @@ REFERENCE_META_SOURCE = ORIGINAL_US_RUN / "reference_outputs.csv.meta.json"
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
 RUN_DEST = SNAPSHOT_DIR / "runs" / RUN_LABEL
 ANNOTATIONS_DEST = ROOT / "annotations" / RUN_LABEL
+
+# Supervised-run state is the strongest available evidence for the treatment a
+# board row actually received. Older supervisor state files predate treatment
+# fingerprints; those rows honestly remain registry-backed until rerun.
+RUN_STATE_EVIDENCE = {
+    "claude-fable-5.1": "results/local/fable51/run/run_state.json",
+    "kimi-k3": "results/local/kimik3/run/run_state.json",
+    "qwen3.8-max": "results/local/qwen38/run/run_state.json",
+    "ox-alpha": "results/local/oxalpha/run/run_state.json",
+    "inkling": "results/local/inkling/run/run_state.json",
+    "grok-4.5": "results/local/grok45/run/run_state.json",
+    "grok-4.6": "results/local/grok46/run/run_state.json",
+    "gemini-3.6-flash": "results/local/gemini36flash/run/run_state.json",
+    "gemini-3.7-flash": "results/local/gemini37/run/run_state.json",
+    "claude-opus-5": "results/local/opus5/run/run_state.json",
+    "kimi-k2.6": "results/local/kimi_supervised/run_state.json",
+}
 
 # Legacy household-equal impact metric (removed from the package in #58 but
 # still frozen for parity with prior snapshots).
@@ -398,7 +417,7 @@ def freeze_committed_artifacts() -> dict[str, str]:
 
 
 def freeze_serving_configuration(destination: Path) -> None:
-    """Pin the current roster's effective serving treatments for the paper."""
+    """Pin effective serving treatments and their best available evidence."""
     from policybench.config import MODELS
     from policybench.eval_no_tools import (
         REASONING_EFFORT_OVERRIDES,
@@ -424,6 +443,7 @@ def freeze_serving_configuration(destination: Path) -> None:
         )
 
     models = {}
+    evidence_counts = {"run_state": 0, "registry": 0}
     for model in frozen_models:
         provider_id = MODELS[model]
         answer_contract = answer_contract_for(provider_id)
@@ -459,17 +479,95 @@ def freeze_serving_configuration(destination: Path) -> None:
             plural = "" if chunk_size == 1 else "s"
             request_shape = f"{chunk_size} output{plural}/request"
 
+        tool_choice = "forced" if answer_contract == "tool" else None
+        evidence = {"kind": "registry"}
+        run_state_relative = RUN_STATE_EVIDENCE.get(model)
+        if run_state_relative is not None:
+            run_state_path = _MAIN_CLONE / run_state_relative
+            if run_state_path.is_file():
+                run_state = json.loads(run_state_path.read_text())
+                if run_state.get("model") != model:
+                    raise SystemExit(
+                        f"Run-state model mismatch for {model}: "
+                        f"{run_state.get('model')!r} in {run_state_path}"
+                    )
+                fingerprint = run_state.get("treatment_fingerprint")
+                if fingerprint is not None:
+                    if not isinstance(fingerprint, dict):
+                        raise SystemExit(
+                            f"Invalid treatment fingerprint for {model} in "
+                            f"{run_state_path}"
+                        )
+                    fingerprint_keys = {
+                        "model_id",
+                        "answer_contract",
+                        "tool_choice_mode",
+                        "chunk_size",
+                        "prompt_contract_version",
+                        "completion_budget_ceiling",
+                    }
+                    missing_fingerprint_keys = fingerprint_keys - set(fingerprint)
+                    if missing_fingerprint_keys:
+                        raise SystemExit(
+                            f"Incomplete treatment fingerprint for {model} in "
+                            f"{run_state_path}: missing "
+                            f"{sorted(missing_fingerprint_keys)}"
+                        )
+                    expected = {
+                        "model_id": provider_id,
+                        "answer_contract": answer_contract,
+                        "chunk_size": chunk_size,
+                        "tool_choice_mode": tool_choice,
+                    }
+                    actual = {key: fingerprint.get(key) for key in expected}
+                    legacy_tool_choice = (
+                        answer_contract == "json"
+                        and actual["tool_choice_mode"] == "forced"
+                        and tool_choice is None
+                    )
+                    if legacy_tool_choice:
+                        actual["tool_choice_mode"] = None
+                    disagreements = {
+                        key: (actual[key], expected_value)
+                        for key, expected_value in expected.items()
+                        if actual[key] != expected_value
+                    }
+                    if disagreements:
+                        raise SystemExit(
+                            f"Run-state treatment disagrees with registry for {model}: "
+                            f"{disagreements}"
+                        )
+                    run_dir = Path(run_state_relative).parts[2]
+                    evidence = {
+                        "kind": "run_state",
+                        "run": run_dir,
+                        "treatment_fingerprint": fingerprint,
+                    }
+                    if legacy_tool_choice:
+                        evidence["legacy_tool_choice_label"] = "forced"
+
+        evidence_counts[evidence["kind"]] += 1
         models[model] = {
             "answer_contract": answer_contract,
+            "evidence": evidence,
             "provider_id": provider_id,
             "reasoning_setup": reasoning_setup,
             "request_shape": request_shape,
             "shared_completion_budget_tokens": shared_budget,
-            "tool_choice": "forced" if answer_contract == "tool" else None,
+            "tool_choice": tool_choice,
         }
 
+    registry_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
     payload = {
+        "evidence_summary": evidence_counts,
         "models": models,
+        "registry_commit": registry_commit,
         "sources": [
             "policybench.config.MODELS",
             "policybench.model_cards",

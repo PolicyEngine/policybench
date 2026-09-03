@@ -11,3 +11,14 @@ export function isCurrentBoard(
 ): boolean {
   return versionId === liveVersionId;
 }
+
+/** Link to a current model page while retaining honest archived-board context. */
+export function modelPageHref(
+  modelId: string,
+  versionId: string,
+  liveVersionId: string,
+): string {
+  const path = `/model/${encodeURIComponent(modelId)}`;
+  if (isCurrentBoard(versionId, liveVersionId)) return path;
+  return `${path}?dataset=${encodeURIComponent(versionId)}`;
+}

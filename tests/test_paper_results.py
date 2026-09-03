@@ -1,5 +1,6 @@
 """Checks for data-driven manuscript values."""
 
+import re
 from collections import Counter
 
 from policybench.paper_results import (
@@ -60,4 +61,16 @@ def test_raw_response_preservation_is_stated_with_its_exceptions():
     assert r.blank_raw_response_note == (
         "no raw payload is retained for Claude Fable 5 (1,984 rows) and "
         "Kimi K3 (64 rows)"
+    )
+
+
+def test_serving_evidence_caption_comes_from_frozen_configuration():
+    summary = r.serving_config["evidence_summary"]
+    commit = r.serving_config["registry_commit"]
+
+    assert re.fullmatch(r"[0-9a-f]{40}", commit)
+    assert r.serving_evidence_caption == (
+        f"Serving treatments for {summary['run_state']} rows are pinned from "
+        "supervised-run fingerprints; the remaining "
+        f"{summary['registry']} are the registry at commit {commit}."
     )
