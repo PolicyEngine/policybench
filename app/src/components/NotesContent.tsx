@@ -22,6 +22,9 @@ function factText(key: string, fact: NoteFact): string {
   if (key === "referenceAnnual" && typeof fact === "number") {
     return String(Math.round(fact));
   }
+  if (typeof fact === "number" && Number.isInteger(fact)) {
+    return fact.toLocaleString("en-US");
+  }
   return String(fact);
 }
 
@@ -84,7 +87,7 @@ function factNode(
       </>
     );
   }
-  return String(fact);
+  return factText(key, fact);
 }
 
 function NoteParagraph({
