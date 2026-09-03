@@ -55,7 +55,7 @@ ADAPTIVE_WINDOW = 8
 # Dispatching stops once projected spend for in-flight + queued work would
 # cross this share of the budget.
 BUDGET_STOP_FRACTION = 0.9
-TREATMENT_FINGERPRINT_VERSION = 2
+TREATMENT_FINGERPRINT_VERSION = 3
 
 
 @dataclass
@@ -173,6 +173,7 @@ class Supervisor:
         from policybench.eval_no_tools import (
             _first_request_variables,
             _initial_completion_budget_tokens,
+            _max_repair_rounds,
             _request_timeout_seconds,
             _thinking_configuration,
         )
@@ -215,6 +216,7 @@ class Supervisor:
                 self.litellm_id,
                 env=self.env,
             ),
+            "max_repair_rounds": _max_repair_rounds(self.env),
         }
 
     def _validate_resume(self) -> dict | None:

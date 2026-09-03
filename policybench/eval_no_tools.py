@@ -130,8 +130,9 @@ for _model_id in GPT_56_MODELS.values():
     )
 
 
-def _env_int(name: str, default: int) -> int:
-    value = os.environ.get(name)
+def _env_int(name: str, default: int, env: dict | None = None) -> int:
+    source = os.environ if env is None else env
+    value = source.get(name)
     if value is None:
         return default
     try:
@@ -175,8 +176,19 @@ THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
 REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
-MAX_REPAIR_ROUNDS = _env_int("POLICYBENCH_MAX_REPAIR_ROUNDS", 2)
-RESUME_METADATA_VERSION = 6
+DEFAULT_MAX_REPAIR_ROUNDS = 2
+
+
+def _max_repair_rounds(env: dict | None = None) -> int:
+    return _env_int(
+        "POLICYBENCH_MAX_REPAIR_ROUNDS",
+        DEFAULT_MAX_REPAIR_ROUNDS,
+        env,
+    )
+
+
+MAX_REPAIR_ROUNDS = _max_repair_rounds()
+RESUME_METADATA_VERSION = 7
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 EXPLANATION_MAX_COMPLETION_TOKENS = 4096
@@ -3044,6 +3056,7 @@ def _treatment_metadata(
                 model_id, include_explanations
             ),
             "contract_override": os.environ.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+            "max_repair_rounds": MAX_REPAIR_ROUNDS,
             "initial_completion_budget_tokens": _initial_completion_budget_tokens(
                 model_id,
                 (

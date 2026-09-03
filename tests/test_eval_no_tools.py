@@ -2293,12 +2293,13 @@ def test_resume_metadata_records_the_effective_treatment(mini_scenario, monkeypa
         run_id=None,
         include_explanations=True,
     )
-    assert base["metadata_version"] == RESUME_METADATA_VERSION == 6
+    assert base["metadata_version"] == RESUME_METADATA_VERSION == 7
     assert base["treatment"]["fable"] == {
         "answer_contract": "json",
         "tool_choice_mode": None,
         "explanation_chunk_size": None,
         "contract_override": None,
+        "max_repair_rounds": 2,
         "initial_completion_budget_tokens": 16384,
         "thinking": {"mode": "provider_default"},
         "request_timeout_seconds": 600,
@@ -2319,11 +2320,27 @@ def test_resume_metadata_records_the_effective_treatment(mini_scenario, monkeypa
         "tool_choice_mode": "auto",
         "explanation_chunk_size": None,
         "contract_override": "tool",
+        "max_repair_rounds": 2,
         "initial_completion_budget_tokens": 16384,
         "thinking": {"mode": "provider_default"},
         "request_timeout_seconds": 600,
     }
     assert sensitivity["treatment"] != base["treatment"]
+
+
+def test_resume_metadata_records_max_repair_rounds(mini_scenario, monkeypatch):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 5)
+
+    metadata = _build_resume_metadata(
+        task="eval_no_tools_batch",
+        scenarios=[mini_scenario],
+        models={"model": "test-model"},
+        programs=["income_tax"],
+        run_id=None,
+        include_explanations=True,
+    )
+
+    assert metadata["treatment"]["model"]["max_repair_rounds"] == 5
 
 
 @patch("policybench.eval_no_tools.run_single_no_tools")

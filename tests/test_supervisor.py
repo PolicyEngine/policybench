@@ -129,6 +129,7 @@ def test_happy_path_completes_all_and_combines(manifest, tmp_path, monkeypatch):
         "initial_completion_budget_tokens": 1632,
         "thinking": None,
         "request_timeout_seconds": 20,
+        "max_repair_rounds": 2,
     }
 
 
@@ -146,6 +147,17 @@ def test_fingerprint_records_the_contract_override(manifest, tmp_path):
     )
     assert supervisor.treatment_fingerprint["answer_contract"] == "json"
     assert supervisor.treatment_fingerprint["tool_choice_mode"] is None
+
+
+def test_fingerprint_records_max_repair_rounds(manifest, tmp_path):
+    supervisor = make_supervisor(
+        manifest,
+        tmp_path,
+        env={"POLICYBENCH_MAX_REPAIR_ROUNDS": "5"},
+    )
+
+    assert supervisor.treatment_fingerprint["fingerprint_version"] == 3
+    assert supervisor.treatment_fingerprint["max_repair_rounds"] == 5
 
 
 def test_budget_escalation_counts_land_in_run_state(
@@ -261,6 +273,29 @@ def test_resume_rejects_v1_treatment_fingerprint_with_missing_fields(
         resumed.run(poll_seconds=0.01)
     for field in missing_fields:
         assert field in str(exc_info.value)
+
+
+def test_resume_rejects_v2_fingerprint_without_max_repair_rounds(
+    manifest, tmp_path, monkeypatch
+):
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+    state_path = initial.run_dir / "run_state.json"
+    state = json.loads(state_path.read_text())
+    fingerprint = state["treatment_fingerprint"]
+    fingerprint["fingerprint_version"] = 2
+    del fingerprint["max_repair_rounds"]
+    state_path.write_text(json.dumps(state))
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("v2 resume dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="max_repair_rounds"):
+        resumed.run(poll_seconds=0.01)
 
 
 def test_model_card_timeout_and_thinking_budget_each_change_fingerprint(
