@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import rawData from "../../data-summary.json";
-import ExpandModelCount from "../../components/ExpandModelCount";
+import {
+  BoardCoverageCopy,
+  FrontierCoverageCopy,
+} from "../../components/ExpandCoverageCopy";
 import SiteHeader from "../../components/SiteHeader";
 import { listModels } from "../../lib/modelPage";
 import type { DashboardBundle } from "../../types";
@@ -79,12 +82,7 @@ export default function ExpandPage() {
         <p className="mt-6 text-base leading-relaxed text-text-secondary">
           Families already ask AI about the questions that decide their month:
           Do I qualify for SNAP? How much is my credit? Will this job cost me
-          Medicaid? The{" "}
-          <Link href="/" className="text-primary hover:underline">
-            public board
-          </Link>{" "}
-          <ExpandModelCount modelCount={modelCount} context="frontier" /> on 100
-          real households.
+          Medicaid? <FrontierCoverageCopy modelCount={modelCount} />{" "}
           The best model computes 88.7% of amounts within $1. On SNAP cases
           where the family is owed benefits, models answer exactly $0 in 42% of
           answers, and no model gets more than 1 case in 20 right.
@@ -113,10 +111,9 @@ export default function ExpandPage() {
 
         <div className="grid sm:grid-cols-3 gap-4 mt-10">
           <Package title="Program deep-dive" price="from $7,500">
-            One program family — SNAP, Medicaid, child care, tax credits —
-            <ExpandModelCount modelCount={modelCount} context="board" />.
-            Per-model accuracy, diagnosed failure modes, written analysis, and a
-            briefing. Fast: the board already holds the raw material.
+            <BoardCoverageCopy modelCount={modelCount} /> Per-model accuracy,
+            diagnosed failure modes, written analysis, and a briefing. Fast: the
+            board already holds the raw material.
           </Package>
           <Package title="State or city slice" price="from $20,000">
             New households weighted to your area and program mix. A published
