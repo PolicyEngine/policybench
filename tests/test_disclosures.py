@@ -21,8 +21,10 @@ VERSIONS = ROOT / "app" / "src" / "data.versions.json"
 LEADERBOARD = ROOT / "app" / "src" / "components" / "ModelLeaderboard.tsx"
 SENSITIVITY_DOC = ROOT / "sensitivity" / "claude-thinking-2026-08.md"
 BENCHMARK_CARD = ROOT / "docs" / "benchmark_card.md"
+PAPER_GUIDE = ROOT / "docs" / "paper.md"
 MODEL_PAGE = ROOT / "app" / "src" / "app" / "model" / "[id]" / "page.tsx"
 EXPAND_PAGE = ROOT / "app" / "src" / "app" / "expand" / "page.tsx"
+SNAPSHOT_MANIFEST = ROOT / "paper" / "snapshot" / "20260501" / "manifest.json"
 SCENARIO_EXPLORER = ROOT / "app" / "src" / "components" / "ScenarioExplorer.tsx"
 PAPER = ROOT / "paper" / "index.qmd"
 PAPER_HTML = ROOT / "app" / "public" / "paper" / "web" / "index.html"
@@ -143,11 +145,53 @@ def test_current_board_copy_makes_no_identical_request_claim():
 
 def test_expand_page_has_no_literal_model_roster_count():
     text = EXPAND_PAGE.read_text()
-    assert re.search(
-        r"\b\d+\s+(?:frontier|board)\s+models?\b",
-        text,
-        re.IGNORECASE,
-    ) is None
+    assert (
+        re.search(
+            r"\b\d+\s+(?:frontier|board)\s+models?\b",
+            text,
+            re.IGNORECASE,
+        )
+        is None
+    )
+
+
+def test_paper_checklist_names_existing_manifest_keys():
+    manifest = json.loads(SNAPSHOT_MANIFEST.read_text())
+    checklist_keys = (
+        "source_run_artifacts",
+        "committed_snapshot_artifacts",
+        "published_dashboard_artifact",
+        "live_dashboard_artifact",
+        "rendered_paper_artifacts",
+        "reference_output_refresh",
+        "population_weight_artifact",
+        "audit_annotation_artifacts",
+        "reproducibility_notes",
+    )
+    guide = PAPER_GUIDE.read_text()
+
+    for key in checklist_keys:
+        assert f"`{key}`" in guide
+        assert key in manifest
+
+
+def test_benchmark_card_snapshot_scope_matches_scenario_metadata():
+    manifest = json.loads(SNAPSHOT_MANIFEST.read_text())
+    run_label = manifest["source_run_labels"]["us"]
+    run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+    scenario_metadata = json.loads((run_dir / "scenarios.csv.meta.json").read_text())
+    text = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    expected = (
+        f"current {manifest['snapshot_date']} snapshot scores "
+        f"{scenario_metadata['num_scenarios']} public households whose scenario "
+        "manifest was generated on "
+        f"{scenario_metadata['generated_at_utc'][:10]} from a "
+        f"{scenario_metadata['requested_num_scenarios']}-household request split "
+        f"with seed {scenario_metadata['split_seed']}."
+    )
+
+    assert scenario_metadata["split"] == "public"
+    assert expected in text
 
 
 def test_scenario_explorer_retires_exact_every_model_prompt_claims():

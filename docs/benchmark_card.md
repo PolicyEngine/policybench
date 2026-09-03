@@ -137,10 +137,12 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-06-14 snapshot predates
-  the split and remains fully public. The first snapshot that reports
-  protected scores should state both splits' sizes and the split seed's
-  custody (who can regenerate membership).
+- Activation is a snapshot decision: the current 2026-09-01 snapshot scores
+  100 public households whose scenario manifest was generated on 2026-06-12
+  from a 125-household request split with seed 1042. It does not report
+  protected scores. The first snapshot that reports protected scores should
+  state both splits' sizes and the split seed's custody (who can regenerate
+  membership).
 - Prompt canaries (unique strings embedded in private-split prompts to detect
   future training contamination) are planned for the same snapshot that
   activates the split, since adding them changes prompt text and therefore
