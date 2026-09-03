@@ -177,7 +177,7 @@ REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
 MAX_REPAIR_ROUNDS = _env_int("POLICYBENCH_MAX_REPAIR_ROUNDS", 2)
-RESUME_METADATA_VERSION = 5
+RESUME_METADATA_VERSION = 6
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 EXPLANATION_MAX_COMPLETION_TOKENS = 4096
@@ -785,23 +785,84 @@ def _completion_controls(
     return controls
 
 
-def _request_timeout_seconds(model_id: str) -> int:
+def _initial_completion_budget_tokens(
+    model_id: str,
+    variables: list[str] | None,
+    include_explanations: bool = True,
+) -> int | None:
+    """Return the budget sent on an initial request for concrete outputs.
+
+    ``variables`` must already reflect single-output mode or the first chunk,
+    if either applies. This deliberately records the first API request rather
+    than claiming to summarize later repair or escalation requests.
+    """
+    if variables is None:
+        return None
+    return completion_budget_from_kwargs(
+        _completion_controls(
+            model_id,
+            include_explanations=include_explanations,
+            variables=variables,
+        )
+    )
+
+
+def _request_timeout_seconds(model_id: str, env: dict | None = None) -> int:
+    def configured(name: str, current: int, default: int) -> int:
+        if env is None:
+            return current
+        value = env.get(name)
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
     card = card_for(model_id)
     if card is not None and card.request_timeout_seconds is not None:
         return card.request_timeout_seconds
     if card is not None and card.thinking_budget:
-        return THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS",
+            THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS,
+            300,
+        )
     if model_id.startswith("gemini/"):
-        return GEMINI_REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_GEMINI_REQUEST_TIMEOUT_SECONDS",
+            GEMINI_REQUEST_TIMEOUT_SECONDS,
+            120,
+        )
     if model_id == "gpt-5.5":
-        return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_GEMINI_PRO_REQUEST_TIMEOUT_SECONDS",
+            GEMINI_PRO_REQUEST_TIMEOUT_SECONDS,
+            60,
+        )
     if model_id.startswith("xai/"):
-        return XAI_REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_XAI_REQUEST_TIMEOUT_SECONDS",
+            XAI_REQUEST_TIMEOUT_SECONDS,
+            420,
+        )
     if model_id in THINKING_DEFAULT_CLAUDE_MODELS:
-        return THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS",
+            THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS,
+            300,
+        )
     if model_id.startswith("claude-"):
-        return CLAUDE_REQUEST_TIMEOUT_SECONDS
-    return REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_CLAUDE_REQUEST_TIMEOUT_SECONDS",
+            CLAUDE_REQUEST_TIMEOUT_SECONDS,
+            120,
+        )
+    return configured(
+        "POLICYBENCH_REQUEST_TIMEOUT_SECONDS",
+        REQUEST_TIMEOUT_SECONDS,
+        20,
+    )
 
 
 def _request_wall_timeout_seconds(request_kwargs: dict) -> float:
@@ -882,6 +943,53 @@ def _uses_responses_api(model_id: str) -> bool:
     return model_id.startswith("gpt-5")
 
 
+def _thinking_configuration(model_id: str) -> dict | None:
+    """Describe the reasoning control used by the request builders.
+
+    A provider-default entry means the harness sends no reasoning-control
+    parameter for a model known to reason by default. ``None`` means the
+    harness applies no thinking treatment for that model. Keeping explicit
+    reasoning overrides behind this helper makes request construction and
+    persisted treatment metadata share one source of truth.
+    """
+    if model_id in REASONING_EFFORT_OVERRIDES:
+        return {"reasoning_effort": REASONING_EFFORT_OVERRIDES[model_id]}
+    card = card_for(model_id)
+    if (card is not None and card.thinking_budget) or (
+        model_id in THINKING_DEFAULT_CLAUDE_MODELS
+    ):
+        return {"mode": "provider_default"}
+    return None
+
+
+def _first_request_variables(
+    model_id: str,
+    variables: list[str],
+    include_explanations: bool,
+    *,
+    single_output: bool = False,
+    chunk_override: str | None = None,
+) -> list[str]:
+    """Select the outputs included in a model's first API request."""
+    if single_output:
+        return variables[:1]
+    chunk_size = (
+        explanation_chunk_size_for(model_id, chunk_override=chunk_override)
+        if include_explanations
+        else None
+    )
+    if chunk_size is not None:
+        return variables[:chunk_size]
+    return variables
+
+
+def _apply_thinking_configuration(request_kwargs: dict, model_id: str) -> None:
+    """Apply the explicit part of ``_thinking_configuration`` in place."""
+    thinking = _thinking_configuration(model_id)
+    if thinking is not None and "reasoning_effort" in thinking:
+        request_kwargs["reasoning"] = {"effort": thinking["reasoning_effort"]}
+
+
 def _chat_completion_request_kwargs(
     scenario: Scenario,
     variables: list[str],
@@ -922,6 +1030,7 @@ def _chat_completion_request_kwargs(
         )
     else:
         request_kwargs["response_format"] = {"type": "json_object"}
+    _apply_thinking_configuration(request_kwargs, model_id)
     return messages, request_kwargs
 
 
@@ -969,8 +1078,7 @@ def _responses_request_kwargs(
                 },
             }
         )
-    if model_id in REASONING_EFFORT_OVERRIDES:
-        request_kwargs["reasoning"] = {"effort": REASONING_EFFORT_OVERRIDES[model_id]}
+    _apply_thinking_configuration(request_kwargs, model_id)
     return [{"role": "user", "content": prompt}], request_kwargs
 
 
@@ -1879,10 +1987,7 @@ def _request_explanations_once(
                 "name": EXPLANATION_FUNCTION_NAME,
             },
         }
-        if model_id in REASONING_EFFORT_OVERRIDES:
-            request_kwargs["reasoning"] = {
-                "effort": REASONING_EFFORT_OVERRIDES[model_id]
-            }
+        _apply_thinking_configuration(request_kwargs, model_id)
         request_fn = responses
     else:
         messages = [{"role": "user", "content": prompt}]
@@ -1911,6 +2016,7 @@ def _request_explanations_once(
             )
         else:
             request_kwargs["response_format"] = {"type": "json_object"}
+        _apply_thinking_configuration(request_kwargs, model_id)
         request_fn = completion
 
     if completion_budget_tokens is not None:
@@ -2872,7 +2978,16 @@ def _build_resume_metadata(
         "scenario_hash": hashlib.sha256(scenario_signature.encode("utf-8")).hexdigest(),
         "programs": sorted(programs),
         "models": {name: models[name] for name in sorted(models)},
-        "treatment": _treatment_metadata(models, include_explanations),
+        "treatment": _treatment_metadata(
+            models,
+            include_explanations,
+            first_scenario_variables=(
+                expand_programs_for_scenario(programs, scenarios[0])
+                if scenarios
+                else None
+            ),
+            single_output=task == "eval_no_tools_single_output",
+        ),
         "policyengine_bundles": policyengine_bundles_for_countries(countries),
         "response_contract": _response_contract_metadata(),
         "completion_budget_escalation": {
@@ -2886,7 +3001,13 @@ def _build_resume_metadata(
     }
 
 
-def _treatment_metadata(models: dict[str, str], include_explanations: bool) -> dict:
+def _treatment_metadata(
+    models: dict[str, str],
+    include_explanations: bool,
+    *,
+    first_scenario_variables: list[str] | None = None,
+    single_output: bool = False,
+) -> dict:
     """Effective per-model serving treatment recorded beside a resumable output.
 
     A resumed file must not mix rows from different answer contracts,
@@ -2913,6 +3034,23 @@ def _treatment_metadata(models: dict[str, str], include_explanations: bool) -> d
                 model_id, include_explanations
             ),
             "contract_override": os.environ.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+            "initial_completion_budget_tokens": _initial_completion_budget_tokens(
+                model_id,
+                (
+                    _first_request_variables(
+                        model_id,
+                        first_scenario_variables,
+                        include_explanations,
+                        single_output=single_output,
+                        chunk_override=os.environ.get("POLICYBENCH_CHUNK_OVERRIDE"),
+                    )
+                    if first_scenario_variables is not None
+                    else None
+                ),
+                include_explanations=include_explanations,
+            ),
+            "thinking": _thinking_configuration(model_id),
+            "request_timeout_seconds": _request_timeout_seconds(model_id),
         }
     return treatment
 

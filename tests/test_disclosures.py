@@ -22,6 +22,7 @@ LEADERBOARD = ROOT / "app" / "src" / "components" / "ModelLeaderboard.tsx"
 SENSITIVITY_DOC = ROOT / "sensitivity" / "claude-thinking-2026-08.md"
 BENCHMARK_CARD = ROOT / "docs" / "benchmark_card.md"
 MODEL_PAGE = ROOT / "app" / "src" / "app" / "model" / "[id]" / "page.tsx"
+SCENARIO_EXPLORER = ROOT / "app" / "src" / "components" / "ScenarioExplorer.tsx"
 PAPER = ROOT / "paper" / "index.qmd"
 PAPER_HTML = ROOT / "app" / "public" / "paper" / "web" / "index.html"
 PAPER_PDF = ROOT / "app" / "public" / "paper" / "policybench.pdf"
@@ -138,6 +139,18 @@ def test_current_board_copy_makes_no_identical_request_claim():
             assert claim not in text, f"{path.name} still says {claim!r}"
 
 
+def test_scenario_explorer_retires_exact_every_model_prompt_claims():
+    text = SCENARIO_EXPLORER.read_text()
+    retired_patterns = (
+        r"sent\s+to\s+(?:every|each|all)\s+models?",
+        r"exact\s+(?:request\s+)?prompt",
+        r"prompt\s+(?:that|which)?\s*(?:was\s+)?sent\s+to\s+"
+        r"(?:every|each|all)\s+models?",
+    )
+    for pattern in retired_patterns:
+        assert re.search(pattern, text, re.IGNORECASE) is None, pattern
+
+
 def test_sensitivity_doc_names_the_subset_count_from_the_serving_config():
     rows = _serving_rows()
     chunked = [row for row in rows if row["request_shape"] != "whole scenario"]
@@ -191,10 +204,20 @@ def _straight_quotes(text: str) -> str:
 def _serving_evidence_sentence() -> str:
     config = json.loads(SERVING_CONFIG.read_text())
     summary = config["evidence_summary"]
+    fields = config["evidence_field_labels"]
+
+    def joined(items: list[str]) -> str:
+        if len(items) == 2:
+            return " and ".join(items)
+        return f"{', '.join(items[:-1])}, and {items[-1]}"
+
     return (
-        f"Serving treatments for {summary['run_state']} rows are pinned from "
-        "supervised-run fingerprints; the remaining "
-        f"{summary['registry']} are the harness registry as frozen in the "
+        f"{NUMBER_WORDS[summary['run_state']].capitalize()} rows carry "
+        "supervised-run fingerprints for "
+        f"{joined(fields['run_state'])}; "
+        f"{joined(fields['registry_for_run_state'])} for every row, and all "
+        f"fields for the other {summary['registry']} rows, are the harness "
+        "registry as frozen in the "
         "snapshot's serving-configuration file."
     )
 

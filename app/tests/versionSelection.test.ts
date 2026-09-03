@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { loadLatestVersion } from "../src/lib/versionSelection";
+import {
+  datasetSelectionReducer,
+  loadLatestVersion,
+  urlForDatasetVersion,
+} from "../src/lib/versionSelection";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -14,73 +18,184 @@ function deferred<T>() {
 
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+type Dashboard = { name: string };
+type VisibleState = {
+  versionId: string;
+  pendingVersionId: string | null;
+  dashboard: Dashboard;
+  url: string;
+};
+
+function selectionHarness(initialState: VisibleState) {
+  const sequence = { current: 0 };
+  let state = initialState;
+  const renders: VisibleState[] = [state];
+
+  const update = (next: VisibleState) => {
+    state = next;
+    renders.push(state);
+  };
+
+  const select = (versionId: string, pending: Promise<Dashboard>) => {
+    update({
+      ...datasetSelectionReducer(state, { type: "start", versionId }),
+      url: state.url,
+    });
+    loadLatestVersion(
+      sequence,
+      () => pending,
+      (dashboard) => {
+        const selected = datasetSelectionReducer(state, {
+          type: "loaded",
+          versionId,
+          dashboard,
+        });
+        update({
+          ...selected,
+          url: urlForDatasetVersion(state.url, versionId, "1.1"),
+        });
+      },
+      () => {
+        const activeVersionId = state.versionId;
+        update({
+          ...datasetSelectionReducer(state, { type: "clear-pending" }),
+          url: urlForDatasetVersion(state.url, activeVersionId, "1.1"),
+        });
+      },
+    );
+  };
+
+  return {
+    select,
+    state: () => state,
+    renders,
+  };
+}
+
 describe("dataset load ordering", () => {
-  test("an older load cannot overwrite the final selected version", async () => {
+  test("keeps the visible version, dashboard, and URL unchanged until resolution", async () => {
     const liveDashboard = { name: "live" };
     const archivedDashboard = { name: "archive" };
-    const archiveLoad = deferred<typeof archivedDashboard>();
-    const liveLoad = deferred<typeof liveDashboard>();
-    const sequence = { current: 0 };
-    let state = { versionId: "1.1", dashboard: liveDashboard };
-
-    const select = (
-      versionId: string,
-      pending: Promise<typeof liveDashboard>,
-    ) => {
-      state = { ...state, versionId };
-      loadLatestVersion(
-        sequence,
-        () => pending,
-        (dashboard) => {
-          state = { versionId, dashboard };
-        },
-        () => {
-          state = { versionId: "1.1", dashboard: liveDashboard };
-        },
-      );
+    const archiveLoad = deferred<Dashboard>();
+    const initial = {
+      versionId: "1.1",
+      pendingVersionId: null,
+      dashboard: liveDashboard,
+      url: "https://policybench.org/?country=us",
     };
+    const harness = selectionHarness(initial);
 
-    select("1.0", archiveLoad.promise);
-    select("1.1", liveLoad.promise);
+    harness.select("1.0", archiveLoad.promise);
+
+    expect(harness.state()).toEqual({
+      ...initial,
+      pendingVersionId: "1.0",
+    });
+
+    archiveLoad.resolve(archivedDashboard);
+    await flushPromises();
+
+    expect(harness.state()).toEqual({
+      versionId: "1.0",
+      pendingVersionId: null,
+      dashboard: archivedDashboard,
+      url: "https://policybench.org/?country=us&dataset=1.0",
+    });
+    expect(harness.renders).toHaveLength(3);
+  });
+
+  test("an older load cannot overwrite the final selected version", async () => {
+    const previousDashboard = { name: "previous" };
+    const liveDashboard = { name: "live" };
+    const archivedDashboard = { name: "archive" };
+    const archiveLoad = deferred<Dashboard>();
+    const liveLoad = deferred<Dashboard>();
+    const harness = selectionHarness({
+      versionId: "previous",
+      pendingVersionId: null,
+      dashboard: previousDashboard,
+      url: "https://policybench.org/?country=us&dataset=previous",
+    });
+
+    harness.select("1.0", archiveLoad.promise);
+    harness.select("1.1", liveLoad.promise);
     liveLoad.resolve(liveDashboard);
     await flushPromises();
     archiveLoad.resolve(archivedDashboard);
     await flushPromises();
 
-    expect(state).toEqual({ versionId: "1.1", dashboard: liveDashboard });
+    expect(harness.state()).toEqual({
+      versionId: "1.1",
+      pendingVersionId: null,
+      dashboard: liveDashboard,
+      url: "https://policybench.org/?country=us",
+    });
   });
 
   test("an older failed load cannot roll back a newer selection", async () => {
+    const previousDashboard = { name: "previous" };
     const liveDashboard = { name: "live" };
-    const archiveLoad = deferred<typeof liveDashboard>();
-    const liveLoad = deferred<typeof liveDashboard>();
-    const sequence = { current: 0 };
-    let versionId = "1.1";
-    let dashboard = liveDashboard;
+    const archiveLoad = deferred<Dashboard>();
+    const liveLoad = deferred<Dashboard>();
+    const harness = selectionHarness({
+      versionId: "previous",
+      pendingVersionId: null,
+      dashboard: previousDashboard,
+      url: "https://policybench.org/?country=us&dataset=previous",
+    });
 
-    const select = (id: string, pending: Promise<typeof liveDashboard>) => {
-      versionId = id;
-      loadLatestVersion(
-        sequence,
-        () => pending,
-        (loaded) => {
-          dashboard = loaded;
-        },
-        () => {
-          versionId = "1.1";
-          dashboard = liveDashboard;
-        },
-      );
-    };
-
-    select("1.0", archiveLoad.promise);
-    select("1.1", liveLoad.promise);
+    harness.select("1.0", archiveLoad.promise);
+    harness.select("1.1", liveLoad.promise);
     liveLoad.resolve(liveDashboard);
     await flushPromises();
     archiveLoad.reject(new Error("archive failed"));
     await flushPromises();
 
-    expect(versionId).toBe("1.1");
-    expect(dashboard).toBe(liveDashboard);
+    expect(harness.state()).toEqual({
+      versionId: "1.1",
+      pendingVersionId: null,
+      dashboard: liveDashboard,
+      url: "https://policybench.org/?country=us",
+    });
+  });
+
+  test("a failed latest load clears pending state without changing the selection", async () => {
+    const liveDashboard = { name: "live" };
+    const archiveLoad = deferred<Dashboard>();
+    const initial = {
+      versionId: "1.1",
+      pendingVersionId: null,
+      dashboard: liveDashboard,
+      url: "https://policybench.org/?country=us",
+    };
+    const harness = selectionHarness(initial);
+
+    harness.select("1.0", archiveLoad.promise);
+    archiveLoad.reject(new Error("archive failed"));
+    await flushPromises();
+
+    expect(harness.state()).toEqual(initial);
+  });
+
+  test("a failed initial URL load removes its stale dataset query", async () => {
+    const liveDashboard = { name: "live" };
+    const archiveLoad = deferred<Dashboard>();
+    const harness = selectionHarness({
+      versionId: "1.1",
+      pendingVersionId: null,
+      dashboard: liveDashboard,
+      url: "https://policybench.org/?country=us&dataset=1.0",
+    });
+
+    harness.select("1.0", archiveLoad.promise);
+    archiveLoad.reject(new Error("archive failed"));
+    await flushPromises();
+
+    expect(harness.state()).toEqual({
+      versionId: "1.1",
+      pendingVersionId: null,
+      dashboard: liveDashboard,
+      url: "https://policybench.org/?country=us",
+    });
   });
 });

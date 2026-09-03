@@ -1,4 +1,16 @@
 {
+  "evidence_field_labels": {
+    "registry_for_run_state": [
+      "reasoning setup",
+      "timeouts"
+    ],
+    "run_state": [
+      "answer contract",
+      "request shape",
+      "tool choice",
+      "completion ceiling"
+    ]
+  },
   "evidence_summary": {
     "registry": 29,
     "run_state": 4
@@ -11,13 +23,31 @@
       },
       "provider_id": "claude-fable-5",
       "reasoning_setup": "thinking does not engage under forced tool call",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "1 output/request",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
     "claude-fable-5.1": {
       "answer_contract": "json",
       "evidence": {
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
         "kind": "run_state",
         "legacy_tool_choice_label": "forced",
         "run": "fable51",
@@ -32,7 +62,13 @@
       },
       "provider_id": "claude-fable-5-1",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 600,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": null
     },
@@ -43,7 +79,17 @@
       },
       "provider_id": "claude-haiku-4-5-20251001",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "1 output/request",
+      "request_timeout_seconds": 120,
       "shared_completion_budget_tokens": null,
       "tool_choice": "forced"
     },
@@ -54,7 +100,17 @@
       },
       "provider_id": "claude-opus-4-7",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "1 output/request",
+      "request_timeout_seconds": 120,
       "shared_completion_budget_tokens": null,
       "tool_choice": "forced"
     },
@@ -65,7 +121,17 @@
       },
       "provider_id": "claude-opus-4-8",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "1 output/request",
+      "request_timeout_seconds": 120,
       "shared_completion_budget_tokens": null,
       "tool_choice": "forced"
     },
@@ -76,7 +142,17 @@
       },
       "provider_id": "claude-opus-5",
       "reasoning_setup": "thinking does not engage under forced tool call",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
@@ -87,7 +163,17 @@
       },
       "provider_id": "claude-sonnet-4-6",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "1 output/request",
+      "request_timeout_seconds": 120,
       "shared_completion_budget_tokens": null,
       "tool_choice": "forced"
     },
@@ -98,7 +184,17 @@
       },
       "provider_id": "claude-sonnet-5",
       "reasoning_setup": "thinking does not engage under forced tool call",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "1 output/request",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
@@ -109,7 +205,17 @@
       },
       "provider_id": "deepseek/deepseek-v4-pro",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": null
     },
@@ -120,7 +226,17 @@
       },
       "provider_id": "gemini/gemini-3-flash-preview",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 120,
       "shared_completion_budget_tokens": null,
       "tool_choice": null
     },
@@ -131,7 +247,17 @@
       },
       "provider_id": "gemini/gemini-3.1-flash-lite-preview",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 120,
       "shared_completion_budget_tokens": null,
       "tool_choice": null
     },
@@ -142,7 +268,17 @@
       },
       "provider_id": "gemini/gemini-3.1-pro-preview",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 120,
       "shared_completion_budget_tokens": null,
       "tool_choice": null
     },
@@ -153,7 +289,17 @@
       },
       "provider_id": "gemini/gemini-3.5-flash",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 120,
       "shared_completion_budget_tokens": null,
       "tool_choice": null
     },
@@ -164,13 +310,31 @@
       },
       "provider_id": "gemini/gemini-3.6-flash",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
     "gemini-3.7-flash": {
       "answer_contract": "tool",
       "evidence": {
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
         "kind": "run_state",
         "run": "gemini37",
         "treatment_fingerprint": {
@@ -184,7 +348,13 @@
       },
       "provider_id": "gemini/gemini-3.7-flash",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
@@ -195,7 +365,17 @@
       },
       "provider_id": "openrouter/z-ai/glm-5.2",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "3 outputs/request",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": null
     },
@@ -206,7 +386,17 @@
       },
       "provider_id": "gpt-5.4-mini",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 20,
       "shared_completion_budget_tokens": null,
       "tool_choice": "forced"
     },
@@ -217,7 +407,17 @@
       },
       "provider_id": "gpt-5.4-nano",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 20,
       "shared_completion_budget_tokens": null,
       "tool_choice": "forced"
     },
@@ -228,7 +428,17 @@
       },
       "provider_id": "gpt-5.5",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "3 outputs/request",
+      "request_timeout_seconds": 60,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
@@ -239,7 +449,17 @@
       },
       "provider_id": "gpt-5.6-luna",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
@@ -250,7 +470,17 @@
       },
       "provider_id": "gpt-5.6-sol",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
@@ -261,7 +491,17 @@
       },
       "provider_id": "gpt-5.6-terra",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
@@ -272,7 +512,17 @@
       },
       "provider_id": "xai/grok-4.3",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 420,
       "shared_completion_budget_tokens": null,
       "tool_choice": "forced"
     },
@@ -283,13 +533,31 @@
       },
       "provider_id": "xai/grok-4.5",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 420,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
     "grok-4.6": {
       "answer_contract": "tool",
       "evidence": {
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
         "kind": "run_state",
         "run": "grok46",
         "treatment_fingerprint": {
@@ -303,7 +571,13 @@
       },
       "provider_id": "xai/grok-4.6",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 600,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
@@ -314,7 +588,17 @@
       },
       "provider_id": "xai/grok-build-0.1",
       "reasoning_setup": "provider default",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 420,
       "shared_completion_budget_tokens": null,
       "tool_choice": "forced"
     },
@@ -325,7 +609,17 @@
       },
       "provider_id": "openrouter/thinkingmachines/inkling",
       "reasoning_setup": "provider default; 49,152-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 1200,
       "shared_completion_budget_tokens": 49152,
       "tool_choice": "forced"
     },
@@ -336,7 +630,17 @@
       },
       "provider_id": "openrouter/moonshotai/kimi-k2.6",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "3 outputs/request",
+      "request_timeout_seconds": 600,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": null
     },
@@ -347,7 +651,17 @@
       },
       "provider_id": "openrouter/moonshotai/kimi-k3",
       "reasoning_setup": "provider default; 49,152-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 1200,
       "shared_completion_budget_tokens": 49152,
       "tool_choice": null
     },
@@ -358,13 +672,31 @@
       },
       "provider_id": "openrouter/minimax/minimax-m3",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
     "ox-alpha": {
       "answer_contract": "tool",
       "evidence": {
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
         "kind": "run_state",
         "run": "oxalpha",
         "treatment_fingerprint": {
@@ -378,7 +710,13 @@
       },
       "provider_id": "openrouter/stealth/ox-alpha",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 600,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
@@ -389,7 +727,17 @@
       },
       "provider_id": "openrouter/qwen/qwen3.7-max",
       "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "3 outputs/request",
+      "request_timeout_seconds": 600,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": null
     },
@@ -400,12 +748,22 @@
       },
       "provider_id": "openrouter/qwen/qwen3.8-max",
       "reasoning_setup": "provider default; 98,304-token shared budget",
+      "registry_derived": [
+        "answer_contract",
+        "provider_id",
+        "reasoning_setup",
+        "request_shape",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens",
+        "tool_choice"
+      ],
       "request_shape": "whole scenario",
+      "request_timeout_seconds": 2400,
       "shared_completion_budget_tokens": 98304,
       "tool_choice": null
     }
   },
-  "registry_commit": "4a3db0e065e48c50149891e789aa0f493565e056",
+  "registry_commit": "5dfe535630685af2a0a53020d6b0bfae9ddda87e",
   "sources": [
     "policybench.config.MODELS",
     "policybench.model_cards",

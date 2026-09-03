@@ -30,6 +30,16 @@ class ReferenceProvenanceError(ValueError):
     """Reference-output provenance is unavailable for a dashboard export."""
 
 
+_REQUIRED_REFERENCE_BUNDLE_FIELDS = (
+    "model_package",
+    "model_version",
+    "data_package",
+    "data_version",
+    "default_dataset",
+    "default_dataset_uri",
+)
+
+
 def _canonical_output_ids(country: str) -> set[str]:
     return set(get_output_ids(country, "headline"))
 
@@ -371,6 +381,19 @@ def reference_policyengine_bundles(ground_truth_path: Path, country: str) -> dic
         raise ReferenceProvenanceError(
             f"Reference provenance sidecar {sidecar} has no "
             f"policyengine_bundles entry for country {country!r}."
+        )
+    missing = [
+        field
+        for field in _REQUIRED_REFERENCE_BUNDLE_FIELDS
+        if not isinstance(bundle, dict)
+        or not isinstance(bundle.get(field), str)
+        or not bundle[field].strip()
+    ]
+    if missing:
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar {sidecar} has an incomplete "
+            f"policyengine_bundles entry for country {country!r}; missing or "
+            f"empty required keys: {', '.join(missing)}."
         )
     return {country: dict(bundle)}
 

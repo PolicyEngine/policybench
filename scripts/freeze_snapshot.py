@@ -418,17 +418,25 @@ def freeze_committed_artifacts() -> dict[str, str]:
 
 def freeze_serving_configuration(destination: Path) -> None:
     """Pin effective serving treatments and their best available evidence."""
-    from policybench.config import MODELS
+    from policybench.config import MODELS, PROGRAMS
     from policybench.eval_no_tools import (
         REASONING_EFFORT_OVERRIDES,
         THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
         THINKING_DEFAULT_CLAUDE_MODELS,
+        _first_request_variables,
+        _initial_completion_budget_tokens,
+        _request_timeout_seconds,
+        _thinking_configuration,
     )
     from policybench.model_cards import (
+        PROMPT_CONTRACT_VERSION,
         answer_contract_for,
         card_for,
+        completion_budget_ceiling_for,
         explanation_chunk_size_for,
     )
+    from policybench.scenarios import load_scenarios_from_manifest
+    from policybench.spec import expand_programs_for_scenario
 
     country_payload = json.loads((RUN_DEST / "data.json").read_text())
     frozen_models = sorted(
@@ -442,6 +450,11 @@ def freeze_serving_configuration(destination: Path) -> None:
             f"Frozen models missing from the current registry: {sorted(missing)}"
         )
 
+    scenarios = load_scenarios_from_manifest(RUN_DEST / "scenarios.csv")
+    if not scenarios:
+        raise SystemExit("Frozen serving configuration has no scenarios.")
+    first_scenario_variables = expand_programs_for_scenario(PROGRAMS, scenarios[0])
+
     models = {}
     evidence_counts = {"run_state": 0, "registry": 0}
     for model in frozen_models:
@@ -449,6 +462,17 @@ def freeze_serving_configuration(destination: Path) -> None:
         answer_contract = answer_contract_for(provider_id)
         chunk_size = explanation_chunk_size_for(provider_id)
         card = card_for(provider_id)
+        first_request_variables = _first_request_variables(
+            provider_id,
+            first_scenario_variables,
+            include_explanations=True,
+        )
+        initial_completion_budget_tokens = _initial_completion_budget_tokens(
+            provider_id,
+            first_request_variables,
+        )
+        thinking = _thinking_configuration(provider_id)
+        request_timeout_seconds = _request_timeout_seconds(provider_id, env={})
 
         if model in THINKING_DEFAULT_CLAUDE_MODELS:
             if answer_contract != "tool":
@@ -481,6 +505,15 @@ def freeze_serving_configuration(destination: Path) -> None:
 
         tool_choice = "forced" if answer_contract == "tool" else None
         evidence = {"kind": "registry"}
+        registry_derived = {
+            "answer_contract",
+            "provider_id",
+            "reasoning_setup",
+            "request_shape",
+            "request_timeout_seconds",
+            "shared_completion_budget_tokens",
+            "tool_choice",
+        }
         run_state_relative = RUN_STATE_EVIDENCE.get(model)
         if run_state_relative is not None:
             run_state_path = _MAIN_CLONE / run_state_relative
@@ -498,7 +531,7 @@ def freeze_serving_configuration(destination: Path) -> None:
                             f"Invalid treatment fingerprint for {model} in "
                             f"{run_state_path}"
                         )
-                    fingerprint_keys = {
+                    legacy_fingerprint_keys = {
                         "model_id",
                         "answer_contract",
                         "tool_choice_mode",
@@ -506,7 +539,25 @@ def freeze_serving_configuration(destination: Path) -> None:
                         "prompt_contract_version",
                         "completion_budget_ceiling",
                     }
-                    missing_fingerprint_keys = fingerprint_keys - set(fingerprint)
+                    fingerprint_version = fingerprint.get("fingerprint_version", 1)
+                    if fingerprint_version not in (1, 2):
+                        raise SystemExit(
+                            f"Unsupported treatment fingerprint version for {model} "
+                            f"in {run_state_path}: {fingerprint_version!r}"
+                        )
+                    required_fingerprint_keys = set(legacy_fingerprint_keys)
+                    if fingerprint_version == 2:
+                        required_fingerprint_keys.update(
+                            {
+                                "fingerprint_version",
+                                "initial_completion_budget_tokens",
+                                "thinking",
+                                "request_timeout_seconds",
+                            }
+                        )
+                    missing_fingerprint_keys = required_fingerprint_keys - set(
+                        fingerprint
+                    )
                     if missing_fingerprint_keys:
                         raise SystemExit(
                             f"Incomplete treatment fingerprint for {model} in "
@@ -518,11 +569,22 @@ def freeze_serving_configuration(destination: Path) -> None:
                         "answer_contract": answer_contract,
                         "chunk_size": chunk_size,
                         "tool_choice_mode": tool_choice,
+                        "prompt_contract_version": PROMPT_CONTRACT_VERSION,
+                        "completion_budget_ceiling": completion_budget_ceiling_for(
+                            provider_id
+                        ),
+                        "initial_completion_budget_tokens": (
+                            initial_completion_budget_tokens
+                        ),
+                        "thinking": thinking,
+                        "request_timeout_seconds": request_timeout_seconds,
                     }
-                    actual = {key: fingerprint.get(key) for key in expected}
+                    comparable_fields = set(fingerprint) & set(expected)
+                    actual = {key: fingerprint.get(key) for key in comparable_fields}
                     legacy_tool_choice = (
-                        answer_contract == "json"
-                        and actual["tool_choice_mode"] == "forced"
+                        fingerprint_version == 1
+                        and answer_contract == "json"
+                        and actual.get("tool_choice_mode") == "forced"
                         and tool_choice is None
                     )
                     if legacy_tool_choice:
@@ -530,6 +592,7 @@ def freeze_serving_configuration(destination: Path) -> None:
                     disagreements = {
                         key: (actual[key], expected_value)
                         for key, expected_value in expected.items()
+                        if key in comparable_fields
                         if actual[key] != expected_value
                     }
                     if disagreements:
@@ -541,10 +604,27 @@ def freeze_serving_configuration(destination: Path) -> None:
                     evidence = {
                         "kind": "run_state",
                         "run": run_dir,
+                        "fields": sorted(fingerprint),
                         "treatment_fingerprint": fingerprint,
                     }
                     if legacy_tool_choice:
                         evidence["legacy_tool_choice_label"] = "forced"
+
+                    pinned_serving_fields = {
+                        "answer_contract",
+                        "provider_id",
+                        "request_shape",
+                        "tool_choice",
+                    }
+                    if fingerprint_version == 2:
+                        pinned_serving_fields.update(
+                            {
+                                "reasoning_setup",
+                                "request_timeout_seconds",
+                                "shared_completion_budget_tokens",
+                            }
+                        )
+                    registry_derived -= pinned_serving_fields
 
         evidence_counts[evidence["kind"]] += 1
         models[model] = {
@@ -553,6 +633,8 @@ def freeze_serving_configuration(destination: Path) -> None:
             "provider_id": provider_id,
             "reasoning_setup": reasoning_setup,
             "request_shape": request_shape,
+            "request_timeout_seconds": request_timeout_seconds,
+            "registry_derived": sorted(registry_derived),
             "shared_completion_budget_tokens": shared_budget,
             "tool_choice": tool_choice,
         }
@@ -565,6 +647,15 @@ def freeze_serving_configuration(destination: Path) -> None:
         text=True,
     ).stdout.strip()
     payload = {
+        "evidence_field_labels": {
+            "registry_for_run_state": ["reasoning setup", "timeouts"],
+            "run_state": [
+                "answer contract",
+                "request shape",
+                "tool choice",
+                "completion ceiling",
+            ],
+        },
         "evidence_summary": evidence_counts,
         "models": models,
         "registry_commit": registry_commit,

@@ -66,12 +66,23 @@ def test_raw_response_preservation_is_stated_with_its_exceptions():
 
 def test_serving_evidence_caption_comes_from_frozen_configuration():
     summary = r.serving_config["evidence_summary"]
+    labels = r.serving_config["evidence_field_labels"]
     commit = r.serving_config["registry_commit"]
 
     assert re.fullmatch(r"[0-9a-f]{40}", commit)
+    assert labels == {
+        "registry_for_run_state": ["reasoning setup", "timeouts"],
+        "run_state": [
+            "answer contract",
+            "request shape",
+            "tool choice",
+            "completion ceiling",
+        ],
+    }
     assert r.serving_evidence_caption == (
-        f"Serving treatments for {summary['run_state']} rows are pinned from "
-        "supervised-run fingerprints; the remaining "
-        f"{summary['registry']} are the harness registry as frozen in the "
+        "Four rows carry supervised-run fingerprints for answer contract, "
+        "request shape, tool choice, and completion ceiling; reasoning setup "
+        "and timeouts for every row, and all fields for the other "
+        f"{summary['registry']} rows, are the harness registry as frozen in the "
         "snapshot's serving-configuration file."
     )

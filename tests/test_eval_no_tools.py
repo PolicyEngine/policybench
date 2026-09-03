@@ -15,6 +15,7 @@ from policybench.config import (
     PRICE_OVERRIDES_PER_1M,
 )
 from policybench.eval_no_tools import (
+    REASONING_EFFORT_OVERRIDES,
     RequestWallTimeoutError,
     SensitivityKnobError,
     _build_answer_tool,
@@ -26,7 +27,9 @@ from policybench.eval_no_tools import (
     _request_timeout_seconds,
     _request_wall_timeout_seconds,
     _required_explanation_chunk_size,
+    _responses_request_kwargs,
     _run_request_with_wall_timeout,
+    _thinking_configuration,
     _write_resume_metadata,
     extract_explanations,
     extract_number,
@@ -2259,6 +2262,22 @@ def test_contract_override_declares_the_tool_on_a_json_model(
     assert "response_format" not in sensitivity
 
 
+def test_thinking_metadata_uses_the_request_builders_configuration(
+    mini_scenario, monkeypatch
+):
+    monkeypatch.setitem(REASONING_EFFORT_OVERRIDES, "gpt-5.4", "high")
+
+    thinking = _thinking_configuration("gpt-5.4")
+    _, request_kwargs = _responses_request_kwargs(
+        mini_scenario,
+        ["income_tax"],
+        "gpt-5.4",
+    )
+
+    assert thinking == {"reasoning_effort": "high"}
+    assert request_kwargs["reasoning"] == {"effort": "high"}
+
+
 def test_resume_metadata_records_the_effective_treatment(mini_scenario, monkeypatch):
     """The sensitivity knobs change the request without changing the model id,
     so the resume sidecar must carry the treatment or a resumed file could
@@ -2273,12 +2292,15 @@ def test_resume_metadata_records_the_effective_treatment(mini_scenario, monkeypa
         run_id=None,
         include_explanations=True,
     )
-    assert base["metadata_version"] == RESUME_METADATA_VERSION == 5
+    assert base["metadata_version"] == RESUME_METADATA_VERSION == 6
     assert base["treatment"]["fable"] == {
         "answer_contract": "json",
         "tool_choice_mode": None,
         "explanation_chunk_size": None,
         "contract_override": None,
+        "initial_completion_budget_tokens": 16384,
+        "thinking": {"mode": "provider_default"},
+        "request_timeout_seconds": 600,
     }
 
     monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "tool")
@@ -2296,6 +2318,9 @@ def test_resume_metadata_records_the_effective_treatment(mini_scenario, monkeypa
         "tool_choice_mode": "auto",
         "explanation_chunk_size": None,
         "contract_override": "tool",
+        "initial_completion_budget_tokens": 16384,
+        "thinking": {"mode": "provider_default"},
+        "request_timeout_seconds": 600,
     }
     assert sensitivity["treatment"] != base["treatment"]
 

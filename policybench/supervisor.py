@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.config import MODELS
+from policybench.config import MODELS, PROGRAMS
 from policybench.model_cards import (
     PROMPT_CONTRACT_VERSION,
     answer_contract_for,
@@ -55,7 +55,7 @@ ADAPTIVE_WINDOW = 8
 # Dispatching stops once projected spend for in-flight + queued work would
 # cross this share of the budget.
 BUDGET_STOP_FRACTION = 0.9
-TREATMENT_FINGERPRINT_VERSION = 1
+TREATMENT_FINGERPRINT_VERSION = 2
 
 
 @dataclass
@@ -117,6 +117,7 @@ class Supervisor:
         self.max_rounds = max_rounds
         self.python = python or sys.executable
         self.env = {**os.environ, **(env or {})}
+        self.initial_request_variables = self._load_initial_request_variables()
         self.treatment_fingerprint = self._treatment_fingerprint()
         self.scenario_ids = self._load_scenario_ids()
         self.state = RunState(
@@ -137,6 +138,16 @@ class Supervisor:
     def _load_scenario_ids(self) -> list[str]:
         frame = pd.read_csv(self.manifest)
         return list(frame["scenario_id"])
+
+    def _load_initial_request_variables(self) -> list[str]:
+        """Expand the first manifest row exactly as the worker CLI will."""
+        from policybench.scenarios import load_scenarios_from_manifest
+        from policybench.spec import expand_programs_for_scenario
+
+        scenarios = load_scenarios_from_manifest(self.manifest)
+        if not scenarios:
+            raise ValueError("Scenario manifest must contain at least one scenario.")
+        return expand_programs_for_scenario(PROGRAMS, scenarios[0])
 
     def scenario_csv(self, index: int) -> Path:
         return self.run_dir / SCENARIO_DIR / f"scenario_{index:03d}.csv"
@@ -159,9 +170,22 @@ class Supervisor:
         ]
 
     def _treatment_fingerprint(self) -> dict:
+        from policybench.eval_no_tools import (
+            _first_request_variables,
+            _initial_completion_budget_tokens,
+            _request_timeout_seconds,
+            _thinking_configuration,
+        )
+
         answer_contract = answer_contract_for(
             self.litellm_id,
             contract_override=self.env.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+        )
+        first_request_variables = _first_request_variables(
+            self.litellm_id,
+            self.initial_request_variables,
+            include_explanations=True,
+            chunk_override=self.env.get("POLICYBENCH_CHUNK_OVERRIDE"),
         )
         return {
             "fingerprint_version": TREATMENT_FINGERPRINT_VERSION,
@@ -182,6 +206,15 @@ class Supervisor:
             ),
             "prompt_contract_version": PROMPT_CONTRACT_VERSION,
             "completion_budget_ceiling": completion_budget_ceiling_for(self.litellm_id),
+            "initial_completion_budget_tokens": _initial_completion_budget_tokens(
+                self.litellm_id,
+                first_request_variables,
+            ),
+            "thinking": _thinking_configuration(self.litellm_id),
+            "request_timeout_seconds": _request_timeout_seconds(
+                self.litellm_id,
+                env=self.env,
+            ),
         }
 
     def _validate_resume(self) -> dict | None:
@@ -222,6 +255,15 @@ class Supervisor:
             raise ValueError(
                 "Cannot resume: run state field 'treatment_fingerprint' is missing. "
                 "Use a fresh run directory."
+            )
+        missing_fields = sorted(
+            set(self.treatment_fingerprint) - set(stored_fingerprint)
+        )
+        if missing_fields:
+            raise ValueError(
+                "Cannot resume: stored treatment fingerprint is missing fields "
+                f"required by fingerprint v{TREATMENT_FINGERPRINT_VERSION}: "
+                f"{', '.join(missing_fields)}. Use a fresh run directory."
             )
         for field_name, requested in self.treatment_fingerprint.items():
             stored = stored_fingerprint.get(field_name)

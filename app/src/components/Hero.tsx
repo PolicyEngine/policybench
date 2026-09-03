@@ -10,6 +10,7 @@ export default function Hero({
   navItems,
   activeNav,
   versionId,
+  pendingVersionId,
   onSelectVersion,
   snapshotLabel,
 }: {
@@ -20,6 +21,7 @@ export default function Hero({
   navItems: readonly HeaderNavItem[];
   activeNav: string;
   versionId: string;
+  pendingVersionId: string | null;
   onSelectVersion: (id: string) => void;
   /** Snapshot chip label for the active version. */
   snapshotLabel: string | null;
@@ -52,6 +54,7 @@ export default function Hero({
         onSelectView={onSelectView}
         availableViews={availableViews}
         versionId={versionId}
+        pendingVersionId={pendingVersionId}
         onSelectVersion={onSelectVersion}
         actionLink={{ label: "Paper", href: "/paper", type: "internal" }}
       />

@@ -462,23 +462,105 @@ def test_reference_policyengine_bundles_come_from_the_sidecar(tmp_path):
         reference_policyengine_bundles(ground_truth, "us")
 
     sidecar = tmp_path / "reference_outputs.csv.meta.json"
-    sidecar.write_text(
-        json.dumps(
-            {
-                "policyengine_bundles": {
-                    "us": {"model_version": "1.755.4", "bundle_id": "us-4.16.1"}
-                }
-            }
-        )
-    )
-    assert reference_policyengine_bundles(ground_truth, "us") == {
-        "us": {"model_version": "1.755.4", "bundle_id": "us-4.16.1"}
+    bundle = {
+        "model_package": "policyengine-us",
+        "model_version": "1.755.4",
+        "data_package": "populace-data",
+        "data_version": "0.1.0",
+        "default_dataset": "populace_us_2024",
+        "default_dataset_uri": (
+            "hf://policyengine/populace-us/populace_us_2024.h5@build-id"
+        ),
+        "bundle_id": "us-4.16.1",
     }
+    sidecar.write_text(json.dumps({"policyengine_bundles": {"us": bundle}}))
+    assert reference_policyengine_bundles(ground_truth, "us") == {"us": bundle}
     with pytest.raises(
         ReferenceProvenanceError,
         match="no policyengine_bundles entry for country 'uk'",
     ):
         reference_policyengine_bundles(ground_truth, "uk")
+
+
+def test_reference_policyengine_bundles_rejects_an_empty_bundle(tmp_path):
+    from policybench.full_run_export import reference_policyengine_bundles
+
+    ground_truth = tmp_path / "reference_outputs.csv"
+    ground_truth.write_text("scenario_id,variable,value\n")
+    sidecar = tmp_path / "reference_outputs.csv.meta.json"
+    sidecar.write_text(json.dumps({"policyengine_bundles": {"us": {}}}))
+
+    with pytest.raises(ReferenceProvenanceError) as exc_info:
+        reference_policyengine_bundles(ground_truth, "us")
+
+    message = str(exc_info.value)
+    for field in (
+        "model_package",
+        "model_version",
+        "data_package",
+        "data_version",
+        "default_dataset",
+        "default_dataset_uri",
+    ):
+        assert field in message
+
+
+def test_reference_policyengine_bundles_rejects_missing_model_version(tmp_path):
+    from policybench.full_run_export import reference_policyengine_bundles
+
+    ground_truth = tmp_path / "reference_outputs.csv"
+    ground_truth.write_text("scenario_id,variable,value\n")
+    sidecar = tmp_path / "reference_outputs.csv.meta.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "policyengine_bundles": {
+                    "us": {
+                        "model_package": "policyengine-us",
+                        "data_package": "populace-data",
+                        "data_version": "0.1.0",
+                        "default_dataset": "populace_us_2024",
+                        "default_dataset_uri": "hf://example/dataset@revision",
+                    }
+                }
+            }
+        )
+    )
+
+    with pytest.raises(ReferenceProvenanceError, match="model_version"):
+        reference_policyengine_bundles(ground_truth, "us")
+
+
+def test_reference_policyengine_bundles_rejects_missing_dataset_identity(tmp_path):
+    from policybench.full_run_export import reference_policyengine_bundles
+
+    ground_truth = tmp_path / "reference_outputs.csv"
+    ground_truth.write_text("scenario_id,variable,value\n")
+    sidecar = tmp_path / "reference_outputs.csv.meta.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "policyengine_bundles": {
+                    "us": {
+                        "model_package": "policyengine-us",
+                        "model_version": "1.755.4",
+                    }
+                }
+            }
+        )
+    )
+
+    with pytest.raises(ReferenceProvenanceError) as exc_info:
+        reference_policyengine_bundles(ground_truth, "us")
+
+    message = str(exc_info.value)
+    for field in (
+        "data_package",
+        "data_version",
+        "default_dataset",
+        "default_dataset_uri",
+    ):
+        assert field in message
 
 
 def test_export_full_run_cli_fails_closed_without_reference_sidecar(

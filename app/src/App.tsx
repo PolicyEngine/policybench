@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 // Generated from the default dataset version by scripts/prepare-data.ts (runs
 // in dev/build): the bundled summary holds every numeric field, while bulky
 // explanation text is split into /data/explanations-*.json and fetched on
@@ -24,7 +31,11 @@ import {
   selectOnlyProgram as selectOnlyProgramFilter,
   toggleProgramSelection,
 } from "./lib/programFilters";
-import { loadLatestVersion } from "./lib/versionSelection";
+import {
+  datasetSelectionReducer,
+  loadLatestVersion,
+  urlForDatasetVersion,
+} from "./lib/versionSelection";
 import type { CountryCode, DashboardBundle } from "./types";
 import { VIEW_LABELS } from "./types";
 
@@ -35,6 +46,19 @@ export type { DashboardBundle } from "./types";
 /** Snapshot chip label for a version id, or null when none was published. */
 function snapshotLabelFor(versionId: string): string | null {
   return getVersionById(versionId)?.snapshotLabel ?? null;
+}
+
+function replaceDatasetVersionInUrl(versionId: string): void {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(
+    null,
+    "",
+    urlForDatasetVersion(
+      window.location.href,
+      versionId,
+      DEFAULT_VERSION_ID,
+    ),
+  );
 }
 
 const COUNTRY_NAV_ITEMS = [
@@ -97,8 +121,12 @@ function countryFromQuery(
 export default function App() {
   // Dataset version: the default summary is bundled and shown immediately;
   // switching versions lazy-loads that version's summary and swaps it in.
-  const [versionId, setVersionId] = useState<string>(DEFAULT_VERSION_ID);
-  const [dashboard, setDashboard] = useState<DashboardBundle>(defaultDashboard);
+  const [{ versionId, dashboard, pendingVersionId }, dispatchDatasetSelection] =
+    useReducer(datasetSelectionReducer<DashboardBundle>, {
+      versionId: DEFAULT_VERSION_ID,
+      dashboard: defaultDashboard,
+      pendingVersionId: null,
+    });
   const versionSelectionSequence = useRef(0);
 
   const availableViews = useMemo(
@@ -123,22 +151,22 @@ export default function App() {
     const fromUrl = resolveVersionIdFromQuery(window.location.search);
     if (fromUrl === DEFAULT_VERSION_ID) return;
     let cancelled = false;
-    setVersionId(fromUrl);
+    dispatchDatasetSelection({ type: "start", versionId: fromUrl });
     loadLatestVersion(
       versionSelectionSequence,
       () => loadVersionSummary(fromUrl),
       (loaded) => {
-        if (!cancelled) setDashboard(loaded);
+        if (cancelled) return;
+        dispatchDatasetSelection({
+          type: "loaded",
+          versionId: fromUrl,
+          dashboard: loaded,
+        });
       },
       () => {
-        // Loading the archived summary failed; fall back to the default data
-        // and drop the query so the UI stays consistent.
         if (cancelled) return;
-        setVersionId(DEFAULT_VERSION_ID);
-        setDashboard(defaultDashboard);
-        const url = new URL(window.location.href);
-        url.searchParams.delete("dataset");
-        window.history.replaceState(null, "", url);
+        dispatchDatasetSelection({ type: "clear-pending" });
+        replaceDatasetVersionInUrl(DEFAULT_VERSION_ID);
       },
     );
     return () => {
@@ -149,38 +177,40 @@ export default function App() {
 
   const handleSelectVersion = useCallback(
     (nextVersionId: string) => {
-      if (nextVersionId === versionId) return;
+      if (nextVersionId === pendingVersionId) return;
+      if (nextVersionId === versionId) {
+        if (pendingVersionId !== null) {
+          // Selecting the still-visible version cancels the in-flight switch.
+          versionSelectionSequence.current += 1;
+          dispatchDatasetSelection({ type: "clear-pending" });
+          replaceDatasetVersionInUrl(versionId);
+        }
+        return;
+      }
       const meta = getVersionById(nextVersionId);
       if (!meta) return;
-      setVersionId(nextVersionId);
-      // Keep the URL shareable: name non-default versions, drop the param for
-      // the default so canonical links stay clean.
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        if (nextVersionId === DEFAULT_VERSION_ID) {
-          url.searchParams.delete("dataset");
-        } else {
-          url.searchParams.set("dataset", nextVersionId);
-        }
-        window.history.replaceState(null, "", url);
-      }
+      dispatchDatasetSelection({ type: "start", versionId: nextVersionId });
       loadLatestVersion(
         versionSelectionSequence,
         () => loadVersionSummary(nextVersionId),
-        (loaded) => setDashboard(loaded),
+        (loaded) => {
+          dispatchDatasetSelection({
+            type: "loaded",
+            versionId: nextVersionId,
+            dashboard: loaded,
+          });
+          // Commit the shareable URL in the same resolved-load callback as the
+          // visible version and dashboard.
+          replaceDatasetVersionInUrl(nextVersionId);
+        },
         () => {
-          // Roll back to the default on failure rather than showing stale data.
-          setVersionId(DEFAULT_VERSION_ID);
-          setDashboard(defaultDashboard);
-          if (typeof window !== "undefined") {
-            const url = new URL(window.location.href);
-            url.searchParams.delete("dataset");
-            window.history.replaceState(null, "", url);
-          }
+          // Keep the active version, dashboard, and URL together on failure.
+          dispatchDatasetSelection({ type: "clear-pending" });
+          replaceDatasetVersionInUrl(versionId);
         },
       );
     },
-    [versionId],
+    [pendingVersionId, versionId],
   );
 
   useEffect(() => {
@@ -312,6 +342,7 @@ export default function App() {
         navItems={navItems}
         activeNav={activeNav}
         versionId={versionId}
+        pendingVersionId={pendingVersionId}
         onSelectVersion={handleSelectVersion}
         snapshotLabel={snapshotLabelFor(versionId)}
       />

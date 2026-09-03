@@ -154,6 +154,8 @@ export type SiteHeaderProps = {
   /** Active dataset-version id; when set with `onSelectVersion`, shows the
    *  dataset selector in the header. */
   versionId?: string;
+  /** Dataset version currently loading while `versionId` remains visible. */
+  pendingVersionId?: string | null;
   onSelectVersion?: (id: string) => void;
   /**
    * Optional expanded content shown inside the sticky header. Use only with
@@ -178,6 +180,7 @@ export default function SiteHeader({
   availableViews,
   actionLink,
   versionId,
+  pendingVersionId,
   onSelectVersion,
   expandedContent,
   alwaysExpanded = false,
@@ -293,7 +296,11 @@ export default function SiteHeader({
 
           {showVersionSelector && (
             <div className="order-4 shrink-0 sm:order-none">
-              <DatasetSelector versionId={versionId} onSelect={onSelectVersion} />
+              <DatasetSelector
+                versionId={versionId}
+                pendingVersionId={pendingVersionId}
+                onSelect={onSelectVersion}
+              />
             </div>
           )}
 

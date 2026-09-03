@@ -15,6 +15,8 @@ import pandas as pd
 import pytest
 
 from policybench.config import MODELS
+from policybench.model_cards import MODEL_CARDS, ModelCard
+from policybench.scenarios import Person, Scenario, scenario_to_dict
 from policybench.spend_ledger import spend_ledger_path, upsert_spend_ledger
 from policybench.supervisor import (
     ADAPTIVE_WINDOW,
@@ -31,8 +33,22 @@ N_SCENARIOS = 6
 @pytest.fixture
 def manifest(tmp_path: Path) -> Path:
     path = tmp_path / "scenarios.csv"
+    scenarios = [
+        Scenario(
+            id=f"scenario_{i:03d}",
+            state="CA",
+            filing_status="single",
+            adults=[Person(name="adult", age=35, employment_income=50_000)],
+        )
+        for i in range(N_SCENARIOS)
+    ]
     pd.DataFrame(
-        {"scenario_id": [f"scenario_{i:03d}" for i in range(N_SCENARIOS)]}
+        {
+            "scenario_id": [scenario.id for scenario in scenarios],
+            "scenario_json": [
+                json.dumps(scenario_to_dict(scenario)) for scenario in scenarios
+            ],
+        }
     ).to_csv(path, index=False)
     return path
 
@@ -110,6 +126,9 @@ def test_happy_path_completes_all_and_combines(manifest, tmp_path, monkeypatch):
         "chunk_size": None,
         "prompt_contract_version": "2026-08-09-v2-scoring-contract",
         "completion_budget_ceiling": 128000,
+        "initial_completion_budget_tokens": 1632,
+        "thinking": None,
+        "request_timeout_seconds": 20,
     }
 
 
@@ -211,6 +230,71 @@ def test_resume_rejects_unversioned_treatment_fingerprint(
 
     with pytest.raises(ValueError, match="fingerprint_version"):
         resumed.run(poll_seconds=0.01)
+
+
+def test_resume_rejects_v1_treatment_fingerprint_with_missing_fields(
+    manifest, tmp_path, monkeypatch
+):
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+    state_path = initial.run_dir / "run_state.json"
+    state = json.loads(state_path.read_text())
+    fingerprint = state["treatment_fingerprint"]
+    fingerprint["fingerprint_version"] = 1
+    missing_fields = (
+        "initial_completion_budget_tokens",
+        "thinking",
+        "request_timeout_seconds",
+    )
+    for field in missing_fields:
+        del fingerprint[field]
+    state_path.write_text(json.dumps(state))
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("v1 resume dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        resumed.run(poll_seconds=0.01)
+    for field in missing_fields:
+        assert field in str(exc_info.value)
+
+
+def test_model_card_timeout_and_thinking_budget_each_change_fingerprint(
+    manifest, tmp_path, monkeypatch
+):
+    baseline = make_supervisor(manifest, tmp_path)
+    monkeypatch.setitem(
+        MODEL_CARDS,
+        "test-model",
+        ModelCard(litellm_id="test-model", request_timeout_seconds=75),
+    )
+    timeout_changed = make_supervisor(manifest, tmp_path)
+
+    monkeypatch.setitem(
+        MODEL_CARDS,
+        "test-model",
+        ModelCard(
+            litellm_id="test-model",
+            request_timeout_seconds=20,
+            thinking_budget=True,
+        ),
+    )
+    thinking_changed = make_supervisor(manifest, tmp_path)
+
+    assert baseline.treatment_fingerprint != timeout_changed.treatment_fingerprint
+    assert timeout_changed.treatment_fingerprint["request_timeout_seconds"] == 75
+    assert baseline.treatment_fingerprint != thinking_changed.treatment_fingerprint
+    assert thinking_changed.treatment_fingerprint["thinking"] == {
+        "mode": "provider_default"
+    }
+    assert (
+        thinking_changed.treatment_fingerprint["initial_completion_budget_tokens"]
+        == 16384
+    )
 
 
 def test_resume_rejects_changed_tool_choice(manifest, tmp_path, monkeypatch):

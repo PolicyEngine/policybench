@@ -280,6 +280,15 @@ def test_snapshot_serving_configuration_records_evidence_schema():
     summary = config["evidence_summary"]
 
     assert re.fullmatch(r"[0-9a-f]{40}", config["registry_commit"])
+    assert config["evidence_field_labels"] == {
+        "registry_for_run_state": ["reasoning setup", "timeouts"],
+        "run_state": [
+            "answer contract",
+            "request shape",
+            "tool choice",
+            "completion ceiling",
+        ],
+    }
     assert set(summary) == {"run_state", "registry"}
     assert sum(summary.values()) == len(config["models"])
     assert summary["run_state"] > 0
@@ -291,17 +300,33 @@ def test_snapshot_serving_configuration_records_evidence_schema():
         observed[kind] += 1
         if kind == "registry":
             assert evidence == {"kind": "registry"}
+            assert set(row["registry_derived"]) == {
+                "answer_contract",
+                "provider_id",
+                "reasoning_setup",
+                "request_shape",
+                "request_timeout_seconds",
+                "shared_completion_budget_tokens",
+                "tool_choice",
+            }
             continue
 
         assert set(evidence) in (
-            {"kind", "run", "treatment_fingerprint"},
+            {"kind", "run", "fields", "treatment_fingerprint"},
             {
                 "kind",
                 "run",
+                "fields",
                 "treatment_fingerprint",
                 "legacy_tool_choice_label",
             },
         )
+        assert evidence["fields"] == sorted(evidence["treatment_fingerprint"])
+        assert set(row["registry_derived"]) == {
+            "reasoning_setup",
+            "request_timeout_seconds",
+            "shared_completion_budget_tokens",
+        }
         assert not evidence["run"].endswith("_thinking")
 
     assert observed == summary
@@ -326,6 +351,8 @@ def test_run_state_serving_evidence_agrees_with_registry_fields():
         } <= set(fingerprint)
         assert fingerprint["model_id"] == row["provider_id"]
         assert fingerprint["answer_contract"] == row["answer_contract"]
+        assert isinstance(row["request_timeout_seconds"], int)
+        assert row["request_timeout_seconds"] > 0
         chunk_size = (
             None
             if row["request_shape"] == "whole scenario"

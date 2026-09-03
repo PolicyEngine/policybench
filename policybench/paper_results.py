@@ -137,6 +137,25 @@ def _ordinal_join(items: list[str]) -> str:
     return f"{', '.join(items[:-1])}, and {items[-1]}"
 
 
+def _sentence_count(value: int) -> str:
+    """Format a small count as a word when it opens a sentence."""
+    words = (
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+    )
+    rendered = words[value] if 0 <= value < len(words) else f"{value:,}"
+    return rendered.capitalize()
+
+
 class PaperResults:
     """Lazy accessors over the frozen snapshot, manifest, and audit.
 
@@ -257,10 +276,14 @@ class PaperResults:
     @property
     def serving_evidence_caption(self) -> str:
         summary = self.serving_config["evidence_summary"]
+        field_labels = self.serving_config["evidence_field_labels"]
+        fingerprint_fields = _ordinal_join(field_labels["run_state"])
+        registry_fields = _ordinal_join(field_labels["registry_for_run_state"])
         return (
-            f"Serving treatments for {summary['run_state']} rows are pinned from "
-            "supervised-run fingerprints; the remaining "
-            f"{summary['registry']} are the harness registry as frozen in the "
+            f"{_sentence_count(summary['run_state'])} rows carry supervised-run "
+            f"fingerprints for {fingerprint_fields}; {registry_fields} for every "
+            "row, and all fields for the other "
+            f"{summary['registry']} rows, are the harness registry as frozen in the "
             "snapshot's serving-configuration file."
         )
 
