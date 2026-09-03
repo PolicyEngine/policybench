@@ -128,6 +128,14 @@ export default function App() {
       pendingVersionId: null,
     });
   const versionSelectionSequence = useRef(0);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const availableViews = useMemo(
     () => getAvailableViews(dashboard),
@@ -154,9 +162,10 @@ export default function App() {
     dispatchDatasetSelection({ type: "start", versionId: fromUrl });
     loadLatestVersion(
       versionSelectionSequence,
+      mountedRef,
       () => loadVersionSummary(fromUrl),
       (loaded) => {
-        if (cancelled) return;
+        if (cancelled || !mountedRef.current) return;
         dispatchDatasetSelection({
           type: "loaded",
           versionId: fromUrl,
@@ -164,7 +173,7 @@ export default function App() {
         });
       },
       () => {
-        if (cancelled) return;
+        if (cancelled || !mountedRef.current) return;
         dispatchDatasetSelection({ type: "clear-pending" });
         replaceDatasetVersionInUrl(DEFAULT_VERSION_ID);
       },
@@ -192,8 +201,10 @@ export default function App() {
       dispatchDatasetSelection({ type: "start", versionId: nextVersionId });
       loadLatestVersion(
         versionSelectionSequence,
+        mountedRef,
         () => loadVersionSummary(nextVersionId),
         (loaded) => {
+          if (!mountedRef.current) return;
           dispatchDatasetSelection({
             type: "loaded",
             versionId: nextVersionId,
@@ -204,6 +215,7 @@ export default function App() {
           replaceDatasetVersionInUrl(nextVersionId);
         },
         () => {
+          if (!mountedRef.current) return;
           // Keep the active version, dashboard, and URL together on failure.
           dispatchDatasetSelection({ type: "clear-pending" });
           replaceDatasetVersionInUrl(versionId);

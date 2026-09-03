@@ -28,6 +28,7 @@ type VisibleState = {
 
 function selectionHarness(initialState: VisibleState) {
   const sequence = { current: 0 };
+  const mounted = { current: true };
   let state = initialState;
   const renders: VisibleState[] = [state];
 
@@ -43,6 +44,7 @@ function selectionHarness(initialState: VisibleState) {
     });
     loadLatestVersion(
       sequence,
+      mounted,
       () => pending,
       (dashboard) => {
         const selected = datasetSelectionReducer(state, {
@@ -197,5 +199,61 @@ describe("dataset load ordering", () => {
       dashboard: liveDashboard,
       url: "https://policybench.org/?country=us",
     });
+  });
+
+  test("a pending load that resolves after unmount changes no state or URL", async () => {
+    const sequence = { current: 0 };
+    const mounted = { current: true };
+    const pending = deferred<Dashboard>();
+    let dispatches = 0;
+    let url = "https://policybench.org/?country=us";
+
+    loadLatestVersion(
+      sequence,
+      mounted,
+      () => pending.promise,
+      () => {
+        dispatches += 1;
+        url = "https://policybench.org/?country=us&dataset=1.0";
+      },
+      () => {
+        dispatches += 1;
+        url = "https://policybench.org/?country=us&dataset=failed";
+      },
+    );
+    mounted.current = false;
+    pending.resolve({ name: "archive" });
+    await flushPromises();
+
+    expect(dispatches).toBe(0);
+    expect(url).toBe("https://policybench.org/?country=us");
+  });
+
+  test("a pending load that rejects after unmount changes no state or URL", async () => {
+    const sequence = { current: 0 };
+    const mounted = { current: true };
+    const pending = deferred<Dashboard>();
+    let dispatches = 0;
+    let url = "https://policybench.org/?country=us";
+
+    loadLatestVersion(
+      sequence,
+      mounted,
+      () => pending.promise,
+      () => {
+        dispatches += 1;
+        url = "https://policybench.org/?country=us&dataset=1.0";
+      },
+      () => {
+        dispatches += 1;
+        url = "https://policybench.org/?country=us&dataset=failed";
+      },
+    );
+    mounted.current = false;
+    pending.reject(new Error("unmounted"));
+    await flushPromises();
+
+    expect(dispatches).toBe(0);
+    expect(url).toBe("https://policybench.org/?country=us");
   });
 });

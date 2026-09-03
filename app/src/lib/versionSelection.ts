@@ -1,5 +1,6 @@
 /** A React ref-shaped counter used to identify the newest dataset load. */
 export type VersionSelectionSequence = { current: number };
+export type MountedRef = { current: boolean };
 
 export type DatasetSelectionState<T> = {
   versionId: string;
@@ -53,6 +54,7 @@ export function urlForDatasetVersion(
  */
 export function loadLatestVersion<T>(
   sequence: VersionSelectionSequence,
+  mounted: MountedRef,
   load: () => Promise<T>,
   onLoaded: (value: T) => void,
   onFailed: (error: unknown) => void,
@@ -60,9 +62,11 @@ export function loadLatestVersion<T>(
   const selection = ++sequence.current;
   load().then(
     (value) => {
+      if (!mounted.current) return;
       if (selection === sequence.current) onLoaded(value);
     },
     (error: unknown) => {
+      if (!mounted.current) return;
       if (selection === sequence.current) onFailed(error);
     },
   );
