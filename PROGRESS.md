@@ -2,8 +2,9 @@
 
 ## State
 
-The `/notes` feature and its delivery report are complete and verified. The
-branch is ready to push and open as a draft pull request.
+The `/notes` feature and its delivery report are complete and verified. Remote
+delivery is blocked by this workspace's GitHub connectivity and connector
+authorization; no remote branch or pull request was created.
 
 ## Done
 
@@ -27,9 +28,12 @@ branch is ready to push and open as a draft pull request.
   skipped. Re-ran the exact app lint and test commands from CI successfully.
 - Wrote the required delivery report to `out.md` with derived facts, pathway
   results, exact test output, and the local build limitation.
+- Attempted the requested push. Git could not resolve `github.com`; the GitHub
+  connector fallback returned `user cancelled MCP tool call` for both tree and
+  branch creation, leaving the remote unchanged.
 
 ## Next
 
-- Push `notes-route` and open a draft PR against `add-fable-5-1`.
-- Add the draft PR URL to `out.md`, mark delivery complete, and push that final
-  report commit.
+- Once GitHub access is restored, push `notes-route`.
+- Open a draft PR against `add-fable-5-1` and add its URL to `out.md` in a
+  final committed update.

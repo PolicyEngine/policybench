@@ -2,8 +2,9 @@
 
 ## State
 
-Implemented and verified on `notes-route`. The draft PR URL is pending until
-the branch is pushed; it will be inserted in a final committed update.
+Implemented and verified on the local `notes-route` branch. Remote delivery is
+blocked by this workspace's GitHub connectivity and connector authorization;
+details and exact handoff commands are below.
 
 ## Notes and routes
 
@@ -202,7 +203,15 @@ Route (app)
 
 - Branch: `notes-route`
 - Base: `add-fable-5-1`
-- Draft PR: pending branch push
+- Local implementation commit before this report update: `725c1ac`
+- Draft PR URL: unavailable because the remote branch could not be created.
+
+The remaining commands, once GitHub access is restored, are:
+
+```text
+git push -u origin notes-route
+gh pr create --draft --base add-fable-5-1 --head notes-route --title "Add /notes with two data-linked notes" --body "Adds dated, fact-tested notes for Claude Fable 5.1 and six shared SNAP denials, with committed pathway evidence."
+```
 
 ## Could not do locally
 
@@ -213,3 +222,16 @@ process, bind a port, and receiving `Operation not permitted (os error 1)`.
 `NEXT_TURBOPACK_USE_WORKER=0` reaches the same sandbox restriction. The webpack
 build path completed successfully as recorded above. CI runs outside this
 sandbox and can execute the default command.
+
+The requested push failed before authentication because the managed shell
+cannot resolve GitHub:
+
+```text
+fatal: unable to access 'https://github.com/PolicyEngine/policybench.git/': Could not resolve host: github.com
+```
+
+The installed GitHub connector was then tried as the network-independent
+fallback. Both low-level tree creation and direct `notes-route` branch creation
+returned `user cancelled MCP tool call`; a follow-up branch search confirmed
+that `notes-route` does not exist remotely. Therefore no truthful PR URL can be
+recorded and no draft PR can be opened from this environment.
