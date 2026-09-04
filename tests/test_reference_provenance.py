@@ -64,6 +64,25 @@ def test_reference_sidecar_digest_accepts_its_csv(reference_pair):
     )
 
 
+@pytest.mark.parametrize("invalid_digest", [None, "", " ", 123, False, [], {}])
+@pytest.mark.parametrize("manifest_pinned", [False, True])
+def test_present_invalid_digest_is_not_treated_as_legacy(
+    reference_pair, invalid_digest, manifest_pinned
+):
+    reference, sidecar, metadata = reference_pair
+    manifest_digest = metadata["reference_csv_sha256"]
+    metadata["reference_csv_sha256"] = invalid_digest
+    sidecar.write_text(json.dumps(metadata))
+
+    with pytest.raises(ReferenceProvenanceError, match="invalid reference_csv_sha256"):
+        reference_policyengine_bundles(
+            reference,
+            "us",
+            require_digest=manifest_pinned,
+            manifest_reference_sha256=manifest_digest if manifest_pinned else None,
+        )
+
+
 def test_strict_legacy_reference_requires_matching_manifest_pin(reference_pair):
     reference, sidecar, metadata = reference_pair
     manifest_digest = metadata.pop("reference_csv_sha256")

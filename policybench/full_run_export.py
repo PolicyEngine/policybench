@@ -393,7 +393,14 @@ def reference_policyengine_bundles(
             f"{metadata.get('country')!r}, expected {country!r}."
         )
     recorded_digest = metadata.get("reference_csv_sha256")
-    if require_digest and not recorded_digest and not manifest_reference_sha256:
+    if "reference_csv_sha256" in metadata and (
+        not isinstance(recorded_digest, str) or not recorded_digest.strip()
+    ):
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar {sidecar} has an invalid "
+            "reference_csv_sha256; expected a nonempty string."
+        )
+    if require_digest and recorded_digest is None and not manifest_reference_sha256:
         raise ReferenceProvenanceError(
             f"Reference provenance sidecar {sidecar} has no reference_csv_sha256; "
             "legacy references require a hash pinned in the snapshot manifest."
