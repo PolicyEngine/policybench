@@ -543,6 +543,9 @@ def regenerate_analysis(dest_dir: Path) -> None:
             "usage_summary": "usage_summary.csv",
         }.items()
     }
+    report_tables["bounded_summary"] = report_tables["model_summary"][
+        ["model", "bounded_score", "amount_accuracy", "participation_accuracy"]
+    ].sort_values("model")
     country_payload = json.loads((RUN_DEST / "data.json").read_text())
     published_model_costs = {
         row["model"]: row["costUsd"]
@@ -661,6 +664,33 @@ def freeze_committed_artifacts() -> dict[str, str]:
     freeze_serving_configuration(SNAPSHOT_DIR / serving_config_name)
     committed[serving_config_name] = sha256_file(SNAPSHOT_DIR / serving_config_name)
     return committed
+
+
+def _serving_registry_commit(payload: dict) -> str:
+    """Keep the published registry pin when the serving evidence is unchanged."""
+    committed_path = (SNAPSHOT_DIR / "model_serving_config.json").relative_to(ROOT)
+    committed = subprocess.run(
+        ["git", "show", f"HEAD:{committed_path.as_posix()}"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if committed.returncode == 0:
+        previous = json.loads(committed.stdout)
+        previous_commit = previous.pop("registry_commit")
+        current = {
+            key: value for key, value in payload.items() if key != "registry_commit"
+        }
+        if previous == current:
+            return previous_commit
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
 
 
 def freeze_serving_configuration(destination: Path) -> None:
@@ -854,13 +884,6 @@ def freeze_serving_configuration(destination: Path) -> None:
             "tool_choice": tool_choice,
         }
 
-    registry_commit = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
     payload = {
         "evidence_field_labels": {
             "registry_for_run_state": ["reasoning setup", "timeouts"],
@@ -873,13 +896,13 @@ def freeze_serving_configuration(destination: Path) -> None:
         },
         "evidence_summary": evidence_counts,
         "models": models,
-        "registry_commit": registry_commit,
         "sources": [
             "policybench.config.MODELS",
             "policybench.model_cards",
             "policybench.eval_no_tools",
         ],
     }
+    payload["registry_commit"] = _serving_registry_commit(payload)
     destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 

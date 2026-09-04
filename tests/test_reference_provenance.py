@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -123,6 +124,15 @@ def test_freeze_analysis_reads_only_staged_run_paths(tmp_path, monkeypatch):
 
     def read_csv(path, *args, **kwargs):
         assert Path(path).is_relative_to(staged_run)
+        if Path(path).name == "summary_by_model.csv":
+            return pd.DataFrame(
+                {
+                    "model": ["model-b", "model-a"],
+                    "bounded_score": [0.9, 0.8],
+                    "amount_accuracy": [0.8, 0.7],
+                    "participation_accuracy": [0.95, 0.9],
+                }
+            )
         return pd.DataFrame()
 
     monkeypatch.setattr(freeze_snapshot.subprocess, "run", run_analysis)
@@ -131,6 +141,8 @@ def test_freeze_analysis_reads_only_staged_run_paths(tmp_path, monkeypatch):
 
     def render_report(tables, *, published_model_costs):
         assert published_model_costs == {"model-a": 1.5}
+        assert tables["bounded_summary"]["model"].tolist() == ["model-a", "model-b"]
+        assert tables["bounded_summary"]["bounded_score"].tolist() == [0.8, 0.9]
         reports.append(tables)
         return "Frozen report"
 
@@ -166,3 +178,33 @@ def test_frozen_reference_refresh_pins_committed_csv_identity():
         require_digest=True,
         manifest_reference_sha256=refresh["reference_csv_sha256"],
     )
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_serving_registry_pin_changes_only_with_serving_evidence(monkeypatch, changed):
+    from scripts import freeze_snapshot
+
+    previous = {
+        "models": {"model-a": {"answer_contract": "tool"}},
+        "registry_commit": "a" * 40,
+    }
+    generated = {
+        "models": {"model-a": {"answer_contract": "json" if changed else "tool"}}
+    }
+    commands = []
+
+    def git(command, **kwargs):
+        commands.append(command)
+        if command[1] == "show":
+            assert (
+                command[2] == "HEAD:paper/snapshot/20260501/model_serving_config.json"
+            )
+            return SimpleNamespace(returncode=0, stdout=json.dumps(previous))
+        assert command == ["git", "rev-parse", "HEAD"]
+        return SimpleNamespace(returncode=0, stdout="b" * 40 + "\n")
+
+    monkeypatch.setattr(freeze_snapshot.subprocess, "run", git)
+    assert freeze_snapshot._serving_registry_commit(generated) == (
+        "b" * 40 if changed else "a" * 40
+    )
+    assert len(commands) == (2 if changed else 1)
