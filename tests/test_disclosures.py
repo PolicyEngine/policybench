@@ -423,6 +423,11 @@ def _straight_quotes(text: str) -> str:
     return text.replace("\u2019", "'").replace("\u2018", "'")
 
 
+def _hyphen_insensitive(text: str) -> str:
+    """LaTeX breaks lines at hyphens and text extraction can drop them."""
+    return text.replace("-", "")
+
+
 def _serving_evidence_sentence() -> str:
     return r.serving_evidence_caption
 
@@ -436,4 +441,6 @@ def test_rendered_html_reports_serving_evidence_summary():
 
 def test_rendered_pdf_reports_serving_evidence_summary():
     pdf_text = _straight_quotes(re.sub(r"\s+", " ", _pdf_text()))
-    assert _serving_evidence_sentence() in pdf_text
+    assert _hyphen_insensitive(_serving_evidence_sentence()) in _hyphen_insensitive(
+        pdf_text
+    )
