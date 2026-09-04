@@ -55,6 +55,8 @@
     "policyengine_us_dataset_uri": "hf://policyengine/populace-us/populace_us_2024.h5@populace-us-2024-5da5a95-20260611",
     "policyengine_us_version": "1.755.4",
     "policyengine_version": "4.16.1",
+    "reference_csv_sha256": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
+    "row_count": 1984,
     "snapshot_date": "2026-09-01"
   },
   "rendered_paper_artifacts": {
@@ -120,7 +122,7 @@
       "files": {
         "analysis/impact_summary_by_model.csv": "9cab19bf5486b403bd200aa27d9f19eb40e2f6166d4338dd379bb8f1934284f3",
         "analysis/metrics.csv": "fe9b9d33a8804a2558a4ca3dae91f3a6a1652105acb5c4c3511c73f2d8715547",
-        "analysis/report.md": "e4e02f7e157d7e2b8ba65221b224986fe49418d0e8e93b638003e8c0f695fd10",
+        "analysis/report.md": "c90255e3ef4d7f37eef56003fe84bc1ead34db88beeafc627f601905bff01e58",
         "analysis/summary_by_model.csv": "cba35cab84442c98af0328db832f1f79bd8f809e8e35e3af282901634511e0bb",
         "analysis/summary_by_variable.csv": "e2f34896befe83cde9e0e891280ee48fa88549c6c0d9e25122d59e34c23ff254",
         "analysis/usage_summary.csv": "a0761acf191bb847b571a4a0f42e74c1f6347ae1ab62af820c9d152ca657b30e",
