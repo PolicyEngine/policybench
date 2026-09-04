@@ -19,8 +19,9 @@ Sources, in order of authority:
 * ``paper/snapshot/20260501/model_serving_config.json`` -- the per-model
   serving treatments, their evidence kinds, and the registry commit.
 * the frozen audit annotations dir (``manifest['audit_annotation_artifacts']``)
-  -- the count of wrong rows, their adjudicated failure sources, and the fact
-  that zero rows are reference-suspect (no PolicyEngine bugs found).
+  -- the rows selected by the legacy threshold score, their adjudicated
+  failure sources, and the fact that zero rows are reference-suspect (no
+  PolicyEngine bugs found).
 
 The qmd imports ``r`` once in an ``#| echo: false`` setup cell and then every
 inline number is a ```{python} r.field``` placeholder, so a future
@@ -221,6 +222,60 @@ class PaperResults:
         path = annotation_dir / "us_audit_row_annotations.csv"
         with path.open(newline="") as handle:
             return list(csv.DictReader(handle))
+
+    @cached_property
+    def _scenario_prediction_rows(self) -> list[dict]:
+        """Flatten the frozen dashboard's model-scenario-output rows."""
+        rows = []
+        for scenario_id, variable_map in self.dashboard["scenarioPredictions"].items():
+            for variable, model_map in variable_map.items():
+                for model, result in model_map.items():
+                    rows.append(
+                        {
+                            "model": model,
+                            "scenario_id": scenario_id,
+                            "variable": variable,
+                            **result,
+                        }
+                    )
+        return rows
+
+    @staticmethod
+    def _prediction_row_key(row: dict) -> tuple[str, str, str]:
+        return row["model"], row["scenario_id"], row["variable"]
+
+    @cached_property
+    def _audit_row_keys(self) -> frozenset[tuple[str, str, str]]:
+        keys = frozenset(self._prediction_row_key(row) for row in self._audit_rows)
+        if len(keys) != len(self._audit_rows):
+            raise ValueError("Frozen audit annotations contain duplicate row keys")
+        return keys
+
+    @cached_property
+    def _legacy_threshold_row_keys(self) -> frozenset[tuple[str, str, str]]:
+        return frozenset(
+            self._prediction_row_key(row)
+            for row in self._scenario_prediction_rows
+            if row["thresholdScore"] < 100
+        )
+
+    @cached_property
+    def _exact_match_miss_row_keys(self) -> frozenset[tuple[str, str, str]]:
+        return frozenset(
+            self._prediction_row_key(row)
+            for row in self._scenario_prediction_rows
+            if row["exact"] < 100
+        )
+
+    @cached_property
+    def _below_full_bounded_score_row_keys(
+        self,
+    ) -> frozenset[tuple[str, str, str]]:
+        return frozenset(
+            self._prediction_row_key(row)
+            for row in self._scenario_prediction_rows
+            if row["boundedScore"] < 100
+        )
 
     @cached_property
     def _stats_by_model(self) -> dict[str, dict]:
@@ -673,12 +728,63 @@ class PaperResults:
 
     # ----- audit ---------------------------------------------------------
     @property
-    def wrong_row_count(self) -> int:
+    def audit_annotated_row_count(self) -> int:
         return len(self._audit_rows)
 
     @property
+    def audit_annotated_row_count_fmt(self) -> str:
+        return f"{self.audit_annotated_row_count:,}"
+
+    @property
+    def audit_selection_rule(self) -> str:
+        """Describe the rule after verifying it against the frozen row sets."""
+        if self._audit_row_keys != self._legacy_threshold_row_keys:
+            raise ValueError(
+                "Frozen annotations do not equal the legacy-threshold audit universe"
+            )
+        return "rows whose legacy threshold score is below 1"
+
+    @property
+    def exact_match_miss_count(self) -> int:
+        return len(self._exact_match_miss_row_keys)
+
+    @property
+    def exact_match_miss_count_fmt(self) -> str:
+        return f"{self.exact_match_miss_count:,}"
+
+    @property
+    def annotated_exact_miss_count(self) -> int:
+        return len(self._audit_row_keys & self._exact_match_miss_row_keys)
+
+    @property
+    def annotated_exact_miss_count_fmt(self) -> str:
+        return f"{self.annotated_exact_miss_count:,}"
+
+    @property
+    def annotated_exact_hit_count(self) -> int:
+        return len(self._audit_row_keys - self._exact_match_miss_row_keys)
+
+    @property
+    def annotated_exact_hit_count_fmt(self) -> str:
+        return f"{self.annotated_exact_hit_count:,}"
+
+    @property
+    def unannotated_below_full_bounded_score_count(self) -> int:
+        return len(self._below_full_bounded_score_row_keys - self._audit_row_keys)
+
+    @property
+    def unannotated_below_full_bounded_score_count_fmt(self) -> str:
+        return f"{self.unannotated_below_full_bounded_score_count:,}"
+
+    @property
+    def wrong_row_count(self) -> int:
+        """Backward-compatible alias for the legacy-threshold annotation count."""
+        return self.audit_annotated_row_count
+
+    @property
     def wrong_row_count_fmt(self) -> str:
-        return f"{self.wrong_row_count:,}"
+        """Backward-compatible formatted legacy-threshold annotation count."""
+        return self.audit_annotated_row_count_fmt
 
     @cached_property
     def _audit_source_counts(self) -> Counter:
@@ -692,7 +798,7 @@ class PaperResults:
 
     @property
     def audit_llm_error_only(self) -> bool:
-        """True iff every audited wrong row is sourced to ``llm_error``."""
+        """True iff each annotated row is sourced to ``llm_error``."""
         counts = self._audit_source_counts
         return set(counts) == {"llm_error"}
 
@@ -702,12 +808,12 @@ class PaperResults:
 
     @property
     def audit_reference_bug_count(self) -> int:
-        """Number of audited wrong rows flagged as reference-suspect (true)."""
+        """Number of annotated rows flagged as reference-suspect (true)."""
         return self._audit_reference_suspect_counts.get("true", 0)
 
     @property
     def audit_zero_reference_bugs(self) -> bool:
-        """True iff no audited wrong row is flagged reference-suspect."""
+        """True iff no annotated row is flagged reference-suspect."""
         return self.audit_reference_bug_count == 0
 
     @property

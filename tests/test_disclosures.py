@@ -5,6 +5,7 @@ frozen ``model_serving_config.json`` is the machine-readable record of the
 same facts, so the prose is checked against it rather than trusted.
 """
 
+import csv
 import json
 import re
 import shutil
@@ -22,6 +23,7 @@ LEADERBOARD = ROOT / "app" / "src" / "components" / "ModelLeaderboard.tsx"
 SENSITIVITY_DOC = ROOT / "sensitivity" / "claude-thinking-2026-08.md"
 BENCHMARK_CARD = ROOT / "docs" / "benchmark_card.md"
 PAPER_GUIDE = ROOT / "docs" / "paper.md"
+AUDIT_GUIDE = ROOT / "docs" / "audit.md"
 MODEL_PAGE = ROOT / "app" / "src" / "app" / "model" / "[id]" / "page.tsx"
 EXPAND_PAGE = ROOT / "app" / "src" / "app" / "expand" / "page.tsx"
 PAPER_PAGE = ROOT / "app" / "src" / "app" / "paper" / "page.tsx"
@@ -30,6 +32,7 @@ SCENARIO_EXPLORER = ROOT / "app" / "src" / "components" / "ScenarioExplorer.tsx"
 PAPER = ROOT / "paper" / "index.qmd"
 PAPER_HTML = ROOT / "app" / "public" / "paper" / "web" / "index.html"
 PAPER_PDF = ROOT / "app" / "public" / "paper" / "policybench.pdf"
+AUDIT_UNIVERSE = ROOT / "app" / "src" / "lib" / "auditUniverse.ts"
 
 NUMBER_WORDS = {
     1: "one",
@@ -63,6 +66,16 @@ PAPER_FALSE_CLAIM_PATTERNS = (
     r"identical\s+request",
     r"identical\s+forced-tool\s+request",
     r"(?<!not\s)identical\s+across\s+models",
+    r"every\s+wrong\s+(?:cell|model-output\s+row)",
+    r"all\s+[^.]{0,100}rows\s+receiving\s+less\s+than\s+full\s+score",
+    r"exhaustive\s+(?:annotation\s+coverage\s+for|over)\s+"
+    r"(?:the\s+)?(?:scored[- ]?)?misses",
+    r"scored-miss\s+audit\s+is\s+exhaustive",
+)
+
+AUDIT_FALSE_CLAIM_PATTERNS = (
+    *PAPER_FALSE_CLAIM_PATTERNS[-4:],
+    r"every\s+miss\s+(?:gets|is)\s+(?:a\s+)?diagnos",
 )
 
 
@@ -107,6 +120,47 @@ def _serving_rows() -> list[dict]:
     return rows
 
 
+def _audit_counts_from_frozen_files() -> dict[str, int]:
+    manifest = json.loads(SNAPSHOT_MANIFEST.read_text())
+    run_label = manifest["source_run_labels"]["us"]
+    run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+    dashboard = json.loads((run_dir / "data.json").read_text())
+    annotation_dir = ROOT / manifest["audit_annotation_artifacts"]["path"]
+    with (annotation_dir / "us_audit_row_annotations.csv").open(newline="") as file:
+        annotations = list(csv.DictReader(file))
+
+    def key(model: str, scenario_id: str, variable: str) -> tuple[str, str, str]:
+        return model, scenario_id, variable
+
+    annotated = {
+        key(row["model"], row["scenario_id"], row["variable"]) for row in annotations
+    }
+    prediction_rows = [
+        (key(model, scenario_id, variable), row)
+        for scenario_id, variable_map in dashboard["scenarioPredictions"].items()
+        for variable, model_map in variable_map.items()
+        for model, row in model_map.items()
+    ]
+    legacy_threshold = {
+        row_key for row_key, row in prediction_rows if row["thresholdScore"] < 100
+    }
+    exact_misses = {row_key for row_key, row in prediction_rows if row["exact"] < 100}
+    below_full_bounded_score = {
+        row_key for row_key, row in prediction_rows if row["boundedScore"] < 100
+    }
+
+    assert annotated == legacy_threshold
+    return {
+        "annotated": len(annotated),
+        "exact_misses": len(exact_misses),
+        "annotated_exact_misses": len(annotated & exact_misses),
+        "annotated_exact_hits": len(annotated - exact_misses),
+        "unannotated_below_full_bounded_score": len(
+            below_full_bounded_score - annotated
+        ),
+    }
+
+
 def test_methodology_states_the_chunked_count_from_the_serving_config():
     rows = _serving_rows()
     chunked = [row for row in rows if row["request_shape"] != "whole scenario"]
@@ -144,6 +198,60 @@ def test_current_board_copy_makes_no_identical_request_claim():
             assert claim not in text, f"{path.name} still says {claim!r}"
 
 
+def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
+    counts = _audit_counts_from_frozen_files()
+    assert counts == {
+        "annotated": 7_840,
+        "exact_misses": 7_838,
+        "annotated_exact_misses": 7_838,
+        "annotated_exact_hits": 2,
+        "unannotated_below_full_bounded_score": 1_324,
+    }
+
+    for path in (
+        PAPER,
+        BENCHMARK_CARD,
+        PAPER_GUIDE,
+        AUDIT_GUIDE,
+        METHODOLOGY,
+        MODEL_PAGE,
+        EXPAND_PAGE,
+    ):
+        normalized = re.sub(r"\s+", " ", path.read_text())
+        for pattern in AUDIT_FALSE_CLAIM_PATTERNS:
+            assert re.search(pattern, normalized, re.IGNORECASE) is None, (
+                f"{path} still matches {pattern!r}"
+            )
+
+    for path in (BENCHMARK_CARD, PAPER_GUIDE):
+        text = re.sub(r"\s+", " ", path.read_text())
+        for count in counts.values():
+            assert f"{count:,}" in text, (path, count)
+        assert re.search(r"legacy threshold score is below 1", text, re.IGNORECASE)
+
+    paper = PAPER.read_text()
+    for accessor in (
+        "audit_annotated_row_count_fmt",
+        "audit_selection_rule",
+        "exact_match_miss_count_fmt",
+        "annotated_exact_miss_count_fmt",
+        "annotated_exact_hit_count_fmt",
+        "unannotated_below_full_bounded_score_count_fmt",
+    ):
+        assert f"r.{accessor}" in paper
+
+    helper = AUDIT_UNIVERSE.read_text()
+    assert "rows whose legacy threshold score is below 1" in helper
+    for path in (METHODOLOGY, MODEL_PAGE):
+        text = path.read_text()
+        assert "summarizeAuditUniverse" in text
+        assert "annotatedRowCount" in text
+        assert "annotatedExactMissCount" in text
+        assert "exactMissCount" in text
+        assert "annotatedExactHitCount" in text
+        assert "unannotatedBelowFullBoundedScoreCount" in text
+
+
 def test_expand_page_has_no_literal_model_roster_count():
     text = EXPAND_PAGE.read_text()
     assert (
@@ -154,6 +262,13 @@ def test_expand_page_has_no_literal_model_roster_count():
         )
         is None
     )
+
+
+def test_expand_page_does_not_describe_the_mixed_headline_as_amount_only():
+    normalized = re.sub(r"\s+", " ", EXPAND_PAGE.read_text()).lower()
+    assert "of amounts within $1" not in normalized
+    assert "every miss diagnosed" not in normalized
+    assert "every miss gets a diagnosed failure mode" not in normalized
 
 
 def test_public_scoring_copy_names_the_headline_metric():
@@ -271,6 +386,34 @@ def test_paper_source_and_rendered_html_make_no_false_request_claims():
 
 def test_rendered_pdf_makes_no_false_request_claims():
     _assert_no_false_paper_claims(PAPER_PDF, _pdf_text())
+
+
+def _assert_rendered_audit_scope(text: str) -> None:
+    counts = _audit_counts_from_frozen_files()
+    normalized = _straight_quotes(re.sub(r"\s+", " ", text))
+    assert (
+        f"{counts['annotated']:,} rows whose legacy threshold score is below 1"
+        in normalized
+    )
+    assert (
+        f"{counts['annotated_exact_misses']:,} of the snapshot's "
+        f"{counts['exact_misses']:,} exact-match misses" in normalized
+    )
+    assert f"{counts['annotated_exact_hits']:,} exact hits" in normalized
+    assert (
+        f"{counts['unannotated_below_full_bounded_score']:,} additional rows "
+        "with bounded score below 100" in normalized
+    )
+
+
+def test_rendered_html_reports_the_audit_universe():
+    parser = _VisibleTextParser()
+    parser.feed(PAPER_HTML.read_text())
+    _assert_rendered_audit_scope(" ".join(parser.parts))
+
+
+def test_rendered_pdf_reports_the_audit_universe():
+    _assert_rendered_audit_scope(_pdf_text())
 
 
 def _straight_quotes(text: str) -> str:

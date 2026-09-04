@@ -38,6 +38,20 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     assert r.parse_contract_failure_pct_fmt == "1.0"
 
 
+def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
+    assert r.audit_annotated_row_count == 7_840
+    assert r.audit_annotated_row_count_fmt == "7,840"
+    assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
+    assert r.exact_match_miss_count == 7_838
+    assert r.exact_match_miss_count_fmt == "7,838"
+    assert r.annotated_exact_miss_count == 7_838
+    assert r.annotated_exact_miss_count_fmt == "7,838"
+    assert r.annotated_exact_hit_count == 2
+    assert r.annotated_exact_hit_count_fmt == "2"
+    assert r.unannotated_below_full_bounded_score_count == 1_324
+    assert r.unannotated_below_full_bounded_score_count_fmt == "1,324"
+
+
 def test_contract_violations_are_counted_both_ways():
     """629 rows never parsed a number; 61 more parsed a number but carry no
     explanation. The manuscript reports both, not just the first."""

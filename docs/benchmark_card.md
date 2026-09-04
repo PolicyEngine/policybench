@@ -62,6 +62,15 @@ The headline score uses the numeric answers only. Explanations are retained for
 auditing, scenario exploration, and qualitative error analysis; they should not
 be described as faithful reasoning traces.
 
+## Audit scope
+
+The frozen US annotations cover 7,840 rows selected because their legacy
+threshold score is below 1. This audit universe contains 7,838 of the
+snapshot's 7,838 exact-match misses and two exact hits. Another 1,324 rows have
+a bounded score below 100 but fall outside the legacy-threshold selection and
+have no audit annotation. The annotation set therefore must not be described
+as covering each row below full bounded score.
+
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be
 labeled as ablations and not mixed into leaderboard claims.

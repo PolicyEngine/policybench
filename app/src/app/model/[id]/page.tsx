@@ -16,6 +16,10 @@ import {
   programRows,
 } from "../../../lib/modelPage";
 import {
+  AUDIT_SELECTION_RULE,
+  summarizeAuditUniverse,
+} from "../../../lib/auditUniverse";
+import {
   MODEL_LABELS,
   getProviderForModel,
   PROVIDER_LABELS,
@@ -28,6 +32,9 @@ import {
 import { parseDataVersionRegistry } from "../../../lib/dataVersions";
 
 const dashboard = rawData as DashboardBundle;
+const usAuditSummary = dashboard.countries.us
+  ? summarizeAuditUniverse(dashboard.countries.us)
+  : null;
 const versionRegistry = parseDataVersionRegistry(versionRegistryJson);
 const liveVersion = versionRegistry.versions.find(
   (version) => version.id === versionRegistry.default,
@@ -347,6 +354,20 @@ export default async function ModelPage({
             paper
           </Link>{" "}
           for methodology.
+          {usAuditSummary && (
+            <>
+              {" "}The frozen US annotations cover{" "}
+              {usAuditSummary.annotatedRowCount.toLocaleString()}{" "}
+              {AUDIT_SELECTION_RULE}. That universe contains{" "}
+              {usAuditSummary.annotatedExactMissCount.toLocaleString()} of{" "}
+              {usAuditSummary.exactMissCount.toLocaleString()} exact-match misses
+              and {usAuditSummary.annotatedExactHitCount.toLocaleString()} exact
+              hits. Another{" "}
+              {usAuditSummary.unannotatedBelowFullBoundedScoreCount.toLocaleString()} rows
+              with bounded score below 100 were not selected and have no audit
+              annotation.
+            </>
+          )}
         </p>
       </div>
     </main>

@@ -7,14 +7,18 @@ import {
   FrontierCoverageCopy,
 } from "../../components/ExpandCoverageCopy";
 import SiteHeader from "../../components/SiteHeader";
+import { headlineExactLeader } from "../../lib/expandMetrics";
 import { listModels } from "../../lib/modelPage";
+import { MODEL_LABELS } from "../../modelMeta";
 import type { DashboardBundle } from "../../types";
 
 const dashboard = rawData as DashboardBundle;
 const modelCount = listModels(dashboard).length;
+const leader = headlineExactLeader(dashboard);
+const leaderLabel = MODEL_LABELS[leader.model] ?? leader.model;
 
 const DESCRIPTION =
-  "Expand PolicyBench to your region, population, or program: households drawn to your area, references computed from the law, every miss diagnosed, results public.";
+  "Expand PolicyBench to your region, population, or program: households drawn to your area, references computed from the law, selected audit rows diagnosed, results public.";
 
 export const metadata: Metadata = {
   title: "Expand",
@@ -83,9 +87,9 @@ export default function ExpandPage() {
           Families already ask AI about the questions that decide their month:
           Do I qualify for SNAP? How much is my credit? Will this job cost me
           Medicaid? <FrontierCoverageCopy modelCount={modelCount} />{" "}
-          The best model computes 88.7% of amounts within $1. On SNAP cases
-          where the family is owed benefits, models answer exactly $0 in 42% of
-          answers, and no model gets more than 1 case in 20 right.
+          The best model, {leaderLabel}, computes {leader.exact.toFixed(1)}% of
+          requested outputs exactly, household-impact weighted (amounts within
+          $1, eligibility flags exact).
           On Medicaid eligibility, the median model misclassifies 1 person in
           15; the weakest, nearly 1 in 3. A family
           told &ldquo;$0&rdquo; does not apply. Those are national numbers —
@@ -96,8 +100,8 @@ export default function ExpandPage() {
           A PolicyBench slice measures it. We draw households from
           survey microdata weighted to your population, cover your programs,
           benchmark the models behind the tools your people use, and compute every
-          reference from the law with PolicyEngine. Every miss gets a
-          diagnosed failure mode. You get a public slice leaderboard, a
+          reference from the law with PolicyEngine. Rows selected for audit
+          receive a diagnosed failure mode. You get a public slice leaderboard, a
           written analysis of where models fail your population, and a
           briefing. The answer key checks itself in public: references come
           from open-source code, cross-checked against other calculators

@@ -50,7 +50,11 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
   versions plus the certified US populace dataset's build id, URI, and sha256
 - `population_weight_artifact`, with the committed scoring-weight path and
   sha256
-- `audit_annotation_artifacts`, with the row and case audit file hashes
+- `audit_annotation_artifacts`, with the row and case audit file hashes. The
+  frozen annotations cover 7,840 rows whose legacy threshold score is below 1:
+  7,838 of 7,838 exact-match misses and two exact hits. Another 1,324 rows have
+  bounded score below 100 but were outside that selection and are not
+  annotated.
 - `reproducibility_notes`, covering model-alias instability and what is not
   retained locally (LiteLLM cache, since it is a generated request cache)
 

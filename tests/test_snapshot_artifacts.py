@@ -576,21 +576,28 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
-    expected_wrong_rows = {
-        "us": 7_840,
+    expected_audit_counts = {
+        "us": {
+            "annotated": 7_840,
+            "exact_misses": 7_838,
+            "annotated_exact_misses": 7_838,
+            "annotated_exact_hits": 2,
+            "below_full_bounded_score": 9_164,
+            "unannotated_below_full_bounded_score": 1_324,
+        }
     }
     expected_sources = {
         "us": {"llm_error": 7_211, "parse_contract_failure": 629},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    payloads = _snapshot_country_payloads(manifest)
     for country in manifest["source_run_labels"]:
         result = validate_snapshot_audit(
             snapshot_dir=SNAPSHOT_DIR,
             annotations_dir=ANNOTATIONS_DIR,
             country=country,
         )
-        assert len(result["wrong"]) == expected_wrong_rows[country]
         assert result["missing_rows"].empty
         assert result["unresolved_rows"].empty
         assert result["missing_cases"].empty
@@ -599,6 +606,45 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
             pd.read_csv(path)
             for path in sorted(ANNOTATIONS_DIR.glob(f"{country}_*_annotations.csv"))
         )
+        key_columns = ["model", "scenario_id", "variable"]
+        annotation_keys = set(
+            annotations[key_columns].itertuples(index=False, name=None)
+        )
+        prediction_rows = [
+            (model, scenario_id, variable, row)
+            for scenario_id, variable_map in payloads[country][
+                "scenarioPredictions"
+            ].items()
+            for variable, model_map in variable_map.items()
+            for model, row in model_map.items()
+        ]
+
+        def metric_keys(metric: str) -> set[tuple[str, str, str]]:
+            return {
+                (model, scenario_id, variable)
+                for model, scenario_id, variable, row in prediction_rows
+                if row[metric] < 100
+            }
+
+        legacy_threshold_keys = metric_keys("thresholdScore")
+        exact_miss_keys = metric_keys("exact")
+        below_full_bounded_score_keys = metric_keys("boundedScore")
+        counts = expected_audit_counts[country]
+
+        assert len(annotation_keys) == counts["annotated"]
+        assert annotation_keys == legacy_threshold_keys
+        assert len(exact_miss_keys) == counts["exact_misses"]
+        assert (
+            len(annotation_keys & exact_miss_keys) == counts["annotated_exact_misses"]
+        )
+        assert len(annotation_keys - exact_miss_keys) == counts["annotated_exact_hits"]
+        assert len(below_full_bounded_score_keys) == counts["below_full_bounded_score"]
+        assert (
+            len(below_full_bounded_score_keys - annotation_keys)
+            == counts["unannotated_below_full_bounded_score"]
+        )
+        assert len(result["wrong"]) == counts["annotated"]
+
         audited = result["wrong"].merge(
             annotations[["model", "scenario_id", "variable", "failure_source"]],
             on=["model", "scenario_id", "variable"],
@@ -611,9 +657,7 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
 
 
 def test_snapshot_audit_annotations_have_no_orphan_rows():
-    """Every row annotation must describe a wrong cell of the frozen roster:
-    an annotation key absent from the frozen wrong rows means the pinned CSV
-    has drifted ahead of (or away from) the snapshot it certifies."""
+    """Annotations must stay within the frozen legacy-threshold universe."""
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
     for country in manifest["source_run_labels"]:
         result = validate_snapshot_audit(

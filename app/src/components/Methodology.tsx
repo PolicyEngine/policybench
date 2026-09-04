@@ -9,6 +9,10 @@ import {
 } from "../types";
 import { isCurrentBoard } from "../lib/boardScope";
 import { parseDataVersionRegistry } from "../lib/dataVersions";
+import {
+  AUDIT_SELECTION_RULE,
+  summarizeAuditUniverse,
+} from "../lib/auditUniverse";
 
 const versionRegistry = parseDataVersionRegistry(versionRegistryJson);
 
@@ -97,6 +101,10 @@ export default function Methodology({
     : country === "uk"
       ? `This app is showing the archived ${versionLabel} board on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for fiscal year 2026-27.`
       : `This app is showing the archived ${versionLabel} board on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2026.`;
+  const auditSummary =
+    currentBoard && country === "us"
+      ? summarizeAuditUniverse(benchData)
+      : null;
 
   return (
     <div>
@@ -243,6 +251,21 @@ export default function Methodology({
           before the country average. These checks are used to interpret rank
           stability; they do not replace the public exact-match leaderboard.
         </SectionCard>
+
+        {auditSummary && (
+          <SectionCard title="Audit scope">
+            The frozen annotations cover{" "}
+            {auditSummary.annotatedRowCount.toLocaleString()} {AUDIT_SELECTION_RULE}.
+            That universe contains{" "}
+            {auditSummary.annotatedExactMissCount.toLocaleString()} of the
+            snapshot&apos;s {auditSummary.exactMissCount.toLocaleString()} exact-match
+            misses and {auditSummary.annotatedExactHitCount.toLocaleString()} exact
+            hits. Another{" "}
+            {auditSummary.unannotatedBelowFullBoundedScoreCount.toLocaleString()} rows
+            have bounded score below 100 but were not selected and have no audit
+            annotation.
+          </SectionCard>
+        )}
 
         <SectionCard title="Impact weighting">
           Binary coverage flags have 0/1 labels, but a 0/1 label is not their
