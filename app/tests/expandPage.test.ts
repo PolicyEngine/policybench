@@ -8,7 +8,11 @@ import {
   FrontierCoverageCopy,
 } from "../src/components/ExpandCoverageCopy";
 import rawData from "../src/data-summary.json";
-import { headlineExactLeader } from "../src/lib/expandMetrics";
+import {
+  headlineExactLeader,
+  medicaidEligibilityAccuracy,
+  misclassificationFrequency,
+} from "../src/lib/expandMetrics";
 import { listModels } from "../src/lib/modelPage";
 import { MODEL_LABELS } from "../src/modelMeta";
 import type { DashboardBundle } from "../src/types";
@@ -78,4 +82,33 @@ test("expand page derives its exact-score headline from the live summary", async
   expect(expectedCopy).toBe(
     "GPT-5.6 Sol computes 88.7% of requested outputs exactly",
   );
+});
+
+test("expand page derives Medicaid error frequencies from the bundled rows", async () => {
+  const accuracy = medicaidEligibilityAccuracy(rawData as DashboardBundle);
+  expect(accuracy.median).toBeCloseTo(93.78531073446328);
+  expect(misclassificationFrequency(accuracy.median)).toBe("about 1 in 16 people");
+  expect(misclassificationFrequency(accuracy.weakest)).toBe("about 1 in 3 people");
+  const pageSource = await Bun.file(
+    new URL("../src/app/expand/page.tsx", import.meta.url),
+  ).text();
+  expect(pageSource).toContain("misclassificationFrequency(medicaidAccuracy.median)");
+  expect(pageSource).toContain("misclassificationFrequency(medicaidAccuracy.weakest)");
+  expect(pageSource).not.toContain("1 person in");
+});
+
+test("Medicaid accuracy weights each model's rows before taking an even median", () => {
+  const heatmap = [
+    { model: "a", variable: "head_medicaid_eligible", accuracy: 100, n: 1 },
+    { model: "a", variable: "child1_medicaid_eligible", accuracy: 0, n: 3 },
+    { model: "b", variable: "person_medicaid_eligible", accuracy: 75, n: 8 },
+    { model: "a", variable: "person_chip_eligible", accuracy: 0, n: 100 },
+  ].map((row) => ({ ...row, condition: "no_tools" }));
+  heatmap.push({
+    model: "c", variable: "person_medicaid_eligible", accuracy: 100, n: 100,
+    condition: "tools",
+  });
+  const bundle = { countries: { us: { heatmap } } } as unknown as DashboardBundle;
+  expect(medicaidEligibilityAccuracy(bundle)).toEqual({ median: 50, weakest: 25 });
+  expect(misclassificationFrequency(100)).toBe("none of the evaluated people");
 });

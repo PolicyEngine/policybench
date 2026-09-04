@@ -7,7 +7,11 @@ import {
   FrontierCoverageCopy,
 } from "../../components/ExpandCoverageCopy";
 import SiteHeader from "../../components/SiteHeader";
-import { headlineExactLeader } from "../../lib/expandMetrics";
+import {
+  headlineExactLeader,
+  medicaidEligibilityAccuracy,
+  misclassificationFrequency,
+} from "../../lib/expandMetrics";
 import { listModels } from "../../lib/modelPage";
 import { MODEL_LABELS } from "../../modelMeta";
 import type { DashboardBundle } from "../../types";
@@ -16,6 +20,7 @@ const dashboard = rawData as DashboardBundle;
 const modelCount = listModels(dashboard).length;
 const leader = headlineExactLeader(dashboard);
 const leaderLabel = MODEL_LABELS[leader.model] ?? leader.model;
+const medicaidAccuracy = medicaidEligibilityAccuracy(dashboard);
 
 const DESCRIPTION =
   "Expand PolicyBench to your region, population, or program: households drawn to your area, references computed from the law, selected audit rows diagnosed, results public.";
@@ -90,9 +95,10 @@ export default function ExpandPage() {
           The best model, {leaderLabel}, computes {leader.exact.toFixed(1)}% of
           requested outputs exactly, household-impact weighted (amounts within
           $1, eligibility flags exact).
-          On Medicaid eligibility, the median model misclassifies 1 person in
-          15; the weakest, nearly 1 in 3. A family
-          told &ldquo;$0&rdquo; does not apply. Those are national numbers —
+          On Medicaid eligibility, the median model misclassifies{" "}
+          {misclassificationFrequency(medicaidAccuracy.median)}; the weakest,{" "}
+          {misclassificationFrequency(medicaidAccuracy.weakest)}. A family
+          told &ldquo;$0&rdquo; does not apply. Those are national numbers;
           nobody measures this for your region.
         </p>
 
