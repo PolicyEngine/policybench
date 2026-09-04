@@ -346,12 +346,13 @@ class Supervisor:
     def _validate_resume(self) -> dict | None:
         state_path = self.run_dir / HEARTBEAT_FILENAME
         scenario_dir = self.run_dir / SCENARIO_DIR
-        has_scenario_outputs = scenario_dir.exists() and (
-            any(scenario_dir.glob("scenario_*.csv"))
-            or any(scenario_dir.glob(f"scenario_*.csv{SPEND_LEDGER_SUFFIX}"))
-        )
+        scenario_artifacts = {
+            path
+            for pattern in ("scenario_*.csv", f"*{SPEND_LEDGER_SUFFIX}", "*.meta.json")
+            for path in scenario_dir.glob(pattern)
+        }
         if not state_path.exists():
-            if has_scenario_outputs:
+            if scenario_artifacts:
                 raise ValueError(
                     f"Cannot resume run at {self.run_dir}: existing scenario outputs "
                     f"are missing {HEARTBEAT_FILENAME}. Use a fresh run directory."
@@ -398,18 +399,16 @@ class Supervisor:
                     "Use a fresh run directory."
                 )
 
-        expected_csvs = {
-            self.scenario_csv(index) for index in range(len(self.scenario_ids))
+        expected_artifacts = {
+            Path(f"{self.scenario_csv(index)}{suffix}")
+            for index in range(len(self.scenario_ids))
+            for suffix in ("", SPEND_LEDGER_SUFFIX, ".meta.json")
         }
-        unexpected_csvs = sorted(
-            path
-            for path in scenario_dir.glob("scenario_*.csv")
-            if path not in expected_csvs
-        )
-        if unexpected_csvs:
+        unexpected_artifacts = sorted(scenario_artifacts - expected_artifacts)
+        if unexpected_artifacts:
             raise ValueError(
                 "Cannot resume: stale scenario output files "
-                f"{', '.join(str(path) for path in unexpected_csvs)} are outside "
+                f"{', '.join(str(path) for path in unexpected_artifacts)} are outside "
                 "the current workload. Use a fresh run directory."
             )
 
@@ -489,7 +488,11 @@ class Supervisor:
             return 0.0
 
         ledger_backed_csvs: set[Path] = set()
-        for path in scen_dir.glob(f"scenario_*.csv{SPEND_LEDGER_SUFFIX}"):
+        expected_csvs = [
+            self.scenario_csv(index) for index in range(len(self.scenario_ids))
+        ]
+        for csv_path in expected_csvs:
+            path = Path(f"{csv_path}{SPEND_LEDGER_SUFFIX}")
             records = read_spend_ledger(path)
             if not records:
                 continue
@@ -508,10 +511,10 @@ class Supervisor:
                 ledger_total += parsed_cost
                 has_ledger_cost = True
             if has_ledger_cost:
-                ledger_backed_csvs.add(Path(str(path)[: -len(SPEND_LEDGER_SUFFIX)]))
+                ledger_backed_csvs.add(csv_path)
                 total += ledger_total
 
-        for path in scen_dir.glob("scenario_*.csv"):
+        for path in expected_csvs:
             if path in ledger_backed_csvs:
                 continue
             try:
@@ -567,8 +570,10 @@ class Supervisor:
         if not scenario_dir.exists():
             return 0
         return sum(
-            count_budget_escalations(read_spend_ledger(path))
-            for path in scenario_dir.glob(f"scenario_*.csv{SPEND_LEDGER_SUFFIX}")
+            count_budget_escalations(
+                read_spend_ledger(f"{self.scenario_csv(index)}{SPEND_LEDGER_SUFFIX}")
+            )
+            for index in range(len(self.scenario_ids))
         )
 
     def write_heartbeat(self) -> None:

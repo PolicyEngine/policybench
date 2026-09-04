@@ -716,6 +716,68 @@ def test_resume_rejects_orphan_spend_ledger_without_run_state(
         supervisor.run(poll_seconds=0.01)
 
 
+@pytest.mark.parametrize("suffix", ["", ".spend.jsonl", ".meta.json"])
+def test_resume_rejects_scenario_artifacts_outside_workload(
+    manifest, tmp_path, monkeypatch, suffix
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    supervisor.write_heartbeat()
+    stale_path = Path(f"{supervisor.scenario_csv(999)}{suffix}")
+    stale_path.parent.mkdir(parents=True)
+    stale_path.write_text("{}\n")
+    monkeypatch.setattr(
+        supervisor,
+        "_spawn",
+        lambda _index: pytest.fail("stale scenario artifact dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="outside the current workload") as exc_info:
+        supervisor.run(poll_seconds=0.01)
+    assert str(stale_path) in str(exc_info.value)
+
+
+def test_resume_rejects_orphan_sidecar_without_run_state(manifest, tmp_path):
+    supervisor = make_supervisor(manifest, tmp_path)
+    path = Path(f"{supervisor.scenario_csv(0)}.meta.json")
+    path.parent.mkdir(parents=True)
+    path.write_text("{}\n")
+
+    with pytest.raises(ValueError, match="run_state.json"):
+        supervisor.run(poll_seconds=0.01)
+
+
+def test_spend_and_escalation_readers_ignore_artifacts_outside_workload(
+    manifest, tmp_path
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    write_current_worker_output(supervisor, 0, cost_per_scenario=2.0)
+    upsert_spend_ledger(
+        spend_ledger_path(supervisor.scenario_csv(0)),
+        [
+            {
+                "call_key": "sync:expected",
+                "total_cost_usd": 3.0,
+                "escalated_from_budget_tokens": 256,
+            }
+        ],
+    )
+    stale_csv = supervisor.scenario_csv(999)
+    pd.DataFrame({"total_cost_usd": [100.0]}).to_csv(stale_csv, index=False)
+    upsert_spend_ledger(
+        spend_ledger_path(stale_csv),
+        [
+            {
+                "call_key": "sync:stale",
+                "total_cost_usd": 200.0,
+                "escalated_from_budget_tokens": 256,
+            }
+        ],
+    )
+
+    assert supervisor._spent_from_disk() == pytest.approx(3.0)
+    assert supervisor._budget_escalation_count_from_disk() == 1
+
+
 def test_failed_scenarios_retry_up_to_max_rounds(manifest, tmp_path, monkeypatch):
     supervisor = make_supervisor(manifest, tmp_path, max_rounds=3)
     stub_worker(supervisor, monkeypatch, fail_indices={4})
