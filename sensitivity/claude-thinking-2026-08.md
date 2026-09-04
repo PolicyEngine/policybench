@@ -42,11 +42,13 @@ runs also use the canonical whole-scenario request
 (`POLICYBENCH_CHUNK_OVERRIDE=none`); their deltas therefore combine two
 shape changes, while Claude Opus 5's isolates thinking alone.
 
+All ranks are on the 33-model board (2026-09-01).
+
 | | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5 | 79.9 (#8) | **86.9** | +7.0 | **#2** | $0.541 → $0.323 | 54 | 1,984/1,984 |
-| Claude Opus 5 | 79.8 (#9) | **85.6** | +5.8 | #3 | $0.067 → $0.152 | 51 | 1,984/1,984 |
-| Claude Sonnet 5 | 69.4 (#27) | **80.2** | +10.8 | #8 | $0.086 | 64 | 1,928/1,984 |
+| Claude Fable 5 | 79.9 (#11) | **86.9** | +7.0 | **#2** | $0.541 → $0.323 | 54 | 1,984/1,984 |
+| Claude Opus 5 | 79.8 (#12) | **85.6** | +5.8 | #4 | $0.067 → $0.152 | 51 | 1,984/1,984 |
+| Claude Sonnet 5 | 69.4 (#31) | **80.2** | +10.8 | #11 | $0.086 | 64 | 1,928/1,984 |
 
 Under `auto`, Fable 5 and Opus 5 chose to call the answer tool on every
 response; Sonnet 5 failed to produce a parseable tool call on 56 of its
@@ -119,7 +121,7 @@ The sensitivity run for this model isolates request shape under thinking
 rather than thinking itself: the answer tool declared with `tool_choice:
 "auto"` (`POLICYBENCH_CONTRACT_OVERRIDE=tool` together with
 `POLICYBENCH_TOOL_CHOICE=auto`), against the JSON board row. Both rows
-reason.
+reason. The ranks are on the 33-model board (2026-09-01).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|

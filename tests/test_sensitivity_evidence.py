@@ -25,6 +25,20 @@ DOC = ROOT / "sensitivity" / "claude-thinking-2026-08.md"
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 RUN_DIR = SNAPSHOT_DIR / "runs" / "us_full_run_20260612_policyengine_4_16_1_populace"
 
+SENSITIVITY_ROWS = {
+    "Claude Fable 5": "claude-fable-5",
+    "Claude Opus 5": "claude-opus-5",
+    "Claude Sonnet 5": "claude-sonnet-5",
+    "Claude Fable 5.1": "claude-fable-5.1",
+}
+
+
+def _would_rank(exact: float, rows: list[dict]) -> int:
+    """Match app/src/lib/wouldRank.ts: 1 + rows with strictly higher exact."""
+    return 1 + sum(
+        (row["exact"] if row.get("exact") is not None else 0) > exact for row in rows
+    )
+
 
 def test_committed_assets_match_the_summary_pins():
     for name, pin in SUMMARY["assets"].items():
@@ -51,6 +65,29 @@ def test_doc_table_row_matches_the_summary():
     assert (
         f"{SUMMARY['sensitivity']['n_parsed']:,}/{SUMMARY['sensitivity']['n']:,}"
         in text
+    )
+
+
+def test_doc_table_ranks_match_the_frozen_33_model_board():
+    text = DOC.read_text()
+    assert "on the 33-model board (2026-09-01)" in text
+    rows = json.loads((RUN_DIR / "data.json").read_text())["modelStats"]
+    assert len(rows) == 33
+    board_by_model = {row["model"]: row for row in rows}
+
+    for label, model in SENSITIVITY_ROWS.items():
+        pattern = (
+            rf"^\| {re.escape(label)} \| [\d.]+ \(#(\d+)\) \| "
+            rf"\*\*([\d.]+)\*\* \| [^|]+ \| \**#(\d+)\** \|"
+        )
+        match = re.search(pattern, text, re.M)
+        assert match, f"{label} sensitivity row missing from the doc"
+        board_rank, sensitivity_exact, would_rank = match.groups()
+        assert int(board_rank) == _would_rank(board_by_model[model]["exact"], rows)
+        assert int(would_rank) == _would_rank(float(sensitivity_exact), rows)
+
+    assert SUMMARY["sensitivity"]["would_rank"] == _would_rank(
+        SUMMARY["sensitivity"]["exact"], rows
     )
 
 

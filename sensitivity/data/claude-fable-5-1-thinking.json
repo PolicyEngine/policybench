@@ -25,6 +25,7 @@
   },
   "sensitivity": {
     "exact": 87.55,
+    "would_rank": 2,
     "within1pct": 90.375,
     "score": 95.738,
     "cost_per_household": 0.3481,
