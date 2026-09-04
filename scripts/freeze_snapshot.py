@@ -224,16 +224,71 @@ def _validate_treatment_fingerprint(
     return fingerprint_version, legacy_tool_choice
 
 
-def _model_prediction_rows(frame: pd.DataFrame, model: str) -> pd.DataFrame:
-    columns = ["scenario_id", "variable", "prediction"]
+PREDICTION_EVIDENCE_COLUMNS = (
+    "scenario_id",
+    "variable",
+    "prediction",
+    "explanation",
+    "raw_response",
+    "provider_resolved_model",
+    "prompt_tokens",
+    "completion_tokens",
+    "error",
+)
+PREDICTION_EVIDENCE_NUMERIC_COLUMNS = {
+    "prediction",
+    "prompt_tokens",
+    "completion_tokens",
+}
+
+
+def _canonical_prediction_value(value: object, column: str) -> object:
+    if pd.isna(value):
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+    if column in PREDICTION_EVIDENCE_NUMERIC_COLUMNS:
+        number = float(pd.to_numeric(value, errors="raise"))
+        if column != "prediction" and number.is_integer():
+            return int(number)
+        return number
+    return str(value).strip()
+
+
+def _model_prediction_rows(frame: pd.DataFrame, model: str) -> list[tuple]:
+    columns = list(PREDICTION_EVIDENCE_COLUMNS)
     missing_columns = set(["model", *columns]) - set(frame.columns)
     if missing_columns:
         raise ValueError(f"missing columns {sorted(missing_columns)}")
-    rows = frame.loc[frame["model"] == model, columns].copy()
-    rows["scenario_id"] = rows["scenario_id"].astype(str)
-    rows["variable"] = rows["variable"].astype(str)
-    rows["prediction"] = pd.to_numeric(rows["prediction"], errors="raise")
-    return rows.sort_values(columns, na_position="last").reset_index(drop=True)
+    selected = frame.loc[frame["model"] == model, columns]
+    rows = [
+        tuple(
+            _canonical_prediction_value(value, column)
+            for column, value in zip(columns, row, strict=True)
+        )
+        for row in selected.itertuples(index=False, name=None)
+    ]
+    return sorted(
+        rows,
+        key=lambda row: json.dumps(
+            row,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+    )
+
+
+def _model_prediction_rows_sha256(frame: pd.DataFrame, model: str) -> str:
+    rows = _model_prediction_rows(frame, model)
+    canonical = json.dumps(
+        rows,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    ).encode()
+    return sha256_bytes(canonical)
 
 
 def _prediction_rows_match(
@@ -241,24 +296,10 @@ def _prediction_rows_match(
     frozen_predictions: pd.DataFrame,
     model: str,
 ) -> bool:
-    source_rows = _model_prediction_rows(source_predictions, model)
-    frozen_rows = _model_prediction_rows(frozen_predictions, model)
-    if len(source_rows) != len(frozen_rows):
-        return False
-    key_columns = ["scenario_id", "variable"]
-    if not source_rows[key_columns].equals(frozen_rows[key_columns]):
-        return False
-    source_values = source_rows["prediction"].to_numpy(dtype=float, na_value=np.nan)
-    frozen_values = frozen_rows["prediction"].to_numpy(dtype=float, na_value=np.nan)
-    return bool(
-        np.isclose(
-            source_values,
-            frozen_values,
-            rtol=0,
-            atol=1e-9,
-            equal_nan=True,
-        ).all()
-    )
+    return _model_prediction_rows_sha256(
+        source_predictions,
+        model,
+    ) == _model_prediction_rows_sha256(frozen_predictions, model)
 
 
 def _run_state_prediction_evidence(
@@ -267,10 +308,15 @@ def _run_state_prediction_evidence(
     model: str,
 ) -> dict:
     source_path = run_state_path.with_name("predictions.csv")
+    compared_columns = list(PREDICTION_EVIDENCE_COLUMNS)
+    frozen_rows_sha256 = _model_prediction_rows_sha256(frozen_predictions, model)
     if not source_path.is_file():
         return {
+            "compared_columns": compared_columns,
+            "frozen_rows_sha256": frozen_rows_sha256,
             "kind": "registry",
             "source_predictions_sha256": None,
+            "source_rows_sha256": None,
             "rows_match": False,
             "note": (
                 "Source predictions.csv is missing beside run_state.json; "
@@ -281,15 +327,18 @@ def _run_state_prediction_evidence(
     source_sha256 = sha256_file(source_path)
     try:
         source_predictions = pd.read_csv(source_path, low_memory=False)
-        rows_match = _prediction_rows_match(
+        source_rows_sha256 = _model_prediction_rows_sha256(
             source_predictions,
-            frozen_predictions,
             model,
         )
+        rows_match = source_rows_sha256 == frozen_rows_sha256
     except (OSError, ValueError, TypeError) as error:
         return {
+            "compared_columns": compared_columns,
+            "frozen_rows_sha256": frozen_rows_sha256,
             "kind": "registry",
             "source_predictions_sha256": source_sha256,
+            "source_rows_sha256": None,
             "rows_match": False,
             "note": (
                 "Source predictions.csv could not be compared with the frozen "
@@ -299,8 +348,11 @@ def _run_state_prediction_evidence(
         }
     if not rows_match:
         return {
+            "compared_columns": compared_columns,
+            "frozen_rows_sha256": frozen_rows_sha256,
             "kind": "registry",
             "source_predictions_sha256": source_sha256,
+            "source_rows_sha256": source_rows_sha256,
             "rows_match": False,
             "note": (
                 "Source predictions.csv rows do not match the frozen model rows; "
@@ -308,8 +360,11 @@ def _run_state_prediction_evidence(
             ),
         }
     return {
+        "compared_columns": compared_columns,
+        "frozen_rows_sha256": frozen_rows_sha256,
         "kind": "run_state",
         "source_predictions_sha256": source_sha256,
+        "source_rows_sha256": source_rows_sha256,
         "rows_match": True,
     }
 
@@ -900,6 +955,9 @@ def build_manifest(
     model_count = sum(
         row["condition"] == "no_tools" for row in country_payload["modelStats"]
     )
+    annotation_row_count = len(
+        pd.read_csv(ANNOTATIONS_DEST / "us_audit_row_annotations.csv")
+    )
 
     population_weight_path = ROOT / "policybench" / "population_weights.json"
     pointer = json.loads((ROOT / "app" / "src" / "data.artifact.json").read_text())
@@ -1013,8 +1071,11 @@ def build_manifest(
             "path": f"annotations/{RUN_LABEL}",
             "note": (
                 "Model-assisted, developer-adjudicated row and case audit "
-                "annotations for every wrong prediction row in the frozen "
-                "snapshot, produced under the decisive-diagnosis contract "
+                f"annotations for the {annotation_row_count:,} prediction "
+                "rows selected because their legacy threshold score was below "
+                "1. This audit universe is not identical to the exact-match "
+                "or bounded-score miss sets. The annotations were produced "
+                "under the decisive-diagnosis contract "
                 "(per-model diagnoses grounded in engine facts; hedged "
                 "verdicts mechanically rejected and re-judged). Row-level "
                 "failure_source values are llm_error for substantive misses "

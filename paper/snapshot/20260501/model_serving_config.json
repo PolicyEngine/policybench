@@ -40,6 +40,17 @@
     "claude-fable-5.1": {
       "answer_contract": "json",
       "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
         "fields": [
           "answer_contract",
           "chunk_size",
@@ -48,11 +59,13 @@
           "prompt_contract_version",
           "tool_choice_mode"
         ],
+        "frozen_rows_sha256": "a77ff02fec607beeabc294ba6d7b33077414078f26874df04c5d31d8f721bdce",
         "kind": "run_state",
         "legacy_tool_choice_label": "forced",
         "rows_match": true,
         "run": "fable51",
         "source_predictions_sha256": "698cfd20c313fffdc3ecb42c900c9931f21b70d8d440206bd8a2136a4d78392f",
+        "source_rows_sha256": "a77ff02fec607beeabc294ba6d7b33077414078f26874df04c5d31d8f721bdce",
         "treatment_fingerprint": {
           "answer_contract": "json",
           "chunk_size": null,
@@ -329,6 +342,17 @@
     "gemini-3.7-flash": {
       "answer_contract": "tool",
       "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
         "fields": [
           "answer_contract",
           "chunk_size",
@@ -337,10 +361,12 @@
           "prompt_contract_version",
           "tool_choice_mode"
         ],
+        "frozen_rows_sha256": "6a3c0abbff6dd12c094fac1c7f301cffc81386cbb0a53a864930681bddfc4f7f",
         "kind": "run_state",
         "rows_match": true,
         "run": "gemini37",
         "source_predictions_sha256": "85c4c5a8a501a5af3d6b8ea66f43250063ec42b22dbdcc331b7152e7de3086d3",
+        "source_rows_sha256": "6a3c0abbff6dd12c094fac1c7f301cffc81386cbb0a53a864930681bddfc4f7f",
         "treatment_fingerprint": {
           "answer_contract": "tool",
           "chunk_size": null,
@@ -554,6 +580,17 @@
     "grok-4.6": {
       "answer_contract": "tool",
       "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
         "fields": [
           "answer_contract",
           "chunk_size",
@@ -562,10 +599,12 @@
           "prompt_contract_version",
           "tool_choice_mode"
         ],
+        "frozen_rows_sha256": "f7a6dad08d16dc5d351930463c10dda017132e79e1c81eba9ebb337b1d613bc6",
         "kind": "run_state",
         "rows_match": true,
         "run": "grok46",
         "source_predictions_sha256": "bfd6adf61123fdefea75253ef19cb292988cb3f623457b2c9d3c65d2d72bc16e",
+        "source_rows_sha256": "f7a6dad08d16dc5d351930463c10dda017132e79e1c81eba9ebb337b1d613bc6",
         "treatment_fingerprint": {
           "answer_contract": "tool",
           "chunk_size": null,
@@ -695,6 +734,17 @@
     "ox-alpha": {
       "answer_contract": "tool",
       "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
         "fields": [
           "answer_contract",
           "chunk_size",
@@ -703,10 +753,12 @@
           "prompt_contract_version",
           "tool_choice_mode"
         ],
+        "frozen_rows_sha256": "393c3342f88841abb4938d1423fa04be54fbc65e2c7fe6c0de77320bdc907899",
         "kind": "run_state",
         "rows_match": true,
         "run": "oxalpha",
         "source_predictions_sha256": "f2f4e3582a4b587ffe52f65916d6f1b5fa508349e7f9809b4d6d5c8bcb4653a0",
+        "source_rows_sha256": "393c3342f88841abb4938d1423fa04be54fbc65e2c7fe6c0de77320bdc907899",
         "treatment_fingerprint": {
           "answer_contract": "tool",
           "chunk_size": null,
@@ -771,7 +823,7 @@
       "tool_choice": null
     }
   },
-  "registry_commit": "cdca71bd09d551c62e51b08ebd478ecc77f16844",
+  "registry_commit": "cc6835d665a848b7ecce26abe789e255152a5592",
   "sources": [
     "policybench.config.MODELS",
     "policybench.model_cards",

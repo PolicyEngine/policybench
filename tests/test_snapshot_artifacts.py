@@ -278,6 +278,17 @@ def test_snapshot_serving_configuration_matches_frozen_roster():
 def test_snapshot_serving_configuration_records_evidence_schema():
     config = json.loads((SNAPSHOT_DIR / "model_serving_config.json").read_text())
     summary = config["evidence_summary"]
+    compared_columns = [
+        "scenario_id",
+        "variable",
+        "prediction",
+        "explanation",
+        "raw_response",
+        "provider_resolved_model",
+        "prompt_tokens",
+        "completion_tokens",
+        "error",
+    ]
 
     assert re.fullmatch(r"[0-9a-f]{40}", config["registry_commit"])
     assert config["evidence_field_labels"] == {
@@ -301,11 +312,18 @@ def test_snapshot_serving_configuration_records_evidence_schema():
         if kind == "registry":
             if set(evidence) != {"kind"}:
                 assert set(evidence) == {
+                    "compared_columns",
+                    "frozen_rows_sha256",
                     "kind",
                     "note",
                     "rows_match",
                     "source_predictions_sha256",
+                    "source_rows_sha256",
                 }
+                assert evidence["compared_columns"] == compared_columns
+                assert re.fullmatch(r"[0-9a-f]{64}", evidence["frozen_rows_sha256"])
+                if evidence["source_rows_sha256"] is not None:
+                    assert re.fullmatch(r"[0-9a-f]{64}", evidence["source_rows_sha256"])
                 assert evidence["rows_match"] is False
                 assert evidence["note"]
             assert set(row["registry_derived"]) == {
@@ -324,21 +342,29 @@ def test_snapshot_serving_configuration_records_evidence_schema():
                 "kind",
                 "run",
                 "fields",
+                "compared_columns",
+                "frozen_rows_sha256",
                 "rows_match",
                 "source_predictions_sha256",
+                "source_rows_sha256",
                 "treatment_fingerprint",
             },
             {
                 "kind",
                 "run",
                 "fields",
+                "compared_columns",
+                "frozen_rows_sha256",
                 "rows_match",
                 "source_predictions_sha256",
+                "source_rows_sha256",
                 "treatment_fingerprint",
                 "legacy_tool_choice_label",
             },
         )
         assert evidence["rows_match"] is True
+        assert evidence["compared_columns"] == compared_columns
+        assert evidence["source_rows_sha256"] == evidence["frozen_rows_sha256"]
         assert re.fullmatch(r"[0-9a-f]{64}", evidence["source_predictions_sha256"])
         assert evidence["fields"] == sorted(evidence["treatment_fingerprint"])
         assert set(row["registry_derived"]) == {
@@ -351,28 +377,99 @@ def test_snapshot_serving_configuration_records_evidence_schema():
     assert observed == summary
 
 
-def test_freezer_downgrades_run_state_when_prediction_rows_differ(tmp_path):
+@pytest.mark.parametrize(
+    ("column", "different_value"),
+    [
+        ("prediction", 2.0),
+        ("explanation", "A different explanation"),
+        ("raw_response", "A different raw response"),
+        ("provider_resolved_model", "provider/other-model"),
+        ("prompt_tokens", 12),
+        ("completion_tokens", 34),
+        ("error", "provider_error"),
+    ],
+)
+def test_freezer_downgrades_run_state_when_full_prediction_row_differs(
+    tmp_path, column, different_value
+):
+    from scripts.freeze_snapshot import (
+        PREDICTION_EVIDENCE_COLUMNS,
+        _run_state_prediction_evidence,
+    )
+
+    run_state_path = tmp_path / "run" / "run_state.json"
+    run_state_path.parent.mkdir()
+    run_state_path.write_text("{}")
+    source_path = run_state_path.with_name("predictions.csv")
+    row = {
+        "model": "example-model",
+        "scenario_id": "scenario_000",
+        "variable": "snap",
+        "prediction": 1.0,
+        "explanation": "An explanation",
+        "raw_response": "A raw response",
+        "provider_resolved_model": "provider/example-model",
+        "prompt_tokens": 10,
+        "completion_tokens": 20,
+        "error": None,
+    }
+    pd.DataFrame([row]).to_csv(source_path, index=False)
+    frozen_row = {**row, column: different_value}
+    frozen = pd.DataFrame([frozen_row])
+
+    evidence = _run_state_prediction_evidence(
+        run_state_path,
+        frozen,
+        "example-model",
+    )
+
+    assert evidence["compared_columns"] == list(PREDICTION_EVIDENCE_COLUMNS)
+    assert evidence["kind"] == "registry"
+    assert evidence["source_predictions_sha256"] == sha256(source_path)
+    assert evidence["source_rows_sha256"] != evidence["frozen_rows_sha256"]
+    assert evidence["rows_match"] is False
+    assert evidence["note"] == (
+        "Source predictions.csv rows do not match the frozen model rows; "
+        "serving fields fall back to the registry."
+    )
+
+
+def test_freezer_full_row_hash_normalizes_empty_values_and_text_whitespace(
+    tmp_path,
+):
     from scripts.freeze_snapshot import _run_state_prediction_evidence
 
     run_state_path = tmp_path / "run" / "run_state.json"
     run_state_path.parent.mkdir()
     run_state_path.write_text("{}")
     source_path = run_state_path.with_name("predictions.csv")
-    pd.DataFrame(
-        {
-            "model": ["example-model"],
-            "scenario_id": ["scenario_000"],
-            "variable": ["snap"],
-            "prediction": [1.0],
-        }
-    ).to_csv(source_path, index=False)
+    row = {
+        "model": "example-model",
+        "scenario_id": " scenario_000 ",
+        "variable": " snap ",
+        "prediction": 1,
+        "explanation": " An explanation ",
+        "raw_response": " A raw response ",
+        "provider_resolved_model": " provider/example-model ",
+        "prompt_tokens": 10.0,
+        "completion_tokens": 20.0,
+        "error": "",
+    }
+    pd.DataFrame([row]).to_csv(source_path, index=False)
     frozen = pd.DataFrame(
-        {
-            "model": ["example-model"],
-            "scenario_id": ["scenario_000"],
-            "variable": ["snap"],
-            "prediction": [2.0],
-        }
+        [
+            {
+                **row,
+                "scenario_id": "scenario_000",
+                "variable": "snap",
+                "explanation": "An explanation",
+                "raw_response": "A raw response",
+                "provider_resolved_model": "provider/example-model",
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "error": None,
+            }
+        ]
     )
 
     evidence = _run_state_prediction_evidence(
@@ -381,15 +478,9 @@ def test_freezer_downgrades_run_state_when_prediction_rows_differ(tmp_path):
         "example-model",
     )
 
-    assert evidence == {
-        "kind": "registry",
-        "source_predictions_sha256": sha256(source_path),
-        "rows_match": False,
-        "note": (
-            "Source predictions.csv rows do not match the frozen model rows; "
-            "serving fields fall back to the registry."
-        ),
-    }
+    assert evidence["kind"] == "run_state"
+    assert evidence["rows_match"] is True
+    assert evidence["source_rows_sha256"] == evidence["frozen_rows_sha256"]
 
 
 def test_freezer_accepts_v3_fingerprint_and_compares_repair_rounds(tmp_path):
