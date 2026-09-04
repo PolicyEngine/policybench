@@ -16,6 +16,7 @@ import pandas as pd
 import pytest
 
 from policybench.config import MODELS, PROGRAMS
+from policybench.eval_no_tools import _build_resume_metadata
 from policybench.model_cards import MODEL_CARDS, ModelCard
 from policybench.scenarios import Person, Scenario, scenario_to_dict
 from policybench.spend_ledger import spend_ledger_path, upsert_spend_ledger
@@ -63,6 +64,49 @@ def make_supervisor(manifest: Path, tmp_path: Path, **kwargs) -> Supervisor:
     )
 
 
+def write_current_worker_output(
+    supervisor: Supervisor,
+    index: int,
+    *,
+    model: str | None = None,
+    variables: list[str] | None = None,
+    cost_per_scenario: float = 0.1,
+    write_metadata: bool = True,
+) -> tuple[Path, Path]:
+    """Write the CSV and sidecar emitted by the supervisor's current worker."""
+    path = supervisor.scenario_csv(index)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    output_variables = (
+        supervisor._expected_outputs_for_scenario(index)
+        if variables is None
+        else variables
+    )
+    row_count = len(output_variables)
+    pd.DataFrame(
+        {
+            "model": [model or supervisor.model] * row_count,
+            "scenario_id": [supervisor.scenario_ids[index]] * row_count,
+            "variable": output_variables,
+            "prediction": list(range(row_count)),
+            "explanation": ["test explanation"] * row_count,
+            "total_cost_usd": [cost_per_scenario / row_count] * row_count,
+        }
+    ).to_csv(path, index=False)
+
+    metadata_path = Path(f"{path}.meta.json")
+    if write_metadata:
+        metadata = _build_resume_metadata(
+            task="eval_no_tools_batch",
+            scenarios=[supervisor.scenarios[index]],
+            models={supervisor.model: supervisor.litellm_id},
+            programs=PROGRAMS,
+            run_id=None,
+            include_explanations=True,
+        )
+        metadata_path.write_text(json.dumps(metadata))
+    return path, metadata_path
+
+
 def stub_worker(
     supervisor: Supervisor,
     monkeypatch,
@@ -78,18 +122,11 @@ def stub_worker(
 
     def fake_spawn(index: int):
         if index not in fail_indices:
-            out = supervisor.scenario_csv(index)
-            out.parent.mkdir(parents=True, exist_ok=True)
-            variables = supervisor._expected_outputs_for_scenario(index)
-            pd.DataFrame(
-                {
-                    "scenario_id": [supervisor.scenario_ids[index]] * len(variables),
-                    "variable": variables,
-                    "prediction": list(range(len(variables))),
-                    "total_cost_usd": [cost_per_scenario / len(variables)]
-                    * len(variables),
-                }
-            ).to_csv(out, index=False)
+            out, _ = write_current_worker_output(
+                supervisor,
+                index,
+                cost_per_scenario=cost_per_scenario,
+            )
             escalation_count = budget_escalation_counts.get(index, 0)
             if escalation_count:
                 upsert_spend_ledger(
@@ -259,16 +296,12 @@ def test_resume_rejects_stale_scenario_csv_with_wrong_outputs(
 ):
     initial = make_supervisor(manifest, tmp_path)
     initial.write_heartbeat()
-    scenario_path = initial.scenario_csv(0)
-    scenario_path.parent.mkdir(parents=True)
     variables = initial._expected_outputs_for_scenario(0)[:-1]
-    pd.DataFrame(
-        {
-            "scenario_id": [initial.scenario_ids[0]] * len(variables),
-            "variable": variables,
-            "prediction": [0.0] * len(variables),
-        }
-    ).to_csv(scenario_path, index=False)
+    scenario_path, _ = write_current_worker_output(
+        initial,
+        0,
+        variables=variables,
+    )
 
     resumed = make_supervisor(manifest, tmp_path)
     monkeypatch.setattr(
@@ -287,18 +320,10 @@ def test_resume_rejects_stale_scenario_csv_with_wrong_hash(
 ):
     initial = make_supervisor(manifest, tmp_path)
     initial.write_heartbeat()
-    scenario_path = initial.scenario_csv(0)
-    scenario_path.parent.mkdir(parents=True)
-    variables = initial._expected_outputs_for_scenario(0)
-    pd.DataFrame(
-        {
-            "scenario_id": [initial.scenario_ids[0]] * len(variables),
-            "variable": variables,
-            "prediction": [0.0] * len(variables),
-        }
-    ).to_csv(scenario_path, index=False)
-    metadata_path = Path(f"{scenario_path}.meta.json")
-    metadata_path.write_text(json.dumps({"scenario_hash": "stale"}))
+    scenario_path, metadata_path = write_current_worker_output(initial, 0)
+    metadata = json.loads(metadata_path.read_text())
+    metadata["scenario_hash"] = "stale"
+    metadata_path.write_text(json.dumps(metadata))
 
     resumed = make_supervisor(manifest, tmp_path)
     monkeypatch.setattr(
@@ -311,6 +336,100 @@ def test_resume_rejects_stale_scenario_csv_with_wrong_hash(
         resumed.run(poll_seconds=0.01)
     assert str(scenario_path) in str(exc_info.value)
     assert str(metadata_path) in str(exc_info.value)
+
+
+def test_resume_rejects_scenario_csv_without_sidecar(manifest, tmp_path, monkeypatch):
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+    scenario_path, metadata_path = write_current_worker_output(
+        initial,
+        0,
+        write_metadata=False,
+    )
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("sidecar-less output dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="missing required") as exc_info:
+        resumed.run(poll_seconds=0.01)
+    assert str(scenario_path) in str(exc_info.value)
+    assert str(metadata_path) in str(exc_info.value)
+
+
+def test_resume_rejects_scenario_csv_from_another_model(
+    manifest, tmp_path, monkeypatch
+):
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+    scenario_path, _ = write_current_worker_output(
+        initial,
+        0,
+        model="another-model",
+    )
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("wrong-model output dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match="model rows") as exc_info:
+        resumed.run(poll_seconds=0.01)
+    assert str(scenario_path) in str(exc_info.value)
+
+
+def test_resume_rejects_scenario_sidecar_with_different_treatment(
+    manifest, tmp_path, monkeypatch
+):
+    initial = make_supervisor(manifest, tmp_path)
+    initial.write_heartbeat()
+    scenario_path, metadata_path = write_current_worker_output(initial, 0)
+    metadata = json.loads(metadata_path.read_text())
+    metadata["treatment"][initial.model]["tool_choice_mode"] = "auto"
+    metadata_path.write_text(json.dumps(metadata))
+
+    resumed = make_supervisor(manifest, tmp_path)
+    monkeypatch.setattr(
+        resumed,
+        "_spawn",
+        lambda _index: pytest.fail("mismatched treatment dispatched a worker"),
+    )
+
+    with pytest.raises(ValueError, match=r"treatment\.test-model") as exc_info:
+        resumed.run(poll_seconds=0.01)
+    assert str(scenario_path) in str(exc_info.value)
+    assert str(metadata_path) in str(exc_info.value)
+
+
+def test_current_worker_sidecar_passes_scenario_validation(manifest, tmp_path):
+    supervisor = make_supervisor(manifest, tmp_path)
+    write_current_worker_output(supervisor, 0)
+
+    assert supervisor._scenario_complete(0) is True
+
+
+def test_combine_only_includes_outputs_that_pass_scenario_validation(
+    manifest, tmp_path, monkeypatch
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    write_current_worker_output(supervisor, 0)
+    write_current_worker_output(supervisor, 1)
+    monkeypatch.setattr(
+        supervisor,
+        "_scenario_complete",
+        lambda index: index == 0,
+    )
+
+    output_path = supervisor.combine()
+
+    assert output_path is not None
+    combined = pd.read_csv(output_path)
+    assert combined["scenario_id"].unique().tolist() == ["scenario_000"]
 
 
 def test_resume_rejects_unversioned_treatment_fingerprint(

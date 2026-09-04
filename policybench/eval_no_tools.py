@@ -647,7 +647,9 @@ def _parse_standalone_number(text: str) -> float | None:
 
 
 def _required_explanation_chunk_size(
-    model_id: str, include_explanations: bool
+    model_id: str,
+    include_explanations: bool,
+    env: dict | None = None,
 ) -> int | None:
     if not include_explanations:
         return None
@@ -655,9 +657,10 @@ def _required_explanation_chunk_size(
     # POLICYBENCH_CHUNK_OVERRIDE=none runs grandfathered chunked models on
     # the canonical whole-scenario request so their sensitivity runs are
     # shaped like the rest of the roster. Never set for leaderboard runs.
+    source = os.environ if env is None else env
     return explanation_chunk_size_for(
         model_id,
-        chunk_override=os.environ.get("POLICYBENCH_CHUNK_OVERRIDE"),
+        chunk_override=source.get("POLICYBENCH_CHUNK_OVERRIDE"),
     )
 
 
@@ -931,15 +934,16 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
             signal.setitimer(signal.ITIMER_REAL, *previous_timer)
 
 
-def _answer_contract_for_model(model_id: str) -> str:
+def _answer_contract_for_model(model_id: str, env: dict | None = None) -> str:
     # Sensitivity-run escape hatch, sibling of POLICYBENCH_TOOL_CHOICE and
     # POLICYBENCH_CHUNK_OVERRIDE: POLICYBENCH_CONTRACT_OVERRIDE=tool runs a
     # JSON-contract model with the answer tool declared, so a tool_choice=auto
     # sensitivity run has a tool for the model to choose. Never set for
     # leaderboard runs.
+    source = os.environ if env is None else env
     return answer_contract_for(
         model_id,
-        contract_override=os.environ.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+        contract_override=source.get("POLICYBENCH_CONTRACT_OVERRIDE"),
     )
 
 
@@ -3033,6 +3037,7 @@ def _treatment_metadata(
     *,
     first_scenario_variables: list[str] | None = None,
     single_output: bool = False,
+    env: dict | None = None,
 ) -> dict:
     """Effective per-model serving treatment recorded beside a resumable output.
 
@@ -3042,9 +3047,11 @@ def _treatment_metadata(
     POLICYBENCH_CHUNK_OVERRIDE) change the request without changing the model
     id, so the resume check compares this block too.
     """
+    source = os.environ if env is None else env
+    max_repair_rounds = MAX_REPAIR_ROUNDS if env is None else _max_repair_rounds(source)
     treatment = {}
     for name, model_id in sorted(models.items()):
-        answer_contract = _answer_contract_for_model(model_id)
+        answer_contract = _answer_contract_for_model(model_id, env=env)
         treatment[name] = {
             "answer_contract": answer_contract,
             "tool_choice_mode": (
@@ -3052,15 +3059,17 @@ def _treatment_metadata(
                 if answer_contract != "tool"
                 else (
                     "auto"
-                    if os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto"
+                    if source.get("POLICYBENCH_TOOL_CHOICE") == "auto"
                     else "forced"
                 )
             ),
             "explanation_chunk_size": _required_explanation_chunk_size(
-                model_id, include_explanations
+                model_id,
+                include_explanations,
+                env=env,
             ),
-            "contract_override": os.environ.get("POLICYBENCH_CONTRACT_OVERRIDE"),
-            "max_repair_rounds": MAX_REPAIR_ROUNDS,
+            "contract_override": source.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+            "max_repair_rounds": max_repair_rounds,
             "initial_completion_budget_tokens": _initial_completion_budget_tokens(
                 model_id,
                 (
@@ -3069,7 +3078,7 @@ def _treatment_metadata(
                         first_scenario_variables,
                         include_explanations,
                         single_output=single_output,
-                        chunk_override=os.environ.get("POLICYBENCH_CHUNK_OVERRIDE"),
+                        chunk_override=source.get("POLICYBENCH_CHUNK_OVERRIDE"),
                     )
                     if first_scenario_variables is not None
                     else None
@@ -3077,7 +3086,7 @@ def _treatment_metadata(
                 include_explanations=include_explanations,
             ),
             "thinking": _thinking_configuration(model_id),
-            "request_timeout_seconds": _request_timeout_seconds(model_id),
+            "request_timeout_seconds": _request_timeout_seconds(model_id, env=env),
         }
     return treatment
 

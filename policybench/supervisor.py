@@ -176,12 +176,21 @@ class Supervisor:
         path = self.scenario_csv(index)
         if not path.exists():
             return False
+
+        metadata_path = Path(f"{path}.meta.json")
+        if not metadata_path.exists():
+            self._raise_stale_scenario_output(
+                path,
+                f"missing required {metadata_path.name}",
+                extra_path=metadata_path,
+            )
+
         try:
             frame = pd.read_csv(path)
         except Exception as error:
             self._raise_stale_scenario_output(path, f"could not read CSV: {error}")
 
-        required_columns = {"scenario_id", "variable"}
+        required_columns = {"model", "scenario_id", "variable"}
         missing_columns = sorted(required_columns - set(frame.columns))
         if missing_columns:
             self._raise_stale_scenario_output(
@@ -199,6 +208,14 @@ class Supervisor:
                 f"scenario_id rows do not exactly equal {expected_scenario_id!r}",
             )
 
+        actual_models = frame["model"].tolist()
+        if not actual_models or any(model != self.model for model in actual_models):
+            self._raise_stale_scenario_output(
+                path,
+                f"model rows do not exactly equal {self.model!r}",
+                extra_path=metadata_path,
+            )
+
         expected_outputs = self._expected_outputs_for_scenario(index)
         actual_outputs = frame["variable"].tolist()
         if len(actual_outputs) != len(expected_outputs) or set(actual_outputs) != set(
@@ -212,29 +229,64 @@ class Supervisor:
                 f"(missing={missing}, unexpected={unexpected})",
             )
 
-        metadata_path = Path(f"{path}.meta.json")
-        if metadata_path.exists():
-            try:
-                metadata = json.loads(metadata_path.read_text())
-            except (OSError, json.JSONDecodeError) as error:
-                self._raise_stale_scenario_output(
-                    path,
-                    f"could not read {metadata_path.name}: {error}",
-                    extra_path=metadata_path,
-                )
-            from policybench.eval_no_tools import _scenario_hash
+        try:
+            metadata = json.loads(metadata_path.read_text())
+        except (OSError, json.JSONDecodeError) as error:
+            self._raise_stale_scenario_output(
+                path,
+                f"could not read {metadata_path.name}: {error}",
+                extra_path=metadata_path,
+            )
+        if not isinstance(metadata, dict):
+            self._raise_stale_scenario_output(
+                path,
+                f"{metadata_path.name} must contain a JSON object",
+                extra_path=metadata_path,
+            )
 
-            expected_hash = _scenario_hash([self.scenarios[index]])
-            if (
-                not isinstance(metadata, dict)
-                or metadata.get("scenario_hash") != expected_hash
-            ):
+        expected_metadata = self._expected_scenario_metadata(index)
+        for field_name, expected in expected_metadata.items():
+            if field_name == "treatment":
+                stored_treatment = metadata.get("treatment")
+                stored = (
+                    stored_treatment.get(self.model)
+                    if isinstance(stored_treatment, dict)
+                    else None
+                )
+                expected = expected[self.model]
+                mismatch_field = f"treatment.{self.model}"
+            else:
+                stored = metadata.get(field_name)
+                mismatch_field = field_name
+            if stored != expected:
                 self._raise_stale_scenario_output(
                     path,
-                    f"{metadata_path.name} scenario_hash does not match the manifest",
+                    f"{metadata_path.name} field {mismatch_field!r} differs "
+                    f"(stored={stored!r}, requested={expected!r})",
                     extra_path=metadata_path,
                 )
         return True
+
+    def _expected_scenario_metadata(self, index: int) -> dict:
+        from policybench.eval_no_tools import (
+            _response_contract_metadata,
+            _scenario_hash,
+            _treatment_metadata,
+        )
+
+        models = {self.model: self.litellm_id}
+        return {
+            "scenario_hash": _scenario_hash([self.scenarios[index]]),
+            "models": models,
+            "treatment": _treatment_metadata(
+                models,
+                include_explanations=True,
+                first_scenario_variables=self._expected_outputs_for_scenario(index),
+                env=self.env,
+            ),
+            "programs": sorted(PROGRAMS),
+            "response_contract": _response_contract_metadata(),
+        }
 
     def _raise_stale_scenario_output(
         self,
@@ -695,25 +747,12 @@ class Supervisor:
 
     def combine(self) -> Path | None:
         scen_dir = self.run_dir / SCENARIO_DIR
-        parts = (
-            [
-                self.scenario_csv(index)
-                for index in range(len(self.scenario_ids))
-                if self.scenario_csv(index).exists()
-            ]
-            if scen_dir.exists()
-            else []
-        )
-        if not parts:
+        if not scen_dir.exists():
             return None
         frames = []
-        for index, path in (
-            (index, self.scenario_csv(index))
-            for index in range(len(self.scenario_ids))
-            if self.scenario_csv(index).exists()
-        ):
-            self._scenario_complete(index)
-            frames.append(pd.read_csv(path))
+        for index in range(len(self.scenario_ids)):
+            if self._scenario_complete(index):
+                frames.append(pd.read_csv(self.scenario_csv(index)))
         if not frames:
             return None
         combined = pd.concat(frames, ignore_index=True)
