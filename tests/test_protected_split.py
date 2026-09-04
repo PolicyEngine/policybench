@@ -1,5 +1,6 @@
 """Tests for the protected evaluation split."""
 
+import hashlib
 import json
 import sys
 from unittest.mock import patch
@@ -148,6 +149,17 @@ def test_reference_outputs_cli_writes_private_split(tmp_path):
     assert public_ids & private_ids == set()
     assert set(pd.read_csv(output)["scenario_id"]) == public_ids
     assert set(pd.read_csv(private_output)["scenario_id"]) == private_ids
+    for reference_path in (output, private_output):
+        reference_meta = json.loads(
+            reference_path.with_name(reference_path.name + ".meta.json").read_text()
+        )
+        assert (
+            reference_meta["reference_csv_sha256"]
+            == hashlib.sha256(reference_path.read_bytes()).hexdigest()
+        )
+        assert reference_meta["row_count"] == len(pd.read_csv(reference_path))
+        assert reference_meta["task"] == "reference_outputs"
+        assert reference_meta["country"] == "us"
 
     public_meta = json.loads((tmp_path / "scenarios.csv.meta.json").read_text())
     private_meta = json.loads(

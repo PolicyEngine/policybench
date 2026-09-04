@@ -46,7 +46,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from policybench.analysis import score_single_prediction
+from policybench.analysis import render_markdown_report, score_single_prediction
+from policybench.full_run_export import reference_policyengine_bundles
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
@@ -91,15 +92,12 @@ PUBLISHED_DASHBOARD_ARTIFACT = {
     "bytes": 87_410_551,
 }
 
-# The publish bundle omits this immutable reference-generation sidecar. Pair
-# the original completed-run copy only after checking that its reference CSV
-# is byte-identical to the publish bundle's CSV.
-ORIGINAL_US_RUN = (_MAIN_CLONE / "results" / RUN_LABEL / "us").resolve()
-REFERENCE_META_SOURCE = ORIGINAL_US_RUN / "reference_outputs.csv.meta.json"
-
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
 RUN_DEST = SNAPSHOT_DIR / "runs" / RUN_LABEL
 ANNOTATIONS_DEST = ROOT / "annotations" / RUN_LABEL
+# The publish bundle omits this immutable reference-generation sidecar. Reuse
+# the committed copy after checking the manifest's CSV and sidecar pins.
+REFERENCE_META_SOURCE = RUN_DEST / "reference_outputs.csv.meta.json"
 
 # Supervised-run state is the strongest available evidence for the treatment a
 # board row actually received. Older supervisor state files predate treatment
@@ -520,11 +518,11 @@ def regenerate_analysis(dest_dir: Path) -> None:
             "policybench.cli",
             "analyze",
             "-g",
-            str(SOURCE_US / "reference_outputs.csv"),
+            str(RUN_DEST / "reference_outputs.csv"),
             "-p",
-            str(SOURCE_US / "predictions.csv"),
+            str(RUN_DEST / "predictions.csv.gz"),
             "-s",
-            str(SOURCE_US / "scenarios.csv"),
+            str(RUN_DEST / "scenarios.csv"),
             "-o",
             str(dest_dir),
             "--app-data-output",
@@ -536,8 +534,30 @@ def regenerate_analysis(dest_dir: Path) -> None:
     )
     throwaway.unlink(missing_ok=True)
 
-    ground_truth = pd.read_csv(SOURCE_US / "reference_outputs.csv")
-    predictions = pd.read_csv(SOURCE_US / "predictions.csv")
+    report_tables = {
+        key: pd.read_csv(dest_dir / filename)
+        for key, filename in {
+            "metrics": "metrics.csv",
+            "model_summary": "summary_by_model.csv",
+            "variable_summary": "summary_by_variable.csv",
+            "usage_summary": "usage_summary.csv",
+        }.items()
+    }
+    country_payload = json.loads((RUN_DEST / "data.json").read_text())
+    published_model_costs = {
+        row["model"]: row["costUsd"]
+        for row in country_payload["modelStats"]
+        if row["condition"] == "no_tools"
+    }
+    (dest_dir / "report.md").write_text(
+        render_markdown_report(
+            report_tables, published_model_costs=published_model_costs
+        ),
+        encoding="utf-8",
+    )
+
+    ground_truth = pd.read_csv(RUN_DEST / "reference_outputs.csv")
+    predictions = pd.read_csv(RUN_DEST / "predictions.csv.gz")
     impact = household_impact_summary_by_model(ground_truth, predictions)
     impact.to_csv(dest_dir / "impact_summary_by_model.csv", index=False)
 
@@ -555,11 +575,26 @@ def freeze_run() -> dict[str, str]:
         )
 
     publish_reference = SOURCE_US / "reference_outputs.csv"
-    original_reference = ORIGINAL_US_RUN / "reference_outputs.csv"
-    if sha256_file(publish_reference) != sha256_file(original_reference):
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    reference_pins = manifest["source_run_artifacts"][RUN_LABEL]["files"]
+    reference_digest = reference_pins["reference_outputs.csv"]
+    if sha256_file(publish_reference) != reference_digest:
         raise SystemExit(
-            "Publish and original reference outputs differ; cannot pair metadata."
+            "Publish reference outputs differ from the committed manifest pin; "
+            "cannot pair metadata."
         )
+    reference_metadata_bytes = REFERENCE_META_SOURCE.read_bytes()
+    if (
+        sha256_bytes(reference_metadata_bytes)
+        != reference_pins["reference_outputs.csv.meta.json"]
+    ):
+        raise SystemExit("Reference metadata differs from the committed manifest pin.")
+    reference_policyengine_bundles(
+        RUN_DEST / "reference_outputs.csv",
+        "us",
+        require_digest=True,
+        manifest_reference_sha256=reference_digest,
+    )
 
     if RUN_DEST.exists():
         shutil.rmtree(RUN_DEST)
@@ -586,7 +621,7 @@ def freeze_run() -> dict[str, str]:
     # scenarios + reference outputs (+ meta).
     for name in ("scenarios.csv", "scenarios.csv.meta.json", "reference_outputs.csv"):
         copy_exact(SOURCE_US / name, RUN_DEST / name)
-    copy_exact(REFERENCE_META_SOURCE, RUN_DEST / "reference_outputs.csv.meta.json")
+    (RUN_DEST / "reference_outputs.csv.meta.json").write_bytes(reference_metadata_bytes)
 
     # analysis/ CSVs + report.md.
     analysis_dest = RUN_DEST / "analysis"
@@ -911,7 +946,7 @@ def remove_stale_artifacts() -> None:
         (SNAPSHOT_DIR / stale).unlink(missing_ok=True)
 
 
-def read_reference_refresh() -> dict[str, str]:
+def read_reference_refresh() -> dict[str, str | int]:
     """Read the real PE bundle versions from the run's reference meta."""
     meta = json.loads(REFERENCE_META_SOURCE.read_text())
     bundle = meta["policyengine_bundles"]["us"]
@@ -922,6 +957,8 @@ def read_reference_refresh() -> dict[str, str]:
         "date": meta["generated_at_utc"][:10],
         "generated_at_utc": meta["generated_at_utc"],
         "snapshot_date": SNAPSHOT_DATE,
+        "reference_csv_sha256": sha256_file(RUN_DEST / "reference_outputs.csv"),
+        "row_count": len(pd.read_csv(RUN_DEST / "reference_outputs.csv")),
         "policyengine_version": bundle["policyengine_version"],
         "policyengine_us_version": bundle["model_version"],
         "policyengine_us_data_build_id": bundle["certified_data_build_id"],

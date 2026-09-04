@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Sequence
@@ -359,7 +360,13 @@ def export_country(country_dir: Path) -> dict:
     return payload
 
 
-def reference_policyengine_bundles(ground_truth_path: Path, country: str) -> dict:
+def reference_policyengine_bundles(
+    ground_truth_path: Path,
+    country: str,
+    *,
+    require_digest: bool = False,
+    manifest_reference_sha256: str | None = None,
+) -> dict:
     """PolicyEngine provenance of the reference outputs, from their sidecar.
 
     ``reference_outputs.csv.meta.json`` is written by the reference generator
@@ -368,6 +375,10 @@ def reference_policyengine_bundles(ground_truth_path: Path, country: str) -> dic
     the v1.1 references were regenerated with a newer policyengine-us than the
     export environment runs. Missing or incomplete provenance is an export
     error rather than permission to substitute an installed runtime.
+
+    New sidecars bind their provenance to the reference CSV's digest and row
+    count. For legacy sidecars, strict callers must supply the digest already
+    pinned in the committed snapshot manifest.
     """
     sidecar = ground_truth_path.with_name(ground_truth_path.name + ".meta.json")
     if not sidecar.exists():
@@ -375,7 +386,39 @@ def reference_policyengine_bundles(ground_truth_path: Path, country: str) -> dic
             f"Reference provenance sidecar is missing: {sidecar}. "
             f"Cannot export country {country!r}."
         )
-    bundles = json.loads(sidecar.read_text()).get("policyengine_bundles") or {}
+    metadata = json.loads(sidecar.read_text())
+    if metadata.get("country") != country:
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar {sidecar} has country "
+            f"{metadata.get('country')!r}, expected {country!r}."
+        )
+    recorded_digest = metadata.get("reference_csv_sha256")
+    if require_digest and not recorded_digest and not manifest_reference_sha256:
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar {sidecar} has no reference_csv_sha256; "
+            "legacy references require a hash pinned in the snapshot manifest."
+        )
+    expected_digests = {
+        "reference_csv_sha256": recorded_digest,
+        "snapshot manifest": manifest_reference_sha256,
+    }
+    if any(digest is not None for digest in expected_digests.values()):
+        actual_digest = hashlib.sha256(ground_truth_path.read_bytes()).hexdigest()
+        for label, expected_digest in expected_digests.items():
+            if expected_digest is not None and actual_digest != expected_digest:
+                raise ReferenceProvenanceError(
+                    f"Reference CSV {ground_truth_path} hash does not match "
+                    f"{label} in its provenance."
+                )
+    if "row_count" in metadata:
+        actual_row_count = len(pd.read_csv(ground_truth_path))
+        if metadata["row_count"] != actual_row_count:
+            raise ReferenceProvenanceError(
+                f"Reference CSV {ground_truth_path} row_count is "
+                f"{actual_row_count}, expected {metadata['row_count']!r}."
+            )
+
+    bundles = metadata.get("policyengine_bundles") or {}
     bundle = bundles.get(country)
     if bundle is None:
         raise ReferenceProvenanceError(

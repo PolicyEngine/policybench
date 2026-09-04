@@ -1,0 +1,168 @@
+"""Reference CSV identity and staged refreeze inputs."""
+
+import hashlib
+import json
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from policybench.full_run_export import (
+    ReferenceProvenanceError,
+    reference_policyengine_bundles,
+)
+
+
+@pytest.fixture
+def reference_pair(tmp_path):
+    reference = tmp_path / "reference_outputs.csv"
+    reference.write_text("scenario_id,variable,value\nscenario_000,snap,100\n")
+    bundle = {
+        "model_package": "policyengine-us",
+        "model_version": "1.755.4",
+        "data_package": "populace-data",
+        "data_version": "0.1.0",
+        "default_dataset": "populace_us_2024",
+        "default_dataset_uri": "hf://example/dataset@revision",
+    }
+    metadata = {
+        "country": "us",
+        "task": "reference_outputs",
+        "reference_csv_sha256": hashlib.sha256(reference.read_bytes()).hexdigest(),
+        "row_count": 1,
+        "policyengine_bundles": {"us": bundle},
+    }
+    sidecar = reference.with_name(reference.name + ".meta.json")
+    sidecar.write_text(json.dumps(metadata))
+    return reference, sidecar, metadata
+
+
+@pytest.mark.parametrize(
+    ("field", "stale_value", "message"),
+    [
+        ("reference_csv_sha256", "0" * 64, "hash does not match reference_csv_sha256"),
+        ("row_count", 2, "row_count is 1, expected 2"),
+        ("country", "uk", "country 'uk', expected 'us'"),
+    ],
+)
+def test_reference_sidecar_rejects_stale_csv_identity(
+    reference_pair, field, stale_value, message
+):
+    reference, sidecar, metadata = reference_pair
+    metadata[field] = stale_value
+    sidecar.write_text(json.dumps(metadata))
+    with pytest.raises(ReferenceProvenanceError, match=message):
+        reference_policyengine_bundles(reference, "us")
+
+
+def test_reference_sidecar_digest_accepts_its_csv(reference_pair):
+    reference, _, metadata = reference_pair
+    assert (
+        reference_policyengine_bundles(reference, "us", require_digest=True)
+        == metadata["policyengine_bundles"]
+    )
+
+
+def test_strict_legacy_reference_requires_matching_manifest_pin(reference_pair):
+    reference, sidecar, metadata = reference_pair
+    manifest_digest = metadata.pop("reference_csv_sha256")
+    metadata.pop("row_count")
+    sidecar.write_text(json.dumps(metadata))
+
+    with pytest.raises(ReferenceProvenanceError, match="hash pinned in the snapshot"):
+        reference_policyengine_bundles(reference, "us", require_digest=True)
+
+    with pytest.raises(ReferenceProvenanceError, match="hash does not match snapshot"):
+        reference_policyengine_bundles(
+            reference,
+            "us",
+            require_digest=True,
+            manifest_reference_sha256="0" * 64,
+        )
+
+    assert (
+        reference_policyengine_bundles(
+            reference,
+            "us",
+            require_digest=True,
+            manifest_reference_sha256=manifest_digest,
+        )
+        == metadata["policyengine_bundles"]
+    )
+
+
+def test_freeze_analysis_reads_only_staged_run_paths(tmp_path, monkeypatch):
+    from scripts import freeze_snapshot
+
+    staged_run = tmp_path / "snapshot" / "runs" / "us"
+    source_us = tmp_path / "source" / "us"
+    staged_run.mkdir(parents=True)
+    (staged_run / "data.json").write_text(
+        json.dumps(
+            {
+                "modelStats": [
+                    {"model": "model-a", "condition": "no_tools", "costUsd": 1.5}
+                ]
+            }
+        )
+    )
+    monkeypatch.setattr(freeze_snapshot, "RUN_DEST", staged_run)
+    monkeypatch.setattr(freeze_snapshot, "SOURCE_US", source_us)
+    analyzed_inputs = []
+
+    def run_analysis(command, **kwargs):
+        for option in ("-g", "-p", "-s"):
+            path = Path(command[command.index(option) + 1])
+            assert path.is_relative_to(staged_run)
+            analyzed_inputs.append(path.name)
+        assert analyzed_inputs == [
+            "reference_outputs.csv",
+            "predictions.csv.gz",
+            "scenarios.csv",
+        ]
+
+    def read_csv(path, *args, **kwargs):
+        assert Path(path).is_relative_to(staged_run)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(freeze_snapshot.subprocess, "run", run_analysis)
+    monkeypatch.setattr(freeze_snapshot.pd, "read_csv", read_csv)
+    reports = []
+
+    def render_report(tables, *, published_model_costs):
+        assert published_model_costs == {"model-a": 1.5}
+        reports.append(tables)
+        return "Frozen report"
+
+    monkeypatch.setattr(freeze_snapshot, "render_markdown_report", render_report)
+    monkeypatch.setattr(
+        freeze_snapshot,
+        "household_impact_summary_by_model",
+        lambda references, predictions: pd.DataFrame({"model": ["model-a"]}),
+    )
+    freeze_snapshot.regenerate_analysis(staged_run / "analysis")
+    assert analyzed_inputs
+    assert len(reports) == 1
+    assert (staged_run / "analysis" / "report.md").read_text() == "Frozen report"
+
+
+def test_frozen_reference_refresh_pins_committed_csv_identity():
+    root = Path(__file__).resolve().parents[1]
+    snapshot = root / "paper" / "snapshot" / "20260501"
+    manifest = json.loads((snapshot / "manifest.json").read_text())
+    run_label = manifest["source_run_labels"]["us"]
+    run_dir = root / manifest["source_run_artifacts"][run_label]["path"]
+    reference = run_dir / "reference_outputs.csv"
+    refresh = manifest["reference_output_refresh"]
+
+    assert (
+        refresh["reference_csv_sha256"]
+        == hashlib.sha256(reference.read_bytes()).hexdigest()
+    )
+    assert refresh["row_count"] == len(pd.read_csv(reference))
+    assert reference_policyengine_bundles(
+        reference,
+        "us",
+        require_digest=True,
+        manifest_reference_sha256=refresh["reference_csv_sha256"],
+    )

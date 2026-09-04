@@ -1,6 +1,7 @@
 """CLI entry point for PolicyBench."""
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -1030,6 +1031,10 @@ def main():
             split_metadata = {
                 **base_metadata,
                 "task": "reference_outputs",
+                "reference_csv_sha256": hashlib.sha256(
+                    output_path.read_bytes()
+                ).hexdigest(),
+                "row_count": len(split_df),
                 "split": split_name,
                 "num_scenarios": len(split_scenarios_list),
                 "output": str(output_path),

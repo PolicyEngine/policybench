@@ -473,11 +473,13 @@ def test_reference_policyengine_bundles_come_from_the_sidecar(tmp_path):
         ),
         "bundle_id": "us-4.16.1",
     }
-    sidecar.write_text(json.dumps({"policyengine_bundles": {"us": bundle}}))
+    sidecar.write_text(
+        json.dumps({"country": "us", "policyengine_bundles": {"us": bundle}})
+    )
     assert reference_policyengine_bundles(ground_truth, "us") == {"us": bundle}
     with pytest.raises(
         ReferenceProvenanceError,
-        match="no policyengine_bundles entry for country 'uk'",
+        match="country 'us', expected 'uk'",
     ):
         reference_policyengine_bundles(ground_truth, "uk")
 
@@ -488,7 +490,9 @@ def test_reference_policyengine_bundles_rejects_an_empty_bundle(tmp_path):
     ground_truth = tmp_path / "reference_outputs.csv"
     ground_truth.write_text("scenario_id,variable,value\n")
     sidecar = tmp_path / "reference_outputs.csv.meta.json"
-    sidecar.write_text(json.dumps({"policyengine_bundles": {"us": {}}}))
+    sidecar.write_text(
+        json.dumps({"country": "us", "policyengine_bundles": {"us": {}}})
+    )
 
     with pytest.raises(ReferenceProvenanceError) as exc_info:
         reference_policyengine_bundles(ground_truth, "us")
@@ -514,6 +518,7 @@ def test_reference_policyengine_bundles_rejects_missing_model_version(tmp_path):
     sidecar.write_text(
         json.dumps(
             {
+                "country": "us",
                 "policyengine_bundles": {
                     "us": {
                         "model_package": "policyengine-us",
@@ -522,7 +527,7 @@ def test_reference_policyengine_bundles_rejects_missing_model_version(tmp_path):
                         "default_dataset": "populace_us_2024",
                         "default_dataset_uri": "hf://example/dataset@revision",
                     }
-                }
+                },
             }
         )
     )
@@ -540,12 +545,13 @@ def test_reference_policyengine_bundles_rejects_missing_dataset_identity(tmp_pat
     sidecar.write_text(
         json.dumps(
             {
+                "country": "us",
                 "policyengine_bundles": {
                     "us": {
                         "model_package": "policyengine-us",
                         "model_version": "1.755.4",
                     }
-                }
+                },
             }
         )
     )
