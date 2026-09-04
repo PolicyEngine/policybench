@@ -60,12 +60,12 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "0a8a44b7a587c44ab1b8e4d6ecd388f80891d0b2e6781ae4ff0441551058b027"
+      "sha256": "ed4d3b37c37c83a565b8113801ea7d7d79d57d3d688a91a3a96efce15e9b17b2"
     },
     "web": {
       "files": {
         "figures/positive_zero_scatter.png": "ab45ad994420d5242d6905b83e015b50fcb4aa07babc20e10702cfee5dbda138",
-        "index.html": "c6b17d451872c0a91cd8f6430fc61f6e3271a70ac15839b67033a44bd8b2385c",
+        "index.html": "38fdcd3aa619d570cd22c57a6752fd49736ee1ae004cd720f7e5a3d569a06729",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
