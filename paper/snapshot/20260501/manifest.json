@@ -9,7 +9,7 @@
     "path": "annotations/us_full_run_20260612_policyengine_4_16_1_populace"
   },
   "committed_snapshot_artifacts": {
-    "model_serving_config.json": "b4e6508a0d41e846386242de2440f6ea8ec75b51d85f56804e6c85bd69f91568",
+    "model_serving_config.json": "b6f2de51f268b9cd3da4827015676226d6b7093e7b45d04d5a3127f56673f0ab",
     "us_impact_summary_by_model.csv": "9cab19bf5486b403bd200aa27d9f19eb40e2f6166d4338dd379bb8f1934284f3",
     "us_reference_outputs.csv": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
     "us_scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"
