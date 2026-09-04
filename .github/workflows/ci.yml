@@ -42,5 +42,8 @@ jobs:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
       - run: bun run lint
+      # Tests read the bundled live summary and the tracked serving-config copy,
+      # which prepare-data generates and refreshes; the build runs it again from cache.
+      - run: bun run prepare-data
       - run: bun test tests
       - run: bun run build
