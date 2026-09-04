@@ -546,9 +546,9 @@ class TestSummaries:
             "run_stability": pd.DataFrame(),
         }
         report = render_markdown_report(analysis)
-        assert "# PolicyBench Analysis" in report
+        assert "# PolicyBench analysis" in report
         assert "## Usage" in report
-        assert "Total cost" in report
+        assert "Recorded-usage cost subtotal (1 of 2 models): $1.230" in report
         assert "cost_rows_estimated" in report
         assert "## Summary by model" in report
         assert "## Summary by variable" in report
@@ -665,7 +665,9 @@ class TestSummaries:
                 }
             ),
         }
-        exported = export_analysis(analysis, tmp_path)
+        exported = export_analysis(
+            analysis, tmp_path, published_model_costs={"a": 1.23, "b": 2.5}
+        )
         assert set(exported) == {
             "metrics",
             "model_summary",
@@ -680,6 +682,13 @@ class TestSummaries:
         assert exported["variable_summary"].exists()
         assert exported["usage_summary"].exists()
         assert exported["report"].exists()
+        report = exported["report"].read_text()
+        assert "Recorded-usage cost subtotal (1 of 2 models): $1.230" in report
+        assert (
+            "Published model costs total $3.730 "
+            "(includes release-metadata costs for: b)."
+        ) in report
+        assert pd.read_csv(exported["usage_summary"])["total_cost_usd"].sum() == 1.23
 
     def test_build_dashboard_payload_requires_reference_bundles(self, monkeypatch):
         def unexpected_runtime_lookup(_countries):
