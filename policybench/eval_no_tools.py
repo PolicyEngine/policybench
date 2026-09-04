@@ -54,6 +54,37 @@ from policybench.spend_ledger import (
 
 logger = logging.getLogger(__name__)
 
+# Canonical columns emitted by both no-tools result writers. ``run_id`` is
+# added only by repeated runs. Keep the worker-schema parity test in sync.
+NO_TOOLS_RESULT_COLUMNS = (
+    "call_id",
+    "model",
+    "scenario_id",
+    "variable",
+    "prediction",
+    "explanation",
+    "failure_source",
+    "raw_response",
+    "error",
+    "elapsed_seconds",
+    "request_started_at",
+    "request_completed_at",
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "reasoning_tokens",
+    "cached_prompt_tokens",
+    "cache_write_prompt_tokens",
+    "provider_reported_cost_usd",
+    "reconstructed_cost_usd",
+    "total_cost_usd",
+    "cost_is_estimated",
+    "estimated_cost_usd",
+    "provider_response_id",
+    "provider_system_fingerprint",
+    "provider_resolved_model",
+)
+
 # litellm resolves an unprefixed model's provider (and prices it) through its
 # model-cost map, whose remote refresh can time out mid-run and whose bundled
 # backup lags brand-new models. Register the Claude Fable line locally so
@@ -2997,6 +3028,7 @@ def _build_resume_metadata(
     programs: list[str],
     run_id: str | None,
     include_explanations: bool,
+    env: dict | None = None,
 ) -> dict:
     countries = {(scenario.country or "us").lower() for scenario in scenarios}
     return {
@@ -3017,6 +3049,7 @@ def _build_resume_metadata(
                 else None
             ),
             single_output=task == "eval_no_tools_single_output",
+            env=env,
         ),
         "policyengine_bundles": policyengine_bundles_for_countries(countries),
         "response_contract": _response_contract_metadata(),

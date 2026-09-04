@@ -173,6 +173,8 @@ class Supervisor:
         return expand_programs_for_scenario(PROGRAMS, self.scenarios[index])
 
     def _scenario_complete(self, index: int) -> bool:
+        from policybench.eval_no_tools import NO_TOOLS_RESULT_COLUMNS
+
         path = self.scenario_csv(index)
         if not path.exists():
             return False
@@ -190,8 +192,7 @@ class Supervisor:
         except Exception as error:
             self._raise_stale_scenario_output(path, f"could not read CSV: {error}")
 
-        required_columns = {"model", "scenario_id", "variable"}
-        missing_columns = sorted(required_columns - set(frame.columns))
+        missing_columns = sorted(set(NO_TOOLS_RESULT_COLUMNS) - set(frame.columns))
         if missing_columns:
             self._raise_stale_scenario_output(
                 path,
@@ -246,47 +247,30 @@ class Supervisor:
 
         expected_metadata = self._expected_scenario_metadata(index)
         for field_name, expected in expected_metadata.items():
-            if field_name == "treatment":
-                stored_treatment = metadata.get("treatment")
-                stored = (
-                    stored_treatment.get(self.model)
-                    if isinstance(stored_treatment, dict)
-                    else None
-                )
-                expected = expected[self.model]
-                mismatch_field = f"treatment.{self.model}"
-            else:
-                stored = metadata.get(field_name)
-                mismatch_field = field_name
+            stored = metadata.get(field_name)
             if stored != expected:
                 self._raise_stale_scenario_output(
                     path,
-                    f"{metadata_path.name} field {mismatch_field!r} differs "
+                    f"{metadata_path.name} field {field_name!r} differs "
                     f"(stored={stored!r}, requested={expected!r})",
                     extra_path=metadata_path,
                 )
         return True
 
     def _expected_scenario_metadata(self, index: int) -> dict:
-        from policybench.eval_no_tools import (
-            _response_contract_metadata,
-            _scenario_hash,
-            _treatment_metadata,
-        )
+        from policybench.eval_no_tools import _build_resume_metadata
 
-        models = {self.model: self.litellm_id}
-        return {
-            "scenario_hash": _scenario_hash([self.scenarios[index]]),
-            "models": models,
-            "treatment": _treatment_metadata(
-                models,
-                include_explanations=True,
-                first_scenario_variables=self._expected_outputs_for_scenario(index),
-                env=self.env,
-            ),
-            "programs": sorted(PROGRAMS),
-            "response_contract": _response_contract_metadata(),
-        }
+        # Match the eval-no-tools CLI defaults used by _spawn, including
+        # its sliced scenario list and the environment of the subprocess.
+        return _build_resume_metadata(
+            task="eval_no_tools_batch",
+            scenarios=[self.scenarios[index]],
+            models={self.model: self.litellm_id},
+            programs=PROGRAMS,
+            run_id=None,
+            include_explanations=True,
+            env=self.env,
+        )
 
     def _raise_stale_scenario_output(
         self,

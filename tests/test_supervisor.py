@@ -16,7 +16,12 @@ import pandas as pd
 import pytest
 
 from policybench.config import MODELS, PROGRAMS
-from policybench.eval_no_tools import _build_resume_metadata
+from policybench.eval_no_tools import (
+    NO_TOOLS_RESULT_COLUMNS,
+    _build_resume_metadata,
+    run_no_tools_eval,
+    run_no_tools_single_output_eval,
+)
 from policybench.model_cards import MODEL_CARDS, ModelCard
 from policybench.scenarios import Person, Scenario, scenario_to_dict
 from policybench.spend_ledger import spend_ledger_path, upsert_spend_ledger
@@ -84,6 +89,7 @@ def write_current_worker_output(
     row_count = len(output_variables)
     pd.DataFrame(
         {
+            **{column: [None] * row_count for column in NO_TOOLS_RESULT_COLUMNS},
             "model": [model or supervisor.model] * row_count,
             "scenario_id": [supervisor.scenario_ids[index]] * row_count,
             "variable": output_variables,
@@ -102,6 +108,7 @@ def write_current_worker_output(
             programs=PROGRAMS,
             run_id=None,
             include_explanations=True,
+            env=supervisor.env,
         )
         metadata_path.write_text(json.dumps(metadata))
     return path, metadata_path
@@ -400,7 +407,7 @@ def test_resume_rejects_scenario_sidecar_with_different_treatment(
         lambda _index: pytest.fail("mismatched treatment dispatched a worker"),
     )
 
-    with pytest.raises(ValueError, match=r"treatment\.test-model") as exc_info:
+    with pytest.raises(ValueError, match="field 'treatment'") as exc_info:
         resumed.run(poll_seconds=0.01)
     assert str(scenario_path) in str(exc_info.value)
     assert str(metadata_path) in str(exc_info.value)
@@ -411,6 +418,105 @@ def test_current_worker_sidecar_passes_scenario_validation(manifest, tmp_path):
     write_current_worker_output(supervisor, 0)
 
     assert supervisor._scenario_complete(0) is True
+
+
+@pytest.mark.parametrize("missing_column", NO_TOOLS_RESULT_COLUMNS)
+def test_scenario_completion_requires_full_worker_schema(
+    manifest, tmp_path, missing_column
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    path, _ = write_current_worker_output(supervisor, 0)
+    frame = pd.read_csv(path).drop(columns=[missing_column])
+    frame.to_csv(path, index=False)
+
+    with pytest.raises(ValueError, match=f"missing columns.*{missing_column}"):
+        supervisor._scenario_complete(0)
+
+
+@pytest.mark.parametrize(
+    "runner,include_explanations,mismatch",
+    [
+        (run_no_tools_eval, True, None),
+        (run_no_tools_single_output_eval, True, "task"),
+        (run_no_tools_eval, False, "include_explanations"),
+    ],
+)
+def test_worker_schema_and_treatment_parity(
+    manifest, tmp_path, monkeypatch, runner, include_explanations, mismatch
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    path = supervisor.scenario_csv(0)
+    path.parent.mkdir(parents=True)
+
+    def response(_scenario, variables, _model, **_kwargs):
+        outputs = [variables] if isinstance(variables, str) else variables
+        return {
+            "predictions": dict.fromkeys(outputs, 1.0),
+            "explanations": dict.fromkeys(outputs, "test explanation"),
+            "raw_response": "test response",
+        }
+
+    monkeypatch.setattr("policybench.eval_no_tools.run_single_no_tools", response)
+    runner(
+        scenarios=[supervisor.scenarios[0]],
+        models={supervisor.model: supervisor.litellm_id},
+        programs=PROGRAMS,
+        output_path=str(path),
+        include_explanations=include_explanations,
+    )
+
+    assert tuple(pd.read_csv(path).columns) == NO_TOOLS_RESULT_COLUMNS
+    if mismatch is None:
+        assert supervisor._scenario_complete(0)
+    else:
+        with pytest.raises(ValueError, match=f"field '{mismatch}'"):
+            supervisor._scenario_complete(0)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "metadata_version",
+        "task",
+        "include_explanations",
+        "programs",
+        "models",
+        "treatment",
+        "response_contract",
+        "completion_budget_escalation",
+    ],
+)
+def test_scenario_completion_compares_all_worker_treatment_metadata(
+    manifest, tmp_path, field
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    _, metadata_path = write_current_worker_output(supervisor, 0)
+    metadata = json.loads(metadata_path.read_text())
+    if field == "treatment":
+        metadata[field]["another-model"] = metadata[field][supervisor.model]
+    else:
+        metadata[field] = None
+    metadata_path.write_text(json.dumps(metadata))
+
+    with pytest.raises(ValueError, match=f"field '{field}'"):
+        supervisor._scenario_complete(0)
+
+
+def test_scenario_metadata_uses_worker_environment(manifest, tmp_path):
+    supervisor = make_supervisor(
+        manifest,
+        tmp_path,
+        env={
+            "POLICYBENCH_CONTRACT_OVERRIDE": "json",
+            "POLICYBENCH_MAX_REPAIR_ROUNDS": "5",
+        },
+    )
+    write_current_worker_output(supervisor, 0)
+
+    assert supervisor._scenario_complete(0)
+    treatment = supervisor._expected_scenario_metadata(0)["treatment"][supervisor.model]
+    assert treatment["answer_contract"] == "json"
+    assert treatment["max_repair_rounds"] == 5
 
 
 def test_combine_only_includes_outputs_that_pass_scenario_validation(
