@@ -168,6 +168,15 @@ threading a `condition` field through run storage and analysis before the
 export — tracked as part of the run-store cutover — rather than new UI work;
 the site's types and leaderboard already filter on `condition`.
 
+## Cost basis
+
+Each frozen row uses its recorded per-call cost: provider-reported where the
+provider returns one, otherwise reconstructed at the configured list price at
+request time. List-price overrides apply at request time, not retroactively to
+recorded costs. Models without per-call costs use the frozen release-metadata
+cost. Published model costs retain these recorded totals rather than repricing
+past calls at today's rates.
+
 ## Country data paths
 
 ### United States

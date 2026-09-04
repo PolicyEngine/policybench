@@ -70,10 +70,11 @@ MODELS = {
     "inkling": "openrouter/thinkingmachines/inkling",
 }
 
-# Canonical per-1M-token USD prices for models whose comparison basis PolicyBench
-# pins explicitly (typically brand-new provider preview models). These override
-# provider-reported or LiteLLM-map prices. Keyed by the display id used in
-# predictions.csv.gz.
+# Configured per-1M-token USD list prices, keyed by the predictions.csv.gz model
+# id. The frozen row's cost is its recorded per-call cost: provider-reported
+# where the provider returns one, otherwise reconstructed at the configured
+# list price at request time. List-price overrides apply at request time, not
+# retroactively to recorded costs. Analysis preserves each recorded total.
 PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # GPT-5.6 list prices from OpenAI's general-availability announcement
     # (https://openai.com/index/gpt-5-6/, retrieved 2026-07-09).

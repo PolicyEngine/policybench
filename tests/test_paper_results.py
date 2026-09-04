@@ -3,9 +3,16 @@
 import re
 from collections import Counter
 
+import pandas as pd
+import pytest
+
+from policybench.analysis import model_cost_latency
+from policybench.config import PRICE_OVERRIDES_PER_1M
 from policybench.paper_results import (
     MODEL_DISPLAY_NAMES,
     MODEL_RELEASE_DATES,
+    ROOT,
+    SNAPSHOT_DIR,
     r,
 )
 
@@ -76,6 +83,56 @@ def test_raw_response_preservation_is_stated_with_its_exceptions():
         "no raw payload is retained for Claude Fable 5 (1,984 rows) and "
         "Kimi K3 (64 rows)"
     )
+
+
+def test_frozen_kimi_k3_cost_preserves_recorded_provider_charges():
+    predictions = pd.read_csv(
+        SNAPSHOT_DIR / "runs" / r.us_run_label / "predictions.csv.gz",
+        usecols=[
+            "model",
+            "scenario_id",
+            "variable",
+            "prediction",
+            "total_cost_usd",
+            "provider_reported_cost_usd",
+            "prompt_tokens",
+            "completion_tokens",
+        ],
+    )
+    kimi = predictions.loc[predictions["model"] == "kimi-k3"]
+    recorded_cost = kimi["total_cost_usd"].sum()
+    published = next(row for row in r.model_stats if row["model"] == "kimi-k3")
+
+    assert f"{recorded_cost:.3f}" == "47.043"
+    assert recorded_cost == pytest.approx(kimi["provider_reported_cost_usd"].sum())
+    assert published["costUsd"] == pytest.approx(recorded_cost)
+    assert model_cost_latency(kimi, PRICE_OVERRIDES_PER_1M)["kimi-k3"][
+        "costUsd"
+    ] == pytest.approx(recorded_cost)
+    repriced_cost = (
+        kimi["prompt_tokens"].sum() * PRICE_OVERRIDES_PER_1M["kimi-k3"]["input"]
+        + kimi["completion_tokens"].sum() * PRICE_OVERRIDES_PER_1M["kimi-k3"]["output"]
+    ) / 1e6
+    assert recorded_cost != pytest.approx(repriced_cost)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "policybench/config.py",
+        "paper/index.qmd",
+        "docs/benchmark_card.md",
+        "app/src/components/Methodology.tsx",
+    ],
+)
+def test_cost_basis_discloses_recorded_costs_without_retroactive_overrides(path):
+    text = re.sub(r"\s+", " ", (ROOT / path).read_text().replace("#", ""))
+
+    assert "recorded per-call cost" in text
+    assert "where the provider returns one, otherwise reconstructed" in text
+    assert "List-price overrides apply at request time, not retroactively" in text
+    assert "override provider-reported" not in text
+    assert "supersede recorded costs" not in text
 
 
 def test_serving_evidence_caption_comes_from_frozen_configuration():

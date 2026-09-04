@@ -243,6 +243,14 @@ export default function Methodology({
           point estimate on this fixed test set.
         </SectionCard>
 
+        <SectionCard title="Cost basis">
+          Each frozen row uses its recorded per-call cost: provider-reported
+          where the provider returns one, otherwise reconstructed at the
+          configured list price at request time. List-price overrides apply at
+          request time, not retroactively to recorded costs. Models without
+          per-call costs use the frozen release-metadata cost.
+        </SectionCard>
+
         <SectionCard title="Sensitivity checks">
           The manuscript reports alternative ranking views for equal-output
           groups, amount-only outputs, binary coverage, positive-reference

@@ -824,9 +824,9 @@ def fmt_cost_per_household(usd) -> str:
 
 
 def load_us_cost_latency() -> dict:
-    # Cost and latency are computed from the frozen run's logged token usage and
-    # per-call timings — the same model_cost_latency the leaderboard pipeline
-    # uses, read off predictions — then reconciled against the frozen
+    # Cost and latency use the frozen run's recorded per-call costs and timings,
+    # through the same model_cost_latency function as the leaderboard pipeline,
+    # then are reconciled against the frozen
     # modelStats: Claude Fable 5's usage is recorded at the run level (its
     # per-row usage columns are empty), and batch or asynchronous waves log
     # submission times rather than generation time, so a zero or sub-second
@@ -1186,11 +1186,11 @@ Accuracy is one axis; the price and speed of a no-tools answer are another. @tbl
 
 ```{python}
 #| label: tbl-us-cost-latency
-#| tbl-cap: "Estimated cost and median latency per household for the frozen US snapshot, alongside the headline exact-match rate. Cost is reconstructed from logged token usage at provider list prices; latency is the median across households of each household's summed request time. An em dash marks usage or wall-clock latency that was not measured per call."
+#| tbl-cap: "Estimated cost and median latency per household for the frozen US snapshot, alongside the headline exact-match rate. Each row uses its recorded per-call cost: provider-reported where the provider returns one, otherwise reconstructed at the configured list price at request time. List-price overrides apply at request time, not retroactively to recorded costs. Models without per-call costs use the frozen release-metadata cost. Latency is the median across households of each household's summed request time. A dash marks usage or wall-clock latency that was not measured per call."
 cost_latency
 ```
 
-Cost is reconstructed from each call's logged prompt and completion tokens at provider list prices through litellm; for `grok-build-0.1`, which litellm's price map did not yet cover, we apply the provider's published rate of \$1 and \$2 per million input and output tokens. Latency is wall-clock request time as observed by the harness, summed within each household and taken as the median across the `{python} r.n_households_fmt` households. The per-call timer spans any provider-side retry or rate-limit backoff, so the median is reported in preference to the mean, which a few throttled calls inflate. Latency is not comparable across serving regimes: Claude-family models issue chunked serial calls that lengthen wall-clock time, several models ran through batch or asynchronous dispatch whose logged times reflect submission rather than generation (shown as —), and Claude Fable 5's usage and latency are recorded at the run level rather than per call. Both cost and latency are properties of this run's providers, prompts, and serving configurations at evaluation time rather than fixed model constants.
+Cost preserves each call's recorded total, including provider-reported charges where available and request-time reconstructions otherwise. Configured list-price overrides do not reprice recorded calls. Rows without per-call costs use the frozen release-metadata cost. Latency is wall-clock request time as observed by the harness, summed within each household and taken as the median across the `{python} r.n_households_fmt` households. The per-call timer spans any provider-side retry or rate-limit backoff, so the median is reported in preference to the mean, which a few throttled calls inflate. Latency is not comparable across serving regimes: Claude-family models issue chunked serial calls that lengthen wall-clock time, several models ran through batch or asynchronous dispatch whose logged times reflect submission rather than generation (shown as a dash), and Claude Fable 5's usage and latency are recorded at the run level rather than per call. Both cost and latency are properties of this run's providers, prompts, and serving configurations at evaluation time rather than fixed model constants.
 
 ### Simple baselines
 
