@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from policybench.paper_results import r
+
 ROOT = Path(__file__).resolve().parents[1]
 SERVING_CONFIG = ROOT / "paper" / "snapshot" / "20260501" / "model_serving_config.json"
 METHODOLOGY = ROOT / "app" / "src" / "components" / "Methodology.tsx"
@@ -422,24 +424,7 @@ def _straight_quotes(text: str) -> str:
 
 
 def _serving_evidence_sentence() -> str:
-    config = json.loads(SERVING_CONFIG.read_text())
-    summary = config["evidence_summary"]
-    fields = config["evidence_field_labels"]
-
-    def joined(items: list[str]) -> str:
-        if len(items) == 2:
-            return " and ".join(items)
-        return f"{', '.join(items[:-1])}, and {items[-1]}"
-
-    return (
-        f"{NUMBER_WORDS[summary['run_state']].capitalize()} rows carry "
-        "supervised-run fingerprints for "
-        f"{joined(fields['run_state'])}; "
-        f"{joined(fields['registry_for_run_state'])} for every row, and all "
-        f"fields for the other {summary['registry']} rows, are the harness "
-        "registry as frozen in the "
-        "snapshot's serving-configuration file."
-    )
+    return r.serving_evidence_caption
 
 
 def test_rendered_html_reports_serving_evidence_summary():

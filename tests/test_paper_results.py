@@ -2,6 +2,7 @@
 
 import re
 from collections import Counter
+from copy import deepcopy
 
 import pandas as pd
 import pytest
@@ -13,6 +14,7 @@ from policybench.paper_results import (
     MODEL_RELEASE_DATES,
     ROOT,
     SNAPSHOT_DIR,
+    PaperResults,
     r,
 )
 
@@ -150,10 +152,59 @@ def test_serving_evidence_caption_comes_from_frozen_configuration():
             "completion ceiling",
         ],
     }
+    assert r.serving_evidence_pinned_counts == {
+        "answer contract": 4,
+        "request shape": 4,
+        "tool choice": 3,
+        "completion ceiling": 4,
+    }
     assert r.serving_evidence_caption == (
-        "Four rows carry supervised-run fingerprints for answer contract, "
-        "request shape, tool choice, and completion ceiling; reasoning setup "
-        "and timeouts for every row, and all fields for the other "
+        "Supervised-run fingerprints pin answer contract, request shape, "
+        "and completion ceiling for four rows; tool choice for three rows. "
+        "Reasoning setup and timeouts for every row, and all fields for the other "
         f"{summary['registry']} rows, are the harness registry as frozen in the "
         "snapshot's serving-configuration file."
     )
+
+
+def test_serving_evidence_counts_exclude_legacy_or_unrecorded_fields():
+    results = PaperResults()
+    results.serving_config = deepcopy(r.serving_config)
+    fable_evidence = results.serving_config["models"]["claude-fable-5.1"]["evidence"]
+
+    assert results.serving_evidence_pinned_counts["tool choice"] == 3
+    del fable_evidence["legacy_tool_choice_label"]
+    assert results.serving_evidence_pinned_counts["tool choice"] == 4
+    del fable_evidence["treatment_fingerprint"]["answer_contract"]
+    assert results.serving_evidence_pinned_counts["answer contract"] == 3
+
+
+def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
+    table = r.federal_state_joint_accuracy.set_index("Model")
+
+    assert table.loc["Claude Fable 5.1"].tolist() == [98.0, 90.0, 90.0]
+    assert table.loc["GPT-5.6 Sol"].tolist() == [99.0, 86.0, 86.0]
+    assert r.joint_credit_accuracy_exceptions == ["Claude Fable 5.1", "GPT-5.6 Sol"]
+    assert r.joint_credit_accuracy_note == (
+        "The joint hit rate can be no higher than either marginal and is "
+        "strictly lower than both for every model except Claude Fable 5.1 "
+        "and GPT-5.6 Sol."
+    )
+    other_models = table.drop(index=r.joint_credit_accuracy_exceptions)
+    assert (other_models["Joint within 10%"] < other_models["Federal within 10%"]).all()
+    assert (other_models["Joint within 10%"] < other_models["State within 10%"]).all()
+
+    paper = (ROOT / "paper/index.qmd").read_text()
+    assert "`{python} r.joint_credit_accuracy_note`" in paper
+    assert "strictly lower for all but the top model" not in paper
+
+
+def test_joint_credit_accuracy_prose_tracks_changed_table_exceptions():
+    results = PaperResults()
+    table = r.federal_state_joint_accuracy.copy()
+    table.loc[table["Model"] == "Claude Fable 5.1", "Joint within 10%"] = 89.0
+    results.federal_state_joint_accuracy = table
+
+    assert results.joint_credit_accuracy_exceptions == ["GPT-5.6 Sol"]
+    assert "except GPT-5.6 Sol." in results.joint_credit_accuracy_note
+    assert "Claude Fable 5.1" not in results.joint_credit_accuracy_note

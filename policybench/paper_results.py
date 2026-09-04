@@ -329,18 +329,121 @@ class PaperResults:
         return str(self.n_models)
 
     @property
-    def serving_evidence_caption(self) -> str:
-        summary = self.serving_config["evidence_summary"]
-        field_labels = self.serving_config["evidence_field_labels"]
-        fingerprint_fields = _ordinal_join(field_labels["run_state"])
-        registry_fields = _ordinal_join(field_labels["registry_for_run_state"])
-        return (
-            f"{_sentence_count(summary['run_state'])} rows carry supervised-run "
-            f"fingerprints for {fingerprint_fields}; {registry_fields} for every "
-            "row, and all fields for the other "
-            f"{summary['registry']} rows, are the harness registry as frozen in the "
-            "snapshot's serving-configuration file."
+    def serving_evidence_pinned_counts(self) -> dict[str, int]:
+        """Count usable fingerprint evidence separately for each serving field."""
+        fingerprint_keys = {
+            "answer contract": "answer_contract",
+            "request shape": "chunk_size",
+            "tool choice": "tool_choice_mode",
+            "completion ceiling": "completion_budget_ceiling",
+        }
+        counts = dict.fromkeys(
+            self.serving_config["evidence_field_labels"]["run_state"], 0
         )
+        for row in self.serving_config["models"].values():
+            evidence = row["evidence"]
+            if evidence["kind"] != "run_state":
+                continue
+            fingerprint = evidence["treatment_fingerprint"]
+            for label in counts:
+                key = fingerprint_keys[label]
+                if key not in evidence["fields"] or key not in fingerprint:
+                    continue
+                if label == "tool choice" and "legacy_tool_choice_label" in evidence:
+                    continue
+                counts[label] += 1
+        return counts
+
+    @property
+    def serving_evidence_caption(self) -> str:
+        field_labels = self.serving_config["evidence_field_labels"]
+        fields_by_count: dict[int, list[str]] = {}
+        for label, count in self.serving_evidence_pinned_counts.items():
+            fields_by_count.setdefault(count, []).append(label)
+        fingerprint_counts = "; ".join(
+            f"{_ordinal_join(labels)} for {_sentence_count(count).lower()} rows"
+            for count, labels in fields_by_count.items()
+        )
+        registry_fields = _ordinal_join(field_labels["registry_for_run_state"])
+        registry_count = sum(
+            row["evidence"]["kind"] == "registry"
+            for row in self.serving_config["models"].values()
+        )
+        return (
+            f"Supervised-run fingerprints pin {fingerprint_counts}. "
+            f"{registry_fields.capitalize()} for every row, and all fields for "
+            f"the other {registry_count} rows, are the harness registry as frozen "
+            "in the snapshot's serving-configuration file."
+        )
+
+    @cached_property
+    def federal_state_joint_accuracy(self) -> pd.DataFrame:
+        """Frozen federal/state credit marginals and their household-level joint."""
+
+        def hit_within_10(truth: float, pred: float | None) -> bool:
+            if pred is None or pd.isna(pred):
+                return False
+            if truth == 0:
+                return abs(pred) <= 1.0
+            return abs(pred - truth) / abs(truth) <= 0.10
+
+        rows = []
+        for variables in self.dashboard["scenarioPredictions"].values():
+            federal = variables.get("federal_refundable_credits", {})
+            state = variables.get("state_refundable_credits", {})
+            for model in federal:
+                if model not in state:
+                    continue
+                fed_hit = hit_within_10(
+                    federal[model]["groundTruth"], federal[model].get("prediction")
+                )
+                state_hit = hit_within_10(
+                    state[model]["groundTruth"], state[model].get("prediction")
+                )
+                rows.append(
+                    {
+                        "model": model,
+                        "fed_hit": fed_hit,
+                        "state_hit": state_hit,
+                        "both_hit": fed_hit and state_hit,
+                    }
+                )
+        summary = (
+            pd.DataFrame(rows)
+            .groupby("model")[["fed_hit", "state_hit", "both_hit"]]
+            .mean()
+            .reset_index()
+            .sort_values("both_hit", ascending=False)
+        )
+        for column in ("fed_hit", "state_hit", "both_hit"):
+            summary[column] = (summary[column] * 100).round(1)
+        summary["model"] = summary["model"].map(self.model_name)
+        summary.columns = [
+            "Model",
+            "Federal within 10%",
+            "State within 10%",
+            "Joint within 10%",
+        ]
+        return summary
+
+    @property
+    def joint_credit_accuracy_exceptions(self) -> list[str]:
+        """Models whose joint credit hit rate equals at least one marginal."""
+        table = self.federal_state_joint_accuracy
+        exceptions = (table["Joint within 10%"] == table["Federal within 10%"]) | (
+            table["Joint within 10%"] == table["State within 10%"]
+        )
+        return table.loc[exceptions, "Model"].tolist()
+
+    @property
+    def joint_credit_accuracy_note(self) -> str:
+        note = (
+            "The joint hit rate can be no higher than either marginal and is "
+            "strictly lower than both for every model"
+        )
+        if self.joint_credit_accuracy_exceptions:
+            note += " except " + _ordinal_join(self.joint_credit_accuracy_exceptions)
+        return note + "."
 
     @property
     def n_households(self) -> int:

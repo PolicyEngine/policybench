@@ -1201,7 +1201,11 @@ def main():
         models = _parse_models(args.models)
         run_dir = Path(args.output_dir)
         for model_name, model_id in models.items():
-            if adapter_for_model(model_id) is None:
+            try:
+                adapter = adapter_for_model(model_id)
+            except ValueError as exc:
+                raise SystemExit(str(exc)) from exc
+            if adapter is None:
                 raise SystemExit(
                     f"{model_name} ({model_id}) has no batch API — run it "
                     "with eval-no-tools-chunked instead."
