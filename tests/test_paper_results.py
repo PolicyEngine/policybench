@@ -37,14 +37,14 @@ def test_frozen_roster_has_39_display_names_and_release_dates():
 def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     assert r.parse_contract_failure_counts == Counter(
         {
-            "kimi-k2.6": 426,
+            "kimi-k2.6": 422,
             "glm-5.2": 139,
-            "glm-5.3": 78,
-            "kimi-k3": 64,
+            "glm-5.3": 77,
+            "kimi-k3": 63,
         }
     )
-    assert r.parse_contract_failure_count == 707
-    assert r.parse_contract_failure_count_fmt == "707"
+    assert r.parse_contract_failure_count == 701
+    assert r.parse_contract_failure_count_fmt == "701"
     assert r.parse_contract_failure_pct_fmt == "0.9"
 
 
@@ -63,15 +63,16 @@ def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
 
 
 def test_contract_violations_are_counted_both_ways():
-    """707 rows never parsed a number; 61 more parsed a number but carry no
-    explanation. The manuscript reports both, not just the first."""
+    """701 scored rows never parsed a number (six more sit on excluded outputs and
+    are outside every count); 61 more parsed a number but carry no explanation.
+    The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
         "grok-4.3": 56,
         "kimi-k2.6": 4,
         "claude-haiku-4.5": 1,
     }
     assert r.explanation_missing_count_fmt == "61"
-    assert r.contract_violation_count_fmt == "768"
+    assert r.contract_violation_count_fmt == "762"
     assert r.explanation_missing_breakdown_fmt == (
         "Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)"
     )

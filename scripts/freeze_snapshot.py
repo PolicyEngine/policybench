@@ -59,6 +59,7 @@ from policybench.full_run_export import reference_policyengine_bundles
 from policybench.reference_exclusions import (
     exclusion_keys,
     load_reference_exclusions,
+    scored_reference_for,
     verify_exclusions_against_reference,
 )
 from policybench.snapshot_payload import (
@@ -725,7 +726,10 @@ def regenerate_analysis(dest_dir: Path) -> None:
         encoding="utf-8",
     )
 
-    ground_truth = pd.read_csv(RUN_DEST / "reference_outputs.csv")
+    # Score the same outputs as every other published metric: the frozen
+    # reference minus the outputs reference_exclusions.json removes for every
+    # model (the record was copied beside the reference CSV above).
+    ground_truth, _ = scored_reference_for(RUN_DEST / "reference_outputs.csv")
     predictions = pd.read_csv(RUN_DEST / "predictions.csv.gz")
     impact = household_impact_summary_by_model(ground_truth, predictions)
     impact.to_csv(dest_dir / "impact_summary_by_model.csv", index=False)

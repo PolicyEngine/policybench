@@ -77,9 +77,10 @@ carries the tally. Verdicts change no score. A judge verdict outside the final
 classes is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json). This snapshot carries eleven, one per
 excluded output: each affirms `prompt_ambiguity` and removes the output from
-scoring, keeping the judge's original verdict (Claude Opus 5's prompt-ambiguity
-reading of scenario_064 SSI; GPT-5.6 Sol's llm_error on the other ten) beside
-the decision and the reasoning.
+scoring, keeping the judge's original verdict beside the decision and the
+reasoning: Claude Opus 5 judged six of the eleven (its prompt-ambiguity reading
+of scenario_064 SSI, and llm_error on the five Medicare outputs) and GPT-5.6 Sol
+judged five (llm_error on the three SNAP and two other SSI outputs).
 
 Eleven outputs in ten households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the

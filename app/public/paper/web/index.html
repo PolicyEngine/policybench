@@ -298,7 +298,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </figure>
 </div>
 </div>
-<div id="003bcf92" class="cell" data-execution_count="3">
+<div id="ce6fb97d" class="cell" data-execution_count="3">
 <div class="cell-output cell-output-display cell-output-markdown" data-execution_count="3">
 <div id="tbl-model-runs" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-tbl">
@@ -1385,30 +1385,30 @@ Table&nbsp;9: Leaderboard sensitivity to alternative scoring views.
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>Equal-output-group score</td>
-<td>GPT-6 Astra (97.1)</td>
-<td>Claude Fable 5.1 (96.9)</td>
-<td>GPT-5.6 Sol (96.8)</td>
+<td>GPT-6 Astra (97.5)</td>
+<td>Claude Fable 5.1 (97.3)</td>
+<td>GPT-5.6 Sol (97.2)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>Amount outputs only</td>
-<td>Claude Fable 5.1 (96.1)</td>
-<td>GPT-6 Astra (96.0)</td>
-<td>GPT-5.6 Sol (95.3)</td>
+<td>Claude Fable 5.1 (96.6)</td>
+<td>GPT-6 Astra (96.5)</td>
+<td>GPT-5.6 Sol (95.8)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
 <td>Positive reference cases only</td>
-<td>GPT-5.5 (85.8)</td>
-<td>GPT-6 Astra (84.7)</td>
-<td>Gemini 3.5 Flash (83.7)</td>
+<td>GPT-5.5 (87.8)</td>
+<td>GPT-6 Astra (86.7)</td>
+<td>Gemini 3.5 Flash (85.5)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
 <td>Zero reference cases only</td>
 <td>Gemini 3.8 Flash (99.1)</td>
-<td>Claude Fable 5.1 (98.8)</td>
-<td>Gemini 3.6 Flash (98.7)</td>
+<td>Claude Fable 5.1 (99.1)</td>
+<td>GPT-6 Astra (98.9)</td>
 </tr>
 </tbody>
 </table>
@@ -2004,7 +2004,7 @@ Table&nbsp;13: US within-10% accuracy on federal vs state refundable credits and
 </figure>
 </div>
 </div>
-<p>Third, structured-output reliability is part of the benchmark contract. Missing or unparseable numeric values are not dropped. Appendix A documents parser recovery and the supervised runner’s bounded retry rounds. The 707 cells (0.9%) that still returned no parsable value after retries remain in the canonical files and score zero as parse-contract failures. Appendix A gives the per-model breakdown.</p>
+<p>Third, structured-output reliability is part of the benchmark contract. Missing or unparseable numeric values are not dropped. Appendix A documents parser recovery and the supervised runner’s bounded retry rounds. The 701 cells (0.9%) that still returned no parsable value after retries remain in the canonical files and score zero as parse-contract failures. Appendix A gives the per-model breakdown.</p>
 <h2 id="limitations" class="anchored">Limitations</h2>
 <p>PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:</p>
 <ul>
@@ -2059,7 +2059,7 @@ Table&nbsp;14: Structured-output parser audit and repair sequence.
 </tr>
 <tr class="even">
 <td>Final parse coverage</td>
-<td>707 of the 76,947 canonical model-output rows (0.9%) have no parsable numeric value after retries. The failures comprise Kimi K2.6 (426), GLM-5.2 (139), GLM-5.3 (78), and Kimi K3 (64). They score zero as parse-contract failures. A further 61 rows (Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)) carry a parsed numeric value but no explanation; they are scored on the numeric value and counted here as explanation-contract violations, so 768 rows in all fall short of the numeric-plus-explanation contract. Every other row has both.</td>
+<td>701 of the 76,947 canonical model-output rows (0.9%) have no parsable numeric value after retries. The failures comprise Kimi K2.6 (422), GLM-5.2 (139), GLM-5.3 (77), and Kimi K3 (63). They score zero as parse-contract failures. A further 61 rows (Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)) carry a parsed numeric value but no explanation; they are scored on the numeric value and counted here as explanation-contract violations, so 762 rows in all fall short of the numeric-plus-explanation contract. Every other row has both.</td>
 </tr>
 <tr class="odd">
 <td>Preservation rule</td>
@@ -2072,7 +2072,7 @@ Table&nbsp;14: Structured-output parser audit and repair sequence.
 </figure>
 </div>
 </div>
-<p>Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds. No separate retry artifacts exist; repairs are folded into each model’s canonical prediction file. After retries, 707 cells (0.9% of canonical rows) still returned no parsable numeric value. They comprise Kimi K2.6 (426), GLM-5.2 (139), GLM-5.3 (78), and Kimi K3 (64). These cells remain in the canonical files, with their raw responses preserved wherever the transport exposed one (no raw payload is retained for Claude Fable 5 (1,984 rows), GLM-5.3 (78 rows), and Kimi K3 (64 rows)). They score zero as parse-contract failures, and the denominator is never reduced.</p>
+<p>Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds. No separate retry artifacts exist; repairs are folded into each model’s canonical prediction file. After retries, 701 cells (0.9% of canonical rows) still returned no parsable numeric value. They comprise Kimi K2.6 (422), GLM-5.2 (139), GLM-5.3 (77), and Kimi K3 (63). These cells remain in the canonical files, with their raw responses preserved wherever the transport exposed one (no raw payload is retained for Claude Fable 5 (1,984 rows), GLM-5.3 (78 rows), and Kimi K3 (64 rows)). They score zero as parse-contract failures, and the denominator is never reduced.</p>
 <h2 class="unnumbered anchored" id="competing-interests">Competing interests</h2>
 <p>The author leads PolicyEngine, which develops the microsimulation software used to produce the benchmark reference outputs, and is a founder of the Axiom Foundation, a nonprofit developing deterministic rules-as-code infrastructure. Both organizations’ missions are advanced by the finding that unaided language models do not reliably reproduce rule calculations.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">

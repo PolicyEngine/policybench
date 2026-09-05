@@ -17,7 +17,7 @@
   "board": {
     "exact": 86.945,
     "within1pct": 89.898,
-    "score": 95.289,
+    "score": 95.891,
     "cost_per_household": 0.257,
     "latency_seconds": 49.12,
     "n_parsed": 1984,
@@ -27,7 +27,7 @@
     "exact": 88.183,
     "would_rank": 2,
     "within1pct": 91.013,
-    "score": 95.738,
+    "score": 96.347,
     "cost_per_household": 0.3481,
     "cost_usd": 34.81,
     "latency_seconds": 52.54,
@@ -35,5 +35,5 @@
     "n": 1984
   },
   "delta_exact": 1.238,
-  "scored_against": "the frozen 39-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the eleven outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,973 scored outputs); on all 1,984 outputs the run scored 87.55 exact. The fold used results/local/fable51/predictions32.csv as the incumbent base"
+  "scored_against": "the frozen 39-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the eleven outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,973 scored outputs; exact, within-1% and the bounded score all on that universe); on all 1,984 outputs the run scored 87.55 exact. The fold used results/local/fable51/predictions32.csv as the incumbent base"
 }

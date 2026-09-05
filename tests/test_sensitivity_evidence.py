@@ -109,17 +109,24 @@ def test_exact_score_recomputes_from_committed_predictions():
     for variable, weight in payload["globalWeights"]["household"].items():
         group = output_group_id(variable)
         weights_by_group[group] = weights_by_group.get(group, 0.0) + weight
-    scores, _ = canonical_filtered_scores(
-        ground_truth,
-        predictions,
-        weights_by_group,
-        set(weights_by_group),
-        "all",
-        "exact",
-    )
-    assert round(scores[SUMMARY["sensitivity_model_id"]], 1) == round(
-        SUMMARY["sensitivity"]["exact"], 1
-    )
+    # The summary's three scores are the app's exact, within-1% and bounded
+    # ("continuous") fields on the scored reference.
+    for field, key in (
+        ("exact", "exact"),
+        ("within1pct", "within1pct"),
+        ("continuous", "score"),
+    ):
+        scores, _ = canonical_filtered_scores(
+            ground_truth,
+            predictions,
+            weights_by_group,
+            set(weights_by_group),
+            "all",
+            field,
+        )
+        assert round(scores[SUMMARY["sensitivity_model_id"]], 3) == round(
+            SUMMARY["sensitivity"][key], 3
+        ), field
 
 
 def test_board_row_in_summary_matches_the_frozen_snapshot():
@@ -127,3 +134,4 @@ def test_board_row_in_summary_matches_the_frozen_snapshot():
     row = next(m for m in payload["modelStats"] if m["model"] == SUMMARY["model"])
     assert round(row["exact"], 3) == SUMMARY["board"]["exact"]
     assert round(row["within1pct"], 3) == SUMMARY["board"]["within1pct"]
+    assert round(row["score"], 3) == SUMMARY["board"]["score"]

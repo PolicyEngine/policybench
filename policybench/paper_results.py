@@ -427,7 +427,15 @@ class PaperResults:
             return abs(pred - truth) / abs(truth) <= 0.10
 
         rows = []
-        for variables in self.dashboard["scenarioPredictions"].values():
+        excluded = self._excluded_output_keys
+        for scenario_id, variables in self.dashboard["scenarioPredictions"].items():
+            # Neither credit output is excluded in this snapshot; the check keeps
+            # the table on the scored universe if a future record removes one.
+            if (scenario_id, "federal_refundable_credits") in excluded or (
+                scenario_id,
+                "state_refundable_credits",
+            ) in excluded:
+                continue
             federal = variables.get("federal_refundable_credits", {})
             state = variables.get("state_refundable_credits", {})
             for model in federal:
@@ -530,11 +538,9 @@ class PaperResults:
     def parse_contract_failure_counts(self) -> Counter:
         """Missing or unparseable frozen dashboard rows, counted by model."""
         counts: Counter = Counter()
-        for variable_map in self.dashboard["scenarioPredictions"].values():
-            for model_map in variable_map.values():
-                for model, row in model_map.items():
-                    if row.get("failureSource") == "parse_contract_failure":
-                        counts[model] += 1
+        for row in self._scored_prediction_rows:
+            if row.get("failureSource") == "parse_contract_failure":
+                counts[row["model"]] += 1
         return counts
 
     @property
@@ -563,13 +569,11 @@ class PaperResults:
     def explanation_missing_counts(self) -> Counter:
         """Frozen rows with a parsed numeric value but no explanation, by model."""
         counts: Counter = Counter()
-        for variable_map in self.dashboard["scenarioPredictions"].values():
-            for model_map in variable_map.values():
-                for model, row in model_map.items():
-                    if row.get("prediction") is None:
-                        continue
-                    if not str(row.get("explanation") or "").strip():
-                        counts[model] += 1
+        for row in self._scored_prediction_rows:
+            if row.get("prediction") is None:
+                continue
+            if not str(row.get("explanation") or "").strip():
+                counts[row["model"]] += 1
         return counts
 
     @property
@@ -646,9 +650,13 @@ class PaperResults:
     # ----- zero inflation ------------------------------------------------
     @cached_property
     def _reference_values(self) -> list[float]:
+        """Reference values of the scored outputs (excluded outputs left out,
+        as they are from every published score)."""
+        from policybench.reference_exclusions import scored_reference_for
+
         run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
-        with (run_dir / "reference_outputs.csv").open(newline="") as handle:
-            return [float(row["value"]) for row in csv.DictReader(handle)]
+        scored, _ = scored_reference_for(run_dir / "reference_outputs.csv")
+        return [float(value) for value in scored["value"]]
 
     @property
     def zero_share(self) -> float:
@@ -677,10 +685,13 @@ class PaperResults:
         import pandas as pd
 
         from policybench.analysis import weighted_hit_rate_scores_by_model
+        from policybench.reference_exclusions import scored_reference_for
         from policybench.spec import get_output_ids, output_group_id
 
         run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
-        ground_truth = pd.read_csv(run_dir / "reference_outputs.csv")
+        # The scored reference: excluded outputs are out of the baseline as
+        # they are out of every model's score.
+        ground_truth, _ = scored_reference_for(run_dir / "reference_outputs.csv")
         headline = set(get_output_ids("us", "headline"))
         ground_truth = ground_truth[
             ground_truth["variable"].map(output_group_id).isin(headline)
@@ -943,7 +954,7 @@ class PaperResults:
 
     @property
     def scored_outputs_per_model(self) -> int:
-        return len(self._reference_values) - self.excluded_output_count
+        return len(self._reference_values)
 
     @property
     def scored_outputs_per_model_fmt(self) -> str:
@@ -951,7 +962,7 @@ class PaperResults:
 
     @property
     def total_outputs_per_model_fmt(self) -> str:
-        return f"{len(self._reference_values):,}"
+        return f"{len(self._reference_values) + self.excluded_output_count:,}"
 
     @property
     def excluded_output_annotation_row_count(self) -> int:

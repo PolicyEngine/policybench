@@ -869,3 +869,29 @@ def test_manuscript_bootstrap_point_estimates_reproduce_model_stats():
         assert set(cis["model"]) == set(published)
         for model, point in zip(cis["model"], cis["point"]):
             assert point * 100 == pytest.approx(published[model], abs=1e-6), model
+
+
+def test_frozen_impact_summaries_score_the_scored_reference():
+    """The legacy impact summary (run dir and top-level copy) must be computed
+    on the scored reference, like every other published metric."""
+    from policybench.reference_exclusions import scored_reference_for
+    from scripts import freeze_snapshot
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    for country, run_label in manifest["source_run_labels"].items():
+        run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+        scored, exclusions = scored_reference_for(run_dir / "reference_outputs.csv")
+        assert exclusions
+        predictions = pd.read_csv(run_dir / "predictions.csv.gz")
+        expected = freeze_snapshot.household_impact_summary_by_model(
+            scored, predictions
+        )
+        frozen = pd.read_csv(run_dir / "analysis" / "impact_summary_by_model.csv")
+        top_level = pd.read_csv(SNAPSHOT_DIR / f"{country}_impact_summary_by_model.csv")
+        pd.testing.assert_frame_equal(
+            frozen.sort_values("model").reset_index(drop=True),
+            expected.sort_values("model").reset_index(drop=True),
+            check_exact=False,
+            atol=1e-9,
+        )
+        pd.testing.assert_frame_equal(top_level, frozen)

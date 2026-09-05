@@ -30,7 +30,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from policybench.config import SEED
-from policybench.analysis import score_single_prediction
+from policybench.manuscript_views import (
+    country_scores_from_rows,
+    flatten_scored_predictions,
+)
 from policybench.paper_results import MODEL_DISPLAY_NAMES, r
 from policybench.spec import (
     get_output_ids,
@@ -203,48 +206,14 @@ def positive_case_table(frame: pd.DataFrame, top_n: int = 8) -> pd.DataFrame:
 
 
 def flatten_predictions() -> pd.DataFrame:
-    rows = []
-    for country in COUNTRIES:
-        predictions = country_payload(country)["scenarioPredictions"]
-        for scenario_id, variables in predictions.items():
-            for variable, model_records in variables.items():
-                parsed = parse_person_output(variable)
-                output_group = parsed[1] if parsed else variable
-                metric_type = metric_type_for_output(variable)
-                for model, record in model_records.items():
-                    truth = record["groundTruth"]
-                    prediction = record["prediction"]
-                    rows.append(
-                        {
-                            "country": country,
-                            "scenario_id": scenario_id,
-                            "variable": variable,
-                            "output_group": output_group,
-                            "model": model,
-                            "truth": truth,
-                            "prediction": prediction,
-                            "metric_type": metric_type,
-                            "score": 100
-                            * score_single_prediction(
-                                variable,
-                                truth,
-                                prediction,
-                            ),
-                        }
-                    )
-    return pd.DataFrame(rows)
-
-
-def country_scores_from_rows(frame: pd.DataFrame) -> pd.DataFrame:
-    output_scores = (
-        frame.groupby(["country", "model", "output_group"])["score"]
-        .mean()
-        .reset_index()
-    )
-    return (
-        output_scores.groupby(["country", "model"])["score"]
-        .mean()
-        .reset_index()
+    """Row-level scores for every scored output (excluded outputs left out),
+    from policybench.manuscript_views so the same filter is unit-tested."""
+    return pd.concat(
+        [
+            flatten_scored_predictions(country, country_payload(country))
+            for country in COUNTRIES
+        ],
+        ignore_index=True,
     )
 
 

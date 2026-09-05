@@ -38,7 +38,7 @@
   },
   "committed_snapshot_artifacts": {
     "model_serving_config.json": "5e56b2bfc6df00fd9b086bac71073980c513d91cbf2e313afce92a75ac904550",
-    "us_impact_summary_by_model.csv": "0d8276a23945bcf87350f4d2932e666c4000770ec2d75e5a517bcfa358812ffe",
+    "us_impact_summary_by_model.csv": "540f5e57aef1f065560e9c6cd53527e0e2ab9832f74f1581187e4a098725de69",
     "us_reference_outputs.csv": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
     "us_scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"
   },
@@ -100,12 +100,12 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "a09cc5b673d7993c74f89aa408a51f887667d6545323a1a4c447475902ba6781"
+      "sha256": "5aa7c615c8a13ebbd1f39daacf7e614ddba4656c832fd03a702f23bdf34a3148"
     },
     "web": {
       "files": {
         "figures/positive_zero_scatter.png": "213ab1b526869250e379054718991fc4abbb2dd6ebc82a5ea300a226d5948407",
-        "index.html": "c6fc06c76f0448cd37e810892324465de9c95d34eae37c0d7e745b4df4816be0",
+        "index.html": "41ae15a8dd4bee15b121ec62c3c113b949731ccfc0913c1a1e5ec751180a133b",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -158,7 +158,7 @@
     "note": "Compact copies of run outputs used to verify this snapshot. The run data.json retains parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime metadata used by the dashboard. predictions.csv.gz is a deterministic gzip of the run's raw provider responses.",
     "us_full_run_20260612_policyengine_4_16_1_populace": {
       "files": {
-        "analysis/impact_summary_by_model.csv": "0d8276a23945bcf87350f4d2932e666c4000770ec2d75e5a517bcfa358812ffe",
+        "analysis/impact_summary_by_model.csv": "540f5e57aef1f065560e9c6cd53527e0e2ab9832f74f1581187e4a098725de69",
         "analysis/metrics.csv": "145a5de3f7b1b6f8ba33928df2342200526b4a72a8bbc619737c0a59be392b91",
         "analysis/report.md": "7beb4652c002c053f53f4dcaa32a78e395fce76d5bf1606e2900b8c6223621e5",
         "analysis/summary_by_model.csv": "fb3310cbd37aeb8486609714d4fd4309266ad31b9c979aa7cbdd1daba5f82438",
