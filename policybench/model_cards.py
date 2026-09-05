@@ -73,6 +73,19 @@ class ModelCard:
 
 
 MODEL_CARDS: dict[str, ModelCard] = {
+    "gpt-6-astra": ModelCard(
+        litellm_id="gpt-6-astra",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.25,
+        notes=(
+            "Onboarded 2026-09-04, the day the API opened (announced "
+            "2026-09-03 as a limited preview): forced tool contract passed "
+            "3/3 (978 completion tokens) and 16/16 whole-scenario (1,171 "
+            "tokens) on the Responses API with provider-default reasoning "
+            "(effort medium), like GPT-5.6 Sol."
+        ),
+    ),
     "gpt-5.6-sol": ModelCard(
         litellm_id="gpt-5.6-sol",
         answer_contract="tool",
@@ -245,6 +258,76 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "16/16 whole-scenario (2,709 completion tokens). Introductory "
             "pricing $0.75/$3.75 per 1M through 2026-12-31; doubles "
             "2027-01-01."
+        ),
+    ),
+    "gemini/gemini-3.8-flash": ModelCard(
+        litellm_id="gemini/gemini-3.8-flash",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.015,
+        notes=(
+            "Onboarded 2026-09-03 (released 2026-09-02): forced tool contract "
+            "passed 3/3 and 16/16 whole-scenario (3,409 completion tokens). "
+            "Introductory pricing $0.75/$3.75 per 1M through 2026-12-31."
+        ),
+    ),
+    "gemini/gemini-3.5-flash-lite": ModelCard(
+        litellm_id="gemini/gemini-3.5-flash-lite",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.004,
+        notes=(
+            "Onboarded 2026-09-03: forced tool contract passed 3/3 and 16/16 "
+            "whole-scenario (622 completion tokens)."
+        ),
+    ),
+    "openrouter/z-ai/glm-5.3": ModelCard(
+        litellm_id="openrouter/z-ai/glm-5.3",
+        answer_contract="tool",
+        request_timeout_seconds=2400,
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.25,
+        notes=(
+            "Onboarded 2026-09-03 (released 2026-08-18): forced tool contract "
+            "passed 3/3 and 16/16 whole-scenario (3,008 completion tokens) "
+            "under a thinking-budget probe; its predecessor glm-5.2 ran JSON "
+            "in 3-output chunks. The board run reasons far past the probe "
+            "(median 6,000 completion tokens per household, several past "
+            "100,000) and one household timed out four times at the 300-second "
+            "default, so the timeout was raised to 2,400 seconds after 99 of "
+            "100 households had completed; the run's spend ledger records "
+            "every attempt."
+        ),
+    ),
+    "openrouter/deepseek/deepseek-v4-pro-0813": ModelCard(
+        litellm_id="openrouter/deepseek/deepseek-v4-pro-0813",
+        answer_contract="tool",
+        request_timeout_seconds=2400,
+        thinking_budget=True,
+        completion_token_cap=98_304,
+        expected_cost_per_scenario_usd=0.15,
+        notes=(
+            "Onboarded 2026-09-04: the 2026-08-12 snapshot of DeepSeek V4 "
+            "Pro, addressed by its dated OpenRouter id because the direct "
+            "API alias moved under the board's existing row. Forced tool "
+            "contract passed 3/3 (63,913 completion tokens, 898s) and 16/16 "
+            "whole-scenario (23,920 tokens) under a 98,304-token cap; at "
+            "the 16,384 default it reasoned to the ceiling without answering."
+        ),
+    ),
+    "openrouter/deepseek/deepseek-v4-flash-0731": ModelCard(
+        litellm_id="openrouter/deepseek/deepseek-v4-flash-0731",
+        answer_contract="tool",
+        request_timeout_seconds=2400,
+        thinking_budget=True,
+        completion_token_cap=98_304,
+        expected_cost_per_scenario_usd=0.005,
+        notes=(
+            "Onboarded 2026-09-03: the 2026-07-31 snapshot of DeepSeek V4 "
+            "Flash, addressed by its dated OpenRouter id. Forced tool "
+            "contract passed 3/3 and 16/16 whole-scenario (7,127 completion "
+            "tokens) under a 98,304-token cap; at the 16,384 default it "
+            "reasoned to the ceiling without answering."
         ),
     ),
     "openrouter/stealth/ox-alpha": ModelCard(

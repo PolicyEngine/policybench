@@ -24,7 +24,7 @@ from policybench.completion_budget import (
     with_completion_budget,
 )
 from policybench.config import (
-    GPT_56_MODELS,
+    GPT_RESPONSES_MODELS,
     MODELS,
     PRICE_OVERRIDES_PER_1M,
     PROGRAMS,
@@ -123,7 +123,7 @@ for _display_id in _LOCAL_CLAUDE_FABLE_MODELS:
 # OpenAI, so requests fail before reaching the provider. Keep these entries
 # minimal and grounded in OpenAI's published model/pricing pages; a future
 # LiteLLM map entry takes precedence automatically.
-for _model_id in GPT_56_MODELS.values():
+for _model_id in GPT_RESPONSES_MODELS.values():
     if _model_id in litellm.model_cost:
         continue
     _prices = PRICE_OVERRIDES_PER_1M[_model_id]
@@ -438,7 +438,7 @@ def _reconstruct_token_cost(
         override_name, rates = resolved_override
         input_rate = rates["input"] / 1_000_000
         output_rate = rates["output"] / 1_000_000
-        if override_name in GPT_56_MODELS:
+        if override_name in GPT_RESPONSES_MODELS:
             if prompt_tokens > 272_000:
                 input_rate *= 2
                 output_rate *= 1.5
@@ -997,7 +997,7 @@ def _tool_choice_for(function_name: str) -> str | dict:
 
 
 def _uses_responses_api(model_id: str) -> bool:
-    return model_id.startswith("gpt-5")
+    return model_id.startswith("gpt-5") or model_id.startswith("gpt-6")
 
 
 def _thinking_configuration(model_id: str) -> dict | None:

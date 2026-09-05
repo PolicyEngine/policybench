@@ -32,6 +32,13 @@ GPT_56_MODELS = {
     "gpt-5.6-terra": "gpt-5.6-terra",
     "gpt-5.6-luna": "gpt-5.6-luna",
 }
+# GPT-6 Astra (API availability 2026-09-04) shares the GPT-5.6 line's
+# Responses-API transport and pricing structure (cache reads at a tenth,
+# cache writes at 1.25x, doubled input and 1.5x output above 272k tokens).
+GPT_6_MODELS = {
+    "gpt-6-astra": "gpt-6-astra",
+}
+GPT_RESPONSES_MODELS = {**GPT_56_MODELS, **GPT_6_MODELS}
 
 MODELS = {
     "claude-fable-5": "claude-fable-5",
@@ -46,6 +53,7 @@ MODELS = {
     "grok-4.5": "xai/grok-4.5",
     "grok-4.6": "xai/grok-4.6",
     "grok-build-0.1": "xai/grok-build-0.1",
+    **GPT_6_MODELS,
     **GPT_56_MODELS,
     "gpt-5.5": "gpt-5.5",
     "gpt-5.4-mini": "gpt-5.4-mini",
@@ -54,6 +62,8 @@ MODELS = {
     "gemini-3.5-flash": "gemini/gemini-3.5-flash",
     "gemini-3.6-flash": "gemini/gemini-3.6-flash",
     "gemini-3.7-flash": "gemini/gemini-3.7-flash",
+    "gemini-3.8-flash": "gemini/gemini-3.8-flash",
+    "gemini-3.5-flash-lite": "gemini/gemini-3.5-flash-lite",
     # Cloaked OpenRouter preview listed 2026-08-21 (free window); maker
     # unconfirmed. On the board as a labeled preview row.
     "ox-alpha": "openrouter/stealth/ox-alpha",
@@ -61,9 +71,12 @@ MODELS = {
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
     "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
+    "deepseek-v4-pro-0813": "openrouter/deepseek/deepseek-v4-pro-0813",
+    "deepseek-v4-flash-0731": "openrouter/deepseek/deepseek-v4-flash-0731",
     "kimi-k2.6": "openrouter/moonshotai/kimi-k2.6",
     "kimi-k3": "openrouter/moonshotai/kimi-k3",
     "glm-5.2": "openrouter/z-ai/glm-5.2",
+    "glm-5.3": "openrouter/z-ai/glm-5.3",
     "minimax-m3": "openrouter/minimax/minimax-m3",
     "qwen-3.7-max": "openrouter/qwen/qwen3.7-max",
     "qwen3.8-max": "openrouter/qwen/qwen3.8-max",
@@ -79,6 +92,10 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # GPT-5.6 list prices from OpenAI's general-availability announcement
     # (https://openai.com/index/gpt-5-6/, retrieved 2026-07-09).
     # These overrides are needed until LiteLLM's model-cost map catches up.
+    # gpt-6-astra: $10 / $50 per 1M input/output, $1 cache reads, $12.50 cache
+    # writes, $20 / $75 above 272k prompt tokens (OpenAI model page and the
+    # OpenRouter mirror, retrieved 2026-09-04).
+    "gpt-6-astra": {"input": 10.0, "output": 50.0},
     "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
     "gpt-5.6-terra": {"input": 2.5, "output": 15.0},
     "gpt-5.6-luna": {"input": 1.0, "output": 6.0},
@@ -100,6 +117,15 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # gemini-3.7-flash: $0.75 / $3.75 per 1M input/output tokens (Google
     # introductory pricing at the 2026-08-13 launch; doubles 2027-01-01).
     "gemini-3.7-flash": {"input": 0.75, "output": 3.75},
+    # gemini-3.8-flash: $0.75 / $3.75 per 1M through 2026-12-31 (Google, 2026-09-02).
+    "gemini-3.8-flash": {"input": 0.75, "output": 3.75},
+    # gemini-3.5-flash-lite: $0.30 / $2.50 per 1M (Google list, 2026-09-03).
+    "gemini-3.5-flash-lite": {"input": 0.30, "output": 2.50},
+    # glm-5.3: $1.40 / $4.40 per 1M (OpenRouter list, 2026-09-03).
+    "glm-5.3": {"input": 1.40, "output": 4.40},
+    # deepseek dated snapshots via OpenRouter (list prices 2026-09-03).
+    "deepseek-v4-pro-0813": {"input": 1.1154, "output": 3.3462},
+    "deepseek-v4-flash-0731": {"input": 0.065, "output": 0.18},
     # claude-fable-5: $10 / $50 per 1M input/output tokens, with $1 cache
     # reads and $12.50 cache writes
     # (https://platform.claude.com/docs/en/about-claude/models/overview).
