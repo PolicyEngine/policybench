@@ -223,3 +223,45 @@ def test_export_requires_a_digest_for_a_legacy_reference_sidecar(board, tmp_path
 
     with pytest.raises(ValueError, match="no reference_csv_sha256"):
         fold_board(base_path, [], scoring, tmp_path / "out", export=True)
+
+
+def test_fold_carries_the_reference_exclusion_record(board, tmp_path):
+    """The exporter scores whatever reference files sit beside the predictions,
+    so the exclusion record must travel with the reference CSV and stale
+    copies must not survive a reused output directory."""
+    from policybench.reference_exclusions import (
+        exclusions_path_for,
+        load_reference_exclusions,
+    )
+
+    base_path, scoring = board
+    add = tmp_path / "new.csv"
+    predictions("model-c", 3).to_csv(add, index=False)
+    record = {
+        "exclusions": [
+            {
+                "scenario_id": "scenario_000",
+                "variable": "snap",
+                "reason_code": "reference_depends_on_unlisted_input",
+                "unlisted_input": "meets_ssi_disability_criteria",
+                "alternative_reading": "The disabled flag is read as the criterion.",
+                "frozen_value": 0.0,
+                "alternative_value": 100.0,
+                "engine_version": "policyengine-us 1.755.4",
+                "decided_on": "2026-09-05",
+                "decided_by": "developer",
+            }
+        ]
+    }
+    (scoring / "reference_exclusions.json").write_text(json.dumps(record))
+
+    out = tmp_path / "out"
+    fold_board(base_path, [add], scoring, out, export=False)
+    copied = exclusions_path_for(out / "us" / "reference_outputs.csv")
+    assert copied.read_text() == json.dumps(record)
+    assert len(load_reference_exclusions(copied)) == 1
+
+    # A scoring source without a record leaves none behind in a reused out dir.
+    (scoring / "reference_exclusions.json").unlink()
+    fold_board(base_path, [add], scoring, out, export=False)
+    assert not copied.exists()

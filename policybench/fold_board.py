@@ -92,10 +92,13 @@ def fold_board(
     us_dir.mkdir(parents=True, exist_ok=True)
     combined.to_csv(us_dir / "predictions.csv", index=False)
     # The reference sidecar records which policyengine-us generated the
-    # references; the exporter reads it for the payload's provenance.
+    # references; the exporter reads it for the payload's provenance. The
+    # exclusion record travels with the reference too: without it the export
+    # would silently score every output instead of the scored 1,973.
     reference_files = (
         "reference_outputs.csv",
         "reference_outputs.csv.meta.json",
+        "reference_exclusions.json",
         "scenarios.csv",
         "scenarios.csv.meta.json",
     )
