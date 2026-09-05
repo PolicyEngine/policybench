@@ -498,6 +498,8 @@ def test_reprepare_drops_stale_verdict_when_case_changed(tmp_path: Path):
     s0 = cases[0]
     verdict_path = audit_dir / "cases" / s0.case_id / "verdict.json"
     verdict_path.write_text('{"case_failure_source": "llm_error", "models": []}')
+    meta_path = verdict_path.with_name("verdict.meta.json")
+    meta_path.write_text('{"judge_model_requested": "opus"}')
 
     # Re-run m1 with a different wrong answer -> the case prompt changes.
     pd.DataFrame(
@@ -514,6 +516,7 @@ def test_reprepare_drops_stale_verdict_when_case_changed(tmp_path: Path):
     ).to_csv(d / "predictions.csv", index=False)
     prepare_audit(d, audit_dir)
     assert not verdict_path.exists()  # stale verdict dropped
+    assert not meta_path.exists()  # and its provenance sidecar with it
 
     # An unchanged case keeps its verdict.
     verdict_path.write_text('{"case_failure_source": "llm_error", "models": []}')

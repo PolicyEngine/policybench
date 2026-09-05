@@ -162,14 +162,34 @@ JUDGE_RUNNERS = {
 }
 
 
+def verdict_provenance(case_dir: Path) -> dict | None:
+    """The ``verdict.meta.json`` sidecar for a case, if it describes the
+    case's current ``verdict.json``.
+
+    Both runners write the sidecar with the verdict's sha256. A sidecar whose
+    hash does not match (or that predates the hash field) belongs to an
+    earlier verdict, most likely one the other runner has since replaced, and
+    is ignored so a re-judged case cannot keep stale provenance.
+    """
+    meta_path = case_dir / "verdict.meta.json"
+    verdict_path = case_dir / "verdict.json"
+    if not meta_path.is_file() or not verdict_path.is_file():
+        return None
+    meta = json.loads(meta_path.read_text())
+    if meta.get("verdict_sha256") != sha256_file(verdict_path):
+        return None
+    return meta
+
+
 def audit_judge_provenance(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
     """Tally which judge model produced each case verdict in the audit tree.
 
-    A case with a ``verdict.meta.json`` sidecar was judged (or re-judged) by
-    the Claude Code runner, which records the judge model it requested; the
-    Codex runner records its model in the ``model:`` line of ``codex.log``.
-    A case with neither is counted under ``unknown`` so the manifest cannot
-    silently claim provenance it does not have.
+    Each runner writes a ``verdict.meta.json`` sidecar bound to its verdict by
+    sha256 (the model requested and the model the CLI reported); only a
+    sidecar that matches the case's current verdict counts. Cases judged by
+    the Codex runner before it wrote sidecars are read from the ``model:``
+    line of ``codex.log``. A case with neither is counted under ``unknown``
+    so the manifest cannot silently claim provenance it does not have.
     """
     if not cases_dir.is_dir():
         raise SystemExit(f"Audit case tree not found: {cases_dir}")
@@ -179,15 +199,21 @@ def audit_judge_provenance(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
         if not (case_dir / "verdict.json").is_file():
             continue
         judged += 1
-        meta_path = case_dir / "verdict.meta.json"
         codex_log = case_dir / "codex.log"
-        if meta_path.is_file():
-            meta = json.loads(meta_path.read_text())
+        meta = verdict_provenance(case_dir)
+        if meta is not None:
             judge = meta["judge_model_requested"]
             reported = meta.get("judge_model_reported") or []
             if judge in {"opus", "claude-opus-5"} and "claude-opus-5" in reported:
                 judge = "claude-opus-5"
-            runner = JUDGE_RUNNERS["claude"]
+            if judge == "default" and len(reported) == 1:
+                judge = reported[0]
+            runner_key = (
+                "codex"
+                if "run_audit_codex" in str(meta.get("judge_runner", ""))
+                else "claude"
+            )
+            runner = JUDGE_RUNNERS[runner_key]
             day = str(meta.get("judged_at_utc", ""))[:10]
         elif codex_log.is_file():
             match = re.search(r"^model: (\S+)$", codex_log.read_text(), re.M)
@@ -208,10 +234,11 @@ def audit_judge_provenance(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
         "cases_judged": judged,
         "by_judge": dict(sorted(by_judge.items())),
         "note": (
-            "Judge model per case: a verdict.meta.json sidecar (Claude Code "
-            "runner) or the codex.log model header (Codex runner) in the audit "
-            "tree. Verdicts classify misses after scoring and change no score. "
-            "Both judge models are also board rows."
+            "Judge model per case: the verdict.meta.json sidecar bound to the "
+            "case's verdict by sha256 (either runner), else the codex.log model "
+            "header (Codex runner before it wrote sidecars). Verdicts classify "
+            "misses after scoring and change no score. Both judge models are "
+            "also board rows."
         ),
     }
 

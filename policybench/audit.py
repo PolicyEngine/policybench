@@ -416,6 +416,9 @@ def prepare_audit(
                 and prompt_path.read_text() != new_prompt
             ):
                 verdict_path.unlink()
+                # The provenance sidecar describes that verdict; a re-judge by
+                # the other runner must not inherit it.
+                (case_dir / "verdict.meta.json").unlink(missing_ok=True)
             prompt_path.write_text(new_prompt)
     return cases
 

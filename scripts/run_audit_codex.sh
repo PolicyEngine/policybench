@@ -9,6 +9,12 @@
 # Resumable: a case is skipped once it has a verdict.json carrying the required
 # keys. Re-run freely after interruptions or to fill in failures. Concurrency,
 # model, and reasoning effort are tunable via env. Portable to bash 3.2 (macOS).
+#
+# Judge provenance: beside each verdict.json the runner writes verdict.meta.json
+# (the same sidecar scripts/run_audit_claude.sh writes) with the model Codex
+# reports in its log header, the model requested, the UTC timestamp, and the
+# verdict's sha256, so a re-judged case can never keep the other runner's
+# provenance.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -65,8 +71,9 @@ classify_one() {
   # Self-contained prompt; read-only sandbox; enforce the JSON shape. Write to a
   # temp file and publish atomically only once it validates, so an interrupted
   # run never leaves a half-written verdict that looks done. Default reasoning
-  # effort (xhigh) is wasteful for classification, so it is lowered.
-  rm -f "$tmp"
+  # effort (xhigh) is wasteful for classification, so it is lowered. A sidecar
+  # left from a previous verdict describes a verdict that no longer exists.
+  rm -f "$tmp" "$case_dir/verdict.meta.json"
   codex exec \
     --sandbox read-only \
     --skip-git-repo-check \
@@ -77,13 +84,42 @@ classify_one() {
     --output-schema "$SCHEMA" \
     -o "$tmp" \
     - < "$prompt" > "$case_dir/codex.log" 2>&1
-  if verdict_ok "$tmp"; then
+  if verdict_ok "$tmp" && write_provenance "$tmp" "$case_dir/codex.log" \
+      "$case_dir/verdict.meta.json.tmp"; then
     mv -f "$tmp" "$out"
+    mv -f "$case_dir/verdict.meta.json.tmp" "$case_dir/verdict.meta.json"
     echo "[ok] $(basename "$case_dir")"
   else
-    rm -f "$tmp"
+    rm -f "$tmp" "$case_dir/verdict.meta.json.tmp"
     echo "[FAIL] $(basename "$case_dir") (see codex.log)"
   fi
+}
+
+# Provenance sidecar for a validated verdict: the model Codex reports in its
+# log header (`model: ...`), the model requested (or "default"), the UTC time,
+# and the verdict's sha256 so the sidecar cannot outlive the verdict it describes.
+write_provenance() {
+  verdict_path="$1"; log_path="$2"; meta_out="$3"
+  "$PYTHON" - "$verdict_path" "$log_path" "$meta_out" "${AUDIT_MODEL:-default}" <<'PY'
+import datetime, hashlib, json, re, sys
+verdict_path, log_path, meta_out, requested = sys.argv[1:5]
+verdict = open(verdict_path, "rb").read()
+reported = []
+try:
+    match = re.search(r"^model: (\S+)$", open(log_path, encoding="utf-8", errors="replace").read(), re.M)
+    if match:
+        reported = [match.group(1)]
+except OSError:
+    pass
+meta = {
+    "judge_runner": "scripts/run_audit_codex.sh",
+    "verdict_sha256": hashlib.sha256(verdict).hexdigest(),
+    "judge_model_requested": requested,
+    "judge_model_reported": reported,
+    "judged_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+}
+json.dump(meta, open(meta_out, "w"), indent=2, sort_keys=True)
+PY
 }
 
 total=$(find "$CASES_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
