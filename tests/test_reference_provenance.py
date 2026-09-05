@@ -117,6 +117,8 @@ def test_freeze_analysis_reads_only_staged_run_paths(tmp_path, monkeypatch):
     staged_run = tmp_path / "snapshot" / "runs" / "us"
     source_us = tmp_path / "source" / "us"
     staged_run.mkdir(parents=True)
+    # The analyze CLI receives the staged reference CSV's digest as its pin.
+    (staged_run / "reference_outputs.csv").write_text("scenario_id,variable,value\n")
     (staged_run / "data.json").write_text(
         json.dumps(
             {
@@ -227,3 +229,53 @@ def test_serving_registry_pin_changes_only_with_serving_evidence(monkeypatch, ch
         "b" * 40 if changed else "a" * 40
     )
     assert len(commands) == (2 if changed else 1)
+
+
+def test_regenerate_analysis_passes_the_staged_reference_digest(tmp_path, monkeypatch):
+    """The analyze CLI verifies the legacy staged sidecar against the same pin
+    the freeze validated, so a refreeze cannot fail on its own committed
+    references."""
+    import hashlib
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location(
+        "freeze_snapshot_for_digest",
+        Path(__file__).resolve().parents[1] / "scripts" / "freeze_snapshot.py",
+    )
+    freeze_snapshot = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = freeze_snapshot
+    spec.loader.exec_module(freeze_snapshot)
+
+    staged = tmp_path / "staged"
+    staged.mkdir()
+    (staged / "reference_outputs.csv").write_text("scenario_id,variable,value\n")
+    (staged / "predictions.csv.gz").write_bytes(b"")
+    (staged / "scenarios.csv").write_text("scenario_id\n")
+    monkeypatch.setattr(freeze_snapshot, "RUN_DEST", staged)
+    calls: list[list[str]] = []
+
+    def fake_run(args, **kwargs):
+        calls.append(list(args))
+        dest = Path(args[args.index("-o") + 1])
+        for name in ("metrics.csv", "summary_by_model.csv", "summary_by_variable.csv"):
+            (dest / name).write_text("model\n")
+
+        class Done:
+            returncode = 0
+
+        return Done()
+
+    monkeypatch.setattr(freeze_snapshot.subprocess, "run", fake_run)
+    try:
+        freeze_snapshot.regenerate_analysis(tmp_path / "analysis")
+    except Exception:
+        pass  # downstream report assembly is not under test here
+    assert calls, "analyze CLI was not invoked"
+    argv = calls[0]
+    assert "--reference-digest" in argv
+    pinned = argv[argv.index("--reference-digest") + 1]
+    assert (
+        pinned
+        == hashlib.sha256((staged / "reference_outputs.csv").read_bytes()).hexdigest()
+    )

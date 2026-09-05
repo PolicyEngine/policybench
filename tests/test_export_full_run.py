@@ -694,3 +694,124 @@ def test_resolve_reference_digest_uses_the_committed_manifest_pin():
     assert resolve_reference_digest("manifest") == pinned
     assert resolve_reference_digest(None) is None
     assert resolve_reference_digest("ab" * 32) == "ab" * 32
+
+
+def _legacy_country(run_dir, country, value):
+    country_dir = run_dir / country
+    country_dir.mkdir(parents=True, exist_ok=True)
+    reference = country_dir / "reference_outputs.csv"
+    reference.write_text(f"scenario_id,variable,value\ns001,income_tax,{value}\n")
+    (country_dir / "scenarios.csv").write_text(f"scenario_id,country\ns001,{country}\n")
+    (country_dir / "reference_outputs.csv.meta.json").write_text(
+        json.dumps(
+            {
+                "country": country,
+                "policyengine_bundles": {
+                    country: {
+                        "model_package": f"policyengine-{country}",
+                        "model_version": "1.0.0",
+                        "data_package": "data",
+                        "data_version": "0.1.0",
+                        "default_dataset": "dataset",
+                        "default_dataset_uri": "hf://example/dataset@revision",
+                    }
+                },
+            }
+        )
+    )
+    return reference
+
+
+def test_reference_digest_for_country_resolves_per_country():
+    import hashlib
+
+    from policybench.full_run_export import (
+        ReferenceProvenanceError,
+        parse_reference_digest_args,
+        reference_digest_for_country,
+    )
+
+    us = hashlib.sha256(b"us").hexdigest()
+    uk = hashlib.sha256(b"uk").hexdigest()
+    digests = parse_reference_digest_args([f"us={us}", f"uk={uk}"])
+    assert reference_digest_for_country(digests, "us", 2) == us
+    assert reference_digest_for_country(digests, "uk", 2) == uk
+    assert reference_digest_for_country(digests, "ng", 3) is None
+    assert reference_digest_for_country(us, "us", 1) == us
+    with pytest.raises(ReferenceProvenanceError, match="single reference digest"):
+        reference_digest_for_country(us, "us", 2)
+    with pytest.raises(ReferenceProvenanceError, match="pairs"):
+        parse_reference_digest_args([us, uk])
+    with pytest.raises(ReferenceProvenanceError, match="Duplicate"):
+        parse_reference_digest_args([f"us={us}", f"us={uk}"])
+    assert parse_reference_digest_args(None) is None
+    assert parse_reference_digest_args(["manifest"]) == "manifest"
+
+
+def test_export_full_run_pins_each_legacy_country_separately(tmp_path, monkeypatch):
+    import hashlib
+
+    from policybench import full_run_export
+
+    run_dir = tmp_path / "run"
+    us_reference = _legacy_country(run_dir, "us", 100)
+    uk_reference = _legacy_country(run_dir, "uk", 200)
+    pins = {
+        "us": hashlib.sha256(us_reference.read_bytes()).hexdigest(),
+        "uk": hashlib.sha256(uk_reference.read_bytes()).hexdigest(),
+    }
+    seen: dict[str, str | None] = {}
+
+    def fake_export_country(country_dir, *, reference_digest=None):
+        seen[country_dir.name] = reference_digest
+        return {"country": country_dir.name, "modelStats": []}
+
+    monkeypatch.setattr(full_run_export, "export_country", fake_export_country)
+    monkeypatch.setattr(
+        full_run_export, "dump_dashboard_payload", lambda payload, source: "{}"
+    )
+
+    full_run_export.export_full_run(
+        run_dir, countries=["us", "uk"], skip_app_data=True, reference_digest=pins
+    )
+    assert seen == pins
+
+    with pytest.raises(
+        full_run_export.ReferenceProvenanceError, match="single reference digest"
+    ):
+        full_run_export.export_full_run(
+            run_dir,
+            countries=["us", "uk"],
+            skip_app_data=True,
+            reference_digest=pins["us"],
+        )
+
+
+def test_export_full_run_mixes_legacy_and_digest_sidecars(tmp_path):
+    import hashlib
+
+    from policybench.full_run_export import (
+        reference_digest_for_country,
+        reference_policyengine_bundles,
+    )
+
+    run_dir = tmp_path / "run"
+    us_reference = _legacy_country(run_dir, "us", 100)
+    uk_reference = _legacy_country(run_dir, "uk", 200)
+    uk_sidecar = run_dir / "uk" / "reference_outputs.csv.meta.json"
+    uk_meta = json.loads(uk_sidecar.read_text())
+    uk_meta["reference_csv_sha256"] = hashlib.sha256(
+        uk_reference.read_bytes()
+    ).hexdigest()
+    uk_meta["row_count"] = 1
+    uk_sidecar.write_text(json.dumps(uk_meta))
+    pins = {"us": hashlib.sha256(us_reference.read_bytes()).hexdigest()}
+
+    for country, reference in (("us", us_reference), ("uk", uk_reference)):
+        bundles = reference_policyengine_bundles(
+            reference,
+            country,
+            require_digest=True,
+            manifest_reference_sha256=reference_digest_for_country(pins, country, 2),
+        )
+        assert country in bundles

@@ -527,6 +527,10 @@ def regenerate_analysis(dest_dir: Path) -> None:
             str(dest_dir),
             "--app-data-output",
             str(throwaway),
+            # The staged sidecar predates reference_csv_sha256; the analyze CLI
+            # verifies the staged CSV against the same pin the freeze validated.
+            "--reference-digest",
+            sha256_file(RUN_DEST / "reference_outputs.csv"),
         ],
         cwd=ROOT,
         check=True,

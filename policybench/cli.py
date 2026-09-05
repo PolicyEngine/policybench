@@ -528,10 +528,12 @@ def main():
     )
     export_parser.add_argument(
         "--reference-digest",
+        action="append",
         default=None,
         help=(
-            "sha256 of reference_outputs.csv for a legacy sidecar without its "
-            "own digest, or 'manifest' for the committed snapshot's pin"
+            "Pin for a legacy reference sidecar without its own digest: "
+            "'manifest', a bare sha256 (single country), or <country>=<sha256>; "
+            "repeat per country"
         ),
     )
     export_parser.add_argument(
@@ -1260,14 +1262,14 @@ def main():
         from policybench.full_run_export import (
             ReferenceProvenanceError,
             export_full_run,
-            resolve_reference_digest,
+            parse_reference_digest_args,
         )
 
         try:
             export_full_run(
                 run_dir=args.run_dir,
                 countries=args.countries,
-                reference_digest=resolve_reference_digest(args.reference_digest),
+                reference_digest=parse_reference_digest_args(args.reference_digest),
                 app_data_output=args.app_data_output,
                 skip_app_data=args.skip_app_data,
             )

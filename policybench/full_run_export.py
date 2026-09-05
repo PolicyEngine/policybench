@@ -324,8 +324,9 @@ def committed_reference_digest(country: str = "us") -> str | None:
 def resolve_reference_digest(value: str | None, country: str = "us") -> str | None:
     """Turn a CLI ``--reference-digest`` value into a hex digest or None.
 
-    ``"manifest"`` selects the committed snapshot's pin; any other string is
-    taken as the sha256 of ``reference_outputs.csv``.
+    ``"manifest"`` selects the committed snapshot's pin for ``country``; any
+    other string is taken as the sha256 of that country's
+    ``reference_outputs.csv``.
     """
     if value is None:
         return None
@@ -338,6 +339,65 @@ def resolve_reference_digest(value: str | None, country: str = "us") -> str | No
             )
         return digest
     return value
+
+
+ReferenceDigests = str | dict[str, str] | None
+
+
+def parse_reference_digest_args(values: list[str] | None) -> ReferenceDigests:
+    """Parse repeated ``--reference-digest`` CLI values.
+
+    Accepted forms: ``manifest`` (resolve the committed pin per country), a
+    bare sha256 (valid only when a single country is exported), or
+    ``<country>=<sha256|manifest>`` pairs, one per country.
+    """
+    if not values:
+        return None
+    if len(values) == 1 and "=" not in values[0]:
+        return values[0]
+    digests: dict[str, str] = {}
+    for value in values:
+        if "=" not in value:
+            raise ReferenceProvenanceError(
+                "--reference-digest with several countries needs "
+                "<country>=<sha256|manifest> pairs; got " + repr(value)
+            )
+        country, _, digest = value.partition("=")
+        country = country.strip().lower()
+        if not country or not digest.strip():
+            raise ReferenceProvenanceError(
+                f"Malformed --reference-digest entry: {value!r}"
+            )
+        if country in digests:
+            raise ReferenceProvenanceError(
+                f"Duplicate --reference-digest entry for country {country!r}"
+            )
+        digests[country] = digest.strip()
+    return digests
+
+
+def reference_digest_for_country(
+    reference_digest: ReferenceDigests, country: str, n_countries: int
+) -> str | None:
+    """Pick the digest pin that applies to one exported country.
+
+    A mapping is looked up by country (missing means no pin for that country);
+    ``"manifest"`` resolves per country; a bare sha256 applies only when a
+    single country is exported, since one hash cannot describe two CSVs.
+    """
+    if reference_digest is None:
+        return None
+    if isinstance(reference_digest, dict):
+        value = reference_digest.get(country)
+        return resolve_reference_digest(value, country) if value else None
+    if reference_digest == "manifest":
+        return resolve_reference_digest("manifest", country)
+    if n_countries != 1:
+        raise ReferenceProvenanceError(
+            "A single reference digest cannot cover several countries; pass "
+            "<country>=<sha256> pairs or 'manifest'."
+        )
+    return reference_digest
 
 
 def export_country(country_dir: Path, *, reference_digest: str | None = None) -> dict:
@@ -514,12 +574,14 @@ def export_full_run(
     countries: Sequence[str] | None = None,
     app_data_output: str | Path = "app/src/data.json",
     skip_app_data: bool = False,
-    reference_digest: str | None = None,
+    reference_digest: ReferenceDigests = None,
 ) -> dict:
     """Export per-country and combined frontend artifacts from a full run.
 
-    ``reference_digest`` pins the reference CSV for legacy sidecars that carry
-    no digest of their own (see ``export_country``).
+    ``reference_digest`` pins the reference CSVs of legacy sidecars that carry
+    no digest of their own: a ``{country: sha256}`` mapping, ``"manifest"``
+    (the committed pin per country), or a bare sha256 for a single country
+    (see ``reference_digest_for_country``).
     """
     run_path = Path(run_dir)
     if countries:
@@ -534,7 +596,12 @@ def export_full_run(
             )
 
     country_payloads = {
-        country: export_country(run_path / country, reference_digest=reference_digest)
+        country: export_country(
+            run_path / country,
+            reference_digest=reference_digest_for_country(
+                reference_digest, country, len(selected_countries)
+            ),
+        )
         for country in selected_countries
     }
     combined_payload = {"countries": country_payloads}
@@ -577,6 +644,16 @@ def main() -> None:
         action="store_true",
         help="Only write the combined payload under the run directory.",
     )
+    parser.add_argument(
+        "--reference-digest",
+        action="append",
+        default=None,
+        help=(
+            "Pin for a legacy reference sidecar without its own digest: "
+            "'manifest', a bare sha256 (single country), or <country>=<sha256>; "
+            "repeat per country."
+        ),
+    )
     args = parser.parse_args()
 
     export_full_run(
@@ -584,6 +661,7 @@ def main() -> None:
         countries=args.countries,
         app_data_output=args.app_data_output,
         skip_app_data=args.skip_app_data,
+        reference_digest=parse_reference_digest_args(args.reference_digest),
     )
 
 
