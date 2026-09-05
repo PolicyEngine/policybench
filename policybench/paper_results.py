@@ -38,6 +38,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from policybench.reference_exclusions import FILENAME as EXCLUSIONS_FILENAME
+from policybench.reference_exclusions import exclusion_keys, load_reference_exclusions
 from policybench.snapshot_payload import read_run_payload
 
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
@@ -252,17 +254,47 @@ class PaperResults:
         return row["model"], row["scenario_id"], row["variable"]
 
     @cached_property
+    def reference_exclusions(self) -> list[dict]:
+        """Outputs removed from scoring for every model (frozen record)."""
+        return load_reference_exclusions(
+            SNAPSHOT_DIR / "runs" / self.us_run_label / EXCLUSIONS_FILENAME
+        )
+
+    @cached_property
+    def _excluded_output_keys(self) -> frozenset[tuple[str, str]]:
+        return frozenset(exclusion_keys(self.reference_exclusions))
+
+    def _is_excluded(self, row: dict) -> bool:
+        return (row["scenario_id"], row["variable"]) in self._excluded_output_keys
+
+    @cached_property
+    def _scored_prediction_rows(self) -> list[dict]:
+        """Frozen rows that carry a score (excluded outputs left out)."""
+        return [
+            row
+            for row in self._scenario_prediction_rows
+            if row.get("scored", True) and not self._is_excluded(row)
+        ]
+
+    @cached_property
     def _audit_row_keys(self) -> frozenset[tuple[str, str, str]]:
-        keys = frozenset(self._prediction_row_key(row) for row in self._audit_rows)
-        if len(keys) != len(self._audit_rows):
+        """Annotated rows on scored outputs (the legacy-threshold audit universe)."""
+        rows = [row for row in self._audit_rows if not self._is_excluded(row)]
+        keys = frozenset(self._prediction_row_key(row) for row in rows)
+        if len(keys) != len(rows):
             raise ValueError("Frozen audit annotations contain duplicate row keys")
         return keys
+
+    @cached_property
+    def _excluded_output_annotation_rows(self) -> list[dict]:
+        """Annotated rows on excluded outputs, kept as description, not scored."""
+        return [row for row in self._audit_rows if self._is_excluded(row)]
 
     @cached_property
     def _legacy_threshold_row_keys(self) -> frozenset[tuple[str, str, str]]:
         return frozenset(
             self._prediction_row_key(row)
-            for row in self._scenario_prediction_rows
+            for row in self._scored_prediction_rows
             if row["thresholdScore"] < 100
         )
 
@@ -270,7 +302,7 @@ class PaperResults:
     def _exact_match_miss_row_keys(self) -> frozenset[tuple[str, str, str]]:
         return frozenset(
             self._prediction_row_key(row)
-            for row in self._scenario_prediction_rows
+            for row in self._scored_prediction_rows
             if row["exact"] < 100
         )
 
@@ -280,7 +312,7 @@ class PaperResults:
     ) -> frozenset[tuple[str, str, str]]:
         return frozenset(
             self._prediction_row_key(row)
-            for row in self._scenario_prediction_rows
+            for row in self._scored_prediction_rows
             if row["boundedScore"] < 100
         )
 
@@ -843,11 +875,103 @@ class PaperResults:
     # ----- audit ---------------------------------------------------------
     @property
     def audit_annotated_row_count(self) -> int:
-        return len(self._audit_rows)
+        return len(self._audit_row_keys)
 
     @property
     def audit_annotated_row_count_fmt(self) -> str:
         return f"{self.audit_annotated_row_count:,}"
+
+    # ----- outputs excluded from scoring -----------------------------------
+    @property
+    def excluded_output_count(self) -> int:
+        return len(self.reference_exclusions)
+
+    @property
+    def excluded_output_count_fmt(self) -> str:
+        return f"{self.excluded_output_count:,}"
+
+    @property
+    def excluded_output_phrase(self) -> str:
+        words = {
+            0: "no",
+            1: "one",
+            2: "two",
+            3: "three",
+            4: "four",
+            5: "five",
+            6: "six",
+            7: "seven",
+            8: "eight",
+            9: "nine",
+            10: "ten",
+            11: "eleven",
+            12: "twelve",
+        }
+        count = self.excluded_output_count
+        return f"{words.get(count, str(count))} output{'s' if count != 1 else ''}"
+
+    @property
+    def excluded_outputs_by_input(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for entry in self.reference_exclusions:
+            counts[entry["unlisted_input"]] = counts.get(entry["unlisted_input"], 0) + 1
+        return counts
+
+    @property
+    def excluded_output_households_fmt(self) -> str:
+        return f"{len({e['scenario_id'] for e in self.reference_exclusions}):,}"
+
+    @property
+    def excluded_output_households_phrase(self) -> str:
+        words = {
+            0: "no",
+            1: "one",
+            2: "two",
+            3: "three",
+            4: "four",
+            5: "five",
+            6: "six",
+            7: "seven",
+            8: "eight",
+            9: "nine",
+            10: "ten",
+            11: "eleven",
+            12: "twelve",
+        }
+        count = len({e["scenario_id"] for e in self.reference_exclusions})
+        return f"{words.get(count, str(count))} household{'s' if count != 1 else ''}"
+
+    @property
+    def scored_outputs_per_model(self) -> int:
+        return len(self._reference_values) - self.excluded_output_count
+
+    @property
+    def scored_outputs_per_model_fmt(self) -> str:
+        return f"{self.scored_outputs_per_model:,}"
+
+    @property
+    def total_outputs_per_model_fmt(self) -> str:
+        return f"{len(self._reference_values):,}"
+
+    @property
+    def excluded_output_annotation_row_count(self) -> int:
+        return len(self._excluded_output_annotation_rows)
+
+    @property
+    def excluded_output_annotation_row_count_fmt(self) -> str:
+        return f"{self.excluded_output_annotation_row_count:,}"
+
+    @property
+    def prompt_ambiguity_row_count(self) -> int:
+        return sum(
+            1
+            for row in self._excluded_output_annotation_rows
+            if row["failure_source"] == "prompt_ambiguity"
+        )
+
+    @property
+    def prompt_ambiguity_row_count_fmt(self) -> str:
+        return f"{self.prompt_ambiguity_row_count:,}"
 
     @cached_property
     def audit_judge_provenance(self) -> dict:

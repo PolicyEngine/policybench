@@ -20,13 +20,15 @@ import { wouldRank } from "../lib/wouldRank";
 import { isCurrentBoard, modelPageHref } from "../lib/boardScope";
 
 // Exact-match scores of the tool_choice: auto sensitivity runs
-// (sensitivity/claude-thinking-2026-08.md). Their "would rank" positions are
-// derived from the live board rows at render time, never typed by hand.
+// (sensitivity/claude-thinking-2026-08.md), scored on the same 1,973 outputs
+// the board scores (eleven outputs are excluded for every model). Their
+// "would rank" positions are derived from the live board rows at render time,
+// never typed by hand.
 const SENSITIVITY_EXACT = {
-  "claude-fable-5": 86.9,
-  "claude-opus-5": 85.6,
-  "claude-sonnet-5": 80.2,
-  "claude-fable-5.1": 87.5,
+  "claude-fable-5": 87.5,
+  "claude-opus-5": 86.2,
+  "claude-sonnet-5": 80.8,
+  "claude-fable-5.1": 88.2,
 } as const;
 import {
   rankWithFallbackScore,

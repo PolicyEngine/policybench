@@ -25,6 +25,9 @@ export function summarizeAuditUniverse(data: BenchData): AuditUniverseSummary {
   for (const variableMap of Object.values(data.scenarioPredictions)) {
     for (const modelMap of Object.values(variableMap)) {
       for (const row of Object.values(modelMap)) {
+        // Outputs excluded from scoring are annotated as description only;
+        // they are outside the scored audit universe.
+        if (row.scored === false) continue;
         const annotated = row.failureSource !== undefined;
         const legacyThresholdSelected =
           row.thresholdScore !== undefined && row.thresholdScore < 100;

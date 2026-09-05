@@ -520,11 +520,34 @@ class Scenario:
 
         return {
             "people": people,
+            "marital_units": self._marital_units(adult_names, child_names),
             "tax_units": {"tax_unit": tax_unit_data},
             "spm_units": {"spm_unit": spm_unit_data},
             "families": {"family": {"members": all_names}},
             "households": {"household": household_data},
         }
+
+    @staticmethod
+    def _marital_units(adult_names: list[str], child_names: list[str]) -> dict:
+        """Head and spouse form the only couple; everyone else is alone.
+
+        Without an explicit marital-unit map policyengine-core places every
+        household member in one marital unit, which the engine reads as one
+        couple: SSI then deems the whole household's income to any eligible
+        adult as if the others were a spouse. The frozen references are
+        unaffected (verified against policyengine-us 1.755.4: no output moves),
+        because no benchmark household has a non-spouse adult the engine finds
+        SSI-eligible under the facts as listed.
+        """
+        units: dict[str, dict[str, list[str]]] = {}
+        couple = [name for name in ("head", "spouse") if name in adult_names]
+        if len(couple) == 2:
+            units["marital_unit_head_spouse"] = {"members": couple}
+        for name in adult_names + child_names:
+            if name in couple and len(couple) == 2:
+                continue
+            units[f"marital_unit_{name}"] = {"members": [name]}
+        return units
 
 
 def person_to_dict(person: Person) -> dict[str, Any]:

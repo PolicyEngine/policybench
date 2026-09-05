@@ -126,6 +126,8 @@ export function canonicalScoreByModel(input: CanonicalScoreInput): Map<string, n
         if (!programIsActive(activeProgramIds, variable)) return false;
         const first = Object.values(modelMap)[0];
         if (!first) return false;
+        // Outputs excluded from scoring carry scored=false on every row.
+        if (first.scored === false) return false;
         if (referenceFilter === "positives" && first.groundTruth === 0) {
           return false;
         }

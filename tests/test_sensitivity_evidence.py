@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from policybench.reference_exclusions import scored_reference_for
 from policybench.scorer_vectors import canonical_filtered_scores
 from policybench.snapshot_payload import read_run_payload
 from policybench.spec import output_group_id
@@ -101,7 +102,8 @@ def test_exact_score_recomputes_from_committed_predictions():
         )
     assert set(predictions["model"]) == {SUMMARY["sensitivity_model_id"]}
     assert len(predictions) == SUMMARY["sensitivity"]["n"]
-    ground_truth = pd.read_csv(RUN_DIR / "reference_outputs.csv")
+    # Score against the same reference the board scores: excluded outputs out.
+    ground_truth, _ = scored_reference_for(RUN_DIR / "reference_outputs.csv")
     payload = read_run_payload(RUN_DIR)
     weights_by_group: dict[str, float] = {}
     for variable, weight in payload["globalWeights"]["household"].items():

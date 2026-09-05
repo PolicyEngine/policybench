@@ -142,6 +142,8 @@ def _aggregate_scenario_metric(country_payload: dict, metric: str) -> dict[str, 
             (variable, model_map)
             for variable, model_map in variable_map.items()
             if output_group_id(variable) in grouped_weights
+            # Outputs excluded from scoring carry scored=false on every row.
+            and not any(row.get("scored") is False for row in model_map.values())
         ]
         group_counts: dict[str, int] = {}
         for variable, _ in variables:
@@ -579,16 +581,16 @@ def test_snapshot_copied_artifacts_match_source_runs():
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_audit_counts = {
         "us": {
-            "annotated": 9_076,
-            "exact_misses": 9_073,
-            "annotated_exact_misses": 9_073,
+            "annotated": 8_783,
+            "exact_misses": 8_780,
+            "annotated_exact_misses": 8_780,
             "annotated_exact_hits": 3,
-            "below_full_bounded_score": 10_681,
+            "below_full_bounded_score": 10_388,
             "unannotated_below_full_bounded_score": 1_605,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 8_369, "parse_contract_failure": 707},
+        "us": {"llm_error": 8_082, "parse_contract_failure": 701},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -618,6 +620,19 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
             ].items()
             for variable, model_map in variable_map.items()
             for model, row in model_map.items()
+            # Outputs excluded from scoring are outside the audit universe.
+            if row.get("scored") is not False
+        ]
+        excluded_outputs = {
+            (r.scenario_id, r.variable) for r in result["excluded_outputs"].itertuples()
+        }
+        annotation_keys = {
+            k for k in annotation_keys if (k[1], k[2]) not in excluded_outputs
+        }
+        annotations = annotations[
+            ~annotations.apply(
+                lambda r: (r["scenario_id"], r["variable"]) in excluded_outputs, axis=1
+            )
         ]
 
         def metric_keys(metric: str) -> set[tuple[str, str, str]]:
@@ -671,13 +686,29 @@ def test_snapshot_audit_annotations_have_no_orphan_rows():
             pd.read_csv(path)
             for path in sorted(ANNOTATIONS_DIR.glob(f"{country}_*_annotations.csv"))
         )
-        orphans = annotations[keys].merge(
+        # Rows on outputs excluded from scoring stay annotated (as description)
+        # but are not wrong rows; every one of them must carry prompt_ambiguity.
+        excluded = result["excluded_outputs"]
+        on_excluded = annotations.merge(
+            excluded, on=["scenario_id", "variable"], how="inner"
+        )
+        assert set(on_excluded["failure_source"]) <= {
+            "prompt_ambiguity",
+            "parse_contract_failure",
+        }
+        scored_annotations = annotations.merge(
+            excluded, on=["scenario_id", "variable"], how="left", indicator=True
+        )
+        scored_annotations = scored_annotations[
+            scored_annotations["_merge"] == "left_only"
+        ].drop(columns="_merge")
+        orphans = scored_annotations[keys].merge(
             result["wrong"][keys].drop_duplicates(), on=keys, how="left", indicator=True
         )
         assert (orphans["_merge"] == "both").all(), orphans[
             orphans["_merge"] != "both"
         ].head()
-        assert len(annotations) == len(result["wrong"])
+        assert len(scored_annotations) == len(result["wrong"])
 
 
 def test_snapshot_case_notes_agree_with_row_annotations():

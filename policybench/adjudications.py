@@ -37,6 +37,10 @@ REQUIRED_FIELDS = (
     "reasoning",
 )
 FINAL_SOURCES = frozenset({"llm_error", "parse_contract_failure"})
+# A developer may affirm a judge's (or override a judge's) verdict as prompt
+# ambiguity only when the output is also removed from scoring for every model
+# (see policybench.reference_exclusions); an ambiguous output is never scored.
+AFFIRMABLE_WITH_EXCLUSION = frozenset({"prompt_ambiguity"})
 
 
 class AdjudicationError(ValueError):
@@ -56,10 +60,22 @@ def load_adjudications(path: Path) -> list[dict]:
         missing = [field for field in REQUIRED_FIELDS if not entry.get(field)]
         if missing:
             raise AdjudicationError(f"{path}: entry missing {missing}: {entry}")
-        if entry["adjudicated_failure_source"] not in FINAL_SOURCES:
+        adjudicated = entry["adjudicated_failure_source"]
+        excluded = bool(entry.get("excluded_from_scoring", False))
+        if adjudicated in AFFIRMABLE_WITH_EXCLUSION:
+            if not excluded:
+                raise AdjudicationError(
+                    f"{path}: adjudicated_failure_source {adjudicated!r} requires "
+                    "excluded_from_scoring: true (an ambiguous output is not scored)"
+                )
+        elif adjudicated not in FINAL_SOURCES:
             raise AdjudicationError(
-                f"{path}: adjudicated_failure_source must be final, got "
-                f"{entry['adjudicated_failure_source']!r}"
+                f"{path}: adjudicated_failure_source must be final, got {adjudicated!r}"
+            )
+        elif excluded:
+            raise AdjudicationError(
+                f"{path}: excluded_from_scoring is only valid with "
+                f"prompt_ambiguity, got {adjudicated!r}"
             )
         for field in ("judge_failure_source",):
             if entry[field] not in FAILURE_SOURCE_VALUES:
@@ -182,7 +198,12 @@ def verify_adjudications_applied(
         stray = case_rows[
             case_rows["failure_source"].astype(str) == entry["judge_failure_source"]
         ]
-        if entry["judge_failure_source"] not in FINAL_SOURCES and not stray.empty:
+        affirmed = entry["judge_failure_source"] == entry["adjudicated_failure_source"]
+        if (
+            entry["judge_failure_source"] not in FINAL_SOURCES
+            and not affirmed
+            and not stray.empty
+        ):
             raise AdjudicationError(
                 f"{len(stray)} rows of {key} still carry the judge's "
                 f"{entry['judge_failure_source']} verdict"
@@ -221,3 +242,12 @@ def verify_adjudications_applied(
                     f"case note for {key} does not carry the recorded adjudication "
                     "sentence (revised record not re-applied?)"
                 )
+
+
+def excluded_case_keys(adjudications: list[dict]) -> set[tuple[str, str]]:
+    """Cases the record removes from scoring (must equal the exclusion record)."""
+    return {
+        (str(e["scenario_id"]), str(e["variable"]))
+        for e in adjudications
+        if e.get("excluded_from_scoring")
+    }

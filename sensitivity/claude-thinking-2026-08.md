@@ -44,17 +44,21 @@ runs also use the canonical whole-scenario request
 (`POLICYBENCH_CHUNK_OVERRIDE=none`); their deltas therefore combine two
 shape changes, while Claude Opus 5's isolates thinking alone.
 
-All ranks are on the 39-model board (2026-09-05).
+All ranks are on the 39-model board (2026-09-05). Scores are on the
+1,973 outputs the board scores; eleven outputs whose reference depends on
+an input the data never carried are excluded for every model, sensitivity
+runs included (`reference_exclusions.json`). On all 1,984 outputs the
+thinking runs scored 86.9, 85.6 and 80.2.
 
 | | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5 | 79.9 (#13) | **86.9** | +7.0 | **#3** | $0.541 → $0.323 | 54 | 1,984/1,984 |
-| Claude Opus 5 | 79.8 (#14) | **85.6** | +5.8 | #5 | $0.067 → $0.152 | 51 | 1,984/1,984 |
-| Claude Sonnet 5 | 69.4 (#37) | **80.2** | +10.8 | #13 | $0.086 | 64 | 1,928/1,984 |
+| Claude Fable 5 | 80.4 (#13) | **87.5** | +7.1 | **#3** | $0.541 → $0.323 | 54 | 1,984/1,984 |
+| Claude Opus 5 | 80.3 (#14) | **86.2** | +5.9 | #5 | $0.067 → $0.152 | 51 | 1,984/1,984 |
+| Claude Sonnet 5 | 69.9 (#37) | **80.8** | +10.9 | #13 | $0.086 | 64 | 1,928/1,984 |
 
 Under `auto`, Fable 5 and Opus 5 chose to call the answer tool on every
 response; Sonnet 5 failed to produce a parseable tool call on 56 of its
-1,984 answers, which score as misses inside its 80.2. Fable 5's
+1,984 answers, which score as misses inside its 80.8. Fable 5's
 sensitivity run also costs less than its leaderboard run: whole-scenario
 requests drop its per-household spend from $0.541 to $0.323 even with
 thinking on.
@@ -78,7 +82,7 @@ versioned re-run, never an edit to existing scores; the plan is
 
 Per-variable within-$1 rates, board (forced) vs `auto`. These are
 unweighted leaf rates from the heatmap; the headline weights by dollar
-magnitude, so these do not average to 86.9.
+magnitude, so these do not average to 87.5.
 
 | program | board | auto | delta |
 |---|---|---|---|
@@ -127,14 +131,15 @@ reason. The ranks are on the 39-model board (2026-09-05).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5.1 | 86.3 (#3) | **87.5** | +1.2 | #2 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
+| Claude Fable 5.1 | 86.9 (#3) | **88.2** | +1.2 | #2 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
 
 The two rows sit 1.2 points apart, and no program moves more than three
 points between them (table below). Read against Claude Fable 5, the
-picture matches August: Fable 5.1's JSON board row (86.3) is 6.4 points
-above Fable 5's forced-tool board row (79.9) and 0.6 below Fable 5's
-`auto` run (86.9); Fable 5.1's own `auto` run (87.5) is 0.6 above Fable
-5's under the identical request. The model called the answer tool on every
+picture matches August: Fable 5.1's JSON board row (86.9) is 6.5 points
+above Fable 5's forced-tool board row (80.4) and 0.6 below Fable 5's
+`auto` run (87.5); Fable 5.1's own `auto` run (88.2) is 0.6 above Fable
+5's under the identical request. Scores are on the 1,973 scored outputs;
+on all 1,984 the auto run scored 87.5. The model called the answer tool on every
 one of its 1,984 answers under `auto`.
 
 Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`

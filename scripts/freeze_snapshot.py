@@ -49,9 +49,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from policybench.adjudications import load_adjudications, verify_adjudications_applied
+from policybench.adjudications import (
+    excluded_case_keys,
+    load_adjudications,
+    verify_adjudications_applied,
+)
 from policybench.analysis import render_markdown_report, score_single_prediction
 from policybench.full_run_export import reference_policyengine_bundles
+from policybench.reference_exclusions import (
+    exclusion_keys,
+    load_reference_exclusions,
+    verify_exclusions_against_reference,
+)
 from policybench.snapshot_payload import (
     PAYLOAD_NAME,
     read_run_payload,
@@ -85,21 +94,22 @@ SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
-# is the exact payload uploaded as dashboard-data-20260905b (the 39-model board:
+# is the exact payload uploaded as dashboard-data-20260905c (the 39-model board:
 # the 33-model dashboard-data-20260901c payload plus six September 2026 adds,
-# incumbent rows byte-identical). The superseded 20260905 tag carried the
-# judge's prompt_ambiguity verdict for scenario_064 SSI before the recorded
-# developer adjudication (annotations/<run>/us_adjudications.json).
+# eleven outputs whose reference depends on an unlisted input excluded from
+# scoring for every model, per reference_exclusions.json). Superseded tags:
+# 20260905 carried the judge's prompt_ambiguity verdict before adjudication;
+# 20260905b scored all 1,984 outputs and classified those rows llm_error.
 PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board39.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
-    "tag": "dashboard-data-20260905b",
+    "tag": "dashboard-data-20260905c",
     "asset": "dashboard-data.json",
     "url": (
         "https://github.com/PolicyEngine/policybench/releases/download/"
-        "dashboard-data-20260905b/dashboard-data.json"
+        "dashboard-data-20260905c/dashboard-data.json"
     ),
-    "sha256": "49fa26605209e512fc451c8e1539ff1e683fd945b34f99439b2d905cee5463c0",
-    "bytes": 107_663_914,
+    "sha256": "838bb3757db372fc473daf717616c1faea9254ecadfd1581d6217b1c796890a6",
+    "bytes": 109_225_250,
 }
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
@@ -107,6 +117,8 @@ RUN_DEST = SNAPSHOT_DIR / "runs" / RUN_LABEL
 ANNOTATIONS_DEST = ROOT / "annotations" / RUN_LABEL
 # Developer adjudications of non-final judge verdicts, committed beside the CSVs.
 ADJUDICATIONS_NAME = "us_adjudications.json"
+# Outputs removed from scoring for every model (policybench.reference_exclusions).
+EXCLUSIONS_NAME = "reference_exclusions.json"
 # The publish bundle omits this immutable reference-generation sidecar. Reuse
 # the committed copy after checking the manifest's CSV and sidecar pins.
 REFERENCE_META_SOURCE = RUN_DEST / "reference_outputs.csv.meta.json"
@@ -199,6 +211,41 @@ def audit_judge_provenance(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
             "runner) or the codex.log model header (Codex runner) in the audit "
             "tree. Verdicts classify misses after scoring and change no score. "
             "Both judge models are also board rows."
+        ),
+    }
+
+
+def reference_exclusions_block() -> dict:
+    """Summarize the scoring exclusion record and check it against the
+    adjudication record: every excluded output must carry a developer
+    adjudication marked excluded_from_scoring, and vice versa."""
+    exclusions = load_reference_exclusions(RUN_DEST / EXCLUSIONS_NAME)
+    adjudications = load_adjudications(ANNOTATIONS_DEST / ADJUDICATIONS_NAME)
+    excluded = exclusion_keys(exclusions)
+    adjudicated = excluded_case_keys(adjudications)
+    if excluded != adjudicated:
+        raise SystemExit(
+            "reference_exclusions.json and us_adjudications.json disagree on the "
+            f"excluded outputs: only in exclusions {sorted(excluded - adjudicated)}, "
+            f"only in adjudications {sorted(adjudicated - excluded)}"
+        )
+    reference = pd.read_csv(RUN_DEST / "reference_outputs.csv")
+    verify_exclusions_against_reference(reference, exclusions)
+    by_input: dict[str, int] = {}
+    for entry in exclusions:
+        by_input[entry["unlisted_input"]] = by_input.get(entry["unlisted_input"], 0) + 1
+    return {
+        "file": EXCLUSIONS_NAME if exclusions else None,
+        "outputs": len(exclusions),
+        "by_unlisted_input": dict(sorted(by_input.items())),
+        "scored_outputs_per_model": int(len(reference) - len(exclusions)),
+        "note": (
+            "Outputs whose reference depends on an engine input the certified "
+            "household data never carried (so the prompt never listed it) are "
+            "removed from scoring for every model, symmetrically; their rows stay "
+            "in the payload with scored=false. Each entry records the alternative "
+            "reading and the reference under both readings, recomputed with the "
+            "engine version that produced the references."
         ),
     }
 
@@ -740,9 +787,12 @@ def freeze_run() -> dict[str, str]:
         stored_name="predictions.csv",
     )
 
-    # scenarios + reference outputs (+ meta).
+    # scenarios + reference outputs (+ meta) + the scoring exclusion record.
     for name in ("scenarios.csv", "scenarios.csv.meta.json", "reference_outputs.csv"):
         copy_exact(SOURCE_US / name, RUN_DEST / name)
+    exclusions_source = SOURCE_US / EXCLUSIONS_NAME
+    if exclusions_source.exists():
+        copy_exact(exclusions_source, RUN_DEST / EXCLUSIONS_NAME)
     (RUN_DEST / "reference_outputs.csv.meta.json").write_bytes(reference_metadata_bytes)
 
     # analysis/ CSVs + report.md.
@@ -762,6 +812,8 @@ def freeze_run() -> dict[str, str]:
         "scenarios.csv.meta.json",
     ):
         files[name] = sha256_file(RUN_DEST / name)
+    if (RUN_DEST / EXCLUSIONS_NAME).exists():
+        files[EXCLUSIONS_NAME] = sha256_file(RUN_DEST / EXCLUSIONS_NAME)
 
     return dict(sorted(files.items()))
 
@@ -1292,6 +1344,7 @@ def build_manifest(
             "judge_provenance": audit_judge_provenance(),
             "developer_adjudications": developer_adjudications_block(),
         },
+        "reference_exclusions": reference_exclusions_block(),
         "population_weight_artifact": {
             "path": "policybench/population_weights.json",
             "sha256": sha256_file(population_weight_path),

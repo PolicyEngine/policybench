@@ -2,16 +2,17 @@
   "audit_annotation_artifacts": {
     "developer_adjudications": {
       "by_judge_verdict": {
+        "llm_error": 10,
         "prompt_ambiguity": 1
       },
-      "cases": 1,
+      "cases": 11,
       "file": "us_adjudications.json",
       "note": "Judge verdicts outside the final classes (llm_error, parse_contract_failure) are resolved by a recorded developer adjudication that keeps the judge's verdict and reasoning beside the adjudicated class; applied to the bundle before export so the published payload and the frozen annotations agree."
     },
     "files": {
-      "us_adjudications.json": "40fc52569cb6ff5e43e597713c9dbc818beacd68f54c39b54dcbd133f6497ce4",
-      "us_audit_row_annotations.csv": "cb843a05bb2cb8b8ba31acdbfe28fea361e9516a6a8ae0ee86962c40f571aeca",
-      "us_case_notes.csv": "c3b80364277270bac02532bf22a42fdae12408727f4af3ff7d5d6eeac43f5356",
+      "us_adjudications.json": "73dca1c2cef9d61bc7ab14965974569e5dc3fca10934b87aafaf4cb0674f9fc6",
+      "us_audit_row_annotations.csv": "735b75d5a6599c8375a97f000b93c1904d6f27588480300bee0ab22430b893ef",
+      "us_case_notes.csv": "0c62ab95ea62c01a0c4044b8346b9280e151b1498e92bf38e84d4afee338fa4d",
       "us_case_reference_explanations.csv": "a3fc7504dcf3d8abe11e98c2228c786a5171a825640b980835e1e210d3afa198"
     },
     "judge_provenance": {
@@ -45,16 +46,16 @@
   "files": [
     {
       "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json.gz",
-      "sha256": "2f1abd9bb437b3d41fa9709ad4a7edf221ce3525f22de9fbed07d849822c54c2"
+      "sha256": "2cce2598dbf9f33511f31d944221a7fc27f69b487a56c59e2c17e77d4ba5ad1f"
     }
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 107663914,
+    "bytes": 109225250,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "49fa26605209e512fc451c8e1539ff1e683fd945b34f99439b2d905cee5463c0",
-    "tag": "dashboard-data-20260905b",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260905b/dashboard-data.json"
+    "sha256": "838bb3757db372fc473daf717616c1faea9254ecadfd1581d6217b1c796890a6",
+    "tag": "dashboard-data-20260905c",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260905c/dashboard-data.json"
   },
   "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under live_dashboard_artifact. The separate published_dashboard_artifact freezes the combined export of the source run data.json files listed under source_run_artifacts. A later publication may advance the live entry without changing the frozen pin.",
   "model_response_date": "2026-06-12 to 2026-09-05",
@@ -68,10 +69,20 @@
   },
   "published_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 107663914,
-    "sha256": "49fa26605209e512fc451c8e1539ff1e683fd945b34f99439b2d905cee5463c0",
-    "tag": "dashboard-data-20260905b",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260905b/dashboard-data.json"
+    "bytes": 109225250,
+    "sha256": "838bb3757db372fc473daf717616c1faea9254ecadfd1581d6217b1c796890a6",
+    "tag": "dashboard-data-20260905c",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260905c/dashboard-data.json"
+  },
+  "reference_exclusions": {
+    "by_unlisted_input": {
+      "meets_ssi_disability_criteria": 6,
+      "months_receiving_social_security_disability": 5
+    },
+    "file": "reference_exclusions.json",
+    "note": "Outputs whose reference depends on an engine input the certified household data never carried (so the prompt never listed it) are removed from scoring for every model, symmetrically; their rows stay in the payload with scored=false. Each entry records the alternative reading and the reference under both readings, recomputed with the engine version that produced the references.",
+    "outputs": 11,
+    "scored_outputs_per_model": 1973
   },
   "reference_output_refresh": {
     "date": "2026-07-03",
@@ -89,12 +100,12 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "a165252770a9fb9a49ac68ce2ca884d8a2e01765437f39ac996a6a01effce92f"
+      "sha256": "dafb32bf094b6648a9e89eae9226f32697eb3dcb03d78b6f8ffc49371f29d296"
     },
     "web": {
       "files": {
-        "figures/positive_zero_scatter.png": "f47d604111d57ae237c946e5c0b63719d56cdde461f4a4cc756bf10456afde61",
-        "index.html": "d16588ebbb2cb09558ba4719959d6cc5181f294b9f9c699821a88ffa2b72a519",
+        "figures/positive_zero_scatter.png": "213ab1b526869250e379054718991fc4abbb2dd6ebc82a5ea300a226d5948407",
+        "index.html": "d45d892143601afd6a99936e148bb09127021ea92342d8a67e3160048cee0b43",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -148,13 +159,14 @@
     "us_full_run_20260612_policyengine_4_16_1_populace": {
       "files": {
         "analysis/impact_summary_by_model.csv": "0d8276a23945bcf87350f4d2932e666c4000770ec2d75e5a517bcfa358812ffe",
-        "analysis/metrics.csv": "87a7c0d33294169fec517519d75eaa7a10e664858ed7cef608c3ec79989cb4b8",
-        "analysis/report.md": "e0342755a14f36fcbd86feaafa79a4bac096e7cef0c0fa0eaad2ca4b87625e95",
-        "analysis/summary_by_model.csv": "c363d0cf41132ca5391677c25edbbf76a138454d32a60615993b232277ef69bc",
-        "analysis/summary_by_variable.csv": "5a82fe7a88601a8849c18294f1090dff75e695f4fd7980340b06c759b1b07f1c",
+        "analysis/metrics.csv": "145a5de3f7b1b6f8ba33928df2342200526b4a72a8bbc619737c0a59be392b91",
+        "analysis/report.md": "7beb4652c002c053f53f4dcaa32a78e395fce76d5bf1606e2900b8c6223621e5",
+        "analysis/summary_by_model.csv": "fb3310cbd37aeb8486609714d4fd4309266ad31b9c979aa7cbdd1daba5f82438",
+        "analysis/summary_by_variable.csv": "dd4962fca660e02b1db85f07ea8d5827e533b7ed6b0db87fd268b4c493481658",
         "analysis/usage_summary.csv": "458eae34cb84cf3c11c52437612f12d659baa960857dc93a379e602422448641",
-        "data.json.gz": "2f1abd9bb437b3d41fa9709ad4a7edf221ce3525f22de9fbed07d849822c54c2",
+        "data.json.gz": "2cce2598dbf9f33511f31d944221a7fc27f69b487a56c59e2c17e77d4ba5ad1f",
         "predictions.csv.gz": "8c91a14e922689358f34fb47be5c9061e30edc4987ad770c1ae3de53a87e15d6",
+        "reference_exclusions.json": "3482ce7cd7461e32ab17ab2c8473613cb313be178485139be8194f3bfcd8172e",
         "reference_outputs.csv": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
         "reference_outputs.csv.meta.json": "4ea7911857fabf72fc0f74feab90566e9f6d98cab4958e0c1401043e58c94210",
         "scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",

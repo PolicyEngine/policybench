@@ -115,7 +115,7 @@ export function hardestCases(
   )) {
     for (const [variable, modelMap] of Object.entries(variableMap)) {
       const record = modelMap[model];
-      if (!record) continue;
+      if (!record || record.scored === false) continue;
       if (isBinaryVariable(variable, bench.country)) continue;
       const truth = record.groundTruth;
       if (record.prediction === null || Number.isNaN(record.prediction)) {
@@ -162,7 +162,7 @@ export function coverageAccuracy(
     for (const [variable, modelMap] of Object.entries(variableMap)) {
       if (!isBinaryVariable(variable, bench.country)) continue;
       const record = modelMap[model];
-      if (!record) continue;
+      if (!record || record.scored === false) continue;
       total += 1;
       const predictionFlag =
         record.prediction === null ? null : binaryFlag(record.prediction);

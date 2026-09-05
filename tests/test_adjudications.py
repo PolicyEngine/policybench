@@ -149,6 +149,29 @@ def test_load_validates_the_record(tmp_path: Path):
     )
     with pytest.raises(AdjudicationError, match="must be final"):
         load_adjudications(path)
+    path.write_text(
+        json.dumps(
+            {"adjudications": [_entry(adjudicated_failure_source="prompt_ambiguity")]}
+        )
+    )
+    with pytest.raises(AdjudicationError, match="excluded_from_scoring"):
+        load_adjudications(path)
+    path.write_text(
+        json.dumps(
+            {
+                "adjudications": [
+                    _entry(
+                        adjudicated_failure_source="prompt_ambiguity",
+                        excluded_from_scoring=True,
+                    )
+                ]
+            }
+        )
+    )
+    assert load_adjudications(path)[0]["excluded_from_scoring"] is True
+    path.write_text(json.dumps({"adjudications": [_entry(excluded_from_scoring=True)]}))
+    with pytest.raises(AdjudicationError, match="only valid with"):
+        load_adjudications(path)
     path.write_text(json.dumps({"adjudications": [_entry(), _entry()]}))
     with pytest.raises(AdjudicationError, match="duplicate"):
         load_adjudications(path)
@@ -159,20 +182,29 @@ def test_load_validates_the_record(tmp_path: Path):
 
 def test_committed_record_is_applied_to_the_frozen_annotations():
     entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
-    assert len(entries) == 1
-    entry = entries[0]
-    assert (entry["scenario_id"], entry["variable"]) == ("scenario_064", "ssi")
-    assert entry["judge_failure_source"] == "prompt_ambiguity"
-    assert entry["adjudicated_failure_source"] == "llm_error"
+    assert len(entries) == 11
+    assert {e["adjudicated_failure_source"] for e in entries} == {"prompt_ambiguity"}
+    assert all(e["excluded_from_scoring"] for e in entries)
+    keys = {(e["scenario_id"], e["variable"]) for e in entries}
+    assert ("scenario_064", "ssi") in keys and (
+        "scenario_074",
+        "head_medicare_eligible",
+    ) in keys
+    opus = next(e for e in entries if e["scenario_id"] == "scenario_064")
+    assert opus["judge_failure_source"] == "prompt_ambiguity"
+    sol = next(e for e in entries if e["scenario_id"] == "scenario_067")
+    assert sol["judge_failure_source"] == "llm_error"
     rows = pd.read_csv(ANNOTATIONS / "us_audit_row_annotations.csv")
     cases = pd.read_csv(ANNOTATIONS / "us_case_notes.csv")
     verify_adjudications_applied(rows, cases, entries)
-    assert "prompt_ambiguity" not in set(rows["failure_source"])
+    ambiguous = rows[rows["failure_source"] == "prompt_ambiguity"]
+    assert set(zip(ambiguous["scenario_id"], ambiguous["variable"])) <= keys
     manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
     block = manifest["audit_annotation_artifacts"]["developer_adjudications"]
-    assert block["cases"] == 1
-    assert block["by_judge_verdict"] == {"prompt_ambiguity": 1}
+    assert block["cases"] == 11
+    assert block["by_judge_verdict"] == {"llm_error": 10, "prompt_ambiguity": 1}
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
+    assert manifest["reference_exclusions"]["outputs"] == 11
 
 
 def test_verify_requires_agreement_with_the_complete_record():

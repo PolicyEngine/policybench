@@ -49,13 +49,13 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
 
 
 def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
-    assert r.audit_annotated_row_count == 9_076
-    assert r.audit_annotated_row_count_fmt == "9,076"
+    assert r.audit_annotated_row_count == 8_783
+    assert r.audit_annotated_row_count_fmt == "8,783"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 9_073
-    assert r.exact_match_miss_count_fmt == "9,073"
-    assert r.annotated_exact_miss_count == 9_073
-    assert r.annotated_exact_miss_count_fmt == "9,073"
+    assert r.exact_match_miss_count == 8_780
+    assert r.exact_match_miss_count_fmt == "8,780"
+    assert r.annotated_exact_miss_count == 8_780
+    assert r.annotated_exact_miss_count_fmt == "8,780"
     assert r.annotated_exact_hit_count == 3
     assert r.annotated_exact_hit_count_fmt == "3"
     assert r.unannotated_below_full_bounded_score_count == 1_605
@@ -241,3 +241,27 @@ def test_joint_credit_table_orders_ties_deterministically():
     assert joint == sorted(joint, reverse=True)
     tied = table[table["Joint within 10%"] == 86.0]["Model"].tolist()
     assert tied[:2] == ["GPT-5.6 Sol", "GPT-6 Astra"]
+
+
+def test_excluded_outputs_are_outside_the_scored_audit_universe():
+    assert r.excluded_output_count == 11
+    assert r.excluded_output_phrase == "eleven outputs"
+    assert r.excluded_output_households_phrase == "ten households"
+    assert r.excluded_outputs_by_input == {
+        "meets_ssi_disability_criteria": 6,
+        "months_receiving_social_security_disability": 5,
+    }
+    assert r.scored_outputs_per_model_fmt == "1,973"
+    assert r.total_outputs_per_model_fmt == "1,984"
+    assert r.excluded_output_annotation_row_count == 293
+    assert r.prompt_ambiguity_row_count == 287
+    # No scored row carries the ambiguity class; every excluded-output row does
+    # unless it never parsed.
+    scored_sources = {
+        row["failure_source"] for row in r._audit_rows if not r._is_excluded(row)
+    }
+    assert "prompt_ambiguity" not in scored_sources
+    for row in r._excluded_output_annotation_rows:
+        assert row["failure_source"] in {"prompt_ambiguity", "parse_contract_failure"}
+    for stats in r.model_stats:
+        assert stats["n"] == 1973

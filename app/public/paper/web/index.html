@@ -150,7 +150,7 @@ div.csl-indent {
   </ul>
 </nav>
 <h2 class="unnumbered anchored" id="abstract">Abstract</h2>
-<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine populace microdataset, scored through policyengine.py 4.16.1. It evaluates 39 frontier models on 100 households across 18 output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match on a household-impact-weighted leaderboard: 84% of US reference outputs are exact zeros, and the weighting concentrates scores in the high-dollar output groups a hedge-to-zero strategy cannot answer, so the top model leads an always-zero baseline of 66.9% weighted exact by 21.8 points (Section 3.1 details the construction). The manuscript snapshot is a 100-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-09-05), the top-scoring US model on exact match is GPT-5.6 Sol at 88.7%, while GPT-5.4 nano is lowest at 62.3%. Within model families, newer is not always stronger: Claude Opus 4.8 scores 72.6% exact, below the 77.4% of the earlier Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The frozen audit annotations cover 9,076 rows whose legacy threshold score is below 1. That universe contains 9,073 of the snapshot’s 9,073 exact-match misses and 3 exact hits; 1,605 additional rows with bounded score below 100 were not selected or annotated. Reference-suspect flags in the selected universe were adjudicated against primary sources and engine traces, and the frozen release has no known reference-computation defects. The 0.9% of cells with a missing or unparsable answer remain scored as misses rather than dropped. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
+<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine populace microdataset, scored through policyengine.py 4.16.1. It evaluates 39 frontier models on 100 households across 18 output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match on a household-impact-weighted leaderboard: 84% of US reference outputs are exact zeros, and the weighting concentrates scores in the high-dollar output groups a hedge-to-zero strategy cannot answer, so the top model leads an always-zero baseline of 66.9% weighted exact by 22.3 points (Section 3.1 details the construction). The manuscript snapshot is a 100-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-09-05), the top-scoring US model on exact match is GPT-5.6 Sol at 89.2%, while GPT-5.4 nano is lowest at 62.6%. Within model families, newer is not always stronger: Claude Opus 4.8 scores 73.1% exact, below the 77.8% of the earlier Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The frozen audit annotations cover 8,783 rows whose legacy threshold score is below 1. That universe contains 8,780 of the snapshot’s 8,780 exact-match misses and 3 exact hits; 1,605 additional rows with bounded score below 100 were not selected or annotated. Reference-suspect flags in the selected universe were adjudicated against primary sources and engine traces, and the frozen release has no known reference-computation defects. The 0.9% of cells with a missing or unparsable answer remain scored as misses rather than dropped. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
 <h2 id="introduction" class="anchored">Introduction</h2>
 <p>Household tax-and-benefit estimation sits between arithmetic and policy discussion. Each case has numeric labels, but generating those labels requires filing status, household composition, income concepts, program thresholds, and jurisdiction-specific rules. PolicyBench measures whether models can map household records to those outputs.</p>
 <p>Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>, while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.</p>
@@ -166,7 +166,7 @@ div.csl-indent {
 <h3 id="sec-headline-metric" class="anchored">Headline metric: exact match</h3>
 <p>The headline metric is the exact-match rate: the share of requested outputs the model gets right to the dollar (or, for eligibility flags, to the boolean). This is the deployability bar. A tax filer, a benefit estimator, or a caseworker cannot ship “close” — a prediction off by $50 is no more usable than one off by $500, because neither matches the bottom line a downstream system or a household needs. For currency amounts, “exact” means within <code>1</code> currency unit of the reference value after numeric parsing. For binary outputs, “exact” means the parsed value is exactly the same 0/1 flag as the reference.</p>
 <p>Exact match can be a deceptive headline in a zero-inflated panel — but only when the rate is computed <em>unweighted</em>. In the frozen manuscript snapshot, 84% of reference outputs are exact zeros: most sampled households are not eligible for any given program, owe no capital gains tax, do not phase into a refundable credit, and so on. A model that hedges to zero on every requested output earns full exact credit on every zero case, so a <em>naive unweighted</em> exact rate is dominated by those zeros — a hedge-to-zero model scores roughly 84% unweighted, leaving little room above the floor to separate models that actually understand the rules.</p>
-<p>The public leaderboard corrects for this by household-impact weighting. Each output group’s weight is its population-average share of the household’s dollar stake, computed as <code>|ref| / max(|household_net_income|, Σ |ref|)</code> per source household and averaged with calibrated household weights over the full populace population (<a href="#sec-sensitivity" class="quarto-xref">Section&nbsp;5.5</a> gives the full construction). Zero-reference rows are not removed — every row carries its output group’s weight — but the weighting concentrates mass in high-dollar output groups, which are rarely zero, so the share of weight on zero-reference rows falls from their 84% row share to 66.9%. An always-zero baseline therefore scores 66.9% weighted exact rather than the 84% it earns unweighted, and the top model clears that baseline by 21.8 points — a margin comparable to within-1%. Across the 39-model roster, the weighted exact rate spreads about as widely as within-1% and ranks models in nearly the same order, so exact match discriminates between rule comprehension and zero-hedging while preserving the to-the-dollar deployability meaning.</p>
+<p>The public leaderboard corrects for this by household-impact weighting. Each output group’s weight is its population-average share of the household’s dollar stake, computed as <code>|ref| / max(|household_net_income|, Σ |ref|)</code> per source household and averaged with calibrated household weights over the full populace population (<a href="#sec-sensitivity" class="quarto-xref">Section&nbsp;5.5</a> gives the full construction). Zero-reference rows are not removed — every row carries its output group’s weight — but the weighting concentrates mass in high-dollar output groups, which are rarely zero, so the share of weight on zero-reference rows falls from their 84% row share to 66.9%. An always-zero baseline therefore scores 66.9% weighted exact rather than the 84% it earns unweighted, and the top model clears that baseline by 22.3 points — a margin comparable to within-1%. Across the 39-model roster, the weighted exact rate spreads about as widely as within-1% and ranks models in nearly the same order, so exact match discriminates between rule comprehension and zero-hedging while preserving the to-the-dollar deployability meaning.</p>
 <p>The exact rate is aggregated to a household score and then to a country score, with the same population-derived output weights that the within-1% companion and the bounded score use. Equal household weight preserves comparability across scenarios and slices. The leaderboard reports US results on this fixed test set.</p>
 <h3 id="near-miss-companion-within-1" class="anchored">Near-miss companion: within 1%</h3>
 <p>The within-1% hit rate is the near-miss-tolerant companion to the headline: the share of requested outputs the model gets within one percent of the PolicyEngine reference value. For currency amounts, “within 1%” means <code>|pred − ref| ≤ 0.01 × |ref|</code> when the reference is nonzero and <code>|pred| ≤ 1</code> (the same one-currency-unit absolute tolerance used by exact match) when the reference is zero. Binary outputs are requested as integer 0/1 eligibility flags and scored identically to the exact-match metric.</p>
@@ -221,7 +221,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </tr>
 <tr class="odd">
 <td>Frozen export SHA-256 prefix</td>
-<td>US 2f1abd9bb437</td>
+<td>US 2cce2598dbf9</td>
 </tr>
 <tr class="even">
 <td>Snapshot manifest</td>
@@ -249,7 +249,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <td>Scoring code SHA-256 prefix</td>
-<td>550f12dce1b4</td>
+<td>4b8bc76eb501</td>
 </tr>
 <tr class="odd">
 <td>US run label</td>
@@ -298,7 +298,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </figure>
 </div>
 </div>
-<div id="652b7240" class="cell" data-execution_count="3">
+<div id="a3c7bad9" class="cell" data-execution_count="3">
 <div class="cell-output cell-output-display cell-output-markdown" data-execution_count="3">
 <div id="tbl-model-runs" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-tbl">
@@ -332,7 +332,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Claude Fable 5</td>
 <td>claude-fable-5</td>
 <td>2026-06-09</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>1 output/​request</td>
 <td>thinking does not engage under forced tool call</td>
@@ -341,7 +341,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Claude Fable 5.1</td>
 <td>claude-fable-5-1</td>
 <td>2026-09-01</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>JSON</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -350,7 +350,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Claude Haiku 4.5</td>
 <td>claude-haiku-4-5-20251001</td>
 <td>2025-10-15</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>1 output/​request</td>
 <td>provider default</td>
@@ -359,7 +359,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Claude Opus 4.7</td>
 <td>claude-opus-4-7</td>
 <td>2026-04-16</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>1 output/​request</td>
 <td>provider default</td>
@@ -368,7 +368,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Claude Opus 4.8</td>
 <td>claude-opus-4-8</td>
 <td>2026-05-28</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>1 output/​request</td>
 <td>provider default</td>
@@ -377,7 +377,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Claude Opus 5</td>
 <td>claude-opus-5</td>
 <td>2026-07-24</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>thinking does not engage under forced tool call</td>
@@ -386,7 +386,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Claude Sonnet 4.6</td>
 <td>claude-sonnet-4-6</td>
 <td>2026-02-17</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>1 output/​request</td>
 <td>provider default</td>
@@ -395,7 +395,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Claude Sonnet 5</td>
 <td>claude-sonnet-5</td>
 <td>2026-06-30</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>1 output/​request</td>
 <td>thinking does not engage under forced tool call</td>
@@ -404,7 +404,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>DeepSeek V4 Flash 0731</td>
 <td>openrouter/​deepseek/​deepseek-v4-flash-0731</td>
 <td>2026-07-31†</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 98,304-token shared budget</td>
@@ -413,7 +413,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>DeepSeek V4 Pro</td>
 <td>deepseek/​deepseek-v4-pro</td>
 <td>2026-04-24†</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>JSON</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -422,7 +422,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>DeepSeek V4 Pro 0813</td>
 <td>openrouter/​deepseek/​deepseek-v4-pro-0813</td>
 <td>2026-08-13†</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 98,304-token shared budget</td>
@@ -431,7 +431,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Gemini 3 Flash Preview</td>
 <td>gemini/​gemini-3-flash-preview</td>
 <td>2025-12-17</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>JSON</td>
 <td>whole scenario</td>
 <td>provider default</td>
@@ -440,7 +440,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Gemini 3.1 Flash Lite Preview</td>
 <td>gemini/​gemini-3.1-flash-lite-preview</td>
 <td>2026-03-03</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>JSON</td>
 <td>whole scenario</td>
 <td>provider default</td>
@@ -449,7 +449,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Gemini 3.1 Pro Preview</td>
 <td>gemini/​gemini-3.1-pro-preview</td>
 <td>2026-02-19</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>JSON</td>
 <td>whole scenario</td>
 <td>provider default</td>
@@ -458,7 +458,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Gemini 3.5 Flash</td>
 <td>gemini/​gemini-3.5-flash</td>
 <td>2026-05-19</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>JSON</td>
 <td>whole scenario</td>
 <td>provider default</td>
@@ -467,7 +467,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Gemini 3.5 Flash-Lite</td>
 <td>gemini/​gemini-3.5-flash-lite</td>
 <td>2026-07-21</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -476,7 +476,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Gemini 3.6 Flash</td>
 <td>gemini/​gemini-3.6-flash</td>
 <td>2026-07-21</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -485,7 +485,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Gemini 3.7 Flash</td>
 <td>gemini/​gemini-3.7-flash</td>
 <td>2026-08-13</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -494,7 +494,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Gemini 3.8 Flash</td>
 <td>gemini/​gemini-3.8-flash</td>
 <td>2026-09-02</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -503,7 +503,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>GLM-5.2</td>
 <td>openrouter/​z-ai/​glm-5.2</td>
 <td>2026-06-13†</td>
-<td>1,845/​1,984</td>
+<td>1,834/​1,973</td>
 <td>JSON</td>
 <td>3 outputs/​request</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -512,7 +512,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>GLM-5.3</td>
 <td>openrouter/​z-ai/​glm-5.3</td>
 <td>2026-08-14†</td>
-<td>1,906/​1,984</td>
+<td>1,896/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -521,7 +521,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>GPT-5.4 mini</td>
 <td>gpt-5.4-mini</td>
 <td>2026-03-17</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default</td>
@@ -530,7 +530,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>GPT-5.4 nano</td>
 <td>gpt-5.4-nano</td>
 <td>2026-03-17</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default</td>
@@ -539,7 +539,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>GPT-5.5</td>
 <td>gpt-5.5</td>
 <td>2026-04-23</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>3 outputs/​request</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -548,7 +548,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>GPT-5.6 Luna</td>
 <td>gpt-5.6-luna</td>
 <td>2026-07-09</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -557,7 +557,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>GPT-5.6 Sol</td>
 <td>gpt-5.6-sol</td>
 <td>2026-07-09</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -566,7 +566,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>GPT-5.6 Terra</td>
 <td>gpt-5.6-terra</td>
 <td>2026-07-09</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -575,7 +575,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>GPT-6 Astra</td>
 <td>gpt-6-astra</td>
 <td>2026-09-04</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -584,7 +584,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Grok 4.3</td>
 <td>xai/​grok-4.3</td>
 <td>2026-04-17</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default</td>
@@ -593,7 +593,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Grok 4.5</td>
 <td>xai/​grok-4.5</td>
 <td>2026-07-08</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -602,7 +602,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Grok 4.6</td>
 <td>xai/​grok-4.6</td>
 <td>2026-08-12</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -611,7 +611,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Grok Build 0.1</td>
 <td>xai/​grok-build-0.1</td>
 <td>2026-05-29</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default</td>
@@ -620,7 +620,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Inkling</td>
 <td>openrouter/​thinkingmachines/​inkling</td>
 <td>2026-07-15†</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 49,152-token shared budget</td>
@@ -629,7 +629,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Kimi K2.6</td>
 <td>openrouter/​moonshotai/​kimi-k2.6</td>
 <td>2026-04-20†</td>
-<td>1,558/​1,984</td>
+<td>1,551/​1,973</td>
 <td>JSON</td>
 <td>3 outputs/​request</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -638,7 +638,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Kimi K3</td>
 <td>openrouter/​moonshotai/​kimi-k3</td>
 <td>2026-07-16†</td>
-<td>1,920/​1,984</td>
+<td>1,910/​1,973</td>
 <td>JSON</td>
 <td>whole scenario</td>
 <td>provider default; 49,152-token shared budget</td>
@@ -647,7 +647,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>MiniMax M3</td>
 <td>openrouter/​minimax/​minimax-m3</td>
 <td>2026-06-01†</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -656,7 +656,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Ox Alpha (preview)</td>
 <td>openrouter/​stealth/​ox-alpha</td>
 <td>2026-08-20</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>forced tool</td>
 <td>whole scenario</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -665,7 +665,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Qwen3.7-max</td>
 <td>openrouter/​qwen/​qwen3.7-max</td>
 <td>2026-05-19</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>JSON</td>
 <td>3 outputs/​request</td>
 <td>provider default; 16,384-token shared budget</td>
@@ -674,7 +674,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>Qwen3.8-Max</td>
 <td>openrouter/​qwen/​qwen3.8-max</td>
 <td>2026-08-03</td>
-<td>1,984/​1,984</td>
+<td>1,973/​1,973</td>
 <td>JSON</td>
 <td>whole scenario</td>
 <td>provider default; 98,304-token shared budget</td>
@@ -736,9 +736,9 @@ Table&nbsp;3: Output-selection rationale.
 </div>
 <h3 id="reference-output-credibility" class="anchored">Reference-output credibility</h3>
 <p>PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and externally checked in specific domains. No.&nbsp;10 Downing Street’s data science team adapted PolicyEngine’s open-source microsimulation model for experimental policy simulation, with validation against external projections before use <span class="citation" data-cites="woodruff2026no10 policyengine2026downing">(Woodruff 2026; Ghenis 2026)</span>. In the US, <span class="citation" data-cites="policyengine2024statetax">PolicyEngine (2024)</span> reports matching the National Bureau of Economic Research (NBER) TAXSIM-35 model <span class="citation" data-cites="feenberg1993taxsim">(Feenberg and Coutts 1993)</span> to the cent on the vast majority of cases for the 2021 tax year across hundreds of thousands of tax units per state, with state-specific differences documented in the integration tests. We do not restate that comparison as a single percentage because the published source uses qualitative phrasing rather than a headline accuracy number. PolicyEngine has also signed a memorandum of understanding <span class="citation" data-cites="policyengine2025atlantafed">(Ghenis and Makarchuk 2025)</span> with the Federal Reserve Bank of Atlanta for future validation work against its Policy Rules Database <span class="citation" data-cites="atlantafed2026prd">(2026)</span>. The Atlanta Fed sources are a caveat rather than evidence of completed validation for this benchmark: they document planned collaboration and the comparison source, not finished checks of the frozen PolicyBench outputs. Taken together, these sources support using PolicyEngine as a transparent reference implementation with partial external validation, but they do not validate every benchmark output.</p>
-<p>This does not make PolicyEngine infallible, so we treated the reference outputs as claims to be attacked rather than assumptions. Across development and three audit waves, the model-assisted review covered 9,076 rows whose legacy threshold score is below 1. That selected universe contains 9,073 exact-match misses and 3 exact hits; 1,605 additional rows with bounded score below 100 were not annotated. Reviewers adjudicated each reference-suspect flag by hand against primary sources, including statutes, regulations, and published program parameters, and against the engine’s computation traces. Reviewers raised 35 reference-suspect flags in total. Thirty-one dissolved under adjudication, with the reviewer’s hypothesis failing against a primary source (stale thresholds, missed program mergers, missed federal-conformity elections, misread eligibility-income definitions) or against the engine trace. Four were genuine: two Head Start eligibility flags and one New Jersey state income tax cell reflected policyengine-us defects (an age-window bound and a filing-threshold floor the benchmarked path bypassed), and one SNAP cell rested on a scenario whose encoded inputs did not match the disability status its prompt implied. The engine defects were fixed upstream (policyengine-us #8845 and #8846, plus #8844, found in the same review but affecting no benchmark cell), and this snapshot’s reference outputs are generated with the fixed engine, policyengine-us 1.755.4. The mis-encoded scenario is disclosed under Limitations pending the next scenario refresh. The asymmetry of this record is itself evidence about the reference: even among the cells the reviewing models found most suspicious, 31 of 35 flags (89%) resolved to model-side errors, set against thousands of confirmed model errors overall and four reference defects. <a href="#tbl-reference-review" class="quarto-xref">Table&nbsp;4</a> summarizes the reviewed discrepancy classes and outcomes; no unresolved reference-computation defect is known in the frozen snapshot.</p>
+<p>This does not make PolicyEngine infallible, so we treated the reference outputs as claims to be attacked rather than assumptions. Across development and three audit waves, the model-assisted review covered 8,783 rows whose legacy threshold score is below 1. That selected universe contains 8,780 exact-match misses and 3 exact hits; 1,605 additional rows with bounded score below 100 were not annotated. Reviewers adjudicated each reference-suspect flag by hand against primary sources, including statutes, regulations, and published program parameters, and against the engine’s computation traces. Reviewers raised 35 reference-suspect flags in total. Thirty-one dissolved under adjudication, with the reviewer’s hypothesis failing against a primary source (stale thresholds, missed program mergers, missed federal-conformity elections, misread eligibility-income definitions) or against the engine trace. Four were genuine: two Head Start eligibility flags and one New Jersey state income tax cell reflected policyengine-us defects (an age-window bound and a filing-threshold floor the benchmarked path bypassed), and one SNAP cell rested on a scenario whose encoded inputs did not match the disability status its prompt implied. The engine defects were fixed upstream (policyengine-us #8845 and #8846, plus #8844, found in the same review but affecting no benchmark cell), and this snapshot’s reference outputs are generated with the fixed engine, policyengine-us 1.755.4. The mis-encoded scenario is disclosed under Limitations pending the next scenario refresh. The asymmetry of this record is itself evidence about the reference: even among the cells the reviewing models found most suspicious, 31 of 35 flags (89%) resolved to model-side errors, set against thousands of confirmed model errors overall and four reference defects. <a href="#tbl-reference-review" class="quarto-xref">Table&nbsp;4</a> summarizes the reviewed discrepancy classes and outcomes; no unresolved reference-computation defect is known in the frozen snapshot.</p>
 <p>The audit tooling itself required hardening, which we report because it changes how much the annotations can be trusted. The derivation narratives displayed alongside reference values are generated from engine computation traces. After earlier model-written narratives were found to misattribute eligibility pathways, mechanical validators now enforce that each narrative states the engine’s actual mechanism — for example, that a child ineligible for CHIP because they qualify for Medicaid is never described as failing a CHIP income test. The failure-audit judge reads these grounded narratives together with engine facts and must return a per-model diagnosis naming the specific rule or computation the model missed. It is barred from re-adjudicating the reference in prose: hedged or reference-adjudicating verdicts are mechanically rejected and re-judged, and genuine reference doubt is routed to a structured flag that triggers the manual adjudication described above.</p>
-<p>After freezing the snapshot and completing response-contract repairs, we annotated the 9,076 rows whose legacy threshold score is below 1 and their scenario-output cases. <a href="#tbl-deviation-audit" class="quarto-xref">Table&nbsp;5</a> reports the final classifications for that legacy-threshold audit universe. It contains 9,073 of the snapshot’s 9,073 exact-match misses and 3 exact hits. The 1,605 other rows with bounded score below 100 fall outside the selection and have no audit annotation. Each annotated row resolves to one of two final classes: <code>llm_error</code> (a substantive miscalculation, with a per-model diagnosis naming the rule or computation the model missed) or <code>parse_contract_failure</code> (a missing or unparsable answer, classified deterministically). No annotated row remains classified as a prompt ambiguity, unresolved reference issue, or needs-review item, and zero annotated rows carry a standing reference-suspect flag. The audit pipeline is model-assisted, with developer adjudication of each reference-suspect or prompt-ambiguity flag rather than independent external validation; this snapshot records one case of developer adjudication, kept beside the annotations with the judge’s verdict and the reasoning. Two judge models produced the verdicts, and both are board rows: GPT-5.6 Sol, called through the Codex CLI, judged the cases whose verdicts predate the September 2026 additions, and Claude Opus 5, called through the Claude Code CLI, judged every case a September 2026 addition joined (350 of 668 cases, each recorded in a per-case provenance sidecar in the audit tree). Judge verdicts classify misses after scoring and change no score.</p>
+<p>After freezing the snapshot and completing response-contract repairs, we annotated the 8,783 rows whose legacy threshold score is below 1 and their scenario-output cases. <a href="#tbl-deviation-audit" class="quarto-xref">Table&nbsp;5</a> reports the final classifications for that legacy-threshold audit universe. It contains 8,780 of the snapshot’s 8,780 exact-match misses and 3 exact hits. The 1,605 other rows with bounded score below 100 fall outside the selection and have no audit annotation. Each annotated row on a scored output resolves to one of two final classes: <code>llm_error</code> (a substantive miscalculation, with a per-model diagnosis naming the rule or computation the model missed) or <code>parse_contract_failure</code> (a missing or unparsable answer, classified deterministically). A third class, <code>prompt_ambiguity</code>, is reserved for outputs the snapshot does not score: eleven outputs in ten households, whose reference depends on an engine input the certified household data never carried (the SSI disability criterion, and months of SSDI receipt) and the prompt therefore never listed. For each, the reference was recomputed with the engine version that produced it under the reading a careful reader could take of the stated facts, and it moved; the output is removed from scoring for every model, so no model gains or loses from it, and the 293 annotated rows on those outputs carry <code>prompt_ambiguity</code> as description rather than as a scored class. Every model is therefore scored on 1,973 of its 1,984 requested outputs. The exclusion record (<code>reference_exclusions.json</code>) travels with the frozen run and the manifest pins it. No scored row remains classified as a prompt ambiguity, unresolved reference issue, or needs-review item, and zero annotated rows carry a standing reference-suspect flag. The audit pipeline is model-assisted, with developer adjudication of each reference-suspect or prompt-ambiguity flag rather than independent external validation; this snapshot records 11 cases of developer adjudication, kept beside the annotations with the judge’s verdict and the reasoning. Two judge models produced the verdicts, and both are board rows: GPT-5.6 Sol, called through the Codex CLI, judged the cases whose verdicts predate the September 2026 additions, and Claude Opus 5, called through the Claude Code CLI, judged every case a September 2026 addition joined (350 of 668 cases, each recorded in a per-case provenance sidecar in the audit tree). Judge verdicts classify misses after scoring and change no score. The two unlisted inputs behind the exclusions are the SSI disability criterion (<code>meets_ssi_disability_criteria</code>), false for every person in the certified June 2026 microdata build, and months of SSDI receipt (<code>months_receiving_social_security_disability</code>), never carried by the data and integer-typed, which the prompt builder does not expose. The prompt lists a general <code>is disabled</code> fact, drawn from the six CPS disability-difficulty items, and never a program-specific determination. The exclusion set was derived mechanically rather than from which models missed: every reference was recomputed under each alternative reading and every output that moved was excluded, which is why it includes three SNAP outputs where SSI itself stays at zero but the elderly-or-disabled SNAP rules would switch on, and one household where an aged member already receives SSI.</p>
 <div class="cell" data-execution_count="5">
 <div id="tbl-reference-review" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="5">
 <figure class="quarto-float quarto-float-tbl">
@@ -822,18 +822,18 @@ Table&nbsp;5: Annotation outcomes for the legacy-threshold audit universe in the
 <tbody>
 <tr class="odd">
 <td>US</td>
-<td>9076</td>
-<td>8369</td>
-<td>707</td>
+<td>8783</td>
+<td>8082</td>
+<td>701</td>
 <td>0</td>
 <td>0</td>
 <td>0</td>
 </tr>
 <tr class="even">
 <td>Total</td>
-<td>9076</td>
-<td>8369</td>
-<td>707</td>
+<td>8783</td>
+<td>8082</td>
+<td>701</td>
 <td>0</td>
 <td>0</td>
 <td>0</td>
@@ -847,7 +847,7 @@ Table&nbsp;5: Annotation outcomes for the legacy-threshold audit universe in the
 </div>
 <h2 id="results" class="anchored">Results</h2>
 <h3 id="united-states-leaderboard" class="anchored">United States leaderboard</h3>
-<p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;6</a>. The top three models in that snapshot are GPT-5.6 Sol (88.7 exact, 95% CI 85.8–91.2; 90.9 within-1%), GPT-6 Astra (87.4 exact, 95% CI 84.6–90.1; 89.2 within-1%), and Claude Fable 5.1 (86.3 exact, 95% CI 83.2–89.1; 89.3 within-1%).</p>
+<p>The US leaderboard for the frozen manuscript snapshot is shown in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;6</a>. The top three models in that snapshot are GPT-5.6 Sol (89.2 exact, 95% CI 85.8–91.2; 91.5 within-1%), GPT-6 Astra (88.0 exact, 95% CI 84.6–90.1; 89.8 within-1%), and Claude Fable 5.1 (86.9 exact, 95% CI 83.2–89.1; 89.9 within-1%).</p>
 <div class="cell" data-execution_count="7">
 <div id="tbl-us-top" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="7">
 <figure class="quarto-float quarto-float-tbl">
@@ -888,52 +888,52 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot, ranked 
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>GPT-5.6 Sol</td>
-<td>88.7</td>
+<td>89.2</td>
 <td>85.8–91.2</td>
 <td>1–3</td>
-<td>90.9</td>
-<td>93.7</td>
-<td>95.3</td>
+<td>91.5</td>
+<td>94.2</td>
+<td>95.8</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>GPT-6 Astra</td>
-<td>87.4</td>
+<td>88.0</td>
 <td>84.6–90.1</td>
 <td>1–4</td>
-<td>89.2</td>
-<td>92.7</td>
-<td>95.7</td>
+<td>89.8</td>
+<td>93.3</td>
+<td>96.3</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>Claude Fable 5.1</td>
-<td>86.3</td>
+<td>86.9</td>
 <td>83.2–89.1</td>
 <td>2–5</td>
-<td>89.3</td>
-<td>93.4</td>
-<td>95.3</td>
+<td>89.9</td>
+<td>94.0</td>
+<td>95.9</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>Kimi K3</td>
-<td>86.2</td>
+<td>86.7</td>
 <td>82.1–89.6</td>
 <td>1–7</td>
-<td>88.4</td>
-<td>91.9</td>
-<td>93.4</td>
+<td>88.9</td>
+<td>92.4</td>
+<td>93.8</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>GPT-5.6 Luna</td>
-<td>84.5</td>
+<td>84.6</td>
 <td>81.8–87.1</td>
 <td>3–10</td>
-<td>86.1</td>
-<td>90.7</td>
-<td>92.5</td>
+<td>86.3</td>
+<td>90.9</td>
+<td>92.7</td>
 </tr>
 </tbody>
 </table>
@@ -948,7 +948,7 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot, ranked 
 <p>Each leaderboard score is a mean over a sample of 100 households, so the rankings carry sampling uncertainty. We quantify it with a household-level bootstrap: the 100 households are resampled with replacement 10,000 times, and each model’s population-weighted exact-match rate is recomputed on every resample. The resampling unit is the household, carried with its full output vector, so within-household correlations across outputs are preserved. The same resampled set is used for every model in each replicate (a paired bootstrap), so the rank ranges in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;6</a> reflect genuine ordering uncertainty rather than independent per-model noise.</p>
 <p>Sampling uncertainty is substantial at this sample size. In the frozen snapshot, 8 of the other 38 models have an exact-match 95% interval that overlaps the leader’s. Small differences in the leaderboard ordering should therefore be read as ties rather than as a strict ranking, and the rank-range column makes the set of plausible positions explicit. These intervals are a manuscript artifact: the public leaderboard and app report point estimates only, because the benchmark sample, not run-to-run model variation, is the dominant source of uncertainty here.</p>
 <h3 id="cost-and-latency" class="anchored">Cost and latency</h3>
-<p>Accuracy is one axis; the price and speed of a no-tools answer are another. <a href="#tbl-us-cost-latency" class="quarto-xref">Table&nbsp;7</a> reports each model’s estimated cost to compute one household’s full output vector and its median per-household latency, next to the headline exact rate. Per-household cost spans \\\\$0.002 (GPT-5.4 nano) to \\\\$0.541 (Claude Fable 5), and median per-household latency 3 s (Gemini 3.5 Flash-Lite) to 1023 s (Kimi K3). Neither dimension cleanly tracks accuracy: the top-scoring model, GPT-5.6 Sol at 88.7% exact, sits mid-pack at \\\\$0.090 per household and 36 s.</p>
+<p>Accuracy is one axis; the price and speed of a no-tools answer are another. <a href="#tbl-us-cost-latency" class="quarto-xref">Table&nbsp;7</a> reports each model’s estimated cost to compute one household’s full output vector and its median per-household latency, next to the headline exact rate. Per-household cost spans \\\\$0.002 (GPT-5.4 nano) to \\\\$0.541 (Claude Fable 5), and median per-household latency 3 s (Gemini 3.5 Flash-Lite) to 1023 s (Kimi K3). Neither dimension cleanly tracks accuracy: the top-scoring model, GPT-5.6 Sol at 89.2% exact, sits mid-pack at \\\\$0.090 per household and 36 s.</p>
 <div class="cell" data-execution_count="8">
 <div id="tbl-us-cost-latency" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="8">
 <figure class="quarto-float quarto-float-tbl">
@@ -986,128 +986,128 @@ Table&nbsp;7: Estimated cost and median latency per household for the frozen US 
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>GPT-5.6 Sol</td>
-<td>88.7</td>
+<td>89.2</td>
 <td>\$0.090</td>
 <td>36 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>GPT-6 Astra</td>
-<td>87.4</td>
+<td>88.0</td>
 <td>\$0.126</td>
 <td>32 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>Claude Fable 5.1</td>
-<td>86.3</td>
+<td>86.9</td>
 <td>\$0.257</td>
 <td>49 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>Kimi K3</td>
-<td>86.2</td>
+<td>86.7</td>
 <td>\$0.470</td>
 <td>1023 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">4</th>
 <td>GPT-5.6 Luna</td>
-<td>84.5</td>
+<td>84.6</td>
 <td>\$0.019</td>
 <td>14 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
 <td>Ox Alpha (preview)</td>
-<td>84.2</td>
+<td>84.1</td>
 <td>—</td>
 <td>242 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">6</th>
 <td>Inkling</td>
-<td>83.8</td>
+<td>84.1</td>
 <td>\$0.091</td>
 <td>250 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
 <td>GPT-5.5</td>
-<td>83.5</td>
+<td>84.1</td>
 <td>\$0.262</td>
 <td>—</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">8</th>
 <td>GPT-5.6 Terra</td>
-<td>83.4</td>
+<td>83.5</td>
 <td>\$0.039</td>
 <td>19 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">9</th>
 <td>Grok 4.6</td>
-<td>82.8</td>
+<td>83.1</td>
 <td>\$0.087</td>
 <td>219 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">10</th>
 <td>Gemini 3.8 Flash</td>
-<td>82.1</td>
+<td>82.2</td>
 <td>\$0.068</td>
 <td>56 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">11</th>
 <td>Grok 4.5</td>
-<td>80.9</td>
+<td>81.3</td>
 <td>\$0.073</td>
 <td>112 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">12</th>
 <td>Claude Fable 5</td>
-<td>79.9</td>
+<td>80.4</td>
 <td>\$0.541</td>
 <td>98 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">13</th>
 <td>Claude Opus 5</td>
-<td>79.8</td>
+<td>80.3</td>
 <td>\$0.067</td>
 <td>16 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">14</th>
-<td>DeepSeek V4 Flash 0731</td>
-<td>79.3</td>
-<td>\$0.003</td>
-<td>195 s</td>
-</tr>
-<tr class="even">
-<th data-quarto-table-cell-role="th">15</th>
 <td>Gemini 3.7 Flash</td>
-<td>79.2</td>
+<td>79.7</td>
 <td>\$0.014</td>
 <td>9 s</td>
 </tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">15</th>
+<td>DeepSeek V4 Flash 0731</td>
+<td>79.7</td>
+<td>\$0.003</td>
+<td>195 s</td>
+</tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">16</th>
-<td>Gemini 3.6 Flash</td>
-<td>79.0</td>
-<td>\$0.055</td>
-<td>26 s</td>
+<td>DeepSeek V4 Pro 0813</td>
+<td>79.5</td>
+<td>\$0.199</td>
+<td>808 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">17</th>
-<td>DeepSeek V4 Pro 0813</td>
-<td>79.0</td>
-<td>\$0.199</td>
-<td>808 s</td>
+<td>Gemini 3.6 Flash</td>
+<td>79.4</td>
+<td>\$0.055</td>
+<td>26 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">18</th>
@@ -1119,140 +1119,140 @@ Table&nbsp;7: Estimated cost and median latency per household for the frozen US 
 <tr class="even">
 <th data-quarto-table-cell-role="th">19</th>
 <td>Gemini 3.1 Pro Preview</td>
-<td>77.9</td>
+<td>78.5</td>
 <td>\$0.085</td>
 <td>45 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">20</th>
-<td>GLM-5.3</td>
-<td>77.7</td>
-<td>\$0.169</td>
-<td>134 s</td>
+<td>Claude Opus 4.7</td>
+<td>77.8</td>
+<td>\$0.293</td>
+<td>53 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">21</th>
-<td>Claude Opus 4.7</td>
-<td>77.4</td>
-<td>\$0.293</td>
-<td>53 s</td>
+<td>GLM-5.3</td>
+<td>77.8</td>
+<td>\$0.169</td>
+<td>134 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">22</th>
 <td>Grok 4.3</td>
-<td>77.2</td>
+<td>77.5</td>
 <td>\$0.015</td>
 <td>22 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">23</th>
+<td>Gemini 3 Flash Preview</td>
+<td>77.5</td>
+<td>\$0.048</td>
+<td>58 s</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">24</th>
 <td>Claude Sonnet 4.6</td>
 <td>77.1</td>
 <td>\$0.186</td>
 <td>114 s</td>
 </tr>
-<tr class="odd">
-<th data-quarto-table-cell-role="th">24</th>
-<td>Gemini 3 Flash Preview</td>
-<td>76.9</td>
-<td>\$0.048</td>
-<td>58 s</td>
-</tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">25</th>
 <td>Gemini 3.5 Flash</td>
-<td>76.2</td>
+<td>76.8</td>
 <td>\$0.056</td>
 <td>24 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">26</th>
-<td>Grok Build 0.1</td>
-<td>76.1</td>
-<td>\$0.045</td>
-<td>135 s</td>
+<td>DeepSeek V4 Pro</td>
+<td>76.4</td>
+<td>\$0.011</td>
+<td>170 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">27</th>
+<td>Grok Build 0.1</td>
+<td>76.3</td>
+<td>\$0.045</td>
+<td>135 s</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">28</th>
 <td>Gemini 3.1 Flash Lite Preview</td>
 <td>76.1</td>
 <td>\$0.002</td>
 <td>3 s</td>
 </tr>
-<tr class="odd">
-<th data-quarto-table-cell-role="th">28</th>
-<td>DeepSeek V4 Pro</td>
-<td>76.1</td>
-<td>\$0.011</td>
-<td>170 s</td>
-</tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">29</th>
 <td>Qwen3.7-max</td>
-<td>73.6</td>
+<td>73.9</td>
 <td>\$0.139</td>
 <td>—</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">30</th>
 <td>GLM-5.2</td>
-<td>73.1</td>
+<td>73.5</td>
 <td>\$0.082</td>
 <td>—</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">31</th>
 <td>Claude Opus 4.8</td>
-<td>72.6</td>
+<td>73.1</td>
 <td>\$0.255</td>
 <td>55 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">32</th>
 <td>MiniMax M3</td>
-<td>72.4</td>
+<td>72.6</td>
 <td>\$0.007</td>
 <td>—</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">33</th>
 <td>Claude Haiku 4.5</td>
-<td>71.7</td>
+<td>72.0</td>
 <td>\$0.055</td>
 <td>48 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">34</th>
 <td>Qwen3.8-Max</td>
-<td>71.5</td>
+<td>71.8</td>
 <td>\$0.224</td>
 <td>861 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">35</th>
 <td>GPT-5.4 mini</td>
-<td>70.5</td>
+<td>70.6</td>
 <td>\$0.006</td>
 <td>5 s</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">36</th>
 <td>Claude Sonnet 5</td>
-<td>69.4</td>
+<td>69.9</td>
 <td>\$0.172</td>
 <td>64 s</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">37</th>
 <td>Kimi K2.6</td>
-<td>64.6</td>
+<td>64.7</td>
 <td>\$0.391</td>
 <td>—</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">38</th>
 <td>GPT-5.4 nano</td>
-<td>62.3</td>
+<td>62.6</td>
 <td>\$0.002</td>
 <td>6 s</td>
 </tr>
@@ -1267,7 +1267,7 @@ Table&nbsp;7: Estimated cost and median latency per household for the frozen US 
 </div>
 <p>Cost preserves each call’s recorded total, including provider-reported charges where available and request-time reconstructions otherwise. Configured list-price overrides do not reprice recorded calls. Rows without per-call costs use the frozen release-metadata cost. Latency is wall-clock request time as observed by the harness, summed within each household and taken as the median across the 100 households. The per-call timer spans any provider-side retry or rate-limit backoff, so the median is reported in preference to the mean, which a few throttled calls inflate. Latency is not comparable across serving regimes: Claude-family models issue chunked serial calls that lengthen wall-clock time, several models ran through batch or asynchronous dispatch whose logged times reflect submission rather than generation (shown as a dash), and Claude Fable 5’s usage and latency are recorded at the run level rather than per call. Both cost and latency are properties of this run’s providers, prompts, and serving configurations at evaluation time rather than fixed model constants.</p>
 <h3 id="simple-baselines" class="anchored">Simple baselines</h3>
-<p>Simple baselines help interpret score levels in a zero-heavy benchmark. <a href="#tbl-baselines" class="quarto-xref">Table&nbsp;8</a> reports an always-zero response and a median-reference-by-output response on the same frozen household sample, scored with the household-impact weighting. These are not model competitors; they show how much of each metric can be earned without household-specific policy calculation. The always-zero baseline scores 66.9% on the headline exact-match rate — below the 84% of outputs that are exact zeros because the weighting concentrates mass in high-dollar output groups that are rarely zero (<a href="#sec-headline-metric" class="quarto-xref">Section&nbsp;3.1</a>). The top model clears the baseline by 21.8 points, and the within-1% companion shows the same separation with near-miss tolerance.</p>
+<p>Simple baselines help interpret score levels in a zero-heavy benchmark. <a href="#tbl-baselines" class="quarto-xref">Table&nbsp;8</a> reports an always-zero response and a median-reference-by-output response on the same frozen household sample, scored with the household-impact weighting. These are not model competitors; they show how much of each metric can be earned without household-specific policy calculation. The always-zero baseline scores 66.9% on the headline exact-match rate — below the 84% of outputs that are exact zeros because the weighting concentrates mass in high-dollar output groups that are rarely zero (<a href="#sec-headline-metric" class="quarto-xref">Section&nbsp;3.1</a>). The top model clears the baseline by 22.3 points, and the within-1% companion shows the same separation with near-miss tolerance.</p>
 <div class="cell" data-execution_count="9">
 <div id="tbl-baselines" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="9">
 <figure class="quarto-float quarto-float-tbl">
@@ -1364,23 +1364,23 @@ Table&nbsp;9: Leaderboard sensitivity to alternative scoring views.
 <tr class="odd">
 <th data-quarto-table-cell-role="th">0</th>
 <td>Exact-match headline</td>
-<td>GPT-5.6 Sol (88.7)</td>
-<td>GPT-6 Astra (87.4)</td>
-<td>Claude Fable 5.1 (86.3)</td>
+<td>GPT-5.6 Sol (89.2)</td>
+<td>GPT-6 Astra (88.0)</td>
+<td>Claude Fable 5.1 (86.9)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">1</th>
 <td>Within-1% companion</td>
-<td>GPT-5.6 Sol (90.9)</td>
-<td>Claude Fable 5.1 (89.3)</td>
-<td>GPT-6 Astra (89.2)</td>
+<td>GPT-5.6 Sol (91.5)</td>
+<td>Claude Fable 5.1 (89.9)</td>
+<td>GPT-6 Astra (89.8)</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">2</th>
 <td>Bounded score</td>
-<td>GPT-6 Astra (95.7)</td>
-<td>GPT-5.6 Sol (95.3)</td>
-<td>Claude Fable 5.1 (95.3)</td>
+<td>GPT-6 Astra (96.3)</td>
+<td>Claude Fable 5.1 (95.9)</td>
+<td>GPT-5.6 Sol (95.8)</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
@@ -1548,10 +1548,10 @@ Table&nbsp;11: Hardest US variables by bounded score (the secondary tracking met
 <tr class="even">
 <th data-quarto-table-cell-role="th">13</th>
 <td>snap</td>
-<td>85.0</td>
-<td>77.2</td>
-<td>78.5</td>
-<td>82.4</td>
+<td>86.7</td>
+<td>79.6</td>
+<td>80.9</td>
+<td>84.4</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">1</th>
@@ -1630,8 +1630,8 @@ Table&nbsp;12: US within-10% performance by zero versus positive reference cases
 <tr class="even">
 <th data-quarto-table-cell-role="th">3</th>
 <td>snap</td>
-<td>82.9</td>
-<td>27.0</td>
+<td>84.9</td>
+<td>28.3</td>
 <td>96.8</td>
 </tr>
 <tr class="odd">
@@ -1657,10 +1657,10 @@ Table&nbsp;12: US within-10% performance by zero versus positive reference cases
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">7</th>
-<td>person_medicare_eligible</td>
-<td>96.1</td>
-<td>99.6</td>
-<td>95.2</td>
+<td>person_chip_eligible</td>
+<td>96.2</td>
+<td>—</td>
+<td>96.2</td>
 </tr>
 </tbody>
 </table>
@@ -1682,7 +1682,7 @@ Figure&nbsp;1: Output-level performance on zero-reference and positive-reference
 </figure>
 </div>
 <h3 id="sec-open-weight-lag" class="anchored">Open-weight time lag</h3>
-<p>The leaderboard also measures time. Following the lag construction the UK AI Security Institute applied to cyber capabilities <span class="citation" data-cites="aisi2026openweight">(UK AI Security Institute 2026)</span>, the open-weight lag is the time between the closed frontier first reaching a score and the leading open-weight model matching it. Two cuts of the frozen roster give the trajectory. Among models released before July 2026, the leading open-weight model is DeepSeek V4 Pro at 76.1% exact, whose weights shipped on April 24, 2026 <span class="citation" data-cites="deepseek2026v4">(DeepSeek 2026)</span>; the earliest-released closed model above that score is Gemini 3 Flash Preview, released December 17, 2025 <span class="citation" data-cites="techcrunch2025gemini3flash">(TechCrunch 2025)</span> — a lag of 128 days, about 4.2 months. On the full roster, Kimi K3 at 86.2% exact trails three closed models; the earliest released of them, GPT-5.6 Sol, generally available July 9, 2026 <span class="citation" data-cites="techcrunch2026gpt56">(TechCrunch 2026)</span>, puts the lag at 7 days by API availability, or 18 days dated to Kimi K3’s July 27 weight release on Hugging Face <span class="citation" data-cites="techtimes2026kimik3weights">(Tech Times 2026)</span>.</p>
+<p>The leaderboard also measures time. Following the lag construction the UK AI Security Institute applied to cyber capabilities <span class="citation" data-cites="aisi2026openweight">(UK AI Security Institute 2026)</span>, the open-weight lag is the time between the closed frontier first reaching a score and the leading open-weight model matching it. Two cuts of the frozen roster give the trajectory. Among models released before July 2026, the leading open-weight model is DeepSeek V4 Pro at 76.4% exact, whose weights shipped on April 24, 2026 <span class="citation" data-cites="deepseek2026v4">(DeepSeek 2026)</span>; the earliest-released closed model above that score is Gemini 3 Flash Preview, released December 17, 2025 <span class="citation" data-cites="techcrunch2025gemini3flash">(TechCrunch 2025)</span> — a lag of 128 days, about 4.2 months. On the full roster, Kimi K3 at 86.7% exact trails three closed models; the earliest released of them, GPT-5.6 Sol, generally available July 9, 2026 <span class="citation" data-cites="techcrunch2026gpt56">(TechCrunch 2026)</span>, puts the lag at 7 days by API availability, or 18 days dated to Kimi K3’s July 27 weight release on Hugging Face <span class="citation" data-cites="techtimes2026kimik3weights">(Tech Times 2026)</span>.</p>
 <p>Both figures are lower bounds in one direction: a closed model outside the evaluated roster that crossed either score earlier would lengthen the corresponding lag. They also carry the uncertainty of any single-benchmark, single-domain estimate — the AISI analysis reports substantially longer lags on cyber tasks — and a lag measured at a moving frontier compresses mechanically when a strong open-weight release lands days after a frontier release.</p>
 <h2 id="failure-modes" class="anchored">Failure modes</h2>
 <p>The benchmark surfaces a few recurring failure patterns.</p>
@@ -2014,7 +2014,7 @@ Table&nbsp;13: US within-10% accuracy on federal vs state refundable credits and
 <li>the choice of headline metric (exact match), near-miss companion (within-1%), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate</li>
 <li>the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail</li>
 <li>the 100-household manuscript snapshot should be treated as a preview until larger frozen runs are published</li>
-<li>the annotations cover the 9,076-row legacy-threshold audit universe, including 9,073 exact-match misses and 3 exact hits, but not 1,605 additional rows with bounded score below 100; the review is developer-adjudicated and not an independent validation of each reference value</li>
+<li>the annotations cover the 8,783-row legacy-threshold audit universe, including 8,780 exact-match misses and 3 exact hits, but not 1,605 additional rows with bounded score below 100; the review is developer-adjudicated and not an independent validation of each reference value</li>
 <li>one frozen scenario encodes household inputs that do not match its prompt narrative (a South Carolina household whose prompt implies a qualifying disability the inputs omit), and two input-semantics conventions (SSI disability status and adult tax-dependent relationships) are under-specified in ways a scheduled scenario refresh will address; affected cells score models against the encoded inputs</li>
 <li>benchmark success should not be interpreted as policy-advice readiness</li>
 </ul>
@@ -2059,7 +2059,7 @@ Table&nbsp;14: Structured-output parser audit and repair sequence.
 </tr>
 <tr class="even">
 <td>Final parse coverage</td>
-<td>707 of the 77,376 canonical model-output rows (0.9%) have no parsable numeric value after retries. The failures comprise Kimi K2.6 (426), GLM-5.2 (139), GLM-5.3 (78), and Kimi K3 (64). They score zero as parse-contract failures. A further 61 rows (Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)) carry a parsed numeric value but no explanation; they are scored on the numeric value and counted here as explanation-contract violations, so 768 rows in all fall short of the numeric-plus-explanation contract. Every other row has both.</td>
+<td>707 of the 76,947 canonical model-output rows (0.9%) have no parsable numeric value after retries. The failures comprise Kimi K2.6 (426), GLM-5.2 (139), GLM-5.3 (78), and Kimi K3 (64). They score zero as parse-contract failures. A further 61 rows (Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)) carry a parsed numeric value but no explanation; they are scored on the numeric value and counted here as explanation-contract violations, so 768 rows in all fall short of the numeric-plus-explanation contract. Every other row has both.</td>
 </tr>
 <tr class="odd">
 <td>Preservation rule</td>

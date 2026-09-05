@@ -1413,8 +1413,23 @@ def main():
             reference_policyengine_bundles,
             resolve_reference_digest,
         )
+        from policybench.reference_exclusions import (
+            exclusions_path_for,
+            load_reference_exclusions,
+            split_reference,
+        )
 
         gt = pd.read_csv(args.ground_truth)
+        # An adjacent reference_exclusions.json removes outputs whose reference
+        # depends on an input the data never carried; they are scored for no model.
+        gt, excluded_reference = split_reference(
+            gt, load_reference_exclusions(exclusions_path_for(Path(args.ground_truth)))
+        )
+        if not excluded_reference.empty:
+            print(
+                f"reference exclusions: {len(excluded_reference)} outputs removed "
+                "from scoring (reference_exclusions.json)"
+            )
         no_tools = pd.read_csv(args.predictions)
         repeated_predictions = None
         if args.runs_dir:

@@ -64,10 +64,11 @@ be described as faithful reasoning traces.
 
 ## Audit scope
 
-The frozen US annotations cover 9,076 rows selected because their legacy
-threshold score is below 1. This audit universe contains 9,073 of the
-snapshot's 9,073 exact-match misses and three exact hits. Another 1,605 rows
-have a bounded score below 100 but fall outside the legacy-threshold selection
+The frozen US annotations cover 8,783 scored rows selected because their
+legacy threshold score is below 1 (293 further annotated rows sit on the eleven
+excluded outputs and are description, not audit). This audit universe contains
+8,780 of the snapshot's 8,780 exact-match misses and three exact hits. Another
+1,605 scored rows have a bounded score below 100 but fall outside the legacy-threshold selection
 and have no audit annotation. Two judge models produced the verdicts, both of
 them board rows: GPT-5.6 Sol through the Codex CLI for 318 cases, and Claude
 Opus 5 through the Claude Code CLI for the 350 cases a September 2026 addition
@@ -76,8 +77,22 @@ carries the tally. Verdicts change no score. A judge verdict outside the final
 classes is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json: one case in this snapshot, the judge's
 prompt-ambiguity reading of scenario_064 SSI adjudicated to llm_error with the
-reasoning attached). The annotation set therefore must not be described
-as covering each row below full bounded score.
+reasoning attached).
+
+Eleven outputs in ten households are excluded from scoring for every model
+(`reference_exclusions.json` beside the frozen references, pinned by the
+manifest): their reference depends on an engine input the certified household
+data never carried and the prompt therefore never listed. The SSI disability
+criterion is false for every person in the June 2026 build, and months of SSDI
+receipt is never carried and never promptable. Each excluded reference was
+recomputed with policyengine-us 1.755.4 under the reading a careful reader could
+take of the stated `is disabled` or SSDI-income fact, and it moved. Exclusion is
+symmetric: rows that matched the frozen reference leave the score with rows that
+did not, so every model is scored on 1,973 of its 1,984 requested outputs. The
+rows on those outputs stay annotated with the class `prompt_ambiguity` as
+description; no scored row carries that class. Do not read a $0 SSI reference
+for a disabled under-65 household member as a finding about that person's SSI
+eligibility.
 
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be
