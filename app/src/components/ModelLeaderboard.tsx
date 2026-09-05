@@ -300,8 +300,10 @@ export default function ModelLeaderboard({
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
             Claude models skip extended thinking when the answer tool call is
             forced, as it is in the request this board sends every model whose
-            provider accepts a forced tool; other reasoning-by-default providers
-            reason regardless. Re-run with <code>tool_choice: auto</code>,
+            selected answer contract is the forced tool (rows on the JSON
+            contract, whether their provider rejects a forced tool or their
+            model card selects JSON, answer as a JSON object); other
+            reasoning-by-default providers reason regardless. Re-run with <code>tool_choice: auto</code>,
             Claude Fable 5 scores {SENSITIVITY_EXACT["claude-fable-5"]} (would
             rank #{wouldRank(SENSITIVITY_EXACT["claude-fable-5"], baseNoTools)}
             ), Claude Opus 5 {SENSITIVITY_EXACT["claude-opus-5"]} (#

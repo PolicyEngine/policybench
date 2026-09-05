@@ -301,8 +301,52 @@ def merge_case_annotations(
     )
 
 
-def export_country(country_dir: Path) -> dict:
-    """Write analysis artifacts and dashboard payload for one country run."""
+SNAPSHOT_MANIFEST = Path(__file__).resolve().parents[1] / (
+    "paper/snapshot/20260501/manifest.json"
+)
+
+
+def committed_reference_digest(country: str = "us") -> str | None:
+    """The reference CSV digest pinned in the committed snapshot manifest.
+
+    Legacy reference sidecars predate ``reference_csv_sha256``; production
+    exports of those references must verify the CSV against this pin instead.
+    """
+    if country != "us" or not SNAPSHOT_MANIFEST.exists():
+        return None
+    refresh = json.loads(SNAPSHOT_MANIFEST.read_text()).get(
+        "reference_output_refresh", {}
+    )
+    digest = refresh.get("reference_csv_sha256")
+    return digest if isinstance(digest, str) and digest else None
+
+
+def resolve_reference_digest(value: str | None, country: str = "us") -> str | None:
+    """Turn a CLI ``--reference-digest`` value into a hex digest or None.
+
+    ``"manifest"`` selects the committed snapshot's pin; any other string is
+    taken as the sha256 of ``reference_outputs.csv``.
+    """
+    if value is None:
+        return None
+    if value == "manifest":
+        digest = committed_reference_digest(country)
+        if digest is None:
+            raise ReferenceProvenanceError(
+                "No committed reference digest is available for country "
+                f"{country!r}; pass the sha256 explicitly."
+            )
+        return digest
+    return value
+
+
+def export_country(country_dir: Path, *, reference_digest: str | None = None) -> dict:
+    """Write analysis artifacts and dashboard payload for one country run.
+
+    Reference provenance is verified strictly: the sidecar must carry the
+    reference CSV digest, or ``reference_digest`` must supply the pin for a
+    legacy sidecar (``committed_reference_digest`` for the frozen references).
+    """
     ground_truth_path = country_dir / "reference_outputs.csv"
     legacy_ground_truth_path = country_dir / "ground_truth.csv"
     scenarios_path = country_dir / "scenarios.csv"
@@ -324,6 +368,8 @@ def export_country(country_dir: Path) -> dict:
     policyengine_bundles = reference_policyengine_bundles(
         ground_truth_path,
         country,
+        require_digest=True,
+        manifest_reference_sha256=reference_digest,
     )
     predictions = load_predictions(country_dir)
     predictions = merge_annotations(predictions, load_annotations(country_dir))
@@ -468,8 +514,13 @@ def export_full_run(
     countries: Sequence[str] | None = None,
     app_data_output: str | Path = "app/src/data.json",
     skip_app_data: bool = False,
+    reference_digest: str | None = None,
 ) -> dict:
-    """Export per-country and combined frontend artifacts from a full run."""
+    """Export per-country and combined frontend artifacts from a full run.
+
+    ``reference_digest`` pins the reference CSV for legacy sidecars that carry
+    no digest of their own (see ``export_country``).
+    """
     run_path = Path(run_dir)
     if countries:
         selected_countries = list(countries)
@@ -483,7 +534,8 @@ def export_full_run(
             )
 
     country_payloads = {
-        country: export_country(run_path / country) for country in selected_countries
+        country: export_country(run_path / country, reference_digest=reference_digest)
+        for country in selected_countries
     }
     combined_payload = {"countries": country_payloads}
     combined_json = dump_dashboard_payload(combined_payload, source=str(run_path))

@@ -2,12 +2,14 @@
 
 The leaderboard's canonical condition sends every model the same household
 facts and requested outputs and forces the answer tool call
-(`tool_choice: {type: "tool", name: "submit_outputs"}`) wherever the
-provider accepts one, with no reasoning-control parameters for any
-provider. Ten models answer in one- or three-output subsets per request, and
-models whose providers reject a forced tool answer as a JSON object; the
-per-model treatment is the manuscript's serving-configuration table, and
-Claude Fable 5.1 is the newest JSON-transport row (see its section below). A
+(`tool_choice: {type: "tool", name: "submit_outputs"}`) for every row whose
+model card selects the tool contract, with no reasoning-control parameters
+for any provider. Ten models answer in one- or three-output subsets per
+request, and rows on the JSON contract answer as a JSON object, either
+because the provider rejects a forced tool or because the model card selects
+JSON for that family (older Gemini and DeepSeek rows); the per-model
+treatment is the manuscript's serving-configuration table, and Claude Fable
+5.1 is the newest JSON-transport row (see its section below). A
 reader reviewing the run artifacts noticed that every Claude row logged zero reasoning tokens while
 the other reasoning-by-default providers spent most of their tokens on
 reasoning.

@@ -601,3 +601,96 @@ def test_export_full_run_cli_fails_closed_without_reference_sidecar(
     assert not (country_dir / "data.json").exists()
     assert not (run_dir / "data.json").exists()
     assert not app_payload.exists()
+
+
+def _legacy_reference_run(tmp_path):
+    """A country run whose reference sidecar predates ``reference_csv_sha256``."""
+    run_dir = tmp_path / "run"
+    country_dir = run_dir / "us"
+    country_dir.mkdir(parents=True)
+    reference = country_dir / "reference_outputs.csv"
+    reference.write_text("scenario_id,variable,value\ns001,income_tax,100\n")
+    (country_dir / "scenarios.csv").write_text("scenario_id,country\ns001,us\n")
+    (country_dir / "reference_outputs.csv.meta.json").write_text(
+        json.dumps(
+            {
+                "country": "us",
+                "policyengine_bundles": {
+                    "us": {
+                        "model_package": "policyengine-us",
+                        "model_version": "1.755.4",
+                        "data_package": "populace-data",
+                        "data_version": "0.1.0",
+                        "default_dataset": "populace_us_2024",
+                        "default_dataset_uri": "hf://example/dataset@revision",
+                    }
+                },
+            }
+        )
+    )
+    return run_dir, country_dir, reference
+
+
+def test_export_country_rejects_a_legacy_sidecar_without_a_digest_pin(tmp_path):
+    from policybench.full_run_export import ReferenceProvenanceError, export_country
+
+    _, country_dir, _ = _legacy_reference_run(tmp_path)
+
+    with pytest.raises(ReferenceProvenanceError, match="no reference_csv_sha256"):
+        export_country(country_dir)
+
+    assert not (country_dir / "data.json").exists()
+
+
+def test_export_country_rejects_a_replaced_csv_under_a_digest_pin(tmp_path):
+    import hashlib
+
+    from policybench.full_run_export import ReferenceProvenanceError, export_country
+
+    _, country_dir, reference = _legacy_reference_run(tmp_path)
+    pin = hashlib.sha256(reference.read_bytes()).hexdigest()
+    reference.write_text("scenario_id,variable,value\ns001,income_tax,999\n")
+
+    with pytest.raises(ReferenceProvenanceError, match="does not match"):
+        export_country(country_dir, reference_digest=pin)
+
+
+def test_export_full_run_cli_requires_a_digest_for_legacy_sidecars(
+    tmp_path, monkeypatch
+):
+    from policybench.cli import main
+
+    run_dir, country_dir, _ = _legacy_reference_run(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "policybench",
+            "export-full-run",
+            "--run-dir",
+            str(run_dir),
+            "--app-data-output",
+            str(tmp_path / "data.json"),
+        ],
+    )
+
+    with pytest.raises(SystemExit, match="no reference_csv_sha256"):
+        main()
+
+    assert not (country_dir / "data.json").exists()
+
+
+def test_resolve_reference_digest_uses_the_committed_manifest_pin():
+    from policybench.full_run_export import (
+        SNAPSHOT_MANIFEST,
+        committed_reference_digest,
+        resolve_reference_digest,
+    )
+
+    pinned = json.loads(SNAPSHOT_MANIFEST.read_text())["reference_output_refresh"][
+        "reference_csv_sha256"
+    ]
+    assert committed_reference_digest("us") == pinned
+    assert resolve_reference_digest("manifest") == pinned
+    assert resolve_reference_digest(None) is None
+    assert resolve_reference_digest("ab" * 32) == "ab" * 32

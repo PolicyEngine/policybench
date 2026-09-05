@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -33,7 +34,12 @@ def board(tmp_path: Path):
     scoring.mkdir()
     (scoring / "reference_outputs.csv").write_text("scenario_id\n")
     (scoring / "reference_outputs.csv.meta.json").write_text(
-        json.dumps({"policyengine_bundles": {"us": {"model_version": "1.755.4"}}})
+        json.dumps(
+            {
+                "policyengine_bundles": {"us": {"model_version": "1.755.4"}},
+                "reference_csv_sha256": hashlib.sha256(b"scenario_id\n").hexdigest(),
+            }
+        )
     )
     (scoring / "scenarios.csv").write_text("scenario_id\n")
     return base_path, scoring
@@ -193,3 +199,27 @@ def test_reused_output_replaces_reference_sidecar_from_source(board, tmp_path):
     fold_board(base_path, [], scoring, out_dir, export=False)
 
     assert destination.read_bytes() == source.read_bytes()
+
+
+def test_export_requires_a_digest_for_a_legacy_reference_sidecar(board, tmp_path):
+    base_path, scoring = board
+    (scoring / "reference_outputs.csv.meta.json").write_text(
+        json.dumps(
+            {
+                "country": "us",
+                "policyengine_bundles": {
+                    "us": {
+                        "model_package": "policyengine-us",
+                        "model_version": "1.755.4",
+                        "data_package": "populace-data",
+                        "data_version": "0.1.0",
+                        "default_dataset": "populace_us_2024",
+                        "default_dataset_uri": "hf://example/dataset@revision",
+                    }
+                },
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="no reference_csv_sha256"):
+        fold_board(base_path, [], scoring, tmp_path / "out", export=True)

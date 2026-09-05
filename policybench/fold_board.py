@@ -38,7 +38,14 @@ def fold_board(
     scoring_source: Path,
     out_dir: Path,
     export: bool = True,
+    reference_digest: str | None = None,
 ) -> dict:
+    """Fold new model predictions onto a board and stage its export.
+
+    ``reference_digest`` pins the reference CSV when the scoring source's
+    sidecar predates ``reference_csv_sha256`` (the frozen v1.1 references):
+    pass the committed snapshot's digest for those.
+    """
     base = pd.read_csv(base_predictions, low_memory=False)
     expected_rows = _rows_per_model(base)
 
@@ -107,9 +114,14 @@ def fold_board(
             reference_policyengine_bundles,
         )
 
-        reference_policyengine_bundles(us_dir / "reference_outputs.csv", "us")
+        reference_policyengine_bundles(
+            us_dir / "reference_outputs.csv",
+            "us",
+            require_digest=True,
+            manifest_reference_sha256=reference_digest,
+        )
 
-        export_country(us_dir)
+        export_country(us_dir, reference_digest=reference_digest)
         summary_path = us_dir / "analysis" / "summary_by_model.csv"
         if summary_path.exists():
             summary = pd.read_csv(summary_path)

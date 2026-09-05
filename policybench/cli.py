@@ -527,6 +527,14 @@ def main():
         help="Path for the combined frontend payload",
     )
     export_parser.add_argument(
+        "--reference-digest",
+        default=None,
+        help=(
+            "sha256 of reference_outputs.csv for a legacy sidecar without its "
+            "own digest, or 'manifest' for the committed snapshot's pin"
+        ),
+    )
+    export_parser.add_argument(
         "--skip-app-data",
         action="store_true",
         help="Only write the combined payload under the run directory",
@@ -743,6 +751,14 @@ def main():
     # Analyze
     analyze_parser = subparsers.add_parser("analyze", help="Analyze AI-alone results")
     analyze_parser.add_argument(
+        "--reference-digest",
+        default=None,
+        help=(
+            "sha256 of reference_outputs.csv for a legacy sidecar without its "
+            "own digest, or 'manifest' for the committed snapshot's pin"
+        ),
+    )
+    analyze_parser.add_argument(
         "-g",
         "--reference-outputs",
         dest="ground_truth",
@@ -943,6 +959,14 @@ def main():
         action="store_true",
         help="Skip the country export (combine and gate only)",
     )
+    fold_parser.add_argument(
+        "--reference-digest",
+        default=None,
+        help=(
+            "sha256 of reference_outputs.csv for a legacy sidecar without its "
+            "own digest, or 'manifest' for the committed snapshot's pin"
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -1100,14 +1124,22 @@ def main():
 
     elif args.command == "fold-board":
         from policybench.fold_board import fold_board
-
-        result = fold_board(
-            base_predictions=Path(args.base),
-            additions=[Path(p) for p in args.add],
-            scoring_source=Path(args.scoring_source),
-            out_dir=Path(args.out),
-            export=not args.no_export,
+        from policybench.full_run_export import (
+            ReferenceProvenanceError,
+            resolve_reference_digest,
         )
+
+        try:
+            result = fold_board(
+                base_predictions=Path(args.base),
+                additions=[Path(p) for p in args.add],
+                scoring_source=Path(args.scoring_source),
+                out_dir=Path(args.out),
+                export=not args.no_export,
+                reference_digest=resolve_reference_digest(args.reference_digest),
+            )
+        except (ReferenceProvenanceError, ValueError) as exc:
+            raise SystemExit(str(exc)) from exc
         for name in result["folded"]:
             print(f"folded: {name}")
         for name, reason in result["excluded"].items():
@@ -1228,12 +1260,14 @@ def main():
         from policybench.full_run_export import (
             ReferenceProvenanceError,
             export_full_run,
+            resolve_reference_digest,
         )
 
         try:
             export_full_run(
                 run_dir=args.run_dir,
                 countries=args.countries,
+                reference_digest=resolve_reference_digest(args.reference_digest),
                 app_data_output=args.app_data_output,
                 skip_app_data=args.skip_app_data,
             )
@@ -1375,6 +1409,7 @@ def main():
         from policybench.full_run_export import (
             ReferenceProvenanceError,
             reference_policyengine_bundles,
+            resolve_reference_digest,
         )
 
         gt = pd.read_csv(args.ground_truth)
@@ -1398,6 +1433,10 @@ def main():
                 policyengine_bundles = reference_policyengine_bundles(
                     Path(args.ground_truth),
                     country,
+                    require_digest=True,
+                    manifest_reference_sha256=resolve_reference_digest(
+                        args.reference_digest, country
+                    ),
                 )
             except ReferenceProvenanceError as exc:
                 raise SystemExit(str(exc)) from exc

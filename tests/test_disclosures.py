@@ -314,6 +314,26 @@ def test_paper_checklist_names_existing_manifest_keys():
         assert key in manifest
 
 
+SENSITIVITY_NOTE = ROOT / "sensitivity" / "claude-thinking-2026-08.md"
+FORCED_TOOL_OVERCLAIMS = (
+    r"whose\s+provider\s+accepts\s+a\s+forced\s+tool",
+    r"wherever\s+the\s+provider\s+accepts\s+one",
+    r"every\s+model\s+whose\s+provider\s+accepts",
+)
+
+
+@pytest.mark.parametrize("path", [LEADERBOARD, SENSITIVITY_NOTE])
+def test_forced_tool_claims_are_qualified_by_contract(path):
+    """Forcing applies to rows on the tool contract, not to every provider that
+    accepts a forced tool: older Gemini and DeepSeek rows select JSON by family."""
+    text = re.sub(r"\s+", " ", path.read_text())
+    for pattern in FORCED_TOOL_OVERCLAIMS:
+        assert re.search(pattern, text, re.IGNORECASE) is None, (
+            f"{path.name} still matches {pattern!r}"
+        )
+    assert re.search(r"selects? (the tool contract|JSON)", text) is not None, path.name
+
+
 def test_benchmark_card_snapshot_scope_matches_scenario_metadata():
     manifest = json.loads(SNAPSHOT_MANIFEST.read_text())
     run_label = manifest["source_run_labels"]["us"]
