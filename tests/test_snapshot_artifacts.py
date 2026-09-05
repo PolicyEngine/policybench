@@ -816,3 +816,56 @@ def test_app_clean_preserves_the_tracked_serving_configuration():
     clean_command = package["scripts"]["clean"]
 
     assert "src/model-serving-config.json" not in clean_command
+
+
+def test_manuscript_bootstrap_point_estimates_reproduce_model_stats():
+    """The manuscript's uncertainty tables score the same outputs as the board.
+
+    Mirrors ``load_snapshot_ground_truth`` / ``load_snapshot_predictions`` in
+    paper/index.qmd: the scored reference (frozen CSV minus the exclusion
+    record), filtered to headline outputs, fed to ``bootstrap_headline_cis``.
+    Its point estimate for every model must equal the published exact score;
+    a reference that still carried the excluded outputs would not.
+    """
+    from policybench.analysis import bootstrap_headline_cis
+    from policybench.reference_exclusions import scored_reference_for
+    from policybench.spec import get_output_ids
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    for country, run_label in manifest["source_run_labels"].items():
+        run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+        headline = set(get_output_ids(country, "headline"))
+
+        def headline_only(frame: pd.DataFrame) -> pd.DataFrame:
+            mask = frame["variable"].map(output_group_id).isin(headline)
+            frame = frame[mask].reset_index(drop=True)
+            frame["scenario_id"] = frame["scenario_id"].astype(str)
+            return frame
+
+        scored, exclusions = scored_reference_for(run_dir / "reference_outputs.csv")
+        assert len(exclusions) > 0
+        reference = headline_only(scored)
+        predictions = headline_only(
+            pd.read_csv(
+                run_dir / "predictions.csv.gz",
+                usecols=["model", "scenario_id", "variable", "prediction"],
+            )
+        )
+        scenarios = pd.read_csv(run_dir / "scenarios.csv")
+        market = dict(
+            zip(
+                scenarios["scenario_id"].astype(str),
+                pd.to_numeric(scenarios["total_income"], errors="coerce").fillna(0.0),
+            )
+        )
+        cis = bootstrap_headline_cis(
+            reference, predictions, market, country=country, metric="exact", n_boot=20
+        )
+        published = {
+            row["model"]: row["exact"]
+            for row in read_run_payload(run_dir)["modelStats"]
+            if row["condition"] == "no_tools"
+        }
+        assert set(cis["model"]) == set(published)
+        for model, point in zip(cis["model"], cis["point"]):
+            assert point * 100 == pytest.approx(published[model], abs=1e-6), model

@@ -269,10 +269,16 @@ def filter_to_headline_outputs(country: str, frame: pd.DataFrame) -> pd.DataFram
 
 
 def load_snapshot_ground_truth() -> dict[str, pd.DataFrame]:
+    """The scored reference: the frozen CSV minus the outputs its
+    ``reference_exclusions.json`` removes from scoring for every model, so
+    every manuscript scorer (bootstrap intervals, weighting comparison,
+    simple baselines) uses the same 1,973 outputs as the published board."""
+    from policybench.reference_exclusions import scored_reference_for
+
     return {
         country: filter_to_headline_outputs(
             country,
-            pd.read_csv(run_dir / "reference_outputs.csv"),
+            scored_reference_for(run_dir / "reference_outputs.csv")[0],
         )
         for country, run_dir in snapshot_run_paths().items()
     }

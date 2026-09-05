@@ -562,16 +562,23 @@ class Scenario:
         unaffected (verified against policyengine-us 1.755.4: no output moves),
         because no benchmark household has a non-spouse adult the engine finds
         SSI-eligible under the facts as listed.
+
+        Unit identifiers are positional (``marital_unit_1``, ``marital_unit_2``,
+        ...), never derived from person names, so no person identifier can
+        collide with another unit's key and drop members from the map.
         """
-        units: dict[str, dict[str, list[str]]] = {}
         couple = self.marital_couple()
+        groups: list[list[str]] = []
         if couple is not None:
-            units["marital_unit_couple"] = {"members": list(couple)}
+            groups.append(list(couple))
         for person in self.all_people:
             if couple is not None and person.name in couple:
                 continue
-            units[f"marital_unit_{person.name}"] = {"members": [person.name]}
-        return units
+            groups.append([person.name])
+        return {
+            f"marital_unit_{index}": {"members": members}
+            for index, members in enumerate(groups, start=1)
+        }
 
 
 def person_to_dict(person: Person) -> dict[str, Any]:

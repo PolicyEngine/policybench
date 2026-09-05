@@ -1182,3 +1182,34 @@ def test_reference_calculation_is_invariant_to_person_identifiers():
         adult.inputs["is_tax_unit_spouse"] = False
     single_units.filing_status = "single"
     assert calculate_single(single_units, "ssi") > canonical
+
+
+def test_marital_unit_keys_cannot_collide_with_person_names():
+    """A dependent named "couple" (or anything else) must not displace the
+    couple's unit: keys are positional, and every person stays mapped."""
+    scenario = _couple_scenario("head", "spouse", children=("couple",))
+    units = scenario.marital_units()
+    assert list(units) == ["marital_unit_1", "marital_unit_2"]
+    assert units["marital_unit_1"]["members"] == ["head", "spouse"]
+    assert units["marital_unit_2"]["members"] == ["couple"]
+    for name in ("marital_unit_1", "marital_unit_2", "1", "spouse2"):
+        renamed = _couple_scenario("head", "spouse", children=(name,))
+        members = sorted(
+            member
+            for unit in renamed.marital_units().values()
+            for member in unit["members"]
+        )
+        assert members == sorted(["head", "spouse", name])
+
+
+@pytest.mark.slow
+def test_reference_calculation_is_invariant_to_a_child_named_couple():
+    from policybench.ground_truth import calculate_single
+
+    baseline = calculate_single(
+        _couple_scenario("head", "spouse", children=("dependent1",)), "ssi"
+    )
+    renamed = calculate_single(
+        _couple_scenario("head", "spouse", children=("couple",)), "ssi"
+    )
+    assert renamed == pytest.approx(baseline)
