@@ -273,6 +273,34 @@ def test_wrapper_gives_up_after_max_restarts(tmp_path: Path):
     assert "giving up" in (run_dir / "supervisor.log").read_text()
 
 
+def test_wrapper_gives_up_at_once_when_the_command_cannot_start(tmp_path: Path):
+    run_dir = tmp_path / "run"
+    env = _clean_env(tmp_path)
+    result = _run(
+        [
+            str(WRAPPER),
+            "--run-dir",
+            str(run_dir),
+            "--no-caffeinate",
+            "--",
+            str(tmp_path / "missing-supervisor"),
+        ],
+        env=env,
+    )
+    assert result.returncode == 0
+    assert (run_dir / ".launchd_gave_up").exists()
+    assert "could not be executed (rc=127)" in (run_dir / "supervisor.log").read_text()
+
+
+def test_dry_run_rejects_a_missing_command(tmp_path: Path):
+    result = _run(
+        [str(LAUNCHER), "start", "--name", "x", "--dry-run", "--", "/bin/no-such-tool"],
+        env=_clean_env(tmp_path),
+    )
+    assert result.returncode == 1
+    assert "not executable" in result.stderr
+
+
 def test_wrapper_without_a_heartbeat_follows_the_exit_code(tmp_path: Path):
     run_dir = tmp_path / "run"
     assert _wrapper(tmp_path, run_dir, None, 0).returncode == 0

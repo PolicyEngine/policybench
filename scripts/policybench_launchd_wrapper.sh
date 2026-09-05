@@ -103,8 +103,10 @@ finish() {  # $1 = marker file, $2 = message
   date "+%Y-%m-%dT%H:%M:%S" > "$1"
   if [ -n "$LABEL" ] && command -v launchctl >/dev/null 2>&1; then
     # Unload the finished job so RunAtLoad does not replay it at the next login.
+    # Synchronous on purpose: launchd kills the job's process group as soon as
+    # this (the main) process exits, so a backgrounded bootout never runs.
     rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
-    (sleep 1; launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1) &
+    launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || true
   fi
   exit 0
 }
@@ -118,6 +120,11 @@ if [ "$outcome" = "unfinished" ] && [ "$rc" -eq 0 ]; then
 fi
 
 echo "$attempt" > "$RESTARTS_FILE"
+if [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ]; then
+  # The command could not even start (not found / not executable); a relaunch
+  # cannot help and would only spin until the cap.
+  finish "$GAVE_UP_MARKER" "command could not be executed (rc=$rc); giving up. Fix the command, then relaunch."
+fi
 if [ "$attempt" -ge "$MAX_RESTARTS" ]; then
   finish "$GAVE_UP_MARKER" "unfinished after $attempt attempts (rc=$rc); giving up. Inspect $LOG, then relaunch."
 fi

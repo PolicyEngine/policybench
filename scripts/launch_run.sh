@@ -135,6 +135,10 @@ cmd_start() {
   local args
   if [ "$exec_override" -eq 1 ]; then
     [ $# -gt 0 ] || die "nothing after --"
+    case "$1" in
+      */*) [ -x "$1" ] || die "command is not executable: $1" ;;
+      *) command -v "$1" >/dev/null 2>&1 || die "command not found on PATH: $1" ;;
+    esac
     args=("$@")
   else
     [ -n "$model" ] || die "--model is required (or pass a command after --)"
@@ -228,7 +232,13 @@ launchd: launchctl print $DOMAIN/$label | grep -E 'state|pid'"
 
   command -v launchctl >/dev/null 2>&1 || die "launchctl not found; this launcher needs macOS launchd"
   if launchctl print "$DOMAIN/$label" >/dev/null 2>&1; then
-    die "$label is already loaded. Run '$0 status $name' or '$0 stop $name' first."
+    if launchctl print "$DOMAIN/$label" 2>/dev/null | grep -qE '^[[:space:]]*pid = [0-9]+'; then
+      die "$label is already running. Run '$0 status $name' or '$0 stop $name' first."
+    fi
+    # Loaded but idle: a finished job whose self-unload did not complete, or a
+    # job that gave up. Reap it so the new run can start.
+    launchctl bootout "$DOMAIN/$label" >/dev/null 2>&1 || true
+    sleep 1
   fi
   mkdir -p "$AGENTS_DIR" "$run_dir" || die "cannot create $AGENTS_DIR or $run_dir"
   umask 077
