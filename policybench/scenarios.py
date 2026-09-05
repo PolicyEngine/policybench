@@ -520,15 +520,39 @@ class Scenario:
 
         return {
             "people": people,
-            "marital_units": self._marital_units(adult_names, child_names),
+            "marital_units": self.marital_units(),
             "tax_units": {"tax_unit": tax_unit_data},
             "spm_units": {"spm_unit": spm_unit_data},
             "families": {"family": {"members": all_names}},
             "households": {"household": household_data},
         }
 
-    @staticmethod
-    def _marital_units(adult_names: list[str], child_names: list[str]) -> dict:
+    def marital_couple(self) -> tuple[str, str] | None:
+        """The names of the tax unit's head and spouse, if the household has both.
+
+        The couple comes from the relationship inputs each adult carries
+        (``is_tax_unit_head`` / ``is_tax_unit_spouse``), never from person
+        identifiers, so renaming people leaves the household unchanged. Two
+        fallbacks cover manifests that predate those inputs: adults literally
+        named ``head`` and ``spouse``, and otherwise a joint filing status with
+        exactly two adults (a joint return is filed by a married couple).
+        """
+        heads = [a.name for a in self.adults if bool(a.inputs.get("is_tax_unit_head"))]
+        spouses = [
+            a.name for a in self.adults if bool(a.inputs.get("is_tax_unit_spouse"))
+        ]
+        if heads or spouses:
+            if len(heads) == 1 and len(spouses) == 1 and heads[0] != spouses[0]:
+                return heads[0], spouses[0]
+            return None
+        names = [a.name for a in self.adults]
+        if "head" in names and "spouse" in names:
+            return "head", "spouse"
+        if len(self.adults) == 2 and str(self.filing_status or "").lower() == "joint":
+            return names[0], names[1]
+        return None
+
+    def marital_units(self) -> dict:
         """Head and spouse form the only couple; everyone else is alone.
 
         Without an explicit marital-unit map policyengine-core places every
@@ -540,13 +564,13 @@ class Scenario:
         SSI-eligible under the facts as listed.
         """
         units: dict[str, dict[str, list[str]]] = {}
-        couple = [name for name in ("head", "spouse") if name in adult_names]
-        if len(couple) == 2:
-            units["marital_unit_head_spouse"] = {"members": couple}
-        for name in adult_names + child_names:
-            if name in couple and len(couple) == 2:
+        couple = self.marital_couple()
+        if couple is not None:
+            units["marital_unit_couple"] = {"members": list(couple)}
+        for person in self.all_people:
+            if couple is not None and person.name in couple:
                 continue
-            units[f"marital_unit_{name}"] = {"members": [name]}
+            units[f"marital_unit_{person.name}"] = {"members": [person.name]}
         return units
 
 
