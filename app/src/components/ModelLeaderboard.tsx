@@ -16,6 +16,18 @@ import ProviderMark from "./ProviderMark";
 import { ProgramFilterPanel } from "./ProgramFilterDropdown";
 import { programIsActive, type ProgramOption } from "../lib/programFilters";
 import { canonicalScoreByModel } from "../lib/canonicalScore";
+import { wouldRank } from "../lib/wouldRank";
+import { isCurrentBoard, modelPageHref } from "../lib/boardScope";
+
+// Exact-match scores of the tool_choice: auto sensitivity runs
+// (sensitivity/claude-thinking-2026-08.md). Their "would rank" positions are
+// derived from the live board rows at render time, never typed by hand.
+const SENSITIVITY_EXACT = {
+  "claude-fable-5": 86.9,
+  "claude-opus-5": 85.6,
+  "claude-sonnet-5": 80.2,
+  "claude-fable-5.1": 87.5,
+} as const;
 import {
   rankWithFallbackScore,
   rankWithRecomputedScores,
@@ -80,10 +92,14 @@ export default function ModelLeaderboard({
   onResetPrograms,
   onToggleProgram,
   onSelectOnlyProgram,
+  versionId,
+  liveVersionId,
 }: {
   data: BenchData;
   selectedView: CountryCode;
   dashboard: DashboardBundle;
+  versionId: string;
+  liveVersionId: string;
   programOptions: ProgramOption[];
   activeProgramIds: Set<string>;
   activeProgramSummary: string;
@@ -273,7 +289,7 @@ export default function ModelLeaderboard({
       >
         Model rankings
       </h2>
-      {selectedView === "us" && (
+      {selectedView === "us" && isCurrentBoard(versionId, liveVersionId) && (
         <div
           className="card mt-5 px-5 py-4 animate-fade-up"
           style={{ animationDelay: "120ms" }}
@@ -283,12 +299,23 @@ export default function ModelLeaderboard({
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
             Claude models skip extended thinking when the answer tool call is
-            forced, as it is in the identical request this board holds every
-            model to; other reasoning-by-default providers reason regardless.
-            Re-run with <code>tool_choice: auto</code>, Claude Fable 5 scores
-            86.9 (would rank #2), Claude Opus 5 85.6 (#3), and Claude Sonnet 5
-            80.2 (#8). The board below is unchanged — those runs sit beside it
-            as a{" "}
+            forced, as it is in the request this board sends every model whose
+            selected answer contract is the forced tool (rows on the JSON
+            contract, whether their provider rejects a forced tool or their
+            model card selects JSON, answer as a JSON object); other
+            reasoning-by-default providers reason regardless. Re-run with <code>tool_choice: auto</code>,
+            Claude Fable 5 scores {SENSITIVITY_EXACT["claude-fable-5"]} (would
+            rank #{wouldRank(SENSITIVITY_EXACT["claude-fable-5"], baseNoTools)}
+            ), Claude Opus 5 {SENSITIVITY_EXACT["claude-opus-5"]} (#
+            {wouldRank(SENSITIVITY_EXACT["claude-opus-5"], baseNoTools)}), and
+            Claude Sonnet 5 {SENSITIVITY_EXACT["claude-sonnet-5"]} (#
+            {wouldRank(SENSITIVITY_EXACT["claude-sonnet-5"], baseNoTools)}).
+            Claude Fable 5.1 rejects forced tool calls outright, so its board
+            row answers as a JSON object and reasons at the provider default;
+            with the tool declared under <code>auto</code> it scores{" "}
+            {SENSITIVITY_EXACT["claude-fable-5.1"]} (#
+            {wouldRank(SENSITIVITY_EXACT["claude-fable-5.1"], baseNoTools)}).
+            The board below is unchanged — those runs sit beside it as a{" "}
             <a
               href="https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md"
               className="text-primary hover:underline"
@@ -394,7 +421,11 @@ export default function ModelLeaderboard({
                         className="flex-shrink-0"
                       />
                       <Link
-                        href={`/model/${m.model}`}
+                        href={modelPageHref(
+                          m.model,
+                          versionId,
+                          liveVersionId,
+                        )}
                         className="truncate text-sm font-medium text-text hover:text-primary-strong"
                       >
                         {MODEL_LABELS[m.model] || m.model}
@@ -432,7 +463,7 @@ export default function ModelLeaderboard({
                     className="flex-shrink-0"
                   />
                   <Link
-                    href={`/model/${m.model}`}
+                    href={modelPageHref(m.model, versionId, liveVersionId)}
                     className="truncate text-text font-medium text-sm hover:text-primary-strong"
                   >
                     {MODEL_LABELS[m.model] || m.model}

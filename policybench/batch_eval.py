@@ -24,6 +24,7 @@ xAI and DeepSeek have no batch APIs; use the sync chunked runner for them.
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +35,7 @@ import pandas as pd
 
 from policybench.eval_no_tools import (
     MAX_REPAIR_ROUNDS,
+    _answer_contract_for_model,
     _chat_completion_request_kwargs,
     _chunk_variables,
     _enforce_explanation_value_contract,
@@ -148,11 +150,23 @@ class AnthropicBatchAdapter:
         return self._client
 
     def supports(self, model_id: str) -> bool:
-        return model_id.startswith("claude-")
+        if not model_id.startswith("claude-"):
+            return False
+        if (
+            _answer_contract_for_model(model_id) != "tool"
+            or os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto"
+        ):
+            raise ValueError(
+                "Anthropic batch adapter supports the forced tool contract only; "
+                f"run {model_id} through the supervisor"
+            )
+        return True
 
     def build_request_body(
         self, scenario: Scenario, unit: BatchUnit, model_id: str
     ) -> dict:
+        if not self.supports(model_id):
+            raise ValueError(f"Anthropic batch adapter does not support {model_id}")
         _, kwargs = _chat_completion_request_kwargs(
             scenario=scenario,
             variables=unit.variables,

@@ -17,12 +17,21 @@ import {
   type ProviderKey,
 } from "../modelMeta";
 import { binaryFlag } from "../lib/scoring";
+import { modelPageHref } from "../lib/boardScope";
 import { mergeScenarioExplanations } from "../lib/explanations";
 import {
   useExplanations,
   type ExplanationsStatus,
 } from "../lib/useExplanations";
+import frozenServingConfig from "../model-serving-config.json";
 import ProviderMark from "./ProviderMark";
+import RequestShapeNotice from "./RequestShapeNotice";
+
+type ServingConfiguration = {
+  models: Record<string, { request_shape: string }>;
+};
+
+const servingModels = (frozenServingConfig as ServingConfiguration).models;
 
 function formatBoolean(value: 0 | 1 | null): string {
   if (value === null) return "Invalid";
@@ -106,9 +115,11 @@ function pickRandomScenario(
 export default function ScenarioExplorer({
   data,
   versionId,
+  liveVersionId,
 }: {
   data: BenchData;
   versionId: string;
+  liveVersionId: string;
 }) {
   const country = data.country;
   const [promptFormat, setPromptFormat] = useState<"tool" | "json">("tool");
@@ -418,7 +429,7 @@ export default function ScenarioExplorer({
         style={{ animationDelay: "160ms" }}
       >
         Inspect benchmark households, reference outputs, model answers, and the
-        exact prompt sent to every model.
+        canonical whole-scenario prompt.
       </p>
 
       <div className="mt-8 flex flex-wrap items-end gap-4">
@@ -788,7 +799,7 @@ export default function ScenarioExplorer({
               </span>
               <div>
                 <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                  Exact prompt
+                  Canonical prompt
                 </div>
                 <div className="text-text text-sm mt-1">
                   Full household batch contract for all benchmark outputs
@@ -796,11 +807,15 @@ export default function ScenarioExplorer({
               </div>
             </div>
             <div className="text-text-muted text-xs">
-              Provider-specific structured-output transport, no external tool
+              Per-model request shape and structured-output transport; no
+              external tool
             </div>
           </summary>
 
           <div className="mt-4">
+            <p className="mb-3 text-xs text-text-muted leading-relaxed">
+              The prompt shown below is the canonical whole-scenario prompt.
+            </p>
             <div className="flex flex-wrap gap-2 mb-3">
               <button
                 type="button"
@@ -839,6 +854,8 @@ export default function ScenarioExplorer({
         country={country}
         currencySymbol={currencySymbol}
         explanationsStatus={explanationsStatus}
+        versionId={versionId}
+        liveVersionId={liveVersionId}
         onClose={closeModal}
       />
 
@@ -884,8 +901,8 @@ const HouseholdDialog = React.forwardRef<HTMLDialogElement, HouseholdDialogProps
               Full household facts
             </div>
             <p className="mt-2 text-xs text-text-muted leading-relaxed">
-              Exactly the household section the models see at the top of the
-              prompt — verbatim, no summarization.
+              The household facts from the canonical prompt, shown verbatim
+              without summarization.
             </p>
           </div>
           {factsText ? (
@@ -909,6 +926,8 @@ type DetailDialogProps = {
   country: CountryCode;
   currencySymbol: "$" | "£";
   explanationsStatus: ExplanationsStatus;
+  versionId: string;
+  liveVersionId: string;
   onClose: () => void;
 };
 
@@ -920,6 +939,8 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
       country,
       currencySymbol,
       explanationsStatus,
+      versionId,
+      liveVersionId,
       onClose,
     },
     ref,
@@ -948,6 +969,8 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
             country={country}
             currencySymbol={currencySymbol}
             explanationsStatus={explanationsStatus}
+            versionId={versionId}
+            liveVersionId={liveVersionId}
             onClose={onClose}
           />
         ) : null}
@@ -962,6 +985,8 @@ type DetailContentProps = {
   country: CountryCode;
   currencySymbol: "$" | "£";
   explanationsStatus: ExplanationsStatus;
+  versionId: string;
+  liveVersionId: string;
   onClose: () => void;
 };
 
@@ -971,6 +996,8 @@ function DetailContent({
   country,
   currencySymbol,
   explanationsStatus,
+  versionId,
+  liveVersionId,
   onClose,
 }: DetailContentProps) {
   const { variable, model } = selectedCell;
@@ -1025,7 +1052,7 @@ function DetailContent({
               className="flex-shrink-0"
             />
             <a
-              href={`/model/${model}`}
+              href={modelPageHref(model, versionId, liveVersionId)}
               className="hover:text-primary-strong"
             >
               {MODEL_LABELS[model] ?? model}
@@ -1042,6 +1069,13 @@ function DetailContent({
           {correct ? "Correct" : "Off"}
         </span>
       </div>
+
+      <RequestShapeNotice
+        model={model}
+        requestShape={servingModels[model]?.request_shape}
+        versionId={versionId}
+        liveVersionId={liveVersionId}
+      />
 
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div>

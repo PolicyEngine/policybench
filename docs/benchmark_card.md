@@ -43,13 +43,17 @@ PolicyBench has one canonical evaluation mode.
 
 `Benchmark runs`
 - canonical leaderboard artifacts
-- one structured response per household
+- structured responses: whole-scenario, or one- or three-output subsets for the models recorded in the snapshot's `model_serving_config.json`
 - numeric answers for every requested output
 - one required non-empty explanation for each output
 
-Structured responses are collected through each provider's structured-output
-channel: where the API supports function calling, models fill a single answer
-schema (`submit_outputs`); otherwise they return the same fields in JSON mode.
+Structured responses are collected through the transport each model card
+records: a forced answer-schema tool call (`submit_outputs`) where the card
+selects the tool transport and the provider accepts a forced call, or the same
+fields returned as a JSON object — because the provider rejects a forced tool
+(Kimi K3, Qwen 3.8 Max, Claude Fable 5.1) or because the card selects JSON
+for the family (the older Gemini and DeepSeek rows). The per-model transport
+is in the snapshot's `model_serving_config.json`.
 This is an output format, not a capability — nothing executes, no result is
 returned to the model, and each response is a single round trip. The benchmark
 remains no-tool in every response transport.
@@ -57,6 +61,15 @@ remains no-tool in every response transport.
 The headline score uses the numeric answers only. Explanations are retained for
 auditing, scenario exploration, and qualitative error analysis; they should not
 be described as faithful reasoning traces.
+
+## Audit scope
+
+The frozen US annotations cover 7,840 rows selected because their legacy
+threshold score is below 1. This audit universe contains 7,838 of the
+snapshot's 7,838 exact-match misses and two exact hits. Another 1,324 rows have
+a bounded score below 100 but fall outside the legacy-threshold selection and
+have no audit annotation. The annotation set therefore must not be described
+as covering each row below full bounded score.
 
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be
@@ -133,10 +146,12 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-06-14 snapshot predates
-  the split and remains fully public. The first snapshot that reports
-  protected scores should state both splits' sizes and the split seed's
-  custody (who can regenerate membership).
+- Activation is a snapshot decision: the current 2026-09-01 snapshot scores
+  100 public households whose scenario manifest was generated on 2026-06-12
+  from a 125-household request split with seed 1042. It does not report
+  protected scores. The first snapshot that reports protected scores should
+  state both splits' sizes and the split seed's custody (who can regenerate
+  membership).
 - Prompt canaries (unique strings embedded in private-split prompts to detect
   future training contamination) are planned for the same snapshot that
   activates the split, since adding them changes prompt text and therefore
@@ -152,6 +167,15 @@ Adding a second condition (web search, tool-assisted) therefore requires
 threading a `condition` field through run storage and analysis before the
 export — tracked as part of the run-store cutover — rather than new UI work;
 the site's types and leaderboard already filter on `condition`.
+
+## Cost basis
+
+Each frozen row uses its recorded per-call cost: provider-reported where the
+provider returns one, otherwise reconstructed at the configured list price at
+request time. List-price overrides apply at request time, not retroactively to
+recorded costs. Models without per-call costs use the frozen release-metadata
+cost. Published model costs retain these recorded totals rather than repricing
+past calls at today's rates.
 
 ## Country data paths
 

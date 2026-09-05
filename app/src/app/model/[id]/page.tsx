@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import rawData from "../../../data-summary.json";
+import versionRegistryJson from "../../../data.versions.json";
+import ArchivedBoardNotice from "../../../components/ArchivedBoardNotice";
 import SiteHeader from "../../../components/SiteHeader";
 import ProviderMark from "../../../components/ProviderMark";
 import { formatCurrency } from "../../../format";
@@ -13,14 +15,41 @@ import {
   modelCountrySummaries,
   programRows,
 } from "../../../lib/modelPage";
-import { MODEL_LABELS, getProviderForModel, PROVIDER_LABELS } from "../../../modelMeta";
+import {
+  AUDIT_SELECTION_RULE,
+  summarizeAuditUniverse,
+} from "../../../lib/auditUniverse";
+import {
+  MODEL_LABELS,
+  getProviderForModel,
+  PROVIDER_LABELS,
+} from "../../../modelMeta";
 import {
   getVariableLabel,
   VIEW_LABELS,
   type DashboardBundle,
 } from "../../../types";
+import { parseDataVersionRegistry } from "../../../lib/dataVersions";
 
 const dashboard = rawData as DashboardBundle;
+const usAuditSummary = dashboard.countries.us
+  ? summarizeAuditUniverse(dashboard.countries.us)
+  : null;
+const versionRegistry = parseDataVersionRegistry(versionRegistryJson);
+const liveVersion = versionRegistry.versions.find(
+  (version) => version.id === versionRegistry.default,
+)!;
+const snapshotPrefix = "Snapshot ";
+if (!liveVersion.snapshotLabel?.startsWith(snapshotPrefix)) {
+  throw new Error(
+    `Live dataset ${liveVersion.id} must provide a "Snapshot YYYY-MM-DD" label`,
+  );
+}
+const liveSnapshotDate = liveVersion.snapshotLabel.slice(snapshotPrefix.length);
+const versionLabels = versionRegistry.versions.map(({ id, label }) => ({
+  id,
+  label,
+}));
 
 export const dynamicParams = false;
 
@@ -106,6 +135,9 @@ export default async function ModelPage({
               {providerLabel} · AI alone, no tools
             </div>
           )}
+          <div className="mt-1 text-xs text-text-muted">
+            Current board, snapshot {liveSnapshotDate}
+          </div>
         </div>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 max-w-3xl">
@@ -136,6 +168,11 @@ export default async function ModelPage({
       />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 pb-20">
+        <ArchivedBoardNotice
+          liveVersionId={liveVersion.id}
+          liveSnapshotDate={liveSnapshotDate}
+          versions={versionLabels}
+        />
         {summaries.map((summary) => {
           const bench = dashboard.countries[summary.country];
           if (!bench) return null;
@@ -149,9 +186,7 @@ export default async function ModelPage({
               aria-labelledby={`country-${summary.country}`}
               className="mt-12"
             >
-              <div className="eyebrow mb-3">
-                {VIEW_LABELS[summary.country]}
-              </div>
+              <div className="eyebrow mb-3">{VIEW_LABELS[summary.country]}</div>
               <h2
                 id={`country-${summary.country}`}
                 className="font-[family-name:var(--font-display)] text-2xl sm:text-3xl text-text tracking-tight"
@@ -166,7 +201,9 @@ export default async function ModelPage({
                 />
                 <ScorePill
                   label="Bounded score"
-                  value={formatPct(summary.stat.boundedScore ?? summary.stat.score)}
+                  value={formatPct(
+                    summary.stat.boundedScore ?? summary.stat.score,
+                  )}
                 />
                 <ScorePill
                   label="Parse rate"
@@ -179,9 +216,7 @@ export default async function ModelPage({
                 <ScorePill
                   label="Eligibility flags"
                   value={
-                    coverage
-                      ? `${coverage.correct}/${coverage.total}`
-                      : "—"
+                    coverage ? `${coverage.correct}/${coverage.total}` : "—"
                   }
                 />
               </div>
@@ -275,7 +310,10 @@ export default async function ModelPage({
                               {" "}
                               · predicted{" "}
                               <span className="font-[family-name:var(--font-mono)]">
-                                {formatCurrency(entry.prediction, currencySymbol)}
+                                {formatCurrency(
+                                  entry.prediction,
+                                  currencySymbol,
+                                )}
                               </span>
                             </>
                           )}
@@ -298,9 +336,14 @@ export default async function ModelPage({
 
         <p className="mt-12 text-xs text-text-muted max-w-2xl leading-relaxed">
           Scores are from the frozen manuscript snapshot under the AI-alone
-          condition: one structured response per household, no tools, graded
-          against PolicyEngine reference outputs. See the{" "}
-          <Link href="/" className="underline underline-offset-2 hover:text-text">
+          condition: structured responses over the same household facts
+          (whole-scenario or in output subsets, per the serving-configuration
+          table), no tools, graded against PolicyEngine reference outputs. See
+          the{" "}
+          <Link
+            href="/"
+            className="underline underline-offset-2 hover:text-text"
+          >
             leaderboard
           </Link>{" "}
           and{" "}
@@ -311,6 +354,20 @@ export default async function ModelPage({
             paper
           </Link>{" "}
           for methodology.
+          {usAuditSummary && (
+            <>
+              {" "}The frozen US annotations cover{" "}
+              {usAuditSummary.annotatedRowCount.toLocaleString()}{" "}
+              {AUDIT_SELECTION_RULE}. That universe contains{" "}
+              {usAuditSummary.annotatedExactMissCount.toLocaleString()} of{" "}
+              {usAuditSummary.exactMissCount.toLocaleString()} exact-match misses
+              and {usAuditSummary.annotatedExactHitCount.toLocaleString()} exact
+              hits. Another{" "}
+              {usAuditSummary.unannotatedBelowFullBoundedScoreCount.toLocaleString()} rows
+              with bounded score below 100 were not selected and have no audit
+              annotation.
+            </>
+          )}
         </p>
       </div>
     </main>

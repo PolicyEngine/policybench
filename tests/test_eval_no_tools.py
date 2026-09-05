@@ -15,17 +15,22 @@ from policybench.config import (
     PRICE_OVERRIDES_PER_1M,
 )
 from policybench.eval_no_tools import (
+    REASONING_EFFORT_OVERRIDES,
     RequestWallTimeoutError,
+    SensitivityKnobError,
     _build_answer_tool,
     _build_resume_metadata,
     _combined_cost_is_estimated,
     _completion_controls,
     _enforce_explanation_value_contract,
+    _reconstruct_token_cost,
     _request_explanations_once,
     _request_timeout_seconds,
     _request_wall_timeout_seconds,
     _required_explanation_chunk_size,
+    _responses_request_kwargs,
     _run_request_with_wall_timeout,
+    _thinking_configuration,
     _write_resume_metadata,
     extract_explanations,
     extract_number,
@@ -2199,6 +2204,296 @@ def test_json_contract_explanation_repair_stays_in_json_mode(
     assert result["explanations"]["income_tax"].endswith("value = 123")
 
 
+@patch("policybench.eval_no_tools.completion")
+def test_explanation_repair_honors_the_tool_choice_escape_hatch(
+    mock_completion, mini_scenario, monkeypatch
+):
+    """A tool_choice=auto sensitivity run must not force the tool on its
+    repair calls: Fable 5.1 rejects a forced tool outright, and on other
+    Claudes a forced repair would silently drop thinking mid-scenario."""
+    message = MagicMock()
+    message.content = json.dumps(
+        {"income_tax": "Calculated from the supplied answer. value = 123"}
+    )
+    message.tool_calls = None
+    message.function_call = None
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    response.usage = litellm.Usage(
+        prompt_tokens=10, completion_tokens=5, total_tokens=15
+    )
+    mock_completion.return_value = response
+
+    _request_explanations_once(
+        mini_scenario, ["income_tax"], {"income_tax": 123.0}, "claude-opus-5"
+    )
+    forced = mock_completion.call_args.kwargs
+    assert forced["tool_choice"]["function"]["name"] == "submit_explanations"
+
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    _request_explanations_once(
+        mini_scenario, ["income_tax"], {"income_tax": 123.0}, "claude-opus-5"
+    )
+    auto = mock_completion.call_args.kwargs
+    assert auto["tool_choice"] == "auto"
+    assert auto["tools"], "the explanation tool stays declared under auto"
+
+
+def test_contract_override_declares_the_tool_on_a_json_model(
+    mini_scenario, monkeypatch
+):
+    """Fable 5.1's board row runs the JSON contract because the API rejects a
+    forced tool; its thinking sensitivity run declares the tool and leaves the
+    choice to the model, which needs both escape hatches together."""
+    from policybench.eval_no_tools import _chat_completion_request_kwargs
+
+    _, board = _chat_completion_request_kwargs(
+        mini_scenario, ["snap"], "claude-fable-5-1"
+    )
+    assert board["response_format"] == {"type": "json_object"}
+    assert "tools" not in board
+
+    monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "tool")
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    _, sensitivity = _chat_completion_request_kwargs(
+        mini_scenario, ["snap"], "claude-fable-5-1"
+    )
+    assert sensitivity["tool_choice"] == "auto"
+    assert sensitivity["tools"][0]["function"]["name"] == "submit_outputs"
+    assert "response_format" not in sensitivity
+
+
+def test_thinking_metadata_uses_the_request_builders_configuration(
+    mini_scenario, monkeypatch
+):
+    monkeypatch.setitem(REASONING_EFFORT_OVERRIDES, "gpt-5.4", "high")
+
+    thinking = _thinking_configuration("gpt-5.4")
+    _, request_kwargs = _responses_request_kwargs(
+        mini_scenario,
+        ["income_tax"],
+        "gpt-5.4",
+    )
+
+    assert thinking == {"reasoning_effort": "high"}
+    assert request_kwargs["reasoning"] == {"effort": "high"}
+
+
+def test_resume_metadata_records_the_effective_treatment(mini_scenario, monkeypatch):
+    """The sensitivity knobs change the request without changing the model id,
+    so the resume sidecar must carry the treatment or a resumed file could
+    splice rows from two conditions."""
+    from policybench.eval_no_tools import RESUME_METADATA_VERSION
+
+    base = _build_resume_metadata(
+        task="eval_no_tools_batch",
+        scenarios=[mini_scenario],
+        models={"fable": "claude-fable-5-1"},
+        programs=["income_tax"],
+        run_id=None,
+        include_explanations=True,
+    )
+    assert base["metadata_version"] == RESUME_METADATA_VERSION == 7
+    assert base["treatment"]["fable"] == {
+        "answer_contract": "json",
+        "tool_choice_mode": None,
+        "explanation_chunk_size": None,
+        "contract_override": None,
+        "max_repair_rounds": 2,
+        "initial_completion_budget_tokens": 16384,
+        "thinking": {"mode": "provider_default"},
+        "request_timeout_seconds": 600,
+    }
+
+    monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "tool")
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    sensitivity = _build_resume_metadata(
+        task="eval_no_tools_batch",
+        scenarios=[mini_scenario],
+        models={"fable": "claude-fable-5-1"},
+        programs=["income_tax"],
+        run_id=None,
+        include_explanations=True,
+    )
+    assert sensitivity["treatment"]["fable"] == {
+        "answer_contract": "tool",
+        "tool_choice_mode": "auto",
+        "explanation_chunk_size": None,
+        "contract_override": "tool",
+        "max_repair_rounds": 2,
+        "initial_completion_budget_tokens": 16384,
+        "thinking": {"mode": "provider_default"},
+        "request_timeout_seconds": 600,
+    }
+    assert sensitivity["treatment"] != base["treatment"]
+
+
+def test_resume_metadata_records_max_repair_rounds(mini_scenario, monkeypatch):
+    monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 5)
+
+    metadata = _build_resume_metadata(
+        task="eval_no_tools_batch",
+        scenarios=[mini_scenario],
+        models={"model": "test-model"},
+        programs=["income_tax"],
+        run_id=None,
+        include_explanations=True,
+    )
+
+    assert metadata["treatment"]["model"]["max_repair_rounds"] == 5
+
+
+@patch("policybench.eval_no_tools.run_single_no_tools")
+def test_run_no_tools_eval_rejects_resume_under_a_different_treatment(
+    mock_run_single_no_tools, mini_scenario, tmp_path, monkeypatch
+):
+    """A board-condition output must not be resumed under the auto knob."""
+    pd = pytest.importorskip("pandas")
+    output_path = tmp_path / "predictions.csv"
+    pd.DataFrame(
+        [
+            {
+                "model": "fable",
+                "scenario_id": "mini",
+                "variable": "income_tax",
+                "prediction": 123.0,
+                "raw_response": "123",
+                "error": None,
+            }
+        ]
+    ).to_csv(output_path, index=False)
+    _write_resume_sidecar(
+        output_path,
+        [mini_scenario],
+        models={"fable": "claude-fable-5-1"},
+        programs=["income_tax"],
+    )
+
+    monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "tool")
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    with pytest.raises(ValueError, match="treatment"):
+        run_no_tools_eval(
+            [mini_scenario],
+            models={"fable": "claude-fable-5-1"},
+            programs=["income_tax"],
+            output_path=str(output_path),
+        )
+    mock_run_single_no_tools.assert_not_called()
+
+
+def test_sensitivity_knobs_are_rejected_on_the_responses_transport(
+    mini_scenario, monkeypatch
+):
+    """The Responses builders send the forced tool only; a knobbed run on a
+    gpt-5 model must fail fast instead of being fingerprinted as auto."""
+    from policybench.eval_no_tools import _responses_request_kwargs
+
+    _responses_request_kwargs(mini_scenario, ["snap"], "gpt-5.6-sol")
+
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    with pytest.raises(SensitivityKnobError, match="Responses API"):
+        _responses_request_kwargs(mini_scenario, ["snap"], "gpt-5.6-sol")
+
+    monkeypatch.delenv("POLICYBENCH_TOOL_CHOICE")
+    monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "json")
+    with pytest.raises(SensitivityKnobError, match="POLICYBENCH_CONTRACT_OVERRIDE"):
+        _responses_request_kwargs(mini_scenario, ["snap"], "gpt-5.6-sol")
+
+
+@pytest.mark.parametrize(
+    "runner",
+    [run_no_tools_eval, run_no_tools_single_output_eval],
+)
+def test_eval_entrypoints_reject_responses_sensitivity_before_writing(
+    runner, mini_scenario, monkeypatch, tmp_path
+):
+    output = tmp_path / f"{runner.__name__}.csv"
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+
+    with patch("policybench.eval_no_tools.run_single_no_tools") as request:
+        with pytest.raises(SensitivityKnobError, match="Responses API"):
+            runner(
+                [mini_scenario],
+                models={"gpt": "gpt-5.6-sol"},
+                programs=["income_tax"],
+                output_path=str(output),
+            )
+
+    request.assert_not_called()
+    assert not output.exists()
+    assert not output.with_suffix(".csv.meta.json").exists()
+
+
+def test_eval_no_tools_cli_rejects_responses_sensitivity_without_predictions(
+    mini_scenario, monkeypatch, tmp_path
+):
+    from policybench.cli import main
+
+    output = tmp_path / "predictions.csv"
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    monkeypatch.setattr(
+        "policybench.cli._load_eval_scenarios", lambda _args: [mini_scenario]
+    )
+    monkeypatch.setattr("policybench.cache.enable_cache", lambda: None)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "policybench",
+            "eval-no-tools",
+            "--num-scenarios",
+            "1",
+            "--model",
+            "gpt-5.6-sol",
+            "--program",
+            "snap",
+            "--output",
+            str(output),
+        ],
+    )
+
+    with patch("policybench.eval_no_tools.responses") as request:
+        with pytest.raises(SystemExit, match="Responses API"):
+            main()
+
+    request.assert_not_called()
+    assert not output.exists()
+    assert not output.with_suffix(".csv.meta.json").exists()
+
+
+@patch("policybench.eval_no_tools.responses")
+def test_explanation_repair_rejects_knobs_on_the_responses_transport(
+    mock_responses, mini_scenario, monkeypatch
+):
+    monkeypatch.setenv("POLICYBENCH_TOOL_CHOICE", "auto")
+    with pytest.raises(ValueError, match="Responses API"):
+        _request_explanations_once(
+            mini_scenario, ["income_tax"], {"income_tax": 123.0}, "gpt-5.6-sol"
+        )
+    mock_responses.assert_not_called()
+
+
+@pytest.mark.parametrize("model_id", ["claude-fable-5", "claude-fable-5-1"])
+def test_claude_fable_line_resolves_without_remote_cost_map(model_id):
+    from litellm import get_llm_provider
+
+    display_id = next(
+        name for name, configured in MODELS.items() if configured == model_id
+    )
+    prices = PRICE_OVERRIDES_PER_1M[display_id]
+    assert model_id in litellm.model_cost
+    _, provider, _, _ = get_llm_provider(model_id)
+    assert provider == "anthropic"
+    entry = litellm.model_cost[model_id]
+    assert entry["input_cost_per_token"] == pytest.approx(prices["input"] / 1_000_000)
+    assert entry["output_cost_per_token"] == pytest.approx(prices["output"] / 1_000_000)
+    assert entry["cache_read_input_token_cost"] == pytest.approx(
+        prices["cache_read"] / 1_000_000
+    )
+    assert entry["cache_creation_input_token_cost"] == pytest.approx(
+        prices["cache_write"] / 1_000_000
+    )
+
+
 @pytest.mark.parametrize("model_id", sorted(GPT_56_MODELS))
 def test_gpt_56_provider_resolves_without_remote_cost_map(model_id):
     from litellm import get_llm_provider
@@ -2329,7 +2624,47 @@ def test_claude_fable_5_is_a_public_default():
     assert PRICE_OVERRIDES_PER_1M["claude-fable-5"] == {
         "input": 10.0,
         "output": 50.0,
+        "cache_read": 1.0,
+        "cache_write": 12.5,
     }
+
+
+@pytest.mark.parametrize(
+    ("cached_prompt_tokens", "cache_write_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0.25),
+        (0, 1_000_000, 12.5),
+    ],
+)
+def test_claude_fable_5_1_override_reconstructs_cache_costs(
+    cached_prompt_tokens,
+    cache_write_prompt_tokens,
+    expected,
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="claude-fable-5.1",
+        model_id="claude-fable-5-1",
+        prompt_tokens=1_000_000,
+        completion_tokens=0,
+        cached_prompt_tokens=cached_prompt_tokens,
+        cache_write_prompt_tokens=cache_write_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+def test_override_without_cache_rates_keeps_inclusive_prompt_pricing():
+    reconstructed = _reconstruct_token_cost(
+        model_name="deepseek-v4-pro",
+        model_id="deepseek/deepseek-v4-pro",
+        prompt_tokens=1_000_000,
+        completion_tokens=0,
+        cached_prompt_tokens=1_000_000,
+    )
+
+    assert reconstructed.usd == pytest.approx(0.435)
+    assert reconstructed.is_estimated is False
 
 
 def test_claude_fable_5_provider_resolves_without_remote_cost_map():

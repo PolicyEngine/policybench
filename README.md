@@ -60,6 +60,15 @@ pip install -e ".[dev]"
 pytest
 ```
 
+Verify the dashboard with its bundled data prepared automatically:
+
+```bash
+cd app
+bun run lint
+bun run test
+bun run build
+```
+
 ## Benchmark run
 
 For paid/public runs, follow the concrete

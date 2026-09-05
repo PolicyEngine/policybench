@@ -38,7 +38,14 @@ def fold_board(
     scoring_source: Path,
     out_dir: Path,
     export: bool = True,
+    reference_digest: str | None = None,
 ) -> dict:
+    """Fold new model predictions onto a board and stage its export.
+
+    ``reference_digest`` pins the reference CSV when the scoring source's
+    sidecar predates ``reference_csv_sha256`` (the frozen v1.1 references):
+    pass the committed snapshot's digest for those.
+    """
     base = pd.read_csv(base_predictions, low_memory=False)
     expected_rows = _rows_per_model(base)
 
@@ -84,16 +91,37 @@ def fold_board(
     us_dir = out_dir / "us"
     us_dir.mkdir(parents=True, exist_ok=True)
     combined.to_csv(us_dir / "predictions.csv", index=False)
-    for name in ("reference_outputs.csv", "scenarios.csv", "scenarios.csv.meta.json"):
+    # The reference sidecar records which policyengine-us generated the
+    # references; the exporter reads it for the payload's provenance.
+    reference_files = (
+        "reference_outputs.csv",
+        "reference_outputs.csv.meta.json",
+        "scenarios.csv",
+        "scenarios.csv.meta.json",
+    )
+    for name in reference_files:
+        (us_dir / name).unlink(missing_ok=True)
+    for name in reference_files:
         source = Path(scoring_source) / name
+        destination = us_dir / name
         if source.exists():
-            (us_dir / name).write_bytes(source.read_bytes())
+            destination.write_bytes(source.read_bytes())
 
     summary = None
     if export:
-        from policybench.full_run_export import export_country
+        from policybench.full_run_export import (
+            export_country,
+            reference_policyengine_bundles,
+        )
 
-        export_country(us_dir)
+        reference_policyengine_bundles(
+            us_dir / "reference_outputs.csv",
+            "us",
+            require_digest=True,
+            manifest_reference_sha256=reference_digest,
+        )
+
+        export_country(us_dir, reference_digest=reference_digest)
         summary_path = us_dir / "analysis" / "summary_by_model.csv"
         if summary_path.exists():
             summary = pd.read_csv(summary_path)

@@ -374,7 +374,7 @@ uv run pytest -q
 cd app
 bun install --frozen-lockfile
 bun run lint
-bun test tests
+bun run test
 bun run build
 ```
 

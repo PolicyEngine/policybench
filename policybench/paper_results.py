@@ -16,9 +16,12 @@ Sources, in order of authority:
   dashboard payload: the frozen model roster, ``modelStats`` exact-match and
   within-1% scores, per-output ``programStats`` and ``failureModes``
   breakdowns, household and scored-output counts.
+* ``paper/snapshot/20260501/model_serving_config.json`` -- the per-model
+  serving treatments, their evidence kinds, and the registry commit.
 * the frozen audit annotations dir (``manifest['audit_annotation_artifacts']``)
-  -- the count of wrong rows, their adjudicated failure sources, and the fact
-  that zero rows are reference-suspect (no PolicyEngine bugs found).
+  -- the rows selected by the legacy threshold score, their adjudicated
+  failure sources, and the fact that zero rows are reference-suspect (no
+  PolicyEngine bugs found).
 
 The qmd imports ``r`` once in an ``#| echo: false`` setup cell and then every
 inline number is a ```{python} r.field``` placeholder, so a future
@@ -33,6 +36,8 @@ from collections import Counter
 from functools import cached_property
 from pathlib import Path
 
+import pandas as pd
+
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
@@ -43,6 +48,7 @@ MODEL_DISPLAY_NAMES = {
     "gpt-5.6-sol": "GPT-5.6 Sol",
     "gpt-5.6-terra": "GPT-5.6 Terra",
     "gpt-5.6-luna": "GPT-5.6 Luna",
+    "claude-fable-5.1": "Claude Fable 5.1",
     "claude-fable-5": "Claude Fable 5",
     "claude-sonnet-5": "Claude Sonnet 5",
     "ox-alpha": "Ox Alpha (preview)",
@@ -132,6 +138,25 @@ def _ordinal_join(items: list[str]) -> str:
     return f"{', '.join(items[:-1])}, and {items[-1]}"
 
 
+def _sentence_count(value: int) -> str:
+    """Format a small count as a word when it opens a sentence."""
+    words = (
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+    )
+    rendered = words[value] if 0 <= value < len(words) else f"{value:,}"
+    return rendered.capitalize()
+
+
 class PaperResults:
     """Lazy accessors over the frozen snapshot, manifest, and audit.
 
@@ -153,6 +178,10 @@ class PaperResults:
     def dashboard(self) -> dict:
         run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
         return json.loads((run_dir / "data.json").read_text())
+
+    @cached_property
+    def serving_config(self) -> dict:
+        return json.loads((SNAPSHOT_DIR / "model_serving_config.json").read_text())
 
     @cached_property
     def reference_meta(self) -> dict:
@@ -193,6 +222,60 @@ class PaperResults:
         path = annotation_dir / "us_audit_row_annotations.csv"
         with path.open(newline="") as handle:
             return list(csv.DictReader(handle))
+
+    @cached_property
+    def _scenario_prediction_rows(self) -> list[dict]:
+        """Flatten the frozen dashboard's model-scenario-output rows."""
+        rows = []
+        for scenario_id, variable_map in self.dashboard["scenarioPredictions"].items():
+            for variable, model_map in variable_map.items():
+                for model, result in model_map.items():
+                    rows.append(
+                        {
+                            "model": model,
+                            "scenario_id": scenario_id,
+                            "variable": variable,
+                            **result,
+                        }
+                    )
+        return rows
+
+    @staticmethod
+    def _prediction_row_key(row: dict) -> tuple[str, str, str]:
+        return row["model"], row["scenario_id"], row["variable"]
+
+    @cached_property
+    def _audit_row_keys(self) -> frozenset[tuple[str, str, str]]:
+        keys = frozenset(self._prediction_row_key(row) for row in self._audit_rows)
+        if len(keys) != len(self._audit_rows):
+            raise ValueError("Frozen audit annotations contain duplicate row keys")
+        return keys
+
+    @cached_property
+    def _legacy_threshold_row_keys(self) -> frozenset[tuple[str, str, str]]:
+        return frozenset(
+            self._prediction_row_key(row)
+            for row in self._scenario_prediction_rows
+            if row["thresholdScore"] < 100
+        )
+
+    @cached_property
+    def _exact_match_miss_row_keys(self) -> frozenset[tuple[str, str, str]]:
+        return frozenset(
+            self._prediction_row_key(row)
+            for row in self._scenario_prediction_rows
+            if row["exact"] < 100
+        )
+
+    @cached_property
+    def _below_full_bounded_score_row_keys(
+        self,
+    ) -> frozenset[tuple[str, str, str]]:
+        return frozenset(
+            self._prediction_row_key(row)
+            for row in self._scenario_prediction_rows
+            if row["boundedScore"] < 100
+        )
 
     @cached_property
     def _stats_by_model(self) -> dict[str, dict]:
@@ -244,6 +327,123 @@ class PaperResults:
     @property
     def n_models_fmt(self) -> str:
         return str(self.n_models)
+
+    @property
+    def serving_evidence_pinned_counts(self) -> dict[str, int]:
+        """Count usable fingerprint evidence separately for each serving field."""
+        fingerprint_keys = {
+            "answer contract": "answer_contract",
+            "request shape": "chunk_size",
+            "tool choice": "tool_choice_mode",
+            "completion ceiling": "completion_budget_ceiling",
+        }
+        counts = dict.fromkeys(
+            self.serving_config["evidence_field_labels"]["run_state"], 0
+        )
+        for row in self.serving_config["models"].values():
+            evidence = row["evidence"]
+            if evidence["kind"] != "run_state":
+                continue
+            fingerprint = evidence["treatment_fingerprint"]
+            for label in counts:
+                key = fingerprint_keys[label]
+                if key not in evidence["fields"] or key not in fingerprint:
+                    continue
+                if label == "tool choice" and "legacy_tool_choice_label" in evidence:
+                    continue
+                counts[label] += 1
+        return counts
+
+    @property
+    def serving_evidence_caption(self) -> str:
+        field_labels = self.serving_config["evidence_field_labels"]
+        fields_by_count: dict[int, list[str]] = {}
+        for label, count in self.serving_evidence_pinned_counts.items():
+            fields_by_count.setdefault(count, []).append(label)
+        fingerprint_counts = "; ".join(
+            f"{_ordinal_join(labels)} for {_sentence_count(count).lower()} rows"
+            for count, labels in fields_by_count.items()
+        )
+        registry_fields = _ordinal_join(field_labels["registry_for_run_state"])
+        registry_count = sum(
+            row["evidence"]["kind"] == "registry"
+            for row in self.serving_config["models"].values()
+        )
+        return (
+            f"Supervised-run fingerprints pin {fingerprint_counts}. "
+            f"{registry_fields.capitalize()} for every row, and all fields for "
+            f"the other {registry_count} rows, are the harness registry as frozen "
+            "in the snapshot's serving-configuration file."
+        )
+
+    @cached_property
+    def federal_state_joint_accuracy(self) -> pd.DataFrame:
+        """Frozen federal/state credit marginals and their household-level joint."""
+
+        def hit_within_10(truth: float, pred: float | None) -> bool:
+            if pred is None or pd.isna(pred):
+                return False
+            if truth == 0:
+                return abs(pred) <= 1.0
+            return abs(pred - truth) / abs(truth) <= 0.10
+
+        rows = []
+        for variables in self.dashboard["scenarioPredictions"].values():
+            federal = variables.get("federal_refundable_credits", {})
+            state = variables.get("state_refundable_credits", {})
+            for model in federal:
+                if model not in state:
+                    continue
+                fed_hit = hit_within_10(
+                    federal[model]["groundTruth"], federal[model].get("prediction")
+                )
+                state_hit = hit_within_10(
+                    state[model]["groundTruth"], state[model].get("prediction")
+                )
+                rows.append(
+                    {
+                        "model": model,
+                        "fed_hit": fed_hit,
+                        "state_hit": state_hit,
+                        "both_hit": fed_hit and state_hit,
+                    }
+                )
+        summary = (
+            pd.DataFrame(rows)
+            .groupby("model")[["fed_hit", "state_hit", "both_hit"]]
+            .mean()
+            .reset_index()
+            .sort_values("both_hit", ascending=False)
+        )
+        for column in ("fed_hit", "state_hit", "both_hit"):
+            summary[column] = (summary[column] * 100).round(1)
+        summary["model"] = summary["model"].map(self.model_name)
+        summary.columns = [
+            "Model",
+            "Federal within 10%",
+            "State within 10%",
+            "Joint within 10%",
+        ]
+        return summary
+
+    @property
+    def joint_credit_accuracy_exceptions(self) -> list[str]:
+        """Models whose joint credit hit rate equals at least one marginal."""
+        table = self.federal_state_joint_accuracy
+        exceptions = (table["Joint within 10%"] == table["Federal within 10%"]) | (
+            table["Joint within 10%"] == table["State within 10%"]
+        )
+        return table.loc[exceptions, "Model"].tolist()
+
+    @property
+    def joint_credit_accuracy_note(self) -> str:
+        note = (
+            "The joint hit rate can be no higher than either marginal and is "
+            "strictly lower than both for every model"
+        )
+        if self.joint_credit_accuracy_exceptions:
+            note += " except " + _ordinal_join(self.joint_credit_accuracy_exceptions)
+        return note + "."
 
     @property
     def n_households(self) -> int:
@@ -315,6 +515,68 @@ class PaperResults:
             for model, count in self.parse_contract_failure_counts.most_common()
         ]
         return _ordinal_join(items)
+
+    @cached_property
+    def explanation_missing_counts(self) -> Counter:
+        """Frozen rows with a parsed numeric value but no explanation, by model."""
+        counts: Counter = Counter()
+        for variable_map in self.dashboard["scenarioPredictions"].values():
+            for model_map in variable_map.values():
+                for model, row in model_map.items():
+                    if row.get("prediction") is None:
+                        continue
+                    if not str(row.get("explanation") or "").strip():
+                        counts[model] += 1
+        return counts
+
+    @property
+    def explanation_missing_count(self) -> int:
+        return sum(self.explanation_missing_counts.values())
+
+    @property
+    def explanation_missing_count_fmt(self) -> str:
+        return f"{self.explanation_missing_count:,}"
+
+    @property
+    def explanation_missing_breakdown_fmt(self) -> str:
+        items = [
+            f"{self.model_name(model)} ({count:,})"
+            for model, count in self.explanation_missing_counts.most_common()
+        ]
+        return _ordinal_join(items)
+
+    @property
+    def contract_violation_count_fmt(self) -> str:
+        """Rows short of the numeric-plus-explanation contract, either way."""
+        return f"{self.parse_contract_failure_count + self.explanation_missing_count:,}"
+
+    @cached_property
+    def blank_raw_response_counts(self) -> Counter:
+        """Frozen prediction rows whose raw_response is empty, by model.
+
+        Rows served through the Anthropic batch adapter carry no raw payload,
+        and some parse failures never captured one; the manuscript states the
+        preservation rule with these exceptions rather than as absolute.
+        """
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        frame = pd.read_csv(
+            run_dir / "predictions.csv.gz", usecols=["model", "raw_response"]
+        )
+        blank = frame["raw_response"].isna() | (
+            frame["raw_response"].astype(str).str.strip() == ""
+        )
+        return Counter(frame.loc[blank, "model"].value_counts().to_dict())
+
+    @property
+    def blank_raw_response_note(self) -> str:
+        """Prose clause naming the rows without a retained raw response."""
+        items = [
+            f"{self.model_name(model)} ({count:,} rows)"
+            for model, count in self.blank_raw_response_counts.most_common()
+        ]
+        if not items:
+            return "every row carries its raw provider response"
+        return "no raw payload is retained for " + _ordinal_join(items)
 
     # ----- populace dataset construction ---------------------------------
     @property
@@ -569,12 +831,63 @@ class PaperResults:
 
     # ----- audit ---------------------------------------------------------
     @property
-    def wrong_row_count(self) -> int:
+    def audit_annotated_row_count(self) -> int:
         return len(self._audit_rows)
 
     @property
+    def audit_annotated_row_count_fmt(self) -> str:
+        return f"{self.audit_annotated_row_count:,}"
+
+    @property
+    def audit_selection_rule(self) -> str:
+        """Describe the rule after verifying it against the frozen row sets."""
+        if self._audit_row_keys != self._legacy_threshold_row_keys:
+            raise ValueError(
+                "Frozen annotations do not equal the legacy-threshold audit universe"
+            )
+        return "rows whose legacy threshold score is below 1"
+
+    @property
+    def exact_match_miss_count(self) -> int:
+        return len(self._exact_match_miss_row_keys)
+
+    @property
+    def exact_match_miss_count_fmt(self) -> str:
+        return f"{self.exact_match_miss_count:,}"
+
+    @property
+    def annotated_exact_miss_count(self) -> int:
+        return len(self._audit_row_keys & self._exact_match_miss_row_keys)
+
+    @property
+    def annotated_exact_miss_count_fmt(self) -> str:
+        return f"{self.annotated_exact_miss_count:,}"
+
+    @property
+    def annotated_exact_hit_count(self) -> int:
+        return len(self._audit_row_keys - self._exact_match_miss_row_keys)
+
+    @property
+    def annotated_exact_hit_count_fmt(self) -> str:
+        return f"{self.annotated_exact_hit_count:,}"
+
+    @property
+    def unannotated_below_full_bounded_score_count(self) -> int:
+        return len(self._below_full_bounded_score_row_keys - self._audit_row_keys)
+
+    @property
+    def unannotated_below_full_bounded_score_count_fmt(self) -> str:
+        return f"{self.unannotated_below_full_bounded_score_count:,}"
+
+    @property
+    def wrong_row_count(self) -> int:
+        """Backward-compatible alias for the legacy-threshold annotation count."""
+        return self.audit_annotated_row_count
+
+    @property
     def wrong_row_count_fmt(self) -> str:
-        return f"{self.wrong_row_count:,}"
+        """Backward-compatible formatted legacy-threshold annotation count."""
+        return self.audit_annotated_row_count_fmt
 
     @cached_property
     def _audit_source_counts(self) -> Counter:
@@ -588,7 +901,7 @@ class PaperResults:
 
     @property
     def audit_llm_error_only(self) -> bool:
-        """True iff every audited wrong row is sourced to ``llm_error``."""
+        """True iff each annotated row is sourced to ``llm_error``."""
         counts = self._audit_source_counts
         return set(counts) == {"llm_error"}
 
@@ -598,12 +911,12 @@ class PaperResults:
 
     @property
     def audit_reference_bug_count(self) -> int:
-        """Number of audited wrong rows flagged as reference-suspect (true)."""
+        """Number of annotated rows flagged as reference-suspect (true)."""
         return self._audit_reference_suspect_counts.get("true", 0)
 
     @property
     def audit_zero_reference_bugs(self) -> bool:
-        """True iff no audited wrong row is flagged reference-suspect."""
+        """True iff no annotated row is flagged reference-suspect."""
         return self.audit_reference_bug_count == 0
 
     @property
@@ -638,9 +951,12 @@ r = PaperResults()
 
 # Public release date per model: the first day any member of the public could
 # use it (paid tiers count; trusted-tester previews do not). Compiled
-# 2026-08-22 from vendor announcements and contemporaneous press; per-model
+# 2026-09-01 from vendor announcements and contemporaneous press; per-model
 # sources follow each entry.
 MODEL_RELEASE_DATES: dict[str, str] = {
+    # platform.claude.com/docs/en/models/fable-5-1/overview ("Released
+    # September 1, 2026")
+    "claude-fable-5.1": "2026-09-01",
     # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
     "claude-fable-5": "2026-06-09",
     # announced and available 2026-07-24 (fortune.com, bloomberg.com,

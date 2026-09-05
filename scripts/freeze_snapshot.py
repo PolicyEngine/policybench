@@ -20,7 +20,8 @@ What it freezes (all paths relative to the repo root):
   ``impact_summary_by_model.csv``).
 * ``paper/snapshot/<dir>/us_*.csv`` — committed snapshot artifacts.
 * ``paper/snapshot/<dir>/model_serving_config.json`` — the roster's serving
-  treatments, captured from the current registry and model cards at freeze.
+  treatments, using supervised-run fingerprints where available and the
+  current registry otherwise.
 * ``annotations/<run>/`` — frozen developer audit annotations the snapshot
   tests read: ``us_audit_row_annotations.csv`` (row-level),
   ``us_case_notes.csv`` (case-level), and
@@ -39,54 +40,81 @@ import gzip
 import hashlib
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from policybench.analysis import score_single_prediction
+from policybench.analysis import render_markdown_report, score_single_prediction
+from policybench.full_run_export import reference_policyengine_bundles
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the August 2026 US-only populace refresh (32-model board,
-# corrected v1.1 references).
+# Configuration for the September 2026 US-only populace refresh (33-model
+# board, corrected v1.1 references).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
-SNAPSHOT_DATE = "2026-08-22"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-08-22"
+SNAPSHOT_DATE = "2026-09-01"
+MODEL_RESPONSE_DATE = "2026-06-12 to 2026-09-01"
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
-SOURCE_RUN = (
-    ROOT / "../../policybench/results/local/board32/publish" / RUN_LABEL
-).resolve()
+# Completed runs live under the main clone's gitignored results/local. A
+# refreeze may run from that clone or from a worktree beside it.
+_MAIN_CLONE = next(
+    (
+        candidate
+        for candidate in (ROOT, (ROOT / "../../policybench").resolve())
+        if (candidate / "results" / "local").is_dir()
+    ),
+    ROOT,
+)
+SOURCE_RUN = (_MAIN_CLONE / "results/local/fable51/publish" / RUN_LABEL).resolve()
 SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
-# is the exact payload uploaded as dashboard-data-20260822.
-PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board32.json"
+# is the exact payload uploaded as dashboard-data-20260901c. Two earlier tags
+# are superseded: 20260901 carried case-level labels from stale case notes,
+# and 20260901b carried the exporting runtime's policyengine-us version as
+# the reference provenance.
+PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board33.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
-    "tag": "dashboard-data-20260822",
+    "tag": "dashboard-data-20260901c",
     "asset": "dashboard-data.json",
     "url": (
         "https://github.com/PolicyEngine/policybench/releases/download/"
-        "dashboard-data-20260822/dashboard-data.json"
+        "dashboard-data-20260901c/dashboard-data.json"
     ),
-    "sha256": "b883ec669d510ea29c9c18f18c30030c5bbd29f770bcd90d257779940929a895",
-    "bytes": 85_042_876,
+    "sha256": "ee342fc3a756d3523bb742c09ab08403c1a6b206b393e0c76b499b47f1b34736",
+    "bytes": 87_410_551,
 }
-
-# The publish bundle omits this immutable reference-generation sidecar. Pair
-# the original completed-run copy only after checking that its reference CSV
-# is byte-identical to the publish bundle's CSV.
-ORIGINAL_US_RUN = (ROOT / "../../policybench/results" / RUN_LABEL / "us").resolve()
-REFERENCE_META_SOURCE = ORIGINAL_US_RUN / "reference_outputs.csv.meta.json"
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
 RUN_DEST = SNAPSHOT_DIR / "runs" / RUN_LABEL
 ANNOTATIONS_DEST = ROOT / "annotations" / RUN_LABEL
+# The publish bundle omits this immutable reference-generation sidecar. Reuse
+# the committed copy after checking the manifest's CSV and sidecar pins.
+REFERENCE_META_SOURCE = RUN_DEST / "reference_outputs.csv.meta.json"
+
+# Supervised-run state is the strongest available evidence for the treatment a
+# board row actually received. Older supervisor state files predate treatment
+# fingerprints; those rows honestly remain registry-backed until rerun.
+RUN_STATE_EVIDENCE = {
+    "claude-fable-5.1": "results/local/fable51/run/run_state.json",
+    "kimi-k3": "results/local/kimik3/run/run_state.json",
+    "qwen3.8-max": "results/local/qwen38/run/run_state.json",
+    "ox-alpha": "results/local/oxalpha/run/run_state.json",
+    "inkling": "results/local/inkling/run/run_state.json",
+    "grok-4.5": "results/local/grok45/run/run_state.json",
+    "grok-4.6": "results/local/grok46/run/run_state.json",
+    "gemini-3.6-flash": "results/local/gemini36flash/run/run_state.json",
+    "gemini-3.7-flash": "results/local/gemini37/run/run_state.json",
+    "claude-opus-5": "results/local/opus5/run/run_state.json",
+    "kimi-k2.6": "results/local/kimi_supervised/run_state.json",
+}
 
 # Legacy household-equal impact metric (removed from the package in #58 but
 # still frozen for parity with prior snapshots).
@@ -125,6 +153,218 @@ def sha256_bytes(data: bytes) -> str:
 
 def sha256_file(path: Path) -> str:
     return sha256_bytes(path.read_bytes())
+
+
+SUPPORTED_TREATMENT_FINGERPRINT_VERSIONS = (1, 2, 3)
+LEGACY_TREATMENT_FINGERPRINT_FIELDS = {
+    "model_id",
+    "answer_contract",
+    "tool_choice_mode",
+    "chunk_size",
+    "prompt_contract_version",
+    "completion_budget_ceiling",
+}
+V2_TREATMENT_FINGERPRINT_FIELDS = {
+    "fingerprint_version",
+    "initial_completion_budget_tokens",
+    "thinking",
+    "request_timeout_seconds",
+}
+V3_TREATMENT_FINGERPRINT_FIELDS = {"max_repair_rounds"}
+
+
+def _validate_treatment_fingerprint(
+    fingerprint: dict,
+    expected: dict,
+    *,
+    model: str,
+    run_state_path: Path,
+) -> tuple[int, bool]:
+    fingerprint_version = fingerprint.get("fingerprint_version", 1)
+    if fingerprint_version not in SUPPORTED_TREATMENT_FINGERPRINT_VERSIONS:
+        raise SystemExit(
+            f"Unsupported treatment fingerprint version for {model} "
+            f"in {run_state_path}: {fingerprint_version!r}"
+        )
+
+    required_fields = set(LEGACY_TREATMENT_FINGERPRINT_FIELDS)
+    if fingerprint_version >= 2:
+        required_fields.update(V2_TREATMENT_FINGERPRINT_FIELDS)
+    if fingerprint_version >= 3:
+        required_fields.update(V3_TREATMENT_FINGERPRINT_FIELDS)
+    missing_fields = required_fields - set(fingerprint)
+    if missing_fields:
+        raise SystemExit(
+            f"Incomplete treatment fingerprint for {model} in {run_state_path}: "
+            f"missing {sorted(missing_fields)}"
+        )
+
+    comparable_fields = set(fingerprint) & set(expected)
+    actual = {key: fingerprint.get(key) for key in comparable_fields}
+    legacy_tool_choice = (
+        fingerprint_version == 1
+        and expected["answer_contract"] == "json"
+        and actual.get("tool_choice_mode") == "forced"
+        and expected["tool_choice_mode"] is None
+    )
+    if legacy_tool_choice:
+        actual["tool_choice_mode"] = None
+    disagreements = {
+        key: (actual[key], expected_value)
+        for key, expected_value in expected.items()
+        if key in comparable_fields
+        if actual[key] != expected_value
+    }
+    if disagreements:
+        raise SystemExit(
+            f"Run-state treatment disagrees with registry for {model}: {disagreements}"
+        )
+    return fingerprint_version, legacy_tool_choice
+
+
+PREDICTION_EVIDENCE_COLUMNS = (
+    "scenario_id",
+    "variable",
+    "prediction",
+    "explanation",
+    "raw_response",
+    "provider_resolved_model",
+    "prompt_tokens",
+    "completion_tokens",
+    "error",
+)
+PREDICTION_EVIDENCE_NUMERIC_COLUMNS = {
+    "prediction",
+    "prompt_tokens",
+    "completion_tokens",
+}
+
+
+def _canonical_prediction_value(value: object, column: str) -> object:
+    if pd.isna(value):
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+    if column in PREDICTION_EVIDENCE_NUMERIC_COLUMNS:
+        number = float(pd.to_numeric(value, errors="raise"))
+        if column != "prediction" and number.is_integer():
+            return int(number)
+        return number
+    return str(value).strip()
+
+
+def _model_prediction_rows(frame: pd.DataFrame, model: str) -> list[tuple]:
+    columns = list(PREDICTION_EVIDENCE_COLUMNS)
+    missing_columns = set(["model", *columns]) - set(frame.columns)
+    if missing_columns:
+        raise ValueError(f"missing columns {sorted(missing_columns)}")
+    selected = frame.loc[frame["model"] == model, columns]
+    rows = [
+        tuple(
+            _canonical_prediction_value(value, column)
+            for column, value in zip(columns, row, strict=True)
+        )
+        for row in selected.itertuples(index=False, name=None)
+    ]
+    return sorted(
+        rows,
+        key=lambda row: json.dumps(
+            row,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+    )
+
+
+def _model_prediction_rows_sha256(frame: pd.DataFrame, model: str) -> str:
+    rows = _model_prediction_rows(frame, model)
+    canonical = json.dumps(
+        rows,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    ).encode()
+    return sha256_bytes(canonical)
+
+
+def _prediction_rows_match(
+    source_predictions: pd.DataFrame,
+    frozen_predictions: pd.DataFrame,
+    model: str,
+) -> bool:
+    return _model_prediction_rows_sha256(
+        source_predictions,
+        model,
+    ) == _model_prediction_rows_sha256(frozen_predictions, model)
+
+
+def _run_state_prediction_evidence(
+    run_state_path: Path,
+    frozen_predictions: pd.DataFrame,
+    model: str,
+) -> dict:
+    source_path = run_state_path.with_name("predictions.csv")
+    compared_columns = list(PREDICTION_EVIDENCE_COLUMNS)
+    frozen_rows_sha256 = _model_prediction_rows_sha256(frozen_predictions, model)
+    if not source_path.is_file():
+        return {
+            "compared_columns": compared_columns,
+            "frozen_rows_sha256": frozen_rows_sha256,
+            "kind": "registry",
+            "source_predictions_sha256": None,
+            "source_rows_sha256": None,
+            "rows_match": False,
+            "note": (
+                "Source predictions.csv is missing beside run_state.json; "
+                "serving fields fall back to the registry."
+            ),
+        }
+
+    source_sha256 = sha256_file(source_path)
+    try:
+        source_predictions = pd.read_csv(source_path, low_memory=False)
+        source_rows_sha256 = _model_prediction_rows_sha256(
+            source_predictions,
+            model,
+        )
+        rows_match = source_rows_sha256 == frozen_rows_sha256
+    except (OSError, ValueError, TypeError) as error:
+        return {
+            "compared_columns": compared_columns,
+            "frozen_rows_sha256": frozen_rows_sha256,
+            "kind": "registry",
+            "source_predictions_sha256": source_sha256,
+            "source_rows_sha256": None,
+            "rows_match": False,
+            "note": (
+                "Source predictions.csv could not be compared with the frozen "
+                f"rows ({type(error).__name__}); serving fields fall back to "
+                "the registry."
+            ),
+        }
+    if not rows_match:
+        return {
+            "compared_columns": compared_columns,
+            "frozen_rows_sha256": frozen_rows_sha256,
+            "kind": "registry",
+            "source_predictions_sha256": source_sha256,
+            "source_rows_sha256": source_rows_sha256,
+            "rows_match": False,
+            "note": (
+                "Source predictions.csv rows do not match the frozen model rows; "
+                "serving fields fall back to the registry."
+            ),
+        }
+    return {
+        "compared_columns": compared_columns,
+        "frozen_rows_sha256": frozen_rows_sha256,
+        "kind": "run_state",
+        "source_predictions_sha256": source_sha256,
+        "source_rows_sha256": source_rows_sha256,
+        "rows_match": True,
+    }
 
 
 def copy_exact(src: Path, dst: Path) -> None:
@@ -278,15 +518,19 @@ def regenerate_analysis(dest_dir: Path) -> None:
             "policybench.cli",
             "analyze",
             "-g",
-            str(SOURCE_US / "reference_outputs.csv"),
+            str(RUN_DEST / "reference_outputs.csv"),
             "-p",
-            str(SOURCE_US / "predictions.csv"),
+            str(RUN_DEST / "predictions.csv.gz"),
             "-s",
-            str(SOURCE_US / "scenarios.csv"),
+            str(RUN_DEST / "scenarios.csv"),
             "-o",
             str(dest_dir),
             "--app-data-output",
             str(throwaway),
+            # The staged sidecar predates reference_csv_sha256; the analyze CLI
+            # verifies the staged CSV against the same pin the freeze validated.
+            "--reference-digest",
+            sha256_file(RUN_DEST / "reference_outputs.csv"),
         ],
         cwd=ROOT,
         check=True,
@@ -294,8 +538,33 @@ def regenerate_analysis(dest_dir: Path) -> None:
     )
     throwaway.unlink(missing_ok=True)
 
-    ground_truth = pd.read_csv(SOURCE_US / "reference_outputs.csv")
-    predictions = pd.read_csv(SOURCE_US / "predictions.csv")
+    report_tables = {
+        key: pd.read_csv(dest_dir / filename)
+        for key, filename in {
+            "metrics": "metrics.csv",
+            "model_summary": "summary_by_model.csv",
+            "variable_summary": "summary_by_variable.csv",
+            "usage_summary": "usage_summary.csv",
+        }.items()
+    }
+    report_tables["bounded_summary"] = report_tables["model_summary"][
+        ["model", "bounded_score", "amount_accuracy", "participation_accuracy"]
+    ].sort_values("model")
+    country_payload = json.loads((RUN_DEST / "data.json").read_text())
+    published_model_costs = {
+        row["model"]: row["costUsd"]
+        for row in country_payload["modelStats"]
+        if row["condition"] == "no_tools"
+    }
+    (dest_dir / "report.md").write_text(
+        render_markdown_report(
+            report_tables, published_model_costs=published_model_costs
+        ),
+        encoding="utf-8",
+    )
+
+    ground_truth = pd.read_csv(RUN_DEST / "reference_outputs.csv")
+    predictions = pd.read_csv(RUN_DEST / "predictions.csv.gz")
     impact = household_impact_summary_by_model(ground_truth, predictions)
     impact.to_csv(dest_dir / "impact_summary_by_model.csv", index=False)
 
@@ -313,11 +582,26 @@ def freeze_run() -> dict[str, str]:
         )
 
     publish_reference = SOURCE_US / "reference_outputs.csv"
-    original_reference = ORIGINAL_US_RUN / "reference_outputs.csv"
-    if sha256_file(publish_reference) != sha256_file(original_reference):
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    reference_pins = manifest["source_run_artifacts"][RUN_LABEL]["files"]
+    reference_digest = reference_pins["reference_outputs.csv"]
+    if sha256_file(publish_reference) != reference_digest:
         raise SystemExit(
-            "Publish and original reference outputs differ; cannot pair metadata."
+            "Publish reference outputs differ from the committed manifest pin; "
+            "cannot pair metadata."
         )
+    reference_metadata_bytes = REFERENCE_META_SOURCE.read_bytes()
+    if (
+        sha256_bytes(reference_metadata_bytes)
+        != reference_pins["reference_outputs.csv.meta.json"]
+    ):
+        raise SystemExit("Reference metadata differs from the committed manifest pin.")
+    reference_policyengine_bundles(
+        RUN_DEST / "reference_outputs.csv",
+        "us",
+        require_digest=True,
+        manifest_reference_sha256=reference_digest,
+    )
 
     if RUN_DEST.exists():
         shutil.rmtree(RUN_DEST)
@@ -344,7 +628,7 @@ def freeze_run() -> dict[str, str]:
     # scenarios + reference outputs (+ meta).
     for name in ("scenarios.csv", "scenarios.csv.meta.json", "reference_outputs.csv"):
         copy_exact(SOURCE_US / name, RUN_DEST / name)
-    copy_exact(REFERENCE_META_SOURCE, RUN_DEST / "reference_outputs.csv.meta.json")
+    (RUN_DEST / "reference_outputs.csv.meta.json").write_bytes(reference_metadata_bytes)
 
     # analysis/ CSVs + report.md.
     analysis_dest = RUN_DEST / "analysis"
@@ -386,19 +670,55 @@ def freeze_committed_artifacts() -> dict[str, str]:
     return committed
 
 
+def _serving_registry_commit(payload: dict) -> str:
+    """Keep the published registry pin when the serving evidence is unchanged."""
+    committed_path = (SNAPSHOT_DIR / "model_serving_config.json").relative_to(ROOT)
+    committed = subprocess.run(
+        ["git", "show", f"HEAD:{committed_path.as_posix()}"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if committed.returncode == 0:
+        previous = json.loads(committed.stdout)
+        previous_commit = previous.pop("registry_commit")
+        current = {
+            key: value for key, value in payload.items() if key != "registry_commit"
+        }
+        if previous == current:
+            return previous_commit
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
 def freeze_serving_configuration(destination: Path) -> None:
-    """Pin the current roster's effective serving treatments for the paper."""
-    from policybench.config import MODELS
+    """Pin effective serving treatments and their best available evidence."""
+    from policybench.config import MODELS, PROGRAMS
     from policybench.eval_no_tools import (
         REASONING_EFFORT_OVERRIDES,
         THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP,
         THINKING_DEFAULT_CLAUDE_MODELS,
+        _first_request_variables,
+        _initial_completion_budget_tokens,
+        _max_repair_rounds,
+        _request_timeout_seconds,
+        _thinking_configuration,
     )
     from policybench.model_cards import (
+        PROMPT_CONTRACT_VERSION,
         answer_contract_for,
         card_for,
+        completion_budget_ceiling_for,
         explanation_chunk_size_for,
     )
+    from policybench.scenarios import load_scenarios_from_manifest
+    from policybench.spec import expand_programs_for_scenario
 
     country_payload = json.loads((RUN_DEST / "data.json").read_text())
     frozen_models = sorted(
@@ -412,12 +732,33 @@ def freeze_serving_configuration(destination: Path) -> None:
             f"Frozen models missing from the current registry: {sorted(missing)}"
         )
 
+    scenarios = load_scenarios_from_manifest(RUN_DEST / "scenarios.csv")
+    if not scenarios:
+        raise SystemExit("Frozen serving configuration has no scenarios.")
+    first_scenario_variables = expand_programs_for_scenario(PROGRAMS, scenarios[0])
+    frozen_predictions = pd.read_csv(
+        RUN_DEST / "predictions.csv.gz",
+        low_memory=False,
+    )
+
     models = {}
+    evidence_counts = {"run_state": 0, "registry": 0}
     for model in frozen_models:
         provider_id = MODELS[model]
         answer_contract = answer_contract_for(provider_id)
         chunk_size = explanation_chunk_size_for(provider_id)
         card = card_for(provider_id)
+        first_request_variables = _first_request_variables(
+            provider_id,
+            first_scenario_variables,
+            include_explanations=True,
+        )
+        initial_completion_budget_tokens = _initial_completion_budget_tokens(
+            provider_id,
+            first_request_variables,
+        )
+        thinking = _thinking_configuration(provider_id)
+        request_timeout_seconds = _request_timeout_seconds(provider_id, env={})
 
         if model in THINKING_DEFAULT_CLAUDE_MODELS:
             if answer_contract != "tool":
@@ -448,16 +789,116 @@ def freeze_serving_configuration(destination: Path) -> None:
             plural = "" if chunk_size == 1 else "s"
             request_shape = f"{chunk_size} output{plural}/request"
 
+        tool_choice = "forced" if answer_contract == "tool" else None
+        evidence = {"kind": "registry"}
+        registry_derived = {
+            "answer_contract",
+            "provider_id",
+            "reasoning_setup",
+            "request_shape",
+            "request_timeout_seconds",
+            "shared_completion_budget_tokens",
+            "tool_choice",
+        }
+        run_state_relative = RUN_STATE_EVIDENCE.get(model)
+        if run_state_relative is not None:
+            run_state_path = _MAIN_CLONE / run_state_relative
+            if run_state_path.is_file():
+                run_state = json.loads(run_state_path.read_text())
+                if run_state.get("model") != model:
+                    raise SystemExit(
+                        f"Run-state model mismatch for {model}: "
+                        f"{run_state.get('model')!r} in {run_state_path}"
+                    )
+                fingerprint = run_state.get("treatment_fingerprint")
+                if fingerprint is not None:
+                    if not isinstance(fingerprint, dict):
+                        raise SystemExit(
+                            f"Invalid treatment fingerprint for {model} in "
+                            f"{run_state_path}"
+                        )
+                    prediction_evidence = _run_state_prediction_evidence(
+                        run_state_path,
+                        frozen_predictions,
+                        model,
+                    )
+                    if prediction_evidence["kind"] == "run_state":
+                        expected = {
+                            "model_id": provider_id,
+                            "answer_contract": answer_contract,
+                            "chunk_size": chunk_size,
+                            "tool_choice_mode": tool_choice,
+                            "prompt_contract_version": PROMPT_CONTRACT_VERSION,
+                            "completion_budget_ceiling": (
+                                completion_budget_ceiling_for(provider_id)
+                            ),
+                            "initial_completion_budget_tokens": (
+                                initial_completion_budget_tokens
+                            ),
+                            "thinking": thinking,
+                            "request_timeout_seconds": request_timeout_seconds,
+                            "max_repair_rounds": _max_repair_rounds(env={}),
+                        }
+                        fingerprint_version, legacy_tool_choice = (
+                            _validate_treatment_fingerprint(
+                                fingerprint,
+                                expected,
+                                model=model,
+                                run_state_path=run_state_path,
+                            )
+                        )
+                        run_dir = Path(run_state_relative).parts[2]
+                        evidence = {
+                            **prediction_evidence,
+                            "run": run_dir,
+                            "fields": sorted(fingerprint),
+                            "treatment_fingerprint": fingerprint,
+                        }
+                        if legacy_tool_choice:
+                            evidence["legacy_tool_choice_label"] = "forced"
+
+                        pinned_serving_fields = {
+                            "answer_contract",
+                            "provider_id",
+                            "request_shape",
+                            "tool_choice",
+                        }
+                        if fingerprint_version >= 2:
+                            pinned_serving_fields.update(
+                                {
+                                    "reasoning_setup",
+                                    "request_timeout_seconds",
+                                    "shared_completion_budget_tokens",
+                                }
+                            )
+                        registry_derived -= pinned_serving_fields
+                    else:
+                        evidence = prediction_evidence
+
+        evidence_counts[evidence["kind"]] += 1
         models[model] = {
             "answer_contract": answer_contract,
+            "evidence": evidence,
             "provider_id": provider_id,
             "reasoning_setup": reasoning_setup,
             "request_shape": request_shape,
+            "request_timeout_seconds": request_timeout_seconds,
+            "registry_derived": sorted(registry_derived),
             "shared_completion_budget_tokens": shared_budget,
-            "tool_choice": "forced" if answer_contract == "tool" else None,
+            "tool_choice": tool_choice,
         }
 
     payload = {
+        "evidence_field_labels": {
+            "registry_for_run_state": ["reasoning setup", "timeouts"],
+            "run_state": [
+                "answer contract",
+                "request shape",
+                "tool choice",
+                "completion ceiling",
+            ],
+        },
+        "evidence_summary": evidence_counts,
         "models": models,
         "sources": [
             "policybench.config.MODELS",
@@ -465,6 +906,7 @@ def freeze_serving_configuration(destination: Path) -> None:
             "policybench.eval_no_tools",
         ],
     }
+    payload["registry_commit"] = _serving_registry_commit(payload)
     destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
@@ -488,9 +930,19 @@ def freeze_annotations() -> dict[str, str]:
     # The publish bundle added an Ox Alpha row annotation without its matching
     # case note. Add that deterministic aggregate note before hashing.
     case_notes_path = ANNOTATIONS_DEST / "us_case_notes.csv"
-    with case_notes_path.open("a", newline="") as fileobj:
-        writer = csv.DictWriter(fileobj, fieldnames=CASE_NOTE_SUPPLEMENTS[0])
-        writer.writerows(CASE_NOTE_SUPPLEMENTS)
+    with case_notes_path.open(newline="") as fileobj:
+        present = {
+            (row["scenario_id"], row["variable"]) for row in csv.DictReader(fileobj)
+        }
+    missing = [
+        note
+        for note in CASE_NOTE_SUPPLEMENTS
+        if (note["scenario_id"], note["variable"]) not in present
+    ]
+    if missing:
+        with case_notes_path.open("a", newline="") as fileobj:
+            writer = csv.DictWriter(fileobj, fieldnames=CASE_NOTE_SUPPLEMENTS[0])
+            writer.writerows(missing)
 
     return {
         "us_audit_row_annotations.csv": sha256_file(
@@ -521,12 +973,19 @@ def remove_stale_artifacts() -> None:
         (SNAPSHOT_DIR / stale).unlink(missing_ok=True)
 
 
-def read_reference_refresh() -> dict[str, str]:
+def read_reference_refresh() -> dict[str, str | int]:
     """Read the real PE bundle versions from the run's reference meta."""
     meta = json.loads(REFERENCE_META_SOURCE.read_text())
     bundle = meta["policyengine_bundles"]["us"]
+    # ``date`` is when the references were generated (the sidecar's own
+    # timestamp), not when the snapshot was published: the reference CSV is
+    # byte-identical across the August and September freezes.
     return {
-        "date": SNAPSHOT_DATE,
+        "date": meta["generated_at_utc"][:10],
+        "generated_at_utc": meta["generated_at_utc"],
+        "snapshot_date": SNAPSHOT_DATE,
+        "reference_csv_sha256": sha256_file(RUN_DEST / "reference_outputs.csv"),
+        "row_count": len(pd.read_csv(RUN_DEST / "reference_outputs.csv")),
         "policyengine_version": bundle["policyengine_version"],
         "policyengine_us_version": bundle["model_version"],
         "policyengine_us_data_build_id": bundle["certified_data_build_id"],
@@ -560,11 +1019,18 @@ def build_manifest(
     model_count = sum(
         row["condition"] == "no_tools" for row in country_payload["modelStats"]
     )
+    annotation_row_count = len(
+        pd.read_csv(ANNOTATIONS_DEST / "us_audit_row_annotations.csv")
+    )
 
     population_weight_path = ROOT / "policybench" / "population_weights.json"
     pointer = json.loads((ROOT / "app" / "src" / "data.artifact.json").read_text())
 
     return {
+        "description": (
+            f"The {SNAPSHOT_DATE} scored manuscript snapshot reports the "
+            "household-impact-weighted exact-match rate as its headline metric."
+        ),
         "snapshot_date": SNAPSHOT_DATE,
         "policy_period": {"us": "tax year 2026"},
         "live_dashboard_note": (
@@ -599,7 +1065,7 @@ def build_manifest(
             "artifacts copied under "
             f"paper/snapshot/{SNAPSHOT_DIR_NAME}/runs/.",
             "Model responses were collected in waves between June 12 and "
-            "August 22, 2026, as models were added to the board; each model's "
+            "September 1, 2026, as models were added to the board; each model's "
             "full 100-household run is a single consistent wave. Reference "
             "outputs were generated with policyengine.py "
             f"{reference_refresh['policyengine_version']} and policyengine-us "
@@ -612,7 +1078,10 @@ def build_manifest(
             "failed or timed-out scenarios in bounded rounds; every model's "
             "canonical file covers all 100 households.",
             "Raw provider responses are retained in the compressed source-run "
-            "predictions.csv.gz file. The separate LiteLLM cache remains "
+            "predictions.csv.gz file wherever the transport exposed them; rows "
+            "served through the Anthropic batch adapter (Claude Fable 5) and "
+            "64 Kimi K3 parse failures carry no raw payload. The separate "
+            "LiteLLM cache remains "
             "local-only because it is a generated request cache, not the "
             "canonical snapshot artifact.",
             "The frozen scenarios.csv source_dataset column carries a stale "
@@ -630,8 +1099,10 @@ def build_manifest(
             "output_groups": {"us": len(country_payload["programStats"])},
             "models": model_count,
             "condition": (
-                "No tools, no web access, one structured response per household "
-                "with numeric answers and non-empty explanations."
+                "No tools, no web access; structured responses carrying a "
+                "numeric answer and an explanation for every requested "
+                "output, sent whole-scenario or in one- or three-output "
+                "subsets per model as recorded in model_serving_config.json."
             ),
         },
         "model_response_date": MODEL_RESPONSE_DATE,
@@ -664,8 +1135,11 @@ def build_manifest(
             "path": f"annotations/{RUN_LABEL}",
             "note": (
                 "Model-assisted, developer-adjudicated row and case audit "
-                "annotations for every wrong prediction row in the frozen "
-                "snapshot, produced under the decisive-diagnosis contract "
+                f"annotations for the {annotation_row_count:,} prediction "
+                "rows selected because their legacy threshold score was below "
+                "1. This audit universe is not identical to the exact-match "
+                "or bounded-score miss sets. The annotations were produced "
+                "under the decisive-diagnosis contract "
                 "(per-model diagnoses grounded in engine facts; hedged "
                 "verdicts mechanically rejected and re-judged). Row-level "
                 "failure_source values are llm_error for substantive misses "

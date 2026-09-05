@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -274,6 +275,290 @@ def test_snapshot_serving_configuration_matches_frozen_roster():
     )
 
 
+def test_snapshot_serving_configuration_records_evidence_schema():
+    config = json.loads((SNAPSHOT_DIR / "model_serving_config.json").read_text())
+    summary = config["evidence_summary"]
+    compared_columns = [
+        "scenario_id",
+        "variable",
+        "prediction",
+        "explanation",
+        "raw_response",
+        "provider_resolved_model",
+        "prompt_tokens",
+        "completion_tokens",
+        "error",
+    ]
+
+    assert re.fullmatch(r"[0-9a-f]{40}", config["registry_commit"])
+    assert config["evidence_field_labels"] == {
+        "registry_for_run_state": ["reasoning setup", "timeouts"],
+        "run_state": [
+            "answer contract",
+            "request shape",
+            "tool choice",
+            "completion ceiling",
+        ],
+    }
+    assert set(summary) == {"run_state", "registry"}
+    assert sum(summary.values()) == len(config["models"])
+    assert summary["run_state"] > 0
+
+    observed = {"run_state": 0, "registry": 0}
+    for row in config["models"].values():
+        evidence = row["evidence"]
+        kind = evidence["kind"]
+        observed[kind] += 1
+        if kind == "registry":
+            if set(evidence) != {"kind"}:
+                assert set(evidence) == {
+                    "compared_columns",
+                    "frozen_rows_sha256",
+                    "kind",
+                    "note",
+                    "rows_match",
+                    "source_predictions_sha256",
+                    "source_rows_sha256",
+                }
+                assert evidence["compared_columns"] == compared_columns
+                assert re.fullmatch(r"[0-9a-f]{64}", evidence["frozen_rows_sha256"])
+                if evidence["source_rows_sha256"] is not None:
+                    assert re.fullmatch(r"[0-9a-f]{64}", evidence["source_rows_sha256"])
+                assert evidence["rows_match"] is False
+                assert evidence["note"]
+            assert set(row["registry_derived"]) == {
+                "answer_contract",
+                "provider_id",
+                "reasoning_setup",
+                "request_shape",
+                "request_timeout_seconds",
+                "shared_completion_budget_tokens",
+                "tool_choice",
+            }
+            continue
+
+        assert set(evidence) in (
+            {
+                "kind",
+                "run",
+                "fields",
+                "compared_columns",
+                "frozen_rows_sha256",
+                "rows_match",
+                "source_predictions_sha256",
+                "source_rows_sha256",
+                "treatment_fingerprint",
+            },
+            {
+                "kind",
+                "run",
+                "fields",
+                "compared_columns",
+                "frozen_rows_sha256",
+                "rows_match",
+                "source_predictions_sha256",
+                "source_rows_sha256",
+                "treatment_fingerprint",
+                "legacy_tool_choice_label",
+            },
+        )
+        assert evidence["rows_match"] is True
+        assert evidence["compared_columns"] == compared_columns
+        assert evidence["source_rows_sha256"] == evidence["frozen_rows_sha256"]
+        assert re.fullmatch(r"[0-9a-f]{64}", evidence["source_predictions_sha256"])
+        assert evidence["fields"] == sorted(evidence["treatment_fingerprint"])
+        assert set(row["registry_derived"]) == {
+            "reasoning_setup",
+            "request_timeout_seconds",
+            "shared_completion_budget_tokens",
+        }
+        assert not evidence["run"].endswith("_thinking")
+
+    assert observed == summary
+
+
+@pytest.mark.parametrize(
+    ("column", "different_value"),
+    [
+        ("prediction", 2.0),
+        ("explanation", "A different explanation"),
+        ("raw_response", "A different raw response"),
+        ("provider_resolved_model", "provider/other-model"),
+        ("prompt_tokens", 12),
+        ("completion_tokens", 34),
+        ("error", "provider_error"),
+    ],
+)
+def test_freezer_downgrades_run_state_when_full_prediction_row_differs(
+    tmp_path, column, different_value
+):
+    from scripts.freeze_snapshot import (
+        PREDICTION_EVIDENCE_COLUMNS,
+        _run_state_prediction_evidence,
+    )
+
+    run_state_path = tmp_path / "run" / "run_state.json"
+    run_state_path.parent.mkdir()
+    run_state_path.write_text("{}")
+    source_path = run_state_path.with_name("predictions.csv")
+    row = {
+        "model": "example-model",
+        "scenario_id": "scenario_000",
+        "variable": "snap",
+        "prediction": 1.0,
+        "explanation": "An explanation",
+        "raw_response": "A raw response",
+        "provider_resolved_model": "provider/example-model",
+        "prompt_tokens": 10,
+        "completion_tokens": 20,
+        "error": None,
+    }
+    pd.DataFrame([row]).to_csv(source_path, index=False)
+    frozen_row = {**row, column: different_value}
+    frozen = pd.DataFrame([frozen_row])
+
+    evidence = _run_state_prediction_evidence(
+        run_state_path,
+        frozen,
+        "example-model",
+    )
+
+    assert evidence["compared_columns"] == list(PREDICTION_EVIDENCE_COLUMNS)
+    assert evidence["kind"] == "registry"
+    assert evidence["source_predictions_sha256"] == sha256(source_path)
+    assert evidence["source_rows_sha256"] != evidence["frozen_rows_sha256"]
+    assert evidence["rows_match"] is False
+    assert evidence["note"] == (
+        "Source predictions.csv rows do not match the frozen model rows; "
+        "serving fields fall back to the registry."
+    )
+
+
+def test_freezer_full_row_hash_normalizes_empty_values_and_text_whitespace(
+    tmp_path,
+):
+    from scripts.freeze_snapshot import _run_state_prediction_evidence
+
+    run_state_path = tmp_path / "run" / "run_state.json"
+    run_state_path.parent.mkdir()
+    run_state_path.write_text("{}")
+    source_path = run_state_path.with_name("predictions.csv")
+    row = {
+        "model": "example-model",
+        "scenario_id": " scenario_000 ",
+        "variable": " snap ",
+        "prediction": 1,
+        "explanation": " An explanation ",
+        "raw_response": " A raw response ",
+        "provider_resolved_model": " provider/example-model ",
+        "prompt_tokens": 10.0,
+        "completion_tokens": 20.0,
+        "error": "",
+    }
+    pd.DataFrame([row]).to_csv(source_path, index=False)
+    frozen = pd.DataFrame(
+        [
+            {
+                **row,
+                "scenario_id": "scenario_000",
+                "variable": "snap",
+                "explanation": "An explanation",
+                "raw_response": "A raw response",
+                "provider_resolved_model": "provider/example-model",
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "error": None,
+            }
+        ]
+    )
+
+    evidence = _run_state_prediction_evidence(
+        run_state_path,
+        frozen,
+        "example-model",
+    )
+
+    assert evidence["kind"] == "run_state"
+    assert evidence["rows_match"] is True
+    assert evidence["source_rows_sha256"] == evidence["frozen_rows_sha256"]
+
+
+def test_freezer_accepts_v3_fingerprint_and_compares_repair_rounds(tmp_path):
+    from scripts.freeze_snapshot import (
+        SUPPORTED_TREATMENT_FINGERPRINT_VERSIONS,
+        _validate_treatment_fingerprint,
+    )
+
+    expected = {
+        "model_id": "provider/model",
+        "answer_contract": "tool",
+        "tool_choice_mode": "forced",
+        "chunk_size": None,
+        "prompt_contract_version": "contract-v1",
+        "completion_budget_ceiling": 128_000,
+        "initial_completion_budget_tokens": 4_096,
+        "thinking": None,
+        "request_timeout_seconds": 20,
+        "max_repair_rounds": 2,
+    }
+    fingerprint = {"fingerprint_version": 3, **expected}
+    run_state_path = tmp_path / "run_state.json"
+
+    assert SUPPORTED_TREATMENT_FINGERPRINT_VERSIONS == (1, 2, 3)
+    assert _validate_treatment_fingerprint(
+        fingerprint,
+        expected,
+        model="example-model",
+        run_state_path=run_state_path,
+    ) == (3, False)
+
+    fingerprint["max_repair_rounds"] = 3
+    with pytest.raises(SystemExit, match="max_repair_rounds"):
+        _validate_treatment_fingerprint(
+            fingerprint,
+            expected,
+            model="example-model",
+            run_state_path=run_state_path,
+        )
+
+
+def test_run_state_serving_evidence_agrees_with_registry_fields():
+    config = json.loads((SNAPSHOT_DIR / "model_serving_config.json").read_text())
+
+    for row in config["models"].values():
+        evidence = row["evidence"]
+        if evidence["kind"] != "run_state":
+            continue
+
+        fingerprint = evidence["treatment_fingerprint"]
+        assert {
+            "model_id",
+            "answer_contract",
+            "tool_choice_mode",
+            "chunk_size",
+            "prompt_contract_version",
+            "completion_budget_ceiling",
+        } <= set(fingerprint)
+        assert fingerprint["model_id"] == row["provider_id"]
+        assert fingerprint["answer_contract"] == row["answer_contract"]
+        assert isinstance(row["request_timeout_seconds"], int)
+        assert row["request_timeout_seconds"] > 0
+        chunk_size = (
+            None
+            if row["request_shape"] == "whole scenario"
+            else int(row["request_shape"].split()[0])
+        )
+        assert fingerprint["chunk_size"] == chunk_size
+
+        fingerprint_tool_choice = fingerprint["tool_choice_mode"]
+        if "legacy_tool_choice_label" in evidence:
+            assert row["answer_contract"] == "json"
+            assert row["tool_choice"] is None
+            assert fingerprint_tool_choice == evidence["legacy_tool_choice_label"]
+        else:
+            assert fingerprint_tool_choice == row["tool_choice"]
+
+
 def test_snapshot_copied_artifacts_match_source_runs():
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
 
@@ -291,21 +576,28 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
-    expected_wrong_rows = {
-        "us": 7_694,
+    expected_audit_counts = {
+        "us": {
+            "annotated": 7_840,
+            "exact_misses": 7_838,
+            "annotated_exact_misses": 7_838,
+            "annotated_exact_hits": 2,
+            "below_full_bounded_score": 9_164,
+            "unannotated_below_full_bounded_score": 1_324,
+        }
     }
     expected_sources = {
-        "us": {"llm_error": 7_065, "parse_contract_failure": 629},
+        "us": {"llm_error": 7_211, "parse_contract_failure": 629},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    payloads = _snapshot_country_payloads(manifest)
     for country in manifest["source_run_labels"]:
         result = validate_snapshot_audit(
             snapshot_dir=SNAPSHOT_DIR,
             annotations_dir=ANNOTATIONS_DIR,
             country=country,
         )
-        assert len(result["wrong"]) == expected_wrong_rows[country]
         assert result["missing_rows"].empty
         assert result["unresolved_rows"].empty
         assert result["missing_cases"].empty
@@ -314,6 +606,45 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
             pd.read_csv(path)
             for path in sorted(ANNOTATIONS_DIR.glob(f"{country}_*_annotations.csv"))
         )
+        key_columns = ["model", "scenario_id", "variable"]
+        annotation_keys = set(
+            annotations[key_columns].itertuples(index=False, name=None)
+        )
+        prediction_rows = [
+            (model, scenario_id, variable, row)
+            for scenario_id, variable_map in payloads[country][
+                "scenarioPredictions"
+            ].items()
+            for variable, model_map in variable_map.items()
+            for model, row in model_map.items()
+        ]
+
+        def metric_keys(metric: str) -> set[tuple[str, str, str]]:
+            return {
+                (model, scenario_id, variable)
+                for model, scenario_id, variable, row in prediction_rows
+                if row[metric] < 100
+            }
+
+        legacy_threshold_keys = metric_keys("thresholdScore")
+        exact_miss_keys = metric_keys("exact")
+        below_full_bounded_score_keys = metric_keys("boundedScore")
+        counts = expected_audit_counts[country]
+
+        assert len(annotation_keys) == counts["annotated"]
+        assert annotation_keys == legacy_threshold_keys
+        assert len(exact_miss_keys) == counts["exact_misses"]
+        assert (
+            len(annotation_keys & exact_miss_keys) == counts["annotated_exact_misses"]
+        )
+        assert len(annotation_keys - exact_miss_keys) == counts["annotated_exact_hits"]
+        assert len(below_full_bounded_score_keys) == counts["below_full_bounded_score"]
+        assert (
+            len(below_full_bounded_score_keys - annotation_keys)
+            == counts["unannotated_below_full_bounded_score"]
+        )
+        assert len(result["wrong"]) == counts["annotated"]
+
         audited = result["wrong"].merge(
             annotations[["model", "scenario_id", "variable", "failure_source"]],
             on=["model", "scenario_id", "variable"],
@@ -323,6 +654,53 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
             audited["failure_source"].value_counts().to_dict()
             == expected_sources[country]
         )
+
+
+def test_snapshot_audit_annotations_have_no_orphan_rows():
+    """Annotations must stay within the frozen legacy-threshold universe."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    for country in manifest["source_run_labels"]:
+        result = validate_snapshot_audit(
+            snapshot_dir=SNAPSHOT_DIR,
+            annotations_dir=ANNOTATIONS_DIR,
+            country=country,
+        )
+        keys = ["model", "scenario_id", "variable"]
+        annotations = pd.concat(
+            pd.read_csv(path)
+            for path in sorted(ANNOTATIONS_DIR.glob(f"{country}_*_annotations.csv"))
+        )
+        orphans = annotations[keys].merge(
+            result["wrong"][keys].drop_duplicates(), on=keys, how="left", indicator=True
+        )
+        assert (orphans["_merge"] == "both").all(), orphans[
+            orphans["_merge"] != "both"
+        ].head()
+        assert len(annotations) == len(result["wrong"])
+
+
+def test_snapshot_case_notes_agree_with_row_annotations():
+    """Case notes aggregate the row annotations: one case per wrong
+    (scenario, output) pair, and wrong_model_count equals the number of
+    annotated rows in that case."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    for country in manifest["source_run_labels"]:
+        rows = pd.concat(
+            pd.read_csv(path)
+            for path in sorted(ANNOTATIONS_DIR.glob(f"{country}_*_annotations.csv"))
+        )
+        cases = pd.read_csv(ANNOTATIONS_DIR / f"{country}_case_notes.csv")
+        row_counts = (
+            rows.groupby(["scenario_id", "variable"]).size().rename("row_count")
+        )
+        joined = cases.set_index(["scenario_id", "variable"]).join(
+            row_counts, how="outer"
+        )
+        assert joined["wrong_model_count"].notna().all(), "rows without a case"
+        assert joined["row_count"].notna().all(), "cases without rows"
+        assert (
+            joined["wrong_model_count"].astype(int) == joined["row_count"].astype(int)
+        ).all(), joined[joined["wrong_model_count"] != joined["row_count"]].head()
 
 
 def test_dashboard_pointer_matches_live_snapshot_artifact():
@@ -358,3 +736,51 @@ def test_dashboard_blob_is_not_committed():
         check=True,
     ).stdout.strip()
     assert tracked == ""
+
+
+def test_frozen_payload_provenance_matches_the_reference_sidecar():
+    """The frozen data.json must name the policyengine-us that generated the
+    references it scores against, as recorded by the reference sidecar and the
+    manifest, not the exporting machine's installed runtime."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    expected = manifest["reference_output_refresh"]["policyengine_us_version"]
+    for country, run_label in manifest["source_run_labels"].items():
+        run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+        payload = json.loads((run_dir / "data.json").read_text())
+        sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+        sidecar_version = sidecar["policyengine_bundles"][country]["model_version"]
+        assert sidecar_version == expected
+        assert payload["policyengineBundles"][country]["model_version"] == expected
+
+
+def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
+    """The references were generated once (the sidecar's timestamp) and are
+    byte-identical across freezes; the manifest must not advance their date
+    with each publication."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    refresh = manifest["reference_output_refresh"]
+    run_label = manifest["source_run_labels"]["us"]
+    run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    assert refresh["generated_at_utc"] == sidecar["generated_at_utc"]
+    assert refresh["date"] == sidecar["generated_at_utc"][:10]
+    assert refresh["snapshot_date"] == manifest["snapshot_date"]
+    assert refresh["date"] <= refresh["snapshot_date"]
+
+
+def test_app_copy_of_serving_configuration_matches_the_frozen_file():
+    """The scenario explorer bundles a copy of the frozen serving config.
+
+    prepare-data refreshes it when the repository is present; the copy is
+    tracked so tests and Vercel builds that see only app/ still have it.
+    """
+    frozen = ROOT / "paper" / "snapshot" / "20260501" / "model_serving_config.json"
+    app_copy = ROOT / "app" / "src" / "model-serving-config.json"
+    assert app_copy.read_bytes() == frozen.read_bytes()
+
+
+def test_app_clean_preserves_the_tracked_serving_configuration():
+    package = json.loads((ROOT / "app" / "package.json").read_text())
+    clean_command = package["scripts"]["clean"]
+
+    assert "src/model-serving-config.json" not in clean_command

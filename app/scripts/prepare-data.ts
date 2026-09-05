@@ -16,9 +16,11 @@
  *                        public/data/explanations-*.json      (lazy sidecars)
  *   - other versions  -> src/data-summary.<slug>.json         (code-split chunk)
  *                        public/data/<slug>/explanations-*.json (lazy sidecars)
+ *   - live board      -> src/model-serving-config.json        (bundled with app)
  *
- * Runs before `next dev` and `next build` (see package.json). Outputs are
- * generated artifacts and gitignored.
+ * Runs before `next dev` and `next build` (see package.json). Dashboard data
+ * outputs are generated and gitignored; the serving configuration refreshes
+ * a tracked fallback used when a deployment sees only app/.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -46,6 +48,18 @@ const registryPath = path.join(appRoot, "src", "data.versions.json");
 const cacheDir = path.join(appRoot, ".cache");
 const srcDir = path.join(appRoot, "src");
 const sidecarRoot = path.join(appRoot, "public", "data");
+const servingConfigSourcePath = path.join(
+  appRoot,
+  "..",
+  "paper",
+  "snapshot",
+  "20260501",
+  "model_serving_config.json",
+);
+const servingConfigOutputPath = path.join(
+  srcDir,
+  "model-serving-config.json",
+);
 
 function formatMb(bytes: number): string {
   return `${(bytes / 1_000_000).toFixed(1)}MB`;
@@ -60,6 +74,40 @@ function toAsciiJson(value: unknown): string {
   // Escape every non-ASCII code unit (>= 0x80) like Python's json.dump does.
   return JSON.stringify(value).replace(/[^\x00-\x7f]/g, (char) =>
     `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
+function prepareServingConfiguration(): void {
+  if (!existsSync(servingConfigSourcePath)) {
+    // Builds that see only app/ (Vercel's root directory) keep the tracked
+    // copy; tests/test_snapshot_artifacts.py pins it to the frozen file.
+    if (!existsSync(servingConfigOutputPath)) {
+      throw new Error(
+        `prepare-data: frozen serving configuration is not reachable at ${servingConfigSourcePath} and tracked fallback is missing at ${servingConfigOutputPath}`,
+      );
+    }
+    console.log(
+      `prepare-data: frozen serving configuration not reachable at ${servingConfigSourcePath}; keeping tracked ${servingConfigOutputPath}`,
+    );
+    return;
+  }
+  const bytes = readFileSync(servingConfigSourcePath);
+  const payload = JSON.parse(bytes.toString("utf8")) as {
+    models?: unknown;
+  };
+  if (
+    payload === null ||
+    typeof payload !== "object" ||
+    payload.models === null ||
+    typeof payload.models !== "object"
+  ) {
+    throw new Error(
+      `Invalid frozen serving configuration at ${servingConfigSourcePath}`,
+    );
+  }
+  writeFileSync(servingConfigOutputPath, bytes);
+  console.log(
+    `prepare-data: frozen serving configuration -> ${servingConfigOutputPath}`,
   );
 }
 
@@ -171,6 +219,7 @@ async function buildVersion(
 const registry = parseDataVersionRegistry(
   JSON.parse(readFileSync(registryPath, "utf8")),
 );
+prepareServingConfiguration();
 
 // Build the default first so a local src/data.json export surfaces problems
 // before the network fetches for archived versions.

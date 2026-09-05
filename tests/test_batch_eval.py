@@ -100,6 +100,81 @@ def test_adapter_routing():
     assert adapter_for_model("deepseek/deepseek-v4-pro") is None
 
 
+def test_anthropic_batch_preflight_rejects_json_contract():
+    with pytest.raises(
+        ValueError,
+        match=(
+            "batch adapter supports the forced tool contract only; "
+            "run claude-fable-5-1 through the supervisor"
+        ),
+    ):
+        adapter_for_model("claude-fable-5-1")
+
+
+def test_batch_cli_reports_json_contract_error_before_dispatch(
+    monkeypatch, scenario, tmp_path
+):
+    from policybench.cli import main
+
+    monkeypatch.setattr(
+        "policybench.scenarios.load_scenarios_from_manifest", lambda _path: [scenario]
+    )
+    monkeypatch.setattr(
+        "policybench.batch_eval.run_batch_eval",
+        lambda **_kwargs: pytest.fail("unsupported model dispatched batch work"),
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "policybench",
+            "eval-no-tools-batch",
+            "--model",
+            "claude-fable-5.1",
+            "--scenario-manifest",
+            str(tmp_path / "scenarios.csv"),
+            "--output-dir",
+            str(tmp_path / "batch"),
+            "--country",
+            "us",
+        ],
+    )
+
+    with pytest.raises(SystemExit, match="forced tool contract only.*supervisor"):
+        main()
+
+
+@pytest.mark.parametrize("explicit_adapter", [False, True])
+def test_anthropic_json_contract_is_rejected_before_batch_work(
+    tmp_path, scenario, explicit_adapter
+):
+    client = MagicMock()
+    run_dir = tmp_path / "batch"
+
+    with pytest.raises(ValueError, match="forced tool contract only"):
+        run_batch_eval(
+            scenarios=[scenario],
+            programs=["eitc"],
+            model_name="claude-fable-5.1",
+            model_id="claude-fable-5-1",
+            run_dir=run_dir,
+            adapter=AnthropicBatchAdapter(client=client) if explicit_adapter else None,
+        )
+
+    client.messages.batches.create.assert_not_called()
+    assert not run_dir.exists()
+
+
+@pytest.mark.parametrize(
+    "knob,value",
+    [("POLICYBENCH_CONTRACT_OVERRIDE", "json"), ("POLICYBENCH_TOOL_CHOICE", "auto")],
+)
+def test_anthropic_batch_preflight_uses_effective_contract(monkeypatch, knob, value):
+    monkeypatch.setenv(knob, value)
+
+    with pytest.raises(ValueError, match="forced tool contract only"):
+        adapter_for_model("claude-fable-5")
+
+
 def test_openai_batch_body_rejects_connection_secrets(monkeypatch, scenario):
     monkeypatch.setattr(
         "policybench.batch_eval._responses_request_kwargs",

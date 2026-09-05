@@ -12,9 +12,11 @@ import { DATA_VERSIONS } from "../lib/dataVersionsRuntime";
  */
 export default function DatasetSelector({
   versionId,
+  pendingVersionId = null,
   onSelect,
 }: {
   versionId: string;
+  pendingVersionId?: string | null;
   onSelect: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -47,9 +49,12 @@ export default function DatasetSelector({
   const active =
     DATA_VERSIONS.find((version) => version.id === versionId) ??
     DATA_VERSIONS[0];
+  const pending = DATA_VERSIONS.find(
+    (version) => version.id === pendingVersionId,
+  );
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative flex items-center gap-2">
       <button
         type="button"
         aria-haspopup="listbox"
@@ -72,6 +77,15 @@ export default function DatasetSelector({
           <path d="M2.5 4.5 6 8l3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
+
+      {pending && (
+        <span
+          role="status"
+          className="text-[10px] font-medium text-text-muted whitespace-nowrap"
+        >
+          Loading v{pending.label}
+        </span>
+      )}
 
       {open && (
         <ul

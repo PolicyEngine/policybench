@@ -1,4 +1,5 @@
 import { MODEL_LABELS } from "../modelMeta";
+import versionRegistryJson from "../data.versions.json";
 import {
   getVariableCategory,
   getVariableLabel,
@@ -6,6 +7,14 @@ import {
   type BenchData,
   type CountryCode,
 } from "../types";
+import { isCurrentBoard } from "../lib/boardScope";
+import { parseDataVersionRegistry } from "../lib/dataVersions";
+import {
+  AUDIT_SELECTION_RULE,
+  summarizeAuditUniverse,
+} from "../lib/auditUniverse";
+
+const versionRegistry = parseDataVersionRegistry(versionRegistryJson);
 
 function StatCard({
   value,
@@ -55,10 +64,18 @@ function SectionCard({
 
 export default function Methodology({
   data,
+  versionId,
+  liveVersionId,
 }: {
   data: BenchData;
   selectedView: CountryCode;
+  versionId: string;
+  liveVersionId: string;
 }) {
+  const currentBoard = isCurrentBoard(versionId, liveVersionId);
+  const versionLabel =
+    versionRegistry.versions.find((version) => version.id === versionId)
+      ?.label ?? versionId;
   const benchData = data;
   const country = benchData.country;
   const noToolsModels = benchData.modelStats.filter(
@@ -77,10 +94,17 @@ export default function Methodology({
     country === "uk" ? "UK transfer households" : "populace households";
   const referenceOutputSource =
     country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
-  const benchmarkDescription =
-    country === "uk"
+  const benchmarkDescription = currentBoard
+    ? country === "uk"
       ? "This app shows the current no-tools UK benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for fiscal year 2026-27."
-      : "This app shows the current no-tools US benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2026.";
+      : "This app shows the current no-tools US benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2026."
+    : country === "uk"
+      ? `This app is showing the archived ${versionLabel} board on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for fiscal year 2026-27.`
+      : `This app is showing the archived ${versionLabel} board on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-US for tax year 2026.`;
+  const auditSummary =
+    currentBoard && country === "us"
+      ? summarizeAuditUniverse(benchData)
+      : null;
 
   return (
     <div>
@@ -129,14 +153,28 @@ export default function Methodology({
 
       <div className="grid lg:grid-cols-2 gap-4 mt-8">
         <SectionCard title="Task">
-          Each model sees the same household description and must return all
-          scored outputs plus a short explanation for each output, with no
-          external tools — no calculator, search, or PolicyEngine access.
-          Answers come back through a forced answer-schema tool call; a few
-          models are served one output per request for parse reliability, per
-          the repo&apos;s model cards. The exact provider-specific prompts are
-          visible in the scenario explorer, so you can inspect the contract
-          instead of inferring it.
+          Each model sees the same household facts and requested outputs and
+          must return every scored output plus a short explanation for each,
+          with no external tools — no calculator, search, or PolicyEngine
+          access. The answer instructions follow the provider&apos;s transport:
+          a forced answer-schema tool call where the provider accepts one, and a
+          JSON object where the provider rejects a forced tool or the model card
+          selects JSON for the family (the older Gemini and DeepSeek rows).{" "}
+          {currentBoard ? (
+            <>
+              Ten of the 33 models answer the same facts in subsets of one or
+              three outputs per request, an accommodation that predates the
+              whole-scenario rule. The per-model transport and request shape are
+              recorded in the paper&apos;s serving-configuration table and the
+              repo&apos;s model cards.
+            </>
+          ) : (
+            <>
+              This archived snapshot has its own roster and serving treatments;
+              the per-model record for the current board is the paper&apos;s
+              serving-configuration table.
+            </>
+          )}
         </SectionCard>
 
         <SectionCard title="Open-set status">
@@ -200,9 +238,17 @@ export default function Methodology({
           multiplier. The leaderboard reports the exact-match rate as the
           headline deployability bar, with within-1% as a near-miss-tolerant
           companion and bounded score, amount accuracy, and participation
-          accuracy as further diagnostics. Equal-weight and
-          budget-weighted variants are reported alongside for transparency. The
-          leaderboard is a point estimate on this fixed test set.
+          accuracy as further diagnostics. Equal-weight and budget-weighted
+          variants are reported alongside for transparency. The leaderboard is a
+          point estimate on this fixed test set.
+        </SectionCard>
+
+        <SectionCard title="Cost basis">
+          Each frozen row uses its recorded per-call cost: provider-reported
+          where the provider returns one, otherwise reconstructed at the
+          configured list price at request time. List-price overrides apply at
+          request time, not retroactively to recorded costs. Models without
+          per-call costs use the frozen release-metadata cost.
         </SectionCard>
 
         <SectionCard title="Sensitivity checks">
@@ -213,6 +259,21 @@ export default function Methodology({
           before the country average. These checks are used to interpret rank
           stability; they do not replace the public exact-match leaderboard.
         </SectionCard>
+
+        {auditSummary && (
+          <SectionCard title="Audit scope">
+            The frozen annotations cover{" "}
+            {auditSummary.annotatedRowCount.toLocaleString()} {AUDIT_SELECTION_RULE}.
+            That universe contains{" "}
+            {auditSummary.annotatedExactMissCount.toLocaleString()} of the
+            snapshot&apos;s {auditSummary.exactMissCount.toLocaleString()} exact-match
+            misses and {auditSummary.annotatedExactHitCount.toLocaleString()} exact
+            hits. Another{" "}
+            {auditSummary.unannotatedBelowFullBoundedScoreCount.toLocaleString()} rows
+            have bounded score below 100 but were not selected and have no audit
+            annotation.
+          </SectionCard>
+        )}
 
         <SectionCard title="Impact weighting">
           Binary coverage flags have 0/1 labels, but a 0/1 label is not their
@@ -231,10 +292,12 @@ export default function Methodology({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-              Current benchmark scope
+              {currentBoard ? "Current benchmark scope" : "Archived board scope"}
             </div>
             <div className="mt-1 text-text-secondary text-sm leading-relaxed">
-              Latest {VIEW_LABELS[country]} run in this app evaluates{" "}
+              {currentBoard
+                ? `Latest ${VIEW_LABELS[country]} run in this app evaluates `
+                : `The archived ${versionLabel} run evaluates `}
               {modelNames.join(", ")} on {scoredPoints.toLocaleString()} scored
               outputs.
             </div>

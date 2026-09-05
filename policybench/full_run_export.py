@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 from pathlib import Path
 from typing import Sequence
 
@@ -23,6 +25,20 @@ from policybench.dashboard_schema import (
     dump_dashboard_payload,
 )
 from policybench.spec import get_output_ids, output_group_id
+
+
+class ReferenceProvenanceError(ValueError):
+    """Reference-output provenance is unavailable for a dashboard export."""
+
+
+_REQUIRED_REFERENCE_BUNDLE_FIELDS = (
+    "model_package",
+    "model_version",
+    "data_package",
+    "data_version",
+    "default_dataset",
+    "default_dataset_uri",
+)
 
 
 def _canonical_output_ids(country: str) -> set[str]:
@@ -285,8 +301,112 @@ def merge_case_annotations(
     )
 
 
-def export_country(country_dir: Path) -> dict:
-    """Write analysis artifacts and dashboard payload for one country run."""
+SNAPSHOT_MANIFEST = Path(__file__).resolve().parents[1] / (
+    "paper/snapshot/20260501/manifest.json"
+)
+
+
+def committed_reference_digest(country: str = "us") -> str | None:
+    """The reference CSV digest pinned in the committed snapshot manifest.
+
+    Legacy reference sidecars predate ``reference_csv_sha256``; production
+    exports of those references must verify the CSV against this pin instead.
+    """
+    if country != "us" or not SNAPSHOT_MANIFEST.exists():
+        return None
+    refresh = json.loads(SNAPSHOT_MANIFEST.read_text()).get(
+        "reference_output_refresh", {}
+    )
+    digest = refresh.get("reference_csv_sha256")
+    return digest if isinstance(digest, str) and digest else None
+
+
+def resolve_reference_digest(value: str | None, country: str = "us") -> str | None:
+    """Turn a CLI ``--reference-digest`` value into a hex digest or None.
+
+    ``"manifest"`` selects the committed snapshot's pin for ``country``; any
+    other string is taken as the sha256 of that country's
+    ``reference_outputs.csv``.
+    """
+    if value is None:
+        return None
+    if value == "manifest":
+        digest = committed_reference_digest(country)
+        if digest is None:
+            raise ReferenceProvenanceError(
+                "No committed reference digest is available for country "
+                f"{country!r}; pass the sha256 explicitly."
+            )
+        return digest
+    return value
+
+
+ReferenceDigests = str | dict[str, str] | None
+
+
+def parse_reference_digest_args(values: list[str] | None) -> ReferenceDigests:
+    """Parse repeated ``--reference-digest`` CLI values.
+
+    Accepted forms: ``manifest`` (resolve the committed pin per country), a
+    bare sha256 (valid only when a single country is exported), or
+    ``<country>=<sha256|manifest>`` pairs, one per country.
+    """
+    if not values:
+        return None
+    if len(values) == 1 and "=" not in values[0]:
+        return values[0]
+    digests: dict[str, str] = {}
+    for value in values:
+        if "=" not in value:
+            raise ReferenceProvenanceError(
+                "--reference-digest with several countries needs "
+                "<country>=<sha256|manifest> pairs; got " + repr(value)
+            )
+        country, _, digest = value.partition("=")
+        country = country.strip().lower()
+        if not country or not digest.strip():
+            raise ReferenceProvenanceError(
+                f"Malformed --reference-digest entry: {value!r}"
+            )
+        if country in digests:
+            raise ReferenceProvenanceError(
+                f"Duplicate --reference-digest entry for country {country!r}"
+            )
+        digests[country] = digest.strip()
+    return digests
+
+
+def reference_digest_for_country(
+    reference_digest: ReferenceDigests, country: str, n_countries: int
+) -> str | None:
+    """Pick the digest pin that applies to one exported country.
+
+    A mapping is looked up by country (missing means no pin for that country);
+    ``"manifest"`` resolves per country; a bare sha256 applies only when a
+    single country is exported, since one hash cannot describe two CSVs.
+    """
+    if reference_digest is None:
+        return None
+    if isinstance(reference_digest, dict):
+        value = reference_digest.get(country)
+        return resolve_reference_digest(value, country) if value else None
+    if reference_digest == "manifest":
+        return resolve_reference_digest("manifest", country)
+    if n_countries != 1:
+        raise ReferenceProvenanceError(
+            "A single reference digest cannot cover several countries; pass "
+            "<country>=<sha256> pairs or 'manifest'."
+        )
+    return reference_digest
+
+
+def export_country(country_dir: Path, *, reference_digest: str | None = None) -> dict:
+    """Write analysis artifacts and dashboard payload for one country run.
+
+    Reference provenance is verified strictly: the sidecar must carry the
+    reference CSV digest, or ``reference_digest`` must supply the pin for a
+    legacy sidecar (``committed_reference_digest`` for the frozen references).
+    """
     ground_truth_path = country_dir / "reference_outputs.csv"
     legacy_ground_truth_path = country_dir / "ground_truth.csv"
     scenarios_path = country_dir / "scenarios.csv"
@@ -299,6 +419,18 @@ def export_country(country_dir: Path) -> dict:
         raise FileNotFoundError(f"Missing {scenarios_path}.")
 
     ground_truth = pd.read_csv(ground_truth_path)
+    scenarios = pd.read_csv(scenarios_path)
+    country = (
+        str(scenarios["country"].dropna().iloc[0]).lower()
+        if "country" in scenarios.columns and not scenarios["country"].dropna().empty
+        else country_dir.name.lower().split("_", 1)[0]
+    )
+    policyengine_bundles = reference_policyengine_bundles(
+        ground_truth_path,
+        country,
+        require_digest=True,
+        manifest_reference_sha256=reference_digest,
+    )
     predictions = load_predictions(country_dir)
     predictions = merge_annotations(predictions, load_annotations(country_dir))
     predictions = merge_case_annotations(
@@ -308,12 +440,6 @@ def export_country(country_dir: Path) -> dict:
     predictions = merge_case_reference_explanations(
         predictions,
         load_case_reference_explanations(country_dir),
-    )
-    scenarios = pd.read_csv(scenarios_path)
-    country = (
-        str(scenarios["country"].dropna().iloc[0]).lower()
-        if "country" in scenarios.columns and not scenarios["country"].dropna().empty
-        else country_dir.name.lower().split("_", 1)[0]
     )
     ground_truth = _filter_to_canonical_outputs(ground_truth, country)
     predictions = _filter_to_canonical_outputs(predictions, country)
@@ -331,12 +457,101 @@ def export_country(country_dir: Path) -> dict:
         analysis,
         scenarios,
         scenario_prompts=scenario_prompts,
+        policyengine_bundles=policyengine_bundles,
     )
     (country_dir / "data.json").write_text(
         dump_country_payload(payload, country=country, source=str(country_dir)),
         encoding="utf-8",
     )
     return payload
+
+
+def reference_policyengine_bundles(
+    ground_truth_path: Path,
+    country: str,
+    *,
+    require_digest: bool = False,
+    manifest_reference_sha256: str | None = None,
+) -> dict:
+    """PolicyEngine provenance of the reference outputs, from their sidecar.
+
+    ``reference_outputs.csv.meta.json`` is written by the reference generator
+    and records the model package version that produced the values. The export
+    must carry that provenance, not the exporting machine's installed runtime:
+    the v1.1 references were regenerated with a newer policyengine-us than the
+    export environment runs. Missing or incomplete provenance is an export
+    error rather than permission to substitute an installed runtime.
+
+    New sidecars bind their provenance to the reference CSV's digest and row
+    count. For legacy sidecars, strict callers must supply the digest already
+    pinned in the committed snapshot manifest.
+    """
+    sidecar = ground_truth_path.with_name(ground_truth_path.name + ".meta.json")
+    if not sidecar.exists():
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar is missing: {sidecar}. "
+            f"Cannot export country {country!r}."
+        )
+    metadata = json.loads(sidecar.read_text())
+    if metadata.get("country") != country:
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar {sidecar} has country "
+            f"{metadata.get('country')!r}, expected {country!r}."
+        )
+    recorded_digest = metadata.get("reference_csv_sha256")
+    if "reference_csv_sha256" in metadata and (
+        not isinstance(recorded_digest, str) or not recorded_digest.strip()
+    ):
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar {sidecar} has an invalid "
+            "reference_csv_sha256; expected a nonempty string."
+        )
+    if require_digest and recorded_digest is None and not manifest_reference_sha256:
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar {sidecar} has no reference_csv_sha256; "
+            "legacy references require a hash pinned in the snapshot manifest."
+        )
+    expected_digests = {
+        "reference_csv_sha256": recorded_digest,
+        "snapshot manifest": manifest_reference_sha256,
+    }
+    if any(digest is not None for digest in expected_digests.values()):
+        actual_digest = hashlib.sha256(ground_truth_path.read_bytes()).hexdigest()
+        for label, expected_digest in expected_digests.items():
+            if expected_digest is not None and actual_digest != expected_digest:
+                raise ReferenceProvenanceError(
+                    f"Reference CSV {ground_truth_path} hash does not match "
+                    f"{label} in its provenance."
+                )
+    if "row_count" in metadata:
+        actual_row_count = len(pd.read_csv(ground_truth_path))
+        if metadata["row_count"] != actual_row_count:
+            raise ReferenceProvenanceError(
+                f"Reference CSV {ground_truth_path} row_count is "
+                f"{actual_row_count}, expected {metadata['row_count']!r}."
+            )
+
+    bundles = metadata.get("policyengine_bundles") or {}
+    bundle = bundles.get(country)
+    if bundle is None:
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar {sidecar} has no "
+            f"policyengine_bundles entry for country {country!r}."
+        )
+    missing = [
+        field
+        for field in _REQUIRED_REFERENCE_BUNDLE_FIELDS
+        if not isinstance(bundle, dict)
+        or not isinstance(bundle.get(field), str)
+        or not bundle[field].strip()
+    ]
+    if missing:
+        raise ReferenceProvenanceError(
+            f"Reference provenance sidecar {sidecar} has an incomplete "
+            f"policyengine_bundles entry for country {country!r}; missing or "
+            f"empty required keys: {', '.join(missing)}."
+        )
+    return {country: dict(bundle)}
 
 
 def _available_countries(run_path: Path) -> list[str]:
@@ -359,8 +574,15 @@ def export_full_run(
     countries: Sequence[str] | None = None,
     app_data_output: str | Path = "app/src/data.json",
     skip_app_data: bool = False,
+    reference_digest: ReferenceDigests = None,
 ) -> dict:
-    """Export per-country and combined frontend artifacts from a full run."""
+    """Export per-country and combined frontend artifacts from a full run.
+
+    ``reference_digest`` pins the reference CSVs of legacy sidecars that carry
+    no digest of their own: a ``{country: sha256}`` mapping, ``"manifest"``
+    (the committed pin per country), or a bare sha256 for a single country
+    (see ``reference_digest_for_country``).
+    """
     run_path = Path(run_dir)
     if countries:
         selected_countries = list(countries)
@@ -374,7 +596,13 @@ def export_full_run(
             )
 
     country_payloads = {
-        country: export_country(run_path / country) for country in selected_countries
+        country: export_country(
+            run_path / country,
+            reference_digest=reference_digest_for_country(
+                reference_digest, country, len(selected_countries)
+            ),
+        )
+        for country in selected_countries
     }
     combined_payload = {"countries": country_payloads}
     combined_json = dump_dashboard_payload(combined_payload, source=str(run_path))
@@ -416,6 +644,16 @@ def main() -> None:
         action="store_true",
         help="Only write the combined payload under the run directory.",
     )
+    parser.add_argument(
+        "--reference-digest",
+        action="append",
+        default=None,
+        help=(
+            "Pin for a legacy reference sidecar without its own digest: "
+            "'manifest', a bare sha256 (single country), or <country>=<sha256>; "
+            "repeat per country."
+        ),
+    )
     args = parser.parse_args()
 
     export_full_run(
@@ -423,6 +661,7 @@ def main() -> None:
         countries=args.countries,
         app_data_output=args.app_data_output,
         skip_app_data=args.skip_app_data,
+        reference_digest=parse_reference_digest_args(args.reference_digest),
     )
 
 

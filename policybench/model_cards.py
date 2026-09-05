@@ -146,6 +146,28 @@ MODEL_CARDS: dict[str, ModelCard] = {
         provider_max_completion_tokens=65_535,
         notes="Provider output ceiling recorded by the serving metadata.",
     ),
+    "claude-fable-5-1": ModelCard(
+        litellm_id="claude-fable-5-1",
+        answer_contract="json",
+        request_timeout_seconds=600,
+        thinking_budget=True,
+        provider_max_completion_tokens=128_000,
+        expected_cost_per_scenario_usd=0.27,
+        notes=(
+            "Onboarded 2026-09-01 (release day). The API rejects forced "
+            "tool use on this model with a 400 (tool_choice type tool/any "
+            "'not supported for this model'): adaptive thinking is always "
+            "on and a forced call would skip it, per the model docs. So it "
+            "runs the JSON contract like Kimi K3 and Qwen 3.8 Max, "
+            "whole-scenario: 3/3 and 16/16 parsed in the gauntlet (4,028 "
+            "and 4,799 completion tokens, 46s and 56s). Unlike Fable 5's "
+            "forced-tool board row, this row reasons. The JSON contract "
+            "has no batch translation, so it runs on the sync path. Cost "
+            "estimated from the full-scenario probe at $10/$50 per 1M; the "
+            "100-scenario run cost $25.70 (median 49s per household, "
+            "1,984/1,984 parsed, no budget escalations)."
+        ),
+    ),
     "xai/grok-4.5": ModelCard(
         litellm_id="xai/grok-4.5",
         answer_contract="tool",
@@ -351,11 +373,32 @@ def completion_budget_ceiling_for(model_id: str) -> int:
     return min(MAX_ESCALATED_COMPLETION_TOKENS, provider_max)
 
 
-def answer_contract_for(model_id: str) -> str:
-    """Return the effective structured-answer contract for a model."""
+def answer_contract_for(
+    model_id: str,
+    *,
+    contract_override: str | None = None,
+) -> str:
+    """Return the effective structured-answer contract for a model.
+
+    ``contract_override`` is the sensitivity-run escape hatch (env
+    ``POLICYBENCH_CONTRACT_OVERRIDE``): a JSON-contract model can be run with
+    the answer tool declared so ``POLICYBENCH_TOOL_CHOICE=auto`` has a tool
+    to leave to the model. Never set for leaderboard runs.
+    """
+    if contract_override is not None:
+        if contract_override not in ("tool", "json"):
+            raise ValueError(
+                "POLICYBENCH_CONTRACT_OVERRIDE must be 'tool' or 'json', "
+                f"got {contract_override!r}"
+            )
+        return contract_override
     card = card_for(model_id)
     if card is not None and card.answer_contract is not None:
         return card.answer_contract
+    # Family heuristic, not a capability fact: the older Gemini and DeepSeek
+    # rows answer as JSON objects whether or not their provider accepts a
+    # forced tool call. The disclosures name this alongside the providers
+    # that reject forced tools.
     if model_id.startswith("deepseek/") or model_id.startswith("gemini/"):
         return "json"
     return "tool"

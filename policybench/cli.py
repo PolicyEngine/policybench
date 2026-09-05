@@ -1,6 +1,7 @@
 """CLI entry point for PolicyBench."""
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -526,6 +527,16 @@ def main():
         help="Path for the combined frontend payload",
     )
     export_parser.add_argument(
+        "--reference-digest",
+        action="append",
+        default=None,
+        help=(
+            "Pin for a legacy reference sidecar without its own digest: "
+            "'manifest', a bare sha256 (single country), or <country>=<sha256>; "
+            "repeat per country"
+        ),
+    )
+    export_parser.add_argument(
         "--skip-app-data",
         action="store_true",
         help="Only write the combined payload under the run directory",
@@ -742,6 +753,14 @@ def main():
     # Analyze
     analyze_parser = subparsers.add_parser("analyze", help="Analyze AI-alone results")
     analyze_parser.add_argument(
+        "--reference-digest",
+        default=None,
+        help=(
+            "sha256 of reference_outputs.csv for a legacy sidecar without its "
+            "own digest, or 'manifest' for the committed snapshot's pin"
+        ),
+    )
+    analyze_parser.add_argument(
         "-g",
         "--reference-outputs",
         dest="ground_truth",
@@ -942,6 +961,14 @@ def main():
         action="store_true",
         help="Skip the country export (combine and gate only)",
     )
+    fold_parser.add_argument(
+        "--reference-digest",
+        default=None,
+        help=(
+            "sha256 of reference_outputs.csv for a legacy sidecar without its "
+            "own digest, or 'manifest' for the committed snapshot's pin"
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -1030,6 +1057,10 @@ def main():
             split_metadata = {
                 **base_metadata,
                 "task": "reference_outputs",
+                "reference_csv_sha256": hashlib.sha256(
+                    output_path.read_bytes()
+                ).hexdigest(),
+                "row_count": len(split_df),
                 "split": split_name,
                 "num_scenarios": len(split_scenarios_list),
                 "output": str(output_path),
@@ -1055,15 +1086,18 @@ def main():
     elif args.command == "run":
         from policybench.supervisor import Supervisor
 
-        supervisor = Supervisor(
-            model=args.model,
-            manifest=Path(args.scenario_manifest),
-            run_dir=Path(args.run_dir),
-            budget_usd=args.budget_usd,
-            max_workers=args.max_workers,
-            max_rounds=args.max_rounds,
-        )
-        state = supervisor.run()
+        try:
+            supervisor = Supervisor(
+                model=args.model,
+                manifest=Path(args.scenario_manifest),
+                run_dir=Path(args.run_dir),
+                budget_usd=args.budget_usd,
+                max_workers=args.max_workers,
+                max_rounds=args.max_rounds,
+            )
+            state = supervisor.run()
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
         print(
             f"{state.model}: {len(state.completed)}/{state.total} scenarios, "
             f"${state.spent_usd:.2f} spent"
@@ -1092,14 +1126,22 @@ def main():
 
     elif args.command == "fold-board":
         from policybench.fold_board import fold_board
-
-        result = fold_board(
-            base_predictions=Path(args.base),
-            additions=[Path(p) for p in args.add],
-            scoring_source=Path(args.scoring_source),
-            out_dir=Path(args.out),
-            export=not args.no_export,
+        from policybench.full_run_export import (
+            ReferenceProvenanceError,
+            resolve_reference_digest,
         )
+
+        try:
+            result = fold_board(
+                base_predictions=Path(args.base),
+                additions=[Path(p) for p in args.add],
+                scoring_source=Path(args.scoring_source),
+                out_dir=Path(args.out),
+                export=not args.no_export,
+                reference_digest=resolve_reference_digest(args.reference_digest),
+            )
+        except (ReferenceProvenanceError, ValueError) as exc:
+            raise SystemExit(str(exc)) from exc
         for name in result["folded"]:
             print(f"folded: {name}")
         for name, reason in result["excluded"].items():
@@ -1193,7 +1235,11 @@ def main():
         models = _parse_models(args.models)
         run_dir = Path(args.output_dir)
         for model_name, model_id in models.items():
-            if adapter_for_model(model_id) is None:
+            try:
+                adapter = adapter_for_model(model_id)
+            except ValueError as exc:
+                raise SystemExit(str(exc)) from exc
+            if adapter is None:
                 raise SystemExit(
                     f"{model_name} ({model_id}) has no batch API — run it "
                     "with eval-no-tools-chunked instead."
@@ -1213,16 +1259,21 @@ def main():
                 raise SystemExit(str(exc)) from exc
 
     elif args.command == "export-full-run":
-        from policybench.full_run_export import export_full_run
+        from policybench.full_run_export import (
+            ReferenceProvenanceError,
+            export_full_run,
+            parse_reference_digest_args,
+        )
 
         try:
             export_full_run(
                 run_dir=args.run_dir,
                 countries=args.countries,
+                reference_digest=parse_reference_digest_args(args.reference_digest),
                 app_data_output=args.app_data_output,
                 skip_app_data=args.skip_app_data,
             )
-        except FileNotFoundError as exc:
+        except (FileNotFoundError, ReferenceProvenanceError) as exc:
             raise SystemExit(str(exc)) from exc
 
     elif args.command == "audit-prepare":
@@ -1357,6 +1408,11 @@ def main():
             export_dashboard_data,
         )
         from policybench.eval_no_tools import load_repeated_predictions
+        from policybench.full_run_export import (
+            ReferenceProvenanceError,
+            reference_policyengine_bundles,
+            resolve_reference_digest,
+        )
 
         gt = pd.read_csv(args.ground_truth)
         no_tools = pd.read_csv(args.predictions)
@@ -1366,8 +1422,26 @@ def main():
 
         scenario_manifest_path = Path(args.scenario_manifest)
         scenarios = None
+        policyengine_bundles = None
         if scenario_manifest_path.exists():
             scenarios = pd.read_csv(scenario_manifest_path)
+            country = (
+                str(scenarios["country"].dropna().iloc[0]).lower()
+                if "country" in scenarios.columns
+                and not scenarios["country"].dropna().empty
+                else "us"
+            )
+            try:
+                policyengine_bundles = reference_policyengine_bundles(
+                    Path(args.ground_truth),
+                    country,
+                    require_digest=True,
+                    manifest_reference_sha256=resolve_reference_digest(
+                        args.reference_digest, country
+                    ),
+                )
+            except ReferenceProvenanceError as exc:
+                raise SystemExit(str(exc)) from exc
 
         analysis = analyze_no_tools(
             gt,
@@ -1402,6 +1476,7 @@ def main():
                 analysis,
                 scenarios,
                 args.app_data_output,
+                policyengine_bundles=policyengine_bundles,
                 scenario_prompts=scenario_prompts,
             )
             exported["dashboard_data"] = dashboard_path

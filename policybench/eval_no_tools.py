@@ -54,23 +54,64 @@ from policybench.spend_ledger import (
 
 logger = logging.getLogger(__name__)
 
+# Canonical columns emitted by both no-tools result writers. ``run_id`` is
+# added only by repeated runs. Keep the worker-schema parity test in sync.
+NO_TOOLS_RESULT_COLUMNS = (
+    "call_id",
+    "model",
+    "scenario_id",
+    "variable",
+    "prediction",
+    "explanation",
+    "failure_source",
+    "raw_response",
+    "error",
+    "elapsed_seconds",
+    "request_started_at",
+    "request_completed_at",
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "reasoning_tokens",
+    "cached_prompt_tokens",
+    "cache_write_prompt_tokens",
+    "provider_reported_cost_usd",
+    "reconstructed_cost_usd",
+    "total_cost_usd",
+    "cost_is_estimated",
+    "estimated_cost_usd",
+    "provider_response_id",
+    "provider_system_fingerprint",
+    "provider_resolved_model",
+)
+
 # litellm resolves an unprefixed model's provider (and prices it) through its
 # model-cost map, whose remote refresh can time out mid-run and whose bundled
-# backup lags brand-new models. Register Claude Fable 5 locally so provider
-# routing and cost reconstruction never depend on the remote fetch.
-if "claude-fable-5" not in litellm.model_cost:
+# backup lags brand-new models. Register the Claude Fable line locally so
+# provider routing and cost reconstruction never depend on the remote fetch.
+# Prices come from the canonical per-million overrides so registration and
+# PolicyBench's reconstruction cannot drift apart.
+_LOCAL_CLAUDE_FABLE_MODELS = ("claude-fable-5", "claude-fable-5.1")
+for _display_id in _LOCAL_CLAUDE_FABLE_MODELS:
+    _model_id = MODELS[_display_id]
+    if _model_id in litellm.model_cost:
+        continue
+    _prices = PRICE_OVERRIDES_PER_1M[_display_id]
     litellm.register_model(
         {
-            "claude-fable-5": {
+            _model_id: {
                 "max_tokens": 128000,
                 "max_input_tokens": 1000000,
                 "max_output_tokens": 128000,
-                "input_cost_per_token": 10e-6,
-                "output_cost_per_token": 50e-6,
+                "input_cost_per_token": _prices["input"] / 1_000_000,
+                "output_cost_per_token": _prices["output"] / 1_000_000,
+                "cache_read_input_token_cost": _prices["cache_read"] / 1_000_000,
+                "cache_creation_input_token_cost": (_prices["cache_write"] / 1_000_000),
                 "litellm_provider": "anthropic",
                 "mode": "chat",
                 "supports_function_calling": True,
                 "supports_tool_choice": True,
+                "supports_reasoning": True,
                 "supports_vision": True,
                 "supports_prompt_caching": True,
             }
@@ -120,8 +161,9 @@ for _model_id in GPT_56_MODELS.values():
     )
 
 
-def _env_int(name: str, default: int) -> int:
-    value = os.environ.get(name)
+def _env_int(name: str, default: int, env: dict | None = None) -> int:
+    source = os.environ if env is None else env
+    value = source.get(name)
     if value is None:
         return default
     try:
@@ -148,20 +190,36 @@ GEMINI_REQUEST_TIMEOUT_SECONDS = _env_int(
 CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_CLAUDE_REQUEST_TIMEOUT_SECONDS", 120
 )
-# Claude models whose requests run thinking without us asking: Fable 5 cannot
-# disable it, and Sonnet 5 defaults to adaptive thinking when the request omits
-# the thinking param (ours do — models run at their API defaults). Hard single
-# outputs can think for minutes, so both get a longer timeout than the rest of
-# the Claude family.
-THINKING_DEFAULT_CLAUDE_MODELS = ("claude-fable-5", "claude-sonnet-5", "claude-opus-5")
+# Claude models whose requests run thinking without us asking: the Fable line
+# cannot disable it, and Sonnet 5 defaults to adaptive thinking when the
+# request omits the thinking param (ours do — models run at their API
+# defaults). Hard single outputs can think for minutes, so they get a longer
+# timeout than the rest of the Claude family.
+THINKING_DEFAULT_CLAUDE_MODELS = (
+    "claude-fable-5",
+    "claude-fable-5-1",
+    "claude-sonnet-5",
+    "claude-opus-5",
+)
 THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS", 300
 )
 REQUEST_WALL_TIMEOUT_GRACE_SECONDS = 30
 REQUEST_WALL_TIMEOUT_MULTIPLIER = 1.5
 CHECKPOINT_EVERY_ROWS = 25
-MAX_REPAIR_ROUNDS = _env_int("POLICYBENCH_MAX_REPAIR_ROUNDS", 2)
-RESUME_METADATA_VERSION = 3
+DEFAULT_MAX_REPAIR_ROUNDS = 2
+
+
+def _max_repair_rounds(env: dict | None = None) -> int:
+    return _env_int(
+        "POLICYBENCH_MAX_REPAIR_ROUNDS",
+        DEFAULT_MAX_REPAIR_ROUNDS,
+        env,
+    )
+
+
+MAX_REPAIR_ROUNDS = _max_repair_rounds()
+RESUME_METADATA_VERSION = 7
 DEFAULT_MAX_COMPLETION_TOKENS = 64
 EXTENDED_MAX_COMPLETION_TOKENS = 256
 EXPLANATION_MAX_COMPLETION_TOKENS = 4096
@@ -198,8 +256,13 @@ class RequestWallTimeoutError(TimeoutError):
     """Raised when a provider request exceeds PolicyBench's local wall timeout."""
 
 
+class SensitivityKnobError(ValueError):
+    """Raised when a serving sensitivity knob is unsupported by a transport."""
+
+
 NON_RETRYABLE_ERRORS = (
     RequestWallTimeoutError,
+    SensitivityKnobError,
     litellm.AuthenticationError,
     litellm.BadRequestError,
     litellm.ContextWindowExceededError,
@@ -358,8 +421,9 @@ def _reconstruct_token_cost(
     PolicyBench's explicit prices are authoritative. LiteLLM's mutable model
     map is used only when no override exists, and that fallback is marked as
     estimated. GPT-5.6 overrides include their documented cache and
-    long-context pricing; other overrides apply their standard rate to the
-    inclusive prompt-token count.
+    long-context pricing. Other overrides can declare cache-read and
+    cache-write rates; overrides without them apply their standard rate to
+    the inclusive prompt-token count.
     """
     if prompt_tokens is None or completion_tokens is None:
         return ReconstructedCost(None, None)
@@ -383,6 +447,16 @@ def _reconstruct_token_cost(
                 uncached * input_rate
                 + cached * input_rate * 0.1
                 + cache_write * input_rate * 1.25
+                + int(completion_tokens) * output_rate
+            )
+        elif "cache_read" in rates or "cache_write" in rates:
+            uncached = int(prompt_tokens) - cached - cache_write
+            cache_read_rate = rates.get("cache_read", rates["input"]) / 1_000_000
+            cache_write_rate = rates.get("cache_write", rates["input"]) / 1_000_000
+            cost = (
+                uncached * input_rate
+                + cached * cache_read_rate
+                + cache_write * cache_write_rate
                 + int(completion_tokens) * output_rate
             )
         else:
@@ -604,7 +678,9 @@ def _parse_standalone_number(text: str) -> float | None:
 
 
 def _required_explanation_chunk_size(
-    model_id: str, include_explanations: bool
+    model_id: str,
+    include_explanations: bool,
+    env: dict | None = None,
 ) -> int | None:
     if not include_explanations:
         return None
@@ -612,9 +688,10 @@ def _required_explanation_chunk_size(
     # POLICYBENCH_CHUNK_OVERRIDE=none runs grandfathered chunked models on
     # the canonical whole-scenario request so their sensitivity runs are
     # shaped like the rest of the roster. Never set for leaderboard runs.
+    source = os.environ if env is None else env
     return explanation_chunk_size_for(
         model_id,
-        chunk_override=os.environ.get("POLICYBENCH_CHUNK_OVERRIDE"),
+        chunk_override=source.get("POLICYBENCH_CHUNK_OVERRIDE"),
     )
 
 
@@ -764,23 +841,84 @@ def _completion_controls(
     return controls
 
 
-def _request_timeout_seconds(model_id: str) -> int:
+def _initial_completion_budget_tokens(
+    model_id: str,
+    variables: list[str] | None,
+    include_explanations: bool = True,
+) -> int | None:
+    """Return the budget sent on an initial request for concrete outputs.
+
+    ``variables`` must already reflect single-output mode or the first chunk,
+    if either applies. This deliberately records the first API request rather
+    than claiming to summarize later repair or escalation requests.
+    """
+    if variables is None:
+        return None
+    return completion_budget_from_kwargs(
+        _completion_controls(
+            model_id,
+            include_explanations=include_explanations,
+            variables=variables,
+        )
+    )
+
+
+def _request_timeout_seconds(model_id: str, env: dict | None = None) -> int:
+    def configured(name: str, current: int, default: int) -> int:
+        if env is None:
+            return current
+        value = env.get(name)
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
     card = card_for(model_id)
     if card is not None and card.request_timeout_seconds is not None:
         return card.request_timeout_seconds
     if card is not None and card.thinking_budget:
-        return THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS",
+            THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS,
+            300,
+        )
     if model_id.startswith("gemini/"):
-        return GEMINI_REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_GEMINI_REQUEST_TIMEOUT_SECONDS",
+            GEMINI_REQUEST_TIMEOUT_SECONDS,
+            120,
+        )
     if model_id == "gpt-5.5":
-        return GEMINI_PRO_REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_GEMINI_PRO_REQUEST_TIMEOUT_SECONDS",
+            GEMINI_PRO_REQUEST_TIMEOUT_SECONDS,
+            60,
+        )
     if model_id.startswith("xai/"):
-        return XAI_REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_XAI_REQUEST_TIMEOUT_SECONDS",
+            XAI_REQUEST_TIMEOUT_SECONDS,
+            420,
+        )
     if model_id in THINKING_DEFAULT_CLAUDE_MODELS:
-        return THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS",
+            THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS,
+            300,
+        )
     if model_id.startswith("claude-"):
-        return CLAUDE_REQUEST_TIMEOUT_SECONDS
-    return REQUEST_TIMEOUT_SECONDS
+        return configured(
+            "POLICYBENCH_CLAUDE_REQUEST_TIMEOUT_SECONDS",
+            CLAUDE_REQUEST_TIMEOUT_SECONDS,
+            120,
+        )
+    return configured(
+        "POLICYBENCH_REQUEST_TIMEOUT_SECONDS",
+        REQUEST_TIMEOUT_SECONDS,
+        20,
+    )
 
 
 def _request_wall_timeout_seconds(request_kwargs: dict) -> float:
@@ -827,12 +965,86 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
             signal.setitimer(signal.ITIMER_REAL, *previous_timer)
 
 
-def _answer_contract_for_model(model_id: str) -> str:
-    return answer_contract_for(model_id)
+def _answer_contract_for_model(model_id: str, env: dict | None = None) -> str:
+    # Sensitivity-run escape hatch, sibling of POLICYBENCH_TOOL_CHOICE and
+    # POLICYBENCH_CHUNK_OVERRIDE: POLICYBENCH_CONTRACT_OVERRIDE=tool runs a
+    # JSON-contract model with the answer tool declared, so a tool_choice=auto
+    # sensitivity run has a tool for the model to choose. Never set for
+    # leaderboard runs.
+    source = os.environ if env is None else env
+    return answer_contract_for(
+        model_id,
+        contract_override=source.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+    )
+
+
+def _tool_choice_for(function_name: str) -> str | dict:
+    """Return the tool_choice every chat-path builder sends for its tool.
+
+    The canonical board forces the tool. POLICYBENCH_TOOL_CHOICE=auto is the
+    sensitivity-run escape hatch that lets the model decide when to call it:
+    Anthropic models skip thinking when the tool is forced (verified on
+    claude-opus-5: forced tool or forced tool + explicit adaptive produce no
+    thinking blocks; tool_choice auto produces them), so the board runs those
+    Claudes without thinking while reasoning-by-default providers reason
+    regardless. Never set this for leaderboard runs; scores under auto are
+    not comparable to the board. The answer and explanation-repair builders
+    both call this so a sensitivity run never mixes modes mid-scenario.
+    """
+    if os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto":
+        return "auto"
+    return {"type": "function", "function": {"name": function_name}}
 
 
 def _uses_responses_api(model_id: str) -> bool:
     return model_id.startswith("gpt-5")
+
+
+def _thinking_configuration(model_id: str) -> dict | None:
+    """Describe the reasoning control used by the request builders.
+
+    A provider-default entry means the harness sends no reasoning-control
+    parameter for a model known to reason by default. ``None`` means the
+    harness applies no thinking treatment for that model. Keeping explicit
+    reasoning overrides behind this helper makes request construction and
+    persisted treatment metadata share one source of truth.
+    """
+    if model_id in REASONING_EFFORT_OVERRIDES:
+        return {"reasoning_effort": REASONING_EFFORT_OVERRIDES[model_id]}
+    card = card_for(model_id)
+    if (card is not None and card.thinking_budget) or (
+        model_id in THINKING_DEFAULT_CLAUDE_MODELS
+    ):
+        return {"mode": "provider_default"}
+    return None
+
+
+def _first_request_variables(
+    model_id: str,
+    variables: list[str],
+    include_explanations: bool,
+    *,
+    single_output: bool = False,
+    chunk_override: str | None = None,
+) -> list[str]:
+    """Select the outputs included in a model's first API request."""
+    if single_output:
+        return variables[:1]
+    chunk_size = (
+        explanation_chunk_size_for(model_id, chunk_override=chunk_override)
+        if include_explanations
+        else None
+    )
+    if chunk_size is not None:
+        return variables[:chunk_size]
+    return variables
+
+
+def _apply_thinking_configuration(request_kwargs: dict, model_id: str) -> None:
+    """Apply the explicit part of ``_thinking_configuration`` in place."""
+    thinking = _thinking_configuration(model_id)
+    if thinking is not None and "reasoning_effort" in thinking:
+        request_kwargs["reasoning"] = {"effort": thinking["reasoning_effort"]}
 
 
 def _chat_completion_request_kwargs(
@@ -870,23 +1082,12 @@ def _chat_completion_request_kwargs(
             country=scenario.country,
             include_explanations=include_explanations,
         )
-        tool_choice: str | dict = {
-            "type": "function",
-            "function": {"name": ANSWER_FUNCTION_NAME},
-        }
-        # Sensitivity-run escape hatch: POLICYBENCH_TOOL_CHOICE=auto lets the
-        # model decide when to call the answer tool. Anthropic models skip
-        # thinking when the tool is forced (verified on claude-opus-5: forced
-        # tool or forced tool + explicit adaptive produce no thinking blocks;
-        # tool_choice auto produces them), so the canonical board — which
-        # always forces the tool — runs Claude without thinking while
-        # reasoning-by-default providers reason regardless. Never set this for
-        # leaderboard runs; scores under auto are not comparable to the board.
-        if os.environ.get("POLICYBENCH_TOOL_CHOICE") == "auto":
-            tool_choice = "auto"
-        request_kwargs.update({"tools": [tool], "tool_choice": tool_choice})
+        request_kwargs.update(
+            {"tools": [tool], "tool_choice": _tool_choice_for(ANSWER_FUNCTION_NAME)}
+        )
     else:
         request_kwargs["response_format"] = {"type": "json_object"}
+    _apply_thinking_configuration(request_kwargs, model_id)
     return messages, request_kwargs
 
 
@@ -897,6 +1098,7 @@ def _responses_request_kwargs(
     repair: bool = False,
     include_explanations: bool = True,
 ) -> tuple[list[dict], dict]:
+    _reject_sensitivity_knobs_for_responses(model_id)
     answer_contract = _answer_contract_for_model(model_id)
     prompt_builder = (
         make_no_tools_batch_repair_prompt if repair else make_no_tools_batch_prompt
@@ -933,8 +1135,7 @@ def _responses_request_kwargs(
                 },
             }
         )
-    if model_id in REASONING_EFFORT_OVERRIDES:
-        request_kwargs["reasoning"] = {"effort": REASONING_EFFORT_OVERRIDES[model_id]}
+    _apply_thinking_configuration(request_kwargs, model_id)
     return [{"role": "user", "content": prompt}], request_kwargs
 
 
@@ -1821,6 +2022,7 @@ def _request_explanations_once(
         answer_contract=answer_contract,
     )
     if _uses_responses_api(model_id):
+        _reject_sensitivity_knobs_for_responses(model_id)
         messages = [{"role": "user", "content": prompt}]
         request_kwargs = {
             "model": model_id,
@@ -1842,10 +2044,7 @@ def _request_explanations_once(
                 "name": EXPLANATION_FUNCTION_NAME,
             },
         }
-        if model_id in REASONING_EFFORT_OVERRIDES:
-            request_kwargs["reasoning"] = {
-                "effort": REASONING_EFFORT_OVERRIDES[model_id]
-            }
+        _apply_thinking_configuration(request_kwargs, model_id)
         request_fn = responses
     else:
         messages = [{"role": "user", "content": prompt}]
@@ -1869,14 +2068,12 @@ def _request_explanations_once(
                             country=scenario.country,
                         )
                     ],
-                    "tool_choice": {
-                        "type": "function",
-                        "function": {"name": EXPLANATION_FUNCTION_NAME},
-                    },
+                    "tool_choice": _tool_choice_for(EXPLANATION_FUNCTION_NAME),
                 }
             )
         else:
             request_kwargs["response_format"] = {"type": "json_object"}
+        _apply_thinking_configuration(request_kwargs, model_id)
         request_fn = completion
 
     if completion_budget_tokens is not None:
@@ -1962,6 +2159,8 @@ def _request_explanations_once(
             **usage,
             "spend_ledger": [spend_record],
         }
+    except SensitivityKnobError:
+        raise
     except Exception as error:
         if getattr(error, "_policybench_spend_persistence_failure", False):
             raise
@@ -2017,6 +2216,8 @@ def _request_explanations_with_budget_escalation(
                 completion_budget_tokens=budget_override,
                 escalated_from_budget_tokens=escalated_from,
             )
+        except SensitivityKnobError:
+            raise
         except Exception as error:
             prior_spend = [
                 record
@@ -2217,6 +2418,8 @@ def _request_predictions_once(
                 **usage,
                 "spend_ledger": spend_records,
             }
+        except SensitivityKnobError:
+            raise
         except Exception as e:
             if getattr(e, "_policybench_spend_persistence_failure", False):
                 raise
@@ -2288,6 +2491,8 @@ def _request_predictions_with_budget_escalation(
                 completion_budget_tokens=budget_override,
                 escalated_from_budget_tokens=escalated_from,
             )
+        except SensitivityKnobError:
+            raise
         except Exception as error:
             prior_spend = [
                 record
@@ -2400,6 +2605,8 @@ def run_single_no_tools(
                     _allow_chunking=False,
                     _spend_callback=_spend_callback,
                 )
+            except SensitivityKnobError:
+                raise
             except Exception as error:
                 if _is_model_fatal_error(error):
                     _attach_spend_records(
@@ -2525,6 +2732,8 @@ def run_single_no_tools(
             repair_disagreements=repair_disagreements,
             spend_callback=_spend_callback,
         )
+    except SensitivityKnobError:
+        raise
     except Exception as error:
         partial_round = getattr(error, "_policybench_partial_budget_round", None)
         has_valid_partial = partial_round and any(
@@ -2570,6 +2779,8 @@ def run_single_no_tools(
                 repair_disagreements=repair_disagreements,
                 spend_callback=_spend_callback,
             )
+        except SensitivityKnobError:
+            raise
         except Exception as error:
             spend_records.extend(_spend_records(error))
             request_failed = True
@@ -2642,6 +2853,8 @@ def run_single_no_tools(
                 exhausted_variables.update(explanation_round["exhausted_variables"])
                 budget_escalation_count += explanation_round["budget_escalation_count"]
                 missing_explanations = _missing_explanations(explanations, variables)
+            except SensitivityKnobError:
+                raise
             except Exception as error:
                 spend_records.extend(_spend_records(error))
                 partial_round = getattr(
@@ -2792,15 +3005,7 @@ def _serialize_scenario(scenario: Scenario) -> str:
     )
 
 
-def _build_resume_metadata(
-    *,
-    task: str,
-    scenarios: list[Scenario],
-    models: dict[str, str],
-    programs: list[str],
-    run_id: str | None,
-    include_explanations: bool,
-) -> dict:
+def _scenario_hash(scenarios: list[Scenario]) -> str:
     scenario_signature = json.dumps(
         [
             {
@@ -2812,6 +3017,19 @@ def _build_resume_metadata(
         separators=(",", ":"),
         sort_keys=True,
     )
+    return hashlib.sha256(scenario_signature.encode("utf-8")).hexdigest()
+
+
+def _build_resume_metadata(
+    *,
+    task: str,
+    scenarios: list[Scenario],
+    models: dict[str, str],
+    programs: list[str],
+    run_id: str | None,
+    include_explanations: bool,
+    env: dict | None = None,
+) -> dict:
     countries = {(scenario.country or "us").lower() for scenario in scenarios}
     return {
         "metadata_version": RESUME_METADATA_VERSION,
@@ -2819,9 +3037,20 @@ def _build_resume_metadata(
         "run_id": run_id,
         "include_explanations": include_explanations,
         "scenario_count": len(scenarios),
-        "scenario_hash": hashlib.sha256(scenario_signature.encode("utf-8")).hexdigest(),
+        "scenario_hash": _scenario_hash(scenarios),
         "programs": sorted(programs),
         "models": {name: models[name] for name in sorted(models)},
+        "treatment": _treatment_metadata(
+            models,
+            include_explanations,
+            first_scenario_variables=(
+                expand_programs_for_scenario(programs, scenarios[0])
+                if scenarios
+                else None
+            ),
+            single_output=task == "eval_no_tools_single_output",
+            env=env,
+        ),
         "policyengine_bundles": policyengine_bundles_for_countries(countries),
         "response_contract": _response_contract_metadata(),
         "completion_budget_escalation": {
@@ -2833,6 +3062,92 @@ def _build_resume_metadata(
             },
         },
     }
+
+
+def _treatment_metadata(
+    models: dict[str, str],
+    include_explanations: bool,
+    *,
+    first_scenario_variables: list[str] | None = None,
+    single_output: bool = False,
+    env: dict | None = None,
+) -> dict:
+    """Effective per-model serving treatment recorded beside a resumable output.
+
+    A resumed file must not mix rows from different answer contracts,
+    tool_choice modes, or chunk sizes: the sensitivity knobs
+    (POLICYBENCH_TOOL_CHOICE, POLICYBENCH_CONTRACT_OVERRIDE,
+    POLICYBENCH_CHUNK_OVERRIDE) change the request without changing the model
+    id, so the resume check compares this block too.
+    """
+    source = os.environ if env is None else env
+    max_repair_rounds = MAX_REPAIR_ROUNDS if env is None else _max_repair_rounds(source)
+    treatment = {}
+    for name, model_id in sorted(models.items()):
+        answer_contract = _answer_contract_for_model(model_id, env=env)
+        treatment[name] = {
+            "answer_contract": answer_contract,
+            "tool_choice_mode": (
+                None
+                if answer_contract != "tool"
+                else (
+                    "auto"
+                    if source.get("POLICYBENCH_TOOL_CHOICE") == "auto"
+                    else "forced"
+                )
+            ),
+            "explanation_chunk_size": _required_explanation_chunk_size(
+                model_id,
+                include_explanations,
+                env=env,
+            ),
+            "contract_override": source.get("POLICYBENCH_CONTRACT_OVERRIDE"),
+            "max_repair_rounds": max_repair_rounds,
+            "initial_completion_budget_tokens": _initial_completion_budget_tokens(
+                model_id,
+                (
+                    _first_request_variables(
+                        model_id,
+                        first_scenario_variables,
+                        include_explanations,
+                        single_output=single_output,
+                        chunk_override=source.get("POLICYBENCH_CHUNK_OVERRIDE"),
+                    )
+                    if first_scenario_variables is not None
+                    else None
+                ),
+                include_explanations=include_explanations,
+            ),
+            "thinking": _thinking_configuration(model_id),
+            "request_timeout_seconds": _request_timeout_seconds(model_id, env=env),
+        }
+    return treatment
+
+
+def _reject_sensitivity_knobs_for_responses(
+    model_id: str, env: dict | None = None
+) -> None:
+    """Refuse the sensitivity knobs on the Responses API transport.
+
+    The Responses builders (initial answer and explanation repair) send the
+    forced answer tool only; POLICYBENCH_TOOL_CHOICE=auto and
+    POLICYBENCH_CONTRACT_OVERRIDE are implemented for the chat transport alone.
+    Failing fast keeps a run from being fingerprinted as auto/JSON while every
+    request it sent was forced-tool (policybench#139 tracks the Responses
+    equivalents).
+    """
+    source = os.environ if env is None else env
+    knobs = sorted(
+        key
+        for key in ("POLICYBENCH_TOOL_CHOICE", "POLICYBENCH_CONTRACT_OVERRIDE")
+        if source.get(key)
+    )
+    if knobs and _uses_responses_api(model_id):
+        raise SensitivityKnobError(
+            f"{model_id} runs on the Responses API transport, which sends the "
+            f"forced answer tool only; {', '.join(knobs)} are not implemented "
+            "for it (policybench#139). Unset them or choose a chat-transport model."
+        )
 
 
 def _write_resume_metadata(output_path: str | None, metadata: dict) -> None:
@@ -2882,6 +3197,7 @@ def _validate_resume_metadata(output_path: str | None, expected: dict) -> None:
         "scenario_hash",
         "programs",
         "models",
+        "treatment",
         "policyengine_bundles",
         "response_contract",
         "completion_budget_escalation",
@@ -3017,6 +3333,9 @@ def run_no_tools_eval(
     if programs is None:
         programs = PROGRAMS
 
+    for model_id in models.values():
+        _reject_sensitivity_knobs_for_responses(model_id)
+
     resume_metadata = _build_resume_metadata(
         task="eval_no_tools_batch",
         scenarios=scenarios,
@@ -3079,6 +3398,8 @@ def run_no_tools_eval(
                     if output_path:
                         _save_checkpoint(output_path, all_rows, resume_metadata)
                     raise RuntimeError(error)
+            except SensitivityKnobError:
+                raise
             except Exception as e:
                 _persist_spend_records(
                     output_path,
@@ -3257,6 +3578,9 @@ def run_no_tools_single_output_eval(
     if programs is None:
         programs = PROGRAMS
 
+    for model_id in models.values():
+        _reject_sensitivity_knobs_for_responses(model_id)
+
     resume_metadata = _build_resume_metadata(
         task="eval_no_tools_single_output",
         scenarios=scenarios,
@@ -3323,6 +3647,8 @@ def run_no_tools_single_output_eval(
                         if output_path:
                             _save_checkpoint(output_path, all_rows, resume_metadata)
                         raise RuntimeError(error)
+                except SensitivityKnobError:
+                    raise
                 except Exception as e:
                     _persist_spend_records(
                         output_path,

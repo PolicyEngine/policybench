@@ -1,6 +1,7 @@
 # Failure audit (Codex-backed classifier)
 
-The audit classifies every wrong `(scenario_id, variable)` case into the
+The audit selects model-output rows whose legacy threshold score is below 1
+and classifies each selected `(scenario_id, variable)` case into the
 [`annotation_taxonomy`](../policybench/annotation_taxonomy.py) — separating
 genuine model errors from prompt ambiguity, parse failures, and **candidate
 PolicyEngine/data bugs** (a wrong *reference*, not a wrong model). It replaces
@@ -41,7 +42,7 @@ serialized).
 
 Per case: the output variable, the PolicyEngine reference value, how
 PolicyEngine derived it (from `case_reference_explanations`), the exact question
-the models were asked, and every wrong model's answer + explanation side by
+the models were asked, and each selected model's answer and explanation side by
 side. It is told to default to `llm_error` and flag `reference_suspect` only
 with concrete evidence — the same conservatism as the deterministic inferrer,
 but with actual tax/benefit reasoning instead of keyword matching.

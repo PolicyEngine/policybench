@@ -4,6 +4,7 @@
 // can keep the runtime values out of the JS bundle.
 
 export const MODEL_ORDER = [
+  "claude-fable-5.1",
   "claude-fable-5",
   "claude-opus-5",
   "claude-opus-4.8",
@@ -40,6 +41,7 @@ export const MODEL_ORDER = [
 ] as const;
 
 export const MODEL_LABELS: Record<string, string> = {
+  "claude-fable-5.1": "Claude Fable 5.1",
   "claude-fable-5": "Claude Fable 5",
   "claude-opus-5": "Claude Opus 5",
   "claude-opus-4.8": "Claude Opus 4.8",
@@ -91,6 +93,7 @@ export type ProviderKey =
 // not). Mirrors policybench/paper_results.py MODEL_RELEASE_DATES, where each
 // date carries its source; update both together.
 export const MODEL_RELEASE_DATES: Record<string, string> = {
+  "claude-fable-5.1": "2026-09-01",
   "claude-fable-5": "2026-06-09",
   "claude-opus-5": "2026-07-24",
   "claude-sonnet-5": "2026-06-30",
@@ -169,7 +172,7 @@ export function orderModels(models: Iterable<string>): string[] {
 // can list fallbacks after its current flagship so an older frozen data bundle
 // still retains one visible model (for example GPT-5.5 before Sol is folded).
 const FRONTIER_MODEL_GROUPS = [
-  ["claude-fable-5", "claude-opus-5", "claude-opus-4.8"],
+  ["claude-fable-5.1", "claude-fable-5", "claude-opus-5", "claude-opus-4.8"],
   ["gpt-5.6-sol", "gpt-5.5"],
   ["grok-4.5", "grok-4.3"],
   ["gemini-3.1-pro-preview"],

@@ -11,7 +11,7 @@
     "build": "bun run prepare-data && next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
-    "test": "bun test tests"
+    "test": "bun run prepare-data && bun test tests"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.4",

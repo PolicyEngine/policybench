@@ -90,6 +90,10 @@ describe("parseDataVersionRegistry", () => {
       isLivePointerRef(version.artifact),
     );
     expect(live).toHaveLength(1);
+    expect(
+      registry.versions.find((version) => version.id === registry.default)
+        ?.snapshotLabel,
+    ).toBe("Snapshot 2026-09-01");
   });
 });
 

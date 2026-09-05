@@ -343,66 +343,7 @@ def headline_cis_by_country(
 
 def federal_state_joint_accuracy() -> pd.DataFrame:
     """Within-10% accuracy for federal vs state refundable credits and the joint."""
-    predictions = country_payload("us")["scenarioPredictions"]
-    rows = []
-    for scenario_id, variables in predictions.items():
-        if (
-            "federal_refundable_credits" not in variables
-            or "state_refundable_credits" not in variables
-        ):
-            continue
-        federal = variables["federal_refundable_credits"]
-        state = variables["state_refundable_credits"]
-        for model in federal:
-            if model not in state:
-                continue
-            rows.append(
-                {
-                    "scenario_id": scenario_id,
-                    "model": model,
-                    "fed_truth": federal[model]["groundTruth"],
-                    "fed_pred": federal[model].get("prediction"),
-                    "state_truth": state[model]["groundTruth"],
-                    "state_pred": state[model].get("prediction"),
-                }
-            )
-    frame = pd.DataFrame(rows)
-
-    def hit_within_10(truth: float, pred: float | None) -> bool:
-        if pred is None or pd.isna(pred):
-            return False
-        if truth == 0:
-            return abs(pred) <= 1.0
-        return abs(pred - truth) / abs(truth) <= 0.10
-
-    frame["fed_hit"] = [
-        hit_within_10(truth, pred)
-        for truth, pred in zip(frame["fed_truth"], frame["fed_pred"], strict=True)
-    ]
-    frame["state_hit"] = [
-        hit_within_10(truth, pred)
-        for truth, pred in zip(
-            frame["state_truth"], frame["state_pred"], strict=True
-        )
-    ]
-    frame["both_hit"] = frame["fed_hit"] & frame["state_hit"]
-    summary = (
-        frame.groupby("model")[["fed_hit", "state_hit", "both_hit"]]
-        .mean()
-        .reset_index()
-        .sort_values("both_hit", ascending=False)
-    )
-    summary["fed_hit"] = (summary["fed_hit"] * 100).round(1)
-    summary["state_hit"] = (summary["state_hit"] * 100).round(1)
-    summary["both_hit"] = (summary["both_hit"] * 100).round(1)
-    summary["model"] = summary["model"].map(model_display_name)
-    summary.columns = [
-        "Model",
-        "Federal within 10%",
-        "State within 10%",
-        "Joint within 10%",
-    ]
-    return summary
+    return r.federal_state_joint_accuracy.copy()
 
 
 def weighting_sensitivity() -> pd.DataFrame:
@@ -530,7 +471,7 @@ def deviation_audit_summary_table() -> pd.DataFrame:
         rows.append(
             {
                 "Country": country.upper(),
-                "Wrong rows audited": len(wrong),
+                "Legacy-threshold rows audited": len(wrong),
                 "LLM response errors": int(source_counts.get("llm_error", 0)),
                 "Parse-contract failures": int(
                     source_counts.get("parse_contract_failure", 0)
@@ -706,6 +647,9 @@ def model_run_table(top_n: int | None = None) -> pd.DataFrame:
                 "Provider ID": serving["provider_id"],
                 "Released": released(model),
                 "Parsed": f"{int(us_row.nParsed):,}/{int(us_row.n):,}",
+                "Transport": (
+                    "forced tool" if serving["answer_contract"] == "tool" else "JSON"
+                ),
                 "Request shape": serving["request_shape"],
                 "Reasoning setup": serving["reasoning_setup"],
             }
@@ -775,11 +719,15 @@ n_chunked_models = int(
 baseline_summary = simple_baselines()
 
 
-def md_table(frame: pd.DataFrame) -> "Markdown":
+def md_table(
+    frame: pd.DataFrame, caption: str | None = None, label: str | None = None
+) -> "Markdown":
     """Render a DataFrame as a pandoc pipe table so long cells wrap in PDF.
 
     Raw DataFrame output reaches LaTeX as fixed-width boxes that clip at the
     page margin; pipe tables get relative column widths and wrapped cells.
+    A computed caption goes in pandoc's caption line with the cross-reference
+    label, because Quarto does not evaluate inline code inside ``tbl-cap``.
     """
     from IPython.display import Markdown
 
@@ -796,7 +744,11 @@ def md_table(frame: pd.DataFrame) -> "Markdown":
         "| " + " | ".join(clean(v) for v in record) + " |"
         for record in frame.itertuples(index=False)
     ]
-    return Markdown("\n".join([header, rule, *rows]))
+    table = "\n".join([header, rule, *rows])
+    if caption is not None:
+        suffix = f" {{#{label}}}" if label else ""
+        table = f"{table}\n\n: {caption}{suffix}"
+    return Markdown(table)
 
 
 def fmt_latency_seconds(seconds) -> str:
@@ -813,9 +765,9 @@ def fmt_cost_per_household(usd) -> str:
 
 
 def load_us_cost_latency() -> dict:
-    # Cost and latency are computed from the frozen run's logged token usage and
-    # per-call timings — the same model_cost_latency the leaderboard pipeline
-    # uses, read off predictions — then reconciled against the frozen
+    # Cost and latency use the frozen run's recorded per-call costs and timings,
+    # through the same model_cost_latency function as the leaderboard pipeline,
+    # then are reconciled against the frozen
     # modelStats: Claude Fable 5's usage is recorded at the run level (its
     # per-row usage columns are empty), and batch or asynchronous waves log
     # submission times rather than generation time, so a zero or sub-second
@@ -906,12 +858,6 @@ cost_latency_text = cost_latency_summary()
 federal_state_joint = federal_state_joint_accuracy()
 weighting_sensitivity_table = weighting_sensitivity()
 deviation_audit_summary = deviation_audit_summary_table()
-total_wrong_rows_audited = int(
-    deviation_audit_summary.loc[
-        deviation_audit_summary["Country"] == "Total",
-        "Wrong rows audited",
-    ].iloc[0]
-)
 snapshot_provenance = pd.DataFrame(
     [
         ["Snapshot date", SNAPSHOT_DATE],
@@ -978,11 +924,25 @@ parse_repair_summary = pd.DataFrame(
                 f"({r.parse_contract_failure_pct_fmt}%) have no parsable "
                 "numeric value after retries. The failures comprise "
                 f"{r.parse_contract_failure_breakdown_fmt}. They score zero "
-                "as parse-contract failures. Every other row has a parsed "
-                "numeric value and a non-empty explanation."
+                "as parse-contract failures. A further "
+                f"{r.explanation_missing_count_fmt} rows "
+                f"({r.explanation_missing_breakdown_fmt}) carry a parsed "
+                "numeric value but no explanation; they are scored on the "
+                "numeric value and counted here as explanation-contract "
+                f"violations, so {r.contract_violation_count_fmt} rows in all "
+                "fall short of the numeric-plus-explanation contract. Every "
+                "other row has both."
             ),
         ],
-        ["Preservation rule", "The snapshot retains the raw provider responses in the compressed source-run prediction files, including the responses behind unparsable rows."],
+        [
+            "Preservation rule",
+            (
+                "The snapshot retains raw provider responses in the compressed "
+                "source-run prediction files wherever the transport exposed "
+                f"them; {r.blank_raw_response_note} (batch-adapter rows carry "
+                "no per-row payload, and those parse failures captured none)."
+            ),
+        ],
     ],
     columns=["Step", "Finding"],
 )
@@ -1024,7 +984,7 @@ conclusion_snapshot_summary = country_top_sentence(us_top_model)
 
 ## Abstract {.unnumbered}
 
-PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine `{python} r.dataset_label` microdataset, scored through policyengine.py `{python} r.policyengine_version`. It evaluates `{python} r.n_models_fmt` frontier models on `{python} r.n_households_fmt` households across `{python} r.n_output_groups_fmt` output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match on a household-impact-weighted leaderboard: `{python} r.zero_share_pct_fmt`% of US reference outputs are exact zeros, and the weighting concentrates scores in the high-dollar output groups a hedge-to-zero strategy cannot answer, so the top model leads an always-zero baseline of `{python} r.always_zero_exact_fmt`% weighted exact by `{python} r.top_exact_margin_fmt` points (Section 3.1 details the construction). The manuscript snapshot is a `{python} r.n_households_fmt`-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` Within model families, newer is not always stronger: Claude Opus 4.8 scores `{python} r.opus48_score_fmt`% exact, below the `{python} r.opus47_score_fmt`% of the earlier Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. Every wrong cell is audited, with reference-suspect flags adjudicated against primary sources and engine traces; the frozen release has no known reference-computation defects, and every one of the `{python} r.wrong_row_count_fmt` scored misses traces to a model-side failure (including the `{python} r.parse_contract_failure_pct_fmt`% of cells with a missing or unparsable answer, scored as misses rather than dropped). The live benchmark is available at <https://policybench.org>.
+PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine `{python} r.dataset_label` microdataset, scored through policyengine.py `{python} r.policyengine_version`. It evaluates `{python} r.n_models_fmt` frontier models on `{python} r.n_households_fmt` households across `{python} r.n_output_groups_fmt` output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match on a household-impact-weighted leaderboard: `{python} r.zero_share_pct_fmt`% of US reference outputs are exact zeros, and the weighting concentrates scores in the high-dollar output groups a hedge-to-zero strategy cannot answer, so the top model leads an always-zero baseline of `{python} r.always_zero_exact_fmt`% weighted exact by `{python} r.top_exact_margin_fmt` points (Section 3.1 details the construction). The manuscript snapshot is a `{python} r.n_households_fmt`-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. `{python} abstract_snapshot_summary` Within model families, newer is not always stronger: Claude Opus 4.8 scores `{python} r.opus48_score_fmt`% exact, below the `{python} r.opus47_score_fmt`% of the earlier Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The frozen audit annotations cover `{python} r.audit_annotated_row_count_fmt` `{python} r.audit_selection_rule`. That universe contains `{python} r.annotated_exact_miss_count_fmt` of the snapshot's `{python} r.exact_match_miss_count_fmt` exact-match misses and `{python} r.annotated_exact_hit_count_fmt` exact hits; `{python} r.unannotated_below_full_bounded_score_count_fmt` additional rows with bounded score below 100 were not selected or annotated. Reference-suspect flags in the selected universe were adjudicated against primary sources and engine traces, and the frozen release has no known reference-computation defects. The `{python} r.parse_contract_failure_pct_fmt`% of cells with a missing or unparsable answer remain scored as misses rather than dropped. The live benchmark is available at <https://policybench.org>.
 
 ## Introduction
 
@@ -1048,7 +1008,7 @@ Finally, PolicyBench depends on two infrastructure literatures that are not them
 
 ## Benchmark design
 
-PolicyBench asks models to predict all benchmark outputs for a household in a single structured response. One response per household reduces repeated prompt cost and keeps the task at the household-return level rather than turning it into a sequence of unrelated one-output calls.
+The canonical PolicyBench request asks each model to predict every benchmark output for a household in a whole-scenario response under its structured answer contract. `{python} n_chunked_models` of the `{python} r.n_models_fmt` models received the documented chunked accommodation and instead answered the same prompt template over one- or three-output subsets, reducing each response's completion demand while preserving the household-level task.
 
 ### Headline metric: exact match {#sec-headline-metric}
 
@@ -1080,11 +1040,11 @@ The benchmark requires each model response to include numeric answers and one ex
 
 Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts and requested outputs. They receive no web or external tool access. The prompt sets unlisted numeric inputs to `0`, unlisted boolean or status facts to false, and household characteristics as constant over the tax-benefit year. Provider-specific differences are limited to structured-output transport, request shape, and the reasoning setup in @tbl-model-runs. The harness sends no reasoning-control or sampling parameters. It leaves reasoning effort, temperature, and related decoding controls at provider defaults. The frozen GPT-5.5 wave uses provider-default reasoning effort.
 
-The forced `tool_choice` suppresses Claude's extended thinking in this snapshot ([`sensitivity/claude-thinking-2026-08.md`](https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md)). A labeled sensitivity with `tool_choice: "auto"` is published beside the board. The next board version moves every model to `tool_choice: "auto"` so each provider's default reasoning posture can engage.
+The forced `tool_choice` suppresses Claude's extended thinking in this snapshot ([`sensitivity/claude-thinking-2026-08.md`](https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md)). A labeled sensitivity with `tool_choice: "auto"` is published beside the board. Claude Fable 5.1, released September 1, 2026, closes the interaction from the API side: it rejects forced tool use with an error, so its row answers through the JSON transport and reasons at the provider default; a sensitivity run with the tool declared under `tool_choice: "auto"` scores 1.2 points above that row. The next board version moves every model to `tool_choice: "auto"` so each provider's default reasoning posture can engage.
 
-Request shape is the one dimension on which requests were not identical across models. `{python} n_chunked_models` of the `{python} r.n_models_fmt` models could not reliably complete the whole-scenario request — their serving stacks rejected the structured-output call, exhausted completion budgets mid-response, or timed out — and instead answered the same prompt template over subsets of the requested outputs, one to three outputs per request (@tbl-model-runs). Subsetting gives each response fewer requested outputs and a fresh completion budget over the same household facts, so the accommodation, if it moves scores at all, should favor the chunked models; their scores are not strictly comparable to whole-scenario scores. This accommodation is closed going forward: a model added after this snapshot either answers the canonical whole-scenario request or is listed as not scorable rather than accommodated.
+Two dimensions on which requests were not identical across models are request shape and answer transport (@tbl-model-runs). `{python} n_chunked_models` of the `{python} r.n_models_fmt` models could not reliably complete the whole-scenario request because their serving stacks rejected the structured-output call, exhausted completion budgets mid-response, or timed out. They instead answered the same prompt template over subsets of the requested outputs, one to three outputs per request. Subsetting gives each response fewer requested outputs and a fresh completion budget over the same household facts, so the accommodation, if it moves scores at all, should favor the chunked models; their scores are not strictly comparable to whole-scenario scores. This accommodation is closed going forward: a model added after this snapshot either answers the canonical whole-scenario request or is listed as not scorable rather than accommodated.
 
-One row is a cloaked preview model listed as such. It is publicly callable under the identical request, its maker is unnamed, and its date is its OpenRouter listing date.
+One row is a cloaked preview model listed as such. It is publicly callable under the canonical whole-scenario request and forced-tool transport, its maker is unnamed, and its date is its OpenRouter listing date.
 
 ### Frozen snapshot and open-set status
 
@@ -1097,9 +1057,12 @@ md_table(snapshot_provenance)
 ```
 
 ```{python}
-#| label: tbl-model-runs
-#| tbl-cap: "Model run configuration in the frozen manuscript snapshot. Every model uses its provider's structured-output transport with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same prompt template over the same household facts. The snapshot pins request shape and reasoning setup from the harness registry and model cards. Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights, announced at its API launch [@willison2026kimik3], shipped on Hugging Face on July 27, 2026 under a custom license [@techtimes2026kimik3weights]. Ox Alpha is an OpenRouter stealth listing with no named maker; its Released date is its August 21, 2026 listing date."
-md_table(model_runs)
+model_runs_caption = (
+    "Model run configuration in the frozen manuscript snapshot. Every model answers through the transport its model card records, with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same household facts and requested outputs. Transport is the answer contract: a forced answer-schema tool call (`tool_choice` set to the answer tool) or a JSON object, the latter where the provider rejects a forced tool or where the model card selects JSON. "
+    + r.serving_evidence_caption
+    + " Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights, announced at its API launch [@willison2026kimik3], shipped on Hugging Face on July 27, 2026 under a custom license [@techtimes2026kimik3weights]. Ox Alpha is an OpenRouter stealth listing with no named maker; its Released date is its August 21, 2026 listing date."
+)
+md_table(model_runs, caption=model_runs_caption, label="tbl-model-runs")
 ```
 
 ## Data and scenario construction
@@ -1122,11 +1085,11 @@ md_table(scope_rationale)
 
 PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and externally checked in specific domains. No. 10 Downing Street's data science team adapted PolicyEngine's open-source microsimulation model for experimental policy simulation, with validation against external projections before use [@woodruff2026no10; @policyengine2026downing]. In the US, @policyengine2024statetax reports matching the National Bureau of Economic Research (NBER) TAXSIM-35 model [@feenberg1993taxsim] to the cent on the vast majority of cases for the 2021 tax year across hundreds of thousands of tax units per state, with state-specific differences documented in the integration tests. We do not restate that comparison as a single percentage because the published source uses qualitative phrasing rather than a headline accuracy number. PolicyEngine has also signed a memorandum of understanding [@policyengine2025atlantafed] with the Federal Reserve Bank of Atlanta for future validation work against its Policy Rules Database [-@atlantafed2026prd]. The Atlanta Fed sources are a caveat rather than evidence of completed validation for this benchmark: they document planned collaboration and the comparison source, not finished checks of the frozen PolicyBench outputs. Taken together, these sources support using PolicyEngine as a transparent reference implementation with partial external validation, but they do not validate every benchmark output.
 
-This does not make PolicyEngine infallible, so we treated the reference outputs as claims to be attacked rather than assumptions. Across development and three audit waves, every wrong cell received a model-assisted review, and every case in which a reviewing model suspected the reference itself was adjudicated by hand against primary sources — statutes, regulations, and published program parameters — and against the engine's computation traces. Reviewers raised 35 reference-suspect flags in total. Thirty-one dissolved under adjudication, with the reviewer's hypothesis failing against a primary source (stale thresholds, missed program mergers, missed federal-conformity elections, misread eligibility-income definitions) or against the engine trace. Four were genuine: two Head Start eligibility flags and one New Jersey state income tax cell reflected policyengine-us defects (an age-window bound and a filing-threshold floor the benchmarked path bypassed), and one SNAP cell rested on a scenario whose encoded inputs did not match the disability status its prompt implied. The engine defects were fixed upstream (policyengine-us #8845 and #8846, plus #8844, found in the same review but affecting no benchmark cell), and this snapshot's reference outputs are generated with the fixed engine, policyengine-us `{python} r.policyengine_us_version`. The mis-encoded scenario is disclosed under Limitations pending the next scenario refresh. The asymmetry of this record is itself evidence about the reference: even among the cells the reviewing models found most suspicious, 31 of 35 flags (89%) resolved to model-side errors, set against thousands of confirmed model errors overall and four reference defects. @tbl-reference-review summarizes the reviewed discrepancy classes and outcomes; no unresolved reference-computation defect is known in the frozen snapshot.
+This does not make PolicyEngine infallible, so we treated the reference outputs as claims to be attacked rather than assumptions. Across development and three audit waves, the model-assisted review covered `{python} r.audit_annotated_row_count_fmt` `{python} r.audit_selection_rule`. That selected universe contains `{python} r.annotated_exact_miss_count_fmt` exact-match misses and `{python} r.annotated_exact_hit_count_fmt` exact hits; `{python} r.unannotated_below_full_bounded_score_count_fmt` additional rows with bounded score below 100 were not annotated. Reviewers adjudicated each reference-suspect flag by hand against primary sources, including statutes, regulations, and published program parameters, and against the engine's computation traces. Reviewers raised 35 reference-suspect flags in total. Thirty-one dissolved under adjudication, with the reviewer's hypothesis failing against a primary source (stale thresholds, missed program mergers, missed federal-conformity elections, misread eligibility-income definitions) or against the engine trace. Four were genuine: two Head Start eligibility flags and one New Jersey state income tax cell reflected policyengine-us defects (an age-window bound and a filing-threshold floor the benchmarked path bypassed), and one SNAP cell rested on a scenario whose encoded inputs did not match the disability status its prompt implied. The engine defects were fixed upstream (policyengine-us #8845 and #8846, plus #8844, found in the same review but affecting no benchmark cell), and this snapshot's reference outputs are generated with the fixed engine, policyengine-us `{python} r.policyengine_us_version`. The mis-encoded scenario is disclosed under Limitations pending the next scenario refresh. The asymmetry of this record is itself evidence about the reference: even among the cells the reviewing models found most suspicious, 31 of 35 flags (89%) resolved to model-side errors, set against thousands of confirmed model errors overall and four reference defects. @tbl-reference-review summarizes the reviewed discrepancy classes and outcomes; no unresolved reference-computation defect is known in the frozen snapshot.
 
 The audit tooling itself required hardening, which we report because it changes how much the annotations can be trusted. The derivation narratives displayed alongside reference values are generated from engine computation traces. After earlier model-written narratives were found to misattribute eligibility pathways, mechanical validators now enforce that each narrative states the engine's actual mechanism — for example, that a child ineligible for CHIP because they qualify for Medicaid is never described as failing a CHIP income test. The failure-audit judge reads these grounded narratives together with engine facts and must return a per-model diagnosis naming the specific rule or computation the model missed. It is barred from re-adjudicating the reference in prose: hedged or reference-adjudicating verdicts are mechanically rejected and re-judged, and genuine reference doubt is routed to a structured flag that triggers the manual adjudication described above.
 
-After freezing the snapshot and completing response-contract repairs, we annotated every wrong model-output row and every scenario-output case with at least one wrong row. @tbl-deviation-audit reports that all `{python} f"{total_wrong_rows_audited:,}"` rows receiving less than full score carry row-level and case-level annotations. Every row resolves to one of two final classes: `llm_error` (a substantive miscalculation, with a per-model diagnosis naming the rule or computation the model missed) or `parse_contract_failure` (a missing or unparsable answer, classified deterministically). No wrong row remains classified as a prompt ambiguity, unresolved reference issue, or needs-review item, and zero rows carry a standing reference-suspect flag. The audit pipeline is model-assisted with developer adjudication of every reference-suspect flag rather than independent external validation, but it is exhaustive over scored misses in the frozen snapshot.
+After freezing the snapshot and completing response-contract repairs, we annotated the `{python} r.audit_annotated_row_count_fmt` `{python} r.audit_selection_rule` and their scenario-output cases. @tbl-deviation-audit reports the final classifications for that legacy-threshold audit universe. It contains `{python} r.annotated_exact_miss_count_fmt` of the snapshot's `{python} r.exact_match_miss_count_fmt` exact-match misses and `{python} r.annotated_exact_hit_count_fmt` exact hits. The `{python} r.unannotated_below_full_bounded_score_count_fmt` other rows with bounded score below 100 fall outside the selection and have no audit annotation. Each annotated row resolves to one of two final classes: `llm_error` (a substantive miscalculation, with a per-model diagnosis naming the rule or computation the model missed) or `parse_contract_failure` (a missing or unparsable answer, classified deterministically). No annotated row remains classified as a prompt ambiguity, unresolved reference issue, or needs-review item, and zero annotated rows carry a standing reference-suspect flag. The audit pipeline is model-assisted, with developer adjudication of each reference-suspect flag rather than independent external validation.
 
 ```{python}
 #| label: tbl-reference-review
@@ -1136,7 +1099,7 @@ md_table(reference_audit)
 
 ```{python}
 #| label: tbl-deviation-audit
-#| tbl-cap: "Exhaustive annotation coverage for scored misses in the frozen snapshot."
+#| tbl-cap: "Annotation outcomes for the legacy-threshold audit universe in the frozen snapshot."
 md_table(deviation_audit_summary)
 ```
 
@@ -1164,11 +1127,11 @@ Accuracy is one axis; the price and speed of a no-tools answer are another. @tbl
 
 ```{python}
 #| label: tbl-us-cost-latency
-#| tbl-cap: "Estimated cost and median latency per household for the frozen US snapshot, alongside the headline exact-match rate. Cost is reconstructed from logged token usage at provider list prices; latency is the median across households of each household's summed request time. An em dash marks usage or wall-clock latency that was not measured per call."
+#| tbl-cap: "Estimated cost and median latency per household for the frozen US snapshot, alongside the headline exact-match rate. Each row uses its recorded per-call cost: provider-reported where the provider returns one, otherwise reconstructed at the configured list price at request time. List-price overrides apply at request time, not retroactively to recorded costs. Models without per-call costs use the frozen release-metadata cost. Latency is the median across households of each household's summed request time. A dash marks usage or wall-clock latency that was not measured per call."
 cost_latency
 ```
 
-Cost is reconstructed from each call's logged prompt and completion tokens at provider list prices through litellm; for `grok-build-0.1`, which litellm's price map did not yet cover, we apply the provider's published rate of \$1 and \$2 per million input and output tokens. Latency is wall-clock request time as observed by the harness, summed within each household and taken as the median across the `{python} r.n_households_fmt` households. The per-call timer spans any provider-side retry or rate-limit backoff, so the median is reported in preference to the mean, which a few throttled calls inflate. Latency is not comparable across serving regimes: Claude-family models issue chunked serial calls that lengthen wall-clock time, several models ran through batch or asynchronous dispatch whose logged times reflect submission rather than generation (shown as —), and Claude Fable 5's usage and latency are recorded at the run level rather than per call. Both cost and latency are properties of this run's providers, prompts, and serving configurations at evaluation time rather than fixed model constants.
+Cost preserves each call's recorded total, including provider-reported charges where available and request-time reconstructions otherwise. Configured list-price overrides do not reprice recorded calls. Rows without per-call costs use the frozen release-metadata cost. Latency is wall-clock request time as observed by the harness, summed within each household and taken as the median across the `{python} r.n_households_fmt` households. The per-call timer spans any provider-side retry or rate-limit backoff, so the median is reported in preference to the mean, which a few throttled calls inflate. Latency is not comparable across serving regimes: Claude-family models issue chunked serial calls that lengthen wall-clock time, several models ran through batch or asynchronous dispatch whose logged times reflect submission rather than generation (shown as a dash), and Claude Fable 5's usage and latency are recorded at the run level rather than per call. Both cost and latency are properties of this run's providers, prompts, and serving configurations at evaluation time rather than fixed model constants.
 
 ### Simple baselines
 
@@ -1243,14 +1206,19 @@ def _lag(frame):
     ]
     anchor = min(closed_above["model"], key=_rel)
     days = (_rel(best_open.model) - _rel(anchor)).days
-    return best_open, anchor, days
+    return best_open, anchor, days, len(closed_above)
+
+
+def _closed_models_phrase(n: int) -> str:
+    word = {1: "one", 2: "two", 3: "three", 4: "four"}.get(n, str(n))
+    return f"{word} closed model{'' if n == 1 else 's'}"
 
 
 _pre_july = us_model[
     us_model["model"].map(_rel) < _date(2026, 7, 1)
 ]
-june_open, june_anchor, june_days = _lag(_pre_july)
-full_open, full_anchor, full_days = _lag(us_model)
+june_open, june_anchor, june_days, _ = _lag(_pre_july)
+full_open, full_anchor, full_days, full_n_closed_above = _lag(us_model)
 june_months = f"{june_days / 30.44:.1f}"
 full_weights_days = (_date(2026, 7, 27) - _rel(full_anchor)).days
 
@@ -1260,7 +1228,7 @@ def _prose_date(model: str) -> str:
     return f"{d.strftime('%B')} {d.day}, {d.year}"
 ```
 
-The leaderboard also measures time. Following the lag construction the UK AI Security Institute applied to cyber capabilities [@aisi2026openweight], the open-weight lag is the time between the closed frontier first reaching a score and the leading open-weight model matching it. Two cuts of the frozen roster give the trajectory. Among models released before July 2026, the leading open-weight model is `{python} model_display_name(june_open.model)` at `{python} f"{june_open.exact:.1f}"`% exact, whose weights shipped on `{python} _prose_date(june_open.model)` [@deepseek2026v4]; the earliest-released closed model above that score is `{python} model_display_name(june_anchor)`, released `{python} _prose_date(june_anchor)` [@techcrunch2025gemini3flash] — a lag of `{python} str(june_days)` days, about `{python} june_months` months. On the full roster, `{python} model_display_name(full_open.model)` at `{python} f"{full_open.exact:.1f}"`% exact trails only `{python} model_display_name(full_anchor)`, generally available `{python} _prose_date(full_anchor)` [@techcrunch2026gpt56], putting the lag at `{python} str(full_days)` days by API availability, or `{python} str(full_weights_days)` days dated to Kimi K3's July 27 weight release on Hugging Face [@techtimes2026kimik3weights].
+The leaderboard also measures time. Following the lag construction the UK AI Security Institute applied to cyber capabilities [@aisi2026openweight], the open-weight lag is the time between the closed frontier first reaching a score and the leading open-weight model matching it. Two cuts of the frozen roster give the trajectory. Among models released before July 2026, the leading open-weight model is `{python} model_display_name(june_open.model)` at `{python} f"{june_open.exact:.1f}"`% exact, whose weights shipped on `{python} _prose_date(june_open.model)` [@deepseek2026v4]; the earliest-released closed model above that score is `{python} model_display_name(june_anchor)`, released `{python} _prose_date(june_anchor)` [@techcrunch2025gemini3flash] — a lag of `{python} str(june_days)` days, about `{python} june_months` months. On the full roster, `{python} model_display_name(full_open.model)` at `{python} f"{full_open.exact:.1f}"`% exact trails `{python} _closed_models_phrase(full_n_closed_above)`; the earliest released of them, `{python} model_display_name(full_anchor)`, generally available `{python} _prose_date(full_anchor)` [@techcrunch2026gpt56], puts the lag at `{python} str(full_days)` days by API availability, or `{python} str(full_weights_days)` days dated to Kimi K3's July 27 weight release on Hugging Face [@techtimes2026kimik3weights].
 
 Both figures are lower bounds in one direction: a closed model outside the evaluated roster that crossed either score earlier would lengthen the corresponding lag. They also carry the uncertainty of any single-benchmark, single-domain estimate — the AISI analysis reports substantially longer lags on cyber tasks — and a lag measured at a moving frontier compresses mechanically when a strong open-weight release lands days after a frontier release.
 
@@ -1270,7 +1238,7 @@ The benchmark surfaces a few recurring failure patterns.
 
 First, models miss positive tax and benefit quantities more often than zero cases. The lowest-scoring outputs by bounded score (@tbl-us-hardest) require the model to choose the right income concepts, exclusions, program thresholds, and sequencing before applying any final subtraction. Positive benefit cases remain difficult, so the result should not be read as a general claim that benefits are easy.
 
-Second, joint accuracy across interacting components is lower than marginal accuracy on either component. @tbl-fed-state shows within-10% accuracy for `federal_refundable_credits`, `state_refundable_credits`, and the conjunction of both within the same household. The joint hit rate can be no higher than either marginal and is strictly lower for all but the top model, so leaderboard scores that average across outputs understate how often a model gets a single household's federal/state credit allocation jointly correct.
+Second, joint accuracy across interacting components can be lower than marginal accuracy on either component. @tbl-fed-state shows within-10% accuracy for `federal_refundable_credits`, `state_refundable_credits`, and the conjunction of both within the same household. `{python} r.joint_credit_accuracy_note` Leaderboard scores that average across outputs therefore overstate how often a model gets a single household's federal/state credit allocation jointly correct.
 
 ```{python}
 #| label: tbl-fed-state
@@ -1284,13 +1252,13 @@ Third, structured-output reliability is part of the benchmark contract. Missing 
 
 PolicyBench is not a substitute for a production tax-and-benefit calculator. Several caveats matter:
 
-- output-contract reliability required a repair workflow; raw provider responses, including failed attempts, are retained within the canonical prediction files, and cells that never parsed score zero
+- output-contract reliability required a repair workflow; raw provider responses are retained within the canonical prediction files wherever the transport exposed them (`{python} r.blank_raw_response_note`), and cells that never parsed score zero
 - request shape is not identical across models: `{python} n_chunked_models` of `{python} r.n_models_fmt` models answered the prompt template over subsets of the requested outputs rather than the whole scenario (@tbl-model-runs), an accommodation that, if it moves scores at all, should favor those models; later additions must answer the whole-scenario request or are listed as not scorable
 - zero-heavy outputs require separate positive-case interpretation
 - the choice of headline metric (exact match), near-miss companion (within-1%), and secondary tracking metric (bounded score) is one benchmark view; all three are reported, but downstream evaluations should also consider error-magnitude metrics (mean absolute error, mean absolute percentage error) where appropriate
 - the public scenario explorer exposes the current test set and reference outputs, so open-set leakage is a prominent limitation rather than a minor implementation detail
 - the `{python} r.n_households_fmt`-household manuscript snapshot should be treated as a preview until larger frozen runs are published
-- the scored-miss audit is exhaustive over this frozen snapshot, but it is developer-adjudicated and not an independent validation of every reference value
+- the annotations cover the `{python} r.audit_annotated_row_count_fmt`-row legacy-threshold audit universe, including `{python} r.annotated_exact_miss_count_fmt` exact-match misses and `{python} r.annotated_exact_hit_count_fmt` exact hits, but not `{python} r.unannotated_below_full_bounded_score_count_fmt` additional rows with bounded score below 100; the review is developer-adjudicated and not an independent validation of each reference value
 - one frozen scenario encodes household inputs that do not match its prompt narrative (a South Carolina household whose prompt implies a qualifying disability the inputs omit), and two input-semantics conventions (SSI disability status and adult tax-dependent relationships) are under-specified in ways a scheduled scenario refresh will address; affected cells score models against the encoded inputs
 - benchmark success should not be interpreted as policy-advice readiness
 
@@ -1314,7 +1282,7 @@ The benchmark requires one numeric value and one explanation for every requested
 md_table(parse_repair_summary)
 ```
 
-Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds. No separate retry artifacts exist; repairs are folded into each model's canonical prediction file. After retries, `{python} r.parse_contract_failure_count_fmt` cells (`{python} r.parse_contract_failure_pct_fmt`% of canonical rows) still returned no parsable numeric value. They comprise `{python} r.parse_contract_failure_breakdown_fmt`. These cells remain in the canonical files with their raw responses preserved. They score zero as parse-contract failures, and the denominator is never reduced.
+Model waves after June ran under a resumable supervised runner that retries failed or timed-out scenarios in bounded rounds. No separate retry artifacts exist; repairs are folded into each model's canonical prediction file. After retries, `{python} r.parse_contract_failure_count_fmt` cells (`{python} r.parse_contract_failure_pct_fmt`% of canonical rows) still returned no parsable numeric value. They comprise `{python} r.parse_contract_failure_breakdown_fmt`. These cells remain in the canonical files, with their raw responses preserved wherever the transport exposed one (`{python} r.blank_raw_response_note`). They score zero as parse-contract failures, and the denominator is never reduced.
 
 ## Competing interests {.unnumbered}
 

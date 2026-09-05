@@ -1,10 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import rawData from "../../data-summary.json";
+import {
+  BoardCoverageCopy,
+  FrontierCoverageCopy,
+} from "../../components/ExpandCoverageCopy";
 import SiteHeader from "../../components/SiteHeader";
+import {
+  headlineExactLeader,
+  medicaidEligibilityAccuracy,
+  misclassificationFrequency,
+} from "../../lib/expandMetrics";
+import { listModels } from "../../lib/modelPage";
+import { MODEL_LABELS } from "../../modelMeta";
+import type { DashboardBundle } from "../../types";
+
+const dashboard = rawData as DashboardBundle;
+const modelCount = listModels(dashboard).length;
+const leader = headlineExactLeader(dashboard);
+const leaderLabel = MODEL_LABELS[leader.model] ?? leader.model;
+const medicaidAccuracy = medicaidEligibilityAccuracy(dashboard);
 
 const DESCRIPTION =
-  "Expand PolicyBench to your region, population, or program: households drawn to your area, references computed from the law, every miss diagnosed, results public.";
+  "Expand PolicyBench to your region, population, or program: households drawn to your area, references computed from the law, selected audit rows diagnosed, results public.";
 
 export const metadata: Metadata = {
   title: "Expand",
@@ -72,17 +91,14 @@ export default function ExpandPage() {
         <p className="mt-6 text-base leading-relaxed text-text-secondary">
           Families already ask AI about the questions that decide their month:
           Do I qualify for SNAP? How much is my credit? Will this job cost me
-          Medicaid? The{" "}
-          <Link href="/" className="text-primary hover:underline">
-            public board
-          </Link>{" "}
-          tests 30 frontier models on 100 real households.
-          The best model computes 88.7% of amounts within $1. On SNAP cases
-          where the family is owed benefits, models answer exactly $0 in 42% of
-          answers, and no model gets more than 1 case in 20 right.
-          On Medicaid eligibility, the median model misclassifies 1 person in
-          15; the weakest, nearly 1 in 3. A family
-          told &ldquo;$0&rdquo; does not apply. Those are national numbers —
+          Medicaid? <FrontierCoverageCopy modelCount={modelCount} />{" "}
+          The best model, {leaderLabel}, computes {leader.exact.toFixed(1)}% of
+          requested outputs exactly, household-impact weighted (amounts within
+          $1, eligibility flags exact).
+          On Medicaid eligibility, the median model misclassifies{" "}
+          {misclassificationFrequency(medicaidAccuracy.median)}; the weakest,{" "}
+          {misclassificationFrequency(medicaidAccuracy.weakest)}. A family
+          told &ldquo;$0&rdquo; does not apply. Those are national numbers;
           nobody measures this for your region.
         </p>
 
@@ -90,8 +106,8 @@ export default function ExpandPage() {
           A PolicyBench slice measures it. We draw households from
           survey microdata weighted to your population, cover your programs,
           benchmark the models behind the tools your people use, and compute every
-          reference from the law with PolicyEngine. Every miss gets a
-          diagnosed failure mode. You get a public slice leaderboard, a
+          reference from the law with PolicyEngine. Rows selected for audit
+          receive a diagnosed failure mode. You get a public slice leaderboard, a
           written analysis of where models fail your population, and a
           briefing. The answer key checks itself in public: references come
           from open-source code, cross-checked against other calculators
@@ -105,10 +121,9 @@ export default function ExpandPage() {
 
         <div className="grid sm:grid-cols-3 gap-4 mt-10">
           <Package title="Program deep-dive" price="from $7,500">
-            One program family — SNAP, Medicaid, child care, tax credits —
-            across all 30 board models. Per-model accuracy, diagnosed failure
-            modes, written analysis, and a briefing. Fast: the board already
-            holds the raw material.
+            <BoardCoverageCopy modelCount={modelCount} /> Per-model accuracy,
+            diagnosed failure modes, written analysis, and a briefing. Fast: the
+            board already holds the raw material.
           </Package>
           <Package title="State or city slice" price="from $20,000">
             New households weighted to your area and program mix. A published

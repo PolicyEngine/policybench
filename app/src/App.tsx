@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 // Generated from the default dataset version by scripts/prepare-data.ts (runs
 // in dev/build): the bundled summary holds every numeric field, while bulky
 // explanation text is split into /data/explanations-*.json and fetched on
@@ -24,6 +31,11 @@ import {
   selectOnlyProgram as selectOnlyProgramFilter,
   toggleProgramSelection,
 } from "./lib/programFilters";
+import {
+  datasetSelectionReducer,
+  loadLatestVersion,
+  urlForDatasetVersion,
+} from "./lib/versionSelection";
 import type { CountryCode, DashboardBundle } from "./types";
 import { VIEW_LABELS } from "./types";
 
@@ -31,9 +43,22 @@ const defaultDashboard = rawData as DashboardBundle;
 
 export type { DashboardBundle } from "./types";
 
-/** Snapshot chip label for a version id, or null to keep the live default. */
+/** Snapshot chip label for a version id, or null when none was published. */
 function snapshotLabelFor(versionId: string): string | null {
   return getVersionById(versionId)?.snapshotLabel ?? null;
+}
+
+function replaceDatasetVersionInUrl(versionId: string): void {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(
+    null,
+    "",
+    urlForDatasetVersion(
+      window.location.href,
+      versionId,
+      DEFAULT_VERSION_ID,
+    ),
+  );
 }
 
 const COUNTRY_NAV_ITEMS = [
@@ -51,7 +76,9 @@ function getAvailableViews(dashboard: DashboardBundle): CountryCode[] {
 }
 
 /** Default UK visitors to the UK benchmark; everyone else starts on the US benchmark. */
-function detectVisitorCountry(availableViews: readonly CountryCode[]): CountryCode {
+function detectVisitorCountry(
+  availableViews: readonly CountryCode[],
+): CountryCode {
   if (typeof window === "undefined" || typeof navigator === "undefined") {
     return availableViews.includes("us") ? "us" : (availableViews[0] ?? "us");
   }
@@ -61,17 +88,16 @@ function detectVisitorCountry(availableViews: readonly CountryCode[]): CountryCo
   } catch {
     timezone = "";
   }
-  const langs = (navigator.languages ?? [navigator.language ?? ""])
-    .map((value) => value.toLowerCase());
+  const langs = (navigator.languages ?? [navigator.language ?? ""]).map(
+    (value) => value.toLowerCase(),
+  );
   const matchesUK =
     timezone === "Europe/London" ||
     timezone === "Europe/Belfast" ||
     timezone === "Europe/Guernsey" ||
     timezone === "Europe/Isle_of_Man" ||
     timezone === "Europe/Jersey" ||
-    langs.some((lang) =>
-      ["en-gb", "cy-gb", "gd-gb", "en-uk"].includes(lang),
-    );
+    langs.some((lang) => ["en-gb", "cy-gb", "gd-gb", "en-uk"].includes(lang));
   if (matchesUK && availableViews.includes("uk")) return "uk";
   return availableViews.includes("us") ? "us" : (availableViews[0] ?? "us");
 }
@@ -83,7 +109,10 @@ function countryFromQuery(
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
   const raw = (params.get("country") ?? params.get("view") ?? "").toLowerCase();
-  if ((raw === "uk" || raw === "us") && availableViews.includes(raw as CountryCode)) {
+  if (
+    (raw === "uk" || raw === "us") &&
+    availableViews.includes(raw as CountryCode)
+  ) {
     return raw as CountryCode;
   }
   return null;
@@ -92,8 +121,21 @@ function countryFromQuery(
 export default function App() {
   // Dataset version: the default summary is bundled and shown immediately;
   // switching versions lazy-loads that version's summary and swaps it in.
-  const [versionId, setVersionId] = useState<string>(DEFAULT_VERSION_ID);
-  const [dashboard, setDashboard] = useState<DashboardBundle>(defaultDashboard);
+  const [{ versionId, dashboard, pendingVersionId }, dispatchDatasetSelection] =
+    useReducer(datasetSelectionReducer<DashboardBundle>, {
+      versionId: DEFAULT_VERSION_ID,
+      dashboard: defaultDashboard,
+      pendingVersionId: null,
+    });
+  const versionSelectionSequence = useRef(0);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const availableViews = useMemo(
     () => getAvailableViews(dashboard),
@@ -117,20 +159,23 @@ export default function App() {
     const fromUrl = resolveVersionIdFromQuery(window.location.search);
     if (fromUrl === DEFAULT_VERSION_ID) return;
     let cancelled = false;
-    setVersionId(fromUrl);
-    loadVersionSummary(fromUrl).then(
+    dispatchDatasetSelection({ type: "start", versionId: fromUrl });
+    loadLatestVersion(
+      versionSelectionSequence,
+      mountedRef,
+      () => loadVersionSummary(fromUrl),
       (loaded) => {
-        if (!cancelled) setDashboard(loaded);
+        if (cancelled || !mountedRef.current) return;
+        dispatchDatasetSelection({
+          type: "loaded",
+          versionId: fromUrl,
+          dashboard: loaded,
+        });
       },
       () => {
-        // Loading the archived summary failed; fall back to the default data
-        // and drop the query so the UI stays consistent.
-        if (cancelled) return;
-        setVersionId(DEFAULT_VERSION_ID);
-        setDashboard(defaultDashboard);
-        const url = new URL(window.location.href);
-        url.searchParams.delete("dataset");
-        window.history.replaceState(null, "", url);
+        if (cancelled || !mountedRef.current) return;
+        dispatchDatasetSelection({ type: "clear-pending" });
+        replaceDatasetVersionInUrl(DEFAULT_VERSION_ID);
       },
     );
     return () => {
@@ -141,36 +186,43 @@ export default function App() {
 
   const handleSelectVersion = useCallback(
     (nextVersionId: string) => {
-      if (nextVersionId === versionId) return;
+      if (nextVersionId === pendingVersionId) return;
+      if (nextVersionId === versionId) {
+        if (pendingVersionId !== null) {
+          // Selecting the still-visible version cancels the in-flight switch.
+          versionSelectionSequence.current += 1;
+          dispatchDatasetSelection({ type: "clear-pending" });
+          replaceDatasetVersionInUrl(versionId);
+        }
+        return;
+      }
       const meta = getVersionById(nextVersionId);
       if (!meta) return;
-      setVersionId(nextVersionId);
-      // Keep the URL shareable: name non-default versions, drop the param for
-      // the default so canonical links stay clean.
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        if (nextVersionId === DEFAULT_VERSION_ID) {
-          url.searchParams.delete("dataset");
-        } else {
-          url.searchParams.set("dataset", nextVersionId);
-        }
-        window.history.replaceState(null, "", url);
-      }
-      loadVersionSummary(nextVersionId).then(
-        (loaded) => setDashboard(loaded),
+      dispatchDatasetSelection({ type: "start", versionId: nextVersionId });
+      loadLatestVersion(
+        versionSelectionSequence,
+        mountedRef,
+        () => loadVersionSummary(nextVersionId),
+        (loaded) => {
+          if (!mountedRef.current) return;
+          dispatchDatasetSelection({
+            type: "loaded",
+            versionId: nextVersionId,
+            dashboard: loaded,
+          });
+          // Commit the shareable URL in the same resolved-load callback as the
+          // visible version and dashboard.
+          replaceDatasetVersionInUrl(nextVersionId);
+        },
         () => {
-          // Roll back to the default on failure rather than showing stale data.
-          setVersionId(DEFAULT_VERSION_ID);
-          setDashboard(defaultDashboard);
-          if (typeof window !== "undefined") {
-            const url = new URL(window.location.href);
-            url.searchParams.delete("dataset");
-            window.history.replaceState(null, "", url);
-          }
+          if (!mountedRef.current) return;
+          // Keep the active version, dashboard, and URL together on failure.
+          dispatchDatasetSelection({ type: "clear-pending" });
+          replaceDatasetVersionInUrl(versionId);
         },
       );
     },
-    [versionId],
+    [pendingVersionId, versionId],
   );
 
   useEffect(() => {
@@ -302,6 +354,7 @@ export default function App() {
         navItems={navItems}
         activeNav={activeNav}
         versionId={versionId}
+        pendingVersionId={pendingVersionId}
         onSelectVersion={handleSelectVersion}
         snapshotLabel={snapshotLabelFor(versionId)}
       />
@@ -323,11 +376,16 @@ export default function App() {
             onResetPrograms={resetPrograms}
             onToggleProgram={toggleProgram}
             onSelectOnlyProgram={selectOnlyProgram}
+            versionId={versionId}
+            liveVersionId={DEFAULT_VERSION_ID}
           />
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-        <section id="programs" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
+        <section
+          id="programs"
+          className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
+        >
           <ProgramHeatmap
             data={data}
             programOptions={programOptions}
@@ -340,11 +398,15 @@ export default function App() {
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-        <section id="scenarios" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
+        <section
+          id="scenarios"
+          className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
+        >
           <ScenarioExplorer
             key={`${versionId}:${data.country}`}
             data={data}
             versionId={versionId}
+            liveVersionId={DEFAULT_VERSION_ID}
           />
         </section>
 
@@ -357,8 +419,16 @@ export default function App() {
         </section>
 
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-        <section id="methodology" className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20">
-          <Methodology data={data} selectedView={resolvedView} />
+        <section
+          id="methodology"
+          className="scroll-mt-20 pt-12 pb-16 sm:pt-16 sm:pb-20"
+        >
+          <Methodology
+            data={data}
+            selectedView={resolvedView}
+            versionId={versionId}
+            liveVersionId={DEFAULT_VERSION_ID}
+          />
         </section>
       </main>
 
