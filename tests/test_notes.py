@@ -12,13 +12,14 @@ from pathlib import Path
 
 import pytest
 
+from policybench.snapshot_payload import read_run_payload
+
 ROOT = Path(__file__).resolve().parents[1]
 NOTES_DIR = ROOT / "app/src/notes"
 RUN_DIR = (
     ROOT / "paper/snapshot/20260501/runs/"
     "us_full_run_20260612_policyengine_4_16_1_populace"
 )
-DATA_PATH = RUN_DIR / "data.json"
 PREDICTIONS_PATH = RUN_DIR / "predictions.csv.gz"
 REFERENCES_PATH = RUN_DIR / "reference_outputs.csv"
 REFERENCE_META_PATH = RUN_DIR / "reference_outputs.csv.meta.json"
@@ -29,6 +30,8 @@ SENSITIVITY_NOTE_PATH = ROOT / "sensitivity/claude-thinking-2026-08.md"
 
 CLAUDE_NOTE = "2026-09-01-claude-fable-5-1-added"
 SNAP_NOTE = "2026-09-03-six-snap-households"
+ASTRA_NOTE = "2026-09-05-gpt-6-astra-debuts-second"
+ASTRA_ROWS_PATH = ROOT / "notes/data/astra_vs_sol_20260905.csv"
 TOP_MODELS = ("gpt-5.6-sol", "claude-fable-5.1", "kimi-k3")
 PLACEHOLDER = re.compile(r"\{([A-Za-z][A-Za-z0-9]*)\}")
 
@@ -46,7 +49,20 @@ def _note(slug: str) -> dict:
 
 @cache
 def _dashboard() -> dict:
-    return _load_json(DATA_PATH)
+    return read_run_payload(RUN_DIR)
+
+
+@cache
+def _frozen_release() -> str:
+    manifest = _load_json(ROOT / "paper/snapshot/20260501/manifest.json")
+    return manifest["published_dashboard_artifact"]["tag"]
+
+
+# A note keeps the release its facts were checked against. Facts of a note on
+# the frozen release are recomputed here; a note on a superseded release keeps
+# the facts verified when that release was frozen (git history holds the run).
+SUPERSEDED_RELEASES = {"dashboard-data-20260901c": "2026-09-01"}
+CURRENT_RELEASE_SNAPSHOT = "2026-09-05"
 
 
 @cache
@@ -90,8 +106,11 @@ def test_note_schema_and_placeholders(path: Path) -> None:
     note = _load_json(path)
     assert note["slug"] == path.stem
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", note["date"])
-    assert note["boardSnapshot"] == "2026-09-01"
-    assert note["release"] == "dashboard-data-20260901c"
+    if note["release"] == _frozen_release():
+        assert note["boardSnapshot"] == CURRENT_RELEASE_SNAPSHOT
+    else:
+        assert note["boardSnapshot"] == SUPERSEDED_RELEASES[note["release"]]
+    assert note["boardSnapshot"] <= note["date"] or note["release"] != _frozen_release()
     assert note["paragraphs"]
     assert note["data"]
 
@@ -103,8 +122,21 @@ def test_note_schema_and_placeholders(path: Path) -> None:
     assert placeholders == set(note["facts"])
 
 
+def _recompute_against_frozen_snapshot(note: dict) -> bool:
+    """Whether the note's facts are recomputed here: only when its release is
+    the frozen snapshot's. A note on a superseded release keeps the facts that
+    were verified when that release was frozen; the test then checks the
+    release is one the repository has published."""
+    if note["release"] == _frozen_release():
+        return True
+    assert note["release"] in SUPERSEDED_RELEASES, note["release"]
+    return False
+
+
 def test_claude_fable_note_facts() -> None:
     note = _note(CLAUDE_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
     board_rows = [
         row for row in _dashboard()["modelStats"] if row["condition"] == "no_tools"
     ]
@@ -145,6 +177,8 @@ def _mention_count(rows: list[dict[str, str]], pattern: str) -> int:
 
 def test_six_snap_households_note_facts() -> None:
     note = _note(SNAP_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
     references = _snap_references()
     eligible_ids = {
         scenario_id for scenario_id, value in references.items() if value > 0
@@ -243,3 +277,102 @@ def test_categorical_asset_error_statements() -> None:
     assert sum(error <= 0.01 for error in sol_errors) == 3
     assert sum(0.01 < error <= 0.10 for error in sol_errors) == 1
     assert sum(error <= 0.01 for error in fable_errors) == 4
+
+
+def _judge_annotations() -> dict[tuple[str, str, str], dict[str, str]]:
+    path = (
+        ROOT
+        / "annotations/us_full_run_20260612_policyengine_4_16_1_populace"
+        / "us_audit_row_annotations.csv"
+    )
+    with path.open(encoding="utf-8", newline="") as source:
+        return {
+            (row["model"], row["scenario_id"], row["variable"]): row
+            for row in csv.DictReader(source)
+        }
+
+
+def test_astra_note_facts() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from astra_vs_sol_rows import (
+        ASTRA,
+        CLUSTER_ESI,
+        CLUSTER_MEDICARE,
+        CLUSTER_OTHER,
+        SOL,
+        comparison_rows,
+    )
+
+    note = _note(ASTRA_NOTE)
+    assert note["release"] == _frozen_release()
+    payload = _dashboard()
+    annotations = _judge_annotations()
+
+    expected_rows = comparison_rows(payload, annotations)
+    with ASTRA_ROWS_PATH.open(encoding="utf-8", newline="") as source:
+        committed = list(csv.DictReader(source))
+    assert [
+        (r["scenario_id"], r["variable"], r["direction"], r["cluster"])
+        for r in committed
+    ] == [
+        (r["scenario_id"], r["variable"], r["direction"], r["cluster"])
+        for r in expected_rows
+    ]
+
+    board_rows = [r for r in payload["modelStats"] if r["condition"] == "no_tools"]
+    by_model = {r["model"]: r for r in board_rows}
+
+    def rank(model: str) -> int:
+        return 1 + sum(r["exact"] > by_model[model]["exact"] for r in board_rows)
+
+    both_right = both_wrong = 0
+    for variables in payload["scenarioPredictions"].values():
+        for models in variables.values():
+            astra, sol = models.get(ASTRA), models.get(SOL)
+            if not astra or not sol or astra.get("scored") is False:
+                continue
+            hits = (astra.get("exact") == 100, sol.get("exact") == 100)
+            both_right += hits == (True, True)
+            both_wrong += hits == (False, False)
+    astra_only = [r for r in expected_rows if r["direction"] == "astra_only"]
+    sol_only = [r for r in expected_rows if r["direction"] == "sol_only"]
+    excluded = {
+        (e["scenarioId"], e["variable"]) for e in payload["referenceExclusions"]
+    }
+    regex = re.compile(note["mentionRegexes"]["esi"], re.IGNORECASE)
+
+    def mentions(model: str) -> int:
+        return sum(
+            bool(regex.search(row["annotation"] or ""))
+            for key, row in annotations.items()
+            if key[0] == model
+        )
+
+    derived = {
+        "astraExact": _display_one_decimal(by_model[ASTRA]["exact"]),
+        "astraRank": rank(ASTRA),
+        "nModels": len(board_rows),
+        "solExact": _display_one_decimal(by_model[SOL]["exact"]),
+        "fableExact": _display_one_decimal(by_model["claude-fable-5.1"]["exact"]),
+        "fableRank": rank("claude-fable-5.1"),
+        "scoredOutputs": by_model[ASTRA]["n"],
+        "totalOutputs": by_model[ASTRA]["n"] + len(excluded),
+        "excludedOutputs": len(excluded),
+        "bothRight": both_right,
+        "bothWrong": both_wrong,
+        "astraOnlyMisses": len(astra_only),
+        "solOnlyMisses": len(sol_only),
+        "esiRows": sum(r["cluster"] == CLUSTER_ESI for r in astra_only),
+        "medicareRows": sum(r["cluster"] == CLUSTER_MEDICARE for r in astra_only),
+        "otherRows": sum(r["cluster"] == CLUSTER_OTHER for r in astra_only),
+        "astraEsiMentions": mentions(ASTRA),
+        "solEsiMentions": mentions(SOL),
+        "solEsiRows": sum(r["cluster"] == CLUSTER_ESI for r in sol_only),
+    }
+    assert note["facts"] == derived
+    # The excluded Medicare row the note mentions is real and outside the rows.
+    assert ("scenario_074", "head_medicare_eligible") in excluded
+    assert not any(
+        r["scenario_id"] == "scenario_074" and "medicare" in r["variable"]
+        for r in expected_rows
+    )

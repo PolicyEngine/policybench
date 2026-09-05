@@ -35,8 +35,11 @@ describe("notes", () => {
     }
   });
 
-  test("the notes page renders both titles without unresolved placeholders", () => {
+  test("the notes page renders every title without unresolved placeholders", () => {
     const markup = renderToStaticMarkup(createElement(NotesPageContent));
+    expect(markup).toContain("GPT-6 Astra debuts second: the two rules it invented");
+    expect(markup).toContain("release dashboard-data-20260905c");
+    expect(markup).toContain("release dashboard-data-20260901c");
     expect(markup).toContain("Six SNAP households the top three models deny");
     expect(markup).toContain("Claude Fable 5.1 added");
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*\}/);

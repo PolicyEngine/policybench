@@ -1,5 +1,6 @@
 import claudeFable51Added from "./2026-09-01-claude-fable-5-1-added.json";
 import sixSnapHouseholds from "./2026-09-03-six-snap-households.json";
+import gpt6AstraDebutsSecond from "./2026-09-05-gpt-6-astra-debuts-second.json";
 
 export type NoteFact = number | string | string[];
 
@@ -16,11 +17,14 @@ export type PolicyBenchNote = {
   facts: Record<string, NoteFact>;
   mentionRegexes?: Record<string, string>;
   data: NoteDataLink[];
-  boardSnapshot: "2026-09-01";
-  release: "dashboard-data-20260901c";
+  // The board snapshot and data release the facts were checked against; a
+  // note keeps its own release when later releases move the board.
+  boardSnapshot: string;
+  release: string;
 };
 
 export const notes = [
+  gpt6AstraDebutsSecond,
   sixSnapHouseholds,
   claudeFable51Added,
 ] as PolicyBenchNote[];

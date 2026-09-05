@@ -6,7 +6,7 @@ import { notes, type NoteFact, type PolicyBenchNote } from "../notes";
 const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9]*)\}/g;
 
 export const NOTES_INTRO =
-  "Dated records of board changes and findings. Every number is checked against the frozen snapshot by a test in the repository.";
+  "Dated records of board changes and findings. Each note names the data release its numbers come from; a test in the repository checks every number against the frozen snapshot of that release.";
 
 export function formatNoteDate(date: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -134,12 +134,20 @@ export function NoteArticle({
 
   return (
     <article id={note.slug} className="scroll-mt-8">
-      <time
-        dateTime={note.date}
-        className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.12em] text-text-muted"
-      >
-        {formatNoteDate(note.date)}
-      </time>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.12em] text-text-muted">
+        <time dateTime={note.date}>{formatNoteDate(note.date)}</time>
+        <span aria-hidden="true">·</span>
+        <span>
+          numbers from{" "}
+          <a
+            href={`https://github.com/PolicyEngine/policybench/releases/tag/${note.release}`}
+            className="normal-case tracking-normal text-primary-strong underline-offset-2 hover:underline"
+          >
+            release {note.release}
+          </a>{" "}
+          (board snapshot {note.boardSnapshot})
+        </span>
+      </div>
       <Title className="mt-2 font-[family-name:var(--font-display)] text-3xl tracking-tight text-text sm:text-4xl">
         {title}
       </Title>

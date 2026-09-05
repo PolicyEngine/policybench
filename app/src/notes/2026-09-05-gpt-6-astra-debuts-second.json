@@ -1,0 +1,68 @@
+{
+  "slug": "2026-09-05-gpt-6-astra-debuts-second",
+  "date": "2026-09-05",
+  "title": "GPT-6 Astra debuts second: the two rules it invented",
+  "paragraphs": [
+    "GPT-6 Astra reached the API on 2026-09-04 and joined the board on 2026-09-05 at {astraExact}% of answers within $1, #{astraRank} of {nModels}, behind GPT-5.6 Sol ({solExact}%) and ahead of Claude Fable 5.1 ({fableExact}%, #{fableRank}). Every row on this board is scored on {scoredOutputs} of its {totalOutputs} requested outputs: {excludedOutputs} outputs whose reference depends on an engine input the household facts never list are excluded for every model.",
+    "Row by row, the two OpenAI models agree far more than they differ. Both are right on {bothRight} scored outputs and both wrong on {bothWrong}. The gap is {astraOnlyMisses} outputs Astra misses and Sol gets right, against {solOnlyMisses} the other way.",
+    "Astra's solo misses cluster in two invented rules. In {esiRows} rows it treats a listed employer-sponsored insurance premium as a pre-tax salary reduction and subtracts it from wages before computing payroll tax, federal income tax or state income tax; the household facts state gross wages, and the reference keeps them. In {medicareRows} rows it marks a household member under 65 who is flagged disabled as Medicare-eligible; the reference grants Medicare before 65 only with 24 months of Social Security disability receipt recorded, and none of these households carry that input. The remaining {otherRows} solo misses are one-off rule errors with no shared mechanism. One further Medicare row of the same kind, on scenario_074, sits on an excluded output and is outside every count here.",
+    "The judge's row notes name an employer-sponsored insurance premium on {astraEsiMentions} of Astra's annotated rows and on {solEsiMentions} of Sol's. Sol netted the same premium once, on scenario_045, which cost it {solEsiRows} of its {solOnlyMisses} solo misses; the rest of Sol's solo misses share no mechanism.",
+    "The row list, with both predictions, the reference and the judge's note for every disagreement, is committed beside this note. Click any scenario in the explorer to see the household facts and each model's answer."
+  ],
+  "facts": {
+    "astraExact": 88.0,
+    "astraRank": 2,
+    "nModels": 39,
+    "solExact": 89.2,
+    "fableExact": 86.9,
+    "fableRank": 3,
+    "scoredOutputs": 1973,
+    "totalOutputs": 1984,
+    "excludedOutputs": 11,
+    "bothRight": 1816,
+    "bothWrong": 95,
+    "astraOnlyMisses": 33,
+    "solOnlyMisses": 29,
+    "esiRows": 13,
+    "medicareRows": 10,
+    "otherRows": 10,
+    "astraEsiMentions": 26,
+    "solEsiMentions": 4,
+    "solEsiRows": 2
+  },
+  "mentionRegexes": {
+    "esi": "employer[- ]sponsored insurance|\\bESI\\b"
+  },
+  "data": [
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260905c"
+    },
+    {
+      "label": "Row list: every output one model gets right and the other misses",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/astra_vs_sol_20260905.csv"
+    },
+    {
+      "label": "Outputs excluded from scoring",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json"
+    },
+    {
+      "label": "An ESI-premium row in the explorer (scenario_037 payroll tax)",
+      "href": "/?scenario=scenario_037&cell=payroll_tax~gpt-6-astra"
+    },
+    {
+      "label": "A Medicare row in the explorer (scenario_008)",
+      "href": "/?scenario=scenario_008&cell=spouse_medicare_eligible~gpt-6-astra"
+    },
+    {
+      "label": "GPT-6 Astra model page",
+      "href": "/model/gpt-6-astra"
+    },
+    {
+      "label": "GPT-5.6 Sol model page",
+      "href": "/model/gpt-5.6-sol"
+    }
+  ],
+  "boardSnapshot": "2026-09-05",
+  "release": "dashboard-data-20260905c"
+}
