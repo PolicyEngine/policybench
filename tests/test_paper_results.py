@@ -189,13 +189,13 @@ def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
     assert table.loc["GPT-6 Astra"].tolist() == [98.0, 86.0, 86.0]
     assert r.joint_credit_accuracy_exceptions == [
         "Claude Fable 5.1",
-        "GPT-6 Astra",
         "GPT-5.6 Sol",
+        "GPT-6 Astra",
     ]
     assert r.joint_credit_accuracy_note == (
         "The joint hit rate can be no higher than either marginal and is "
         "strictly lower than both for every model except Claude Fable 5.1, "
-        "GPT-6 Astra, and GPT-5.6 Sol."
+        "GPT-5.6 Sol, and GPT-6 Astra."
     )
     other_models = table.drop(index=r.joint_credit_accuracy_exceptions)
     assert (other_models["Joint within 10%"] < other_models["Federal within 10%"]).all()
@@ -212,8 +212,8 @@ def test_joint_credit_accuracy_prose_tracks_changed_table_exceptions():
     table.loc[table["Model"] == "Claude Fable 5.1", "Joint within 10%"] = 89.0
     results.federal_state_joint_accuracy = table
 
-    assert results.joint_credit_accuracy_exceptions == ["GPT-6 Astra", "GPT-5.6 Sol"]
-    assert "except GPT-6 Astra and GPT-5.6 Sol." in results.joint_credit_accuracy_note
+    assert results.joint_credit_accuracy_exceptions == ["GPT-5.6 Sol", "GPT-6 Astra"]
+    assert "except GPT-5.6 Sol and GPT-6 Astra." in results.joint_credit_accuracy_note
     assert "Claude Fable 5.1" not in results.joint_credit_accuracy_note
 
 
@@ -233,3 +233,11 @@ def test_judge_provenance_is_frozen_in_the_manifest():
     assert r.audit_case_count_fmt == "668"
     assert r.audit_opus_judged_case_count_fmt == "350"
     assert r.audit_sol_judged_case_count_fmt == "318"
+
+
+def test_joint_credit_table_orders_ties_deterministically():
+    table = r.federal_state_joint_accuracy
+    joint = table["Joint within 10%"].tolist()
+    assert joint == sorted(joint, reverse=True)
+    tied = table[table["Joint within 10%"] == 86.0]["Model"].tolist()
+    assert tied[:2] == ["GPT-5.6 Sol", "GPT-6 Astra"]

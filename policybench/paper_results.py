@@ -420,7 +420,11 @@ class PaperResults:
             .groupby("model")[["fed_hit", "state_hit", "both_hit"]]
             .mean()
             .reset_index()
-            .sort_values("both_hit", ascending=False)
+            # Ties on the joint rate are broken by model id so the table, the
+            # exception list, and the prose order identically on every platform.
+            .sort_values(
+                ["both_hit", "model"], ascending=[False, True], kind="mergesort"
+            )
         )
         for column in ("fed_hit", "state_hit", "both_hit"):
             summary[column] = (summary[column] * 100).round(1)

@@ -74,6 +74,25 @@ def load_adjudications(path: Path) -> list[dict]:
     return entries
 
 
+_ADJUDICATION_MARKER = " Developer adjudication ("
+
+
+def _strip_adjudication_sentence(note: str) -> str:
+    """Drop a previously appended adjudication sentence so a revision replaces it."""
+    index = note.find(_ADJUDICATION_MARKER)
+    return note if index < 0 else note[:index]
+
+
+def adjudication_sentence(entry: dict) -> str:
+    """The sentence a case note carries once ``entry`` has been applied."""
+    return (
+        f" Developer adjudication ({entry['adjudicated_on']}): the judge "
+        f"({entry['judge_model']}) returned {entry['judge_failure_source']}; "
+        f"adjudicated {entry['adjudicated_failure_source']} "
+        f"({entry['adjudicated_failure_subtype']}). {entry['reasoning']}"
+    )
+
+
 def _case_mask(frame: pd.DataFrame, entry: dict) -> pd.Series:
     mask = pd.Series(True, index=frame.index)
     for column in CASE_KEY:
@@ -88,9 +107,11 @@ def apply_adjudications(
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[dict]]:
     """Return adjudicated copies of the row annotations and case notes.
 
-    Only rows whose ``failure_source`` equals the judge's recorded verdict are
-    rewritten (a ``parse_contract_failure`` row in an adjudicated case stays a
-    parse failure). The case note's ``case_failure_sources`` and
+    An adjudication is a case-level decision: every substantive row of the
+    case (anything but a ``parse_contract_failure`` row, which stays a parse
+    failure) takes the adjudicated source and subtype, so re-applying a
+    revised record updates rows an earlier application already rewrote. The
+    case note's ``case_failure_sources`` and
     ``case_failure_subtypes`` take the adjudicated class, and the case
     annotation gains a sentence recording the adjudication. The third return
     value reports what changed per adjudication.
@@ -100,36 +121,36 @@ def apply_adjudications(
     report: list[dict] = []
     for entry in adjudications:
         row_mask = _case_mask(rows, entry) & (
-            rows["failure_source"].astype(str) == entry["judge_failure_source"]
+            rows["failure_source"].astype(str) != "parse_contract_failure"
         )
         case_mask = _case_mask(cases, entry)
         if not case_mask.any():
             raise AdjudicationError(
                 f"adjudication targets an unknown case: {[entry[c] for c in CASE_KEY]}"
             )
+        before = rows.loc[row_mask, ["failure_source", "failure_subtype"]].copy()
         rows.loc[row_mask, "failure_source"] = entry["adjudicated_failure_source"]
         rows.loc[row_mask, "failure_subtype"] = entry["adjudicated_failure_subtype"]
+        changed = int(
+            (before != rows.loc[row_mask, ["failure_source", "failure_subtype"]])
+            .any(axis=1)
+            .sum()
+        )
         cases.loc[case_mask, "case_failure_sources"] = entry[
             "adjudicated_failure_source"
         ]
         cases.loc[case_mask, "case_failure_subtypes"] = entry[
             "adjudicated_failure_subtype"
         ]
-        sentence = (
-            f" Developer adjudication ({entry['adjudicated_on']}): the judge "
-            f"({entry['judge_model']}) returned {entry['judge_failure_source']}; "
-            f"adjudicated {entry['adjudicated_failure_source']} "
-            f"({entry['adjudicated_failure_subtype']}). {entry['reasoning']}"
-        )
-        marker = f"Developer adjudication ({entry['adjudicated_on']})"
+        sentence = adjudication_sentence(entry)
         notes = cases.loc[case_mask, "case_annotation"].astype(str)
         cases.loc[case_mask, "case_annotation"] = [
-            note if marker in note else note.rstrip() + sentence for note in notes
+            _strip_adjudication_sentence(note).rstrip() + sentence for note in notes
         ]
         report.append(
             {
                 "case": [entry[c] for c in CASE_KEY],
-                "rows_rewritten": int(row_mask.sum()),
+                "rows_rewritten": changed,
                 "from": entry["judge_failure_source"],
                 "to": entry["adjudicated_failure_source"],
             }
@@ -142,27 +163,61 @@ def verify_adjudications_applied(
     cases: pd.DataFrame,
     adjudications: list[dict],
 ) -> None:
-    """Raise unless every adjudicated case carries its adjudicated class."""
+    """Raise unless the annotations agree with the complete adjudication record.
+
+    For every entry: no row still carries the judge's non-final verdict; every
+    substantive row of the case (anything but a parse failure) carries the
+    adjudicated source and subtype; the case note carries the adjudicated
+    source and subtype and the exact adjudication sentence, reasoning
+    included. A revised record therefore fails verification until it is
+    re-applied, and a record edited to disagree with the rows fails closed.
+    """
     for entry in adjudications:
+        key = [entry[c] for c in CASE_KEY]
         row_mask = _case_mask(rows, entry)
         case_mask = _case_mask(cases, entry)
         if not case_mask.any() or not row_mask.any():
-            raise AdjudicationError(
-                f"adjudicated case missing from annotations: "
-                f"{[entry[c] for c in CASE_KEY]}"
-            )
-        stray = rows.loc[
-            row_mask
-            & (rows["failure_source"].astype(str) == entry["judge_failure_source"])
+            raise AdjudicationError(f"adjudicated case missing from annotations: {key}")
+        case_rows = rows.loc[row_mask]
+        stray = case_rows[
+            case_rows["failure_source"].astype(str) == entry["judge_failure_source"]
         ]
         if entry["judge_failure_source"] not in FINAL_SOURCES and not stray.empty:
             raise AdjudicationError(
-                f"{len(stray)} rows of {[entry[c] for c in CASE_KEY]} still carry "
-                f"the judge's {entry['judge_failure_source']} verdict"
+                f"{len(stray)} rows of {key} still carry the judge's "
+                f"{entry['judge_failure_source']} verdict"
+            )
+        substantive = case_rows[
+            case_rows["failure_source"].astype(str) != "parse_contract_failure"
+        ]
+        off_source = substantive[
+            substantive["failure_source"].astype(str)
+            != entry["adjudicated_failure_source"]
+        ]
+        off_subtype = substantive[
+            substantive["failure_subtype"].astype(str)
+            != entry["adjudicated_failure_subtype"]
+        ]
+        if not off_source.empty or not off_subtype.empty:
+            raise AdjudicationError(
+                f"{len(off_source)} rows of {key} carry a source other than "
+                f"{entry['adjudicated_failure_source']!r} and {len(off_subtype)} a "
+                f"subtype other than {entry['adjudicated_failure_subtype']!r}"
             )
         sources = set(cases.loc[case_mask, "case_failure_sources"].astype(str))
-        if sources != {entry["adjudicated_failure_source"]}:
+        subtypes = set(cases.loc[case_mask, "case_failure_subtypes"].astype(str))
+        if sources != {entry["adjudicated_failure_source"]} or subtypes != {
+            entry["adjudicated_failure_subtype"]
+        }:
             raise AdjudicationError(
-                f"case note for {[entry[c] for c in CASE_KEY]} carries {sources}, "
-                f"expected {entry['adjudicated_failure_source']!r}"
+                f"case note for {key} carries {sources}/{subtypes}, expected "
+                f"{entry['adjudicated_failure_source']!r}/"
+                f"{entry['adjudicated_failure_subtype']!r}"
             )
+        sentence = adjudication_sentence(entry).strip()
+        for note in cases.loc[case_mask, "case_annotation"].astype(str):
+            if sentence not in note:
+                raise AdjudicationError(
+                    f"case note for {key} does not carry the recorded adjudication "
+                    "sentence (revised record not re-applied?)"
+                )

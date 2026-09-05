@@ -19,6 +19,7 @@
 # carry which judge produced them.
 set -u
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 AUDIT_DIR="${1:?usage: run_audit_claude.sh <audit_dir>}"
 SCHEMA="$AUDIT_DIR/schema.json"
 CASES_DIR="$AUDIT_DIR/cases"
@@ -42,15 +43,11 @@ CLI_VERSION=$("$CLAUDE_BIN" --version 2>/dev/null | head -n 1)
 
 # A verdict is "done" only if it is parseable JSON carrying the required keys.
 verdict_ok() {
+  # A verdict counts only if it satisfies the audit schema in full (every
+  # required key, enum values, no extra properties); a partial object from a
+  # fallback parse must not be published or mark the case complete.
   [ -s "$1" ] || return 1
-  "$PYTHON" - "$1" <<'PY' 2>/dev/null
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except Exception:
-    sys.exit(1)
-sys.exit(0 if isinstance(d, dict) and {"case_failure_source", "models"} <= d.keys() else 1)
-PY
+  "$PYTHON" "$SCRIPT_DIR/validate_verdict.py" "$SCHEMA" "$1" >/dev/null 2>&1
 }
 
 # Pull the structured verdict out of the CLI's JSON envelope. Claude Code

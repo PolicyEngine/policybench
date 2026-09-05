@@ -173,3 +173,37 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert block["cases"] == 1
     assert block["by_judge_verdict"] == {"prompt_ambiguity": 1}
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
+
+
+def test_verify_requires_agreement_with_the_complete_record():
+    rows, cases = _frames()
+    out_rows, out_cases, _ = apply_adjudications(rows, cases, [_entry()])
+    verify_adjudications_applied(out_rows, out_cases, [_entry()])
+
+    # A revised subtype fails until the revision is re-applied.
+    revised = _entry(adjudicated_failure_subtype="thresholds_rates")
+    with pytest.raises(AdjudicationError, match="subtype other than"):
+        verify_adjudications_applied(out_rows, out_cases, [revised])
+    re_rows, re_cases, _ = apply_adjudications(out_rows, out_cases, [revised])
+    verify_adjudications_applied(re_rows, re_cases, [revised])
+    assert re_cases.loc[0, "case_annotation"].count("Developer adjudication") == 1
+
+    # Revised reasoning replaces the sentence rather than accumulating.
+    reworded = _entry(reasoning="Different reasoning.")
+    with pytest.raises(AdjudicationError, match="does not carry"):
+        verify_adjudications_applied(out_rows, out_cases, [reworded])
+    rw_rows, rw_cases, _ = apply_adjudications(out_rows, out_cases, [reworded])
+    verify_adjudications_applied(rw_rows, rw_cases, [reworded])
+    note = rw_cases.loc[0, "case_annotation"]
+    assert "Different reasoning." in note
+    assert "The prompt fixes unlisted facts to false." not in note
+
+    # A case note edited to disagree with its rows fails closed.
+    bad_cases = out_cases.copy()
+    bad_cases.loc[0, "case_failure_subtypes"] = "thresholds_rates"
+    with pytest.raises(AdjudicationError, match="case note"):
+        verify_adjudications_applied(out_rows, bad_cases, [_entry()])
+    bad_rows = out_rows.copy()
+    bad_rows.loc[1, "failure_subtype"] = "thresholds_rates"
+    with pytest.raises(AdjudicationError, match="subtype other than"):
+        verify_adjudications_applied(bad_rows, out_cases, [_entry()])
