@@ -13,7 +13,7 @@
   },
   "evidence_summary": {
     "registry": 29,
-    "run_state": 4
+    "run_state": 10
   },
   "models": {
     "claude-fable-5": {
@@ -213,6 +213,57 @@
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
+    "deepseek-v4-flash-0731": {
+      "answer_contract": "tool",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "bb6d6dd6c988b1decf7c6019c6e0858cea9a3a17d0e06909ce60f156749dd663",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "newmodels",
+        "source_predictions_sha256": "ad450e059644bc5ec07eaa984950d1c6c925a6d667cdeb0bcb62c340a02a1ec6",
+        "source_rows_sha256": "bb6d6dd6c988b1decf7c6019c6e0858cea9a3a17d0e06909ce60f156749dd663",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 1,
+          "model_id": "openrouter/deepseek/deepseek-v4-flash-0731",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "reasoning_setup": "provider default; 98,304-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 2400,
+      "shared_completion_budget_tokens": 98304,
+      "tool_choice": "forced"
+    },
     "deepseek-v4-pro": {
       "answer_contract": "json",
       "evidence": {
@@ -233,6 +284,57 @@
       "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": null
+    },
+    "deepseek-v4-pro-0813": {
+      "answer_contract": "tool",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "a793188bec16e70ae7e35ff3ce86b1f4da9639facdec21fbfaaa8a84a9945e67",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "newmodels",
+        "source_predictions_sha256": "ada4df5f33079170fabdefa3a12551e0a6d14b1e72907cbc9f0ff8cbab373a91",
+        "source_rows_sha256": "a793188bec16e70ae7e35ff3ce86b1f4da9639facdec21fbfaaa8a84a9945e67",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 1,
+          "model_id": "openrouter/deepseek/deepseek-v4-pro-0813",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "openrouter/deepseek/deepseek-v4-pro-0813",
+      "reasoning_setup": "provider default; 98,304-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 2400,
+      "shared_completion_budget_tokens": 98304,
+      "tool_choice": "forced"
     },
     "gemini-3-flash-preview": {
       "answer_contract": "json",
@@ -318,6 +420,57 @@
       "shared_completion_budget_tokens": null,
       "tool_choice": null
     },
+    "gemini-3.5-flash-lite": {
+      "answer_contract": "tool",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "03ebdf62696ef154139539eeed157f8ff00a09454ca4b27503b17ed572b08fa8",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "newmodels",
+        "source_predictions_sha256": "e152ecc057d91f0daa1943ae12fececd1e930a7c785797d5f700cf6a3fec106a",
+        "source_rows_sha256": "03ebdf62696ef154139539eeed157f8ff00a09454ca4b27503b17ed572b08fa8",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 1,
+          "model_id": "gemini/gemini-3.5-flash-lite",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "gemini/gemini-3.5-flash-lite",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
     "gemini-3.6-flash": {
       "answer_contract": "tool",
       "evidence": {
@@ -388,6 +541,57 @@
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
+    "gemini-3.8-flash": {
+      "answer_contract": "tool",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "b226d6ac5b9dd94ea1ea01422963c55bfc51de7699730bd22688dc38a453dfad",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "newmodels",
+        "source_predictions_sha256": "090cfea5b59350f5c0619868d3619840ff9989cc4026d185f7e1142117715d8d",
+        "source_rows_sha256": "b226d6ac5b9dd94ea1ea01422963c55bfc51de7699730bd22688dc38a453dfad",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 1,
+          "model_id": "gemini/gemini-3.8-flash",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "gemini/gemini-3.8-flash",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
     "glm-5.2": {
       "answer_contract": "json",
       "evidence": {
@@ -408,6 +612,57 @@
       "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": null
+    },
+    "glm-5.3": {
+      "answer_contract": "tool",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "e8964fea98b406f3c4e626d6e035e3f5453bbd6b7365b0642d6a8de396f95ee5",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "newmodels",
+        "source_predictions_sha256": "151adfa115303f6b72d5588231a9730009d65aa0dbfa0c401b7fbf7b38916eab",
+        "source_rows_sha256": "e8964fea98b406f3c4e626d6e035e3f5453bbd6b7365b0642d6a8de396f95ee5",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 1,
+          "model_id": "openrouter/z-ai/glm-5.3",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "openrouter/z-ai/glm-5.3",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 2400,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
     },
     "gpt-5.4-mini": {
       "answer_contract": "tool",
@@ -529,6 +784,57 @@
         "request_timeout_seconds",
         "shared_completion_budget_tokens",
         "tool_choice"
+      ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "gpt-6-astra": {
+      "answer_contract": "tool",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "model_id",
+          "prompt_contract_version",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "b499dc0aaf993130ce2a7004553ed185e20258c0013a762eccc54f1c35b79156",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "newmodels",
+        "source_predictions_sha256": "5960350db62c67efe1d484859fe64e83392626c9a6f4a0a6150707764330942b",
+        "source_rows_sha256": "b499dc0aaf993130ce2a7004553ed185e20258c0013a762eccc54f1c35b79156",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 1,
+          "model_id": "gpt-6-astra",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "gpt-6-astra",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [
+        "reasoning_setup",
+        "request_timeout_seconds",
+        "shared_completion_budget_tokens"
       ],
       "request_shape": "whole scenario",
       "request_timeout_seconds": 300,
@@ -823,7 +1129,7 @@
       "tool_choice": null
     }
   },
-  "registry_commit": "d82db0b71dc66706e7870b87d81f3d93bb8b1869",
+  "registry_commit": "d1d841e99284757e8274ee5bffe1d26472fe73fe",
   "sources": [
     "policybench.config.MODELS",
     "policybench.model_cards",

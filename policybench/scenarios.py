@@ -520,10 +520,64 @@ class Scenario:
 
         return {
             "people": people,
+            "marital_units": self.marital_units(),
             "tax_units": {"tax_unit": tax_unit_data},
             "spm_units": {"spm_unit": spm_unit_data},
             "families": {"family": {"members": all_names}},
             "households": {"household": household_data},
+        }
+
+    def marital_couple(self) -> tuple[str, str] | None:
+        """The names of the tax unit's head and spouse, if the household has both.
+
+        The couple comes from the relationship inputs each adult carries
+        (``is_tax_unit_head`` / ``is_tax_unit_spouse``), never from person
+        identifiers, so renaming people leaves the household unchanged. Two
+        fallbacks cover manifests that predate those inputs: adults literally
+        named ``head`` and ``spouse``, and otherwise a joint filing status with
+        exactly two adults (a joint return is filed by a married couple).
+        """
+        heads = [a.name for a in self.adults if bool(a.inputs.get("is_tax_unit_head"))]
+        spouses = [
+            a.name for a in self.adults if bool(a.inputs.get("is_tax_unit_spouse"))
+        ]
+        if heads or spouses:
+            if len(heads) == 1 and len(spouses) == 1 and heads[0] != spouses[0]:
+                return heads[0], spouses[0]
+            return None
+        names = [a.name for a in self.adults]
+        if "head" in names and "spouse" in names:
+            return "head", "spouse"
+        if len(self.adults) == 2 and str(self.filing_status or "").lower() == "joint":
+            return names[0], names[1]
+        return None
+
+    def marital_units(self) -> dict:
+        """Head and spouse form the only couple; everyone else is alone.
+
+        Without an explicit marital-unit map policyengine-core places every
+        household member in one marital unit, which the engine reads as one
+        couple: SSI then deems the whole household's income to any eligible
+        adult as if the others were a spouse. The frozen references are
+        unaffected (verified against policyengine-us 1.755.4: no output moves),
+        because no benchmark household has a non-spouse adult the engine finds
+        SSI-eligible under the facts as listed.
+
+        Unit identifiers are positional (``marital_unit_1``, ``marital_unit_2``,
+        ...), never derived from person names, so no person identifier can
+        collide with another unit's key and drop members from the map.
+        """
+        couple = self.marital_couple()
+        groups: list[list[str]] = []
+        if couple is not None:
+            groups.append(list(couple))
+        for person in self.all_people:
+            if couple is not None and person.name in couple:
+                continue
+            groups.append([person.name])
+        return {
+            f"marital_unit_{index}": {"members": members}
+            for index, members in enumerate(groups, start=1)
         }
 
 

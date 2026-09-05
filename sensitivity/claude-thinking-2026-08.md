@@ -44,17 +44,21 @@ runs also use the canonical whole-scenario request
 (`POLICYBENCH_CHUNK_OVERRIDE=none`); their deltas therefore combine two
 shape changes, while Claude Opus 5's isolates thinking alone.
 
-All ranks are on the 33-model board (2026-09-01).
+All ranks are on the 39-model board (2026-09-05). Scores are on the
+1,973 outputs the board scores; eleven outputs whose reference depends on
+an input the data never carried are excluded for every model, sensitivity
+runs included (`reference_exclusions.json`). On all 1,984 outputs the
+thinking runs scored 86.9, 85.6 and 80.2.
 
 | | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5 | 79.9 (#11) | **86.9** | +7.0 | **#2** | $0.541 → $0.323 | 54 | 1,984/1,984 |
-| Claude Opus 5 | 79.8 (#12) | **85.6** | +5.8 | #4 | $0.067 → $0.152 | 51 | 1,984/1,984 |
-| Claude Sonnet 5 | 69.4 (#31) | **80.2** | +10.8 | #11 | $0.086 | 64 | 1,928/1,984 |
+| Claude Fable 5 | 80.4 (#13) | **87.5** | +7.1 | **#3** | $0.541 → $0.323 | 54 | 1,984/1,984 |
+| Claude Opus 5 | 80.3 (#14) | **86.2** | +5.9 | #5 | $0.067 → $0.152 | 51 | 1,984/1,984 |
+| Claude Sonnet 5 | 69.9 (#37) | **80.8** | +10.9 | #13 | $0.086 | 64 | 1,928/1,984 |
 
 Under `auto`, Fable 5 and Opus 5 chose to call the answer tool on every
 response; Sonnet 5 failed to produce a parseable tool call on 56 of its
-1,984 answers, which score as misses inside its 80.2. Fable 5's
+1,984 answers, which score as misses inside its 80.8. Fable 5's
 sensitivity run also costs less than its leaderboard run: whole-scenario
 requests drop its per-household spend from $0.541 to $0.323 even with
 thinking on.
@@ -63,9 +67,9 @@ thinking on.
 
 The leaderboard is unchanged: the frozen board holds every model to the
 request shape its model card records, and this run sits beside it as a
-labeled sensitivity, not in it. Each run's predictions are attached to the
-`dashboard-data-20260805` release as
-`sensitivity-claude-{fable,opus,sonnet}-5-thinking-predictions.csv.gz`. The
+labeled sensitivity, not in it. Each run's predictions are committed under
+`sensitivity/data/` (and attached to the `dashboard-data-20260805` release)
+as `sensitivity-claude-{fable,opus,sonnet}-5-thinking-predictions.csv.gz`. The
 manuscript's serving-configuration table documents the interaction. The next
 board version moves every model to
 `tool_choice: "auto"` so each provider's default reasoning posture engages
@@ -76,22 +80,22 @@ versioned re-run, never an edit to existing scores; the plan is
 
 ## Where thinking helps (Claude Fable 5, per program)
 
-Per-variable within-$1 rates, board (forced) vs `auto`. These are
-unweighted leaf rates from the heatmap; the headline weights by dollar
-magnitude, so these do not average to 86.9.
+Per-variable within-$1 rates, board (forced) vs `auto`, on the 1,973
+scored outputs. These are unweighted leaf rates from the heatmap; the
+headline weights by dollar magnitude, so these do not average to 87.5.
 
 | program | board | auto | delta |
 |---|---|---|---|
 | federal_income_tax_before_refundable_credits | 52.0 | 69.0 | +17.0 |
 | federal_refundable_credits | 86.0 | 95.0 | +9.0 |
 | state_income_tax_before_refundable_credits | 55.0 | 64.0 | +9.0 |
-| person_medicare_eligible | 88.7 | 96.6 | +7.9 |
+| person_medicare_eligible | 91.3 | 99.4 | +8.1 |
 | payroll_tax | 82.0 | 89.0 | +7.0 |
 | state_refundable_credits | 80.0 | 84.0 | +4.0 |
+| ssi | 96.9 | 100.0 | +3.1 |
 | self_employment_tax | 97.0 | 99.0 | +2.0 |
 | person_medicaid_eligible | 93.8 | 95.5 | +1.7 |
-| snap | 77.0 | 78.0 | +1.0 |
-| ssi | 96.0 | 97.0 | +1.0 |
+| snap | 79.4 | 80.4 | +1.0 |
 | person_wic_eligible | 99.4 | 100.0 | +0.6 |
 | local_income_tax | 100.0 | 100.0 | +0.0 |
 | person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
@@ -103,9 +107,12 @@ magnitude, so these do not average to 86.9.
 
 Thinking pays off on the hardest arithmetic: the two income-tax lines,
 refundable credits, and payroll tax. Near-ceiling programs stay flat;
-the three small negatives sit at noise scale for n=100-177. Per-variable
-CSVs for all three models are attached to the `dashboard-data-20260805`
-release as `sensitivity-claude-*-thinking-by-variable.csv.gz`.
+the three small negatives sit at noise scale for n=97-172. Per-variable
+CSVs for all three models are committed under `sensitivity/data/` as
+`sensitivity-claude-*-thinking-by-variable.csv.gz`, regenerated on the
+scored outputs by `scripts/sensitivity_by_variable.py` and pinned in
+`sensitivity/data/claude-thinking-2026-08.json`; the copies attached to the
+`dashboard-data-20260805` release predate the exclusion and score all 1,984.
 
 ## Claude Fable 5.1 (September 2026)
 
@@ -123,30 +130,31 @@ The sensitivity run for this model isolates request shape under thinking
 rather than thinking itself: the answer tool declared with `tool_choice:
 "auto"` (`POLICYBENCH_CONTRACT_OVERRIDE=tool` together with
 `POLICYBENCH_TOOL_CHOICE=auto`), against the JSON board row. Both rows
-reason. The ranks are on the 33-model board (2026-09-01).
+reason. The ranks are on the 39-model board (2026-09-05).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5.1 | 86.3 (#2) | **87.5** | +1.2 | #2 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
+| Claude Fable 5.1 | 86.9 (#3) | **88.2** | +1.2 | #2 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
 
 The two rows sit 1.2 points apart, and no program moves more than three
 points between them (table below). Read against Claude Fable 5, the
-picture matches August: Fable 5.1's JSON board row (86.3) is 6.4 points
-above Fable 5's forced-tool board row (79.9) and 0.6 below Fable 5's
-`auto` run (86.9); Fable 5.1's own `auto` run (87.5) is 0.6 above Fable
-5's under the identical request. The model called the answer tool on every
+picture matches August: Fable 5.1's JSON board row (86.9) is 6.5 points
+above Fable 5's forced-tool board row (80.4) and 0.6 below Fable 5's
+`auto` run (87.5); Fable 5.1's own `auto` run (88.2) is 0.6 above Fable
+5's under the identical request. Scores are on the 1,973 scored outputs;
+on all 1,984 the auto run scored 87.5. The model called the answer tool on every
 one of its 1,984 answers under `auto`.
 
 Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
-(tool declared); unweighted leaf rates, as above.
+(tool declared); unweighted leaf rates on the scored outputs, as above.
 
 | program | board (JSON) | auto (tool declared) | delta |
 |---|---|---|---|
 | federal_income_tax_before_refundable_credits | 69.0 | 72.0 | +3.0 |
-| person_medicare_eligible | 93.8 | 95.5 | +1.7 |
+| person_medicare_eligible | 96.5 | 98.3 | +1.8 |
 | free_school_meals_eligible | 98.0 | 99.0 | +1.0 |
 | reduced_price_school_meals_eligible | 98.0 | 99.0 | +1.0 |
-| ssi | 96.0 | 97.0 | +1.0 |
+| ssi | 99.0 | 100.0 | +1.0 |
 | state_income_tax_before_refundable_credits | 63.0 | 64.0 | +1.0 |
 | person_medicaid_eligible | 96.6 | 97.2 | +0.6 |
 | local_income_tax | 100.0 | 100.0 | +0.0 |
@@ -155,16 +163,18 @@ Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
 | person_head_start_eligible | 100.0 | 100.0 | +0.0 |
 | person_wic_eligible | 100.0 | 100.0 | +0.0 |
 | self_employment_tax | 100.0 | 100.0 | +0.0 |
-| snap | 79.0 | 79.0 | +0.0 |
+| snap | 81.4 | 81.4 | +0.0 |
 | tanf | 99.0 | 99.0 | +0.0 |
 | federal_refundable_credits | 97.0 | 96.0 | -1.0 |
 | state_refundable_credits | 89.0 | 88.0 | -1.0 |
-| person_chip_eligible | 97.2 | 96.0 | -1.1 |
+| person_chip_eligible | 97.2 | 96.0 | -1.2 |
 
-The run's predictions and per-variable rates are attached to the
-`dashboard-data-20260901c` release as
-`sensitivity-claude-fable-5-1-thinking-predictions.csv.gz` and
-`sensitivity-claude-fable-5-1-thinking-by-variable.csv.gz`.
+The run's predictions and per-variable rates are committed under
+`sensitivity/data/` as `sensitivity-claude-fable-5-1-thinking-predictions.csv.gz`
+and `sensitivity-claude-fable-5-1-thinking-by-variable.csv.gz` (pinned in
+`claude-fable-5-1-thinking.json`; the rates are on the scored outputs). The
+copies attached to the `dashboard-data-20260901c` release predate the
+exclusion.
 
 ## Reproducing
 

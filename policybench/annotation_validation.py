@@ -18,6 +18,12 @@ from policybench.full_run_export import (
     load_case_annotations,
     load_predictions,
 )
+from policybench.reference_exclusions import (
+    exclusion_keys,
+    exclusions_path_for,
+    load_reference_exclusions,
+    split_reference,
+)
 
 # Final classifications for scoring claims: substantive model errors and
 # deterministic parse failures (the model returned no usable answer; collect
@@ -70,12 +76,24 @@ def wrong_prediction_rows_from_frames(
     ].copy()
 
 
-def wrong_prediction_rows(country_dir: Path) -> pd.DataFrame:
-    """Return all prediction rows whose benchmark score is below full credit."""
+def scored_reference(country_dir: Path) -> tuple[pd.DataFrame, list[dict]]:
+    """The country's reference with excluded outputs removed, plus the record."""
     reference_path = country_dir / "reference_outputs.csv"
     if not reference_path.exists():
         reference_path = country_dir / "ground_truth.csv"
     reference = pd.read_csv(reference_path)
+    exclusions = load_reference_exclusions(exclusions_path_for(reference_path))
+    scored, _ = split_reference(reference, exclusions)
+    return scored, exclusions
+
+
+def wrong_prediction_rows(country_dir: Path) -> pd.DataFrame:
+    """Return all scored prediction rows whose benchmark score is below full credit.
+
+    Outputs listed in the country's ``reference_exclusions.json`` are scored for
+    no model and therefore never count as wrong rows.
+    """
+    reference, _ = scored_reference(country_dir)
     predictions = load_predictions(country_dir)
     return wrong_prediction_rows_from_frames(reference, predictions)
 
@@ -222,7 +240,8 @@ def validate_snapshot_audit(
 ) -> dict[str, pd.DataFrame]:
     """Validate row and case annotations against a frozen snapshot country."""
     country_dir = _snapshot_country_dir(snapshot_dir, country)
-    reference = pd.read_csv(country_dir / "reference_outputs.csv")
+    reference, exclusions = scored_reference(country_dir)
+    excluded_keys = exclusion_keys(exclusions)
     predictions = pd.read_csv(country_dir / "predictions.csv.gz")
     wrong = wrong_prediction_rows_from_frames(reference, predictions)
     annotations = _read_row_annotations(annotations_dir, country)
@@ -266,6 +285,9 @@ def validate_snapshot_audit(
         "wrong": wrong,
         "missing_rows": missing_annotation_rows(wrong, annotations),
         "unresolved_rows": unresolved_annotation_rows(wrong, annotations),
+        "excluded_outputs": pd.DataFrame(
+            sorted(excluded_keys), columns=["scenario_id", "variable"]
+        ),
         "missing_cases": annotated_cases.loc[missing_case_annotation].copy(),
     }
 

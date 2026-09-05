@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from policybench.annotation_validation import validate_snapshot_audit
+from policybench.snapshot_payload import read_run_payload
 from policybench.spec import output_group_id
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -108,7 +109,7 @@ def _snapshot_country_payloads(manifest: dict) -> dict[str, dict]:
     payloads = {}
     for country, run_label in manifest["source_run_labels"].items():
         run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
-        payloads[country] = json.loads((run_dir / "data.json").read_text())
+        payloads[country] = read_run_payload(run_dir)
     return payloads
 
 
@@ -141,6 +142,8 @@ def _aggregate_scenario_metric(country_payload: dict, metric: str) -> dict[str, 
             (variable, model_map)
             for variable, model_map in variable_map.items()
             if output_group_id(variable) in grouped_weights
+            # Outputs excluded from scoring carry scored=false on every row.
+            and not any(row.get("scored") is False for row in model_map.values())
         ]
         group_counts: dict[str, int] = {}
         for variable, _ in variables:
@@ -578,16 +581,16 @@ def test_snapshot_copied_artifacts_match_source_runs():
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_audit_counts = {
         "us": {
-            "annotated": 7_840,
-            "exact_misses": 7_838,
-            "annotated_exact_misses": 7_838,
-            "annotated_exact_hits": 2,
-            "below_full_bounded_score": 9_164,
-            "unannotated_below_full_bounded_score": 1_324,
+            "annotated": 8_783,
+            "exact_misses": 8_780,
+            "annotated_exact_misses": 8_780,
+            "annotated_exact_hits": 3,
+            "below_full_bounded_score": 10_388,
+            "unannotated_below_full_bounded_score": 1_605,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 7_211, "parse_contract_failure": 629},
+        "us": {"llm_error": 8_082, "parse_contract_failure": 701},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -617,6 +620,19 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
             ].items()
             for variable, model_map in variable_map.items()
             for model, row in model_map.items()
+            # Outputs excluded from scoring are outside the audit universe.
+            if row.get("scored") is not False
+        ]
+        excluded_outputs = {
+            (r.scenario_id, r.variable) for r in result["excluded_outputs"].itertuples()
+        }
+        annotation_keys = {
+            k for k in annotation_keys if (k[1], k[2]) not in excluded_outputs
+        }
+        annotations = annotations[
+            ~annotations.apply(
+                lambda r: (r["scenario_id"], r["variable"]) in excluded_outputs, axis=1
+            )
         ]
 
         def metric_keys(metric: str) -> set[tuple[str, str, str]]:
@@ -670,13 +686,29 @@ def test_snapshot_audit_annotations_have_no_orphan_rows():
             pd.read_csv(path)
             for path in sorted(ANNOTATIONS_DIR.glob(f"{country}_*_annotations.csv"))
         )
-        orphans = annotations[keys].merge(
+        # Rows on outputs excluded from scoring stay annotated (as description)
+        # but are not wrong rows; every one of them must carry prompt_ambiguity.
+        excluded = result["excluded_outputs"]
+        on_excluded = annotations.merge(
+            excluded, on=["scenario_id", "variable"], how="inner"
+        )
+        assert set(on_excluded["failure_source"]) <= {
+            "prompt_ambiguity",
+            "parse_contract_failure",
+        }
+        scored_annotations = annotations.merge(
+            excluded, on=["scenario_id", "variable"], how="left", indicator=True
+        )
+        scored_annotations = scored_annotations[
+            scored_annotations["_merge"] == "left_only"
+        ].drop(columns="_merge")
+        orphans = scored_annotations[keys].merge(
             result["wrong"][keys].drop_duplicates(), on=keys, how="left", indicator=True
         )
         assert (orphans["_merge"] == "both").all(), orphans[
             orphans["_merge"] != "both"
         ].head()
-        assert len(annotations) == len(result["wrong"])
+        assert len(scored_annotations) == len(result["wrong"])
 
 
 def test_snapshot_case_notes_agree_with_row_annotations():
@@ -739,14 +771,14 @@ def test_dashboard_blob_is_not_committed():
 
 
 def test_frozen_payload_provenance_matches_the_reference_sidecar():
-    """The frozen data.json must name the policyengine-us that generated the
+    """The frozen data.json.gz must name the policyengine-us that generated the
     references it scores against, as recorded by the reference sidecar and the
     manifest, not the exporting machine's installed runtime."""
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
     expected = manifest["reference_output_refresh"]["policyengine_us_version"]
     for country, run_label in manifest["source_run_labels"].items():
         run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
-        payload = json.loads((run_dir / "data.json").read_text())
+        payload = read_run_payload(run_dir)
         sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
         sidecar_version = sidecar["policyengine_bundles"][country]["model_version"]
         assert sidecar_version == expected
@@ -784,3 +816,82 @@ def test_app_clean_preserves_the_tracked_serving_configuration():
     clean_command = package["scripts"]["clean"]
 
     assert "src/model-serving-config.json" not in clean_command
+
+
+def test_manuscript_bootstrap_point_estimates_reproduce_model_stats():
+    """The manuscript's uncertainty tables score the same outputs as the board.
+
+    Mirrors ``load_snapshot_ground_truth`` / ``load_snapshot_predictions`` in
+    paper/index.qmd: the scored reference (frozen CSV minus the exclusion
+    record), filtered to headline outputs, fed to ``bootstrap_headline_cis``.
+    Its point estimate for every model must equal the published exact score;
+    a reference that still carried the excluded outputs would not.
+    """
+    from policybench.analysis import bootstrap_headline_cis
+    from policybench.reference_exclusions import scored_reference_for
+    from policybench.spec import get_output_ids
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    for country, run_label in manifest["source_run_labels"].items():
+        run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+        headline = set(get_output_ids(country, "headline"))
+
+        def headline_only(frame: pd.DataFrame) -> pd.DataFrame:
+            mask = frame["variable"].map(output_group_id).isin(headline)
+            frame = frame[mask].reset_index(drop=True)
+            frame["scenario_id"] = frame["scenario_id"].astype(str)
+            return frame
+
+        scored, exclusions = scored_reference_for(run_dir / "reference_outputs.csv")
+        assert len(exclusions) > 0
+        reference = headline_only(scored)
+        predictions = headline_only(
+            pd.read_csv(
+                run_dir / "predictions.csv.gz",
+                usecols=["model", "scenario_id", "variable", "prediction"],
+            )
+        )
+        scenarios = pd.read_csv(run_dir / "scenarios.csv")
+        market = dict(
+            zip(
+                scenarios["scenario_id"].astype(str),
+                pd.to_numeric(scenarios["total_income"], errors="coerce").fillna(0.0),
+            )
+        )
+        cis = bootstrap_headline_cis(
+            reference, predictions, market, country=country, metric="exact", n_boot=20
+        )
+        published = {
+            row["model"]: row["exact"]
+            for row in read_run_payload(run_dir)["modelStats"]
+            if row["condition"] == "no_tools"
+        }
+        assert set(cis["model"]) == set(published)
+        for model, point in zip(cis["model"], cis["point"]):
+            assert point * 100 == pytest.approx(published[model], abs=1e-6), model
+
+
+def test_frozen_impact_summaries_score_the_scored_reference():
+    """The legacy impact summary (run dir and top-level copy) must be computed
+    on the scored reference, like every other published metric."""
+    from policybench.reference_exclusions import scored_reference_for
+    from scripts import freeze_snapshot
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    for country, run_label in manifest["source_run_labels"].items():
+        run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+        scored, exclusions = scored_reference_for(run_dir / "reference_outputs.csv")
+        assert exclusions
+        predictions = pd.read_csv(run_dir / "predictions.csv.gz")
+        expected = freeze_snapshot.household_impact_summary_by_model(
+            scored, predictions
+        )
+        frozen = pd.read_csv(run_dir / "analysis" / "impact_summary_by_model.csv")
+        top_level = pd.read_csv(SNAPSHOT_DIR / f"{country}_impact_summary_by_model.csv")
+        pd.testing.assert_frame_equal(
+            frozen.sort_values("model").reset_index(drop=True),
+            expected.sort_values("model").reset_index(drop=True),
+            check_exact=False,
+            atol=1e-9,
+        )
+        pd.testing.assert_frame_equal(top_level, frozen)

@@ -765,6 +765,7 @@ class TestSummaries:
             "heatmap",
             "scenarioPredictions",
             "globalWeights",
+            "referenceExclusions",
         }
         # All three weighting views expose a per-variable map.
         assert set(payload["globalWeights"]) == {"household", "aggregate", "equal"}

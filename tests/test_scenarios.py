@@ -8,6 +8,8 @@ import pytest
 import policybench.scenarios as scenarios_module
 from policybench.scenarios import (
     SUPPORTED_FILING_STATUSES,
+    Person,
+    Scenario,
     _eligible_uk_households,
     _is_geographic_defined_for,
     generate_scenarios,
@@ -1076,3 +1078,138 @@ def test_sample_household_ids_requires_enough_positive_weight():
     )
     with pytest.raises(ValueError, match="positive sampling weight"):
         _sample_household_ids(eligible, n=2, seed=0)
+
+
+def _couple_scenario(
+    head_name: str,
+    spouse_name: str,
+    *,
+    flags: bool = True,
+    filing_status: str | None = "joint",
+    state: str = "TX",
+    age: int = 67,
+    extra_adults: tuple[str, ...] = (),
+    children: tuple[str, ...] = (),
+) -> Scenario:
+    def adult(name: str, role: str | None) -> Person:
+        inputs: dict[str, object] = {}
+        if flags:
+            inputs["is_tax_unit_head"] = role == "head"
+            inputs["is_tax_unit_spouse"] = role == "spouse"
+        return Person(name=name, age=age, employment_income=0.0, inputs=inputs)
+
+    return Scenario(
+        id="couple",
+        state=state,
+        filing_status=filing_status,
+        adults=[
+            adult(head_name, "head"),
+            adult(spouse_name, "spouse"),
+            *[adult(name, None) for name in extra_adults],
+        ],
+        children=[Person(name=name, age=8, employment_income=0.0) for name in children],
+    )
+
+
+def _unit_members(scenario: Scenario) -> set[frozenset[str]]:
+    return {frozenset(unit["members"]) for unit in scenario.marital_units().values()}
+
+
+def test_marital_units_follow_relationship_inputs_not_person_names():
+    """Renaming people must not change the household the engine sees."""
+    canonical = _couple_scenario("head", "spouse", extra_adults=("dependent1",))
+    renamed = _couple_scenario("adult1", "adult2", extra_adults=("adult3",))
+
+    assert _unit_members(canonical) == {
+        frozenset({"head", "spouse"}),
+        frozenset({"dependent1"}),
+    }
+    assert _unit_members(renamed) == {
+        frozenset({"adult1", "adult2"}),
+        frozenset({"adult3"}),
+    }
+    # Flags win over names: the person called "spouse" is the flagged head.
+    swapped = _couple_scenario("spouse", "head")
+    assert swapped.marital_couple() == ("spouse", "head")
+
+
+def test_marital_units_cover_every_person_exactly_once():
+    scenario = _couple_scenario(
+        "adult1", "adult2", extra_adults=("adult3",), children=("kid1", "kid2")
+    )
+    members = [
+        name for unit in scenario.marital_units().values() for name in unit["members"]
+    ]
+    assert sorted(members) == ["adult1", "adult2", "adult3", "kid1", "kid2"]
+    assert scenario.to_pe_household()["marital_units"] == scenario.marital_units()
+
+
+def test_marital_units_fall_back_for_manifests_without_relationship_inputs():
+    # Legacy manifests name the couple head/spouse.
+    assert _couple_scenario("head", "spouse", flags=False).marital_couple() == (
+        "head",
+        "spouse",
+    )
+    # A joint return with exactly two adults is a married couple.
+    assert _couple_scenario("adult1", "adult2", flags=False).marital_couple() == (
+        "adult1",
+        "adult2",
+    )
+    # Two unflagged adults who do not file jointly are not assumed married.
+    single = _couple_scenario("adult1", "adult2", flags=False, filing_status="single")
+    assert single.marital_couple() is None
+    assert _unit_members(single) == {frozenset({"adult1"}), frozenset({"adult2"})}
+    # Flags present but no spouse flagged: no couple, whatever the names say.
+    no_spouse = _couple_scenario("head", "spouse")
+    no_spouse.adults[1].inputs["is_tax_unit_spouse"] = False
+    assert no_spouse.marital_couple() is None
+
+
+@pytest.mark.slow
+def test_reference_calculation_is_invariant_to_person_identifiers():
+    """A joint-filing couple, both 67 with no income, gets the same SSI whether
+    the people are called head/spouse or adult1/adult2 (PolicyEngine-US)."""
+    from policybench.ground_truth import calculate_single
+
+    canonical = calculate_single(_couple_scenario("head", "spouse"), "ssi")
+    renamed = calculate_single(_couple_scenario("adult1", "adult2"), "ssi")
+    assert renamed == pytest.approx(canonical)
+    # Splitting the couple into two single-person marital units would pay two
+    # individual SSI awards; the couple rate is lower than twice the individual.
+    single_units = _couple_scenario("adult1", "adult2")
+    for adult in single_units.adults:
+        adult.inputs["is_tax_unit_head"] = False
+        adult.inputs["is_tax_unit_spouse"] = False
+    single_units.filing_status = "single"
+    assert calculate_single(single_units, "ssi") > canonical
+
+
+def test_marital_unit_keys_cannot_collide_with_person_names():
+    """A dependent named "couple" (or anything else) must not displace the
+    couple's unit: keys are positional, and every person stays mapped."""
+    scenario = _couple_scenario("head", "spouse", children=("couple",))
+    units = scenario.marital_units()
+    assert list(units) == ["marital_unit_1", "marital_unit_2"]
+    assert units["marital_unit_1"]["members"] == ["head", "spouse"]
+    assert units["marital_unit_2"]["members"] == ["couple"]
+    for name in ("marital_unit_1", "marital_unit_2", "1", "spouse2"):
+        renamed = _couple_scenario("head", "spouse", children=(name,))
+        members = sorted(
+            member
+            for unit in renamed.marital_units().values()
+            for member in unit["members"]
+        )
+        assert members == sorted(["head", "spouse", name])
+
+
+@pytest.mark.slow
+def test_reference_calculation_is_invariant_to_a_child_named_couple():
+    from policybench.ground_truth import calculate_single
+
+    baseline = calculate_single(
+        _couple_scenario("head", "spouse", children=("dependent1",)), "ssi"
+    )
+    renamed = calculate_single(
+        _couple_scenario("head", "spouse", children=("couple",)), "ssi"
+    )
+    assert renamed == pytest.approx(baseline)

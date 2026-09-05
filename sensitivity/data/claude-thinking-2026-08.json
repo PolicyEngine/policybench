@@ -1,0 +1,98 @@
+{
+  "release": "dashboard-data-20260905c",
+  "run_dates": "2026-08",
+  "condition": "tool_choice auto (POLICYBENCH_TOOL_CHOICE=auto); Fable 5 and Sonnet 5 also whole-scenario (POLICYBENCH_CHUNK_OVERRIDE=none)",
+  "scored_against": "the frozen 39-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the eleven outputs in the run's reference_exclusions.json removed from scoring as they are for every board row (1,973 scored outputs); per-variable rates likewise on the scored outputs",
+  "runs": {
+    "claude-fable-5-thinking": {
+      "model": "claude-fable-5",
+      "sensitivity_model_id": "claude-fable-5-thinking",
+      "assets": {
+        "sensitivity-claude-fable-5-thinking-predictions.csv.gz": {
+          "sha256": "fe12ca1d0f29127b6346ff211f262cbde93cfdb683984cd743541246b5a52227",
+          "bytes": 221318
+        },
+        "sensitivity-claude-fable-5-thinking-by-variable.csv.gz": {
+          "sha256": "49cafe2be9644c3785cb6d5d92cf30fb7e602d962bf8c77ea619cca0b506b0c8",
+          "bytes": 754
+        }
+      },
+      "board": {
+        "exact": 80.427,
+        "within1pct": 81.243,
+        "score": 91.995,
+        "n": 1973,
+        "n_parsed": 1973
+      },
+      "sensitivity": {
+        "exact": 87.542,
+        "within1pct": 90.125,
+        "score": 95.769,
+        "would_rank": 3,
+        "n": 1984,
+        "n_parsed": 1984
+      },
+      "delta_exact": 7.115
+    },
+    "claude-opus-5-thinking": {
+      "model": "claude-opus-5",
+      "sensitivity_model_id": "claude-opus-5-thinking",
+      "assets": {
+        "sensitivity-claude-opus-5-thinking-predictions.csv.gz": {
+          "sha256": "d9c8b223aa6968e1a25acb2efa04c582c54e12105414bfc26a45d7d2763ab485",
+          "bytes": 186361
+        },
+        "sensitivity-claude-opus-5-thinking-by-variable.csv.gz": {
+          "sha256": "6de80c1847e2b777bd9890bc225026eb64ed5285b0aee4f16af64081dd821770",
+          "bytes": 746
+        }
+      },
+      "board": {
+        "exact": 80.331,
+        "within1pct": 81.308,
+        "score": 91.471,
+        "n": 1973,
+        "n_parsed": 1973
+      },
+      "sensitivity": {
+        "exact": 86.201,
+        "within1pct": 89.859,
+        "score": 95.525,
+        "would_rank": 5,
+        "n": 1984,
+        "n_parsed": 1984
+      },
+      "delta_exact": 5.871
+    },
+    "claude-sonnet-5-thinking": {
+      "model": "claude-sonnet-5",
+      "sensitivity_model_id": "claude-sonnet-5-thinking",
+      "assets": {
+        "sensitivity-claude-sonnet-5-thinking-predictions.csv.gz": {
+          "sha256": "0ffc701e99cd7805b6efa44809847a08e2cd47b3a20e09ea93011eade45d1569",
+          "bytes": 219240
+        },
+        "sensitivity-claude-sonnet-5-thinking-by-variable.csv.gz": {
+          "sha256": "526ff7dac9ed855ab1b6ca8ffd918b33da9c9546154b49862b1ad9849c54c783",
+          "bytes": 851
+        }
+      },
+      "board": {
+        "exact": 69.895,
+        "within1pct": 72.234,
+        "score": 81.174,
+        "n": 1973,
+        "n_parsed": 1973
+      },
+      "sensitivity": {
+        "exact": 80.775,
+        "within1pct": 83.792,
+        "score": 92.577,
+        "would_rank": 13,
+        "n": 1984,
+        "n_parsed": 1928
+      },
+      "delta_exact": 10.88
+    }
+  }
+}

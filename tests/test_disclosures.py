@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from policybench.paper_results import r
+from policybench.snapshot_payload import read_run_payload
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVING_CONFIG = ROOT / "paper" / "snapshot" / "20260501" / "model_serving_config.json"
@@ -126,7 +127,7 @@ def _audit_counts_from_frozen_files() -> dict[str, int]:
     manifest = json.loads(SNAPSHOT_MANIFEST.read_text())
     run_label = manifest["source_run_labels"]["us"]
     run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
-    dashboard = json.loads((run_dir / "data.json").read_text())
+    dashboard = read_run_payload(run_dir)
     annotation_dir = ROOT / manifest["audit_annotation_artifacts"]["path"]
     with (annotation_dir / "us_audit_row_annotations.csv").open(newline="") as file:
         annotations = list(csv.DictReader(file))
@@ -143,6 +144,23 @@ def _audit_counts_from_frozen_files() -> dict[str, int]:
         for variable, model_map in variable_map.items()
         for model, row in model_map.items()
     ]
+    # Outputs excluded from scoring (scored=false) are annotated as description
+    # only; the audit universe is the scored rows.
+    excluded_outputs = {
+        (scenario_id, variable)
+        for (_, scenario_id, variable), row in prediction_rows
+        if row.get("scored") is False
+    }
+    prediction_rows = [
+        (row_key, row)
+        for row_key, row in prediction_rows
+        if (row_key[1], row_key[2]) not in excluded_outputs
+    ]
+    annotated = {
+        row_key
+        for row_key in annotated
+        if (row_key[1], row_key[2]) not in excluded_outputs
+    }
     legacy_threshold = {
         row_key for row_key, row in prediction_rows if row["thresholdScore"] < 100
     }
@@ -203,11 +221,11 @@ def test_current_board_copy_makes_no_identical_request_claim():
 def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     counts = _audit_counts_from_frozen_files()
     assert counts == {
-        "annotated": 7_840,
-        "exact_misses": 7_838,
-        "annotated_exact_misses": 7_838,
-        "annotated_exact_hits": 2,
-        "unannotated_below_full_bounded_score": 1_324,
+        "annotated": 8_783,
+        "exact_misses": 8_780,
+        "annotated_exact_misses": 8_780,
+        "annotated_exact_hits": 3,
+        "unannotated_below_full_bounded_score": 1_605,
     }
 
     for path in (

@@ -1,7 +1,10 @@
 # Dashboard data artifacts
 
-The dashboard payload (`data.json`, ~57MB) is a generated artifact, not
-source. Committing each refresh as a repo blob bloats history, invites
+The dashboard payload (`data.json`, ~100MB at 39 models) is a generated
+artifact, not source. The manuscript snapshot keeps the frozen per-country
+copy as a deterministic gzip (`paper/snapshot/<id>/runs/<run>/data.json.gz`,
+read through `policybench.snapshot_payload`) because the plain export passed
+GitHub's 100MB file limit with the 39-model board. Committing each refresh as a repo blob bloats history, invites
 lockfile-style merge conflicts, and — because the file is written by tooling —
 leaves no gate between "an export produced something" and "the site ships it".
 This contract closes that gap.

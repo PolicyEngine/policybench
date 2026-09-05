@@ -30,7 +30,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from policybench.config import SEED
-from policybench.analysis import score_single_prediction
+from policybench.manuscript_views import (
+    country_scores_from_rows,
+    flatten_scored_predictions,
+)
 from policybench.paper_results import MODEL_DISPLAY_NAMES, r
 from policybench.spec import (
     get_output_ids,
@@ -58,17 +61,15 @@ SNAPSHOT_DATE = MANIFEST["snapshot_date"]
 MODEL_RESPONSE_DATE = MANIFEST["model_response_date"]
 US_RUN_LABEL = MANIFEST["source_run_labels"]["us"]
 ANNOTATION_DIR = MANIFEST["audit_annotation_artifacts"]["path"]
-US_DASHBOARD_EXPORT = f"{IMPACT_SNAPSHOT_DIR}/runs/{US_RUN_LABEL}/data.json"
+US_DASHBOARD_EXPORT = f"{IMPACT_SNAPSHOT_DIR}/runs/{US_RUN_LABEL}/data.json.gz"
 SNAPSHOT_EXPORT = US_DASHBOARD_EXPORT
 
 
 def load_frozen_dashboard() -> dict:
+    from policybench.snapshot_payload import read_run_payload
+
     country_payloads = {
-        "us": json.loads(
-            (
-                ROOT / IMPACT_SNAPSHOT_DIR / "runs" / US_RUN_LABEL / "data.json"
-            ).read_text()
-        ),
+        "us": read_run_payload(ROOT / IMPACT_SNAPSHOT_DIR / "runs" / US_RUN_LABEL),
     }
     return {"countries": country_payloads}
 
@@ -205,48 +206,14 @@ def positive_case_table(frame: pd.DataFrame, top_n: int = 8) -> pd.DataFrame:
 
 
 def flatten_predictions() -> pd.DataFrame:
-    rows = []
-    for country in COUNTRIES:
-        predictions = country_payload(country)["scenarioPredictions"]
-        for scenario_id, variables in predictions.items():
-            for variable, model_records in variables.items():
-                parsed = parse_person_output(variable)
-                output_group = parsed[1] if parsed else variable
-                metric_type = metric_type_for_output(variable)
-                for model, record in model_records.items():
-                    truth = record["groundTruth"]
-                    prediction = record["prediction"]
-                    rows.append(
-                        {
-                            "country": country,
-                            "scenario_id": scenario_id,
-                            "variable": variable,
-                            "output_group": output_group,
-                            "model": model,
-                            "truth": truth,
-                            "prediction": prediction,
-                            "metric_type": metric_type,
-                            "score": 100
-                            * score_single_prediction(
-                                variable,
-                                truth,
-                                prediction,
-                            ),
-                        }
-                    )
-    return pd.DataFrame(rows)
-
-
-def country_scores_from_rows(frame: pd.DataFrame) -> pd.DataFrame:
-    output_scores = (
-        frame.groupby(["country", "model", "output_group"])["score"]
-        .mean()
-        .reset_index()
-    )
-    return (
-        output_scores.groupby(["country", "model"])["score"]
-        .mean()
-        .reset_index()
+    """Row-level scores for every scored output (excluded outputs left out),
+    from policybench.manuscript_views so the same filter is unit-tested."""
+    return pd.concat(
+        [
+            flatten_scored_predictions(country, country_payload(country))
+            for country in COUNTRIES
+        ],
+        ignore_index=True,
     )
 
 
@@ -271,10 +238,16 @@ def filter_to_headline_outputs(country: str, frame: pd.DataFrame) -> pd.DataFram
 
 
 def load_snapshot_ground_truth() -> dict[str, pd.DataFrame]:
+    """The scored reference: the frozen CSV minus the outputs its
+    ``reference_exclusions.json`` removes from scoring for every model, so
+    every manuscript scorer (bootstrap intervals, weighting comparison,
+    simple baselines) uses the same 1,973 outputs as the published board."""
+    from policybench.reference_exclusions import scored_reference_for
+
     return {
         country: filter_to_headline_outputs(
             country,
-            pd.read_csv(run_dir / "reference_outputs.csv"),
+            scored_reference_for(run_dir / "reference_outputs.csv")[0],
         )
         for country, run_dir in snapshot_run_paths().items()
     }
@@ -1044,7 +1017,7 @@ The forced `tool_choice` suppresses Claude's extended thinking in this snapshot 
 
 Two dimensions on which requests were not identical across models are request shape and answer transport (@tbl-model-runs). `{python} n_chunked_models` of the `{python} r.n_models_fmt` models could not reliably complete the whole-scenario request because their serving stacks rejected the structured-output call, exhausted completion budgets mid-response, or timed out. They instead answered the same prompt template over subsets of the requested outputs, one to three outputs per request. Subsetting gives each response fewer requested outputs and a fresh completion budget over the same household facts, so the accommodation, if it moves scores at all, should favor the chunked models; their scores are not strictly comparable to whole-scenario scores. This accommodation is closed going forward: a model added after this snapshot either answers the canonical whole-scenario request or is listed as not scorable rather than accommodated.
 
-One row is a cloaked preview model listed as such. It is publicly callable under the canonical whole-scenario request and forced-tool transport, its maker is unnamed, and its date is its OpenRouter listing date.
+One row, Ox Alpha, ran as a cloaked preview and is listed as such. It was publicly callable under the canonical whole-scenario request and forced-tool transport, and its date is its OpenRouter listing date. After the row's run, Z.ai identified the preview as GLM-5.3-Flash [@openrouter2026oxalpha]; the row keeps its preview label because the checkpoint it ran was never published under that name, and it is distinct from the GLM-5.3 row, which is Z.ai's larger model called under its own id.
 
 ### Frozen snapshot and open-set status
 
@@ -1060,7 +1033,7 @@ md_table(snapshot_provenance)
 model_runs_caption = (
     "Model run configuration in the frozen manuscript snapshot. Every model answers through the transport its model card records, with no external tools, provider-default temperature and sampling, no reasoning-control parameters, and the same household facts and requested outputs. Transport is the answer contract: a forced answer-schema tool call (`tool_choice` set to the answer tool) or a JSON object, the latter where the provider rejects a forced tool or where the model card selects JSON. "
     + r.serving_evidence_caption
-    + " Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights, announced at its API launch [@willison2026kimik3], shipped on Hugging Face on July 27, 2026 under a custom license [@techtimes2026kimik3weights]. Ox Alpha is an OpenRouter stealth listing with no named maker; its Released date is its August 21, 2026 listing date."
+    + " Rows with an output count answered the template over subsets of the requested outputs, an accommodation that predates the canonical whole-scenario rule described in the text. Released is the first public availability (paid tiers count; trusted-tester previews do not), compiled from vendor announcements and contemporaneous press; grok-build-0.1's date rests on secondary trackers. Leaderboard artifact keys match the final segment of the provider id (qwen-3.7-max adds a hyphen). A dagger marks open-weight models; Kimi K3's weights, announced at its API launch [@willison2026kimik3], shipped on Hugging Face on July 27, 2026 under a custom license [@techtimes2026kimik3weights]. Ox Alpha ran as an OpenRouter stealth listing; Z.ai identified it as GLM-5.3-Flash after its run [@openrouter2026oxalpha], and its Released date is its August 20, 2026 OpenRouter listing date."
 )
 md_table(model_runs, caption=model_runs_caption, label="tbl-model-runs")
 ```
@@ -1089,7 +1062,7 @@ This does not make PolicyEngine infallible, so we treated the reference outputs 
 
 The audit tooling itself required hardening, which we report because it changes how much the annotations can be trusted. The derivation narratives displayed alongside reference values are generated from engine computation traces. After earlier model-written narratives were found to misattribute eligibility pathways, mechanical validators now enforce that each narrative states the engine's actual mechanism — for example, that a child ineligible for CHIP because they qualify for Medicaid is never described as failing a CHIP income test. The failure-audit judge reads these grounded narratives together with engine facts and must return a per-model diagnosis naming the specific rule or computation the model missed. It is barred from re-adjudicating the reference in prose: hedged or reference-adjudicating verdicts are mechanically rejected and re-judged, and genuine reference doubt is routed to a structured flag that triggers the manual adjudication described above.
 
-After freezing the snapshot and completing response-contract repairs, we annotated the `{python} r.audit_annotated_row_count_fmt` `{python} r.audit_selection_rule` and their scenario-output cases. @tbl-deviation-audit reports the final classifications for that legacy-threshold audit universe. It contains `{python} r.annotated_exact_miss_count_fmt` of the snapshot's `{python} r.exact_match_miss_count_fmt` exact-match misses and `{python} r.annotated_exact_hit_count_fmt` exact hits. The `{python} r.unannotated_below_full_bounded_score_count_fmt` other rows with bounded score below 100 fall outside the selection and have no audit annotation. Each annotated row resolves to one of two final classes: `llm_error` (a substantive miscalculation, with a per-model diagnosis naming the rule or computation the model missed) or `parse_contract_failure` (a missing or unparsable answer, classified deterministically). No annotated row remains classified as a prompt ambiguity, unresolved reference issue, or needs-review item, and zero annotated rows carry a standing reference-suspect flag. The audit pipeline is model-assisted, with developer adjudication of each reference-suspect flag rather than independent external validation.
+After freezing the snapshot and completing response-contract repairs, we annotated the `{python} r.audit_annotated_row_count_fmt` `{python} r.audit_selection_rule` and their scenario-output cases. @tbl-deviation-audit reports the final classifications for that legacy-threshold audit universe. It contains `{python} r.annotated_exact_miss_count_fmt` of the snapshot's `{python} r.exact_match_miss_count_fmt` exact-match misses and `{python} r.annotated_exact_hit_count_fmt` exact hits. The `{python} r.unannotated_below_full_bounded_score_count_fmt` other rows with bounded score below 100 fall outside the selection and have no audit annotation. Each annotated row on a scored output resolves to one of two final classes: `llm_error` (a substantive miscalculation, with a per-model diagnosis naming the rule or computation the model missed) or `parse_contract_failure` (a missing or unparsable answer, classified deterministically). A third class, `prompt_ambiguity`, is reserved for outputs the snapshot does not score: `{python} r.excluded_output_phrase` in `{python} r.excluded_output_households_phrase`, whose reference depends on an engine input the certified household data never carried (the SSI disability criterion, and months of SSDI receipt) and the prompt therefore never listed. For each, the reference was recomputed with the engine version that produced it under the reading a careful reader could take of the stated facts, and it moved; the output is removed from scoring for every model, so no model gains or loses from it, and of the `{python} r.excluded_output_annotation_row_count_fmt` annotated rows on those outputs, `{python} r.prompt_ambiguity_row_count_fmt` carry `prompt_ambiguity` as description rather than as a scored class and the rest are answers that never parsed. Every model is therefore scored on `{python} r.scored_outputs_per_model_fmt` of its `{python} r.total_outputs_per_model_fmt` requested outputs. The exclusion record (`reference_exclusions.json`) travels with the frozen run and the manifest pins it. No scored row remains classified as a prompt ambiguity, unresolved reference issue, or needs-review item, and zero annotated rows carry a standing reference-suspect flag. The audit pipeline is model-assisted, with developer adjudication of each reference-suspect or prompt-ambiguity flag rather than independent external validation; this snapshot records `{python} r.audit_adjudicated_case_phrase` of developer adjudication, kept beside the annotations with the judge's verdict and the reasoning. Two judge models produced the verdicts, and both are board rows: GPT-5.6 Sol, called through the Codex CLI, judged the cases whose verdicts predate the September 2026 additions, and Claude Opus 5, called through the Claude Code CLI, judged every case a September 2026 addition joined (`{python} r.audit_opus_judged_case_count_fmt` of `{python} r.audit_case_count_fmt` cases, each recorded in a per-case provenance sidecar in the audit tree). Judge verdicts classify misses after scoring and change no score. The two unlisted inputs behind the exclusions are the SSI disability criterion (`meets_ssi_disability_criteria`), false for every person in the certified June 2026 microdata build, and months of SSDI receipt (`months_receiving_social_security_disability`), never carried by the data and integer-typed, which the prompt builder does not expose. The prompt lists a general `is disabled` fact, drawn from the six CPS disability-difficulty items, and never a program-specific determination. The exclusion set was derived mechanically rather than from which models missed: every reference was recomputed under each alternative reading and every output that moved was excluded, which is why it includes three SNAP outputs that move through the elderly-or-disabled SNAP rules (in two of those households SSI itself stays at zero; in the third an aged member already receives SSI and the disabled member would add a second benefit).
 
 ```{python}
 #| label: tbl-reference-review

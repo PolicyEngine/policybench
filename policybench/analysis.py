@@ -2153,15 +2153,34 @@ def build_dashboard_payload(
     *,
     policyengine_bundles: dict,
     scenario_prompts: dict[str, dict[str, dict[str, str]]] | None = None,
+    excluded_reference: pd.DataFrame | None = None,
+    reference_exclusions: list[dict] | None = None,
 ) -> dict:
     """Build the dashboard payload consumed by the app frontend.
+
+    ``ground_truth`` is the scored reference. ``excluded_reference`` carries the
+    outputs removed from scoring (see :mod:`policybench.reference_exclusions`);
+    their prediction rows stay in ``scenarioPredictions`` with ``scored: false``
+    and the exclusion's reason, and ``reference_exclusions`` is published
+    verbatim under ``referenceExclusions``. Every aggregate (model, program and
+    heatmap statistics, weights, failure modes) comes from the scored
+    reference alone.
 
     ``policyengine_bundles`` is the provenance of the reference outputs being
     scored (the run's ``reference_outputs.csv.meta.json``). Callers must pass
     it explicitly so exports cannot accidentally describe the exporting
     process's installed runtime instead.
     """
-    merged = _prediction_detail_rows(ground_truth, predictions)
+    excluded_keys: dict[tuple[str, str], dict] = {}
+    if reference_exclusions:
+        excluded_keys = {
+            (str(entry["scenario_id"]), str(entry["variable"])): entry
+            for entry in reference_exclusions
+        }
+    row_reference = ground_truth
+    if excluded_reference is not None and not excluded_reference.empty:
+        row_reference = pd.concat([ground_truth, excluded_reference], ignore_index=True)
+    merged = _prediction_detail_rows(row_reference, predictions)
 
     metrics = analysis["metrics"].copy()
 
@@ -2412,6 +2431,8 @@ def build_dashboard_payload(
         prediction_item: dict[str, float | str | bool | None] = {
             "prediction": _clean_json_number(row["prediction"]),
             "groundTruth": _clean_json_number(row["value"]),
+            "scored": (str(row["scenario_id"]), str(row["variable"]))
+            not in excluded_keys,
             "error": _clean_json_number(row["error"]),
             "parsed": bool(row["parsed"]),
             "score": _clean_json_number(row["bounded_score"] * 100),
@@ -2422,6 +2443,10 @@ def build_dashboard_payload(
             "within5pct": _clean_json_number(row["within_5pct"] * 100),
             "within10pct": _clean_json_number(row["within_10pct"] * 100),
         }
+        exclusion = excluded_keys.get((str(row["scenario_id"]), str(row["variable"])))
+        if exclusion is not None:
+            prediction_item["excludedReason"] = str(exclusion["reason_code"])
+            prediction_item["excludedInput"] = str(exclusion["unlisted_input"])
         explanation = row.get("explanation")
         if isinstance(explanation, str) and explanation.strip():
             prediction_item["explanation"] = explanation.strip()
@@ -2500,6 +2525,21 @@ def build_dashboard_payload(
         "country": payload_country,
         "policyengineBundles": policyengine_bundles,
         "scenarios": scenario_payload,
+        "referenceExclusions": [
+            {
+                "scenarioId": str(entry["scenario_id"]),
+                "variable": str(entry["variable"]),
+                "reasonCode": str(entry["reason_code"]),
+                "unlistedInput": str(entry["unlisted_input"]),
+                "alternativeReading": str(entry["alternative_reading"]),
+                "frozenValue": float(entry["frozen_value"]),
+                "alternativeValue": float(entry["alternative_value"]),
+                "engineVersion": str(entry["engine_version"]),
+                "decidedOn": str(entry["decided_on"]),
+                "note": str(entry.get("note", "")),
+            }
+            for entry in (reference_exclusions or [])
+        ],
         "modelStats": model_stats,
         "programStats": program_stats,
         "heatmap": heatmap,
@@ -2522,6 +2562,8 @@ def export_dashboard_data(
     *,
     policyengine_bundles: dict,
     scenario_prompts: dict[str, dict[str, dict[str, str]]] | None = None,
+    excluded_reference: pd.DataFrame | None = None,
+    reference_exclusions: list[dict] | None = None,
 ) -> Path:
     """Write the frontend dashboard payload to disk.
 
@@ -2539,6 +2581,8 @@ def export_dashboard_data(
         scenarios,
         policyengine_bundles=policyengine_bundles,
         scenario_prompts=scenario_prompts,
+        excluded_reference=excluded_reference,
+        reference_exclusions=reference_exclusions,
     )
     combined = {"countries": {payload["country"]: payload}}
     dashboard_path.write_text(

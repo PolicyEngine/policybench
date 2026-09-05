@@ -257,6 +257,12 @@ export type ScenarioPrediction = {
   prediction: number | null;
   error: number | null;
   groundTruth: number;
+  // False when the output is excluded from scoring for every model because
+  // its reference depends on an input the household data never carried; the
+  // row stays inspectable but contributes to no score.
+  scored?: boolean;
+  excludedReason?: string;
+  excludedInput?: string;
   score?: number;
   boundedScore?: number;
   thresholdScore?: number;
@@ -336,7 +342,21 @@ export type WeightingKey = "household" | "aggregate" | "equal";
 
 export type GlobalWeightsByView = Record<WeightingKey, Record<string, number>>;
 
+export type ReferenceExclusion = {
+  scenarioId: string;
+  variable: string;
+  reasonCode: string;
+  unlistedInput: string;
+  alternativeReading: string;
+  frozenValue: number;
+  alternativeValue: number;
+  engineVersion: string;
+  decidedOn: string;
+  note: string;
+};
+
 export type BenchData = {
+  referenceExclusions?: ReferenceExclusion[];
   country: CountryCode;
   policyengineBundles?: Partial<Record<CountryCode, PolicyEngineBundle>>;
   scenarios: Record<string, BenchScenario>;

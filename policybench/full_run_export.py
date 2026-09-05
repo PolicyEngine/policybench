@@ -24,6 +24,11 @@ from policybench.dashboard_schema import (
     dump_country_payload,
     dump_dashboard_payload,
 )
+from policybench.reference_exclusions import (
+    exclusions_path_for,
+    load_reference_exclusions,
+    split_reference,
+)
 from policybench.spec import get_output_ids, output_group_id
 
 
@@ -444,12 +449,18 @@ def export_country(country_dir: Path, *, reference_digest: str | None = None) ->
     ground_truth = _filter_to_canonical_outputs(ground_truth, country)
     predictions = _filter_to_canonical_outputs(predictions, country)
 
+    # Outputs whose reference depends on an input the data never carried are
+    # scored for no model; they stay in the payload marked scored=false.
+    exclusions = load_reference_exclusions(exclusions_path_for(ground_truth_path))
+    ground_truth, excluded_reference = split_reference(ground_truth, exclusions)
     analysis = analyze_no_tools(ground_truth, predictions, scenarios=scenarios)
     export_analysis(analysis, country_dir / "analysis")
 
     scenario_prompts = build_scenario_prompt_map(
         scenarios,
-        ground_truth["variable"].drop_duplicates().tolist(),
+        pd.concat([ground_truth["variable"], excluded_reference["variable"]])
+        .drop_duplicates()
+        .tolist(),
     )
     payload = build_dashboard_payload(
         ground_truth,
@@ -458,6 +469,8 @@ def export_country(country_dir: Path, *, reference_digest: str | None = None) ->
         scenarios,
         scenario_prompts=scenario_prompts,
         policyengine_bundles=policyengine_bundles,
+        excluded_reference=excluded_reference,
+        reference_exclusions=exclusions,
     )
     (country_dir / "data.json").write_text(
         dump_country_payload(payload, country=country, source=str(country_dir)),

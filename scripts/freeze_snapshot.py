@@ -11,7 +11,9 @@ There is no UK leg in this refresh, so all UK artifacts are removed.
 What it freezes (all paths relative to the repo root):
 
 * ``paper/snapshot/<dir>/runs/<label>/`` — compact copies of the run:
-  ``data.json`` (extracted from the byte-pinned published dashboard),
+  ``data.json.gz`` (extracted from the byte-pinned published dashboard and
+  stored as a deterministic gzip: the plain export passed GitHub's 100 MB
+  file limit at 39 models),
   ``predictions.csv.gz`` (deterministic gzip of the run's
   ``predictions.csv``), ``scenarios.csv`` (+ ``.meta.json``),
   ``reference_outputs.csv`` (+ ``.meta.json``), and ``analysis/`` CSVs
@@ -39,6 +41,7 @@ import csv
 import gzip
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -46,19 +49,35 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from policybench.adjudications import (
+    excluded_case_keys,
+    load_adjudications,
+    verify_adjudications_applied,
+)
 from policybench.analysis import render_markdown_report, score_single_prediction
 from policybench.full_run_export import reference_policyengine_bundles
+from policybench.reference_exclusions import (
+    exclusion_keys,
+    load_reference_exclusions,
+    scored_reference_for,
+    verify_exclusions_against_reference,
+)
+from policybench.snapshot_payload import (
+    PAYLOAD_NAME,
+    read_run_payload,
+    write_run_payload,
+)
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the September 2026 US-only populace refresh (33-model
+# Configuration for the September 2026 US-only populace refresh (39-model
 # board, corrected v1.1 references).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
-SNAPSHOT_DATE = "2026-09-01"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-09-01"
+SNAPSHOT_DATE = "2026-09-05"
+MODEL_RESPONSE_DATE = "2026-06-12 to 2026-09-05"
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
 # Completed runs live under the main clone's gitignored results/local. A
@@ -71,30 +90,36 @@ _MAIN_CLONE = next(
     ),
     ROOT,
 )
-SOURCE_RUN = (_MAIN_CLONE / "results/local/fable51/publish" / RUN_LABEL).resolve()
+SOURCE_RUN = (_MAIN_CLONE / "results/local/newmodels/publish" / RUN_LABEL).resolve()
 SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
-# is the exact payload uploaded as dashboard-data-20260901c. Two earlier tags
-# are superseded: 20260901 carried case-level labels from stale case notes,
-# and 20260901b carried the exporting runtime's policyengine-us version as
-# the reference provenance.
-PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board33.json"
+# is the exact payload uploaded as dashboard-data-20260905c (the 39-model board:
+# the 33-model dashboard-data-20260901c payload plus six September 2026 adds,
+# eleven outputs whose reference depends on an unlisted input excluded from
+# scoring for every model, per reference_exclusions.json). Superseded tags:
+# 20260905 carried the judge's prompt_ambiguity verdict before adjudication;
+# 20260905b scored all 1,984 outputs and classified those rows llm_error.
+PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board39.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
-    "tag": "dashboard-data-20260901c",
+    "tag": "dashboard-data-20260905c",
     "asset": "dashboard-data.json",
     "url": (
         "https://github.com/PolicyEngine/policybench/releases/download/"
-        "dashboard-data-20260901c/dashboard-data.json"
+        "dashboard-data-20260905c/dashboard-data.json"
     ),
-    "sha256": "ee342fc3a756d3523bb742c09ab08403c1a6b206b393e0c76b499b47f1b34736",
-    "bytes": 87_410_551,
+    "sha256": "838bb3757db372fc473daf717616c1faea9254ecadfd1581d6217b1c796890a6",
+    "bytes": 109_225_250,
 }
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
 RUN_DEST = SNAPSHOT_DIR / "runs" / RUN_LABEL
 ANNOTATIONS_DEST = ROOT / "annotations" / RUN_LABEL
+# Developer adjudications of non-final judge verdicts, committed beside the CSVs.
+ADJUDICATIONS_NAME = "us_adjudications.json"
+# Outputs removed from scoring for every model (policybench.reference_exclusions).
+EXCLUSIONS_NAME = "reference_exclusions.json"
 # The publish bundle omits this immutable reference-generation sidecar. Reuse
 # the committed copy after checking the manifest's CSV and sidecar pins.
 REFERENCE_META_SOURCE = RUN_DEST / "reference_outputs.csv.meta.json"
@@ -104,6 +129,16 @@ REFERENCE_META_SOURCE = RUN_DEST / "reference_outputs.csv.meta.json"
 # fingerprints; those rows honestly remain registry-backed until rerun.
 RUN_STATE_EVIDENCE = {
     "claude-fable-5.1": "results/local/fable51/run/run_state.json",
+    "gpt-6-astra": "results/local/newmodels/astra/run/run_state.json",
+    "gemini-3.8-flash": "results/local/newmodels/gemini38flash/run/run_state.json",
+    "gemini-3.5-flash-lite": (
+        "results/local/newmodels/gemini35flashlite/run/run_state.json"
+    ),
+    "glm-5.3": "results/local/newmodels/glm53/run/run_state.json",
+    "deepseek-v4-pro-0813": "results/local/newmodels/dsv4pro0813/run/run_state.json",
+    "deepseek-v4-flash-0731": (
+        "results/local/newmodels/dsv4flash0731/run/run_state.json"
+    ),
     "kimi-k3": "results/local/kimik3/run/run_state.json",
     "qwen3.8-max": "results/local/qwen38/run/run_state.json",
     "ox-alpha": "results/local/oxalpha/run/run_state.json",
@@ -115,6 +150,133 @@ RUN_STATE_EVIDENCE = {
     "claude-opus-5": "results/local/opus5/run/run_state.json",
     "kimi-k2.6": "results/local/kimi_supervised/run_state.json",
 }
+
+# The unified failure-audit tree (main clone, gitignored): one case directory
+# per (country, scenario, output) with the judge's verdict.json. Cases judged
+# through the Claude Code runner carry a verdict.meta.json provenance sidecar;
+# cases judged through the Codex runner carry the CLI's codex.log header.
+AUDIT_CASES_DIR = _MAIN_CLONE / "results/local/unified_audit/audit/cases"
+JUDGE_RUNNERS = {
+    "claude": "Claude Code CLI (scripts/run_audit_claude.sh)",
+    "codex": "Codex CLI (scripts/run_audit_codex.sh)",
+}
+
+
+def audit_judge_provenance(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
+    """Tally which judge model produced each case verdict in the audit tree.
+
+    A case with a ``verdict.meta.json`` sidecar was judged (or re-judged) by
+    the Claude Code runner, which records the judge model it requested; the
+    Codex runner records its model in the ``model:`` line of ``codex.log``.
+    A case with neither is counted under ``unknown`` so the manifest cannot
+    silently claim provenance it does not have.
+    """
+    if not cases_dir.is_dir():
+        raise SystemExit(f"Audit case tree not found: {cases_dir}")
+    by_judge: dict[str, dict] = {}
+    judged = 0
+    for case_dir in sorted(cases_dir.iterdir()):
+        if not (case_dir / "verdict.json").is_file():
+            continue
+        judged += 1
+        meta_path = case_dir / "verdict.meta.json"
+        codex_log = case_dir / "codex.log"
+        if meta_path.is_file():
+            meta = json.loads(meta_path.read_text())
+            judge = meta["judge_model_requested"]
+            reported = meta.get("judge_model_reported") or []
+            if judge in {"opus", "claude-opus-5"} and "claude-opus-5" in reported:
+                judge = "claude-opus-5"
+            runner = JUDGE_RUNNERS["claude"]
+            day = str(meta.get("judged_at_utc", ""))[:10]
+        elif codex_log.is_file():
+            match = re.search(r"^model: (\S+)$", codex_log.read_text(), re.M)
+            judge = match.group(1) if match else "unknown"
+            runner = JUDGE_RUNNERS["codex"]
+            day = ""
+        else:
+            judge, runner, day = "unknown", "unknown", ""
+        entry = by_judge.setdefault(
+            judge, {"runner": runner, "cases": 0, "judged_on_utc": []}
+        )
+        entry["cases"] += 1
+        if day and day not in entry["judged_on_utc"]:
+            entry["judged_on_utc"].append(day)
+    for entry in by_judge.values():
+        entry["judged_on_utc"].sort()
+    return {
+        "cases_judged": judged,
+        "by_judge": dict(sorted(by_judge.items())),
+        "note": (
+            "Judge model per case: a verdict.meta.json sidecar (Claude Code "
+            "runner) or the codex.log model header (Codex runner) in the audit "
+            "tree. Verdicts classify misses after scoring and change no score. "
+            "Both judge models are also board rows."
+        ),
+    }
+
+
+def reference_exclusions_block() -> dict:
+    """Summarize the scoring exclusion record and check it against the
+    adjudication record: every excluded output must carry a developer
+    adjudication marked excluded_from_scoring, and vice versa."""
+    exclusions = load_reference_exclusions(RUN_DEST / EXCLUSIONS_NAME)
+    adjudications = load_adjudications(ANNOTATIONS_DEST / ADJUDICATIONS_NAME)
+    excluded = exclusion_keys(exclusions)
+    adjudicated = excluded_case_keys(adjudications)
+    if excluded != adjudicated:
+        raise SystemExit(
+            "reference_exclusions.json and us_adjudications.json disagree on the "
+            f"excluded outputs: only in exclusions {sorted(excluded - adjudicated)}, "
+            f"only in adjudications {sorted(adjudicated - excluded)}"
+        )
+    reference = pd.read_csv(RUN_DEST / "reference_outputs.csv")
+    verify_exclusions_against_reference(reference, exclusions)
+    by_input: dict[str, int] = {}
+    for entry in exclusions:
+        by_input[entry["unlisted_input"]] = by_input.get(entry["unlisted_input"], 0) + 1
+    return {
+        "file": EXCLUSIONS_NAME if exclusions else None,
+        "outputs": len(exclusions),
+        "by_unlisted_input": dict(sorted(by_input.items())),
+        "scored_outputs_per_model": int(len(reference) - len(exclusions)),
+        "note": (
+            "Outputs whose reference depends on an engine input the certified "
+            "household data never carried (so the prompt never listed it) are "
+            "removed from scoring for every model, symmetrically; their rows stay "
+            "in the payload with scored=false. Each entry records the alternative "
+            "reading and the reference under both readings, recomputed with the "
+            "engine version that produced the references."
+        ),
+    }
+
+
+def developer_adjudications_block() -> dict:
+    """Summarize the committed adjudication record for the manifest."""
+    path = ANNOTATIONS_DEST / ADJUDICATIONS_NAME
+    entries = load_adjudications(path)
+    return {
+        "file": ADJUDICATIONS_NAME if entries else None,
+        "cases": len(entries),
+        "by_judge_verdict": dict(
+            sorted(
+                pd.Series([e["judge_failure_source"] for e in entries])
+                .value_counts()
+                .to_dict()
+                .items()
+            )
+        )
+        if entries
+        else {},
+        "note": (
+            "Judge verdicts outside the final classes (llm_error, "
+            "parse_contract_failure) are resolved by a recorded developer "
+            "adjudication that keeps the judge's verdict and reasoning beside "
+            "the adjudicated class; applied to the bundle before export so the "
+            "published payload and the frozen annotations agree."
+        ),
+    }
+
 
 # Legacy household-equal impact metric (removed from the package in #58 but
 # still frozen for parity with prior snapshots).
@@ -502,9 +664,10 @@ def regenerate_analysis(dest_dir: Path) -> None:
 
     The analyze CLI is deterministic and reproduces the run's standard analysis
     CSVs exactly. ``impact_summary_by_model.csv`` is no longer produced by the
-    package, so it is computed here. ``data.json`` is written separately
-    (byte-exact copy) to preserve the published-dashboard hash, so the CLI's
-    dashboard export is routed to a throwaway path.
+    package, so it is computed here. The run payload is written separately
+    (``data.json.gz``, the byte-exact country payload of the published
+    dashboard, gzipped deterministically), so the CLI's dashboard export is
+    routed to a throwaway path.
     """
     import subprocess
     import sys
@@ -550,7 +713,7 @@ def regenerate_analysis(dest_dir: Path) -> None:
     report_tables["bounded_summary"] = report_tables["model_summary"][
         ["model", "bounded_score", "amount_accuracy", "participation_accuracy"]
     ].sort_values("model")
-    country_payload = json.loads((RUN_DEST / "data.json").read_text())
+    country_payload = read_run_payload(RUN_DEST)
     published_model_costs = {
         row["model"]: row["costUsd"]
         for row in country_payload["modelStats"]
@@ -563,7 +726,10 @@ def regenerate_analysis(dest_dir: Path) -> None:
         encoding="utf-8",
     )
 
-    ground_truth = pd.read_csv(RUN_DEST / "reference_outputs.csv")
+    # Score the same outputs as every other published metric: the frozen
+    # reference minus the outputs reference_exclusions.json removes for every
+    # model (the record was copied beside the reference CSV above).
+    ground_truth, _ = scored_reference_for(RUN_DEST / "reference_outputs.csv")
     predictions = pd.read_csv(RUN_DEST / "predictions.csv.gz")
     impact = household_impact_summary_by_model(ground_truth, predictions)
     impact.to_csv(dest_dir / "impact_summary_by_model.csv", index=False)
@@ -616,7 +782,7 @@ def freeze_run() -> dict[str, str]:
         raise SystemExit(
             "Extracted country payload does not recombine to the published artifact."
         )
-    (RUN_DEST / "data.json").write_text(json.dumps(country_payload))
+    write_run_payload(RUN_DEST, json.dumps(country_payload))
 
     # predictions.csv -> deterministic gzip.
     gzip_deterministic(
@@ -625,9 +791,12 @@ def freeze_run() -> dict[str, str]:
         stored_name="predictions.csv",
     )
 
-    # scenarios + reference outputs (+ meta).
+    # scenarios + reference outputs (+ meta) + the scoring exclusion record.
     for name in ("scenarios.csv", "scenarios.csv.meta.json", "reference_outputs.csv"):
         copy_exact(SOURCE_US / name, RUN_DEST / name)
+    exclusions_source = SOURCE_US / EXCLUSIONS_NAME
+    if exclusions_source.exists():
+        copy_exact(exclusions_source, RUN_DEST / EXCLUSIONS_NAME)
     (RUN_DEST / "reference_outputs.csv.meta.json").write_bytes(reference_metadata_bytes)
 
     # analysis/ CSVs + report.md.
@@ -639,7 +808,7 @@ def freeze_run() -> dict[str, str]:
         files[f"analysis/{name}"] = sha256_file(analysis_dest / name)
     files["analysis/report.md"] = sha256_file(analysis_dest / "report.md")
     for name in (
-        "data.json",
+        PAYLOAD_NAME,
         "predictions.csv.gz",
         "reference_outputs.csv",
         "reference_outputs.csv.meta.json",
@@ -647,6 +816,8 @@ def freeze_run() -> dict[str, str]:
         "scenarios.csv.meta.json",
     ):
         files[name] = sha256_file(RUN_DEST / name)
+    if (RUN_DEST / EXCLUSIONS_NAME).exists():
+        files[EXCLUSIONS_NAME] = sha256_file(RUN_DEST / EXCLUSIONS_NAME)
 
     return dict(sorted(files.items()))
 
@@ -720,7 +891,7 @@ def freeze_serving_configuration(destination: Path) -> None:
     from policybench.scenarios import load_scenarios_from_manifest
     from policybench.spec import expand_programs_for_scenario
 
-    country_payload = json.loads((RUN_DEST / "data.json").read_text())
+    country_payload = read_run_payload(RUN_DEST)
     frozen_models = sorted(
         row["model"]
         for row in country_payload["modelStats"]
@@ -916,9 +1087,17 @@ def freeze_annotations() -> dict[str, str]:
     The publish bundle already uses the validator's committed names and column
     contract, so copy all three files byte-for-byte.
     """
+    # The committed adjudication record lives beside the annotation CSVs and
+    # is the one file here that the publish bundle does not carry: keep it.
+    adjudications_path = ANNOTATIONS_DEST / ADJUDICATIONS_NAME
+    adjudications_text = (
+        adjudications_path.read_text() if adjudications_path.exists() else None
+    )
     if ANNOTATIONS_DEST.exists():
         shutil.rmtree(ANNOTATIONS_DEST)
     ANNOTATIONS_DEST.mkdir(parents=True, exist_ok=True)
+    if adjudications_text is not None:
+        adjudications_path.write_text(adjudications_text)
 
     for name in (
         "us_audit_row_annotations.csv",
@@ -926,6 +1105,17 @@ def freeze_annotations() -> dict[str, str]:
         "us_case_reference_explanations.csv",
     ):
         copy_exact(SOURCE_ANNOTATIONS / name, ANNOTATIONS_DEST / name)
+
+    # Every developer adjudication must already be applied upstream (the
+    # bundle feeds the published payload), so the frozen copies carry the
+    # adjudicated classes; refuse to freeze a bundle that disagrees with the
+    # committed record.
+    adjudications = load_adjudications(adjudications_path)
+    verify_adjudications_applied(
+        pd.read_csv(ANNOTATIONS_DEST / "us_audit_row_annotations.csv"),
+        pd.read_csv(ANNOTATIONS_DEST / "us_case_notes.csv"),
+        adjudications,
+    )
 
     # The publish bundle added an Ox Alpha row annotation without its matching
     # case note. Add that deterministic aggregate note before hashing.
@@ -944,7 +1134,7 @@ def freeze_annotations() -> dict[str, str]:
             writer = csv.DictWriter(fileobj, fieldnames=CASE_NOTE_SUPPLEMENTS[0])
             writer.writerows(missing)
 
-    return {
+    files = {
         "us_audit_row_annotations.csv": sha256_file(
             ANNOTATIONS_DEST / "us_audit_row_annotations.csv"
         ),
@@ -953,6 +1143,9 @@ def freeze_annotations() -> dict[str, str]:
             ANNOTATIONS_DEST / "us_case_reference_explanations.csv"
         ),
     }
+    if adjudications:
+        files[ADJUDICATIONS_NAME] = sha256_file(adjudications_path)
+    return files
 
 
 def remove_stale_artifacts() -> None:
@@ -999,7 +1192,7 @@ def read_reference_refresh() -> dict[str, str | int]:
 
 def prompt_payload_sha256() -> str:
     """Hash the snapshot prompts exactly as the snapshot test recomputes them."""
-    data = json.loads((RUN_DEST / "data.json").read_text())
+    data = read_run_payload(RUN_DEST)
     prompts = {
         scenario_id: scenario.get("prompt")
         for scenario_id, scenario in sorted(data["scenarios"].items())
@@ -1014,8 +1207,8 @@ def build_manifest(
     annotation_files: dict[str, str],
 ) -> dict:
     reference_refresh = read_reference_refresh()
-    data_json_sha = run_files["data.json"]
-    country_payload = json.loads((RUN_DEST / "data.json").read_text())
+    data_json_sha = run_files[PAYLOAD_NAME]
+    country_payload = read_run_payload(RUN_DEST)
     model_count = sum(
         row["condition"] == "no_tools" for row in country_payload["modelStats"]
     )
@@ -1109,7 +1302,7 @@ def build_manifest(
         "reference_output_refresh": reference_refresh,
         "files": [
             {
-                "path": f"runs/{RUN_LABEL}/data.json",
+                "path": f"runs/{RUN_LABEL}/{PAYLOAD_NAME}",
                 "sha256": data_json_sha,
             }
         ],
@@ -1148,10 +1341,14 @@ def build_manifest(
                 "stored as us_case_notes.csv with case_failure_sources / "
                 "case_failure_subtypes columns. Reference narratives the "
                 "judge and dashboard display are frozen as "
-                "us_case_reference_explanations.csv."
+                "us_case_reference_explanations.csv. Judge provenance per "
+                "case is tallied under judge_provenance."
             ),
             "files": annotation_files,
+            "judge_provenance": audit_judge_provenance(),
+            "developer_adjudications": developer_adjudications_block(),
         },
+        "reference_exclusions": reference_exclusions_block(),
         "population_weight_artifact": {
             "path": "policybench/population_weights.json",
             "sha256": sha256_file(population_weight_path),

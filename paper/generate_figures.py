@@ -9,6 +9,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from policybench.snapshot_payload import read_run_payload, run_payload_path
+
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 SNAPSHOT_RUN_DIR = SNAPSHOT_DIR / "runs"
@@ -208,9 +210,7 @@ def _positive_zero_scatter_svg(payload: dict[str, Any]) -> str:
 
 def load_frozen_dashboard() -> dict[str, Any]:
     country_payloads = {
-        country: json.loads(
-            (SNAPSHOT_RUN_DIR / label / "data.json").read_text(encoding="utf-8")
-        )
+        country: read_run_payload(SNAPSHOT_RUN_DIR / label)
         for country, label in RUN_LABELS.items()
     }
     return {"countries": country_payloads}
@@ -220,7 +220,7 @@ def dashboard_summary(payload: dict[str, Any]) -> dict[str, object]:
     countries = payload.get("countries", {})
     return {
         "source": {
-            country: str((SNAPSHOT_RUN_DIR / label / "data.json").relative_to(ROOT))
+            country: str(run_payload_path(SNAPSHOT_RUN_DIR / label).relative_to(ROOT))
             for country, label in RUN_LABELS.items()
         },
         "countries": sorted(countries),

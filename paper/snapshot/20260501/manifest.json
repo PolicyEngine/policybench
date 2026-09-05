@@ -1,36 +1,64 @@
 {
   "audit_annotation_artifacts": {
+    "developer_adjudications": {
+      "by_judge_verdict": {
+        "llm_error": 10,
+        "prompt_ambiguity": 1
+      },
+      "cases": 11,
+      "file": "us_adjudications.json",
+      "note": "Judge verdicts outside the final classes (llm_error, parse_contract_failure) are resolved by a recorded developer adjudication that keeps the judge's verdict and reasoning beside the adjudicated class; applied to the bundle before export so the published payload and the frozen annotations agree."
+    },
     "files": {
-      "us_audit_row_annotations.csv": "3dc93ca5252f1b86be2907807db576997b633055e7fbbfda59053f5fa2766556",
-      "us_case_notes.csv": "7b969f0ad2f305da44c5c040bb48afef865bc31660d475e312e17c6ecce18cf5",
+      "us_adjudications.json": "73dca1c2cef9d61bc7ab14965974569e5dc3fca10934b87aafaf4cb0674f9fc6",
+      "us_audit_row_annotations.csv": "735b75d5a6599c8375a97f000b93c1904d6f27588480300bee0ab22430b893ef",
+      "us_case_notes.csv": "0c62ab95ea62c01a0c4044b8346b9280e151b1498e92bf38e84d4afee338fa4d",
       "us_case_reference_explanations.csv": "a3fc7504dcf3d8abe11e98c2228c786a5171a825640b980835e1e210d3afa198"
     },
-    "note": "Model-assisted, developer-adjudicated row and case audit annotations for the 7,840 prediction rows selected because their legacy threshold score was below 1. This audit universe is not identical to the exact-match or bounded-score miss sets. The annotations were produced under the decisive-diagnosis contract (per-model diagnoses grounded in engine facts; hedged verdicts mechanically rejected and re-judged). Row-level failure_source values are llm_error for substantive misses and parse_contract_failure for missing or unparseable answers; zero rows are reference-suspect. Case notes are stored as us_case_notes.csv with case_failure_sources / case_failure_subtypes columns. Reference narratives the judge and dashboard display are frozen as us_case_reference_explanations.csv.",
+    "judge_provenance": {
+      "by_judge": {
+        "claude-opus-5": {
+          "cases": 350,
+          "judged_on_utc": [
+            "2026-09-05"
+          ],
+          "runner": "Claude Code CLI (scripts/run_audit_claude.sh)"
+        },
+        "gpt-5.6-sol": {
+          "cases": 318,
+          "judged_on_utc": [],
+          "runner": "Codex CLI (scripts/run_audit_codex.sh)"
+        }
+      },
+      "cases_judged": 668,
+      "note": "Judge model per case: a verdict.meta.json sidecar (Claude Code runner) or the codex.log model header (Codex runner) in the audit tree. Verdicts classify misses after scoring and change no score. Both judge models are also board rows."
+    },
+    "note": "Model-assisted, developer-adjudicated row and case audit annotations for the 9,076 prediction rows selected because their legacy threshold score was below 1. This audit universe is not identical to the exact-match or bounded-score miss sets. The annotations were produced under the decisive-diagnosis contract (per-model diagnoses grounded in engine facts; hedged verdicts mechanically rejected and re-judged). Row-level failure_source values are llm_error for substantive misses and parse_contract_failure for missing or unparseable answers; zero rows are reference-suspect. Case notes are stored as us_case_notes.csv with case_failure_sources / case_failure_subtypes columns. Reference narratives the judge and dashboard display are frozen as us_case_reference_explanations.csv. Judge provenance per case is tallied under judge_provenance.",
     "path": "annotations/us_full_run_20260612_policyengine_4_16_1_populace"
   },
   "committed_snapshot_artifacts": {
-    "model_serving_config.json": "b6f2de51f268b9cd3da4827015676226d6b7093e7b45d04d5a3127f56673f0ab",
-    "us_impact_summary_by_model.csv": "9cab19bf5486b403bd200aa27d9f19eb40e2f6166d4338dd379bb8f1934284f3",
+    "model_serving_config.json": "5e56b2bfc6df00fd9b086bac71073980c513d91cbf2e313afce92a75ac904550",
+    "us_impact_summary_by_model.csv": "540f5e57aef1f065560e9c6cd53527e0e2ab9832f74f1581187e4a098725de69",
     "us_reference_outputs.csv": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
     "us_scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"
   },
-  "description": "The 2026-09-01 scored manuscript snapshot reports the household-impact-weighted exact-match rate as its headline metric.",
+  "description": "The 2026-09-05 scored manuscript snapshot reports the household-impact-weighted exact-match rate as its headline metric.",
   "files": [
     {
-      "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json",
-      "sha256": "80bb1988adcbe8350e16279129afc94917d82d17a6f22e7f1666b47a00201f5a"
+      "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json.gz",
+      "sha256": "2cce2598dbf9f33511f31d944221a7fc27f69b487a56c59e2c17e77d4ba5ad1f"
     }
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 87410551,
+    "bytes": 109225250,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "ee342fc3a756d3523bb742c09ab08403c1a6b206b393e0c76b499b47f1b34736",
-    "tag": "dashboard-data-20260901c",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260901c/dashboard-data.json"
+    "sha256": "838bb3757db372fc473daf717616c1faea9254ecadfd1581d6217b1c796890a6",
+    "tag": "dashboard-data-20260905c",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260905c/dashboard-data.json"
   },
   "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under live_dashboard_artifact. The separate published_dashboard_artifact freezes the combined export of the source run data.json files listed under source_run_artifacts. A later publication may advance the live entry without changing the frozen pin.",
-  "model_response_date": "2026-06-12 to 2026-09-01",
+  "model_response_date": "2026-06-12 to 2026-09-05",
   "policy_period": {
     "us": "tax year 2026"
   },
@@ -41,10 +69,20 @@
   },
   "published_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 87410551,
-    "sha256": "ee342fc3a756d3523bb742c09ab08403c1a6b206b393e0c76b499b47f1b34736",
-    "tag": "dashboard-data-20260901c",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260901c/dashboard-data.json"
+    "bytes": 109225250,
+    "sha256": "838bb3757db372fc473daf717616c1faea9254ecadfd1581d6217b1c796890a6",
+    "tag": "dashboard-data-20260905c",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260905c/dashboard-data.json"
+  },
+  "reference_exclusions": {
+    "by_unlisted_input": {
+      "meets_ssi_disability_criteria": 6,
+      "months_receiving_social_security_disability": 5
+    },
+    "file": "reference_exclusions.json",
+    "note": "Outputs whose reference depends on an engine input the certified household data never carried (so the prompt never listed it) are removed from scoring for every model, symmetrically; their rows stay in the payload with scored=false. Each entry records the alternative reading and the reference under both readings, recomputed with the engine version that produced the references.",
+    "outputs": 11,
+    "scored_outputs_per_model": 1973
   },
   "reference_output_refresh": {
     "date": "2026-07-03",
@@ -57,17 +95,17 @@
     "policyengine_version": "4.16.1",
     "reference_csv_sha256": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
     "row_count": 1984,
-    "snapshot_date": "2026-09-01"
+    "snapshot_date": "2026-09-05"
   },
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "a612cd0c86e88b14626c3a0938df9f1afac713b43c439b8cec3179247d5e867a"
+      "sha256": "5aa7c615c8a13ebbd1f39daacf7e614ddba4656c832fd03a702f23bdf34a3148"
     },
     "web": {
       "files": {
-        "figures/positive_zero_scatter.png": "ab45ad994420d5242d6905b83e015b50fcb4aa07babc20e10702cfee5dbda138",
-        "index.html": "917d820ed931356112d1433f7918c00207e079c90403a7bbe89d7a1e21977fa1",
+        "figures/positive_zero_scatter.png": "213ab1b526869250e379054718991fc4abbb2dd6ebc82a5ea300a226d5948407",
+        "index.html": "41ae15a8dd4bee15b121ec62c3c113b949731ccfc0913c1a1e5ec751180a133b",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -93,7 +131,7 @@
     "Canonical prediction files include parser recovery. Later waves ran under the resumable supervised runner, which retries failed or timed-out scenarios in bounded rounds; every model's canonical file covers all 100 households.",
     "Raw provider responses are retained in the compressed source-run predictions.csv.gz file wherever the transport exposed them; rows served through the Anthropic batch adapter (Claude Fable 5) and 64 Kimi K3 parse failures carry no raw payload. The separate LiteLLM cache remains local-only because it is a generated request cache, not the canonical snapshot artifact.",
     "The frozen scenarios.csv source_dataset column carries a stale enhanced_cps_2024 label from the pre-#77 scenario generator; the run metadata (scenarios.csv.meta.json) records the populace_us_2024 build actually loaded.",
-    "Model APIs and upstream model aliases may change after the recorded 2026-06-12 to 2026-09-01 response window, so exact reruns can diverge even with the committed household inputs, reference outputs, parsed dashboard export, and analysis summaries."
+    "Model APIs and upstream model aliases may change after the recorded 2026-06-12 to 2026-09-05 response window, so exact reruns can diverge even with the committed household inputs, reference outputs, parsed dashboard export, and analysis summaries."
   ],
   "response_retry_artifacts": {
     "files": {},
@@ -110,24 +148,25 @@
     "households": {
       "us": 100
     },
-    "models": 33,
+    "models": 39,
     "output_groups": {
       "us": 18
     }
   },
-  "snapshot_date": "2026-09-01",
+  "snapshot_date": "2026-09-05",
   "source_run_artifacts": {
     "note": "Compact copies of run outputs used to verify this snapshot. The run data.json retains parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime metadata used by the dashboard. predictions.csv.gz is a deterministic gzip of the run's raw provider responses.",
     "us_full_run_20260612_policyengine_4_16_1_populace": {
       "files": {
-        "analysis/impact_summary_by_model.csv": "9cab19bf5486b403bd200aa27d9f19eb40e2f6166d4338dd379bb8f1934284f3",
-        "analysis/metrics.csv": "fe9b9d33a8804a2558a4ca3dae91f3a6a1652105acb5c4c3511c73f2d8715547",
-        "analysis/report.md": "c90255e3ef4d7f37eef56003fe84bc1ead34db88beeafc627f601905bff01e58",
-        "analysis/summary_by_model.csv": "cba35cab84442c98af0328db832f1f79bd8f809e8e35e3af282901634511e0bb",
-        "analysis/summary_by_variable.csv": "e2f34896befe83cde9e0e891280ee48fa88549c6c0d9e25122d59e34c23ff254",
-        "analysis/usage_summary.csv": "a0761acf191bb847b571a4a0f42e74c1f6347ae1ab62af820c9d152ca657b30e",
-        "data.json": "80bb1988adcbe8350e16279129afc94917d82d17a6f22e7f1666b47a00201f5a",
-        "predictions.csv.gz": "f1f3e5e27dbd77c788644a440c696f80eeb2797c3ece524decbf40677394063f",
+        "analysis/impact_summary_by_model.csv": "540f5e57aef1f065560e9c6cd53527e0e2ab9832f74f1581187e4a098725de69",
+        "analysis/metrics.csv": "145a5de3f7b1b6f8ba33928df2342200526b4a72a8bbc619737c0a59be392b91",
+        "analysis/report.md": "7beb4652c002c053f53f4dcaa32a78e395fce76d5bf1606e2900b8c6223621e5",
+        "analysis/summary_by_model.csv": "fb3310cbd37aeb8486609714d4fd4309266ad31b9c979aa7cbdd1daba5f82438",
+        "analysis/summary_by_variable.csv": "dd4962fca660e02b1db85f07ea8d5827e533b7ed6b0db87fd268b4c493481658",
+        "analysis/usage_summary.csv": "458eae34cb84cf3c11c52437612f12d659baa960857dc93a379e602422448641",
+        "data.json.gz": "2cce2598dbf9f33511f31d944221a7fc27f69b487a56c59e2c17e77d4ba5ad1f",
+        "predictions.csv.gz": "8c91a14e922689358f34fb47be5c9061e30edc4987ad770c1ae3de53a87e15d6",
+        "reference_exclusions.json": "3482ce7cd7461e32ab17ab2c8473613cb313be178485139be8194f3bfcd8172e",
         "reference_outputs.csv": "b9136a15e285f9c02ba78bee854b8a3af180e280485512642c829e8ffd7d2368",
         "reference_outputs.csv.meta.json": "4ea7911857fabf72fc0f74feab90566e9f6d98cab4958e0c1401043e58c94210",
         "scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",

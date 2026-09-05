@@ -12,7 +12,7 @@ Sources, in order of authority:
 * ``paper/snapshot/20260501/manifest.json`` -- snapshot/response dates, the
   US source-run label, PolicyEngine versions, the populace dataset id, and the
   declared scope (households, output groups, models).
-* ``paper/snapshot/20260501/runs/<us_label>/data.json`` -- the frozen US
+* ``paper/snapshot/20260501/runs/<us_label>/data.json.gz`` -- the frozen US
   dashboard payload: the frozen model roster, ``modelStats`` exact-match and
   within-1% scores, per-output ``programStats`` and ``failureModes``
   breakdowns, household and scored-output counts.
@@ -38,6 +38,10 @@ from pathlib import Path
 
 import pandas as pd
 
+from policybench.reference_exclusions import FILENAME as EXCLUSIONS_FILENAME
+from policybench.reference_exclusions import exclusion_keys, load_reference_exclusions
+from policybench.snapshot_payload import read_run_payload
+
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
@@ -45,6 +49,7 @@ SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 # Human-readable model names for the frozen roster. Aliases that do not
 # appear here fall back to a humanized form of the PolicyBench id.
 MODEL_DISPLAY_NAMES = {
+    "gpt-6-astra": "GPT-6 Astra",
     "gpt-5.6-sol": "GPT-5.6 Sol",
     "gpt-5.6-terra": "GPT-5.6 Terra",
     "gpt-5.6-luna": "GPT-5.6 Luna",
@@ -55,11 +60,16 @@ MODEL_DISPLAY_NAMES = {
     "grok-4.5": "Grok 4.5",
     "grok-4.6": "Grok 4.6",
     "deepseek-v4-pro": "DeepSeek V4 Pro",
+    "deepseek-v4-pro-0813": "DeepSeek V4 Pro 0813",
+    "deepseek-v4-flash-0731": "DeepSeek V4 Flash 0731",
     "claude-opus-5": "Claude Opus 5",
+    "gemini-3.8-flash": "Gemini 3.8 Flash",
     "gemini-3.7-flash": "Gemini 3.7 Flash",
+    "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite",
     "gemini-3.6-flash": "Gemini 3.6 Flash",
     "kimi-k3": "Kimi K3",
     "kimi-k2.6": "Kimi K2.6",
+    "glm-5.3": "GLM-5.3",
     "glm-5.2": "GLM-5.2",
     "minimax-m3": "MiniMax M3",
     "qwen-3.7-max": "Qwen3.7-max",
@@ -176,8 +186,7 @@ class PaperResults:
 
     @cached_property
     def dashboard(self) -> dict:
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
-        return json.loads((run_dir / "data.json").read_text())
+        return read_run_payload(SNAPSHOT_DIR / "runs" / self.us_run_label)
 
     @cached_property
     def serving_config(self) -> dict:
@@ -245,17 +254,47 @@ class PaperResults:
         return row["model"], row["scenario_id"], row["variable"]
 
     @cached_property
+    def reference_exclusions(self) -> list[dict]:
+        """Outputs removed from scoring for every model (frozen record)."""
+        return load_reference_exclusions(
+            SNAPSHOT_DIR / "runs" / self.us_run_label / EXCLUSIONS_FILENAME
+        )
+
+    @cached_property
+    def _excluded_output_keys(self) -> frozenset[tuple[str, str]]:
+        return frozenset(exclusion_keys(self.reference_exclusions))
+
+    def _is_excluded(self, row: dict) -> bool:
+        return (row["scenario_id"], row["variable"]) in self._excluded_output_keys
+
+    @cached_property
+    def _scored_prediction_rows(self) -> list[dict]:
+        """Frozen rows that carry a score (excluded outputs left out)."""
+        return [
+            row
+            for row in self._scenario_prediction_rows
+            if row.get("scored", True) and not self._is_excluded(row)
+        ]
+
+    @cached_property
     def _audit_row_keys(self) -> frozenset[tuple[str, str, str]]:
-        keys = frozenset(self._prediction_row_key(row) for row in self._audit_rows)
-        if len(keys) != len(self._audit_rows):
+        """Annotated rows on scored outputs (the legacy-threshold audit universe)."""
+        rows = [row for row in self._audit_rows if not self._is_excluded(row)]
+        keys = frozenset(self._prediction_row_key(row) for row in rows)
+        if len(keys) != len(rows):
             raise ValueError("Frozen audit annotations contain duplicate row keys")
         return keys
+
+    @cached_property
+    def _excluded_output_annotation_rows(self) -> list[dict]:
+        """Annotated rows on excluded outputs, kept as description, not scored."""
+        return [row for row in self._audit_rows if self._is_excluded(row)]
 
     @cached_property
     def _legacy_threshold_row_keys(self) -> frozenset[tuple[str, str, str]]:
         return frozenset(
             self._prediction_row_key(row)
-            for row in self._scenario_prediction_rows
+            for row in self._scored_prediction_rows
             if row["thresholdScore"] < 100
         )
 
@@ -263,7 +302,7 @@ class PaperResults:
     def _exact_match_miss_row_keys(self) -> frozenset[tuple[str, str, str]]:
         return frozenset(
             self._prediction_row_key(row)
-            for row in self._scenario_prediction_rows
+            for row in self._scored_prediction_rows
             if row["exact"] < 100
         )
 
@@ -273,7 +312,7 @@ class PaperResults:
     ) -> frozenset[tuple[str, str, str]]:
         return frozenset(
             self._prediction_row_key(row)
-            for row in self._scenario_prediction_rows
+            for row in self._scored_prediction_rows
             if row["boundedScore"] < 100
         )
 
@@ -388,7 +427,15 @@ class PaperResults:
             return abs(pred - truth) / abs(truth) <= 0.10
 
         rows = []
-        for variables in self.dashboard["scenarioPredictions"].values():
+        excluded = self._excluded_output_keys
+        for scenario_id, variables in self.dashboard["scenarioPredictions"].items():
+            # Neither credit output is excluded in this snapshot; the check keeps
+            # the table on the scored universe if a future record removes one.
+            if (scenario_id, "federal_refundable_credits") in excluded or (
+                scenario_id,
+                "state_refundable_credits",
+            ) in excluded:
+                continue
             federal = variables.get("federal_refundable_credits", {})
             state = variables.get("state_refundable_credits", {})
             for model in federal:
@@ -413,7 +460,11 @@ class PaperResults:
             .groupby("model")[["fed_hit", "state_hit", "both_hit"]]
             .mean()
             .reset_index()
-            .sort_values("both_hit", ascending=False)
+            # Ties on the joint rate are broken by model id so the table, the
+            # exception list, and the prose order identically on every platform.
+            .sort_values(
+                ["both_hit", "model"], ascending=[False, True], kind="mergesort"
+            )
         )
         for column in ("fed_hit", "state_hit", "both_hit"):
             summary[column] = (summary[column] * 100).round(1)
@@ -487,11 +538,9 @@ class PaperResults:
     def parse_contract_failure_counts(self) -> Counter:
         """Missing or unparseable frozen dashboard rows, counted by model."""
         counts: Counter = Counter()
-        for variable_map in self.dashboard["scenarioPredictions"].values():
-            for model_map in variable_map.values():
-                for model, row in model_map.items():
-                    if row.get("failureSource") == "parse_contract_failure":
-                        counts[model] += 1
+        for row in self._scored_prediction_rows:
+            if row.get("failureSource") == "parse_contract_failure":
+                counts[row["model"]] += 1
         return counts
 
     @property
@@ -520,13 +569,11 @@ class PaperResults:
     def explanation_missing_counts(self) -> Counter:
         """Frozen rows with a parsed numeric value but no explanation, by model."""
         counts: Counter = Counter()
-        for variable_map in self.dashboard["scenarioPredictions"].values():
-            for model_map in variable_map.values():
-                for model, row in model_map.items():
-                    if row.get("prediction") is None:
-                        continue
-                    if not str(row.get("explanation") or "").strip():
-                        counts[model] += 1
+        for row in self._scored_prediction_rows:
+            if row.get("prediction") is None:
+                continue
+            if not str(row.get("explanation") or "").strip():
+                counts[row["model"]] += 1
         return counts
 
     @property
@@ -603,9 +650,13 @@ class PaperResults:
     # ----- zero inflation ------------------------------------------------
     @cached_property
     def _reference_values(self) -> list[float]:
+        """Reference values of the scored outputs (excluded outputs left out,
+        as they are from every published score)."""
+        from policybench.reference_exclusions import scored_reference_for
+
         run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
-        with (run_dir / "reference_outputs.csv").open(newline="") as handle:
-            return [float(row["value"]) for row in csv.DictReader(handle)]
+        scored, _ = scored_reference_for(run_dir / "reference_outputs.csv")
+        return [float(value) for value in scored["value"]]
 
     @property
     def zero_share(self) -> float:
@@ -634,10 +685,13 @@ class PaperResults:
         import pandas as pd
 
         from policybench.analysis import weighted_hit_rate_scores_by_model
+        from policybench.reference_exclusions import scored_reference_for
         from policybench.spec import get_output_ids, output_group_id
 
         run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
-        ground_truth = pd.read_csv(run_dir / "reference_outputs.csv")
+        # The scored reference: excluded outputs are out of the baseline as
+        # they are out of every model's score.
+        ground_truth, _ = scored_reference_for(run_dir / "reference_outputs.csv")
         headline = set(get_output_ids("us", "headline"))
         ground_truth = ground_truth[
             ground_truth["variable"].map(output_group_id).isin(headline)
@@ -832,11 +886,139 @@ class PaperResults:
     # ----- audit ---------------------------------------------------------
     @property
     def audit_annotated_row_count(self) -> int:
-        return len(self._audit_rows)
+        return len(self._audit_row_keys)
 
     @property
     def audit_annotated_row_count_fmt(self) -> str:
         return f"{self.audit_annotated_row_count:,}"
+
+    # ----- outputs excluded from scoring -----------------------------------
+    @property
+    def excluded_output_count(self) -> int:
+        return len(self.reference_exclusions)
+
+    @property
+    def excluded_output_count_fmt(self) -> str:
+        return f"{self.excluded_output_count:,}"
+
+    @property
+    def excluded_output_phrase(self) -> str:
+        words = {
+            0: "no",
+            1: "one",
+            2: "two",
+            3: "three",
+            4: "four",
+            5: "five",
+            6: "six",
+            7: "seven",
+            8: "eight",
+            9: "nine",
+            10: "ten",
+            11: "eleven",
+            12: "twelve",
+        }
+        count = self.excluded_output_count
+        return f"{words.get(count, str(count))} output{'s' if count != 1 else ''}"
+
+    @property
+    def excluded_outputs_by_input(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for entry in self.reference_exclusions:
+            counts[entry["unlisted_input"]] = counts.get(entry["unlisted_input"], 0) + 1
+        return counts
+
+    @property
+    def excluded_output_households_fmt(self) -> str:
+        return f"{len({e['scenario_id'] for e in self.reference_exclusions}):,}"
+
+    @property
+    def excluded_output_households_phrase(self) -> str:
+        words = {
+            0: "no",
+            1: "one",
+            2: "two",
+            3: "three",
+            4: "four",
+            5: "five",
+            6: "six",
+            7: "seven",
+            8: "eight",
+            9: "nine",
+            10: "ten",
+            11: "eleven",
+            12: "twelve",
+        }
+        count = len({e["scenario_id"] for e in self.reference_exclusions})
+        return f"{words.get(count, str(count))} household{'s' if count != 1 else ''}"
+
+    @property
+    def scored_outputs_per_model(self) -> int:
+        return len(self._reference_values)
+
+    @property
+    def scored_outputs_per_model_fmt(self) -> str:
+        return f"{self.scored_outputs_per_model:,}"
+
+    @property
+    def total_outputs_per_model_fmt(self) -> str:
+        return f"{len(self._reference_values) + self.excluded_output_count:,}"
+
+    @property
+    def excluded_output_annotation_row_count(self) -> int:
+        return len(self._excluded_output_annotation_rows)
+
+    @property
+    def excluded_output_annotation_row_count_fmt(self) -> str:
+        return f"{self.excluded_output_annotation_row_count:,}"
+
+    @property
+    def prompt_ambiguity_row_count(self) -> int:
+        return sum(
+            1
+            for row in self._excluded_output_annotation_rows
+            if row["failure_source"] == "prompt_ambiguity"
+        )
+
+    @property
+    def prompt_ambiguity_row_count_fmt(self) -> str:
+        return f"{self.prompt_ambiguity_row_count:,}"
+
+    @cached_property
+    def audit_judge_provenance(self) -> dict:
+        """Manifest tally of which judge model produced each audit verdict."""
+        return self.manifest["audit_annotation_artifacts"]["judge_provenance"]
+
+    @property
+    def audit_case_count_fmt(self) -> str:
+        return f"{self.audit_judge_provenance['cases_judged']:,}"
+
+    @property
+    def audit_opus_judged_case_count_fmt(self) -> str:
+        entry = self.audit_judge_provenance["by_judge"]["claude-opus-5"]
+        return f"{entry['cases']:,}"
+
+    @property
+    def audit_sol_judged_case_count_fmt(self) -> str:
+        entry = self.audit_judge_provenance["by_judge"]["gpt-5.6-sol"]
+        return f"{entry['cases']:,}"
+
+    @cached_property
+    def audit_developer_adjudications(self) -> dict:
+        """Manifest summary of recorded developer adjudications."""
+        return self.manifest["audit_annotation_artifacts"]["developer_adjudications"]
+
+    @property
+    def audit_adjudicated_case_count_fmt(self) -> str:
+        return f"{self.audit_developer_adjudications['cases']:,}"
+
+    @property
+    def audit_adjudicated_case_phrase(self) -> str:
+        """'one case' / 'two cases', for prose."""
+        count = self.audit_developer_adjudications["cases"]
+        words = {0: "no", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
+        noun = "case" if count == 1 else "cases"
+        return f"{words.get(count, str(count))} {noun}"
 
     @property
     def audit_selection_rule(self) -> str:
@@ -980,6 +1162,14 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "gemini-3.5-flash": "2026-05-19",
     # 9to5google.com 2026-07-21 gemini-3-6-flash launch
     "gemini-3.6-flash": "2026-07-21",
+    # blog.google/innovation-and-ai/models-and-research/gemini-models/
+    # gemini-3-6-flash-3-5-flash-lite-3-5-flash-cyber (2026-07-21, launched
+    # beside 3.6 Flash; 9to5google.com 2026-07-21)
+    "gemini-3.5-flash-lite": "2026-07-21",
+    # blog.google/innovation-and-ai/models-and-research/gemini-models/
+    # 3-8-flash-and-3-8-flash-cyber (2026-09-02); 9to5google.com and
+    # theregister.com 2026-09-02
+    "gemini-3.8-flash": "2026-09-02",
     # blog.google/products/gemini/gemini-3-7-flash (2026-08-13)
     "gemini-3.7-flash": "2026-08-13",
     # blog.google gemini-3-1-flash-lite; siliconangle.com 2026-03-03
@@ -994,6 +1184,11 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "gpt-5.6-sol": "2026-07-09",
     "gpt-5.6-terra": "2026-07-09",
     "gpt-5.6-luna": "2026-07-09",
+    # unveiled and released as a limited preview for trusted partners
+    # 2026-09-03 (cnbc.com 2026-09-03), released to paid users the following
+    # day (en.wikipedia.org/wiki/GPT-6_Astra citing Japan Today 2026-09-04);
+    # the trusted-partner day is excluded under the public-availability rule
+    "gpt-6-astra": "2026-09-04",
     # piunikaweb.com 2026-04-17 SuperGrok beta (paid public tier)
     "grok-4.3": "2026-04-17",
     # x.ai/news/grok-4-5; techcrunch.com 2026-07-08
@@ -1006,6 +1201,12 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # api-docs.deepseek.com/news/news260424 (MIT weights same day)
     "deepseek-v4-pro": "2026-04-24",
     "deepseek-v4-flash": "2026-04-24",
+    # dated checkpoints huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731 and
+    # DeepSeek-V4-Pro-0813 (MIT weights; the 0813 card calls itself the
+    # official V4 Pro release superseding the preview); checkpoint dates per
+    # unsloth.ai/docs/models/deepseek-v4 (2026-07-31, 2026-08-13)
+    "deepseek-v4-flash-0731": "2026-07-31",
+    "deepseek-v4-pro-0813": "2026-08-13",
     # verdent.ai kimi-k2.6 guide; huggingface.co/moonshotai/Kimi-K2.6
     "kimi-k2.6": "2026-04-20",
     # simonwillison.net/2026/Jul/16/kimi-k3 (API launch; weights announced
@@ -1013,6 +1214,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "kimi-k3": "2026-07-16",
     # felloai.com glm-5-2 (API 2026-06-13; MIT weights 2026-06-16/17)
     "glm-5.2": "2026-06-13",
+    # Z.ai API and coding tiers 2026-08-14 (cellcog.ai glm-5-3-for-ai-agents;
+    # elsolitario.org 2026-08-14); OpenRouter listing 2026-08-18; weights on
+    # Hugging Face 2026-08-28 under the GLM-5.3 License after a safety review
+    "glm-5.3": "2026-08-14",
     # techtimes.com 2026-06-01; weights on Hugging Face by 2026-06-07
     "minimax-m3": "2026-06-01",
     # yottalabs.ai qwen-3-7-max (2026-05-19); CLOSED — API-only, no weights
@@ -1025,11 +1230,20 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # techcrunch.com 2026-07-15; weights on Hugging Face the same day
     # under Apache 2.0 (Thinking Machines Lab's first from-scratch model)
     "inkling": "2026-07-15",
-    # OpenRouter stealth listing; maker unnamed (2026-08-21)
-    "ox-alpha": "2026-08-21",
+    # openrouter.ai/stealth/ox-alpha ("released on August 20, 2026" as a
+    # stealth preview; the 2026-09-01 table carried 08-21 from the listing's
+    # first observed day). After the row's run Z.ai identified the preview as
+    # GLM-5.3-Flash (same page, 2026-08-26). The row keeps its preview label.
+    "ox-alpha": "2026-08-20",
 }
 
-# Models whose weights are publicly downloadable. Qwen 3.7 Max and 3.8 Max
+# Models whose weights are publicly downloadable. GLM-5.3's weights shipped
+# 2026-08-28 under the GLM-5.3 License (MIT-style with a security-review
+# condition for the largest Model-as-a-Service providers), two weeks after
+# its API launch; the dated DeepSeek V4 checkpoints are MIT. Ox Alpha is not
+# marked: the preview checkpoint itself was never published, and Z.ai's later
+# identification of it as GLM-5.3-Flash is not a weights release of that row.
+# Qwen 3.7 Max and 3.8 Max
 # are API-only as of 2026-08-03 (3.8's weights are promised but unpublished);
 # Kimi K3's weights shipped on Hugging Face 2026-07-26/27 under a custom
 # license; Inkling's shipped day one (2026-07-15) under Apache 2.0.
@@ -1037,9 +1251,12 @@ OPEN_WEIGHT_MODELS: frozenset[str] = frozenset(
     {
         "deepseek-v4-pro",
         "deepseek-v4-flash",
+        "deepseek-v4-flash-0731",
+        "deepseek-v4-pro-0813",
         "kimi-k2.6",
         "kimi-k3",
         "glm-5.2",
+        "glm-5.3",
         "minimax-m3",
         "inkling",
     }
