@@ -49,8 +49,9 @@ describe("model metadata", () => {
     }
   });
 
-  test("uses Sol as the current OpenAI frontier model", () => {
-    expect(FRONTIER_MODELS).toContain("gpt-5.6-sol");
+  test("uses Astra as the current OpenAI frontier model", () => {
+    expect(FRONTIER_MODELS).toContain("gpt-6-astra");
+    expect(FRONTIER_MODELS).not.toContain("gpt-5.6-sol");
     expect(FRONTIER_MODELS).not.toContain("gpt-5.5");
     expect(FRONTIER_MODELS).not.toContain("gpt-5.6-terra");
     expect(FRONTIER_MODELS).not.toContain("gpt-5.6-luna");

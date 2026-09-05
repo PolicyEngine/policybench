@@ -131,15 +131,15 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "grok-4.3": "2026-04-17",
   "grok-4.5": "2026-07-08",
   "grok-4.6": "2026-08-12",
-  "ox-alpha": "2026-08-21",
+  "ox-alpha": "2026-08-20",
   "grok-build-0.1": "2026-05-29",
-  "deepseek-v4-pro-0813": "2026-08-12",
+  "deepseek-v4-pro-0813": "2026-08-13",
   "deepseek-v4-pro": "2026-04-24",
   "deepseek-v4-flash-0731": "2026-07-31",
   "deepseek-v4-flash": "2026-04-24",
   "kimi-k2.6": "2026-04-20",
   "kimi-k3": "2026-07-16",
-  "glm-5.3": "2026-08-18",
+  "glm-5.3": "2026-08-14",
   "glm-5.2": "2026-06-13",
   "minimax-m3": "2026-06-01",
   "qwen-3.7-max": "2026-05-19",
@@ -164,7 +164,9 @@ export function getProviderForModel(model: string): ProviderKey | null {
   if (model.startsWith("claude-")) return "anthropic";
   if (model.startsWith("deepseek-")) return "deepseek";
   if (model.startsWith("gemini-")) return "google";
-  if (model.startsWith("glm-")) return "zai";
+  // Ox Alpha ran as an OpenRouter stealth preview; Z.ai identified it as
+  // GLM-5.3-Flash after its run (openrouter.ai/stealth/ox-alpha).
+  if (model.startsWith("glm-") || model === "ox-alpha") return "zai";
   if (model.startsWith("gpt-")) return "openai";
   if (model.startsWith("grok-")) return "xai";
   if (model.startsWith("kimi-")) return "moonshot";

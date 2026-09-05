@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from policybench.paper_results import r
+from policybench.snapshot_payload import read_run_payload
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVING_CONFIG = ROOT / "paper" / "snapshot" / "20260501" / "model_serving_config.json"
@@ -126,7 +127,7 @@ def _audit_counts_from_frozen_files() -> dict[str, int]:
     manifest = json.loads(SNAPSHOT_MANIFEST.read_text())
     run_label = manifest["source_run_labels"]["us"]
     run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
-    dashboard = json.loads((run_dir / "data.json").read_text())
+    dashboard = read_run_payload(run_dir)
     annotation_dir = ROOT / manifest["audit_annotation_artifacts"]["path"]
     with (annotation_dir / "us_audit_row_annotations.csv").open(newline="") as file:
         annotations = list(csv.DictReader(file))
@@ -203,11 +204,11 @@ def test_current_board_copy_makes_no_identical_request_claim():
 def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     counts = _audit_counts_from_frozen_files()
     assert counts == {
-        "annotated": 7_840,
-        "exact_misses": 7_838,
-        "annotated_exact_misses": 7_838,
-        "annotated_exact_hits": 2,
-        "unannotated_below_full_bounded_score": 1_324,
+        "annotated": 9_076,
+        "exact_misses": 9_073,
+        "annotated_exact_misses": 9_073,
+        "annotated_exact_hits": 3,
+        "unannotated_below_full_bounded_score": 1_605,
     }
 
     for path in (

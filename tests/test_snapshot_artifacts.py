@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from policybench.annotation_validation import validate_snapshot_audit
+from policybench.snapshot_payload import read_run_payload
 from policybench.spec import output_group_id
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -108,7 +109,7 @@ def _snapshot_country_payloads(manifest: dict) -> dict[str, dict]:
     payloads = {}
     for country, run_label in manifest["source_run_labels"].items():
         run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
-        payloads[country] = json.loads((run_dir / "data.json").read_text())
+        payloads[country] = read_run_payload(run_dir)
     return payloads
 
 
@@ -578,16 +579,16 @@ def test_snapshot_copied_artifacts_match_source_runs():
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_audit_counts = {
         "us": {
-            "annotated": 7_840,
-            "exact_misses": 7_838,
-            "annotated_exact_misses": 7_838,
-            "annotated_exact_hits": 2,
-            "below_full_bounded_score": 9_164,
-            "unannotated_below_full_bounded_score": 1_324,
+            "annotated": 9_076,
+            "exact_misses": 9_073,
+            "annotated_exact_misses": 9_073,
+            "annotated_exact_hits": 3,
+            "below_full_bounded_score": 10_681,
+            "unannotated_below_full_bounded_score": 1_605,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 7_211, "parse_contract_failure": 629},
+        "us": {"llm_error": 8_369, "parse_contract_failure": 707},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -739,14 +740,14 @@ def test_dashboard_blob_is_not_committed():
 
 
 def test_frozen_payload_provenance_matches_the_reference_sidecar():
-    """The frozen data.json must name the policyengine-us that generated the
+    """The frozen data.json.gz must name the policyengine-us that generated the
     references it scores against, as recorded by the reference sidecar and the
     manifest, not the exporting machine's installed runtime."""
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
     expected = manifest["reference_output_refresh"]["policyengine_us_version"]
     for country, run_label in manifest["source_run_labels"].items():
         run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
-        payload = json.loads((run_dir / "data.json").read_text())
+        payload = read_run_payload(run_dir)
         sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
         sidecar_version = sidecar["policyengine_bundles"][country]["model_version"]
         assert sidecar_version == expected

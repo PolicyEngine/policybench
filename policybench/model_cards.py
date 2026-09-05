@@ -338,9 +338,10 @@ MODEL_CARDS: dict[str, ModelCard] = {
         provider_max_completion_tokens=131_072,
         expected_cost_per_scenario_usd=0.0,
         notes=(
-            "Cloaked OpenRouter preview listed 2026-08-21 (free window); "
-            "maker unconfirmed. Board row labeled as a preview: public and "
-            "callable under the identical request, dated by its listing. "
+            "Cloaked OpenRouter preview listed 2026-08-20 (free window); "
+            "Z.ai identified it as GLM-5.3-Flash on 2026-08-26, after its "
+            "run. Board row labeled as a preview: public and callable under "
+            "the identical request, dated by its listing. "
             "Tool contract passed the 2026-08-20 gauntlet 3/3 and 16/16 "
             "after the thinking-class budget."
         ),

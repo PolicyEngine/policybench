@@ -64,8 +64,8 @@ MODELS = {
     "gemini-3.7-flash": "gemini/gemini-3.7-flash",
     "gemini-3.8-flash": "gemini/gemini-3.8-flash",
     "gemini-3.5-flash-lite": "gemini/gemini-3.5-flash-lite",
-    # Cloaked OpenRouter preview listed 2026-08-21 (free window); maker
-    # unconfirmed. On the board as a labeled preview row.
+    # Cloaked OpenRouter preview listed 2026-08-20 (free window); Z.ai later
+    # identified it as GLM-5.3-Flash. On the board as a labeled preview row.
     "ox-alpha": "openrouter/stealth/ox-alpha",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",

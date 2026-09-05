@@ -19,10 +19,10 @@ from policybench.paper_results import (
 )
 
 
-def test_frozen_roster_has_33_display_names_and_release_dates():
+def test_frozen_roster_has_39_display_names_and_release_dates():
     roster = {row["model"] for row in r.model_stats}
 
-    assert len(roster) == 33
+    assert len(roster) == 39
     assert set(MODEL_DISPLAY_NAMES) == roster
     assert roster <= set(MODEL_RELEASE_DATES)
     assert MODEL_DISPLAY_NAMES["claude-fable-5.1"] == "Claude Fable 5.1"
@@ -31,7 +31,7 @@ def test_frozen_roster_has_33_display_names_and_release_dates():
     assert MODEL_RELEASE_DATES["gemini-3.7-flash"] == "2026-08-13"
     assert MODEL_DISPLAY_NAMES["grok-4.6"] == "Grok 4.6"
     assert MODEL_DISPLAY_NAMES["ox-alpha"] == "Ox Alpha (preview)"
-    assert MODEL_RELEASE_DATES["ox-alpha"] == "2026-08-21"
+    assert MODEL_RELEASE_DATES["ox-alpha"] == "2026-08-20"
 
 
 def test_parse_contract_failure_counts_come_from_frozen_dashboard():
@@ -39,30 +39,31 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
         {
             "kimi-k2.6": 426,
             "glm-5.2": 139,
+            "glm-5.3": 78,
             "kimi-k3": 64,
         }
     )
-    assert r.parse_contract_failure_count == 629
-    assert r.parse_contract_failure_count_fmt == "629"
-    assert r.parse_contract_failure_pct_fmt == "1.0"
+    assert r.parse_contract_failure_count == 707
+    assert r.parse_contract_failure_count_fmt == "707"
+    assert r.parse_contract_failure_pct_fmt == "0.9"
 
 
 def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
-    assert r.audit_annotated_row_count == 7_840
-    assert r.audit_annotated_row_count_fmt == "7,840"
+    assert r.audit_annotated_row_count == 9_076
+    assert r.audit_annotated_row_count_fmt == "9,076"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 7_838
-    assert r.exact_match_miss_count_fmt == "7,838"
-    assert r.annotated_exact_miss_count == 7_838
-    assert r.annotated_exact_miss_count_fmt == "7,838"
-    assert r.annotated_exact_hit_count == 2
-    assert r.annotated_exact_hit_count_fmt == "2"
-    assert r.unannotated_below_full_bounded_score_count == 1_324
-    assert r.unannotated_below_full_bounded_score_count_fmt == "1,324"
+    assert r.exact_match_miss_count == 9_073
+    assert r.exact_match_miss_count_fmt == "9,073"
+    assert r.annotated_exact_miss_count == 9_073
+    assert r.annotated_exact_miss_count_fmt == "9,073"
+    assert r.annotated_exact_hit_count == 3
+    assert r.annotated_exact_hit_count_fmt == "3"
+    assert r.unannotated_below_full_bounded_score_count == 1_605
+    assert r.unannotated_below_full_bounded_score_count_fmt == "1,605"
 
 
 def test_contract_violations_are_counted_both_ways():
-    """629 rows never parsed a number; 61 more parsed a number but carry no
+    """707 rows never parsed a number; 61 more parsed a number but carry no
     explanation. The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
         "grok-4.3": 56,
@@ -70,7 +71,7 @@ def test_contract_violations_are_counted_both_ways():
         "claude-haiku-4.5": 1,
     }
     assert r.explanation_missing_count_fmt == "61"
-    assert r.contract_violation_count_fmt == "690"
+    assert r.contract_violation_count_fmt == "768"
     assert r.explanation_missing_breakdown_fmt == (
         "Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)"
     )
@@ -79,11 +80,12 @@ def test_contract_violations_are_counted_both_ways():
 def test_raw_response_preservation_is_stated_with_its_exceptions():
     assert dict(r.blank_raw_response_counts) == {
         "claude-fable-5": 1984,
+        "glm-5.3": 78,
         "kimi-k3": 64,
     }
     assert r.blank_raw_response_note == (
-        "no raw payload is retained for Claude Fable 5 (1,984 rows) and "
-        "Kimi K3 (64 rows)"
+        "no raw payload is retained for Claude Fable 5 (1,984 rows), "
+        "GLM-5.3 (78 rows), and Kimi K3 (64 rows)"
     )
 
 
@@ -153,14 +155,14 @@ def test_serving_evidence_caption_comes_from_frozen_configuration():
         ],
     }
     assert r.serving_evidence_pinned_counts == {
-        "answer contract": 4,
-        "request shape": 4,
-        "tool choice": 3,
-        "completion ceiling": 4,
+        "answer contract": 10,
+        "request shape": 10,
+        "tool choice": 9,
+        "completion ceiling": 10,
     }
     assert r.serving_evidence_caption == (
         "Supervised-run fingerprints pin answer contract, request shape, "
-        "and completion ceiling for four rows; tool choice for three rows. "
+        "and completion ceiling for ten rows; tool choice for nine rows. "
         "Reasoning setup and timeouts for every row, and all fields for the other "
         f"{summary['registry']} rows, are the harness registry as frozen in the "
         "snapshot's serving-configuration file."
@@ -172,11 +174,11 @@ def test_serving_evidence_counts_exclude_legacy_or_unrecorded_fields():
     results.serving_config = deepcopy(r.serving_config)
     fable_evidence = results.serving_config["models"]["claude-fable-5.1"]["evidence"]
 
-    assert results.serving_evidence_pinned_counts["tool choice"] == 3
+    assert results.serving_evidence_pinned_counts["tool choice"] == 9
     del fable_evidence["legacy_tool_choice_label"]
-    assert results.serving_evidence_pinned_counts["tool choice"] == 4
+    assert results.serving_evidence_pinned_counts["tool choice"] == 10
     del fable_evidence["treatment_fingerprint"]["answer_contract"]
-    assert results.serving_evidence_pinned_counts["answer contract"] == 3
+    assert results.serving_evidence_pinned_counts["answer contract"] == 9
 
 
 def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
@@ -184,11 +186,16 @@ def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
 
     assert table.loc["Claude Fable 5.1"].tolist() == [98.0, 90.0, 90.0]
     assert table.loc["GPT-5.6 Sol"].tolist() == [99.0, 86.0, 86.0]
-    assert r.joint_credit_accuracy_exceptions == ["Claude Fable 5.1", "GPT-5.6 Sol"]
+    assert table.loc["GPT-6 Astra"].tolist() == [98.0, 86.0, 86.0]
+    assert r.joint_credit_accuracy_exceptions == [
+        "Claude Fable 5.1",
+        "GPT-6 Astra",
+        "GPT-5.6 Sol",
+    ]
     assert r.joint_credit_accuracy_note == (
         "The joint hit rate can be no higher than either marginal and is "
-        "strictly lower than both for every model except Claude Fable 5.1 "
-        "and GPT-5.6 Sol."
+        "strictly lower than both for every model except Claude Fable 5.1, "
+        "GPT-6 Astra, and GPT-5.6 Sol."
     )
     other_models = table.drop(index=r.joint_credit_accuracy_exceptions)
     assert (other_models["Joint within 10%"] < other_models["Federal within 10%"]).all()
@@ -205,6 +212,24 @@ def test_joint_credit_accuracy_prose_tracks_changed_table_exceptions():
     table.loc[table["Model"] == "Claude Fable 5.1", "Joint within 10%"] = 89.0
     results.federal_state_joint_accuracy = table
 
-    assert results.joint_credit_accuracy_exceptions == ["GPT-5.6 Sol"]
-    assert "except GPT-5.6 Sol." in results.joint_credit_accuracy_note
+    assert results.joint_credit_accuracy_exceptions == ["GPT-6 Astra", "GPT-5.6 Sol"]
+    assert "except GPT-6 Astra and GPT-5.6 Sol." in results.joint_credit_accuracy_note
     assert "Claude Fable 5.1" not in results.joint_credit_accuracy_note
+
+
+def test_judge_provenance_is_frozen_in_the_manifest():
+    """Every audited case names its judge model; both judges are board rows."""
+    prov = r.audit_judge_provenance
+    roster = {row["model"] for row in r.model_stats}
+    assert set(prov["by_judge"]) == {"claude-opus-5", "gpt-5.6-sol"}
+    assert set(prov["by_judge"]) <= roster
+    assert (
+        sum(entry["cases"] for entry in prov["by_judge"].values())
+        == (prov["cases_judged"])
+    )
+    assert prov["by_judge"]["claude-opus-5"]["cases"] == 350
+    assert prov["by_judge"]["claude-opus-5"]["judged_on_utc"] == ["2026-09-05"]
+    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 318
+    assert r.audit_case_count_fmt == "668"
+    assert r.audit_opus_judged_case_count_fmt == "350"
+    assert r.audit_sol_judged_case_count_fmt == "318"

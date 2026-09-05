@@ -16,6 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 from policybench.scorer_vectors import canonical_filtered_scores
+from policybench.snapshot_payload import read_run_payload
 from policybench.spec import output_group_id
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,11 +69,11 @@ def test_doc_table_row_matches_the_summary():
     )
 
 
-def test_doc_table_ranks_match_the_frozen_33_model_board():
+def test_doc_table_ranks_match_the_frozen_39_model_board():
     text = DOC.read_text()
-    assert "on the 33-model board (2026-09-01)" in text
-    rows = json.loads((RUN_DIR / "data.json").read_text())["modelStats"]
-    assert len(rows) == 33
+    assert "on the 39-model board (2026-09-05)" in text
+    rows = read_run_payload(RUN_DIR)["modelStats"]
+    assert len(rows) == 39
     board_by_model = {row["model"]: row for row in rows}
 
     for label, model in SENSITIVITY_ROWS.items():
@@ -101,7 +102,7 @@ def test_exact_score_recomputes_from_committed_predictions():
     assert set(predictions["model"]) == {SUMMARY["sensitivity_model_id"]}
     assert len(predictions) == SUMMARY["sensitivity"]["n"]
     ground_truth = pd.read_csv(RUN_DIR / "reference_outputs.csv")
-    payload = json.loads((RUN_DIR / "data.json").read_text())
+    payload = read_run_payload(RUN_DIR)
     weights_by_group: dict[str, float] = {}
     for variable, weight in payload["globalWeights"]["household"].items():
         group = output_group_id(variable)
@@ -120,7 +121,7 @@ def test_exact_score_recomputes_from_committed_predictions():
 
 
 def test_board_row_in_summary_matches_the_frozen_snapshot():
-    payload = json.loads((RUN_DIR / "data.json").read_text())
+    payload = read_run_payload(RUN_DIR)
     row = next(m for m in payload["modelStats"] if m["model"] == SUMMARY["model"])
     assert round(row["exact"], 3) == SUMMARY["board"]["exact"]
     assert round(row["within1pct"], 3) == SUMMARY["board"]["within1pct"]

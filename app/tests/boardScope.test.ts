@@ -84,8 +84,8 @@ describe("dataset switching", () => {
   }
 
   test("the current-board roster sentence appears only for the live version", () => {
-    expect(render("1.1")).toContain("Ten of the 33 models");
-    expect(render("1.0")).not.toContain("Ten of the 33 models");
+    expect(render("1.1")).toContain("Ten of the 39 models");
+    expect(render("1.0")).not.toContain("Ten of the 39 models");
     expect(render("1.0")).toContain("archived snapshot");
   });
 

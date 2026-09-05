@@ -162,7 +162,7 @@ export default function Methodology({
           selects JSON for the family (the older Gemini and DeepSeek rows).{" "}
           {currentBoard ? (
             <>
-              Ten of the 33 models answer the same facts in subsets of one or
+              Ten of the 39 models answer the same facts in subsets of one or
               three outputs per request, an accommodation that predates the
               whole-scenario rule. The per-model transport and request shape are
               recorded in the paper&apos;s serving-configuration table and the

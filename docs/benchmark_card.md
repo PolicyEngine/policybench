@@ -64,11 +64,19 @@ be described as faithful reasoning traces.
 
 ## Audit scope
 
-The frozen US annotations cover 7,840 rows selected because their legacy
-threshold score is below 1. This audit universe contains 7,838 of the
-snapshot's 7,838 exact-match misses and two exact hits. Another 1,324 rows have
-a bounded score below 100 but fall outside the legacy-threshold selection and
-have no audit annotation. The annotation set therefore must not be described
+The frozen US annotations cover 9,076 rows selected because their legacy
+threshold score is below 1. This audit universe contains 9,073 of the
+snapshot's 9,073 exact-match misses and three exact hits. Another 1,605 rows
+have a bounded score below 100 but fall outside the legacy-threshold selection
+and have no audit annotation. Two judge models produced the verdicts, both of
+them board rows: GPT-5.6 Sol through the Codex CLI for 318 cases, and Claude
+Opus 5 through the Claude Code CLI for the 350 cases a September 2026 addition
+joined; the manifest's audit_annotation_artifacts.judge_provenance block
+carries the tally. Verdicts change no score. A judge verdict outside the final
+classes is resolved by a recorded developer adjudication
+(annotations/.../us_adjudications.json: one case in this snapshot, the judge's
+prompt-ambiguity reading of scenario_064 SSI adjudicated to llm_error with the
+reasoning attached). The annotation set therefore must not be described
 as covering each row below full bounded score.
 
 Canonical runs require numeric answers and explanations for each requested
@@ -146,7 +154,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-09-01 snapshot scores
+- Activation is a snapshot decision: the current 2026-09-05 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should
