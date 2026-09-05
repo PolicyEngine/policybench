@@ -4,10 +4,13 @@ Runners now write ``verdict.meta.json`` with the verdict's sha256 so the
 freezer can tell a current sidecar from one left behind by a re-judged case.
 Sidecars written before that field existed are bound here, and Codex-judged
 cases that predate Codex sidecars get one from the ``codex.log`` header. A
-sidecar is only bound when its recorded judging time sits within
-``--tolerance`` seconds of the verdict file's modification time, so a sidecar
-that cannot be shown to belong to the current verdict is left alone (the
-freezer then falls back to ``codex.log`` or counts the case as unknown).
+legacy Claude sidecar is bound only when its recorded judging time sits
+within ``--tolerance`` seconds of the verdict file's modification time and no
+``codex.log`` was written after that time (a later Codex attempt may own the
+current verdict). A sidecar that cannot be shown to belong to the current
+verdict is left alone, and the freezer then counts the case as unknown. A
+verdict with no sidecar at all can only have come from the Codex runner (the
+Claude runner always wrote one), so it gets a Codex sidecar from its log.
 
     uv run python scripts/backfill_verdict_provenance.py [--dry-run] [cases_dir]
 """
@@ -39,6 +42,7 @@ def backfill(cases_dir: Path, *, tolerance: float, dry_run: bool) -> dict[str, i
         digest = hashlib.sha256(verdict_path.read_bytes()).hexdigest()
         verdict_mtime = verdict_path.stat().st_mtime
         meta_path = case_dir / "verdict.meta.json"
+        codex_log = case_dir / "codex.log"
         if meta_path.is_file():
             meta = json.loads(meta_path.read_text())
             if meta.get("verdict_sha256"):
@@ -50,13 +54,22 @@ def backfill(cases_dir: Path, *, tolerance: float, dry_run: bool) -> dict[str, i
             if abs(judged_at - verdict_mtime) > tolerance:
                 counts["left_alone"] += 1
                 continue
+            # A Codex attempt after the sidecar\'s judging time may own the
+            # current verdict; timestamp proximity alone is not ownership.
+            if codex_log.is_file() and codex_log.stat().st_mtime > judged_at + 1.0:
+                counts["left_alone"] += 1
+                continue
             meta["verdict_sha256"] = digest
             meta.setdefault("judge_runner", "scripts/run_audit_claude.sh")
             if not dry_run:
                 meta_path.write_text(json.dumps(meta, indent=2, sort_keys=True))
             counts["bound"] += 1
             continue
-        codex_log = case_dir / "codex.log"
+        # No sidecar at all: the Claude runner always wrote one, so this
+        # verdict came from the Codex runner before it wrote sidecars; its
+        # codex.log names the model. (The log may predate the verdict file's
+        # mtime when the verdict was rewritten later; the absence of any
+        # sidecar, not the timestamps, is the ownership evidence here.)
         if codex_log.is_file():
             match = re.search(
                 r"^model: (\S+)$",

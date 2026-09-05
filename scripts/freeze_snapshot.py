@@ -181,14 +181,44 @@ def verdict_provenance(case_dir: Path) -> dict | None:
     return meta
 
 
-def audit_judge_provenance(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
+# A codex.log may stand in for a missing sidecar only when it was written
+# alongside the current verdict: the Codex runner writes the log and, on
+# success, the verdict within the same call.
+LOG_FALLBACK_TOLERANCE_SECONDS = 600.0
+
+
+def codex_log_describes_verdict(
+    case_dir: Path, tolerance: float = LOG_FALLBACK_TOLERANCE_SECONDS
+) -> bool:
+    """Whether ``codex.log`` is evidence about the case's current verdict.
+
+    Only when no sidecar exists at all (the Claude runner always wrote one, so
+    a sidecar-less verdict can only come from the Codex runner) and the log's
+    modification time sits within ``tolerance`` seconds of the verdict's. A
+    log left beside a later verdict from the other runner, or one hours older
+    than the verdict, describes an earlier attempt and proves nothing.
+    """
+    codex_log = case_dir / "codex.log"
+    verdict_path = case_dir / "verdict.json"
+    if not codex_log.is_file() or not verdict_path.is_file():
+        return False
+    if (case_dir / "verdict.meta.json").is_file():
+        return False
+    return abs(codex_log.stat().st_mtime - verdict_path.stat().st_mtime) <= tolerance
+
+
+def audit_judge_provenance(
+    cases_dir: Path = AUDIT_CASES_DIR,
+    log_tolerance: float = LOG_FALLBACK_TOLERANCE_SECONDS,
+) -> dict:
     """Tally which judge model produced each case verdict in the audit tree.
 
     Each runner writes a ``verdict.meta.json`` sidecar bound to its verdict by
     sha256 (the model requested and the model the CLI reported); only a
-    sidecar that matches the case's current verdict counts. Cases judged by
-    the Codex runner before it wrote sidecars are read from the ``model:``
-    line of ``codex.log``. A case with neither is counted under ``unknown``
+    sidecar that matches the case's current verdict counts. A case with no
+    sidecar at all whose ``codex.log`` was written alongside the verdict is
+    read from the log's ``model:`` line. Anything else, including a stale or
+    hash-less sidecar beside an unrelated log, is counted under ``unknown``
     so the manifest cannot silently claim provenance it does not have.
     """
     if not cases_dir.is_dir():
@@ -215,7 +245,7 @@ def audit_judge_provenance(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
             )
             runner = JUDGE_RUNNERS[runner_key]
             day = str(meta.get("judged_at_utc", ""))[:10]
-        elif codex_log.is_file():
+        elif codex_log_describes_verdict(case_dir, log_tolerance):
             match = re.search(r"^model: (\S+)$", codex_log.read_text(), re.M)
             judge = match.group(1) if match else "unknown"
             runner = JUDGE_RUNNERS["codex"]
@@ -235,10 +265,11 @@ def audit_judge_provenance(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
         "by_judge": dict(sorted(by_judge.items())),
         "note": (
             "Judge model per case: the verdict.meta.json sidecar bound to the "
-            "case's verdict by sha256 (either runner), else the codex.log model "
-            "header (Codex runner before it wrote sidecars). Verdicts classify "
-            "misses after scoring and change no score. Both judge models are "
-            "also board rows."
+            "case's verdict by sha256 (either runner), else, for a case with no "
+            "sidecar, the codex.log model header when the log was written "
+            "alongside the verdict (Codex runner before it wrote sidecars). "
+            "Verdicts classify misses after scoring and change no score. Both "
+            "judge models are also board rows."
         ),
     }
 

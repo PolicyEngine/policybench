@@ -113,9 +113,10 @@ def test_sidecar_counts_only_when_bound_to_the_current_verdict(tmp_path: Path):
     tally = audit_judge_provenance(cases)
     assert tally["cases_judged"] == 4
     by_judge = {judge: entry["cases"] for judge, entry in tally["by_judge"].items()}
-    # fresh -> Opus via bound sidecar; stale -> Sol via codex.log (sidecar
-    # ignored); legacy -> unknown (no hash, no codex.log); codex -> Sol.
-    assert by_judge == {"claude-opus-5": 1, "gpt-5.6-sol": 2, "unknown": 1}
+    # fresh -> Opus via bound sidecar; stale -> unknown (a sidecar that does
+    # not match the verdict is not provenance, and its presence rules out the
+    # codex.log fallback); legacy -> unknown (no hash); codex -> Sol.
+    assert by_judge == {"claude-opus-5": 1, "gpt-5.6-sol": 1, "unknown": 2}
 
 
 def _fake_cli(path: Path, body: str) -> None:
@@ -211,3 +212,98 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     assert {
         j: e["cases"] for j, e in audit_judge_provenance(cases)["by_judge"].items()
     } == {"gpt-5.6-sol": 1}
+
+
+def _touch(path: Path, when: float) -> None:
+    os.utime(path, (when, when))
+
+
+def test_log_fallback_needs_a_contemporaneous_log_and_no_sidecar(tmp_path: Path):
+    """A hash-less sidecar beside an older codex.log (a legacy Codex-to-Claude
+    re-judge) is unknown, not Codex; a sidecar-less verdict is Codex only when
+    its log was written alongside it."""
+    cases = tmp_path / "cases"
+    now = 1_800_000_000.0
+
+    claude_legacy = _case(cases, "legacy_claude_after_codex", VERDICT)
+    _sidecar(
+        claude_legacy, model="opus", runner="scripts/run_audit_claude.sh", bound=False
+    )
+    _codex_log(claude_legacy, "gpt-5.6-sol")
+    _touch(claude_legacy / "codex.log", now - 86_400)
+    _touch(claude_legacy / "verdict.json", now)
+
+    codex_fresh = _case(cases, "codex_no_sidecar_fresh_log", VERDICT)
+    _codex_log(codex_fresh, "gpt-5.6-sol")
+    _touch(codex_fresh / "codex.log", now - 30)
+    _touch(codex_fresh / "verdict.json", now)
+
+    codex_old = _case(cases, "codex_no_sidecar_stale_log", VERDICT)
+    _codex_log(codex_old, "gpt-5.6-sol")
+    _touch(codex_old / "codex.log", now - 86_400)
+    _touch(codex_old / "verdict.json", now)
+
+    tally = audit_judge_provenance(cases)
+    by_judge = {judge: entry["cases"] for judge, entry in tally["by_judge"].items()}
+    assert by_judge == {"gpt-5.6-sol": 1, "unknown": 2}
+
+
+def test_backfill_binds_only_with_ownership_evidence(tmp_path: Path):
+    from backfill_verdict_provenance import backfill
+
+    cases = tmp_path / "cases"
+    now = 1_800_000_000.0
+    judged_at = "2027-01-15T00:00:00+00:00"
+    import datetime
+
+    judged_ts = datetime.datetime.fromisoformat(judged_at).timestamp()
+
+    def legacy_claude(name: str, *, log_offset: float | None) -> Path:
+        case_dir = _case(cases, name, VERDICT)
+        (case_dir / "verdict.meta.json").write_text(
+            json.dumps(
+                {
+                    "judge_runner": "scripts/run_audit_claude.sh",
+                    "judge_model_requested": "opus",
+                    "judge_model_reported": ["claude-opus-5"],
+                    "judged_at_utc": judged_at,
+                }
+            )
+        )
+        _touch(case_dir / "verdict.json", judged_ts + 5)
+        if log_offset is not None:
+            _codex_log(case_dir, "gpt-5.6-sol")
+            _touch(case_dir / "codex.log", judged_ts + log_offset)
+        return case_dir
+
+    bound = legacy_claude("claude_then_nothing", log_offset=None)
+    bound_older_log = legacy_claude("codex_then_claude", log_offset=-3_600)
+    # Codex re-judged two minutes after the Claude sidecar was written: the
+    # sidecar does not own the current verdict, however close the times are.
+    contested = legacy_claude("claude_then_codex", log_offset=120)
+    _touch(contested / "verdict.json", judged_ts + 125)
+
+    codex_only = _case(cases, "codex_only", VERDICT)
+    _codex_log(codex_only, "gpt-5.6-sol")
+    _touch(codex_only / "codex.log", now - 86_400)
+    _touch(codex_only / "verdict.json", now)
+
+    counts = backfill(cases, tolerance=600.0, dry_run=False)
+    assert counts == {
+        "bound": 2,
+        "codex_sidecar_written": 1,
+        "left_alone": 1,
+        "already": 0,
+    }
+    for case_dir in (bound, bound_older_log):
+        assert verdict_provenance(case_dir)["judge_model_requested"] == "opus"
+    assert "verdict_sha256" not in json.loads(
+        (contested / "verdict.meta.json").read_text()
+    )
+    assert verdict_provenance(codex_only)["judge_model_reported"] == ["gpt-5.6-sol"]
+
+    tally = audit_judge_provenance(cases)
+    by_judge = {judge: entry["cases"] for judge, entry in tally["by_judge"].items()}
+    assert by_judge == {"claude-opus-5": 2, "gpt-5.6-sol": 1, "unknown": 1}
+    # Idempotent: a second pass changes nothing.
+    assert backfill(cases, tolerance=600.0, dry_run=False)["already"] == 3
