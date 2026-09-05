@@ -1422,9 +1422,10 @@ def main():
         gt = pd.read_csv(args.ground_truth)
         # An adjacent reference_exclusions.json removes outputs whose reference
         # depends on an input the data never carried; they are scored for no model.
-        gt, excluded_reference = split_reference(
-            gt, load_reference_exclusions(exclusions_path_for(Path(args.ground_truth)))
+        reference_exclusions = load_reference_exclusions(
+            exclusions_path_for(Path(args.ground_truth))
         )
+        gt, excluded_reference = split_reference(gt, reference_exclusions)
         if not excluded_reference.empty:
             print(
                 f"reference exclusions: {len(excluded_reference)} outputs removed "
@@ -1493,6 +1494,8 @@ def main():
                 args.app_data_output,
                 policyengine_bundles=policyengine_bundles,
                 scenario_prompts=scenario_prompts,
+                excluded_reference=excluded_reference,
+                reference_exclusions=reference_exclusions,
             )
             exported["dashboard_data"] = dashboard_path
         else:

@@ -77,3 +77,29 @@ def test_runner_scripts_validate_against_the_schema():
         text = (ROOT / "scripts" / name).read_text()
         assert 'validate_verdict.py" "$SCHEMA"' in text, name
         assert '{"case_failure_source", "models"} <= d.keys()' not in text, name
+
+
+def test_runner_scripts_refuse_to_start_without_jsonschema(tmp_path: Path):
+    """The interpreter is checked for jsonschema before any classifier call; the
+    project interpreter is preferred over a bare python3."""
+    for name in ("run_audit_claude.sh", "run_audit_codex.sh"):
+        text = (ROOT / "scripts" / name).read_text()
+        assert '"$PYTHON" -c "import jsonschema"' in text, name
+        assert 'PYTHON=".venv/bin/python"' in text, name
+        assert text.index("import jsonschema") < text.index("classify_one()"), name
+    # A python without jsonschema is rejected at startup, before the schema check.
+    fake_python = tmp_path / "python-without-jsonschema"
+    fake_python.write_text('#!/bin/sh\nif [ "$1" = -c ]; then exit 1; fi\nexit 0\n')
+    fake_python.chmod(0o755)
+    audit_dir = tmp_path / "audit"
+    audit_dir.mkdir()
+    (audit_dir / "schema.json").write_text("{}")
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts" / "run_audit_claude.sh"), str(audit_dir)],
+        capture_output=True,
+        text=True,
+        env={**dict(__import__("os").environ), "AUDIT_PYTHON": str(fake_python)},
+        cwd=tmp_path,
+    )
+    assert result.returncode == 1
+    assert "lacks jsonschema" in result.stderr

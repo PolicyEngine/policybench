@@ -75,9 +75,11 @@ Opus 5 through the Claude Code CLI for the 350 cases a September 2026 addition
 joined; the manifest's audit_annotation_artifacts.judge_provenance block
 carries the tally. Verdicts change no score. A judge verdict outside the final
 classes is resolved by a recorded developer adjudication
-(annotations/.../us_adjudications.json: one case in this snapshot, the judge's
-prompt-ambiguity reading of scenario_064 SSI adjudicated to llm_error with the
-reasoning attached).
+(annotations/.../us_adjudications.json). This snapshot carries eleven, one per
+excluded output: each affirms `prompt_ambiguity` and removes the output from
+scoring, keeping the judge's original verdict (Claude Opus 5's prompt-ambiguity
+reading of scenario_064 SSI; GPT-5.6 Sol's llm_error on the other ten) beside
+the decision and the reasoning.
 
 Eleven outputs in ten households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
@@ -89,8 +91,9 @@ recomputed with policyengine-us 1.755.4 under the reading a careful reader could
 take of the stated `is disabled` or SSDI-income fact, and it moved. Exclusion is
 symmetric: rows that matched the frozen reference leave the score with rows that
 did not, so every model is scored on 1,973 of its 1,984 requested outputs. The
-rows on those outputs stay annotated with the class `prompt_ambiguity` as
-description; no scored row carries that class. Do not read a $0 SSI reference
+rows on those outputs stay annotated (287 as `prompt_ambiguity`, six that never
+parsed as `parse_contract_failure`) as description; no scored row carries the
+ambiguity class. Do not read a $0 SSI reference
 for a disabled under-65 household member as a finding about that person's SSI
 eligibility.
 

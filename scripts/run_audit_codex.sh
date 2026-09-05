@@ -17,12 +17,25 @@ SCHEMA="$AUDIT_DIR/schema.json"
 CASES_DIR="$AUDIT_DIR/cases"
 PARALLEL="${AUDIT_PARALLEL:-4}"
 EFFORT="${AUDIT_REASONING_EFFORT:-low}"
-PYTHON="${AUDIT_PYTHON:-python3}"
-command -v "$PYTHON" >/dev/null 2>&1 || PYTHON=".venv/bin/python"
+# Verdict validation needs jsonschema: prefer the project virtual environment's
+# interpreter (uv sync installs it), then an explicit AUDIT_PYTHON, then python3.
+if [ -n "${AUDIT_PYTHON:-}" ]; then
+  PYTHON="$AUDIT_PYTHON"
+elif [ -x ".venv/bin/python" ]; then
+  PYTHON=".venv/bin/python"
+else
+  PYTHON="python3"
+fi
 # Fail fast rather than burn classifier calls making zero progress: verdict
 # validation needs a working interpreter.
-command -v "$PYTHON" >/dev/null 2>&1 || [ -x "$PYTHON" ] || {
+{ command -v "$PYTHON" >/dev/null 2>&1 || [ -x "$PYTHON" ]; } || {
   echo "no python interpreter for verdict validation; set AUDIT_PYTHON" >&2
+  exit 1
+}
+"$PYTHON" -c "import jsonschema" >/dev/null 2>&1 || {
+  echo "$PYTHON lacks jsonschema, which verdict validation requires; run inside" >&2
+  echo "the project environment (uv sync) or set AUDIT_PYTHON to an interpreter" >&2
+  echo "that has it. Refusing to start: verdicts could not be validated." >&2
   exit 1
 }
 MODEL_FLAG=""

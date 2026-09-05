@@ -2562,6 +2562,8 @@ def export_dashboard_data(
     *,
     policyengine_bundles: dict,
     scenario_prompts: dict[str, dict[str, dict[str, str]]] | None = None,
+    excluded_reference: pd.DataFrame | None = None,
+    reference_exclusions: list[dict] | None = None,
 ) -> Path:
     """Write the frontend dashboard payload to disk.
 
@@ -2579,6 +2581,8 @@ def export_dashboard_data(
         scenarios,
         policyengine_bundles=policyengine_bundles,
         scenario_prompts=scenario_prompts,
+        excluded_reference=excluded_reference,
+        reference_exclusions=reference_exclusions,
     )
     combined = {"countries": {payload["country"]: payload}}
     dashboard_path.write_text(

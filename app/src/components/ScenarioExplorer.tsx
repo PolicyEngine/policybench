@@ -4,6 +4,7 @@ import {
   isBinaryVariable,
   type BenchData,
   type CountryCode,
+  type ReferenceExclusion,
   type ScenarioPrediction,
 } from "../types";
 import { formatCurrency } from "../format";
@@ -17,6 +18,11 @@ import {
   type ProviderKey,
 } from "../modelMeta";
 import { binaryFlag } from "../lib/scoring";
+import {
+  findReferenceExclusion,
+  isExcludedOutput,
+  predictionStatus,
+} from "../lib/predictionStatus";
 import { modelPageHref } from "../lib/boardScope";
 import { mergeScenarioExplanations } from "../lib/explanations";
 import {
@@ -24,6 +30,7 @@ import {
   type ExplanationsStatus,
 } from "../lib/useExplanations";
 import frozenServingConfig from "../model-serving-config.json";
+import ExclusionNote from "./ExclusionNote";
 import ProviderMark from "./ProviderMark";
 import RequestShapeNotice from "./RequestShapeNotice";
 
@@ -40,34 +47,12 @@ function formatBoolean(value: 0 | 1 | null): string {
 
 const FAILURE_SOURCE_LABELS: Record<string, string> = {
   llm_error: "LLM",
+  prompt_ambiguity: "Prompt ambiguity",
 };
 
 function formatFailureLabel(value?: string): string | null {
   if (!value) return null;
   return FAILURE_SOURCE_LABELS[value] ?? value.replaceAll("_", " ");
-}
-
-function isPredictionCorrect(
-  pred: ScenarioPrediction,
-  truth: number,
-  isBinary: boolean,
-): boolean {
-  if (pred.prediction === null) return false;
-  if (pred.exact !== undefined) return pred.exact >= 100;
-  if (pred.thresholdScore !== undefined) return pred.thresholdScore >= 100;
-  if (isBinary) {
-    const predictionFlag = binaryFlag(pred.prediction);
-    const truthFlag = binaryFlag(truth);
-    return (
-      predictionFlag !== null &&
-      truthFlag !== null &&
-      predictionFlag === truthFlag
-    );
-  }
-  return (
-    Math.abs(pred.prediction - truth) <= Math.abs(truth) * 0.1 ||
-    (truth === 0 && Math.abs(pred.prediction) <= 1)
-  );
 }
 
 function describeError(
@@ -273,6 +258,16 @@ export default function ScenarioExplorer({
     variables.includes(manualSelection.cell.variable)
       ? manualSelection.cell
       : null;
+
+  // The release's exclusion record for the selected output, if any, so the
+  // detail panel can show the alternative reading and its reference.
+  const selectedExclusion = selectedCell
+    ? findReferenceExclusion(
+        data.referenceExclusions,
+        resolvedScenarioId,
+        selectedCell.variable,
+      )
+    : undefined;
 
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const householdDialogRef = useRef<HTMLDialogElement | null>(null);
@@ -649,11 +644,22 @@ export default function ScenarioExplorer({
               const varData = predictions[v] || {};
               const truth = Object.values(varData)[0]?.groundTruth ?? 0;
               const isBinary = isBinaryVariable(v, country);
+              // Exclusion is a property of the output, not of one model's
+              // answer: every row in an excluded output carries scored: false.
+              const excludedOutput = Object.values(varData).some(isExcludedOutput);
 
               return (
                 <tr key={v} className="border-t border-border-subtle">
                   <td className="sticky left-0 z-10 bg-bg py-2.5 pl-3 pr-4 text-sm text-text-secondary border-r border-border-subtle">
                     {getVariableLabel(v, country)}
+                    {excludedOutput ? (
+                      <span
+                        className="mt-0.5 block text-[10px] uppercase tracking-wider text-text-muted"
+                        title="Scored for no model: the reference depends on an input the household facts never listed"
+                      >
+                        Excluded from scoring
+                      </span>
+                    ) : null}
                   </td>
                   <td className="py-2.5 px-3 text-right font-[family-name:var(--font-mono)] text-sm text-text align-top">
                     {/* Mirror the button padding (px-1.5 py-0.5) used in
@@ -698,7 +704,8 @@ export default function ScenarioExplorer({
                       ? formatBoolean(binaryFlag(pred.prediction))
                       : formatCurrency(pred.prediction, currencySymbol);
                     const predictionError = pred.error ?? pred.prediction - truth;
-                    const correct = isPredictionCorrect(pred, truth, isBinary);
+                    const status = predictionStatus(pred, truth, isBinary);
+                    const excluded = status === "excluded";
 
                     return (
                       <td
@@ -711,16 +718,27 @@ export default function ScenarioExplorer({
                             setSelectedCell({ variable: v, model: m })
                           }
                           aria-pressed={isSelected}
+                          title={excluded ? "Excluded from scoring" : undefined}
                           className={`w-full rounded-md border px-2 py-1 text-right font-[family-name:var(--font-mono)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40 ${
                             isSelected
                               ? "border-primary-strong/50 bg-primary-soft ring-1 ring-primary-strong/40"
                               : "border-border-subtle bg-card/60 hover:border-primary-strong/40 hover:bg-surface-soft"
-                          }`}
-                          style={{
-                            color: correct
-                              ? getPredictionTextColor(0, 1)
-                              : getPredictionTextColor(predictionError, truth),
-                          }}
+                          } ${excluded ? "border-dashed text-text-muted" : ""}`}
+                          // Excluded outputs are neither right nor wrong, so
+                          // they take no correctness color.
+                          style={
+                            excluded
+                              ? undefined
+                              : {
+                                  color:
+                                    status === "correct"
+                                      ? getPredictionTextColor(0, 1)
+                                      : getPredictionTextColor(
+                                          predictionError,
+                                          truth,
+                                        ),
+                                }
+                          }
                         >
                           {displayPred}
                         </button>
@@ -850,6 +868,7 @@ export default function ScenarioExplorer({
       <DetailDialog
         ref={dialogRef}
         selectedCell={selectedCell}
+        exclusion={selectedExclusion}
         predictions={filteredPredictions}
         country={country}
         currencySymbol={currencySymbol}
@@ -922,6 +941,7 @@ const HouseholdDialog = React.forwardRef<HTMLDialogElement, HouseholdDialogProps
 
 type DetailDialogProps = {
   selectedCell: { variable: string; model: string } | null;
+  exclusion?: ReferenceExclusion;
   predictions: Record<string, Record<string, ScenarioPrediction>>;
   country: CountryCode;
   currencySymbol: "$" | "£";
@@ -935,6 +955,7 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
   function DetailDialog(
     {
       selectedCell,
+      exclusion,
       predictions,
       country,
       currencySymbol,
@@ -965,6 +986,7 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
         {selectedCell ? (
           <DetailContent
             selectedCell={selectedCell}
+            exclusion={exclusion}
             predictions={predictions}
             country={country}
             currencySymbol={currencySymbol}
@@ -979,8 +1001,9 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
   },
 );
 
-type DetailContentProps = {
+export type DetailContentProps = {
   selectedCell: { variable: string; model: string };
+  exclusion?: ReferenceExclusion;
   predictions: Record<string, Record<string, ScenarioPrediction>>;
   country: CountryCode;
   currencySymbol: "$" | "£";
@@ -990,8 +1013,13 @@ type DetailContentProps = {
   onClose: () => void;
 };
 
-function DetailContent({
+/**
+ * Body of the prediction detail dialog. Exported so tests can render one
+ * selected cell without the surrounding explorer state.
+ */
+export function DetailContent({
   selectedCell,
+  exclusion,
   predictions,
   country,
   currencySymbol,
@@ -1016,7 +1044,9 @@ function DetailContent({
 
   const isBinary = isBinaryVariable(variable, country);
   const truth = pred.groundTruth;
-  const correct = isPredictionCorrect(pred, truth, isBinary);
+  const status = predictionStatus(pred, truth, isBinary);
+  const excluded = status === "excluded";
+  const correct = status === "correct";
   const displayTruth = isBinary
     ? formatBoolean(binaryFlag(truth))
     : formatCurrency(truth, currencySymbol);
@@ -1061,12 +1091,14 @@ function DetailContent({
         </div>
         <span
           className={`rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider ${
-            correct
-              ? "border-success/30 bg-success-soft text-success-text"
-              : "border-danger/30 bg-danger-soft text-danger-text"
+            excluded
+              ? "border-border bg-surface text-text-secondary"
+              : correct
+                ? "border-success/30 bg-success-soft text-success-text"
+                : "border-danger/30 bg-danger-soft text-danger-text"
           }`}
         >
-          {correct ? "Correct" : "Off"}
+          {excluded ? "Excluded" : correct ? "Correct" : "Off"}
         </span>
       </div>
 
@@ -1094,7 +1126,16 @@ function DetailContent({
             {displayPred}
           </div>
         </div>
-        {!correct && (
+        {excluded ? (
+          <div className="col-span-2 sm:col-span-1">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+              Score contribution
+            </div>
+            <div className="text-sm mt-1 text-text-secondary">
+              None, for any model
+            </div>
+          </div>
+        ) : !correct ? (
           <div className="col-span-2 sm:col-span-1">
             <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
               Error
@@ -1103,8 +1144,17 @@ function DetailContent({
               {errorDescription}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
+
+      {excluded ? (
+        <ExclusionNote
+          pred={pred}
+          exclusion={exclusion}
+          isBinary={isBinary}
+          currencySymbol={currencySymbol}
+        />
+      ) : null}
 
       <div className="mt-5 grid gap-5 md:grid-cols-2">
         <section>
@@ -1142,7 +1192,7 @@ function DetailContent({
         </section>
       </div>
 
-      {(pred.annotation || auditTags.length > 0 || !correct) && (
+      {(pred.annotation || auditTags.length > 0 || (!correct && !excluded)) && (
         <section className="mt-5 border-t border-border-subtle pt-4">
           <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
             Audit tags
@@ -1151,7 +1201,7 @@ function DetailContent({
             <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
               {pred.annotation}
             </p>
-          ) : correct ? null : explanationsStatus !== "ready" ? (
+          ) : correct || excluded ? null : explanationsStatus !== "ready" ? (
             <PendingExplanationNote status={explanationsStatus} />
           ) : (
             <p className="mt-2 text-sm text-text-muted italic">
