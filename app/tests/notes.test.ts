@@ -39,6 +39,9 @@ describe("notes", () => {
     const markup = renderToStaticMarkup(createElement(NotesPageContent));
     expect(markup).toContain("GPT-6 Astra debuts second: the two rules it invented");
     expect(markup).toContain("release dashboard-data-20260905c");
+    // Whole-number board rates keep one decimal.
+    expect(markup).toContain("at 88.0% of answers within $1");
+    expect(markup).not.toContain("at 88% of answers");
     expect(markup).toContain("release dashboard-data-20260901c");
     expect(markup).toContain("Six SNAP households the top three models deny");
     expect(markup).toContain("Claude Fable 5.1 added");

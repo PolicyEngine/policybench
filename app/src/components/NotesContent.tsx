@@ -17,10 +17,17 @@ export function formatNoteDate(date: string): string {
   }).format(new Date(`${date}T00:00:00Z`));
 }
 
+// Facts named *Exact or *Rate are board percentages shown to one decimal, so
+// a whole-number rate (88.0) keeps its decimal like every other row.
+const ONE_DECIMAL_FACT = /(Exact|Rate)$/;
+
 function factText(key: string, fact: NoteFact): string {
   if (Array.isArray(fact)) return fact.join(", ");
   if (key === "referenceAnnual" && typeof fact === "number") {
     return String(Math.round(fact));
+  }
+  if (ONE_DECIMAL_FACT.test(key) && typeof fact === "number") {
+    return fact.toFixed(1);
   }
   if (typeof fact === "number" && Number.isInteger(fact)) {
     return fact.toLocaleString("en-US");
@@ -134,14 +141,16 @@ export function NoteArticle({
 
   return (
     <article id={note.slug} className="scroll-mt-8">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.12em] text-text-muted">
-        <time dateTime={note.date}>{formatNoteDate(note.date)}</time>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-[family-name:var(--font-mono)] text-xs text-text-muted">
+        <time dateTime={note.date} className="uppercase tracking-[0.12em]">
+          {formatNoteDate(note.date)}
+        </time>
         <span aria-hidden="true">·</span>
         <span>
-          numbers from{" "}
+          Numbers from{" "}
           <a
             href={`https://github.com/PolicyEngine/policybench/releases/tag/${note.release}`}
-            className="normal-case tracking-normal text-primary-strong underline-offset-2 hover:underline"
+            className="text-primary-strong underline-offset-2 hover:underline"
           >
             release {note.release}
           </a>{" "}
