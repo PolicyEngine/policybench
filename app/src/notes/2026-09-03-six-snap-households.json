@@ -1,0 +1,100 @@
+{
+  "slug": "2026-09-03-six-snap-households",
+  "date": "2026-09-03",
+  "title": "Six SNAP households the top three models deny",
+  "paragraphs": [
+    "{eligibleCount} of the 100 households qualify for SNAP in the PolicyEngine reference. The top three models on the board, GPT-5.6 Sol, Claude Fable 5.1, and Kimi K3, each predict $0 for the same {deniedCount}: {deniedScenarios}. The reference for each is ${referenceAnnual} for the year, the minimum allotment (8% of the one-person maximum, ${referenceMonthly} a month, for households of one or two).",
+    "Five of the six qualify through broad-based categorical eligibility: Connecticut, Michigan, Texas, and Wisconsin confer SNAP eligibility on households receiving a TANF-funded non-cash benefit, with gross-income limits of 200% of poverty (CT, MI, WI) and 165% (TX) and the net-income and asset tests waived. The sixth, scenario_112 in Texas, passes the federal tests; the models counted farm-rent income the rules exclude.",
+    "{categoricalOnlyCount} of the {eligibleCount} eligible households qualify only through categorical eligibility: {categoricalIncomeCount} because income exceeds the federal limits (one of those also exceeds the asset limit), {categoricalAssetCount} because savings alone exceed the federal asset limit. On the {categoricalAssetCount} asset cases the models compute benefits near the reference: Sol within 1% on three and 10% on one, Fable 5.1 within 1% on all four.",
+    "Across the 100 households, Sol's SNAP explanations mention categorical eligibility in {solCategoricalMentions} and assets in {solAssetMentions}; Fable 5.1's mention broad-based categorical eligibility in {fableBbceMentions}; Kimi K3's mention categorical eligibility in {kimiCategoricalMentions}.",
+    "Pathways were recomputed with policyengine-us {pathwayEngineVersion} from the frozen scenarios and agree with the frozen reference SNAP values for all 100 households; the reference itself was generated with policyengine-us {referenceEngineVersion}."
+  ],
+  "facts": {
+    "eligibleCount": 20,
+    "deniedCount": 6,
+    "deniedScenarios": [
+      "scenario_027",
+      "scenario_030",
+      "scenario_045",
+      "scenario_073",
+      "scenario_108",
+      "scenario_112"
+    ],
+    "referenceAnnual": 287.68,
+    "referenceMonthly": 23.84,
+    "categoricalOnlyCount": 10,
+    "categoricalIncomeCount": 6,
+    "categoricalAssetCount": 4,
+    "solCategoricalMentions": 1,
+    "solAssetMentions": 36,
+    "fableBbceMentions": 28,
+    "kimiCategoricalMentions": 17,
+    "pathwayEngineVersion": "1.723.0",
+    "referenceEngineVersion": "1.755.4"
+  },
+  "mentionRegexes": {
+    "categorical": "categorical",
+    "assets": "asset|resource",
+    "bbce": "broad-based|bbce"
+  },
+  "data": [
+    {
+      "label": "scenario_027",
+      "href": "/?country=us&scenario=scenario_027#scenarios"
+    },
+    {
+      "label": "scenario_030",
+      "href": "/?country=us&scenario=scenario_030#scenarios"
+    },
+    {
+      "label": "scenario_045",
+      "href": "/?country=us&scenario=scenario_045#scenarios"
+    },
+    {
+      "label": "scenario_073",
+      "href": "/?country=us&scenario=scenario_073#scenarios"
+    },
+    {
+      "label": "scenario_108",
+      "href": "/?country=us&scenario=scenario_108#scenarios"
+    },
+    {
+      "label": "scenario_112",
+      "href": "/?country=us&scenario=scenario_112#scenarios"
+    },
+    {
+      "label": "Release predictions.csv.gz",
+      "href": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260901c/predictions.csv.gz"
+    },
+    {
+      "label": "Release dashboard-data.json",
+      "href": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260901c/dashboard-data.json"
+    },
+    {
+      "label": "Frozen predictions.csv.gz",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/predictions.csv.gz"
+    },
+    {
+      "label": "Frozen reference_outputs.csv",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_outputs.csv"
+    },
+    {
+      "label": "Frozen scenarios.csv",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/scenarios.csv"
+    },
+    {
+      "label": "Recomputed SNAP pathways",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/snap_pathways_20260901.csv"
+    },
+    {
+      "label": "TANF non-cash parameters",
+      "href": "https://github.com/PolicyEngine/policyengine-us/tree/main/policyengine_us/parameters/gov/hhs/tanf/non_cash"
+    },
+    {
+      "label": "SNAP minimum-allotment parameters",
+      "href": "https://github.com/PolicyEngine/policyengine-us/tree/main/policyengine_us/parameters/gov/usda/snap/min_allotment"
+    }
+  ],
+  "boardSnapshot": "2026-09-01",
+  "release": "dashboard-data-20260901c"
+}

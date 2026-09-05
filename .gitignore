@@ -12,6 +12,8 @@ results/ground_truth.csv
 results/scenarios.csv
 output/
 data/
+!notes/data/
+!notes/data/**
 # Committed sensitivity evidence (pinned by tests/test_sensitivity_evidence.py)
 !sensitivity/data/
 

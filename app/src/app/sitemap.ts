@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 
 import rawData from "../data-summary.json";
 import { listModels } from "../lib/modelPage";
+import { notes } from "../notes";
 import type { DashboardBundle } from "../types";
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -9,6 +10,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: `https://policybench.org/model/${id}`,
     changeFrequency: "monthly" as const,
     priority: 0.6,
+  }));
+  const noteEntries = notes.map((note) => ({
+    url: `https://policybench.org/notes/${note.slug}`,
+    changeFrequency: "monthly" as const,
+    priority: 0.5,
   }));
   return [
     {
@@ -22,10 +28,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     {
+      url: "https://policybench.org/notes",
+      changeFrequency: "weekly",
+      priority: 0.7,
+    },
+    {
       url: "https://policybench.org/expand",
       changeFrequency: "monthly",
       priority: 0.5,
     },
+    ...noteEntries,
     ...modelEntries,
   ];
 }

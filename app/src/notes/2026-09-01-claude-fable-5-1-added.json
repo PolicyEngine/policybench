@@ -1,0 +1,47 @@
+{
+  "slug": "2026-09-01-claude-fable-5-1-added",
+  "date": "2026-09-01",
+  "title": "Claude Fable 5.1 added",
+  "paragraphs": [
+    "Claude Fable 5.1 was released on 2026-09-01 and joined the board the same day. Board row: {exactRate}% of answers within $1, #{rank} of {nModels}. {parsed} of {answers} answers parsed.",
+    "The model's API rejects forced tool calls, which is how the board collects most models' answers, so its row answers as a JSON object and reasons at the provider default. The serving-configuration table in the paper records the transport for every row.",
+    "Sensitivity: with the answer tool declared under tool_choice auto, Fable 5.1 scores {autoRate}% (would rank #{autoRank}). Under the same request Claude Fable 5 scores {fable5AutoRate}%. Fable 5's board row ({fable5BoardRate}%) ran chunked under a forced tool call, which switches off its thinking, so the {boardGap}-point gap between the two board rows is mostly request shape.",
+    "The next board version moves every model to tool_choice auto so each provider's default reasoning engages under the recorded request shape (policybench#139)."
+  ],
+  "facts": {
+    "exactRate": 86.3,
+    "rank": 2,
+    "nModels": 33,
+    "parsed": 1984,
+    "answers": 1984,
+    "autoRate": 87.5,
+    "autoRank": 2,
+    "fable5AutoRate": 86.9,
+    "fable5BoardRate": 79.9,
+    "boardGap": 6.4
+  },
+  "data": [
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260901c"
+    },
+    {
+      "label": "Claude thinking sensitivity note",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md"
+    },
+    {
+      "label": "Pinned Fable 5.1 sensitivity evidence",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/sensitivity/data/claude-fable-5-1-thinking.json"
+    },
+    {
+      "label": "Paper serving-configuration table",
+      "href": "/paper"
+    },
+    {
+      "label": "Claude Fable 5.1 model page",
+      "href": "/model/claude-fable-5.1"
+    }
+  ],
+  "boardSnapshot": "2026-09-01",
+  "release": "dashboard-data-20260901c"
+}

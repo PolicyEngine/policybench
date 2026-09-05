@@ -1,0 +1,8 @@
+{
+  "release": "dashboard-data-20260905c",
+  "source_run": "us_full_run_20260612_policyengine_4_16_1_populace",
+  "annotations_sha256": "735b75d5a6599c8375a97f000b93c1904d6f27588480300bee0ab22430b893ef",
+  "rows": 62,
+  "generated_at_utc": "2026-09-05T16:36:43.512612+00:00",
+  "script": "scripts/astra_vs_sol_rows.py"
+}

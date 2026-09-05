@@ -69,11 +69,10 @@ export default function PaperPage() {
     <main id="main" className="min-h-screen bg-void">
       <h1 className="sr-only">PolicyBench paper</h1>
       <SiteHeader
-        actionLink={{
-          label: "Benchmark",
-          href: "/",
-          type: "internal",
-        }}
+        actionLinks={[
+          { label: "Leaderboard", href: "/", type: "internal" },
+          { label: "Notes", href: "/notes", type: "internal" },
+        ]}
         expandedContent={expanded}
         alwaysExpanded
       />

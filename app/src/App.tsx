@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -353,6 +354,10 @@ export default function App() {
         availableViews={availableViews}
         navItems={navItems}
         activeNav={activeNav}
+        actionLinks={[
+          { label: "Paper", href: "/paper", type: "internal" },
+          { label: "Notes", href: "/notes", type: "internal" },
+        ]}
         versionId={versionId}
         pendingVersionId={pendingVersionId}
         onSelectVersion={handleSelectVersion}
@@ -442,6 +447,13 @@ export default function App() {
             Paper
           </a>{" "}
           &middot;{" "}
+          <Link
+            href="/notes"
+            className="text-text-secondary hover:text-primary transition-colors"
+          >
+            Notes
+          </Link>{" "}
+          &middot;{" "}
           <a
             href="https://policyengine.org"
             className="text-text-secondary hover:text-primary transition-colors"
@@ -461,7 +473,8 @@ export default function App() {
             className="text-text-secondary hover:text-primary transition-colors"
           >
             Expand
-          </a>
+          </a>{" "}
+          &middot;{" "}
           <a
             href="https://github.com/PolicyEngine/policybench"
             className="text-text-secondary hover:text-primary transition-colors"

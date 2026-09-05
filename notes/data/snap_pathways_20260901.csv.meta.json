@@ -1,0 +1,6 @@
+{
+  "policyengine_us_version": "1.723.0",
+  "generated_at_utc": "2026-09-03T11:52:27.778906+00:00",
+  "scenarios_sha256": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+  "script": "scripts/snap_pathways.py"
+}
