@@ -69,7 +69,7 @@ verdict_ok() {
 extract_verdict() {
   envelope="$1"; out_tmp="$2"; meta_tmp="$3"; requested_model="$4"; cli_version="$5"
   "$PYTHON" - "$envelope" "$out_tmp" "$meta_tmp" "$requested_model" "$cli_version" <<'PY'
-import datetime, json, sys
+import datetime, hashlib, json, sys
 envelope_path, out_path, meta_path, requested_model, cli_version = sys.argv[1:6]
 try:
     envelope = json.load(open(envelope_path))
@@ -89,9 +89,13 @@ if verdict is None:
         sys.exit(1)
 if not isinstance(verdict, dict):
     sys.exit(1)
-json.dump(verdict, open(out_path, "w"), indent=2, sort_keys=True)
+verdict_bytes = json.dumps(verdict, indent=2, sort_keys=True).encode("utf-8")
+open(out_path, "wb").write(verdict_bytes)
 meta = {
     "judge_runner": "scripts/run_audit_claude.sh",
+    # Binds the sidecar to this verdict: a sidecar whose hash does not match
+    # the case's verdict.json is stale and carries no provenance.
+    "verdict_sha256": hashlib.sha256(verdict_bytes).hexdigest(),
     "judge_model_requested": requested_model,
     "judge_model_reported": sorted((envelope.get("modelUsage") or {}).keys()),
     "judge_cli_version": cli_version,
@@ -113,7 +117,9 @@ classify_one() {
   envelope="$case_dir/claude.json"
   [ -f "$prompt" ] || return 0
   verdict_ok "$out" && return 0
-  rm -f "$tmp" "$meta_tmp" "$envelope"
+  # No valid verdict: any sidecar left behind describes a verdict that no
+  # longer exists (re-prepared case) and must not outlive it.
+  rm -f "$tmp" "$meta_tmp" "$envelope" "$case_dir/verdict.meta.json"
   # Self-contained prompt, no tools, no project instructions; the schema
   # enforces the JSON shape. Publish atomically only once it validates.
   CLAUDE_CODE_SAFE_MODE=1 CLAUDE_CODE_DISABLE_CLAUDE_MDS=1 \
