@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "note": "Developer adjudications of judge verdicts that left a case outside the final failure classes (llm_error, parse_contract_failure). Each entry records the judge's verdict verbatim, the adjudicated class, and the reasoning, so the override is auditable. Applied to the row annotations and case notes by scripts/apply_adjudications.py before export; the freezer verifies every adjudicated case carries its adjudicated class and pins this file.",
+  "adjudications": [
+    {
+      "country": "us",
+      "scenario_id": "scenario_064",
+      "variable": "ssi",
+      "judge_model": "claude-opus-5",
+      "judged_on_utc": "2026-09-05",
+      "judge_failure_source": "prompt_ambiguity",
+      "judge_failure_subtype": "age_disability",
+      "judge_reading": "Two readings of the fact list are defensible: the stated 'is disabled' fact establishes disability for every disability-conditioned program including SSI, or SSI keys on its own disability input, distinct from the general disability flag, so an unlisted is_ssi_disabled leaves no categorically eligible member.",
+      "adjudicated_failure_source": "llm_error",
+      "adjudicated_failure_subtype": "age_disability",
+      "adjudicated_on": "2026-09-05",
+      "adjudicator": "developer",
+      "reasoning": "The prompt states that unlisted boolean and status facts are false. SSI's categorical test is a disability determination under the program's own standard; the household facts list a general 'is disabled' flag for Dependent 1 and no SSI disability determination, and the engine's SSI-specific flag is false for every member. The same case, with the same reference and the same ten incumbent rows, was classified llm_error (age_disability) by the 2026-09-01 board's judge; adjudicating the 2026-09-05 re-judge to llm_error keeps like rows classified alike across boards. The judge's ambiguity reading is preserved here and in the case note because it bears on a design question for the next board version: whether the prompt should expose SSI's disability input explicitly."
+    }
+  ]
+}
