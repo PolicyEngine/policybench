@@ -4,6 +4,96 @@ This is the canonical procedure for paid no-tools benchmark runs. Treat
 `results/local/` as scratch space; git history and release snapshots are the
 archive, not superseded local files.
 
+## 0. Launch long runs under launchd
+
+A paid `policybench run` takes hours. Start it with `scripts/launch_run.sh`,
+which installs a per-run launchd user agent, rather than with `nohup … &` from
+a terminal or an agent session. The job then belongs to launchd, not to the
+shell, terminal, or Claude Code session that started it: it keeps running when
+that process group is torn down, it comes back after a reboot (`RunAtLoad`),
+and if it is killed before finishing, launchd relaunches it and the supervisor
+resumes from `run_state.json` and the per-scenario CSVs (`KeepAlive` on an
+unfinished exit). A run that stops on purpose (budget stop, rounds exhausted,
+every scenario complete) unloads itself.
+
+```bash
+export OPENROUTER_API_KEY=...            # provider credentials are copied into the job
+scripts/launch_run.sh start --name glm53 --model glm-5.3 \
+  --scenario-manifest paper/snapshot/20260501/us_scenarios.csv \
+  --run-dir results/local/newmodels/glm53/run \
+  --budget-usd 40 --max-workers 5
+
+scripts/launch_run.sh status glm53       # launchd state, heartbeat summary, last log lines
+scripts/launch_run.sh logs glm53         # supervisor.log and launchd.log from the run dir
+scripts/launch_run.sh stop glm53         # SIGTERM, then SIGKILL, of the job's process group
+scripts/launch_run.sh list
+```
+
+Run it from the checkout whose code you want to benchmark; that checkout
+becomes `PYTHONPATH` and the supervisor executable defaults to its `.venv`
+(or the main clone's `.venv` when run from a worktree). Add `--dry-run` to
+print the plist instead of installing it. Variables named `*_API_KEY` or
+`*_API_TOKEN`, or prefixed `ANTHROPIC_`, `OPENAI_`, `OPENROUTER_`, `GEMINI_`,
+`GOOGLE_`, `XAI_`, `DEEPSEEK_`, `LITELLM_`, or `POLICYENGINE_`, are forwarded
+into the job because launchd does not inherit a shell's environment; endpoint
+overrides (`*_BASE_URL`, `*_API_BASE`) are not, since a Claude Code session
+exports `ANTHROPIC_BASE_URL` for its own proxy. Pass anything else with
+`--env NAME` or `--env NAME=VALUE`, or keep secrets in a mode-600 file and pass
+`--env-file`. The plist itself is written mode 600 under
+`~/Library/LaunchAgents/org.policyengine.policybench.<name>.plist`.
+
+The supervisor's stdout and stderr append to `<run dir>/supervisor.log`
+across relaunches; launchd's own output goes to `<run dir>/launchd.log`.
+`.launchd_restarts` counts consecutive unfinished exits (the wrapper gives up
+after `--max-restarts`, default 5, and writes `.launchd_gave_up`);
+`.launchd_done` marks a finished run.
+
+### What actually kills a run
+
+Investigated on 2026-09-04, when two board runs launched with
+`nohup caffeinate -i policybench run … & disown` from a Claude Code session
+died with `stopped_reason: null` and an empty log:
+
+- A **reboot** (`sysctl kern.boottime`; the Mac restarted at 10:14) killed the
+  GLM-5.3 run. `pmset -g log` showed no sleep, which is what made the deaths
+  look like session restarts. A launchd job with `RunAtLoad` resumes after a
+  reboot; a `nohup` job does not.
+- A **broad pattern kill** from another session,
+  `for p in $(pgrep -f "codex-api|gpt-6-astra"); do kill -9 $p; done`, took
+  out the GPT-6 Astra supervisor and its workers three minutes after launch:
+  the model id is in every worker's command line and is shared with unrelated
+  tooling that runs the same model. Never `pkill -f` a model id. Match the
+  run directory instead (`pkill -f -- "--run-dir $RUN_DIR"`), or use
+  `scripts/launch_run.sh stop`. launchd relaunches a job killed this way.
+- The run's own `pkill -f "policybench run --model glm-5.3"` during a
+  deliberate relaunch.
+
+What does **not** kill a `nohup … & disown` child: the Bash tool call
+returning, the session process exiting, or the session process receiving
+SIGTERM or SIGKILL. All three were tested against the Claude Code binary; the
+harness only signals the process group of a command that is still running,
+timed out, or was aborted, and background tasks (`run_in_background`) of an
+exiting agent. Children of a finished foreground command are not tracked.
+Note that `caffeinate -i cmd` execs `cmd` in the original pid and forks a
+helper, so `pkill -f` on the command line matches the helper too.
+
+### Regression check
+
+`scripts/check_run_survival.sh` (macOS only, no model calls) launches
+`/bin/sleep` through the launcher next to a plain `nohup` control from a
+throwaway process group, kills that whole group with SIGTERM and SIGKILL,
+checks that the control died and the launchd job survived, SIGKILLs the job
+and checks that launchd relaunched it, then stops it through the launcher and
+checks that nothing is left. Run it after touching the launcher or the
+wrapper. `tests/test_launch_run.py` covers the plist rendering, credential
+forwarding, and the wrapper's exit-code policy without launchd, so it runs in
+CI.
+
+To confirm survival across a Claude Code session restart specifically, start
+a run with the launcher from a session, restart or pause that session, and run
+`scripts/launch_run.sh status <name>` from a new one: the launchd pid and the
+`supervisor.log` mtime keep advancing.
+
 ## 1. Pick a Run Directory
 
 Use a dated, descriptive run directory and keep US and UK artifacts under it.
