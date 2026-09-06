@@ -1,4 +1,4 @@
-# Ox Alpha preview run (August 2026)
+# GLM-5.3-Flash preview run, queried as Ox Alpha (August 2026)
 
 `stealth/ox-alpha` is a cloaked model OpenRouter listed on 2026-08-21 with
 no maker named, a 1M-token context, and a free window of about a week.
@@ -6,8 +6,8 @@ Community fingerprinting pointed to a Zhipu GLM lineage; nothing was
 confirmed at the time of the run (the reveal came later, below). We ran it through the full benchmark because free previews of
 unreleased frontier models are worth measuring while they exist.
 
-It sits on the board as a labeled preview row, "Ox Alpha (GLM-5.3-Flash
-preview)": after the run, OpenRouter's listing recorded that the stealth model
+It sits on the board as a labeled preview row, "GLM-5.3-Flash (preview)",
+with a note that it was queried as Ox Alpha: after the run, OpenRouter's listing recorded that the stealth model
 "was developed and operated by ZAI, revealed to be ZAI GLM-5.3-Flash"; whether
 the checkpoint that answered is the one later released under that name has
 not been stated. It is publicly callable

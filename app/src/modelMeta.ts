@@ -58,7 +58,7 @@ export const MODEL_LABELS: Record<string, string> = {
   "grok-4.3": "Grok 4.3",
   "grok-4.5": "Grok 4.5",
   "grok-4.6": "Grok 4.6",
-  "ox-alpha": "Ox Alpha (GLM-5.3-Flash preview)",
+  "ox-alpha": "GLM-5.3-Flash (preview)",
   "grok-build-0.1": "Grok Build 0.1",
   "gpt-6-astra": "GPT-6 Astra",
   "gpt-5.6-sol": "GPT-5.6 Sol",
@@ -164,7 +164,7 @@ export function getProviderForModel(model: string): ProviderKey | null {
   if (model.startsWith("claude-")) return "anthropic";
   if (model.startsWith("deepseek-")) return "deepseek";
   if (model.startsWith("gemini-")) return "google";
-  // Ox Alpha ran as an OpenRouter stealth preview; Z.ai identified it as
+  // GLM-5.3-Flash (preview) ran as the OpenRouter stealth preview "Ox Alpha"; Z.ai identified it as
   // GLM-5.3-Flash after its run (openrouter.ai/stealth/ox-alpha).
   if (model.startsWith("glm-") || model === "ox-alpha") return "zai";
   if (model.startsWith("gpt-")) return "openai";
@@ -279,10 +279,19 @@ export function getPredictionTextColor(error: number, truth: number): string {
 /**
  * Short form of a model label for narrow table headers: any parenthetical
  * qualifier ("(GLM-5.3-Flash preview)") is dropped, then the last two words
- * are kept, so "Ox Alpha (GLM-5.3-Flash preview)" reads "Ox Alpha" rather
+ * are kept, so "GLM-5.3-Flash (preview)" reads "GLM-5.3-Flash" rather
  * than the qualifier alone. Pair it with the full label in a title attribute.
  */
 export function shortModelLabel(label: string): string {
   const base = label.replace(/\s*\([^)]*\)\s*$/, "").trim();
   return base.split(" ").slice(-2).join(" ");
 }
+
+/**
+ * How a row was queried when that differs from its label: the label names
+ * the model as disclosed, the note records the listing it answered under.
+ */
+export const MODEL_PROVENANCE_NOTES: Record<string, string> = {
+  "ox-alpha":
+    'Queried as "Ox Alpha", OpenRouter\'s stealth listing of 2026-08-20; Z.ai identified it as GLM-5.3-Flash after the run. Whether the checkpoint that answered is the one later released under that name has not been stated, so the row keeps its preview qualifier. Its id stays ox-alpha.',
+};
