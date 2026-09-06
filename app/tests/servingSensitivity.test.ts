@@ -22,6 +22,17 @@ const rows = bundle.countries.us.modelStats.filter(
   (row) => row.condition === "no_tools",
 );
 
+function renderFable5Chip(): string {
+  return renderToStaticMarkup(
+    createElement(ServingSensitivityChip, {
+      modelLabel: "Claude Fable 5",
+      boardExact: 80.4266,
+      sensitivity: servingSensitivityFor("claude-fable-5")!,
+      wouldRank: 3,
+    }),
+  );
+}
+
 describe("serving sensitivity", () => {
   test("covers exactly the four Claude rows whose request shape changed", () => {
     expect(Object.keys(SERVING_SENSITIVITY).sort()).toEqual([
@@ -102,25 +113,38 @@ describe("serving sensitivity", () => {
     expect(formatDelta(fable5.sensitivity.exact, fable5.board.exact)).toBe("+7.1");
   });
 
-  test("the open panel stays inside narrow viewports", () => {
-    // Desktop: under the chip at its own left edge.
-    expect(panelPosition({ left: 320, bottom: 400 }, 1280)).toEqual({
-      top: 406,
-      left: 320,
-      width: 352,
-    });
+  test("the open panel stays inside the viewport, horizontally and vertically", () => {
+    const desktop = { width: 1280, height: 800 };
+    // Room below: under the chip at its own left edge.
+    expect(
+      panelPosition({ left: 320, top: 380, bottom: 400 }, desktop, 250),
+    ).toMatchObject({ top: 406, left: 320, width: 352, side: "below" });
+    // Chip near the bottom: the panel goes above, ending 6px over the chip.
+    const low = panelPosition({ left: 320, top: 740, bottom: 760 }, desktop, 250);
+    expect(low.side).toBe("above");
+    expect(low.top + 250).toBe(740 - 6);
+    expect(low.top).toBeGreaterThanOrEqual(8);
+    // No room either side: the larger side wins and the panel gets a height
+    // cap so it scrolls instead of running off the screen.
+    const cramped = panelPosition({ left: 20, top: 300, bottom: 320 }, { width: 375, height: 500 }, 600);
+    expect(cramped.side).toBe("above");
+    expect(cramped.maxHeight).toBe(300 - 6 - 8);
+    expect(cramped.top).toBe(8);
     // 375px phone with the chip 120px in: the 352px panel shifts left so its
     // right edge stays 8px inside the viewport.
-    const phone = panelPosition({ left: 120, bottom: 400 }, 375);
+    const phone = panelPosition({ left: 120, top: 380, bottom: 400 }, { width: 375, height: 812 }, 250);
     expect(phone.width).toBe(352);
     expect(phone.left).toBe(375 - 352 - 8);
     expect(phone.left + phone.width).toBeLessThanOrEqual(375 - 8);
     // A 320px viewport is narrower than the panel's maximum: it shrinks.
-    const narrow = panelPosition({ left: 200, bottom: 400 }, 320);
+    const narrow = panelPosition({ left: 200, top: 380, bottom: 400 }, { width: 320, height: 568 }, 250);
     expect(narrow.width).toBe(320 - 16);
     expect(narrow.left).toBe(8);
-    // Chip near the right edge on a tablet: clamped, not overflowing.
-    const tablet = panelPosition({ left: 700, bottom: 300 }, 768);
-    expect(tablet.left + tablet.width).toBe(768 - 8);
+  });
+
+  test("the panel is focusable and labeled so keyboard users can enter it", () => {
+    const html = renderFable5Chip();
+    expect(html).toContain('tabindex="-1"');
+    expect(html).toContain('aria-label="Serving sensitivity for Claude Fable 5"');
   });
 });
