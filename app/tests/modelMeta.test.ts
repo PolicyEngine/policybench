@@ -1,5 +1,4 @@
-import {
-  shortModelLabel, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -10,6 +9,7 @@ import {
   PROVIDER_LABELS,
   frontierModelsFor,
   getProviderForModel,
+  shortModelLabel,
   orderModels,
   type ProviderKey,
   MODEL_ORDER,
