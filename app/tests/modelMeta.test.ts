@@ -9,6 +9,7 @@ import {
   PROVIDER_LABELS,
   frontierModelsFor,
   getProviderForModel,
+  shortModelLabel,
   orderModels,
   type ProviderKey,
   MODEL_ORDER,
@@ -114,5 +115,15 @@ describe("MODEL_RELEASE_DATES", () => {
     for (const model of MODEL_ORDER) {
       expect(MODEL_RELEASE_DATES[model]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
+  });
+});
+
+
+describe("shortModelLabel", () => {
+  test("drops a parenthetical qualifier before keeping the last two words", () => {
+    expect(shortModelLabel("Ox Alpha (GLM-5.3-Flash preview)")).toBe("Ox Alpha");
+    expect(shortModelLabel("DeepSeek V4 Flash 0731")).toBe("Flash 0731");
+    expect(shortModelLabel("GPT-6 Astra")).toBe("GPT-6 Astra");
+    expect(shortModelLabel("Inkling")).toBe("Inkling");
   });
 });

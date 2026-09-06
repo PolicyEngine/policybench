@@ -56,7 +56,7 @@ MODEL_DISPLAY_NAMES = {
     "claude-fable-5.1": "Claude Fable 5.1",
     "claude-fable-5": "Claude Fable 5",
     "claude-sonnet-5": "Claude Sonnet 5",
-    "ox-alpha": "Ox Alpha (preview)",
+    "ox-alpha": "Ox Alpha (GLM-5.3-Flash preview)",
     "grok-4.5": "Grok 4.5",
     "grok-4.6": "Grok 4.6",
     "deepseek-v4-pro": "DeepSeek V4 Pro",

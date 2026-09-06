@@ -30,7 +30,7 @@ def test_frozen_roster_has_39_display_names_and_release_dates():
     assert MODEL_DISPLAY_NAMES["gemini-3.7-flash"] == "Gemini 3.7 Flash"
     assert MODEL_RELEASE_DATES["gemini-3.7-flash"] == "2026-08-13"
     assert MODEL_DISPLAY_NAMES["grok-4.6"] == "Grok 4.6"
-    assert MODEL_DISPLAY_NAMES["ox-alpha"] == "Ox Alpha (preview)"
+    assert MODEL_DISPLAY_NAMES["ox-alpha"] == "Ox Alpha (GLM-5.3-Flash preview)"
     assert MODEL_RELEASE_DATES["ox-alpha"] == "2026-08-20"
 
 

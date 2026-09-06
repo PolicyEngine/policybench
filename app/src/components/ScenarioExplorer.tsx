@@ -12,6 +12,7 @@ import {
   MODEL_LABELS,
   PROVIDER_LABELS,
   frontierModelsFor,
+  shortModelLabel,
   getProviderForModel,
   getPredictionTextColor,
   orderModels,
@@ -625,6 +626,7 @@ export default function ScenarioExplorer({
               {models.map((m) => (
                 <th
                   key={m}
+                  title={MODEL_LABELS[m] ?? m}
                   className="text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium pb-3 px-3 w-28"
                 >
                   <div className="flex items-center justify-end gap-1.5">
@@ -633,7 +635,7 @@ export default function ScenarioExplorer({
                       size={12}
                       className="flex-shrink-0"
                     />
-                    {(MODEL_LABELS[m] ?? m).split(" ").slice(-2).join(" ")}
+                    {shortModelLabel(MODEL_LABELS[m] ?? m)}
                   </div>
                 </th>
               ))}

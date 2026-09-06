@@ -180,7 +180,7 @@ div.csl-indent {
 <p>Because explanations are required, the canonical task measures policy estimation under a public-facing structured-response contract, not isolated arithmetic accuracy. Prompt fairness is part of the benchmark contract. The current release uses one prompt template per country, with no model-specific tuning. Models receive the same household facts and requested outputs. They receive no web or external tool access. The prompt sets unlisted numeric inputs to <code>0</code>, unlisted boolean or status facts to false, and household characteristics as constant over the tax-benefit year. Provider-specific differences are limited to structured-output transport, request shape, and the reasoning setup in <a href="#tbl-model-runs" class="quarto-xref">Table&nbsp;2</a>. The harness sends no reasoning-control or sampling parameters. It leaves reasoning effort, temperature, and related decoding controls at provider defaults. The frozen GPT-5.5 wave uses provider-default reasoning effort.</p>
 <p>The forced <code>tool_choice</code> suppresses Claude’s extended thinking in this snapshot (<a href="https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md"><code>sensitivity/claude-thinking-2026-08.md</code></a>). A labeled sensitivity with <code>tool_choice: "auto"</code> is published beside the board. Claude Fable 5.1, released September 1, 2026, closes the interaction from the API side: it rejects forced tool use with an error, so its row answers through the JSON transport and reasons at the provider default; a sensitivity run with the tool declared under <code>tool_choice: "auto"</code> scores 1.2 points above that row. The next board version moves every model to <code>tool_choice: "auto"</code> so each provider’s default reasoning posture can engage.</p>
 <p>Two dimensions on which requests were not identical across models are request shape and answer transport (<a href="#tbl-model-runs" class="quarto-xref">Table&nbsp;2</a>). 10 of the 39 models could not reliably complete the whole-scenario request because their serving stacks rejected the structured-output call, exhausted completion budgets mid-response, or timed out. They instead answered the same prompt template over subsets of the requested outputs, one to three outputs per request. Subsetting gives each response fewer requested outputs and a fresh completion budget over the same household facts, so the accommodation, if it moves scores at all, should favor the chunked models; their scores are not strictly comparable to whole-scenario scores. This accommodation is closed going forward: a model added after this snapshot either answers the canonical whole-scenario request or is listed as not scorable rather than accommodated.</p>
-<p>One row, Ox Alpha, ran as a cloaked preview and is listed as such. It was publicly callable under the canonical whole-scenario request and forced-tool transport, and its date is its OpenRouter listing date. After the row’s run, Z.ai identified the preview as GLM-5.3-Flash <span class="citation" data-cites="openrouter2026oxalpha">(OpenRouter 2026)</span>; the row keeps its preview label because the checkpoint it ran was never published under that name, and it is distinct from the GLM-5.3 row, which is Z.ai’s larger model called under its own id.</p>
+<p>One row, Ox Alpha, ran as a cloaked preview and is listed as such. It was publicly callable under the canonical whole-scenario request and forced-tool transport, and its date is its OpenRouter listing date. After the row’s run, Z.ai identified the preview as GLM-5.3-Flash <span class="citation" data-cites="openrouter2026oxalpha">(OpenRouter 2026)</span>; the row is labeled “Ox Alpha (GLM-5.3-Flash preview)”: it names the model Z.ai disclosed and keeps the preview status, because whether the checkpoint that answered is the one later released under that name has not been stated, and it is distinct from the GLM-5.3 row, which is Z.ai’s larger model called under its own id.</p>
 <h3 id="frozen-snapshot-and-open-set-status" class="anchored">Frozen snapshot and open-set status</h3>
 <p>Leaderboard positions are version-sensitive, so manuscript claims refer to the frozen source-run exports in <a href="#tbl-snapshot" class="quarto-xref">Table&nbsp;1</a> rather than to the live site. The committed source-run exports are the manuscript artifacts. The public site exposes the current prompts, predictions, explanations, and reference outputs for transparency. This makes the public leaderboard open-set: models, model providers, or benchmark users could learn from the released cases before later runs. Protected leaderboard claims would require a separate held-out or rotating set.</p>
 <div class="cell" data-execution_count="2">
@@ -298,7 +298,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </figure>
 </div>
 </div>
-<div id="ce6fb97d" class="cell" data-execution_count="3">
+<div id="e3b68642" class="cell" data-execution_count="3">
 <div class="cell-output cell-output-display cell-output-markdown" data-execution_count="3">
 <div id="tbl-model-runs" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-tbl">
@@ -653,7 +653,7 @@ Table&nbsp;2: Model run configuration in the frozen manuscript snapshot. Every m
 <td>provider default; 16,384-token shared budget</td>
 </tr>
 <tr class="odd">
-<td>Ox Alpha (preview)</td>
+<td>Ox Alpha (GLM-5.3-Flash preview)</td>
 <td>openrouter/​stealth/​ox-alpha</td>
 <td>2026-08-20</td>
 <td>1,973/​1,973</td>
@@ -1020,7 +1020,7 @@ Table&nbsp;7: Estimated cost and median latency per household for the frozen US 
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">5</th>
-<td>Ox Alpha (preview)</td>
+<td>Ox Alpha (GLM-5.3-Flash preview)</td>
 <td>84.1</td>
 <td>—</td>
 <td>242 s</td>
@@ -1850,7 +1850,7 @@ Table&nbsp;13: US within-10% accuracy on federal vs state refundable credits and
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">36</th>
-<td>Ox Alpha (preview)</td>
+<td>Ox Alpha (GLM-5.3-Flash preview)</td>
 <td>90.0</td>
 <td>81.0</td>
 <td>75.0</td>

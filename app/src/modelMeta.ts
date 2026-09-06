@@ -58,7 +58,7 @@ export const MODEL_LABELS: Record<string, string> = {
   "grok-4.3": "Grok 4.3",
   "grok-4.5": "Grok 4.5",
   "grok-4.6": "Grok 4.6",
-  "ox-alpha": "Ox Alpha (preview)",
+  "ox-alpha": "Ox Alpha (GLM-5.3-Flash preview)",
   "grok-build-0.1": "Grok Build 0.1",
   "gpt-6-astra": "GPT-6 Astra",
   "gpt-5.6-sol": "GPT-5.6 Sol",
@@ -274,4 +274,15 @@ export function getPredictionTextColor(error: number, truth: number): string {
   if (pctErr <= 0.25) return INFO;
   if (pctErr <= 0.5) return WARNING;
   return ERROR;
+}
+
+/**
+ * Short form of a model label for narrow table headers: any parenthetical
+ * qualifier ("(GLM-5.3-Flash preview)") is dropped, then the last two words
+ * are kept, so "Ox Alpha (GLM-5.3-Flash preview)" reads "Ox Alpha" rather
+ * than the qualifier alone. Pair it with the full label in a title attribute.
+ */
+export function shortModelLabel(label: string): string {
+  const base = label.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return base.split(" ").slice(-2).join(" ");
 }
