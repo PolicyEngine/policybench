@@ -8,6 +8,7 @@ import {
   HEATMAP_METRICS,
   heatmapValue,
 } from "../src/lib/heatmapMetric";
+import { scorePrediction } from "../src/lib/scoring";
 import { buildProgramOptions } from "../src/lib/programFilters";
 import rawData from "../src/data-summary.json";
 import type { DashboardBundle, HeatmapEntry } from "../src/types";
@@ -79,5 +80,25 @@ describe("program heatmap metric", () => {
     expect(cells).not.toEqual(boundedRates);
     expect(cells).toContain(69);
     expect(html).toContain('aria-pressed="true"');
+  });
+
+  test("the definitions state the zero-reference rule the scorers apply", () => {
+    // A $0.14 answer to a $0 reference is within $1, so it earns exact and
+    // within-1% credit, but the bounded score demands an exact zero.
+    const row =
+      bench.scenarioPredictions["scenario_102"]["self_employment_tax"][
+        "claude-haiku-4.5"
+      ];
+    expect(row.groundTruth).toBe(0);
+    expect(row.prediction).toBeCloseTo(0.14, 2);
+    expect(row.within1pct).toBe(100);
+    expect(row.exact).toBe(100);
+    expect(row.score).toBe(0);
+    expect(scorePrediction("self_employment_tax", "us", 0, 0.14)).toBe(0);
+    expect(scorePrediction("self_employment_tax", "us", 0, 0)).toBe(1);
+    const byId = Object.fromEntries(HEATMAP_METRICS.map((m) => [m.id, m.description]));
+    expect(byId.within1pct).toContain("within $1 when the reference is $0");
+    expect(byId.score).toContain("nonzero answer to a $0 reference scores zero");
+    expect(byId.exact).toContain("within $1 of the reference");
   });
 });

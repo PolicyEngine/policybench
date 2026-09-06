@@ -25,13 +25,13 @@ export const HEATMAP_METRICS: HeatmapMetric[] = [
     id: "within1pct",
     label: "Within 1%",
     description:
-      "the near-miss companion: a dollar answer within 1% of the reference, or a matching flag",
+      "the near-miss companion: a dollar answer within 1% of the reference, or within $1 when the reference is $0, or a matching flag",
   },
   {
     id: "score",
     label: "Bounded score",
     description:
-      "partial credit: dollar answers score by relative error, eligibility flags by exact match",
+      "partial credit: dollar answers score by relative error, so a nonzero answer to a $0 reference scores zero; eligibility flags score by exact match",
   },
 ];
 
