@@ -275,3 +275,14 @@ export function getPredictionTextColor(error: number, truth: number): string {
   if (pctErr <= 0.5) return WARNING;
   return ERROR;
 }
+
+/**
+ * Short form of a model label for narrow table headers: any parenthetical
+ * qualifier ("(GLM-5.3-Flash preview)") is dropped, then the last two words
+ * are kept, so "Ox Alpha (GLM-5.3-Flash preview)" reads "Ox Alpha" rather
+ * than the qualifier alone. Pair it with the full label in a title attribute.
+ */
+export function shortModelLabel(label: string): string {
+  const base = label.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return base.split(" ").slice(-2).join(" ");
+}

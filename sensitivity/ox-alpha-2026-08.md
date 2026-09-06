@@ -2,8 +2,8 @@
 
 `stealth/ox-alpha` is a cloaked model OpenRouter listed on 2026-08-21 with
 no maker named, a 1M-token context, and a free window of about a week.
-Community fingerprinting points to a Zhipu GLM lineage. Nothing is
-confirmed. We ran it through the full benchmark because free previews of
+Community fingerprinting pointed to a Zhipu GLM lineage; nothing was
+confirmed at the time of the run (the reveal came later, below). We ran it through the full benchmark because free previews of
 unreleased frontier models are worth measuring while they exist.
 
 It sits on the board as a labeled preview row, "Ox Alpha (GLM-5.3-Flash
@@ -12,7 +12,7 @@ preview)": after the run, OpenRouter's listing recorded that the stealth model
 the checkpoint that answered is the one later released under that name has
 not been stated. It is publicly callable
 under the identical request, so it meets the board's inclusion rule; what
-it lacks is a named maker and durability. The row is dated by its
+it lacked at run time was a named maker and durability. The row is dated by its
 OpenRouter listing (2026-08-21). If the model later ships under its own
 name, that model gets onboarded normally, with this run as its early read.
 
