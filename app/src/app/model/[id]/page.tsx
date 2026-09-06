@@ -11,6 +11,7 @@ import rawData from "../../../data-summary.json";
 import versionRegistryJson from "../../../data.versions.json";
 import ArchivedBoardNotice from "../../../components/ArchivedBoardNotice";
 import SiteHeader from "../../../components/SiteHeader";
+import ProgramBars from "../../../components/ProgramBars";
 import ProviderMark from "../../../components/ProviderMark";
 import { formatCurrency } from "../../../format";
 import {
@@ -36,6 +37,7 @@ import {
   type DashboardBundle,
 } from "../../../types";
 import { parseDataVersionRegistry } from "../../../lib/dataVersions";
+import { programBars } from "../../../lib/programChart";
 
 const dashboard = rawData as DashboardBundle;
 const usAuditSummary = dashboard.countries.us
@@ -192,6 +194,7 @@ export default async function ModelPage({
           const bench = dashboard.countries[summary.country];
           if (!bench) return null;
           const rows = programRows(bench, id);
+          const bars = programBars(bench, id);
           const cases = hardestCases(bench, id);
           const coverage = coverageAccuracy(bench, id);
           const sensitivity = servingSensitivityFor(id);
@@ -271,52 +274,65 @@ export default async function ModelPage({
               <div className="mt-8 grid gap-8 lg:grid-cols-2">
                 <div>
                   <h3 className="text-sm font-medium text-text">
-                    Score by program
+                    Exact match by program
                     <span className="ml-2 text-text-muted font-normal">
-                      hardest first
+                      all {bars.length} output groups, best first
                     </span>
                   </h3>
+                  <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                    Bar length is the unweighted exact-match rate on that
+                    program&apos;s outputs; the right column is the
+                    program&apos;s share of the headline weight, which follows
+                    household dollars, so the bars do not average to the
+                    headline.
+                  </p>
+                  <ProgramBars bars={bars} country={summary.country} />
+                  <details className="mt-4">
+                    <summary className="cursor-pointer text-xs text-text-muted hover:text-text">
+                      Table view (exact, within 1%, outputs), hardest first
+                    </summary>
                   <div className="mt-3 overflow-x-auto rounded-2xl border border-border bg-card">
-                    <table className="w-full border-collapse text-sm">
-                      <thead>
-                        <tr className="border-b border-border-subtle">
-                          <th className="px-4 py-2.5 text-left text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                            Program
-                          </th>
-                          <th className="px-4 py-2.5 text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                            Exact
-                          </th>
-                          <th className="px-4 py-2.5 text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                            Within 1%
-                          </th>
-                          <th className="px-4 py-2.5 text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-                            n
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((row) => (
-                          <tr
-                            key={row.variable}
-                            className="border-t border-border-subtle first:border-t-0"
-                          >
-                            <td className="px-4 py-2 text-text-secondary">
-                              {getVariableLabel(row.variable, summary.country)}
-                            </td>
-                            <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text">
-                              {formatPct(row.exact)}
-                            </td>
-                            <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text-secondary">
-                              {formatPct(row.within1pct)}
-                            </td>
-                            <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text-muted">
-                              {row.n}
-                            </td>
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="border-b border-border-subtle">
+                            <th className="px-4 py-2.5 text-left text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                              Program
+                            </th>
+                            <th className="px-4 py-2.5 text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                              Exact
+                            </th>
+                            <th className="px-4 py-2.5 text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                              Within 1%
+                            </th>
+                            <th className="px-4 py-2.5 text-right text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                              n
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {rows.map((row) => (
+                            <tr
+                              key={row.variable}
+                              className="border-t border-border-subtle first:border-t-0"
+                            >
+                              <td className="px-4 py-2 text-text-secondary">
+                                {getVariableLabel(row.variable, summary.country)}
+                              </td>
+                              <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text">
+                                {formatPct(row.exact)}
+                              </td>
+                              <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text-secondary">
+                                {formatPct(row.within1pct)}
+                              </td>
+                              <td className="px-4 py-2 text-right font-[family-name:var(--font-mono)] text-text-muted">
+                                {row.n}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
                 </div>
 
                 <div>
