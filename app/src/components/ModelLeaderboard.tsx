@@ -306,9 +306,11 @@ export default function ModelLeaderboard({
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
             Three Claude rows ran without extended thinking: this board forces
-            the answer tool call, which switches Claude&apos;s thinking off.
-            Claude Fable 5.1 rejects forced calls, answers as JSON and reasons
-            either way, so its marker compares transports. The{" "}
+            the answer tool call for every row whose model card selects the
+            tool contract, which switches Claude&apos;s thinking off. Claude
+            Fable 5.1 rejects forced calls, so its row selects JSON, answers as
+            a JSON object and reasons either way; its marker compares
+            transports. The{" "}
             <code>tool_choice: auto</code> re-runs are marked on the four rows
             (open a marker for the score and why); the board itself is
             unchanged. The{" "}
