@@ -1,5 +1,11 @@
-import { useMemo } from "react";
-import { getVariableLabel, type BenchData, type HeatmapEntry } from "../types";
+import { useMemo, useState } from "react";
+import { getVariableLabel, type BenchData } from "../types";
+import {
+  DEFAULT_HEATMAP_METRIC,
+  HEATMAP_METRICS,
+  heatmapValue,
+  type HeatmapMetricId,
+} from "../lib/heatmapMetric";
 import {
   MODEL_LABELS,
   getPerformanceSurfaceColor,
@@ -8,10 +14,6 @@ import {
 } from "../modelMeta";
 import { programIsActive, type ProgramOption } from "../lib/programFilters";
 import ProgramFilterDropdown from "./ProgramFilterDropdown";
-
-function getHeatmapScore(entry: HeatmapEntry): number {
-  return entry.score ?? entry.within10pct ?? entry.accuracy ?? 0;
-}
 
 function cellColor(pct: number): string {
   return getPerformanceSurfaceColor(pct);
@@ -48,12 +50,14 @@ export default function ProgramHeatmap({
   onSelectOnlyProgram: (variable: string) => void;
 }) {
   const country = data.country;
+  const [metric, setMetric] = useState<HeatmapMetricId>(DEFAULT_HEATMAP_METRIC);
+  const activeMetric = HEATMAP_METRICS.find((m) => m.id === metric)!;
   const { grid, variables } = useMemo(() => {
-    // Build lookup: model+variable → bounded score
+    // Build lookup: model+variable → rate under the selected metric
     const lookup: Record<string, number> = {};
     for (const h of data.heatmap) {
       if (h.condition !== "no_tools") continue;
-      lookup[`${h.model}|${h.variable}`] = getHeatmapScore(h);
+      lookup[`${h.model}|${h.variable}`] = heatmapValue(h, metric);
     }
 
     // Get unique variables sorted by average score (worst first for impact)
@@ -62,7 +66,7 @@ export default function ProgramHeatmap({
       if (h.condition !== "no_tools") continue;
       if (!programIsActive(activeProgramIds, h.variable)) continue;
       if (!varAcc[h.variable]) varAcc[h.variable] = [];
-      varAcc[h.variable].push(getHeatmapScore(h));
+      varAcc[h.variable].push(heatmapValue(h, metric));
     }
     const variables = Object.keys(varAcc).sort((a, b) => {
       const avgA = varAcc[a].reduce((s, v) => s + v, 0) / varAcc[a].length;
@@ -71,7 +75,7 @@ export default function ProgramHeatmap({
     });
 
     return { grid: lookup, variables };
-  }, [activeProgramIds, data]);
+  }, [activeProgramIds, data, metric]);
 
   const models = orderModels(
     data.heatmap
@@ -102,10 +106,35 @@ export default function ProgramHeatmap({
         className="text-text-secondary mt-3 max-w-xl leading-relaxed animate-fade-up"
         style={{ animationDelay: "160ms" }}
       >
-        Bounded score by program and model (AI alone). Dollar
-        targets use continuous relative-error partial credit; binary coverage
-        flags use exact accuracy.
+        {activeMetric.label} by program and model (AI alone):{" "}
+        {activeMetric.description}. Each cell is that model&apos;s unweighted
+        rate on the program&apos;s outputs; the leaderboard weights programs
+        by their share of household dollars, so a model&apos;s cells do not
+        average to its headline score.
       </p>
+
+      <div
+        role="group"
+        aria-label="Heatmap metric"
+        className="mt-5 inline-flex flex-wrap gap-1 rounded-full border border-border bg-surface p-1 animate-fade-up"
+        style={{ animationDelay: "200ms" }}
+      >
+        {HEATMAP_METRICS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={metric === option.id}
+            onClick={() => setMetric(option.id)}
+            className={`rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] transition-colors ${
+              metric === option.id
+                ? "bg-primary-soft text-primary-strong"
+                : "text-text-muted hover:text-text"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
 
       <ProgramFilterDropdown
         options={programOptions}
@@ -184,12 +213,12 @@ export default function ProgramHeatmap({
 
       <div
         role="list"
-        aria-label="Score color scale: cells color-code each row's percent score; the printed percentage in the cell is the source of truth"
+        aria-label="Color scale: cells color-code each row's percent rate; the printed percentage in the cell is the source of truth"
         className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] uppercase tracking-[0.14em] text-text-muted"
       >
         <span className="sr-only">
           Cells use color as a redundant cue; the percentage shown in each
-          cell is the actual benchmark score.
+          cell is the model&apos;s rate under the selected metric.
         </span>
         {SCORE_LEGEND.map(({ label, score }) => (
           <div key={label} role="listitem" className="flex items-center gap-1.5">
