@@ -58,7 +58,7 @@ export const MODEL_LABELS: Record<string, string> = {
   "grok-4.3": "Grok 4.3",
   "grok-4.5": "Grok 4.5",
   "grok-4.6": "Grok 4.6",
-  "ox-alpha": "Ox Alpha (preview)",
+  "ox-alpha": "Ox Alpha (GLM-5.3-Flash preview)",
   "grok-build-0.1": "Grok Build 0.1",
   "gpt-6-astra": "GPT-6 Astra",
   "gpt-5.6-sol": "GPT-5.6 Sol",
