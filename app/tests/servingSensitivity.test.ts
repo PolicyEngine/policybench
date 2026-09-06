@@ -142,6 +142,34 @@ describe("serving sensitivity", () => {
     expect(narrow.left).toBe(8);
   });
 
+  test("a capped panel never extends past the viewport after the chip moves", () => {
+    // The round-3 case: 568×320 viewport, 250px of content. Above the chip at
+    // 160–180 the panel is capped; after the chip scrolls to 260–280 the
+    // placement recomputed from the content height keeps it inside.
+    const viewport = { width: 568, height: 320 };
+    const first = panelPosition({ left: 40, top: 160, bottom: 180 }, viewport, 250);
+    expect(first.side).toBe("above");
+    expect(first.top).toBe(8);
+    expect(first.maxHeight).toBe(160 - 6 - 8);
+    const moved = panelPosition({ left: 40, top: 260, bottom: 280 }, viewport, 250);
+    expect(moved.side).toBe("above");
+    expect(moved.top + Math.min(250, moved.maxHeight)).toBeLessThanOrEqual(320 - 8);
+    expect(moved.top).toBeGreaterThanOrEqual(8);
+    // Every placement keeps the visible box inside the viewport, whatever the
+    // chip position, viewport, or content height.
+    for (const height of [120, 250, 600]) {
+      for (const vh of [320, 568, 900]) {
+        for (let top = 0; top <= vh; top += 37) {
+          const p = panelPosition({ left: 100, top, bottom: top + 20 }, { width: 800, height: vh }, height);
+          const visible = Math.min(height, p.maxHeight);
+          expect(p.top).toBeGreaterThanOrEqual(8);
+          expect(p.top + visible).toBeLessThanOrEqual(vh - 8 + 1e-9);
+          expect(p.contentHeight).toBe(height);
+        }
+      }
+    }
+  });
+
   test("the panel is focusable and labeled so keyboard users can enter it", () => {
     const html = renderFable5Chip();
     expect(html).toContain('tabindex="-1"');

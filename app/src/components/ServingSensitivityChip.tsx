@@ -35,6 +35,8 @@ export type PanelPlacement = {
   /** Height cap when neither side of the chip has room for the panel. */
   maxHeight: number;
   side: "below" | "above";
+  /** The content height this placement was computed from. */
+  contentHeight: number;
 };
 
 /**
@@ -62,6 +64,7 @@ export function panelPosition(
       width,
       maxHeight: Math.max(0, roomBelow),
       side: "below",
+      contentHeight: panelHeight,
     };
   }
   const height = Math.min(panelHeight, Math.max(0, roomAbove));
@@ -71,7 +74,15 @@ export function panelPosition(
     width,
     maxHeight: Math.max(0, roomAbove),
     side: "above",
+    contentHeight: panelHeight,
   };
+}
+
+/** The panel's unclipped content height: what placement must be computed
+ * from, since the rendered box may be capped by an earlier placement. */
+function panelContentHeight(panel: HTMLElement | null): number {
+  if (!panel) return 0;
+  return Math.max(panel.scrollHeight, panel.getBoundingClientRect().height);
 }
 
 /**
@@ -103,7 +114,7 @@ export default function ServingSensitivityChip({
   const [placement, setPlacement] = useState<PanelPlacement | null>(null);
   // Focus moves into the panel once the portaled copy has been committed,
   // not on the toggle itself (the portal does not exist yet at that point).
-  const [pendingFocus, setPendingFocus] = useState(false);
+  const pendingFocus = useRef(false);
 
   const close = useCallback((restoreFocus: boolean) => {
     const details = detailsRef.current;
@@ -112,7 +123,8 @@ export default function ServingSensitivityChip({
     if (restoreFocus) details?.querySelector("summary")?.focus();
   }, []);
 
-  // Place from the chip's current position and the panel's rendered height.
+  // Place from the chip's current position and the panel's content height
+  // (never its rendered height, which an earlier placement may have capped).
   // The first pass after opening measures the inline (hidden) copy of the
   // panel; later passes measure the portaled one.
   const place = useCallback(() => {
@@ -120,7 +132,7 @@ export default function ServingSensitivityChip({
     const summary = details?.querySelector("summary");
     if (!details?.open || !summary) return;
     const rect = summary.getBoundingClientRect();
-    const measured = panelRef.current?.getBoundingClientRect().height ?? 0;
+    const measured = panelContentHeight(panelRef.current);
     setPlacement(
       panelPosition(
         { left: rect.left, top: rect.top, bottom: rect.bottom },
@@ -142,10 +154,10 @@ export default function ServingSensitivityChip({
       if (details.open) {
         place();
         // Keyboard users land inside the explanation; Escape returns them.
-        setPendingFocus(true);
+        pendingFocus.current = true;
       } else {
         setPlacement(null);
-        setPendingFocus(false);
+        pendingFocus.current = false;
       }
     };
     const onKey = (event: KeyboardEvent) => {
@@ -202,34 +214,35 @@ export default function ServingSensitivityChip({
   }, [close, place]);
 
   useEffect(() => {
-    if (!placement || !pendingFocus) return;
+    if (!placement || !pendingFocus.current) return;
+    pendingFocus.current = false;
     panelRef.current?.focus();
-    setPendingFocus(false);
-  }, [placement, pendingFocus]);
+  }, [placement]);
 
-  // Re-place once the portaled panel has a real height (it may differ from
-  // the hidden inline copy's estimate).
+  // Re-place once the portaled panel's content height is known (it may differ
+  // from the hidden inline copy's estimate, and from the height an earlier,
+  // capped placement was computed with).
   useEffect(() => {
     if (!placement) return;
-    const measured = panelRef.current?.getBoundingClientRect().height ?? 0;
-    if (measured && Math.abs(measured - (placement.maxHeight || measured)) > 0) {
+    const measured = panelContentHeight(panelRef.current);
+    if (!measured || measured === placement.contentHeight) return;
+    // Measured after commit; the re-placement is scheduled on the next frame
+    // so the effect itself only reads layout.
+    const frame = requestAnimationFrame(() => {
       const details = detailsRef.current;
       const summary = details?.querySelector("summary");
       if (!details?.open || !summary) return;
       const rect = summary.getBoundingClientRect();
-      const next = panelPosition(
-        { left: rect.left, top: rect.top, bottom: rect.bottom },
-        { width: window.innerWidth, height: window.innerHeight },
-        measured,
+      setPlacement(
+        panelPosition(
+          { left: rect.left, top: rect.top, bottom: rect.bottom },
+          { width: window.innerWidth, height: window.innerHeight },
+          measured,
+        ),
       );
-      if (next.top !== placement.top || next.side !== placement.side) {
-        setPlacement(next);
-      }
-    }
-    // Only the measured height can change the answer; placement itself is
-    // the trigger.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [placement?.top, placement?.side]);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [placement]);
 
   const auto = sensitivity.autoExact.toFixed(1);
   const deltaText = formatDelta(sensitivity.autoExact, boardExact);
@@ -242,6 +255,7 @@ export default function ServingSensitivityChip({
       aria-label={`Serving sensitivity for ${modelLabel}`}
       data-testid="serving-sensitivity-panel"
       data-side={placement?.side}
+      data-content-height={placement?.contentHeight}
       className="z-50 overflow-y-auto rounded-lg border border-border bg-card p-3 text-left text-xs leading-relaxed text-text-secondary shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40"
       style={
         placement
