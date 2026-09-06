@@ -1,0 +1,369 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import Link from "next/link";
+
+import {
+  NEXT_BOARD_HREF,
+  SENSITIVITY_DOC_HREF,
+  formatDelta,
+  type ServingSensitivity,
+} from "../lib/servingSensitivity";
+import {
+  servingSensitivityDisclosures,
+  type DisclosureHandle,
+} from "../lib/disclosureRegistry";
+
+const PANEL_MAX_WIDTH = 352; // 22rem
+const VIEWPORT_MARGIN = 8;
+const PANEL_GAP = 6;
+
+function NoteLink({ href, children }: { href: string; children: string }) {
+  const className = "text-primary-strong underline-offset-2 hover:underline";
+  return href.startsWith("/") ? (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  ) : (
+    <a href={href} className={className}>
+      {children}
+    </a>
+  );
+}
+
+export type PanelPlacement = {
+  top: number;
+  left: number;
+  width: number;
+  /** Height cap when neither side of the chip has room for the panel. */
+  maxHeight: number;
+  side: "below" | "above";
+  /** The content height this placement was computed from. */
+  contentHeight: number;
+};
+
+/**
+ * Where to place the panel: under the chip when the viewport has room for
+ * its height there, above the chip otherwise, and clamped horizontally so
+ * the whole panel stays inside the viewport on narrow screens. When neither
+ * side fits, the larger side is used and the panel scrolls inside its
+ * height cap rather than running off the screen.
+ */
+export function panelPosition(
+  anchor: { left: number; top: number; bottom: number },
+  viewport: { width: number; height: number },
+  panelHeight: number,
+): PanelPlacement {
+  const width = Math.min(PANEL_MAX_WIDTH, viewport.width - 2 * VIEWPORT_MARGIN);
+  const maxLeft = viewport.width - width - VIEWPORT_MARGIN;
+  const left = Math.max(VIEWPORT_MARGIN, Math.min(anchor.left, maxLeft));
+  const roomBelow = viewport.height - VIEWPORT_MARGIN - (anchor.bottom + PANEL_GAP);
+  const roomAbove = anchor.top - PANEL_GAP - VIEWPORT_MARGIN;
+  const below = panelHeight <= roomBelow || roomBelow >= roomAbove;
+  if (below) {
+    // A chip peeking in from the top edge still keeps the panel's top inside
+    // the viewport margin.
+    const top = Math.max(VIEWPORT_MARGIN, anchor.bottom + PANEL_GAP);
+    return {
+      top,
+      left,
+      width,
+      maxHeight: Math.max(0, viewport.height - VIEWPORT_MARGIN - top),
+      side: "below",
+      contentHeight: panelHeight,
+    };
+  }
+  const height = Math.min(panelHeight, Math.max(0, roomAbove));
+  return {
+    top: anchor.top - PANEL_GAP - height,
+    left,
+    width,
+    maxHeight: Math.max(0, roomAbove),
+    side: "above",
+    contentHeight: panelHeight,
+  };
+}
+
+/** Whether the chip is still on screen. Once it scrolls out of the viewport
+ * there is nowhere to attach the panel, so the panel closes rather than
+ * floating at a clipped or invisible position. */
+export function anchorInViewport(
+  anchor: { top: number; bottom: number },
+  viewportHeight: number,
+): boolean {
+  return anchor.bottom > 0 && anchor.top < viewportHeight;
+}
+
+/** The panel's unclipped content height: what placement must be computed
+ * from, since the rendered box may be capped by an earlier placement. */
+function panelContentHeight(panel: HTMLElement | null): number {
+  if (!panel) return 0;
+  return Math.max(panel.scrollHeight, panel.getBoundingClientRect().height);
+}
+
+/**
+ * A row-level marker for a model whose board score depends on request shape.
+ * The chip shows the tool_choice: auto re-run's score and would-rank; opening
+ * it explains why, in place, and links the full note. The summary is a native
+ * <details> control (keyboard-operable, labeled); the open panel renders
+ * through a portal with fixed, viewport-clamped coordinates so it escapes the
+ * row's animation transform, which would otherwise trap it beneath later rows;
+ * it sits below the chip when there is room, above it otherwise, and scrolls
+ * inside its height cap when neither fits. Opening moves focus into the panel,
+ * Tab wraps back to the chip, Escape closes and returns focus, an outside
+ * click closes, scrolling or resizing re-places rather than closes, the
+ * panel closes if its chip scrolls out of the viewport, and opening one chip
+ * closes any other so Escape always returns focus to the chip that was open.
+ */
+export default function ServingSensitivityChip({
+  modelLabel,
+  boardExact,
+  sensitivity,
+  wouldRank,
+}: {
+  modelLabel: string;
+  /** The model's exact-match score on the unfiltered board (unrounded). */
+  boardExact: number;
+  sensitivity: ServingSensitivity;
+  wouldRank: number;
+}) {
+  const detailsRef = useRef<HTMLDetailsElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [placement, setPlacement] = useState<PanelPlacement | null>(null);
+  // Focus moves into the panel once the portaled copy has been committed,
+  // not on the toggle itself (the portal does not exist yet at that point).
+  const pendingFocus = useRef(false);
+
+  const close = useCallback((restoreFocus: boolean) => {
+    const details = detailsRef.current;
+    if (details?.open) details.open = false;
+    setPlacement(null);
+    if (restoreFocus) details?.querySelector("summary")?.focus();
+  }, []);
+  // One open chip at a time: the registry closes any other when this one
+  // opens, and routes Escape to the chip that is actually open. The handle
+  // keeps one identity for the component's life; its close is refreshed in
+  // an effect so render never touches the ref.
+  const handleRef = useRef<DisclosureHandle>({ close: () => {} });
+  useEffect(() => {
+    handleRef.current.close = close;
+  }, [close]);
+
+  // Place from the chip's current position and the panel's content height
+  // (never its rendered height, which an earlier placement may have capped).
+  // The first pass after opening measures the inline (hidden) copy of the
+  // panel; later passes measure the portaled one.
+  const place = useCallback(() => {
+    const details = detailsRef.current;
+    const summary = details?.querySelector("summary");
+    if (!details?.open || !summary) return;
+    const rect = summary.getBoundingClientRect();
+    if (!anchorInViewport(rect, window.innerHeight)) {
+      // The chip scrolled away; a panel with no visible anchor closes.
+      details.open = false;
+      setPlacement(null);
+      return;
+    }
+    const measured = panelContentHeight(panelRef.current);
+    setPlacement(
+      panelPosition(
+        { left: rect.left, top: rect.top, bottom: rect.bottom },
+        { width: window.innerWidth, height: window.innerHeight },
+        measured || 240,
+      ),
+    );
+  }, []);
+
+  useEffect(() => {
+    const details = detailsRef.current;
+    if (!details) return;
+    // Coalesce bursts of scroll/resize events into one placement per tick.
+    // A timeout rather than an animation frame: frames are paused in hidden
+    // tabs, and the placement must still be right when the tab is shown.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const reposition = () => {
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        place();
+      }, 0);
+    };
+    const handle = handleRef.current;
+    const onToggle = () => {
+      if (details.open) {
+        servingSensitivityDisclosures.activate(handle);
+        place();
+        // Keyboard users land inside the explanation; Escape returns them.
+        pendingFocus.current = true;
+      } else {
+        servingSensitivityDisclosures.release(handle);
+        setPlacement(null);
+        pendingFocus.current = false;
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (
+        event.key === "Escape" &&
+        details.open &&
+        servingSensitivityDisclosures.isActive(handle)
+      ) {
+        event.preventDefault();
+        servingSensitivityDisclosures.escape();
+      }
+    };
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        details.open &&
+        !details.contains(target) &&
+        !panelRef.current?.contains(target)
+      ) {
+        close(false);
+      }
+    };
+    // Tab past the panel's last link, or Shift+Tab before its first, returns
+    // to the chip so the reading order stays with the row.
+    const onPanelKey = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || !panelRef.current) return;
+      const links = panelRef.current.querySelectorAll<HTMLElement>("a");
+      const first = links[0];
+      const last = links[links.length - 1];
+      const summary = details.querySelector("summary") as HTMLElement | null;
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        summary?.focus();
+      } else if (
+        event.shiftKey &&
+        (document.activeElement === first ||
+          document.activeElement === panelRef.current)
+      ) {
+        event.preventDefault();
+        summary?.focus();
+      }
+    };
+    details.addEventListener("toggle", onToggle);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onPanelKey);
+    document.addEventListener("click", onClick);
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      if (timer !== null) clearTimeout(timer);
+      servingSensitivityDisclosures.release(handle);
+      details.removeEventListener("toggle", onToggle);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onPanelKey);
+      document.removeEventListener("click", onClick);
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [close, place]);
+
+  useEffect(() => {
+    if (!placement || !pendingFocus.current) return;
+    pendingFocus.current = false;
+    panelRef.current?.focus();
+  }, [placement]);
+
+  // Re-place once the portaled panel's content height is known (it may differ
+  // from the hidden inline copy's estimate, and from the height an earlier,
+  // capped placement was computed with).
+  useEffect(() => {
+    if (!placement) return;
+    const measured = panelContentHeight(panelRef.current);
+    if (!measured || measured === placement.contentHeight) return;
+    // Measured after commit; the re-placement is scheduled asynchronously so
+    // the effect itself only reads layout (a timeout, not a frame: frames
+    // pause in hidden tabs).
+    const timer = setTimeout(() => {
+      const details = detailsRef.current;
+      const summary = details?.querySelector("summary");
+      if (!details?.open || !summary) return;
+      const rect = summary.getBoundingClientRect();
+      setPlacement(
+        panelPosition(
+          { left: rect.left, top: rect.top, bottom: rect.bottom },
+          { width: window.innerWidth, height: window.innerHeight },
+          measured,
+        ),
+      );
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [placement]);
+
+  const auto = sensitivity.autoExact.toFixed(1);
+  const deltaText = formatDelta(sensitivity.autoExact, boardExact);
+
+  const panel = (
+    <div
+      ref={panelRef}
+      role="note"
+      tabIndex={-1}
+      aria-label={`Serving sensitivity for ${modelLabel}`}
+      data-testid="serving-sensitivity-panel"
+      data-side={placement?.side}
+      data-content-height={placement?.contentHeight}
+      className="z-50 overflow-y-auto rounded-lg border border-border bg-card p-3 text-left text-xs leading-relaxed text-text-secondary shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-strong/40"
+      style={
+        placement
+          ? {
+              position: "fixed",
+              top: placement.top,
+              left: placement.left,
+              width: placement.width,
+              maxHeight: placement.maxHeight,
+            }
+          : undefined
+      }
+    >
+      <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+        Serving sensitivity
+      </div>
+      <p className="mt-1.5">
+        This row {sensitivity.boardTreatment}. The same model,{" "}
+        {sensitivity.autoTreatment}, scores{" "}
+        <span className="font-[family-name:var(--font-mono)] text-text">
+          {auto}%
+        </span>{" "}
+        exact ({deltaText} against its {boardExact.toFixed(1)}% on the
+        unfiltered board) and would rank #{wouldRank} there. The board keeps
+        the request shape its model card records; the re-run sits beside it as
+        a labeled sensitivity.
+      </p>
+      <p className="mt-1.5">
+        <NoteLink href={sensitivity.noteHref}>
+          {sensitivity.noteHref.startsWith("/")
+            ? "Read the note"
+            : "Read the sensitivity note"}
+        </NoteLink>
+        {" · "}
+        <NoteLink href={SENSITIVITY_DOC_HREF}>All four runs</NoteLink>
+        {" · "}
+        <NoteLink href={NEXT_BOARD_HREF}>
+          Next board moves every model to auto
+        </NoteLink>
+      </p>
+    </div>
+  );
+
+  return (
+    <details ref={detailsRef} className="relative inline-block align-middle">
+      <summary
+        className="list-none cursor-pointer select-none rounded-full border border-border bg-surface px-2 py-0.5 font-[family-name:var(--font-mono)] text-[10px] text-text-secondary hover:border-primary-strong/50 hover:text-text [&::-webkit-details-marker]:hidden"
+        aria-label={`Serving sensitivity for ${modelLabel}: ${auto}% with tool_choice auto, would rank #${wouldRank}`}
+        title="Serving sensitivity"
+      >
+        auto {auto} · #{wouldRank}
+      </summary>
+      {placement && typeof document !== "undefined"
+        ? createPortal(panel, document.body)
+        : // Server render and the closed state keep the panel inline (hidden
+          // by the closed <details>), so markup matches on hydration and the
+          // text stays reachable without JavaScript.
+          <div className="absolute left-0 top-full mt-1.5 w-[min(22rem,calc(100vw-2rem))]">
+            {panel}
+          </div>}
+    </details>
+  );
+}
