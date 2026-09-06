@@ -58,11 +58,14 @@ export function panelPosition(
   const roomAbove = anchor.top - PANEL_GAP - VIEWPORT_MARGIN;
   const below = panelHeight <= roomBelow || roomBelow >= roomAbove;
   if (below) {
+    // A chip peeking in from the top edge still keeps the panel's top inside
+    // the viewport margin.
+    const top = Math.max(VIEWPORT_MARGIN, anchor.bottom + PANEL_GAP);
     return {
-      top: anchor.bottom + PANEL_GAP,
+      top,
       left,
       width,
-      maxHeight: Math.max(0, roomBelow),
+      maxHeight: Math.max(0, viewport.height - VIEWPORT_MARGIN - top),
       side: "below",
       contentHeight: panelHeight,
     };
@@ -76,6 +79,16 @@ export function panelPosition(
     side: "above",
     contentHeight: panelHeight,
   };
+}
+
+/** Whether the chip is still on screen. Once it scrolls out of the viewport
+ * there is nowhere to attach the panel, so the panel closes rather than
+ * floating at a clipped or invisible position. */
+export function anchorInViewport(
+  anchor: { top: number; bottom: number },
+  viewportHeight: number,
+): boolean {
+  return anchor.bottom > 0 && anchor.top < viewportHeight;
 }
 
 /** The panel's unclipped content height: what placement must be computed
@@ -95,7 +108,8 @@ function panelContentHeight(panel: HTMLElement | null): number {
  * it sits below the chip when there is room, above it otherwise, and scrolls
  * inside its height cap when neither fits. Opening moves focus into the panel,
  * Tab wraps back to the chip, Escape closes and returns focus, an outside
- * click closes, and scrolling or resizing re-places rather than closes.
+ * click closes, scrolling or resizing re-places rather than closes, and the
+ * panel closes if its chip scrolls out of the viewport.
  */
 export default function ServingSensitivityChip({
   modelLabel,
@@ -132,6 +146,12 @@ export default function ServingSensitivityChip({
     const summary = details?.querySelector("summary");
     if (!details?.open || !summary) return;
     const rect = summary.getBoundingClientRect();
+    if (!anchorInViewport(rect, window.innerHeight)) {
+      // The chip scrolled away; a panel with no visible anchor closes.
+      details.open = false;
+      setPlacement(null);
+      return;
+    }
     const measured = panelContentHeight(panelRef.current);
     setPlacement(
       panelPosition(
@@ -145,10 +165,16 @@ export default function ServingSensitivityChip({
   useEffect(() => {
     const details = detailsRef.current;
     if (!details) return;
-    let frame = 0;
+    // Coalesce bursts of scroll/resize events into one placement per tick.
+    // A timeout rather than an animation frame: frames are paused in hidden
+    // tabs, and the placement must still be right when the tab is shown.
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const reposition = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(place);
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        place();
+      }, 0);
     };
     const onToggle = () => {
       if (details.open) {
@@ -203,7 +229,7 @@ export default function ServingSensitivityChip({
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
     return () => {
-      cancelAnimationFrame(frame);
+      if (timer !== null) clearTimeout(timer);
       details.removeEventListener("toggle", onToggle);
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("keydown", onPanelKey);
@@ -226,9 +252,10 @@ export default function ServingSensitivityChip({
     if (!placement) return;
     const measured = panelContentHeight(panelRef.current);
     if (!measured || measured === placement.contentHeight) return;
-    // Measured after commit; the re-placement is scheduled on the next frame
-    // so the effect itself only reads layout.
-    const frame = requestAnimationFrame(() => {
+    // Measured after commit; the re-placement is scheduled asynchronously so
+    // the effect itself only reads layout (a timeout, not a frame: frames
+    // pause in hidden tabs).
+    const timer = setTimeout(() => {
       const details = detailsRef.current;
       const summary = details?.querySelector("summary");
       if (!details?.open || !summary) return;
@@ -240,8 +267,8 @@ export default function ServingSensitivityChip({
           measured,
         ),
       );
-    });
-    return () => cancelAnimationFrame(frame);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [placement]);
 
   const auto = sensitivity.autoExact.toFixed(1);

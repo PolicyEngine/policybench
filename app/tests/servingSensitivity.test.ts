@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import ServingSensitivityChip, {
+  anchorInViewport,
   panelPosition,
 } from "../src/components/ServingSensitivityChip";
 import {
@@ -166,6 +167,28 @@ describe("serving sensitivity", () => {
           expect(p.top + visible).toBeLessThanOrEqual(vh - 8 + 1e-9);
           expect(p.contentHeight).toBe(height);
         }
+      }
+    }
+  });
+
+  test("a chip that scrolls out of the viewport has no place to attach, so the panel closes", () => {
+    // The round-4 cases: the chip above the top edge, and below the bottom.
+    expect(anchorInViewport({ top: -60, bottom: -40 }, 320)).toBe(false);
+    expect(anchorInViewport({ top: 600, bottom: 620 }, 320)).toBe(false);
+    // Partly visible chips still anchor the panel.
+    expect(anchorInViewport({ top: -10, bottom: 10 }, 320)).toBe(true);
+    expect(anchorInViewport({ top: 310, bottom: 330 }, 320)).toBe(true);
+    expect(anchorInViewport({ top: 100, bottom: 120 }, 320)).toBe(true);
+    // Every anchor the component would place (partly or fully visible) gets a
+    // panel inside the viewport; the sweep covers the edges too.
+    for (const vh of [320, 568]) {
+      for (let top = -19; top <= vh - 1; top += 23) {
+        const a = { left: 100, top, bottom: top + 20 };
+        expect(anchorInViewport(a, vh)).toBe(true);
+        const p = panelPosition(a, { width: 800, height: vh }, 250);
+        const visible = Math.min(250, p.maxHeight);
+        expect(p.top).toBeGreaterThanOrEqual(8);
+        expect(p.top + visible).toBeLessThanOrEqual(vh - 8 + 1e-9);
       }
     }
   });
