@@ -233,9 +233,16 @@ export default function ModelLeaderboard({
     canRecomputeScores && baseNoTools.length > 0 && noTools.length === 0;
 
   const activeView = SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)!;
-  // The serving-sensitivity markers describe the live US board's rows.
+  // The serving-sensitivity markers describe the live US board's rows. Their
+  // comparison is against the row's canonical exact-match score on the
+  // unfiltered board (the universe the re-runs were scored on), whatever
+  // metric, weighting or program filter the reader has selected.
   const showSensitivity =
     selectedView === "us" && isCurrentBoard(versionId, liveVersionId);
+  const unfilteredExact = (model: string): number => {
+    const row = baseNoTools.find((entry) => entry.model === model);
+    return row?.exact ?? row?.score ?? 0;
+  };
 
   // "Exact" means "within one currency unit," and that unit is country-
   // specific. Surface the right word in tooltips, captions, and the Options
@@ -298,10 +305,11 @@ export default function ModelLeaderboard({
             Serving sensitivity · August 2026
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-            Four Claude rows ran without extended thinking: this board forces
-            the answer tool call, which switches Claude&apos;s thinking off
-            (Claude Fable 5.1 rejects forced calls and answers as JSON). Their{" "}
-            <code>tool_choice: auto</code> re-runs are marked on the rows
+            Three Claude rows ran without extended thinking: this board forces
+            the answer tool call, which switches Claude&apos;s thinking off.
+            Claude Fable 5.1 rejects forced calls, answers as JSON and reasons
+            either way, so its marker compares transports. The{" "}
+            <code>tool_choice: auto</code> re-runs are marked on the four rows
             (open a marker for the score and why); the board itself is
             unchanged. The{" "}
             <a href={SENSITIVITY_DOC_HREF} className="text-primary hover:underline">
@@ -415,7 +423,7 @@ export default function ModelLeaderboard({
                       {showSensitivity && servingSensitivityFor(m.model) ? (
                         <ServingSensitivityChip
                           modelLabel={MODEL_LABELS[m.model] || m.model}
-                          boardExact={m.score}
+                          boardExact={unfilteredExact(m.model)}
                           sensitivity={servingSensitivityFor(m.model)!}
                           wouldRank={wouldRank(
                             servingSensitivityFor(m.model)!.autoExact,
@@ -464,7 +472,7 @@ export default function ModelLeaderboard({
                   {showSensitivity && servingSensitivityFor(m.model) ? (
                     <ServingSensitivityChip
                       modelLabel={MODEL_LABELS[m.model] || m.model}
-                      boardExact={m.score}
+                      boardExact={unfilteredExact(m.model)}
                       sensitivity={servingSensitivityFor(m.model)!}
                       wouldRank={wouldRank(
                         servingSensitivityFor(m.model)!.autoExact,

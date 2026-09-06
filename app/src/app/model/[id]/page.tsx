@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { servingSensitivityFor } from "../../../lib/servingSensitivity";
+import {
+  formatDelta,
+  servingSensitivityFor,
+} from "../../../lib/servingSensitivity";
 import { wouldRank } from "../../../lib/wouldRank";
 
 import rawData from "../../../data-summary.json";
@@ -237,7 +240,12 @@ export default async function ModelPage({
                   <span className="font-[family-name:var(--font-mono)] text-text">
                     {sensitivity.autoExact.toFixed(1)}%
                   </span>{" "}
-                  and would rank #
+                  exact (
+                  {formatDelta(
+                    sensitivity.autoExact,
+                    summary.stat.exact ?? summary.stat.score,
+                  )}
+                  ) and would rank #
                   {wouldRank(
                     sensitivity.autoExact,
                     bench.modelStats.filter((row) => row.condition === "no_tools"),
