@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import ProgramBars from "../src/components/ProgramBars";
+import ProgramBars, {
+  PROGRAM_BAR_ROW_CLASS,
+  PROGRAM_BAR_TRACK_CLASS,
+} from "../src/components/ProgramBars";
 import { formatShare, programBars } from "../src/lib/programChart";
 import rawData from "../src/data-summary.json";
 import type { DashboardBundle } from "../src/types";
@@ -38,5 +41,27 @@ describe("program bars", () => {
     expect(html).toContain(">19%<");
     expect(html).toContain("69.0% exact");
     expect(html).toContain("width:69%");
+  });
+
+  test("narrow rows stack the bar under the label; wide rows reserve a bar track", () => {
+    // Below `sm` the row has three columns (label, rate, share) and the bar
+    // spans the full width on its own line, ordered after the numbers, so a
+    // 320px viewport never squeezes the bar track to zero. From `sm` up the
+    // label column is capped and the bar track keeps a 6rem minimum.
+    const row = PROGRAM_BAR_ROW_CLASS.split(" ");
+    expect(row).toContain("grid-cols-[minmax(0,1fr)_3.5rem_3rem]");
+    expect(row).toContain(
+      "sm:grid-cols-[minmax(0,14rem)_minmax(6rem,1fr)_3.5rem_3rem]",
+    );
+    const track = PROGRAM_BAR_TRACK_CLASS.split(" ");
+    expect(track).toContain("col-span-full");
+    expect(track).toContain("order-last");
+    expect(track).toContain("sm:col-span-1");
+    expect(track).toContain("sm:order-none");
+    const bars = programBars(bench, "claude-fable-5.1");
+    const html = renderToStaticMarkup(
+      createElement(ProgramBars, { bars, country: "us" }),
+    );
+    expect(html.match(/order-last col-span-full/g)?.length).toBe(18);
   });
 });
