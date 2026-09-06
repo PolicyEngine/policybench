@@ -21,6 +21,7 @@ import {
 } from "../../../lib/auditUniverse";
 import {
   MODEL_LABELS,
+  MODEL_PROVENANCE_NOTES,
   getProviderForModel,
   PROVIDER_LABELS,
 } from "../../../modelMeta";
@@ -138,6 +139,11 @@ export default async function ModelPage({
           <div className="mt-1 text-xs text-text-muted">
             Current board, snapshot {liveSnapshotDate}
           </div>
+          {MODEL_PROVENANCE_NOTES[id] ? (
+            <p className="mt-2 max-w-xl text-xs leading-relaxed text-text-muted">
+              {MODEL_PROVENANCE_NOTES[id]}
+            </p>
+          ) : null}
         </div>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 max-w-3xl">

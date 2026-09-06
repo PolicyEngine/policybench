@@ -9,6 +9,7 @@ import {
   PROVIDER_LABELS,
   frontierModelsFor,
   getProviderForModel,
+  MODEL_PROVENANCE_NOTES,
   shortModelLabel,
   orderModels,
   type ProviderKey,
@@ -121,9 +122,18 @@ describe("MODEL_RELEASE_DATES", () => {
 
 describe("shortModelLabel", () => {
   test("drops a parenthetical qualifier before keeping the last two words", () => {
-    expect(shortModelLabel("Ox Alpha (GLM-5.3-Flash preview)")).toBe("Ox Alpha");
+    expect(shortModelLabel("GLM-5.3-Flash (preview)")).toBe("GLM-5.3-Flash");
     expect(shortModelLabel("DeepSeek V4 Flash 0731")).toBe("Flash 0731");
     expect(shortModelLabel("GPT-6 Astra")).toBe("GPT-6 Astra");
     expect(shortModelLabel("Inkling")).toBe("Inkling");
+  });
+});
+
+describe("MODEL_PROVENANCE_NOTES", () => {
+  test("the GLM-5.3-Flash preview row records the listing it was queried under", () => {
+    expect(MODEL_LABELS["ox-alpha"]).toBe("GLM-5.3-Flash (preview)");
+    expect(MODEL_PROVENANCE_NOTES["ox-alpha"]).toContain('Queried as "Ox Alpha"');
+    expect(MODEL_PROVENANCE_NOTES["ox-alpha"]).toContain("2026-08-20");
+    expect(Object.keys(MODEL_PROVENANCE_NOTES).every((id) => id in MODEL_LABELS)).toBe(true);
   });
 });

@@ -9,6 +9,7 @@ import type {
 import { getVariableLabel } from "../types";
 import {
   MODEL_LABELS,
+  MODEL_PROVENANCE_NOTES,
   MODEL_RELEASE_DATES,
   getProviderForModel,
 } from "../modelMeta";
@@ -429,6 +430,7 @@ export default function ModelLeaderboard({
                           liveVersionId,
                         )}
                         className="truncate text-sm font-medium text-text hover:text-primary-strong"
+                        title={MODEL_PROVENANCE_NOTES[m.model]}
                       >
                         {MODEL_LABELS[m.model] || m.model}
                       </Link>
@@ -467,6 +469,7 @@ export default function ModelLeaderboard({
                   <Link
                     href={modelPageHref(m.model, versionId, liveVersionId)}
                     className="truncate text-text font-medium text-sm hover:text-primary-strong"
+                    title={MODEL_PROVENANCE_NOTES[m.model]}
                   >
                     {MODEL_LABELS[m.model] || m.model}
                   </Link>
