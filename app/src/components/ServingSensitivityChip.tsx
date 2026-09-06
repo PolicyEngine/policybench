@@ -10,6 +10,10 @@ import {
   formatDelta,
   type ServingSensitivity,
 } from "../lib/servingSensitivity";
+import {
+  servingSensitivityDisclosures,
+  type DisclosureHandle,
+} from "../lib/disclosureRegistry";
 
 const PANEL_MAX_WIDTH = 352; // 22rem
 const VIEWPORT_MARGIN = 8;
@@ -108,8 +112,9 @@ function panelContentHeight(panel: HTMLElement | null): number {
  * it sits below the chip when there is room, above it otherwise, and scrolls
  * inside its height cap when neither fits. Opening moves focus into the panel,
  * Tab wraps back to the chip, Escape closes and returns focus, an outside
- * click closes, scrolling or resizing re-places rather than closes, and the
- * panel closes if its chip scrolls out of the viewport.
+ * click closes, scrolling or resizing re-places rather than closes, the
+ * panel closes if its chip scrolls out of the viewport, and opening one chip
+ * closes any other so Escape always returns focus to the chip that was open.
  */
 export default function ServingSensitivityChip({
   modelLabel,
@@ -136,6 +141,14 @@ export default function ServingSensitivityChip({
     setPlacement(null);
     if (restoreFocus) details?.querySelector("summary")?.focus();
   }, []);
+  // One open chip at a time: the registry closes any other when this one
+  // opens, and routes Escape to the chip that is actually open. The handle
+  // keeps one identity for the component's life; its close is refreshed in
+  // an effect so render never touches the ref.
+  const handleRef = useRef<DisclosureHandle>({ close: () => {} });
+  useEffect(() => {
+    handleRef.current.close = close;
+  }, [close]);
 
   // Place from the chip's current position and the panel's content height
   // (never its rendered height, which an earlier placement may have capped).
@@ -176,20 +189,27 @@ export default function ServingSensitivityChip({
         place();
       }, 0);
     };
+    const handle = handleRef.current;
     const onToggle = () => {
       if (details.open) {
+        servingSensitivityDisclosures.activate(handle);
         place();
         // Keyboard users land inside the explanation; Escape returns them.
         pendingFocus.current = true;
       } else {
+        servingSensitivityDisclosures.release(handle);
         setPlacement(null);
         pendingFocus.current = false;
       }
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && details.open) {
+      if (
+        event.key === "Escape" &&
+        details.open &&
+        servingSensitivityDisclosures.isActive(handle)
+      ) {
         event.preventDefault();
-        close(true);
+        servingSensitivityDisclosures.escape();
       }
     };
     const onClick = (event: MouseEvent) => {
@@ -230,6 +250,7 @@ export default function ServingSensitivityChip({
     window.addEventListener("resize", reposition);
     return () => {
       if (timer !== null) clearTimeout(timer);
+      servingSensitivityDisclosures.release(handle);
       details.removeEventListener("toggle", onToggle);
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("keydown", onPanelKey);
