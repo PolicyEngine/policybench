@@ -19,17 +19,12 @@ import { canonicalScoreByModel } from "../lib/canonicalScore";
 import { wouldRank } from "../lib/wouldRank";
 import { isCurrentBoard, modelPageHref } from "../lib/boardScope";
 
-// Exact-match scores of the tool_choice: auto sensitivity runs
-// (sensitivity/claude-thinking-2026-08.md), scored on the same 1,973 outputs
-// the board scores (eleven outputs are excluded for every model). Their
-// "would rank" positions are derived from the live board rows at render time,
-// never typed by hand.
-const SENSITIVITY_EXACT = {
-  "claude-fable-5": 87.5,
-  "claude-opus-5": 86.2,
-  "claude-sonnet-5": 80.8,
-  "claude-fable-5.1": 88.2,
-} as const;
+import ServingSensitivityChip from "./ServingSensitivityChip";
+import {
+  NEXT_BOARD_HREF,
+  SENSITIVITY_DOC_HREF,
+  servingSensitivityFor,
+} from "../lib/servingSensitivity";
 import {
   rankWithFallbackScore,
   rankWithRecomputedScores,
@@ -238,6 +233,9 @@ export default function ModelLeaderboard({
     canRecomputeScores && baseNoTools.length > 0 && noTools.length === 0;
 
   const activeView = SENSITIVITY_VIEWS.find((v) => v.id === sensitivityView)!;
+  // The serving-sensitivity markers describe the live US board's rows.
+  const showSensitivity =
+    selectedView === "us" && isCurrentBoard(versionId, liveVersionId);
 
   // "Exact" means "within one currency unit," and that unit is country-
   // specific. Surface the right word in tooltips, captions, and the Options
@@ -291,7 +289,7 @@ export default function ModelLeaderboard({
       >
         Model rankings
       </h2>
-      {selectedView === "us" && isCurrentBoard(versionId, liveVersionId) && (
+      {showSensitivity && (
         <div
           className="card mt-5 px-5 py-4 animate-fade-up"
           style={{ animationDelay: "120ms" }}
@@ -300,35 +298,17 @@ export default function ModelLeaderboard({
             Serving sensitivity · August 2026
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-            Claude models skip extended thinking when the answer tool call is
-            forced, as it is in the request this board sends every model whose
-            selected answer contract is the forced tool (rows on the JSON
-            contract, whether their provider rejects a forced tool or their
-            model card selects JSON, answer as a JSON object); other
-            reasoning-by-default providers reason regardless. Re-run with <code>tool_choice: auto</code>,
-            Claude Fable 5 scores {SENSITIVITY_EXACT["claude-fable-5"]} (would
-            rank #{wouldRank(SENSITIVITY_EXACT["claude-fable-5"], baseNoTools)}
-            ), Claude Opus 5 {SENSITIVITY_EXACT["claude-opus-5"]} (#
-            {wouldRank(SENSITIVITY_EXACT["claude-opus-5"], baseNoTools)}), and
-            Claude Sonnet 5 {SENSITIVITY_EXACT["claude-sonnet-5"]} (#
-            {wouldRank(SENSITIVITY_EXACT["claude-sonnet-5"], baseNoTools)}).
-            Claude Fable 5.1 rejects forced tool calls outright, so its board
-            row answers as a JSON object and reasons at the provider default;
-            with the tool declared under <code>auto</code> it scores{" "}
-            {SENSITIVITY_EXACT["claude-fable-5.1"]} (#
-            {wouldRank(SENSITIVITY_EXACT["claude-fable-5.1"], baseNoTools)}).
-            The board below is unchanged — those runs sit beside it as a{" "}
-            <a
-              href="https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md"
-              className="text-primary hover:underline"
-            >
-              labeled sensitivity
+            Four Claude rows ran without extended thinking: this board forces
+            the answer tool call, which switches Claude&apos;s thinking off
+            (Claude Fable 5.1 rejects forced calls and answers as JSON). Their{" "}
+            <code>tool_choice: auto</code> re-runs are marked on the rows
+            (open a marker for the score and why); the board itself is
+            unchanged. The{" "}
+            <a href={SENSITIVITY_DOC_HREF} className="text-primary hover:underline">
+              sensitivity note
             </a>{" "}
-            — and the{" "}
-            <a
-              href="https://github.com/PolicyEngine/policybench/issues/139"
-              className="text-primary hover:underline"
-            >
+            has all four runs, and the{" "}
+            <a href={NEXT_BOARD_HREF} className="text-primary hover:underline">
               next board version
             </a>{" "}
             moves every model to auto.
@@ -432,6 +412,17 @@ export default function ModelLeaderboard({
                       >
                         {MODEL_LABELS[m.model] || m.model}
                       </Link>
+                      {showSensitivity && servingSensitivityFor(m.model) ? (
+                        <ServingSensitivityChip
+                          modelLabel={MODEL_LABELS[m.model] || m.model}
+                          boardExact={m.score}
+                          sensitivity={servingSensitivityFor(m.model)!}
+                          wouldRank={wouldRank(
+                            servingSensitivityFor(m.model)!.autoExact,
+                            baseNoTools,
+                          )}
+                        />
+                      ) : null}
                     </div>
                     <div className="mt-1.5 pl-[26px] font-[family-name:var(--font-mono)] text-[11px] text-text-muted">
                       {fmtCost(m.costPerHousehold, currencySymbol)} per
@@ -470,6 +461,17 @@ export default function ModelLeaderboard({
                   >
                     {MODEL_LABELS[m.model] || m.model}
                   </Link>
+                  {showSensitivity && servingSensitivityFor(m.model) ? (
+                    <ServingSensitivityChip
+                      modelLabel={MODEL_LABELS[m.model] || m.model}
+                      boardExact={m.score}
+                      sensitivity={servingSensitivityFor(m.model)!}
+                      wouldRank={wouldRank(
+                        servingSensitivityFor(m.model)!.autoExact,
+                        baseNoTools,
+                      )}
+                    />
+                  ) : null}
                 </div>
 
                 <div className="col-span-2 text-right font-[family-name:var(--font-mono)] text-sm text-text-muted">

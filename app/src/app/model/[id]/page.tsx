@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { servingSensitivityFor } from "../../../lib/servingSensitivity";
+import { wouldRank } from "../../../lib/wouldRank";
 
 import rawData from "../../../data-summary.json";
 import versionRegistryJson from "../../../data.versions.json";
@@ -183,6 +185,7 @@ export default async function ModelPage({
           const rows = programRows(bench, id);
           const cases = hardestCases(bench, id);
           const coverage = coverageAccuracy(bench, id);
+          const sensitivity = servingSensitivityFor(id);
           const currencySymbol = summary.country === "uk" ? "£" : "$";
           return (
             <section
@@ -224,6 +227,32 @@ export default async function ModelPage({
                   }
                 />
               </div>
+              {summary.country === "us" && sensitivity ? (
+                <p className="mt-4 max-w-3xl text-sm leading-relaxed text-text-secondary">
+                  <span className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
+                    Serving sensitivity
+                  </span>{" "}
+                  This row {sensitivity.boardTreatment}. The same model,{" "}
+                  {sensitivity.autoTreatment}, scores{" "}
+                  <span className="font-[family-name:var(--font-mono)] text-text">
+                    {sensitivity.autoExact.toFixed(1)}%
+                  </span>{" "}
+                  and would rank #
+                  {wouldRank(
+                    sensitivity.autoExact,
+                    bench.modelStats.filter((row) => row.condition === "no_tools"),
+                  )}{" "}
+                  on the live board; the board keeps the request shape its
+                  model card records.{" "}
+                  <Link
+                    href={sensitivity.noteHref}
+                    className="text-primary-strong underline-offset-2 hover:underline"
+                  >
+                    Read the note
+                  </Link>
+                  .
+                </p>
+              ) : null}
 
               <div className="mt-8 grid gap-8 lg:grid-cols-2">
                 <div>
