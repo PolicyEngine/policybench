@@ -18,7 +18,7 @@ v1 evaluator or treat its output as a certified evaluation request.
 The version is `2.0.0`. `contract_identity()` returns:
 
 ```text
-policybench-us-household-prompt/2.0.0:sha256:ef8b64aa540beca4a62bc868850cb0203ad7068faeb628f7b8332fff36ab2140
+policybench-us-household-prompt/2.0.0:sha256:a1a25d39795acbe6c4ee25adec297bdad8167479154ca70fb50755b8eee08a3a
 ```
 
 The SHA-256 covers the **exact UTF-8 source bytes of the new module**, including
@@ -91,7 +91,9 @@ provenance = {
 ```
 
 `observed` and `imputed` require a non-empty, single-line source and a non-null
-supplied value. `unknown` may name a source documenting missingness. Missing
+supplied value. The single-line boundary also rejects Unicode line separators,
+including NEXT LINE (`U+0085`), in sources, scenario IDs, and dataset labels.
+`unknown` may name a source documenting missingness. Missing
 annotations default to `unknown`, never `observed`. A supplied `False` without
 provenance prints `no (supplied value; provenance: unknown; not an observed
 fact)`; absent values print `unknown (not supplied; provenance: unknown)`.
@@ -197,4 +199,6 @@ existing approval conditions remain required; this document grants none.
 ## Change record
 
 2026-09-07: added the unactivated v2 household-contract module, dedicated tests,
-and pinned fixture rendering. No published v1 file or board artifact changed.
+and pinned fixture rendering. Host finding PB-CONTRACT-001 was fixed by rejecting
+all recognized Unicode line separators and updating the source identity; fixture
+fact text did not change. No published v1 file or board artifact changed.
