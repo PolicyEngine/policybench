@@ -144,8 +144,7 @@ def _text(value: object, path: str) -> str:
         type(value) is not str
         or not value.strip()
         or any(ord(char) < 32 or ord(char) == 127 for char in value)
-        or "\u2028" in value
-        or "\u2029" in value
+        or value.splitlines() != [value]
     ):
         raise ContractInputError(f"{path}: expected non-empty single-line text")
     return value

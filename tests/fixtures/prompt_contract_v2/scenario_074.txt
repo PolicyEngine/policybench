@@ -1,4 +1,4 @@
-Household prompt contract: policybench-us-household-prompt/2.0.0:sha256:ef8b64aa540beca4a62bc868850cb0203ad7068faeb628f7b8332fff36ab2140
+Household prompt contract: policybench-us-household-prompt/2.0.0:sha256:a1a25d39795acbe6c4ee25adec297bdad8167479154ca70fb50755b8eee08a3a
 Status: opt-in, unactivated household-fact slice; not a complete evaluation contract.
 Declared calculation version: policyengine-us 1.755.4 (caller-supplied; not verified).
 
