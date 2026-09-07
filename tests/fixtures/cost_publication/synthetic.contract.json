@@ -1,0 +1,170 @@
+{
+  "calls": {
+    "batch:toy:u1": {
+      "billed_cost": {
+        "amount_usd": "0.0026",
+        "evidence": {
+          "reference": "synthetic:toy-receipt:batch:toy:u1",
+          "sha256": "3197e02c51b781f9a5d62c726e9caa1d89c044efc5563b0871a3860215f2aa85"
+        },
+        "source": "synthetic"
+      },
+      "cache_replay_of": null,
+      "ledger_sha256": "72ae50475b4f8f2678ebefa234b346bd64898bf5ce950895428284baef301aff",
+      "pricecard_id": "b78cd0fbdf02fd9b9dfc38ded22cf58c71af648f003c8dcbcfd0315c462601a2",
+      "recipe_id": "30ab59a9fb274fd6056ca798b32e8945a42710a438dc2e8a150dd3531071c26d",
+      "usage_basis": {
+        "completion_tokens": "includes_reasoning",
+        "prompt_tokens": "includes_cache"
+      }
+    },
+    "sync:1": {
+      "billed_cost": {
+        "amount_usd": "0.002",
+        "evidence": {
+          "reference": "synthetic:toy-receipt:sync:1",
+          "sha256": "0274120e77a0bf8d783826eb74a0a9154ed47bacaa11336372e2a6fa5d2275e3"
+        },
+        "source": "synthetic"
+      },
+      "cache_replay_of": null,
+      "ledger_sha256": "838fbedefefb75ee5cc364764664337d804434a7dd1c79dad4ed06c1bd94bc08",
+      "pricecard_id": "b78cd0fbdf02fd9b9dfc38ded22cf58c71af648f003c8dcbcfd0315c462601a2",
+      "recipe_id": "30ab59a9fb274fd6056ca798b32e8945a42710a438dc2e8a150dd3531071c26d",
+      "usage_basis": {
+        "completion_tokens": "includes_reasoning",
+        "prompt_tokens": "includes_cache"
+      }
+    },
+    "sync:2": {
+      "billed_cost": {
+        "amount_usd": "0.002",
+        "evidence": {
+          "reference": "synthetic:toy-receipt:sync:2",
+          "sha256": "bc583333355fca3e11cc42115855d063fe0a0035112fd73e2f123d44caf5caf0"
+        },
+        "source": "synthetic"
+      },
+      "cache_replay_of": null,
+      "ledger_sha256": "4a078e1aa5447ef5fa370949282cc43ba6337ad27bb36eae86ed4c781ab326cc",
+      "pricecard_id": "b78cd0fbdf02fd9b9dfc38ded22cf58c71af648f003c8dcbcfd0315c462601a2",
+      "recipe_id": "30ab59a9fb274fd6056ca798b32e8945a42710a438dc2e8a150dd3531071c26d",
+      "usage_basis": {
+        "completion_tokens": "includes_reasoning",
+        "prompt_tokens": "includes_cache"
+      }
+    },
+    "sync:3": {
+      "billed_cost": {
+        "amount_usd": "0.002",
+        "evidence": {
+          "reference": "synthetic:toy-receipt:sync:3",
+          "sha256": "5c29134e91ee52b260bfa9828c0c6f11ab3f3ee63998b3dfd85ddc1d757c8449"
+        },
+        "source": "synthetic"
+      },
+      "cache_replay_of": null,
+      "ledger_sha256": "bd09814a395a87eebb72a86a91a34d230394839a3529bedc07fc2c24cf0fda5d",
+      "pricecard_id": "b78cd0fbdf02fd9b9dfc38ded22cf58c71af648f003c8dcbcfd0315c462601a2",
+      "recipe_id": "30ab59a9fb274fd6056ca798b32e8945a42710a438dc2e8a150dd3531071c26d",
+      "usage_basis": {
+        "completion_tokens": "includes_reasoning",
+        "prompt_tokens": "includes_cache"
+      }
+    },
+    "sync:replay": {
+      "billed_cost": {
+        "amount_usd": "0",
+        "evidence": null,
+        "source": "local_cache"
+      },
+      "cache_replay_of": "sync:3",
+      "ledger_sha256": "579db30f65dc397238d30ce71e2f6c49a1bf47e5e5bdfcf256780b9e62b97f19",
+      "pricecard_id": "b78cd0fbdf02fd9b9dfc38ded22cf58c71af648f003c8dcbcfd0315c462601a2",
+      "recipe_id": "30ab59a9fb274fd6056ca798b32e8945a42710a438dc2e8a150dd3531071c26d",
+      "usage_basis": {
+        "completion_tokens": "includes_reasoning",
+        "prompt_tokens": "includes_cache"
+      }
+    }
+  },
+  "displayed_models": [
+    "synthetic-sync",
+    "synthetic-batch"
+  ],
+  "evidence_kind": "synthetic",
+  "history": {
+    "evidence": {
+      "reference": "synthetic:toy-complete-call-inventory",
+      "sha256": "debb74ca86549bbf9ff83f6ceae659cfe4a84b7427712b74dd66a628d870b581"
+    },
+    "reason": null,
+    "status": "complete"
+  },
+  "metric": "operational_workflow_sync_uncached_v1",
+  "models": {
+    "synthetic-batch": {
+      "expected_call_keys": [
+        "batch:toy:u1"
+      ],
+      "model_id": "synthetic-model-v1",
+      "pricecard_id": "b78cd0fbdf02fd9b9dfc38ded22cf58c71af648f003c8dcbcfd0315c462601a2",
+      "recipe_id": "30ab59a9fb274fd6056ca798b32e8945a42710a438dc2e8a150dd3531071c26d",
+      "totals": {
+        "actual_billed_usd": "0.0026",
+        "normalized_sync_usd": "0.0052",
+        "physical_requests": 1
+      }
+    },
+    "synthetic-sync": {
+      "expected_call_keys": [
+        "sync:1",
+        "sync:2",
+        "sync:3",
+        "sync:replay"
+      ],
+      "model_id": "synthetic-model-v1",
+      "pricecard_id": "b78cd0fbdf02fd9b9dfc38ded22cf58c71af648f003c8dcbcfd0315c462601a2",
+      "recipe_id": "30ab59a9fb274fd6056ca798b32e8945a42710a438dc2e8a150dd3531071c26d",
+      "totals": {
+        "actual_billed_usd": "0.006",
+        "normalized_sync_usd": "0.0072",
+        "physical_requests": 3
+      }
+    }
+  },
+  "pricecards": {
+    "b78cd0fbdf02fd9b9dfc38ded22cf58c71af648f003c8dcbcfd0315c462601a2": {
+      "captured_on": "2026-09-07",
+      "currency": "USD",
+      "effective_on": "2026-09-01",
+      "evidence_kind": "synthetic",
+      "input_per_million_usd": "2",
+      "mode": "standard_sync",
+      "model_id": "synthetic-model-v1",
+      "output_per_million_usd": "4",
+      "provider": "synthetic-provider",
+      "source": {
+        "reference": "synthetic:not-a-provider-pricecard",
+        "sha256": "57da4ff5e7abe7203a2eadb0234b638f5437a5df4bfc0ff2e8be419d47d803d0"
+      }
+    }
+  },
+  "pricing_date": "2026-09-07",
+  "recipes": {
+    "30ab59a9fb274fd6056ca798b32e8945a42710a438dc2e8a150dd3531071c26d": {
+      "completion_token_limit": 1000,
+      "model_id": "synthetic-model-v1",
+      "outputs_per_request": 2,
+      "prompt_sha256": "c376e040a4168cbacb6558dd03a9791be4ef41e2501b232a302ff0a037cd1554",
+      "provider": "synthetic-provider",
+      "response_contract": "synthetic-json",
+      "treatment_sha256": "3fcf972a531ce6b32f5e26ac014dbd0c2e44853f36ca17dd0aeb8cc6018ae751"
+    }
+  },
+  "run_id": "synthetic-cost-contract-v1",
+  "scenario_ids": [
+    "s1"
+  ],
+  "schema_version": 1
+}

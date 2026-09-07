@@ -2938,6 +2938,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "google-genai" },
+    { name = "jsonschema" },
     { name = "litellm", extra = ["caching"] },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -2965,6 +2966,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.115.1" },
     { name = "google-genai", specifier = ">=2.10.0" },
     { name = "ipykernel", marker = "extra == 'docs'", specifier = ">=6.0" },
+    { name = "jsonschema", specifier = ">=4.18" },
     { name = "jupyter-book", marker = "extra == 'docs'", specifier = ">=2.0" },
     { name = "litellm", extras = ["caching"], specifier = ">=1.30" },
     { name = "nbclient", marker = "extra == 'docs'", specifier = ">=0.10" },
