@@ -188,7 +188,13 @@ def test_invalid_token_counts_fail_closed(packet, value):
 
 def test_strict_ledger_reader_rejects_corruption(tmp_path):
     path = tmp_path / "bad.spend.jsonl"
-    for text in ['{"call_key":"one"}\n{', "[]\n", '{"x":NaN}\n', '{"x":1,"x":2}\n']:
+    for text in [
+        '{"call_key":"one"}\n{',
+        "[]\n",
+        '{"x":NaN}\n',
+        '{"x":[1e999]}\n',
+        '{"x":1,"x":2}\n',
+    ]:
         path.write_text(text)
         with pytest.raises(ValueError):
             read_spend_ledger(path, strict=True)

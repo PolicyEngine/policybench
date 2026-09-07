@@ -18,6 +18,7 @@ from typing import Iterable
 from jsonschema import Draft202012Validator, FormatChecker
 
 from policybench.spend_ledger import (
+    _finite_float,
     _reject_constant,
     _strict_object,
     read_spend_ledger,
@@ -844,6 +845,7 @@ def main(argv: list[str] | None = None) -> int:
             args.contract.read_text(encoding="utf-8"),
             object_pairs_hook=_strict_object,
             parse_constant=_reject_constant,
+            parse_float=_finite_float,
         )
         records = [
             record
