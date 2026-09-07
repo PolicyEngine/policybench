@@ -1,5 +1,8 @@
 # Dashboard data artifacts
 
+Cost provenance has a separate [frozen contract and offline publication
+validator](cost_publication.md). Its accounting report never enables public costs.
+
 The dashboard payload (`data.json`, ~100MB at 39 models) is a generated
 artifact, not source. The manuscript snapshot keeps the frozen per-country
 copy as a deterministic gzip (`paper/snapshot/<id>/runs/<run>/data.json.gz`,

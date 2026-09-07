@@ -18,10 +18,28 @@ def spend_ledger_path(output_path: str | Path) -> Path:
     return Path(f"{output_path}{SPEND_LEDGER_SUFFIX}")
 
 
-def read_spend_ledger(path: str | Path) -> list[dict]:
-    """Read valid JSON-object records, ignoring an interrupted final line."""
+def _strict_object(pairs: list[tuple]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"Duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_constant(value: str) -> None:
+    raise ValueError(f"Non-finite JSON number: {value}")
+
+
+def read_spend_ledger(path: str | Path, *, strict: bool = False) -> list[dict]:
+    """Read ledger objects; strict publication reads reject missing/corrupt evidence.
+
+    The default retains the recovery-oriented behavior used by live runs.
+    """
     path = Path(path)
     if not path.exists():
+        if strict:
+            raise ValueError(f"Missing spend ledger: {path}")
         return []
     records = []
     for line_number, line in enumerate(
@@ -30,13 +48,31 @@ def read_spend_ledger(path: str | Path) -> list[dict]:
         if not line.strip():
             continue
         try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
+            record = json.loads(
+                line,
+                **(
+                    {
+                        "object_pairs_hook": _strict_object,
+                        "parse_constant": _reject_constant,
+                    }
+                    if strict
+                    else {}
+                ),
+            )
+        except ValueError as error:
+            if strict:
+                raise ValueError(
+                    f"Invalid spend-ledger line {line_number} in {path}: {error}"
+                ) from error
             logger.warning(
                 "Ignoring invalid spend-ledger line %s in %s", line_number, path
             )
             continue
         if not isinstance(record, dict):
+            if strict:
+                raise ValueError(
+                    f"Non-object spend-ledger line {line_number} in {path}"
+                )
             logger.warning(
                 "Ignoring non-object spend-ledger line %s in %s", line_number, path
             )

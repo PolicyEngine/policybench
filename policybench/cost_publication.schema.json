@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://policybench.org/schemas/cost-publication-v1.json",
+  "title": "PolicyBench frozen cost basis v1",
+  "description": "Offline accounting contract. Passing this schema does not authorize publication. All unknown fields use null; absent fields and additional fields are errors.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "evidence_kind", "metric", "pricing_date", "displayed_models", "scenario_ids", "history", "recipes", "pricecards", "models", "calls"],
+  "properties": {
+    "schema_version": {"const": 1, "type": "integer"},
+    "run_id": {"$ref": "#/$defs/text"},
+    "evidence_kind": {"enum": ["synthetic", "retained"]},
+    "metric": {"const": "operational_workflow_sync_uncached_v1"},
+    "pricing_date": {"type": ["string", "null"], "format": "date"},
+    "displayed_models": {"$ref": "#/$defs/nonempty_inventory"},
+    "scenario_ids": {"$ref": "#/$defs/nonempty_inventory"},
+    "history": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "evidence", "reason"],
+      "properties": {
+        "status": {"enum": ["complete", "unknown", "unrecoverable"]},
+        "evidence": {"$ref": "#/$defs/nullable_evidence"},
+        "reason": {"$ref": "#/$defs/nullable_text"}
+      }
+    },
+    "recipes": {"type": "object", "propertyNames": {"$ref": "#/$defs/digest"}, "additionalProperties": {"$ref": "#/$defs/recipe"}},
+    "pricecards": {"type": "object", "propertyNames": {"$ref": "#/$defs/digest"}, "additionalProperties": {"$ref": "#/$defs/pricecard"}},
+    "models": {"type": "object", "propertyNames": {"$ref": "#/$defs/text"}, "additionalProperties": {"$ref": "#/$defs/model"}},
+    "calls": {"type": "object", "propertyNames": {"$ref": "#/$defs/text"}, "additionalProperties": {"$ref": "#/$defs/call"}}
+  },
+  "$defs": {
+    "ledger_record": {
+      "type": "object",
+      "required": ["call_key", "model", "model_id", "scenario_id", "variables", "mode", "phase", "status"],
+      "properties": {
+        "call_key": {"$ref": "#/$defs/text"},
+        "model": {"$ref": "#/$defs/text"},
+        "model_id": {"$ref": "#/$defs/text"},
+        "scenario_id": {"$ref": "#/$defs/text"},
+        "variables": {"$ref": "#/$defs/nonempty_inventory"},
+        "mode": {"$ref": "#/$defs/nullable_text"},
+        "phase": {"$ref": "#/$defs/nullable_text"},
+        "status": {"$ref": "#/$defs/nullable_text"},
+        "provider": {"$ref": "#/$defs/nullable_text"},
+        "batch_id": {"$ref": "#/$defs/nullable_text"},
+        "custom_id": {"$ref": "#/$defs/nullable_text"},
+        "attempt": {"type": ["integer", "null"], "minimum": 1},
+        "cache_hit": {"type": "boolean"},
+        "prompt_tokens": {"$ref": "#/$defs/token_count"},
+        "completion_tokens": {"$ref": "#/$defs/token_count"},
+        "reasoning_tokens": {"$ref": "#/$defs/token_count"},
+        "cached_prompt_tokens": {"$ref": "#/$defs/token_count"},
+        "cache_write_prompt_tokens": {"$ref": "#/$defs/token_count"},
+        "total_tokens": {"$ref": "#/$defs/token_count"},
+        "completion_budget_tokens": {"$ref": "#/$defs/token_count"},
+        "provider_reported_cost_usd": {"$ref": "#/$defs/ledger_money"},
+        "total_cost_usd": {"$ref": "#/$defs/ledger_money"},
+        "reconstructed_cost_usd": {"$ref": "#/$defs/ledger_money"},
+        "cost_is_estimated": {"type": ["boolean", "null"]}
+      }
+    },
+    "token_count": {"type": ["integer", "null"], "minimum": 0, "maximum": 1000000000000000},
+    "ledger_money": {"type": ["number", "null"], "minimum": 0, "maximum": 1e30},
+    "text": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "nullable_text": {"anyOf": [{"$ref": "#/$defs/text"}, {"type": "null"}]},
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "nullable_digest": {"anyOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]},
+    "money": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$", "maxLength": 40},
+    "nullable_money": {"anyOf": [{"$ref": "#/$defs/money"}, {"type": "null"}]},
+    "nullable_positive_integer": {"type": ["integer", "null"], "minimum": 1},
+    "inventory": {"type": "array", "items": {"$ref": "#/$defs/text"}, "uniqueItems": true},
+    "nonempty_inventory": {"allOf": [{"$ref": "#/$defs/inventory"}], "minItems": 1},
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reference", "sha256"],
+      "properties": {"reference": {"$ref": "#/$defs/text"}, "sha256": {"$ref": "#/$defs/digest"}}
+    },
+    "nullable_evidence": {"anyOf": [{"$ref": "#/$defs/evidence"}, {"type": "null"}]},
+    "recipe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "model_id", "response_contract", "outputs_per_request", "completion_token_limit", "prompt_sha256", "treatment_sha256"],
+      "properties": {
+        "provider": {"$ref": "#/$defs/nullable_text"},
+        "model_id": {"$ref": "#/$defs/nullable_text"},
+        "response_contract": {"$ref": "#/$defs/nullable_text"},
+        "outputs_per_request": {"$ref": "#/$defs/nullable_positive_integer"},
+        "completion_token_limit": {"$ref": "#/$defs/nullable_positive_integer"},
+        "prompt_sha256": {"$ref": "#/$defs/nullable_digest"},
+        "treatment_sha256": {"$ref": "#/$defs/nullable_digest"}
+      }
+    },
+    "pricecard": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "model_id", "evidence_kind", "effective_on", "captured_on", "source", "currency", "mode", "input_per_million_usd", "output_per_million_usd"],
+      "properties": {
+        "provider": {"$ref": "#/$defs/nullable_text"},
+        "model_id": {"$ref": "#/$defs/nullable_text"},
+        "evidence_kind": {"enum": ["synthetic", "retained"]},
+        "effective_on": {"type": ["string", "null"], "format": "date"},
+        "captured_on": {"type": ["string", "null"], "format": "date"},
+        "source": {"$ref": "#/$defs/nullable_evidence"},
+        "currency": {"const": "USD"},
+        "mode": {"const": "standard_sync"},
+        "input_per_million_usd": {"$ref": "#/$defs/nullable_money"},
+        "output_per_million_usd": {"$ref": "#/$defs/nullable_money"}
+      }
+    },
+    "totals": {
+      "type": "object", "additionalProperties": false,
+      "required": ["physical_requests", "actual_billed_usd", "normalized_sync_usd"],
+      "properties": {
+        "physical_requests": {"type": ["integer", "null"], "minimum": 0},
+        "actual_billed_usd": {"$ref": "#/$defs/nullable_money"},
+        "normalized_sync_usd": {"$ref": "#/$defs/nullable_money"}
+      }
+    },
+    "model": {
+      "type": "object", "additionalProperties": false,
+      "required": ["model_id", "recipe_id", "pricecard_id", "expected_call_keys", "totals"],
+      "properties": {
+        "model_id": {"$ref": "#/$defs/nullable_text"},
+        "recipe_id": {"$ref": "#/$defs/nullable_digest"},
+        "pricecard_id": {"$ref": "#/$defs/nullable_digest"},
+        "expected_call_keys": {"$ref": "#/$defs/inventory"},
+        "totals": {"$ref": "#/$defs/totals"}
+      }
+    },
+    "billed_cost": {
+      "type": "object", "additionalProperties": false,
+      "required": ["amount_usd", "source", "evidence"],
+      "properties": {
+        "amount_usd": {"$ref": "#/$defs/nullable_money"},
+        "source": {"enum": ["provider_reported", "billing_export", "local_cache", "synthetic", "unknown"]},
+        "evidence": {"$ref": "#/$defs/nullable_evidence"}
+      }
+    },
+    "usage_basis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["prompt_tokens", "completion_tokens"],
+      "properties": {
+        "prompt_tokens": {"enum": ["includes_cache", "excludes_cache"]},
+        "completion_tokens": {"enum": ["includes_reasoning", "excludes_reasoning"]}
+      }
+    },
+    "call": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ledger_sha256", "recipe_id", "pricecard_id", "usage_basis", "billed_cost", "cache_replay_of"],
+      "properties": {
+        "ledger_sha256": {"$ref": "#/$defs/digest"},
+        "recipe_id": {"$ref": "#/$defs/nullable_digest"},
+        "pricecard_id": {"$ref": "#/$defs/nullable_digest"},
+        "usage_basis": {"anyOf": [{"$ref": "#/$defs/usage_basis"}, {"type": "null"}]},
+        "billed_cost": {"$ref": "#/$defs/billed_cost"},
+        "cache_replay_of": {"$ref": "#/$defs/nullable_text"}
+      }
+    }
+  }
+}
