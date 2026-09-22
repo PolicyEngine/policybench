@@ -39,7 +39,14 @@ from pathlib import Path
 import pandas as pd
 
 from policybench.reference_exclusions import FILENAME as EXCLUSIONS_FILENAME
-from policybench.reference_exclusions import exclusion_keys, load_reference_exclusions
+from policybench.reference_exclusions import (
+    ENGINE_DEFECT,
+    LATER_LAW,
+    UNLISTED_INPUT,
+    exclusion_basis,
+    exclusion_keys,
+    load_reference_exclusions,
+)
 from policybench.snapshot_payload import read_run_payload
 
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
@@ -926,10 +933,32 @@ class PaperResults:
 
     @property
     def excluded_outputs_by_input(self) -> dict[str, int]:
+        """Unlisted-input exclusions, counted by the input they turn on."""
         counts: dict[str, int] = {}
         for entry in self.reference_exclusions:
+            if entry["reason_code"] != UNLISTED_INPUT:
+                continue
             counts[entry["unlisted_input"]] = counts.get(entry["unlisted_input"], 0) + 1
         return counts
+
+    @property
+    def excluded_outputs_by_root_cause(self) -> dict[str, int]:
+        """Engine-defect exclusions, counted by root cause."""
+        counts: dict[str, int] = {}
+        for entry in self.reference_exclusions:
+            if entry["reason_code"] != ENGINE_DEFECT:
+                continue
+            key = exclusion_basis(entry)
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    @property
+    def unlisted_input_exclusion_count(self) -> int:
+        return sum(self.excluded_outputs_by_input.values())
+
+    @property
+    def engine_defect_exclusion_count(self) -> int:
+        return sum(self.excluded_outputs_by_root_cause.values())
 
     @property
     def excluded_output_households_fmt(self) -> str:
@@ -1010,6 +1039,68 @@ class PaperResults:
     def audit_developer_adjudications(self) -> dict:
         """Manifest summary of recorded developer adjudications."""
         return self.manifest["audit_annotation_artifacts"]["developer_adjudications"]
+
+    @property
+    def audit_flagged_by_verdict(self) -> dict[str, int]:
+        """Judge-flagged cases by the developer's reference verdict."""
+        return self.audit_developer_adjudications.get(
+            "judge_flagged_by_reference_verdict", {}
+        )
+
+    @property
+    def audit_flagged_case_count(self) -> int:
+        return sum(self.audit_flagged_by_verdict.values())
+
+    def audit_flagged_count(self, verdict: str) -> int:
+        return self.audit_flagged_by_verdict.get(verdict, 0)
+
+    @property
+    def excluded_output_households_by_reason(self) -> dict[str, int]:
+        households: dict[str, set[str]] = {}
+        for entry in self.reference_exclusions:
+            households.setdefault(entry["reason_code"], set()).add(entry["scenario_id"])
+        return {reason: len(ids) for reason, ids in households.items()}
+
+    @cached_property
+    def reference_revisions(self) -> list[dict]:
+        """Revisions recorded in the frozen reference sidecar (oldest first)."""
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        meta = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+        return meta.get("revisions", [])
+
+    @property
+    def regenerated_snap_reference_count(self) -> int:
+        """SNAP references regenerated with October-December held at FY2026."""
+        return sum(
+            len(r["changed"])
+            for r in self.reference_revisions
+            if r["outputs"] == "snap"
+        )
+
+    @property
+    def later_law_exclusion_count(self) -> int:
+        return sum(
+            1 for e in self.reference_exclusions if e["reason_code"] == LATER_LAW
+        )
+
+    @property
+    def engine_defect_root_cause_count(self) -> int:
+        """Distinct root causes behind the engine-defect exclusions."""
+        causes: set[str] = set()
+        for entry in self.reference_exclusions:
+            if entry["reason_code"] == ENGINE_DEFECT:
+                causes.update(exclusion_basis(entry).split("+"))
+        return len(causes)
+
+    @property
+    def excluded_descriptive_row_count(self) -> int:
+        """Annotated rows on excluded outputs that carry a descriptive class."""
+        return sum(
+            1
+            for row in self._excluded_output_annotation_rows
+            if row["failure_source"]
+            in {"prompt_ambiguity", "reference_engine_defect", "reference_later_law"}
+        )
 
     @property
     def audit_adjudicated_case_count_fmt(self) -> str:

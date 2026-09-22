@@ -66,6 +66,10 @@ export function findReferenceExclusion(
 const EXCLUSION_REASON_LABELS: Record<string, string> = {
   reference_depends_on_unlisted_input:
     "the reference depends on an input the household facts never listed",
+  reference_engine_defect:
+    "the engine that produced the reference misapplies the law on the stated facts",
+  reference_law_published_after_freeze:
+    "the reference depends on a figure published after the references were frozen",
 };
 
 export function describeExclusionReason(reasonCode?: string): string {

@@ -49,6 +49,8 @@ function formatBoolean(value: 0 | 1 | null): string {
 const FAILURE_SOURCE_LABELS: Record<string, string> = {
   llm_error: "LLM",
   prompt_ambiguity: "Prompt ambiguity",
+  reference_engine_defect: "Reference defect",
+  reference_later_law: "Later law",
 };
 
 function formatFailureLabel(value?: string): string | null {

@@ -10,6 +10,7 @@ from policybench.adjudications import (
     AdjudicationError,
     apply_adjudications,
     load_adjudications,
+    unresolved_suspect_cases,
     verify_adjudications_applied,
 )
 
@@ -239,3 +240,85 @@ def test_verify_requires_agreement_with_the_complete_record():
     bad_rows.loc[1, "failure_subtype"] = "thresholds_rates"
     with pytest.raises(AdjudicationError, match="subtype other than"):
         verify_adjudications_applied(bad_rows, out_cases, [_entry()])
+
+
+def _suspect_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
+    rows, cases = _frames()
+    rows.loc[rows["scenario_id"] == "scenario_001", "reference_suspect"] = True
+    rows.loc[rows["scenario_id"] == "scenario_001", "failure_source"] = (
+        "reference_model_issue_fixed"
+    )
+    cases["reference_suspect"] = [True, False]
+    cases.loc[0, "case_failure_sources"] = "reference_model_issue_fixed"
+    return rows, cases
+
+
+def _verdict_entry(verdict: str, **overrides: object) -> dict:
+    source = {
+        "affirmed": "llm_error",
+        "engine_defect": "reference_engine_defect",
+        "unlisted_input": "prompt_ambiguity",
+        "later_law": "reference_later_law",
+    }[verdict]
+    entry = _entry(
+        judge_failure_source="reference_model_issue_fixed",
+        adjudicated_failure_source=source,
+        reference_verdict=verdict,
+        reference_basis="42 U.S.C. 1382c(a)(3)(A)",
+    )
+    if verdict != "affirmed":
+        entry["excluded_from_scoring"] = True
+    entry.update(overrides)
+    return entry
+
+
+@pytest.mark.parametrize(
+    "verdict", ["affirmed", "engine_defect", "unlisted_input", "later_law"]
+)
+def test_reference_verdict_clears_the_suspect_flag_and_is_recorded(tmp_path, verdict):
+    rows, cases = _suspect_frames()
+    entry = _verdict_entry(verdict)
+    path = tmp_path / "adj.json"
+    path.write_text(json.dumps({"adjudications": [entry]}))
+    assert load_adjudications(path)[0]["reference_verdict"] == verdict
+    assert unresolved_suspect_cases(cases, [entry | {"reference_verdict": None}]) == [
+        ("us", "scenario_001", "ssi")
+    ]
+    out_rows, out_cases, _ = apply_adjudications(rows, cases, [entry])
+    assert not out_rows["reference_suspect"].any()
+    assert not out_cases["reference_suspect"].any()
+    assert "42 U.S.C. 1382c(a)(3)(A)" in out_cases.loc[0, "case_annotation"]
+    verify_adjudications_applied(out_rows, out_cases, [entry])
+    assert unresolved_suspect_cases(out_cases, [entry]) == []
+
+
+def test_reference_verdict_must_match_class_and_scoring(tmp_path):
+    path = tmp_path / "adj.json"
+    bad = [
+        (_verdict_entry("affirmed", excluded_from_scoring=True), "only valid with"),
+        (
+            _verdict_entry(
+                "engine_defect", adjudicated_failure_source="prompt_ambiguity"
+            ),
+            "requires adjudicated_failure_source",
+        ),
+        (_verdict_entry("unlisted_input", reference_basis=""), "reference_basis"),
+        (_verdict_entry("engine_defect", reference_verdict="maybe"), "unknown"),
+        (
+            _verdict_entry("engine_defect", reference_verdict=None),
+            "requires a reference_verdict",
+        ),
+    ]
+    for entry, message in bad:
+        path.write_text(json.dumps({"adjudications": [entry]}))
+        with pytest.raises(AdjudicationError, match=message):
+            load_adjudications(path)
+
+
+def test_verification_fails_while_a_verdict_leaves_the_flag_set():
+    rows, cases = _suspect_frames()
+    entry = _verdict_entry("affirmed")
+    out_rows, out_cases, _ = apply_adjudications(rows, cases, [entry])
+    out_rows.loc[0, "reference_suspect"] = True
+    with pytest.raises(AdjudicationError, match="still carry reference_suspect"):
+        verify_adjudications_applied(out_rows, out_cases, [entry])

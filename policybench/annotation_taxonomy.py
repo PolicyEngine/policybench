@@ -9,6 +9,12 @@ FAILURE_SOURCE_VALUES = (
     "prompt_ambiguity",
     "reference_model_issue_fixed",
     "reference_data_issue_fixed",
+    # Developer adjudication only: the reference misapplies the law, so the
+    # output is excluded from scoring (policybench.reference_exclusions).
+    "reference_engine_defect",
+    # Developer adjudication only: the reference depends on law published after
+    # the reference freeze, so the output is excluded from scoring.
+    "reference_later_law",
     "parse_contract_failure",
     "budget_exhausted_at_ceiling",
     "needs_review",

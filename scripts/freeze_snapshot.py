@@ -52,11 +52,14 @@ import pandas as pd
 from policybench.adjudications import (
     excluded_case_keys,
     load_adjudications,
+    unresolved_suspect_cases,
     verify_adjudications_applied,
 )
 from policybench.analysis import render_markdown_report, score_single_prediction
 from policybench.full_run_export import reference_policyengine_bundles
 from policybench.reference_exclusions import (
+    ENGINE_DEFECT,
+    exclusion_basis,
     exclusion_keys,
     load_reference_exclusions,
     scored_reference_for,
@@ -261,7 +264,8 @@ def audit_judge_provenance(
         else:
             judge, runner, day = "unknown", "unknown", ""
         entry = by_judge.setdefault(
-            judge, {"runner": runner, "runners": {runner}, "cases": 0, "judged_on_utc": []}
+            judge,
+            {"runner": runner, "runners": {runner}, "cases": 0, "judged_on_utc": []},
         )
         entry["runners"].add(runner)
         entry["cases"] += 1
@@ -304,20 +308,28 @@ def reference_exclusions_block() -> dict:
     reference = pd.read_csv(RUN_DEST / "reference_outputs.csv")
     verify_exclusions_against_reference(reference, exclusions)
     by_input: dict[str, int] = {}
+    by_root_cause: dict[str, int] = {}
     for entry in exclusions:
-        by_input[entry["unlisted_input"]] = by_input.get(entry["unlisted_input"], 0) + 1
+        bucket = by_root_cause if entry["reason_code"] == ENGINE_DEFECT else by_input
+        key = exclusion_basis(entry)
+        bucket[key] = bucket.get(key, 0) + 1
     return {
         "file": EXCLUSIONS_NAME if exclusions else None,
         "outputs": len(exclusions),
         "by_unlisted_input": dict(sorted(by_input.items())),
+        "by_engine_defect_root_cause": dict(sorted(by_root_cause.items())),
         "scored_outputs_per_model": int(len(reference) - len(exclusions)),
         "note": (
-            "Outputs whose reference depends on an engine input the certified "
-            "household data never carried (so the prompt never listed it) are "
-            "removed from scoring for every model, symmetrically; their rows stay "
-            "in the payload with scored=false. Each entry records the alternative "
-            "reading and the reference under both readings, recomputed with the "
-            "engine version that produced the references."
+            "Outputs are removed from scoring for every model, symmetrically, "
+            "when the reference depends on an engine input the certified "
+            "household data never carried (so the prompt never listed it), or "
+            "when the engine that produced the reference misapplies the law on "
+            "facts the prompt states. Their rows stay in the payload with "
+            "scored=false. An unlisted-input entry records the alternative "
+            "reading and the reference under both readings; an engine-defect "
+            "entry records the root cause, the law, the upstream issue, and the "
+            "corrected value computed with the same engine version and a "
+            "sandbox fix."
         ),
     }
 
@@ -339,14 +351,33 @@ def developer_adjudications_block() -> dict:
         )
         if entries
         else {},
+        "by_reference_verdict": _count(
+            e["reference_verdict"] for e in entries if e.get("reference_verdict")
+        ),
+        "judge_flagged_by_reference_verdict": _count(
+            e["reference_verdict"]
+            for e in entries
+            if e.get("judge_reference_suspect") and e.get("reference_verdict")
+        ),
         "note": (
             "Judge verdicts outside the final classes (llm_error, "
             "parse_contract_failure) are resolved by a recorded developer "
             "adjudication that keeps the judge's verdict and reasoning beside "
             "the adjudicated class; applied to the bundle before export so the "
-            "published payload and the frozen annotations agree."
+            "published payload and the frozen annotations agree. Every case the "
+            "judge flagged reference-suspect carries a reference verdict "
+            "(affirmed, engine_defect, unlisted_input, later_law) that clears "
+            "the flag; judge_reference_suspect records which entries the judge "
+            "flagged."
         ),
     }
+
+
+def _count(values) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for value in values:
+        counts[str(value)] = counts.get(str(value), 0) + 1
+    return dict(sorted(counts.items()))
 
 
 # Legacy household-equal impact metric (removed from the package in #58 but
@@ -1182,11 +1213,21 @@ def freeze_annotations() -> dict[str, str]:
     # adjudicated classes; refuse to freeze a bundle that disagrees with the
     # committed record.
     adjudications = load_adjudications(adjudications_path)
+    frozen_cases = pd.read_csv(ANNOTATIONS_DEST / "us_case_notes.csv")
     verify_adjudications_applied(
         pd.read_csv(ANNOTATIONS_DEST / "us_audit_row_annotations.csv"),
-        pd.read_csv(ANNOTATIONS_DEST / "us_case_notes.csv"),
+        frozen_cases,
         adjudications,
     )
+    # A snapshot carries no open reference question: every case the judge
+    # flagged reference-suspect has a developer reference verdict (affirmed,
+    # or excluded as an engine defect or an unlisted input).
+    unresolved = unresolved_suspect_cases(frozen_cases, adjudications)
+    if unresolved:
+        raise SystemExit(
+            f"{len(unresolved)} reference-suspect case(s) have no developer "
+            f"reference verdict: {unresolved}"
+        )
 
     # The publish bundle added an Ox Alpha row annotation without its matching
     # case note. Add that deterministic aggregate note before hashing.
