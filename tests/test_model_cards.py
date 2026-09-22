@@ -58,6 +58,8 @@ EXPECTED = {
     "gemini/gemini-3.8-flash": ("tool", None, 300, 16_384),
     "gemini/gemini-3.5-flash-lite": ("tool", None, 300, 16_384),
     "gpt-6-astra": ("tool", None, 300, 16_384),
+    "gpt-6-sol": ("tool", None, 300, 16_384),
+    "gpt-6-luna": ("tool", None, 300, 16_384),
     "openrouter/deepseek/deepseek-v4-pro-0813": ("tool", None, 2400, 98_304),
     "openrouter/deepseek/deepseek-v4-flash-0731": ("tool", None, 2400, 98_304),
     "openrouter/z-ai/glm-5.3": ("tool", None, 2400, 16_384),

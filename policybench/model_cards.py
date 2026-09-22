@@ -86,6 +86,30 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "(effort medium), like GPT-5.6 Sol."
         ),
     ),
+    "gpt-6-sol": ModelCard(
+        litellm_id="gpt-6-sol",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.016,
+        notes=(
+            "Onboarded 2026-09-22, the day OpenAI announced it: forced tool "
+            "contract passed 3/3 (1,761 completion tokens) and 16/16 "
+            "whole-scenario (1,141 tokens) on the Responses API with "
+            "provider-default reasoning (effort medium), like GPT-6 Astra."
+        ),
+    ),
+    "gpt-6-luna": ModelCard(
+        litellm_id="gpt-6-luna",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.002,
+        notes=(
+            "Onboarded 2026-09-22, the day OpenAI announced it: forced tool "
+            "contract passed 3/3 (2,048 completion tokens) and 16/16 "
+            "whole-scenario (2,768 tokens) on the Responses API with "
+            "provider-default reasoning (effort medium), like GPT-6 Astra."
+        ),
+    ),
     "gpt-5.6-sol": ModelCard(
         litellm_id="gpt-5.6-sol",
         answer_contract="tool",

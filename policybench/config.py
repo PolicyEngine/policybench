@@ -32,11 +32,14 @@ GPT_56_MODELS = {
     "gpt-5.6-terra": "gpt-5.6-terra",
     "gpt-5.6-luna": "gpt-5.6-luna",
 }
-# GPT-6 Astra (API availability 2026-09-04) shares the GPT-5.6 line's
+# GPT-6 Astra (API availability 2026-09-04), GPT-6 Sol and GPT-6 Luna (both
+# announced and available 2026-09-22) share the GPT-5.6 line's
 # Responses-API transport and pricing structure (cache reads at a tenth,
 # cache writes at 1.25x, doubled input and 1.5x output above 272k tokens).
 GPT_6_MODELS = {
     "gpt-6-astra": "gpt-6-astra",
+    "gpt-6-sol": "gpt-6-sol",
+    "gpt-6-luna": "gpt-6-luna",
 }
 GPT_RESPONSES_MODELS = {**GPT_56_MODELS, **GPT_6_MODELS}
 
@@ -97,6 +100,13 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # writes, $20 / $75 above 272k prompt tokens (OpenAI model page and the
     # OpenRouter mirror, retrieved 2026-09-04).
     "gpt-6-astra": {"input": 10.0, "output": 50.0},
+    # gpt-6-sol: $2 / $10 per 1M input/output, $0.20 cached input; gpt-6-luna:
+    # $0.10 / $0.50, $0.01 cached input; both double input and cache and take
+    # 1.5x output above 272k tokens (developers.openai.com/api/docs/models/
+    # gpt-6-sol and /gpt-6-luna, read 2026-09-22, the day OpenAI announced
+    # both; the Models API lists each id with created 2026-09-14).
+    "gpt-6-sol": {"input": 2.0, "output": 10.0},
+    "gpt-6-luna": {"input": 0.10, "output": 0.50},
     "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
     "gpt-5.6-terra": {"input": 2.5, "output": 15.0},
     "gpt-5.6-luna": {"input": 1.0, "output": 6.0},

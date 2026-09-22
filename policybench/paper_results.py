@@ -50,6 +50,8 @@ SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 # appear here fall back to a humanized form of the PolicyBench id.
 MODEL_DISPLAY_NAMES = {
     "gpt-6-astra": "GPT-6 Astra",
+    "gpt-6-sol": "GPT-6 Sol",
+    "gpt-6-luna": "GPT-6 Luna",
     "gpt-5.6-sol": "GPT-5.6 Sol",
     "gpt-5.6-terra": "GPT-5.6 Terra",
     "gpt-5.6-luna": "GPT-5.6 Luna",
@@ -1193,6 +1195,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # day (en.wikipedia.org/wiki/GPT-6_Astra citing Japan Today 2026-09-04);
     # the trusted-partner day is excluded under the public-availability rule
     "gpt-6-astra": "2026-09-04",
+    # openai.com/index/introducing-gpt-6-sol-and-luna (2026-09-22; API and
+    # ChatGPT availability the same day per techcrunch.com 2026-09-22)
+    "gpt-6-sol": "2026-09-22",
+    "gpt-6-luna": "2026-09-22",
     # piunikaweb.com 2026-04-17 SuperGrok beta (paid public tier)
     "grok-4.3": "2026-04-17",
     # x.ai/news/grok-4-5; techcrunch.com 2026-07-08
