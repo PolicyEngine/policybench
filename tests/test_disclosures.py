@@ -200,6 +200,7 @@ def test_serving_config_has_both_transports():
         row["model"] for row in rows if row["answer_contract"] == "json"
     )
     assert "claude-fable-5.1" in json_models
+    assert "claude-opus-5.5" in json_models
 
 
 def test_current_board_copy_makes_no_identical_request_claim():

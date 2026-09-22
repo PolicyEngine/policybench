@@ -4,7 +4,8 @@
  * the board scores. The board's forced answer-tool call switches Claude's
  * extended thinking off (other reasoning-by-default providers reason
  * regardless); Claude Fable 5.1 rejects forced tool calls and answers as JSON,
- * reasoning in both runs, so its comparison is one of transport. Scores are
+ * reasoning in both runs, so its comparison is one of transport. Claude Opus
+ * 5.5 rejects forced calls the same way and has no auto re-run. Scores are
  * the pinned three-decimal measurements from sensitivity/data/*.json; round
  * only for display. Each entry's "would rank" is derived from the live board
  * rows at render time, never typed by hand.

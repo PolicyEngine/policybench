@@ -31,6 +31,8 @@ SENSITIVITY_NOTE_PATH = ROOT / "sensitivity/claude-thinking-2026-08.md"
 CLAUDE_NOTE = "2026-09-01-claude-fable-5-1-added"
 SNAP_NOTE = "2026-09-03-six-snap-households"
 ASTRA_NOTE = "2026-09-05-gpt-6-astra-debuts-second"
+OPUS55_NOTE = "2026-09-22-claude-opus-5-5-debuts-first"
+CLAUDE_THINKING_SENSITIVITY_PATH = ROOT / "sensitivity/data/claude-thinking-2026-08.json"
 ASTRA_ROWS_PATH = ROOT / "notes/data/astra_vs_sol_20260905.csv"
 TOP_MODELS = ("gpt-5.6-sol", "claude-fable-5.1", "kimi-k3")
 PLACEHOLDER = re.compile(r"\{([A-Za-z][A-Za-z0-9]*)\}")
@@ -61,8 +63,11 @@ def _frozen_release() -> str:
 # A note keeps the release its facts were checked against. Facts of a note on
 # the frozen release are recomputed here; a note on a superseded release keeps
 # the facts verified when that release was frozen (git history holds the run).
-SUPERSEDED_RELEASES = {"dashboard-data-20260901c": "2026-09-01"}
-CURRENT_RELEASE_SNAPSHOT = "2026-09-05"
+SUPERSEDED_RELEASES = {
+    "dashboard-data-20260901c": "2026-09-01",
+    "dashboard-data-20260905c": "2026-09-05",
+}
+CURRENT_RELEASE_SNAPSHOT = "2026-09-22"
 
 
 @cache
@@ -304,7 +309,8 @@ def test_astra_note_facts() -> None:
     )
 
     note = _note(ASTRA_NOTE)
-    assert note["release"] == _frozen_release()
+    if not _recompute_against_frozen_snapshot(note):
+        return
     payload = _dashboard()
     annotations = _judge_annotations()
 
@@ -376,3 +382,35 @@ def test_astra_note_facts() -> None:
         r["scenario_id"] == "scenario_074" and "medicare" in r["variable"]
         for r in expected_rows
     )
+
+
+def test_opus55_note_facts() -> None:
+    note = _note(OPUS55_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    board_rows = [
+        row for row in _dashboard()["modelStats"] if row["condition"] == "no_tools"
+    ]
+    by_model = {row["model"]: row for row in board_rows}
+    target = by_model["claude-opus-5.5"]
+    sol = by_model["gpt-5.6-sol"]
+    opus5 = by_model["claude-opus-5"]
+    sensitivity = _load_json(CLAUDE_THINKING_SENSITIVITY_PATH)
+    opus5_auto = float(
+        sensitivity["runs"]["claude-opus-5-thinking"]["sensitivity"]["exact"]
+    )
+
+    derived = {
+        "exactRate": _display_one_decimal(target["exact"]),
+        "rank": 1 + sum(row["exact"] > target["exact"] for row in board_rows),
+        "nModels": len(board_rows),
+        "solExact": _display_one_decimal(sol["exact"]),
+        "solGap": _display_one_decimal(target["exact"] - sol["exact"]),
+        "parsed": target["nParsed"],
+        "scoredOutputs": target["n"],
+        "opus5BoardExact": _display_one_decimal(opus5["exact"]),
+        "opus5AutoExact": _display_one_decimal(opus5_auto),
+        "opusGap": _display_one_decimal(target["exact"] - opus5["exact"]),
+    }
+    assert note["facts"] == derived
+    assert target["nParsed"] == target["n"]

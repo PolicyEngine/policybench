@@ -13,7 +13,7 @@ What it freezes (all paths relative to the repo root):
 * ``paper/snapshot/<dir>/runs/<label>/`` — compact copies of the run:
   ``data.json.gz`` (extracted from the byte-pinned published dashboard and
   stored as a deterministic gzip: the plain export passed GitHub's 100 MB
-  file limit at 39 models),
+  file limit at 40 models),
   ``predictions.csv.gz`` (deterministic gzip of the run's
   ``predictions.csv``), ``scenarios.csv`` (+ ``.meta.json``),
   ``reference_outputs.csv`` (+ ``.meta.json``), and ``analysis/`` CSVs
@@ -70,14 +70,14 @@ from policybench.snapshot_payload import (
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the September 2026 US-only populace refresh (39-model
+# Configuration for the September 2026 US-only populace refresh (40-model
 # board, corrected v1.1 references).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
-SNAPSHOT_DATE = "2026-09-05"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-09-05"
+SNAPSHOT_DATE = "2026-09-22"
+MODEL_RESPONSE_DATE = "2026-06-12 to 2026-09-22"
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
 # Completed runs live under the main clone's gitignored results/local. A
@@ -90,7 +90,7 @@ _MAIN_CLONE = next(
     ),
     ROOT,
 )
-SOURCE_RUN = (_MAIN_CLONE / "results/local/newmodels/publish" / RUN_LABEL).resolve()
+SOURCE_RUN = (_MAIN_CLONE / "results/local/adds202609/publish" / RUN_LABEL).resolve()
 SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
@@ -101,7 +101,7 @@ SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 # scoring for every model, per reference_exclusions.json). Superseded tags:
 # 20260905 carried the judge's prompt_ambiguity verdict before adjudication;
 # 20260905b scored all 1,984 outputs and classified those rows llm_error.
-PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board39.json"
+PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board40.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
     "tag": "dashboard-data-20260905c",
     "asset": "dashboard-data.json",
@@ -128,6 +128,7 @@ REFERENCE_META_SOURCE = RUN_DEST / "reference_outputs.csv.meta.json"
 # board row actually received. Older supervisor state files predate treatment
 # fingerprints; those rows honestly remain registry-backed until rerun.
 RUN_STATE_EVIDENCE = {
+    "claude-opus-5.5": "results/local/adds202609/opus55/run/run_state.json",
     "claude-fable-5.1": "results/local/fable51/run/run_state.json",
     "gpt-6-astra": "results/local/newmodels/astra/run/run_state.json",
     "gemini-3.8-flash": "results/local/newmodels/gemini38flash/run/run_state.json",

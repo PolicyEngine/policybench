@@ -51,7 +51,8 @@ Structured responses are collected through the transport each model card
 records: a forced answer-schema tool call (`submit_outputs`) where the card
 selects the tool transport and the provider accepts a forced call, or the same
 fields returned as a JSON object — because the provider rejects a forced tool
-(Kimi K3, Qwen 3.8 Max, Claude Fable 5.1) or because the card selects JSON
+(Kimi K3, Qwen 3.8 Max, Claude Fable 5.1, Claude Opus 5.5) or because the card
+selects JSON
 for the family (the older Gemini and DeepSeek rows). The per-model transport
 is in the snapshot's `model_serving_config.json`.
 This is an output format, not a capability — nothing executes, no result is
