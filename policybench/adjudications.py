@@ -50,6 +50,9 @@ AFFIRMABLE_WITH_EXCLUSION = frozenset(
 # "unlisted_input" go with an exclusion of the matching reason code.
 REFERENCE_VERDICTS = {
     "affirmed": None,
+    # The flagged reference was replaced by a regenerated one under a recorded
+    # convention (the reference sidecar's revisions); the output stays scored.
+    "regenerated": None,
     "engine_defect": "reference_engine_defect",
     "unlisted_input": "prompt_ambiguity",
     "later_law": "reference_later_law",
@@ -100,7 +103,7 @@ def load_adjudications(path: Path) -> list[dict]:
             if expected is None:
                 if excluded or adjudicated not in FINAL_SOURCES:
                     raise AdjudicationError(
-                        f"{path}: an affirmed reference keeps the output scored "
+                        f"{path}: an {verdict} reference keeps the output scored "
                         f"with a final class, got {adjudicated!r}, excluded={excluded}"
                     )
             elif adjudicated != expected:
@@ -153,6 +156,7 @@ def _strip_adjudication_sentence(note: str) -> str:
 
 _REFERENCE_VERDICT_PHRASES = {
     "affirmed": "Reference affirmed",
+    "regenerated": "Reference regenerated",
     "engine_defect": "Reference is an engine defect; output excluded from scoring",
     "unlisted_input": (
         "Reference depends on an unlisted input; output excluded from scoring"

@@ -38,7 +38,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.reference_exclusions import FILENAME as EXCLUSIONS_FILENAME
 from policybench.reference_exclusions import (
     ENGINE_DEFECT,
     LATER_LAW,
@@ -47,6 +46,7 @@ from policybench.reference_exclusions import (
     exclusion_keys,
     load_reference_exclusions,
 )
+from policybench.reference_exclusions import FILENAME as EXCLUSIONS_FILENAME
 from policybench.snapshot_payload import read_run_payload
 
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
@@ -1028,6 +1028,11 @@ class PaperResults:
     @property
     def audit_opus_judged_case_count_fmt(self) -> str:
         entry = self.audit_judge_provenance["by_judge"]["claude-opus-5"]
+        return f"{entry['cases']:,}"
+
+    @property
+    def audit_opus55_judged_case_count_fmt(self) -> str:
+        entry = self.audit_judge_provenance["by_judge"]["claude-opus-5-5"]
         return f"{entry['cases']:,}"
 
     @property

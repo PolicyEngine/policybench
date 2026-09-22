@@ -166,7 +166,9 @@ JUDGE_RUNNERS = {
     # Native Claude Code Workflow subagents, one per case, returning the audit
     # schema as structured output; the sidecar carries the same fields the
     # CLI runner writes (results/local/adds202609/judge_stages.py).
-    "workflow": "Claude Code Workflow subagents (results/local/adds202609/judge_stages.py)",
+    "workflow": (
+        "Claude Code Workflow subagents (results/local/adds202609/judge_stages.py)"
+    ),
 }
 
 

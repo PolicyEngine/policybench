@@ -256,6 +256,7 @@ def _suspect_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
 def _verdict_entry(verdict: str, **overrides: object) -> dict:
     source = {
         "affirmed": "llm_error",
+        "regenerated": "llm_error",
         "engine_defect": "reference_engine_defect",
         "unlisted_input": "prompt_ambiguity",
         "later_law": "reference_later_law",
@@ -266,14 +267,15 @@ def _verdict_entry(verdict: str, **overrides: object) -> dict:
         reference_verdict=verdict,
         reference_basis="42 U.S.C. 1382c(a)(3)(A)",
     )
-    if verdict != "affirmed":
+    if verdict not in ("affirmed", "regenerated"):
         entry["excluded_from_scoring"] = True
     entry.update(overrides)
     return entry
 
 
 @pytest.mark.parametrize(
-    "verdict", ["affirmed", "engine_defect", "unlisted_input", "later_law"]
+    "verdict",
+    ["affirmed", "regenerated", "engine_defect", "unlisted_input", "later_law"],
 )
 def test_reference_verdict_clears_the_suspect_flag_and_is_recorded(tmp_path, verdict):
     rows, cases = _suspect_frames()

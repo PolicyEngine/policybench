@@ -32,7 +32,9 @@ CLAUDE_NOTE = "2026-09-01-claude-fable-5-1-added"
 SNAP_NOTE = "2026-09-03-six-snap-households"
 ASTRA_NOTE = "2026-09-05-gpt-6-astra-debuts-second"
 OPUS55_NOTE = "2026-09-22-claude-opus-5-5-debuts-first"
-CLAUDE_THINKING_SENSITIVITY_PATH = ROOT / "sensitivity/data/claude-thinking-2026-08.json"
+CLAUDE_THINKING_SENSITIVITY_PATH = (
+    ROOT / "sensitivity/data/claude-thinking-2026-08.json"
+)
 ASTRA_ROWS_PATH = ROOT / "notes/data/astra_vs_sol_20260905.csv"
 TOP_MODELS = ("gpt-5.6-sol", "claude-fable-5.1", "kimi-k3")
 PLACEHOLDER = re.compile(r"\{([A-Za-z][A-Za-z0-9]*)\}")
