@@ -26,6 +26,7 @@ EXPECTED = {
     "gpt-5.5": ("tool", 3, 60, 16_384),
     "claude-fable-5": ("tool", 1, 300, 16_384),
     "claude-fable-5-1": ("json", None, 600, 16_384),
+    "claude-opus-5-5": ("json", None, 600, 16_384),
     "claude-opus-5": ("tool", None, 300, 16_384),
     "claude-sonnet-5": ("tool", 1, 300, 16_384),
     "claude-opus-4-8": ("tool", 1, 120, 4_096),

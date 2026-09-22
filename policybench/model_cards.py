@@ -181,6 +181,27 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "1,984/1,984 parsed, no budget escalations)."
         ),
     ),
+    "claude-opus-5-5": ModelCard(
+        litellm_id="claude-opus-5-5",
+        answer_contract="json",
+        request_timeout_seconds=600,
+        thinking_budget=True,
+        provider_max_completion_tokens=128_000,
+        expected_cost_per_scenario_usd=0.057,
+        notes=(
+            "Onboarded 2026-09-22 (the Models API lists the id with "
+            "created_at 2026-09-21). The API rejects forced tool use on this "
+            "model with a 400 (tool_choice type tool/any 'not supported for "
+            "this model'), as on Fable 5.1, and a request with no thinking "
+            "parameter returns a thinking block (87 thinking tokens on a "
+            "one-question probe), so the row reasons at the provider "
+            "default and runs the JSON contract whole-scenario on the sync "
+            "path (the batch adapter supports the forced tool contract "
+            "only). Gauntlet: 3/3 and 16/16 parsed (1,664 and 2,489 "
+            "completion tokens, 15s and 21s); the gauntlet's cost estimate "
+            "is $0.057 per scenario at $4/$20 per 1M with $0.20 cache reads."
+        ),
+    ),
     "xai/grok-4.5": ModelCard(
         litellm_id="xai/grok-4.5",
         answer_contract="tool",

@@ -43,6 +43,7 @@ GPT_RESPONSES_MODELS = {**GPT_56_MODELS, **GPT_6_MODELS}
 MODELS = {
     "claude-fable-5": "claude-fable-5",
     "claude-fable-5.1": "claude-fable-5-1",
+    "claude-opus-5.5": "claude-opus-5-5",
     "claude-opus-5": "claude-opus-5",
     "claude-opus-4.8": "claude-opus-4-8",
     "claude-opus-4.7": "claude-opus-4-7",
@@ -149,6 +150,17 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # map carries the same figures; this fallback keeps the leaderboard priced
     # if reconstruction is unavailable. Introductory billing ($2 / $10 through
     # 2026-08-31) is intentionally not used — costs compare at standard rates.
+    # claude-opus-5-5: $4 / $20 per 1M input/output tokens, $5 five-minute
+    # cache writes and $0.20 cache reads (0.05x base input; platform.claude.com
+    # /docs/en/about-claude/pricing, read 2026-09-22). The Models API lists
+    # the id with created_at 2026-09-21. litellm's map lacked the id at
+    # onboarding; eval_no_tools registers it locally, as for the Fable line.
+    "claude-opus-5.5": {
+        "input": 4.0,
+        "output": 20.0,
+        "cache_read": 0.20,
+        "cache_write": 5.0,
+    },
     "claude-sonnet-5": {"input": 3.0, "output": 15.0},
     # Open-weight additions, per-1M USD from the OpenRouter live model list
     # (https://openrouter.ai/api/v1/models, retrieved 2026-07-05). DeepSeek

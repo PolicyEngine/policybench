@@ -6,6 +6,7 @@
 export const MODEL_ORDER = [
   "claude-fable-5.1",
   "claude-fable-5",
+  "claude-opus-5.5",
   "claude-opus-5",
   "claude-opus-4.8",
   "claude-opus-4.7",
@@ -49,6 +50,7 @@ export const MODEL_ORDER = [
 export const MODEL_LABELS: Record<string, string> = {
   "claude-fable-5.1": "Claude Fable 5.1",
   "claude-fable-5": "Claude Fable 5",
+  "claude-opus-5.5": "Claude Opus 5.5",
   "claude-opus-5": "Claude Opus 5",
   "claude-opus-4.8": "Claude Opus 4.8",
   "claude-opus-4.7": "Claude Opus 4.7",
@@ -107,6 +109,7 @@ export type ProviderKey =
 export const MODEL_RELEASE_DATES: Record<string, string> = {
   "claude-fable-5.1": "2026-09-01",
   "claude-fable-5": "2026-06-09",
+  "claude-opus-5.5": "2026-09-21",
   "claude-opus-5": "2026-07-24",
   "claude-sonnet-5": "2026-06-30",
   "claude-opus-4.8": "2026-05-28",
