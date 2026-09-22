@@ -160,6 +160,10 @@ AUDIT_CASES_DIR = _MAIN_CLONE / "results/local/unified_audit/audit/cases"
 JUDGE_RUNNERS = {
     "claude": "Claude Code CLI (scripts/run_audit_claude.sh)",
     "codex": "Codex CLI (scripts/run_audit_codex.sh)",
+    # Native Claude Code Workflow subagents, one per case, returning the audit
+    # schema as structured output; the sidecar carries the same fields the
+    # CLI runner writes (results/local/adds202609/judge_stages.py).
+    "workflow": "Claude Code Workflow subagents (results/local/adds202609/judge_stages.py)",
 }
 
 
@@ -239,9 +243,12 @@ def audit_judge_provenance(
                 judge = "claude-opus-5"
             if judge == "default" and len(reported) == 1:
                 judge = reported[0]
+            runner_text = str(meta.get("judge_runner", ""))
             runner_key = (
                 "codex"
-                if "run_audit_codex" in str(meta.get("judge_runner", ""))
+                if "run_audit_codex" in runner_text
+                else "workflow"
+                if "Workflow" in runner_text
                 else "claude"
             )
             runner = JUDGE_RUNNERS[runner_key]
@@ -254,13 +261,18 @@ def audit_judge_provenance(
         else:
             judge, runner, day = "unknown", "unknown", ""
         entry = by_judge.setdefault(
-            judge, {"runner": runner, "cases": 0, "judged_on_utc": []}
+            judge, {"runner": runner, "runners": {runner}, "cases": 0, "judged_on_utc": []}
         )
+        entry["runners"].add(runner)
         entry["cases"] += 1
         if day and day not in entry["judged_on_utc"]:
             entry["judged_on_utc"].append(day)
     for entry in by_judge.values():
         entry["judged_on_utc"].sort()
+        # One judge model can be served by more than one runner (the Opus 5.5
+        # add split its sweep between the CLI runner and Workflow subagents);
+        # the field stays a string so the manifest shape does not change.
+        entry["runner"] = " and ".join(sorted(entry.pop("runners")))
     return {
         "cases_judged": judged,
         "by_judge": dict(sorted(by_judge.items())),
@@ -269,8 +281,8 @@ def audit_judge_provenance(
             "case's verdict by sha256 (either runner), else, for a case with no "
             "sidecar, the codex.log model header when the log was written "
             "alongside the verdict (Codex runner before it wrote sidecars). "
-            "Verdicts classify misses after scoring and change no score. Both "
-            "judge models are also board rows."
+            "Verdicts classify misses after scoring and change no score. Every "
+            "judge model is also a board row."
         ),
     }
 
