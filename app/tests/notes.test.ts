@@ -44,6 +44,14 @@ describe("notes", () => {
     expect(markup).not.toContain("at 88% of answers");
     expect(markup).toContain("release dashboard-data-20260901c");
     expect(markup).toContain("Six SNAP households the top three models deny");
+    expect(markup).toContain("Five SNAP households almost every model gets wrong");
+    expect(markup).toContain("release dashboard-data-20260922");
+    // Cents stay as written; whole-dollar facts get thousands separators.
+    expect(markup).toContain("$1,208.40 for scenario_030");
+    expect(markup).toContain("$12,000 of financial assistance");
+    // The new note's reference is not the frozen annual reference, so it has
+    // no unrounded-reference footnote.
+    expect(markup).not.toContain("Unrounded frozen reference: $288.00");
     expect(markup).toContain("Claude Fable 5.1 added");
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*\}/);
   });

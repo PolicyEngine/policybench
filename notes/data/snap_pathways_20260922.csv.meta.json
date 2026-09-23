@@ -1,0 +1,87 @@
+{
+  "policyengine_us_version": "1.755.4",
+  "configuration": "policyengine-us 1.755.4 with the SNAP publication convention and every SNAP fix merged upstream after the reference freeze, as the September 22 SNAP references were regenerated; the frozen_engine columns use the unmodified engine",
+  "fix_module": "reference_audit/2026-09-22/fixes/c13v3_plus_upstream_snap.py",
+  "fix_module_sha256": "8e0cee565ab8e2c1c78ffeea5726c0f0287f707b57ebb5e942125cf85727d433",
+  "fix_parts_sha256": {
+    "r13_hold_fy2026_v3": "7de931064360e7ff68ab4ca72144f6239f79baffa73ffb49b67caa4e26739d70",
+    "r26_snap_contribution_rounding": "42e01d6bd04141d145c3df7ff0fad876d4a2ff62b87235cf0ee2e4607a9cf238",
+    "r27_snap_net_income_rounding": "81eb155229603203605cf6daf259e002ecac22d4bedadd3591e2b600ab62682d",
+    "r28_snap_min_allotment_rounding": "07e555626ad1636988dbedcc2f75e312ced8ee68cd270d7296fb0c289dba8357",
+    "r31_snap_income_limit_rounding": "9800f9c2275733d825039041de6e3df2b792cf4a72663f0c2e687be61eb4bf35"
+  },
+  "scenarios_sha256": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+  "reference_csv_sha256": "37e2c2bd52908e92c8e9396fa863b2a3838e5136135187a27e1c4cd88e3d5808",
+  "months": "the *_months columns count the months of 2026 in which each test holds",
+  "bbce_parameters": {
+    "state_tanf_non_cash": {
+      "2026-01-01": {
+        "CT": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "MI": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "TX": {
+          "gross_income_limit_fpg": 1.65,
+          "gross_income_limit_fpg_elderly_disabled": 1.65,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": 5000.0
+        },
+        "WI": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        }
+      },
+      "2026-10-01": {
+        "CT": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "MI": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "TX": {
+          "gross_income_limit_fpg": 1.65,
+          "gross_income_limit_fpg_elderly_disabled": 1.65,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": 5000.0
+        },
+        "WI": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        }
+      }
+    },
+    "snap_categorical_eligibility_programs": [
+      "ssi",
+      "is_tanf_non_cash_eligible",
+      "tanf"
+    ]
+  },
+  "generated_at_utc": "2026-09-23T22:33:19.064964+00:00",
+  "script": "scripts/snap_pathways_20260922.py"
+}
