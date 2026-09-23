@@ -1,0 +1,128 @@
+{
+  "slug": "2026-09-23-five-snap-households-bbce",
+  "date": "2026-09-23",
+  "title": "Five SNAP households almost every model gets wrong",
+  "paragraphs": [
+    "On the September 22 board, {scoredEligible} scored SNAP outputs have a positive reference. For {householdCount} of them ({households}), the reference is ${referenceAmount} for 2026, twelve months of the ${minimumMonthly} minimum benefit. Each of these households has one or two people, lives in Connecticut, Michigan, Texas or Wisconsin, and qualifies for SNAP only through broad-based categorical eligibility (BBCE). For each, 30% of net income exceeds the maximum allotment, so the regular formula gives nothing and the minimum applies.",
+    "No model on the {nModels}-model board gets all five within $1. Of the {answers} answers requested, {missingAnswers} came back with no value and no explanation, and {hits} are within $1: {hits027} for scenario_027, {hits073} for scenario_073 and {hits108} for scenario_108; none are for scenario_030 or scenario_045. {zeroAllFive} models answer $0 for all five. GPT-6 Astra gets the most, {astraHits} of the five, and answers $0 for the other two. The most common wrong amount other than $0 is ${commonAnnual}, twelve months of ${commonMonthly}, given {commonAnswers} times; {commonAnswersMinimum} of those explanations call it the minimum benefit. {fiveBbceMentions} of the {explanations} explanations, from {fiveBbceModels} models, mention categorical eligibility, and {fiveBbceZeros} of those still answer $0.",
+    "The top three models on the board get at most one each. GPT-6 Sol answers $0 for four households and ${sol6On030} for scenario_030. Claude Opus 5.5 answers ${opusOn108} for scenario_108, ${opusOn030} for scenario_030 and $0 for the other three. GPT-5.6 Sol answers $0 for all five. On scenario_030 both GPT-6 Sol and Claude Opus 5.5 compute the benefit from wages alone; the engine also counts the household's ${financialAssistance} of financial assistance as income, and with it 30% of net income exceeds the ${maxAllotmentOne} maximum. Across all {boardHouseholds} households, the SNAP explanations of GPT-6 Sol mention categorical eligibility in {sol6BbceMentions}, Claude Opus 5.5's in {opusBbceMentions} and GPT-5.6 Sol's in {sol56BbceMentions}.",
+    "In policyengine-us {engineVersion}, the engine version behind the references, a household is categorically eligible for SNAP if every member receives SSI, if it receives TANF cash assistance, or if it is eligible for a TANF-funded non-cash benefit. On the last route the engine checks eligibility for the benefit, not receipt of it. In these four states that eligibility turns on gross income: at most {bbceGrossLimitHigh}% of the poverty guideline in Connecticut, Michigan and Wisconsin and {bbceGrossLimitTx}% in Texas, with no net income test and no asset test apart from a ${bbceAssetLimitTx} limit in Texas. All five households pass, none receives TANF cash assistance, and each fails at least one ordinary SNAP test. All five have gross income above {snapGrossLimit}% of the poverty guideline, the ordinary SNAP gross limit, but only {failGross} fail the gross income test: the other {grossExempt} have a member the engine treats as elderly or disabled, which exempts them from it. Of the five, {failNet} fail the net income test and {failAssets} the asset test.",
+    "The prompt does not mention categorical eligibility or a non-cash benefit; TANF appears only as a requested output, the household's annual TANF benefit. It tells models to treat \"any unlisted numeric input as 0 and any other unlisted household fact, boolean, or status input as false,\" to \"assume tax filing and program take-up when required\" and not to \"infer unlisted income, expenses, assets, benefit receipt, rent, or health coverage.\" The engine's rule is consistent with the take-up instruction if the non-cash benefit counts as a program the household takes up. A model that reads the first or last instruction as ruling out a benefit the prompt does not list would apply only the ordinary tests, and each of the five fails at least one. Of the {zeroAnswers} answers of $0, {zeroTanfMentions} mentions TANF: Claude Sonnet 4.6, on scenario_030, writes that Texas's categorical eligibility covers households receiving TANF or SSI and that this household receives neither.",
+    "The September 3 note, on the September 1 board of {previousModels} models, counted six households at ${previousReference}. That figure was the frozen engine's unrounded minimum: ${previousMonthlyJanSep} a month through September and a projected ${previousMonthlyOctDec} from October. The September 22 references hold October to December at the FY2026 schedule, the last USDA published before the reference freeze, and round the minimum to the nearest dollar, which policyengine-us has done since #9162, merged after the freeze. The sixth household, scenario_112 in Texas, passes the ordinary tests but is no longer scored: its reference assumed {assumedHours} hours of work a week, which the prompt does not list, and under the prompt's rule that unlisted numbers are 0, the time limit for able-bodied adults without dependents applies. That note also said these states confer eligibility on households receiving the non-cash benefit and waive the asset test; the engine tests eligibility for the benefit, and Texas keeps an asset limit."
+  ],
+  "facts": {
+    "scoredEligible": 13,
+    "householdCount": 5,
+    "households": [
+      "scenario_027",
+      "scenario_030",
+      "scenario_045",
+      "scenario_073",
+      "scenario_108"
+    ],
+    "referenceAmount": 288,
+    "minimumMonthly": 24,
+    "nModels": 42,
+    "answers": 210,
+    "missingAnswers": 3,
+    "hits": 5,
+    "hits027": 1,
+    "hits073": 2,
+    "hits108": 2,
+    "zeroAllFive": 20,
+    "astraHits": 3,
+    "commonAnnual": 276,
+    "commonMonthly": 23,
+    "commonAnswers": 8,
+    "commonAnswersMinimum": 7,
+    "fiveBbceMentions": 26,
+    "explanations": 207,
+    "fiveBbceModels": 16,
+    "fiveBbceZeros": 14,
+    "sol6On030": "1,208.40",
+    "opusOn108": 288,
+    "opusOn030": 1208,
+    "financialAssistance": 12000,
+    "maxAllotmentOne": 298,
+    "boardHouseholds": 100,
+    "sol6BbceMentions": 1,
+    "opusBbceMentions": 18,
+    "sol56BbceMentions": 1,
+    "engineVersion": "1.755.4",
+    "bbceGrossLimitHigh": 200,
+    "bbceGrossLimitTx": 165,
+    "bbceAssetLimitTx": 5000,
+    "snapGrossLimit": 130,
+    "failGross": 2,
+    "grossExempt": 3,
+    "failNet": 4,
+    "failAssets": 1,
+    "zeroAnswers": 172,
+    "zeroTanfMentions": 1,
+    "previousModels": 33,
+    "previousReference": "287.68",
+    "previousMonthlyJanSep": "23.84",
+    "previousMonthlyOctDec": "24.37",
+    "assumedHours": 40
+  },
+  "mentionRegexes": {
+    "bbce": "broad-based|\\bbbce\\b|categorical(?:ly)? eligib",
+    "tanf": "tanf"
+  },
+  "data": [
+    {
+      "label": "scenario_027",
+      "href": "/?country=us&scenario=scenario_027#scenarios"
+    },
+    {
+      "label": "scenario_030",
+      "href": "/?country=us&scenario=scenario_030#scenarios"
+    },
+    {
+      "label": "scenario_045",
+      "href": "/?country=us&scenario=scenario_045#scenarios"
+    },
+    {
+      "label": "scenario_073",
+      "href": "/?country=us&scenario=scenario_073#scenarios"
+    },
+    {
+      "label": "scenario_108",
+      "href": "/?country=us&scenario=scenario_108#scenarios"
+    },
+    {
+      "label": "Every model's answer for the five households",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/bbce_households_20260922.csv"
+    },
+    {
+      "label": "SNAP pathways under the September 22 references",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/snap_pathways_20260922.csv"
+    },
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922"
+    },
+    {
+      "label": "Six SNAP households note (September 3)",
+      "href": "/notes/2026-09-03-six-snap-households"
+    },
+    {
+      "label": "Reference audit note",
+      "href": "/notes/2026-09-22-reference-audit"
+    },
+    {
+      "label": "Exclusion record",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json"
+    },
+    {
+      "label": "Prompt preface",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/policybench/prompts.py"
+    },
+    {
+      "label": "policyengine-us #9162 (SNAP minimum rounding)",
+      "href": "https://github.com/PolicyEngine/policyengine-us/pull/9162"
+    }
+  ],
+  "boardSnapshot": "2026-09-22",
+  "release": "dashboard-data-20260922"
+}

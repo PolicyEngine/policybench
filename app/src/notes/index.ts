@@ -1,4 +1,5 @@
 import claudeFable51Added from "./2026-09-01-claude-fable-5-1-added.json";
+import fiveSnapHouseholdsBbce from "./2026-09-23-five-snap-households-bbce.json";
 import gpt6SolDebutsFirst from "./2026-09-22-gpt-6-sol-debuts-first.json";
 import referenceAudit from "./2026-09-22-reference-audit.json";
 import sixSnapHouseholds from "./2026-09-03-six-snap-households.json";
@@ -26,6 +27,7 @@ export type PolicyBenchNote = {
 };
 
 export const notes = [
+  fiveSnapHouseholdsBbce,
   gpt6SolDebutsFirst,
   referenceAudit,
   gpt6AstraDebutsSecond,
