@@ -75,7 +75,7 @@ from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
 # Configuration for the September 2026 US-only populace refresh (42-model
-# board, September 22 references: 12 regenerated under the publication rule).
+# board, September 22 references: regenerated under the publication rules).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -101,8 +101,8 @@ SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
 # is the exact payload uploaded as dashboard-data-20260922 (the 42-model board:
 # the 39-model dashboard-data-20260905c board plus Claude Opus 5.5, GPT-6 Sol and
-# GPT-6 Luna, on the September 22 references: 12 references regenerated under
-# the publication rule, and 66 outputs excluded from scoring for every model, per
+# GPT-6 Luna, on the September 22 references: references regenerated under the
+# publication rules, and outputs excluded from scoring for every model, per
 # reference_exclusions.json). Superseded tags: 20260905c (39 models, v1.1
 # references, eleven exclusions); 20260905 carried the judge's prompt_ambiguity
 # verdict before adjudication; 20260905b scored all 1,984 outputs.
@@ -114,8 +114,8 @@ PUBLISHED_DASHBOARD_ARTIFACT = {
         "https://github.com/PolicyEngine/policybench/releases/download/"
         "dashboard-data-20260922/dashboard-data.json"
     ),
-    "sha256": "5b738d4b2d2714c7c4eb7e88a22c361f91c6740b265b28e869794fae8a604471",
-    "bytes": 116_403_352,
+    "sha256": "7ad5b32c9e37fbac9c7c0a24c1edc74a86bed4a1b46bf0b02ffa4fb516d05090",
+    "bytes": 116_062_863,
 }
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME

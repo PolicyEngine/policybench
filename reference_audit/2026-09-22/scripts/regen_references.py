@@ -1,4 +1,4 @@
-"""Regenerate the scored references under the benchmark's publication conventions.
+"""Regenerate the scored references under the benchmark's publication rules.
 
 Rule (Max, 2026-09-22): a scored reference follows from the stated facts and from
 law published before the 2026-07-03 reference freeze. Where policyengine-us 1.755.4
@@ -6,17 +6,20 @@ used a projection of an amount published after the freeze, the reference takes t
 last amount published before it. The conventions are the root_causes.json entries
 of class "convention"; each names the fix module that implements it:
   c_snap_hold_fy2026  SNAP October-December 2026 at the FY2026 figures
-                      (sweep/fixes/r13_hold_fy2026_v3.py); the engine's SNAP
-                      rounding defects are root causes r26-r28, which exclude
+                      (sweep/fixes/r13_hold_fy2026_v3.py)
   c_ca_hold_2025      California's 2026 indexed amounts at the published 2025
                       amounts (sweep/fixes/r19_ca_convention.py)
   ...                 and the other parameter conventions root_causes.json lists
-                      (IRS sales tax tables, Wisconsin, Idaho, ...)
 
-Every output is recomputed with all conventions applied together. A scored output
-whose value changes takes the regenerated value; an excluded output keeps the frozen
-value its exclusion record names. The sidecar gains one revision per convention,
-listing the outputs that convention moves on its own.
+Rule (Max, 2026-09-23): an engine defect fixed in policyengine-us after the freeze
+(root_causes.json "upstream_fixed": true) is regenerated with its verified sandbox
+fix, not excluded. Defects not fixed upstream stay excluded (build_records.py).
+
+Every output is recomputed with all conventions and upstream fixes applied
+together. A scored output whose value changes takes the regenerated value; an
+excluded output keeps the frozen value its exclusion record names. The sidecar
+gains one revision per convention and per upstream fix, listing the outputs that
+source moves on its own (a SNAP fix is measured against the SNAP convention).
 
 Step 1 (policyengine-us 1.755.4 triage venv) writes the reference CSV, the sidecar,
 and the engine traces of every changed output:
@@ -69,6 +72,26 @@ def conventions() -> dict[str, dict]:
     return {k: v for k, v in causes.items() if isinstance(v, dict) and v.get("class") == "convention"}
 
 
+def upstream_fixes() -> dict[str, dict]:
+    """Engine defects fixed in policyengine-us after the freeze: regenerated, not excluded.
+
+    Each carries its verified fix module (build_records.SWEEP_FOR) and the sweep
+    that defines what it moves on its own: against the frozen reference, or, for
+    the SNAP defects, against the SNAP convention (build_records.MEASURED_BY).
+    """
+    import re
+
+    causes = json.loads((HERE / "root_causes.json").read_text())
+    source = (HERE / "build_records.py").read_text()
+    sweep_for = dict(re.findall(r'"(r\d\d_[a-z0-9_]+)": "([a-z0-9_]+)"', source.split("MEASURED_BY")[0]))
+    measured_by = dict(re.findall(r'"(r\d\d_[a-z0-9_]+)": "([a-z0-9_]+)"', source.split("MEASURED_BY = {")[1].split("}")[0]))
+    return {
+        k: {**v, "fix": sweep_for[k], "measured": measured_by.get(k)}
+        for k, v in causes.items()
+        if isinstance(v, dict) and v.get("class") == "engine_defect" and v.get("upstream_fixed")
+    }
+
+
 def load_reform(fix: str):
     spec = importlib.util.spec_from_file_location(f"conv_{fix}", FIXES / f"{fix}.py")
     module = importlib.util.module_from_spec(spec)
@@ -106,32 +129,36 @@ def references(args) -> None:
     from policyengine_us import CountryTaxBenefitSystem
 
     convs = conventions()
+    fixes = upstream_fixes()
     reference = pd.read_csv(BUNDLE / "reference_outputs.csv")
     excluded = {
         (e["scenario_id"], e["variable"])
         for e in json.loads(Path(args.exclusions).read_text())["exclusions"]
     }
-    reforms = {name: load_reform(c["fix"]) for name, c in convs.items()}
+    sources = {name: c["fix"] for name, c in convs.items()} | {name: f["fix"] for name, f in fixes.items()}
+    reforms = {name: load_reform(fix) for name, fix in sources.items()}
     combined = compute_all(CountryTaxBenefitSystem(reform=tuple(reforms.values())))
-    # Which convention moves each output on its own (from its verified sweep).
+    # What each source moves on its own (from its verified sweep).
     alone, alone_value = {}, {}
-    for name, c in convs.items():
-        sweep = pd.read_csv(HERE / "sweep" / "out" / f"{c['fix']}.csv")
-        moved = sweep.loc[sweep["delta"].abs() > 1e-6]
+    for name, fix in sources.items():
+        measured = fixes.get(name, {}).get("measured")
+        sweep = pd.read_csv(HERE / "sweep" / "out" / f"{measured or fix}.csv")
+        baseline = sweep["convention"] if measured else sweep["frozen"]
+        moved = sweep.loc[(sweep["recomputed"] - baseline).abs() > 1e-6]
         alone[name] = set(map(tuple, moved[["scenario_id", "variable"]].values))
         alone_value[name] = moved.set_index(["scenario_id", "variable"])["recomputed"].to_dict()
 
-    changed = {name: [] for name in convs}
+    changed = {name: [] for name in sources}
     for idx, row in reference.iterrows():
         key = (row["scenario_id"], row["variable"])
         new = float(combined[key])
         if key in excluded or abs(new - float(row["value"])) <= 1e-6:
             continue
-        owners = [name for name in convs if key in alone[name]]
+        owners = [name for name in sources if key in alone[name]]
         if not owners:
-            raise SystemExit(f"{key} changes under the combined conventions but under none alone")
-        # The conventions touch disjoint parameters; one that moves an output alone
-        # must give the combined value (no interaction), or the attribution is wrong.
+            raise SystemExit(f"{key} changes under the combined sources but under none alone")
+        # A source that moves an output alone must give the combined value (no
+        # interaction), or the attribution is wrong.
         if len(owners) == 1 and abs(alone_value[owners[0]][key] - new) > 1e-3:
             raise SystemExit(f"{key}: combined {new} differs from {owners[0]} alone {alone_value[owners[0]][key]}")
         for name in owners:
@@ -148,6 +175,7 @@ def references(args) -> None:
     meta["revisions"] = [
         {
             "date": DATE,
+            "kind": "convention",
             "convention": name,
             "outputs": c["outputs"],
             "rule": f"{RULE} {c['rule']}",
@@ -155,11 +183,33 @@ def references(args) -> None:
             "engine_version": ENGINE,
             "fix_module": f"{c['fix']}.py",
             "fix_module_sha256": sha256(FIXES / f"{c['fix']}.py"),
-            "applied_together_with": sorted(set(convs) - {name}),
+            "applied_together_with": sorted(set(sources) - {name}),
             "excluded_outputs_untouched": True,
             "changed": changed[name],
         }
         for name, c in convs.items()
+    ] + [
+        {
+            "date": DATE,
+            "kind": "upstream_fix",
+            "root_cause": name,
+            "outputs": ", ".join(sorted({c["variable"] for c in changed[name]})) or "none",
+            "rule": (
+                "An engine defect fixed in policyengine-us after the reference freeze is "
+                f"regenerated with the fix. {f['alternative_reading']}"
+            ),
+            "defect": f["defect"],
+            "basis": f["law"],
+            "upstream": f["upstream"],
+            "engine_version": ENGINE,
+            "fix_module": f"{f['fix']}.py",
+            "fix_module_sha256": sha256(FIXES / f"{f['fix']}.py"),
+            "measured_against": "c_snap_hold_fy2026" if f.get("measured") else "frozen",
+            "applied_together_with": sorted(set(sources) - {name}),
+            "excluded_outputs_untouched": True,
+            "changed": changed[name],
+        }
+        for name, f in fixes.items()
     ]
     (out / "reference_outputs.csv.meta.json").write_text(json.dumps(meta, indent=2) + "\n")
 

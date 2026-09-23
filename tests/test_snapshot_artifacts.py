@@ -379,6 +379,14 @@ def test_snapshot_serving_configuration_records_evidence_schema():
         )
         if fingerprint_version is not None and fingerprint_version >= 2:
             assert set(row["registry_derived"]) == set()
+            # The fields that replace the registry must be pinned.
+            assert {
+                "thinking",
+                "request_timeout_seconds",
+                "initial_completion_budget_tokens",
+            } <= set(evidence["treatment_fingerprint"])
+            if fingerprint_version >= 3:
+                assert "max_repair_rounds" in evidence["treatment_fingerprint"]
         else:
             assert set(row["registry_derived"]) == {
                 "reasoning_setup",
@@ -591,16 +599,16 @@ def test_snapshot_copied_artifacts_match_source_runs():
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_audit_counts = {
         "us": {
-            "annotated": 7_051,
-            "exact_misses": 7_047,
-            "annotated_exact_misses": 7_047,
+            "annotated": 7_625,
+            "exact_misses": 7_621,
+            "annotated_exact_misses": 7_621,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 8_892,
-            "unannotated_below_full_bounded_score": 1_841,
+            "below_full_bounded_score": 9_468,
+            "unannotated_below_full_bounded_score": 1_843,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 6_404, "parse_contract_failure": 647},
+        "us": {"llm_error": 6_967, "parse_contract_failure": 658},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())

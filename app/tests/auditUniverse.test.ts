@@ -19,12 +19,12 @@ describe("audit universe", () => {
       "rows whose legacy threshold score is below 1",
     );
     expect(summarizeAuditUniverse(us)).toEqual({
-      annotatedRowCount: 7_051,
-      legacyThresholdRowCount: 7_051,
-      exactMissCount: 7_047,
-      annotatedExactMissCount: 7_047,
+      annotatedRowCount: 7_625,
+      legacyThresholdRowCount: 7_625,
+      exactMissCount: 7_621,
+      annotatedExactMissCount: 7_621,
       annotatedExactHitCount: 4,
-      unannotatedBelowFullBoundedScoreCount: 1_841,
+      unannotatedBelowFullBoundedScoreCount: 1_843,
     });
   });
 });

@@ -2,7 +2,7 @@
 
 The SNAP convention (c_snap_hold_fy2026, fix r13_hold_fy2026_v3) regenerates SNAP
 references with the FY2026 schedule held for October-December. The engine's SNAP
-rounding defects (r26, r27, r28) are measured against that convention's value,
+defects (r26, r27, r28, r30, r31) are measured against that convention's value,
 since it is the value that would otherwise be published: an output is moved when
 the convention plus the defect's fix differs from the convention alone by more
 than $1. Reads the sweeps in sweep/out/ and writes:
@@ -14,7 +14,8 @@ than $1. Reads the sweeps in sweep/out/ and writes:
       the convention alone
 
 Run after the sweeps (./run_one.sh <fix> for r13_hold_fy2026_v3, c13v3_plus_r26,
-c13v3_plus_r27, c13v3_plus_r28, c13v3_r26_r28, c13v3_r28_r29n, c13v3_r28_r29c):
+c13v3_plus_r27, c13v3_plus_r28, c13v3_plus_r30, c13v3_plus_r31, c13v3_r26_r28,
+c13v3_r28_r29n, c13v3_r28_r29c):
 
   python3 make_on_convention.py
 """
@@ -31,6 +32,8 @@ DEFECTS = {
     "r26": "c13v3_plus_r26",
     "r27": "c13v3_plus_r27",
     "r28": "c13v3_plus_r28",
+    "r30": "c13v3_plus_r30",
+    "r31": "c13v3_plus_r31",
 }
 PROCEDURES = {
     "floor": "c13v3_r26_r28",

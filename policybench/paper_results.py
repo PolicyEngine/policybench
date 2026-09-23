@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from collections import Counter
 from functools import cached_property
 from pathlib import Path
@@ -1128,26 +1129,29 @@ class PaperResults:
         return meta.get("revisions", [])
 
     @property
-    def regenerated_snap_reference_count(self) -> int:
-        """SNAP references regenerated with October-December held at FY2026."""
-        return sum(
-            len(r["changed"])
-            for r in self.reference_revisions
-            if r["outputs"] == "snap"
-        )
-
-    @property
     def regenerated_reference_keys(self) -> set[tuple[str, str]]:
-        """Scored outputs whose reference a publication convention regenerated."""
+        """Scored outputs a convention or an upstream fix regenerated."""
         return {
             (change["scenario_id"], change.get("variable", "snap"))
             for revision in self.reference_revisions
             for change in revision["changed"]
         }
 
+    def _regenerated_keys_of_kind(self, kind: str) -> set[tuple[str, str]]:
+        return {
+            (change["scenario_id"], change.get("variable", "snap"))
+            for revision in self.reference_revisions
+            if revision.get("kind", "convention") == kind
+            for change in revision["changed"]
+        }
+
     @property
     def regenerated_reference_count(self) -> int:
         return len(self.regenerated_reference_keys)
+
+    @property
+    def regenerated_snap_reference_count(self) -> int:
+        return sum(1 for _, v in self.regenerated_reference_keys if v == "snap")
 
     @property
     def regenerated_reference_household_count(self) -> int:
@@ -1160,17 +1164,62 @@ class PaperResults:
         )
 
     @property
-    def regenerated_references_by_convention(self) -> dict[str, int]:
-        """Regenerated references per convention (a revision may list none)."""
+    def regenerated_by_upstream_fix_count(self) -> int:
+        """References regenerated with a fix merged upstream after the freeze."""
+        return len(self._regenerated_keys_of_kind("upstream_fix"))
+
+    @property
+    def regenerated_by_convention_count(self) -> int:
+        return len(self._regenerated_keys_of_kind("convention"))
+
+    @property
+    def upstream_fixed_root_causes(self) -> list[str]:
+        return sorted(
+            r["root_cause"]
+            for r in self.reference_revisions
+            if r.get("kind") == "upstream_fix"
+        )
+
+    @property
+    def upstream_fixed_root_cause_count(self) -> int:
+        return len(self.upstream_fixed_root_causes)
+
+    @property
+    def upstream_fix_prs_fmt(self) -> str:
+        """The policyengine-us pull requests behind the upstream fixes, in order."""
+        prs = sorted(
+            {
+                int(match)
+                for r in self.reference_revisions
+                if r.get("kind") == "upstream_fix"
+                for match in re.findall(r"policyengine-us#(\d+)", r["upstream"])
+            }
+        )
+        labels = [f"#{n}" for n in prs]
+        return (
+            ", ".join(labels[:-1]) + f" and {labels[-1]}"
+            if len(labels) > 1
+            else "".join(labels)
+        )
+
+    @property
+    def regenerated_references_by_source(self) -> dict[str, int]:
+        """Regenerated references per convention or upstream fix (may be none)."""
         return {
-            revision.get("convention", revision["outputs"]): len(revision["changed"])
+            revision.get("convention") or revision.get("root_cause"): len(
+                revision["changed"]
+            )
             for revision in self.reference_revisions
         }
 
     @property
     def publication_convention_count(self) -> int:
         """Conventions in the reference sidecar, including any that moved no output."""
-        return len(self.reference_revisions)
+        return sum(
+            1
+            for r in self.reference_revisions
+            if r.get("kind", "convention") == "convention"
+        )
 
     @property
     def later_law_exclusion_count(self) -> int:

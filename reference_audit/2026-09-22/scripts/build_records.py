@@ -70,8 +70,10 @@ SWEEP_FOR = {
     "r24_disability_benefits_taxability": "r24_disability_benefits_taxable",
     "r25_niit_in_federal_output": "r25_niit_excluded",
     "r26_snap_contribution_rounding": "r26_snap_contribution_rounding",
-    "r27_ca_snap_net_income_rounding": "r27_ca_snap_net_income_rounding",
+    "r27_snap_net_income_rounding": "r27_snap_net_income_rounding",
     "r28_snap_min_allotment_rounding": "r28_snap_min_allotment_rounding",
+    "r30_snap_heat_and_eat_sua": "r30_snap_heat_and_eat_sua",
+    "r31_snap_income_limit_rounding": "r31_snap_income_limit_rounding",
 }
 # The SNAP rounding defects are measured on top of the SNAP publication
 # convention (c_snap_hold_fy2026), since the convention's value is what would
@@ -79,8 +81,10 @@ SWEEP_FOR = {
 # with the convention plus the defect's fix, and moved means more than $1.
 MEASURED_BY = {
     "r26_snap_contribution_rounding": "r26_on_c13v3",
-    "r27_ca_snap_net_income_rounding": "r27_on_c13v3",
+    "r27_snap_net_income_rounding": "r27_on_c13v3",
     "r28_snap_min_allotment_rounding": "r28_on_c13v3",
+    "r30_snap_heat_and_eat_sua": "r30_on_c13v3",
+    "r31_snap_income_limit_rounding": "r31_on_c13v3",
 }
 REASON = {
     "engine_defect": "reference_engine_defect",
@@ -240,6 +244,11 @@ def main() -> None:
     first_pass = HERE / "flagged_sept22_first_pass.json"
     if first_pass.exists():
         flagged |= {tuple(k.split(":")) for k in json.loads(first_pass.read_text())}
+    # Every flag any judge run of the wave raised (the verdicts-board42*.json
+    # files, collected into flagged_sept22_wave.json), for the same reason.
+    wave = HERE / "flagged_sept22_wave.json"
+    if wave.exists():
+        flagged |= {tuple(k.split(":")) for k in json.loads(wave.read_text())}
 
     # 1. Every moved output and the root causes that move it.
     moved: dict[tuple[str, str], dict] = {}
@@ -266,17 +275,30 @@ def main() -> None:
                 convention_fixes.setdefault(key, []).append(cause["fix"])
 
     new_exclusions, new_adjudications, summary = [], [], []
+    regenerated_by_fix = []
     for key, item in sorted(moved.items()):
         if key in existing:
             continue
-        classes = {c: causes[c]["class"] for c in item["causes"]}
+        # Rule (Max, 2026-09-23): a defect fixed in policyengine-us after the
+        # freeze is regenerated with the fix (regen_references.py), not excluded.
+        # An output any unfixed defect or unlisted input moves stays excluded.
+        if all(causes[c].get("upstream_fixed") for c in item["causes"]):
+            regenerated_by_fix.append((key, sorted(item["causes"])))
+            continue
+        # The unfixed causes decide the exclusion; a defect fixed upstream only
+        # enters the corrected value, since the regenerated reference applies it.
+        fixed = sorted(c for c in item["causes"] if causes[c].get("upstream_fixed"))
+        classes = {
+            c: causes[c]["class"] for c in item["causes"] if c not in fixed
+        }
         klass = next(k for k in PRECEDENCE if k in classes.values())
         primary = sorted(c for c, k in classes.items() if k == klass)
         # Corrected value: the primary class's fixes applied together, and for an
-        # engine defect also any later-law fix on the same output.
+        # engine defect also any later-law fix on the same output, with every
+        # upstream fix and convention that changes it.
         applied = primary + sorted(
             c for c, k in classes.items() if klass == "engine_defect" and k == "later_law"
-        )
+        ) + fixed
         fixes = [SWEEP_FOR[c] for c in applied] + convention_fixes.get(key, [])
         if len(fixes) == 1:
             corrected = item["causes"][applied[0]]
@@ -315,7 +337,12 @@ def main() -> None:
         if others:
             notes.append(
                 "The output also moves under "
-                + ", ".join(f"{c} ({causes[c]['class'].replace('_', ' ')})" for c in others)
+                + ", ".join(
+                    f"{c} ({causes[c]['class'].replace('_', ' ')}"
+                    + (", fixed upstream" if causes[c].get("upstream_fixed") else "")
+                    + ")"
+                    for c in others
+                )
                 + "."
             )
         if notes:
@@ -379,13 +406,25 @@ def main() -> None:
     regenerated = {}
     for revision in revisions:
         for change in revision["changed"]:
-            regenerated.setdefault((change["scenario_id"], change.get("variable", "snap")), (revision, change))
+            regenerated.setdefault((change["scenario_id"], change.get("variable", "snap")), []).append((revision, change))
     done = {(e["scenario_id"], e["variable"]) for e in new_adjudications}
     for key in sorted(flagged):
         if key in done or key not in regenerated:
             continue
-        revision, change = regenerated[key]
-        convention = causes[revision.get("convention", "c_snap_hold_fy2026")]
+        sources = regenerated[key]
+        change = sources[0][1]
+        parts, bases = [], []
+        for revision, _ in sources:
+            if revision.get("kind") == "upstream_fix":
+                cause = causes[revision["root_cause"]]
+                parts.append(
+                    f"it corrects an engine defect fixed upstream ({cause['upstream']}): {cause['alternative_reading']}"
+                )
+                bases.append(cause["law"])
+            else:
+                convention = causes[revision["convention"]]
+                parts.append(f"it applies the publication rule: {convention['rule']}")
+                bases.append(convention["basis"])
         case = case_index.loc[key]
         new_adjudications.append(
             {
@@ -401,21 +440,39 @@ def main() -> None:
                 "adjudicator": "developer",
                 "judge_reference_suspect": True,
                 "reference_verdict": "regenerated",
-                "reference_basis": convention["basis"],
+                "reference_basis": "; ".join(bases),
                 "reasoning": (
-                    f"The frozen {change['frozen']:,.2f} used a PolicyEngine projection of "
-                    "an amount published after the reference freeze; the reference is "
-                    "regenerated under the benchmark's rule. "
-                    + convention["rule"]
-                    + f" The regenerated reference is {change['regenerated']:,.2f}."
+                    f"The frozen {change['frozen']:,.2f} is regenerated as "
+                    f"{change['regenerated']:,.2f}: " + "; ".join(parts)
                 ),
             }
         )
 
-    # 3. Existing adjudications: flagged ones gain their reference verdict.
+    # 3. Existing adjudications: flagged ones gain their reference verdict, and
+    # an entry whose case was re-judged after it was recorded takes the current
+    # judge's model, date and verdict (the adjudication keeps the verdict it
+    # resolves beside the decision).
     adjudications_doc = json.loads(adjudications_path.read_text())
+    # This wave's entries are rebuilt from scratch on every run; keep only the
+    # earlier waves' records, so an output this run no longer excludes loses
+    # the adjudication a previous run gave it.
+    adjudications_doc["adjudications"] = [
+        e for e in adjudications_doc["adjudications"] if e.get("adjudicated_on") != DECIDED_ON
+    ]
+    refreshed = []
     for entry in adjudications_doc["adjudications"]:
         key = (entry["scenario_id"], entry["variable"])
+        meta_path = AUDIT_CASES / f"us__{key[0]}__{key[1]}" / "verdict.meta.json"
+        if meta_path.exists() and key in case_index.index:
+            meta = json.loads(meta_path.read_text())
+            judged_on = str(meta.get("judged_at_utc", ""))[:10]
+            if judged_on and judged_on > str(entry.get("judged_on_utc", "")):
+                case = case_index.loc[key]
+                entry["judge_model"] = judge_model_for(*key)
+                entry["judged_on_utc"] = judged_on
+                entry["judge_failure_source"] = str(case["case_failure_sources"]).split(";")[0]
+                entry["judge_failure_subtype"] = str(case["case_failure_subtypes"]).split(";")[0]
+                refreshed.append(f"{key[0]}:{key[1]}")
         if key in flagged and not entry.get("reference_verdict"):
             entry["judge_reference_suspect"] = True
             entry["reference_verdict"] = "unlisted_input"
@@ -436,6 +493,12 @@ def main() -> None:
         f"adjudications: {len(adjudications_doc['adjudications'])}; "
         f"flagged cases without a verdict: {sorted(unresolved)}"
     )
+    if regenerated_by_fix:
+        print(f"regenerated with an upstream fix, not excluded ({len(regenerated_by_fix)}): "
+              + ", ".join(f"{k[0]}:{k[1]} [{'+'.join(c)}]" for k, c in regenerated_by_fix))
+    refreshed = [k for k in refreshed if tuple(k.split(":")) not in new_keys]
+    if refreshed:
+        print(f"refreshed judge fields on {len(refreshed)} existing adjudications: {refreshed}")
     if PENDING_JUDGE:
         print(f"WARNING: {len(PENDING_JUDGE)} records name a case awaiting its re-judge: {PENDING_JUDGE}")
         if not args.allow_pending_judge:

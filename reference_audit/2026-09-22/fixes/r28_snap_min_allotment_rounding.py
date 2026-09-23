@@ -1,10 +1,13 @@
-"""Round the SNAP minimum allotment to the nearest whole dollar (engine defect).
+"""Round the SNAP minimum allotment to the nearest whole dollar (engine defect, fixed upstream).
 
 7 CFR 273.10(e)(2)(ii)(C): "The minimum benefit is 8 percent of the maximum
-allotment for a household of one, rounded to the nearest whole dollar." 7 USC
-2017(a) says the same. policyengine-us 1.755.4 returns 8 percent of the maximum
-without rounding: $23.84 a month in FY2026, where USDA published $24. The state
-minimum overrides (DC, MD, NJ) are unchanged. Limited to calendar 2026.
+allotment for a household of one, rounded to the nearest whole dollar."
+policyengine-us 1.755.4 returns 8 percent of the maximum without rounding: $23.84
+a month in FY2026, where USDA published $24. PolicyEngine/policyengine-us#9162
+(merged 2026-07-28, after the reference freeze) applies the same rounding. This
+fix follows the CFR's wording; for Hawaii it gives $40 against USDA's published
+$41 (no benchmark household is in Hawaii). The state minimum overrides (DC, MD,
+NJ) are unchanged. Limited to calendar 2026.
 """
 import numpy as np
 

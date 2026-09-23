@@ -45,7 +45,7 @@ RUN_DIR = (
 )
 FABLE51 = DATA / "claude-fable-5-1-thinking.json"
 AUGUST = DATA / "claude-thinking-2026-08.json"
-NUMBER_WORDS = {11: "eleven", 55: "fifty-five", 66: "sixty-six"}
+NUMBER_WORDS = {11: "eleven", 51: "fifty-one", 55: "fifty-five", 66: "sixty-six"}
 
 
 def pin(path: Path) -> dict:

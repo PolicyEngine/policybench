@@ -30,7 +30,8 @@
     "defect": "PolicyEngine leaves capital gain distributions reported without Schedule D out of gross income",
     "law": "26 U.S.C. 61(a)(3), 852(b)(3)(B); Form 1040 line 7",
     "alternative_reading": "Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base.",
-    "upstream": "fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze"
+    "upstream": "fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze",
+    "upstream_fixed": true
   },
   "r05_nj_worker_ui": {
     "class": "engine_defect",
@@ -73,7 +74,8 @@
     "defect": "PolicyEngine applies New York's $450-a-month renter cap to a quarter of rent instead of the rent itself",
     "law": "N.Y. Tax Law 606(e)(7)(D); Form IT-214",
     "alternative_reading": "A renter whose adjusted rent averages more than $450 a month gets no real property tax credit.",
-    "upstream": "fixed in PolicyEngine/policyengine-us#9301 (issue #9298), after the reference freeze"
+    "upstream": "fixed in PolicyEngine/policyengine-us#9301 (issue #9298), after the reference freeze",
+    "upstream_fixed": true
   },
   "r10_wi_homestead_income": {
     "class": "unlisted_input",
@@ -119,15 +121,15 @@
   },
   "r13_snap_fy2027_parameters": {
     "class": "regenerated",
-    "note": "Not excluded. Max (2026-09-22): grading any model on figures published after the freeze is unfair, and excluding them would leave no positive-benefit SNAP case scored. The SNAP references are regenerated with October to December 2026 held at the FY2026 figures, the last published before the 2026-07-03 freeze, with the statutory rounding of the minimum allotment and allotment (fix r13_hold_fy2026). No model's explanation used FY2027 figures. Verified fix: r13_hold_fy2026_v2 (also holds the SNAP poverty guidelines and the published FY2026 minimum allotment; bounded to calendar 2026)."
+    "note": "Not excluded. Max (2026-09-22): grading any model on figures published after the freeze is unfair, and excluding them would leave no positive-benefit SNAP case scored. The SNAP references are regenerated with October to December 2026 held at the FY2026 figures, the last published before the 2026-07-03 freeze, with the statutory rounding of the minimum allotment and allotment (fix r13_hold_fy2026). No model's explanation used FY2027 figures. Verified fix: r13_hold_fy2026_v2 (also holds the SNAP poverty guidelines and the published FY2026 minimum allotment; bounded to calendar 2026). Superseded 2026-09-22: the SNAP convention is now r13_hold_fy2026_v3 (the FY2026 uprating hold alone), and the engine's SNAP rounding defects are root causes r26, r27, r28 and r31, which are fixed upstream and regenerated with the fixes."
   },
   "c_snap_hold_fy2026": {
     "class": "convention",
     "fix": "r13_hold_fy2026_v3",
     "outputs": "snap",
-    "rule": "SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances, and the SNAP poverty guidelines), the last published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The engine's own benefit formulas are unchanged; their rounding defects are the engine-defect root causes r26, r27 and r28, measured on top of this convention.",
+    "rule": "SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention.",
     "basis": "7 U.S.C. 2012(u), 2017(a); USDA FY2026 SNAP COLA memorandum (signed 2025-08-14)",
-    "grounding": "The reference is the ANNUAL 2026 SNAP total: the sum of twelve monthly allotments, January through December 2026. Every month uses the FY2026 SNAP figures (maximum allotment, standard deduction, excess shelter cap, utility allowances, poverty guidelines); October-December keep them because they were the last figures published before the benchmark's 2026-07-03 reference freeze. State the monthly allotment and the annual total separately and never call the annual total a monthly or quarterly amount."
+    "grounding": "The reference is the ANNUAL 2026 SNAP total: the sum of twelve monthly allotments, January through December 2026. Every month uses the FY2026 SNAP figures (maximum allotment, standard deduction, excess shelter cap, utility allowances); October-December keep them because they were the last USDA published before the benchmark's 2026-07-03 reference freeze. The allotment is a whole-dollar amount: net income is rounded to the nearest dollar, 30% of it is rounded up to the next dollar, and the minimum benefit is 8% of the one-person maximum rounded to the nearest dollar ($24 a month). State the monthly allotment and the annual total separately and never call the annual total a monthly or quarterly amount."
   },
   "c_ca_hold_2025": {
     "class": "convention",
@@ -145,7 +147,8 @@
     "defect": "PolicyEngine phases out the CalEITC on earned income only, without the second lookup at adjusted gross income",
     "law": "Cal. R&TC 17052(a), incorporating IRC 32(a)(2)(B); FTB 3514 instructions, CalEITC worksheet",
     "alternative_reading": "When adjusted gross income exceeds the income at which the CalEITC starts to phase out, the credit is looked up again at AGI and the smaller amount applies.",
-    "upstream": "fixed in PolicyEngine/policyengine-us#9363 (merged 2026-09-01), after the reference freeze"
+    "upstream": "fixed in PolicyEngine/policyengine-us#9363 (merged 2026-09-01), after the reference freeze",
+    "upstream_fixed": true
   },
   "c_irs_sales_tax_2025": {
     "class": "convention",
@@ -272,17 +275,9 @@
     "defect": "PolicyEngine subtracts 30% of net income from the maximum allotment without making the allotment a whole-dollar amount",
     "law": "7 CFR 273.10(e)(2)(ii)(A)",
     "alternative_reading": "If 30% of net income ends in cents, the state rounds it up to the next dollar or rounds the allotment down to the next dollar; with a whole-dollar maximum allotment both give the same whole-dollar allotment.",
-    "upstream": "",
-    "measured_against": "c_snap_hold_fy2026"
-  },
-  "r27_ca_snap_net_income_rounding": {
-    "class": "engine_defect",
-    "subtype": "state_local_rule",
-    "defect": "PolicyEngine floors CalFresh net income where California rounds it to the nearest dollar",
-    "law": "7 CFR 273.10(e)(1)(ii); California MPP 63-503.311 (CDSS summary)",
-    "alternative_reading": "California rounds CalFresh net income to the nearest dollar before taking 30%.",
-    "upstream": "",
-    "measured_against": "c_snap_hold_fy2026"
+    "upstream": "fixed in PolicyEngine/policyengine-us#9318 (merged 2026-08-25), after the reference freeze",
+    "measured_against": "c_snap_hold_fy2026",
+    "upstream_fixed": true
   },
   "r28_snap_min_allotment_rounding": {
     "class": "engine_defect",
@@ -290,7 +285,38 @@
     "defect": "PolicyEngine sets the SNAP minimum allotment at 8% of the one-person maximum without rounding ($23.84 a month for FY2026)",
     "law": "7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)(C)",
     "alternative_reading": "The minimum benefit is 8% of the maximum allotment for a household of one, rounded to the nearest whole dollar ($24 a month for FY2026, as USDA published).",
+    "upstream": "fixed in PolicyEngine/policyengine-us#9162 (merged 2026-07-28), after the reference freeze",
+    "measured_against": "c_snap_hold_fy2026",
+    "upstream_fixed": true
+  },
+  "r27_snap_net_income_rounding": {
+    "class": "engine_defect",
+    "subtype": "thresholds_rates",
+    "defect": "PolicyEngine floors SNAP net income in every state, which matches neither procedure 7 CFR 273.10(e)(1)(ii) allows",
+    "law": "7 CFR 273.10(e)(1)(ii); California MPP 63-503.311 (CDSS summary)",
+    "alternative_reading": "SNAP net income is rounded to the nearest dollar, as policyengine-us#9318 does in every state and California's CalFresh rules require; recomputing with cents kept instead moves no scored reference.",
+    "upstream": "fixed in PolicyEngine/policyengine-us#9318 (merged 2026-08-25), after the reference freeze",
+    "upstream_fixed": true,
+    "measured_against": "c_snap_hold_fy2026",
+    "supersedes": "r27_ca_snap_net_income_rounding (California only)"
+  },
+  "r30_snap_heat_and_eat_sua": {
+    "class": "engine_defect",
+    "subtype": "categorical_eligibility",
+    "defect": "PolicyEngine grants the heat-and-eat standard utility allowance to households without an elderly or disabled member, which P.L. 119-21 sec. 10103 ended",
+    "law": "7 U.S.C. 2014(e)(6)(C)(iv)(I), as amended by P.L. 119-21 sec. 10103(a) (approved 2025-07-04)",
+    "alternative_reading": "A LIHEAP payment makes a household eligible for the standard utility allowance only if the household has an elderly or disabled member; other households take the allowance only if they incur heating or cooling costs.",
     "upstream": "",
+    "measured_against": "c_snap_hold_fy2026"
+  },
+  "r31_snap_income_limit_rounding": {
+    "class": "engine_defect",
+    "subtype": "thresholds_rates",
+    "defect": "PolicyEngine compares SNAP income to the unrounded gross and net income standards",
+    "law": "7 CFR 273.9(a)(3)",
+    "alternative_reading": "The monthly gross and net income standards are rounded up to the next whole dollar.",
+    "upstream": "fixed in PolicyEngine/policyengine-us#9162 (merged 2026-07-28), after the reference freeze",
+    "upstream_fixed": true,
     "measured_against": "c_snap_hold_fy2026"
   }
 }

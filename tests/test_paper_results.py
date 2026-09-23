@@ -42,33 +42,33 @@ def test_frozen_roster_has_42_display_names_and_release_dates():
 def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     assert r.parse_contract_failure_counts == Counter(
         {
-            "kimi-k2.6": 386,
-            "glm-5.2": 132,
+            "kimi-k2.6": 395,
+            "glm-5.2": 133,
             "glm-5.3": 71,
-            "kimi-k3": 58,
+            "kimi-k3": 59,
         }
     )
-    assert r.parse_contract_failure_count == 647
-    assert r.parse_contract_failure_count_fmt == "647"
+    assert r.parse_contract_failure_count == 658
+    assert r.parse_contract_failure_count_fmt == "658"
     assert r.parse_contract_failure_pct_fmt == "0.8"
 
 
 def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
-    assert r.audit_annotated_row_count == 7_051
-    assert r.audit_annotated_row_count_fmt == "7,051"
+    assert r.audit_annotated_row_count == 7_625
+    assert r.audit_annotated_row_count_fmt == "7,625"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 7_047
-    assert r.exact_match_miss_count_fmt == "7,047"
-    assert r.annotated_exact_miss_count == 7_047
-    assert r.annotated_exact_miss_count_fmt == "7,047"
+    assert r.exact_match_miss_count == 7_621
+    assert r.exact_match_miss_count_fmt == "7,621"
+    assert r.annotated_exact_miss_count == 7_621
+    assert r.annotated_exact_miss_count_fmt == "7,621"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
-    assert r.unannotated_below_full_bounded_score_count == 1_841
-    assert r.unannotated_below_full_bounded_score_count_fmt == "1,841"
+    assert r.unannotated_below_full_bounded_score_count == 1_843
+    assert r.unannotated_below_full_bounded_score_count_fmt == "1,843"
 
 
 def test_contract_violations_are_counted_both_ways():
-    """647 scored rows never parsed a number (rows on excluded outputs are outside
+    """658 scored rows never parsed a number (rows on excluded outputs are outside
     every count); 61 more parsed a number but carry no explanation.
     The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
@@ -77,7 +77,7 @@ def test_contract_violations_are_counted_both_ways():
         "claude-haiku-4.5": 1,
     }
     assert r.explanation_missing_count_fmt == "61"
-    assert r.contract_violation_count_fmt == "708"
+    assert r.contract_violation_count_fmt == "719"
     assert r.explanation_missing_breakdown_fmt == (
         "Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)"
     )
@@ -198,11 +198,11 @@ def test_serving_evidence_counts_exclude_legacy_or_unrecorded_fields():
 def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
     table = r.federal_state_joint_accuracy.set_index("Model")
 
-    assert table.loc["Claude Fable 5.1"].tolist() == [100.0, 94.7, 94.7]
-    assert table.loc["Claude Opus 5.5"].tolist() == [100.0, 92.6, 92.6]
-    assert table.loc["GPT-6 Astra"].tolist() == [100.0, 90.5, 90.5]
-    assert table.loc["GPT-6 Sol"].tolist() == [98.9, 89.5, 89.5]
-    assert table.loc["GPT-5.6 Sol"].tolist() == [98.9, 88.4, 88.4]
+    assert table.loc["Claude Fable 5.1"].tolist() == [100.0, 93.8, 93.8]
+    assert table.loc["Claude Opus 5.5"].tolist() == [100.0, 91.8, 91.8]
+    assert table.loc["GPT-6 Astra"].tolist() == [100.0, 89.7, 89.7]
+    assert table.loc["GPT-6 Sol"].tolist() == [99.0, 88.7, 88.7]
+    assert table.loc["GPT-5.6 Sol"].tolist() == [99.0, 87.6, 87.6]
     assert r.joint_credit_accuracy_exceptions == [
         "Claude Fable 5.1",
         "Claude Opus 5.5",
@@ -268,27 +268,31 @@ def test_joint_credit_table_orders_ties_deterministically():
     table = r.federal_state_joint_accuracy
     joint = table["Joint within 10%"].tolist()
     assert joint == sorted(joint, reverse=True)
-    tied = table[table["Joint within 10%"] == 88.4]["Model"].tolist()
+    tied = table[table["Joint within 10%"] == 87.6]["Model"].tolist()
     assert tied[:2] == ["GPT-5.6 Sol", "GPT-6 Luna"]
 
 
 def test_excluded_outputs_are_outside_the_scored_audit_universe():
-    assert r.excluded_output_count == 66
-    assert r.excluded_output_phrase == "66 outputs"
-    assert r.excluded_output_households_phrase == "44 households"
-    assert r.unlisted_input_exclusion_count == 22
-    assert r.engine_defect_exclusion_count == 44
-    assert r.engine_defect_root_cause_count == 14
-    assert r.snap_engine_defect_exclusion_count == 13
-    assert r.engine_defect_unflagged_count == 19
+    assert r.excluded_output_count == 51
+    assert r.excluded_output_phrase == "51 outputs"
+    assert r.excluded_output_households_phrase == "35 households"
+    assert r.unlisted_input_exclusion_count == 24
+    assert r.engine_defect_exclusion_count == 27
+    assert r.engine_defect_root_cause_count == 10
+    assert r.snap_engine_defect_exclusion_count == 1
+    assert r.engine_defect_unflagged_count == 8
+    assert r.regenerated_reference_count == 27
+    assert r.regenerated_by_upstream_fix_count == 16
+    assert r.upstream_fixed_root_cause_count == 7
+    assert r.upstream_fix_prs_fmt == "#8839, #9162, #9301, #9318 and #9363"
     assert r.excluded_outputs_by_input["meets_ssi_disability_criteria"] == 6
     assert (
         r.excluded_outputs_by_input["months_receiving_social_security_disability"] == 5
     )
-    assert r.scored_outputs_per_model_fmt == "1,918"
+    assert r.scored_outputs_per_model_fmt == "1,933"
     assert r.total_outputs_per_model_fmt == "1,984"
-    assert r.excluded_output_annotation_row_count == 2375
-    assert r.prompt_ambiguity_row_count == 532
+    assert r.excluded_output_annotation_row_count == 1751
+    assert r.prompt_ambiguity_row_count == 616
     # No scored row carries a descriptive class; every excluded-output row
     # carries its exclusion's class unless it never parsed.
     scored_sources = {
@@ -307,4 +311,4 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
             "parse_contract_failure",
         }
     for stats in r.model_stats:
-        assert stats["n"] == 1918
+        assert stats["n"] == 1933

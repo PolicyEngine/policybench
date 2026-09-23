@@ -144,10 +144,15 @@ r26_snap_contribution_rounding,engine_defect,r26_snap_contribution_rounding.py,c
 r26_snap_contribution_rounding,engine_defect,r26_snap_contribution_rounding.py,c_snap_hold_fy2026,scenario_100,MT,snap,8625.889648,8566.799805,8556.0,-10.799805,True
 r26_snap_contribution_rounding,engine_defect,r26_snap_contribution_rounding.py,c_snap_hold_fy2026,scenario_109,FL,snap,8020.554199,7935.599121,7932.0,-3.599121,True
 r26_snap_contribution_rounding,engine_defect,r26_snap_contribution_rounding.py,c_snap_hold_fy2026,scenario_118,NY,snap,2903.94043,2877.600342,2868.0,-9.600342,True
-r27_ca_snap_net_income_rounding,engine_defect,r27_ca_snap_net_income_rounding.py,c_snap_hold_fy2026,scenario_023,CA,snap,461.339722,422.39978,418.799927,-3.599854,True
+r27_snap_net_income_rounding,engine_defect,r27_snap_net_income_rounding.py,c_snap_hold_fy2026,scenario_008,NJ,snap,15246.905273,15121.198242,15117.598633,-3.599609,True
+r27_snap_net_income_rounding,engine_defect,r27_snap_net_income_rounding.py,c_snap_hold_fy2026,scenario_012,MS,snap,4952.089355,4894.799316,4891.200195,-3.599121,True
+r27_snap_net_income_rounding,engine_defect,r27_snap_net_income_rounding.py,c_snap_hold_fy2026,scenario_023,CA,snap,461.339722,422.39978,418.799927,-3.599854,True
+r27_snap_net_income_rounding,engine_defect,r27_snap_net_income_rounding.py,c_snap_hold_fy2026,scenario_038,LA,snap,7286.944336,7215.599121,7212.0,-3.599121,True
 r28_snap_min_allotment_rounding,engine_defect,r28_snap_min_allotment_rounding.py,c_snap_hold_fy2026,scenario_027,CT,snap,287.683167,286.079987,288.0,1.920013,True
 r28_snap_min_allotment_rounding,engine_defect,r28_snap_min_allotment_rounding.py,c_snap_hold_fy2026,scenario_030,TX,snap,287.683167,286.079987,288.0,1.920013,True
 r28_snap_min_allotment_rounding,engine_defect,r28_snap_min_allotment_rounding.py,c_snap_hold_fy2026,scenario_045,MI,snap,287.683167,286.079987,288.0,1.920013,True
 r28_snap_min_allotment_rounding,engine_defect,r28_snap_min_allotment_rounding.py,c_snap_hold_fy2026,scenario_073,MI,snap,287.683167,286.079987,288.0,1.920013,True
 r28_snap_min_allotment_rounding,engine_defect,r28_snap_min_allotment_rounding.py,c_snap_hold_fy2026,scenario_108,WI,snap,287.683167,286.079987,288.0,1.920013,True
 r28_snap_min_allotment_rounding,engine_defect,r28_snap_min_allotment_rounding.py,c_snap_hold_fy2026,scenario_112,TX,snap,287.683167,286.079987,288.0,1.920013,True
+r30_snap_heat_and_eat_sua,engine_defect,r30_snap_heat_and_eat_sua.py,c_snap_hold_fy2026,scenario_080,PA,snap,3596.039795,3576.0,3244.799561,-331.200439,True
+r30_snap_heat_and_eat_sua,engine_defect,r30_snap_heat_and_eat_sua.py,c_snap_hold_fy2026,scenario_100,MT,snap,8625.889648,8566.799805,6936.0,-1630.799805,True

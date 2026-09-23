@@ -65,11 +65,11 @@ be described as faithful reasoning traces.
 
 ## Audit scope
 
-The frozen US annotations cover 7,051 scored rows selected because their
-legacy threshold score is below 1 (2,375 further annotated rows sit on the 66
+The frozen US annotations cover 7,625 scored rows selected because their
+legacy threshold score is below 1 (1,751 further annotated rows sit on the 51
 excluded outputs and are description, not audit). This audit universe contains
-7,047 of the snapshot's 7,047 exact-match misses and four exact hits. Another
-1,841 scored rows have a bounded score below 100 but fall outside the
+7,621 of the snapshot's 7,621 exact-match misses and four exact hits. Another
+1,843 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
 CLI for 314 cases, Claude Opus 5 through the Claude Code CLI for 183 cases the
@@ -79,38 +79,47 @@ audit_annotation_artifacts.judge_provenance block carries the tally. Verdicts
 change no score. A judge verdict outside the final classes, and every
 reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's original
-verdict beside the decision and the reasoning. This snapshot carries 72: one
+verdict beside the decision and the reasoning. This snapshot carries 62: one
 for each excluded output, plus the flagged references the adjudication
 affirmed or replaced with a regenerated reference.
 
-Sixty-six outputs in 44 households are excluded from scoring for every model
+The September 22 audit implemented each defect it confirmed in policyengine-us
+1.755.4 as a sandbox fix on that engine version and recomputed every
+reference under it. Seven of those root causes were fixed in policyengine-us
+after the references were frozen (#8839, #9162, #9301, #9318 and #9363:
+capital gain distributions, New York's renter cap, the CalEITC's lookup at
+adjusted gross income, and the engine's SNAP rounding). Their references are
+regenerated with the fix on the same engine version: 16 references.
+
+Fifty-one outputs in 35 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
-manifest). Forty-four rest on defects in policyengine-us 1.755.4 across fourteen
-root causes: each root cause's rule was implemented as a sandbox fix on that
-engine version, every reference was recomputed under it, and every output
-that moved by more than a dollar is excluded. The engine's SNAP rounding
-defects (cents in the allotment, an unrounded minimum benefit, California's
-net-income rounding) are measured against the SNAP publication convention's
-reference, the value that would otherwise be published. Twenty-two depend on an input the
+manifest). Twenty-seven rest on the ten defect root causes not fixed upstream
+(among them the IRA deduction's compensation limit and phase-out, estate
+income, and the heat-and-eat SNAP utility allowance that P.L. 119-21 ended for
+households without an elderly or disabled member): every output such a fix
+moves by more than a dollar is excluded. Twenty-four depend on an input the
 prompt never states, such as the SSI disability criterion, months of SSDI
 receipt, weekly hours worked, the type of survivor benefits, who paid for the
 coverage behind a disability benefit, or whether an adult tax dependent is the
 filers' child; each was recomputed under the other reading a careful reader
 could take, and it moved. Exclusion is symmetric: rows that matched the frozen
 reference leave the score with rows that did not, so every model is scored on
-1,918 of its 1,984 requested outputs. The rows on those outputs stay annotated
-with their exclusion's class as description; no scored row carries a
+1,933 of its 1,984 requested outputs. The rows on those outputs stay annotated
+as description: each carries its exclusion's class, except the 49 answers that
+never parsed, which stay parse_contract_failure; no scored row carries a
 descriptive class. Do not read a $0 SSI reference for a disabled under-65
 household member as a finding about that person's SSI eligibility.
 
 A scored reference follows from the stated facts and from law published before
 the references were frozen on 2026-07-03. Where policyengine-us projected a
 2026 amount with a price index, the reference takes the amount published
-before the freeze or, where none was, the last one published: 12 references
-were regenerated with the same engine version on that rule (three SNAP outputs,
-whose October to December months hold the FY2026 figures, and nine in federal
-and state income tax). A convention changes parameter values only. The reference sidecar records each regenerated value
-with the fix that produced it.
+before the freeze or, where none was, the last one published; a convention
+changes parameter values only. With the upstream fixes, 27 references in 25
+households are regenerated on the same engine version: 13 SNAP outputs, whose
+October to December months hold the FY2026 figures and whose allotments apply
+the SNAP rounding fixes, and 14 in federal and state income tax and credits.
+The reference sidecar records each regenerated value with the convention or
+fix that produced it.
 
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be

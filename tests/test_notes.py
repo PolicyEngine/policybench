@@ -490,7 +490,19 @@ def test_reference_audit_note_facts() -> None:
         ),
         "regenerated": len(regenerated),
         "regeneratedSnap": sum(variable == "snap" for _, variable in regenerated),
-        "snapDefectOutputs": sum(e["variable"] == "snap" for e in defects),
+        "upstreamFixed": sum(
+            1
+            for revision in meta["revisions"]
+            if revision.get("kind") == "upstream_fix"
+        ),
+        "regeneratedByFix": len(
+            {
+                (change["scenario_id"], change["variable"])
+                for revision in meta["revisions"]
+                if revision.get("kind") == "upstream_fix"
+                for change in revision["changed"]
+            }
+        ),
         "scoredOutputs": board_rows[0]["n"],
     }
     assert len(flagged) == sum(

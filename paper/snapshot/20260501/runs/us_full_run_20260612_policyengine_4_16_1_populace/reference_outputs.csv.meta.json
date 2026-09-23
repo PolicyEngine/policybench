@@ -60,17 +60,18 @@
   "split": "public",
   "split_seed": 1042,
   "task": "reference_outputs",
-  "reference_csv_sha256": "18e10470d6535dbed9d83bd63db8e174d287c60cf64dc108fc6a3ad2bbd501b9",
+  "reference_csv_sha256": "228baf55abefa8703eb45fa74d7cf472b3ee266b833b96e89c8c6f8802ca803a",
   "revisions": [
     {
       "date": "2026-09-22",
+      "kind": "convention",
       "convention": "c_snap_hold_fy2026",
       "outputs": "snap",
-      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances, and the SNAP poverty guidelines), the last published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The engine's own benefit formulas are unchanged; their rounding defects are the engine-defect root causes r26, r27 and r28, measured on top of this convention.",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention.",
       "basis": "7 U.S.C. 2012(u), 2017(a); USDA FY2026 SNAP COLA memorandum (signed 2025-08-14)",
       "engine_version": "policyengine-us 1.755.4",
       "fix_module": "r13_hold_fy2026_v3.py",
-      "fix_module_sha256": "f3e3f4b0d06c5a85e7eb5c45f0b76765990c6c9ade0a9659002ffd2d5675273d",
+      "fix_module_sha256": "e46807cbd1e16fa24a3b63d9d788a54f5591af1419c8a742c6e4afca2f0e7051",
       "applied_together_with": [
         "c_ca_hold_2025",
         "c_id_hold_2025",
@@ -79,15 +80,64 @@
         "c_mi_published_2026",
         "c_mn_published_2026",
         "c_mo_published_2026",
-        "c_wi_published_2026"
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
+        {
+          "scenario_id": "scenario_008",
+          "variable": "snap",
+          "frozen": 15246.9052734375,
+          "regenerated": 15108.0
+        },
+        {
+          "scenario_id": "scenario_012",
+          "variable": "snap",
+          "frozen": 4952.08935546875,
+          "regenerated": 4884.0
+        },
+        {
+          "scenario_id": "scenario_027",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_030",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_038",
+          "variable": "snap",
+          "frozen": 7286.9443359375,
+          "regenerated": 7212.0
+        },
         {
           "scenario_id": "scenario_043",
           "variable": "snap",
           "frozen": 3596.039794921875,
           "regenerated": 3576.0
+        },
+        {
+          "scenario_id": "scenario_045",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_054",
+          "variable": "snap",
+          "frozen": 6125.68896484375,
+          "regenerated": 6060.0
         },
         {
           "scenario_id": "scenario_066",
@@ -96,15 +146,34 @@
           "regenerated": 3576.0
         },
         {
-          "scenario_id": "scenario_080",
+          "scenario_id": "scenario_073",
           "variable": "snap",
-          "frozen": 3596.039794921875,
-          "regenerated": 3576.0
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_079",
+          "variable": "snap",
+          "frozen": 2428.017333984375,
+          "regenerated": 2376.0
+        },
+        {
+          "scenario_id": "scenario_108",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_109",
+          "variable": "snap",
+          "frozen": 8020.55419921875,
+          "regenerated": 7932.0
         }
       ]
     },
     {
       "date": "2026-09-22",
+      "kind": "convention",
       "convention": "c_ca_hold_2025",
       "outputs": "California income tax and credits",
       "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. California's 2026 indexed income tax amounts hold the 2025 amounts FTB published (October 2025 Tax News; 2025 Form 540 and 3514 booklets), the last published before the 2026-07-03 reference freeze; the 2026 factor rests on June 2026 California CPI (BLS 2026-07-14; DIR 2026-08-12). The CalEITC final phase-out breakpoints take their statutory 2025 values ($252/$636), which policyengine-us 1.755.4 had projected ($257/$649).",
@@ -120,7 +189,14 @@
         "c_mn_published_2026",
         "c_mo_published_2026",
         "c_snap_hold_fy2026",
-        "c_wi_published_2026"
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -135,11 +211,18 @@
           "variable": "state_income_tax_before_refundable_credits",
           "frozen": 6.7984771728515625,
           "regenerated": 12.776718139648438
+        },
+        {
+          "scenario_id": "scenario_023",
+          "variable": "state_refundable_credits",
+          "frozen": 148.3108673095703,
+          "regenerated": 95.15400695800781
         }
       ]
     },
     {
       "date": "2026-09-22",
+      "kind": "convention",
       "convention": "c_irs_sales_tax_2025",
       "outputs": "federal income tax of filers who deduct general sales tax",
       "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. The optional state sales tax tables for 2026 are the 2025 tables the IRS published in the 2025 Instructions for Schedule A (posted 2025-12-18), the last published before the 2026-07-03 reference freeze; no 2026 edition had been published by 2026-09-22. policyengine-us 1.755.4 projected 2026 tables from its 2023 edition with chained CPI, which is not the IRS method.",
@@ -155,7 +238,14 @@
         "c_mn_published_2026",
         "c_mo_published_2026",
         "c_snap_hold_fy2026",
-        "c_wi_published_2026"
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -169,6 +259,7 @@
     },
     {
       "date": "2026-09-22",
+      "kind": "convention",
       "convention": "c_wi_published_2026",
       "outputs": "Wisconsin income tax",
       "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Wisconsin's 2026 standard deduction and tax brackets are the amounts DOR published before the 2026-07-03 reference freeze (2026 Form 1-ES instructions, rev. 1-26; 2026 WT-4A worksheet, rev. 11-25), not policyengine-us 1.755.4's CPI projections.",
@@ -184,13 +275,28 @@
         "c_mi_published_2026",
         "c_mn_published_2026",
         "c_mo_published_2026",
-        "c_snap_hold_fy2026"
+        "c_snap_hold_fy2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
       ],
       "excluded_outputs_untouched": true,
-      "changed": []
+      "changed": [
+        {
+          "scenario_id": "scenario_091",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 843.6614990234375,
+          "regenerated": 878.5157470703125
+        }
+      ]
     },
     {
       "date": "2026-09-22",
+      "kind": "convention",
       "convention": "c_id_hold_2025",
       "outputs": "Idaho income tax",
       "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Idaho's 2026 zero-rate taxable income thresholds hold the 2025 amounts ($4,811 single; $9,622 joint and head of household) the Tax Commission published, the last located before the 2026-07-03 reference freeze; no 2026 publication was found by 2026-09-22. The retirement-benefit caps take their statutory 2026 values; they do not affect any benchmark household.",
@@ -206,7 +312,14 @@
         "c_mn_published_2026",
         "c_mo_published_2026",
         "c_snap_hold_fy2026",
-        "c_wi_published_2026"
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -220,6 +333,7 @@
     },
     {
       "date": "2026-09-22",
+      "kind": "convention",
       "convention": "c_mn_published_2026",
       "outputs": "Minnesota income tax and credits",
       "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Minnesota's 2026 inflation-adjusted amounts are those the Department of Revenue published on 2025-12-01 (announced 2025-12-16), before the 2026-07-03 reference freeze, not policyengine-us 1.755.4's CPI projections; the 2025 renter's credit schedule takes its published values. The marriage credit cap, first located in an August 2026 draft, holds its 2025 amount.",
@@ -235,7 +349,14 @@
         "c_mi_published_2026",
         "c_mo_published_2026",
         "c_snap_hold_fy2026",
-        "c_wi_published_2026"
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -249,6 +370,7 @@
     },
     {
       "date": "2026-09-22",
+      "kind": "convention",
       "convention": "c_md_2026",
       "outputs": "Maryland income tax; federal tax through the Maryland withholding proxy",
       "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Maryland's 2026 withholding allowance is the $3,400 the Comptroller published in the 2026 Employer Withholding Guide (revised December 2025); the 2026 flat standard deduction holds the published 2025 amounts ($3,350; $6,700), because no 2026 return amount was located before the 2026-07-03 reference freeze (provisional); the child and dependent care credit caps hold their 2025 amounts.",
@@ -264,7 +386,14 @@
         "c_mn_published_2026",
         "c_mo_published_2026",
         "c_snap_hold_fy2026",
-        "c_wi_published_2026"
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -284,6 +413,7 @@
     },
     {
       "date": "2026-09-22",
+      "kind": "convention",
       "convention": "c_mi_published_2026",
       "outputs": "Michigan income tax and credits",
       "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Michigan's 2026 personal exemption ($5,900) and retirement limits are those Treasury published in the 2026 Form 446 (revised February 2026), before the 2026-07-03 reference freeze; amounts with no located 2026 publication (disability exemption, senior investment limits, homestead and home heating tables) hold their published 2025 values, which also replace the engine's projected 2025 entries.",
@@ -299,7 +429,14 @@
         "c_mn_published_2026",
         "c_mo_published_2026",
         "c_snap_hold_fy2026",
-        "c_wi_published_2026"
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -313,6 +450,7 @@
     },
     {
       "date": "2026-09-22",
+      "kind": "convention",
       "convention": "c_mo_published_2026",
       "outputs": "Missouri income tax",
       "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Missouri's 2026 income tax brackets are those the Department of Revenue published in its 2026 withholding formula (dated 2025-11-21), before the 2026-07-03 reference freeze, not policyengine-us 1.755.4's CPI projections.",
@@ -328,7 +466,14 @@
         "c_mi_published_2026",
         "c_mn_published_2026",
         "c_snap_hold_fy2026",
-        "c_wi_published_2026"
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -339,6 +484,357 @@
           "regenerated": 3388.24560546875
         }
       ]
+    },
+    {
+      "date": "2026-09-22",
+      "kind": "upstream_fix",
+      "root_cause": "r04_capital_gain_distributions",
+      "outputs": "federal_income_tax_before_refundable_credits, state_income_tax_before_refundable_credits",
+      "rule": "An engine defect fixed in policyengine-us after the reference freeze is regenerated with the fix. Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base.",
+      "defect": "PolicyEngine leaves capital gain distributions reported without Schedule D out of gross income",
+      "basis": "26 U.S.C. 61(a)(3), 852(b)(3)(B); Form 1040 line 7",
+      "upstream": "fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r04_capital_gain_distributions_v2.py",
+      "fix_module_sha256": "86d001a3cdfc36add8da4689f32049a01815f2b268701ad2c491dfd44147e562",
+      "measured_against": "frozen",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_042",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 1979.1583251953125,
+          "regenerated": 2361.96484375
+        },
+        {
+          "scenario_id": "scenario_051",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 814.9500122070312,
+          "regenerated": 820.3499755859375
+        },
+        {
+          "scenario_id": "scenario_091",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 843.6614990234375,
+          "regenerated": 878.5157470703125
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "kind": "upstream_fix",
+      "root_cause": "r09_ny_rptc_rent_cap",
+      "outputs": "state_refundable_credits",
+      "rule": "An engine defect fixed in policyengine-us after the reference freeze is regenerated with the fix. A renter whose adjusted rent averages more than $450 a month gets no real property tax credit.",
+      "defect": "PolicyEngine applies New York's $450-a-month renter cap to a quarter of rent instead of the rent itself",
+      "basis": "N.Y. Tax Law 606(e)(7)(D); Form IT-214",
+      "upstream": "fixed in PolicyEngine/policyengine-us#9301 (issue #9298), after the reference freeze",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r09_ny_rptc_rent_cap_v2.py",
+      "fix_module_sha256": "ccdc92a415ad516e00d0ca2f4c8710b4aa3ae332e1fc2ec8e55a69781b9b26b9",
+      "measured_against": "frozen",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_104",
+          "variable": "state_refundable_credits",
+          "frozen": 375.0,
+          "regenerated": 0.0
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "kind": "upstream_fix",
+      "root_cause": "r17_caleitc_agi_comparison",
+      "outputs": "state_refundable_credits",
+      "rule": "An engine defect fixed in policyengine-us after the reference freeze is regenerated with the fix. When adjusted gross income exceeds the income at which the CalEITC starts to phase out, the credit is looked up again at AGI and the smaller amount applies.",
+      "defect": "PolicyEngine phases out the CalEITC on earned income only, without the second lookup at adjusted gross income",
+      "basis": "Cal. R&TC 17052(a), incorporating IRC 32(a)(2)(B); FTB 3514 instructions, CalEITC worksheet",
+      "upstream": "fixed in PolicyEngine/policyengine-us#9363 (merged 2026-09-01), after the reference freeze",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r17_caleitc_agi_comparison.py",
+      "fix_module_sha256": "170b2766c9460bdb53491f5c375864c894b6b5e6d6b4a1d2f797c330879947a5",
+      "measured_against": "frozen",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_023",
+          "variable": "state_refundable_credits",
+          "frozen": 148.3108673095703,
+          "regenerated": 95.15400695800781
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "kind": "upstream_fix",
+      "root_cause": "r26_snap_contribution_rounding",
+      "outputs": "snap",
+      "rule": "An engine defect fixed in policyengine-us after the reference freeze is regenerated with the fix. If 30% of net income ends in cents, the state rounds it up to the next dollar or rounds the allotment down to the next dollar; with a whole-dollar maximum allotment both give the same whole-dollar allotment.",
+      "defect": "PolicyEngine subtracts 30% of net income from the maximum allotment without making the allotment a whole-dollar amount",
+      "basis": "7 CFR 273.10(e)(2)(ii)(A)",
+      "upstream": "fixed in PolicyEngine/policyengine-us#9318 (merged 2026-08-25), after the reference freeze",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r26_snap_contribution_rounding.py",
+      "fix_module_sha256": "42e01d6bd04141d145c3df7ff0fad876d4a2ff62b87235cf0ee2e4607a9cf238",
+      "measured_against": "c_snap_hold_fy2026",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_008",
+          "variable": "snap",
+          "frozen": 15246.9052734375,
+          "regenerated": 15108.0
+        },
+        {
+          "scenario_id": "scenario_012",
+          "variable": "snap",
+          "frozen": 4952.08935546875,
+          "regenerated": 4884.0
+        },
+        {
+          "scenario_id": "scenario_038",
+          "variable": "snap",
+          "frozen": 7286.9443359375,
+          "regenerated": 7212.0
+        },
+        {
+          "scenario_id": "scenario_054",
+          "variable": "snap",
+          "frozen": 6125.68896484375,
+          "regenerated": 6060.0
+        },
+        {
+          "scenario_id": "scenario_079",
+          "variable": "snap",
+          "frozen": 2428.017333984375,
+          "regenerated": 2376.0
+        },
+        {
+          "scenario_id": "scenario_109",
+          "variable": "snap",
+          "frozen": 8020.55419921875,
+          "regenerated": 7932.0
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "kind": "upstream_fix",
+      "root_cause": "r28_snap_min_allotment_rounding",
+      "outputs": "snap",
+      "rule": "An engine defect fixed in policyengine-us after the reference freeze is regenerated with the fix. The minimum benefit is 8% of the maximum allotment for a household of one, rounded to the nearest whole dollar ($24 a month for FY2026, as USDA published).",
+      "defect": "PolicyEngine sets the SNAP minimum allotment at 8% of the one-person maximum without rounding ($23.84 a month for FY2026)",
+      "basis": "7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)(C)",
+      "upstream": "fixed in PolicyEngine/policyengine-us#9162 (merged 2026-07-28), after the reference freeze",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r28_snap_min_allotment_rounding.py",
+      "fix_module_sha256": "07e555626ad1636988dbedcc2f75e312ced8ee68cd270d7296fb0c289dba8357",
+      "measured_against": "c_snap_hold_fy2026",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r31_snap_income_limit_rounding"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_027",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_030",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_045",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_073",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_108",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "kind": "upstream_fix",
+      "root_cause": "r27_snap_net_income_rounding",
+      "outputs": "snap",
+      "rule": "An engine defect fixed in policyengine-us after the reference freeze is regenerated with the fix. SNAP net income is rounded to the nearest dollar, as policyengine-us#9318 does in every state and California's CalFresh rules require; recomputing with cents kept instead moves no scored reference.",
+      "defect": "PolicyEngine floors SNAP net income in every state, which matches neither procedure 7 CFR 273.10(e)(1)(ii) allows",
+      "basis": "7 CFR 273.10(e)(1)(ii); California MPP 63-503.311 (CDSS summary)",
+      "upstream": "fixed in PolicyEngine/policyengine-us#9318 (merged 2026-08-25), after the reference freeze",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r27_snap_net_income_rounding.py",
+      "fix_module_sha256": "81eb155229603203605cf6daf259e002ecac22d4bedadd3591e2b600ab62682d",
+      "measured_against": "c_snap_hold_fy2026",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_008",
+          "variable": "snap",
+          "frozen": 15246.9052734375,
+          "regenerated": 15108.0
+        },
+        {
+          "scenario_id": "scenario_012",
+          "variable": "snap",
+          "frozen": 4952.08935546875,
+          "regenerated": 4884.0
+        },
+        {
+          "scenario_id": "scenario_038",
+          "variable": "snap",
+          "frozen": 7286.9443359375,
+          "regenerated": 7212.0
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "kind": "upstream_fix",
+      "root_cause": "r31_snap_income_limit_rounding",
+      "outputs": "none",
+      "rule": "An engine defect fixed in policyengine-us after the reference freeze is regenerated with the fix. The monthly gross and net income standards are rounded up to the next whole dollar.",
+      "defect": "PolicyEngine compares SNAP income to the unrounded gross and net income standards",
+      "basis": "7 CFR 273.9(a)(3)",
+      "upstream": "fixed in PolicyEngine/policyengine-us#9162 (merged 2026-07-28), after the reference freeze",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r31_snap_income_limit_rounding.py",
+      "fix_module_sha256": "9800f9c2275733d825039041de6e3df2b792cf4a72663f0c2e687be61eb4bf35",
+      "measured_against": "c_snap_hold_fy2026",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": []
     }
   ]
 }

@@ -1,4 +1,4 @@
-"""c13v3_plus_r26_r27_r28: r13_hold_fy2026_v3 plus r26, r27 and r28, to measure the defect on top of the SNAP convention."""
+"""c13v3_plus_r30: r13_hold_fy2026_v3 plus r30_snap_heat_and_eat_sua, to measure the defect on top of the SNAP convention."""
 import importlib.util
 from pathlib import Path
 
@@ -14,9 +14,9 @@ def _load(name):
     return module
 
 
-_PARTS = [_load(n) for n in ['r13_hold_fy2026_v3', 'r26_snap_contribution_rounding', 'r27_ca_snap_net_income_rounding', 'r28_snap_min_allotment_rounding']]
-FIX_ID = 'c13v3_plus_r26_r27_r28'
-DESCRIPTION = 'r13_hold_fy2026_v3 plus r26, r27 and r28'
+_PARTS = [_load(n) for n in ['r13_hold_fy2026_v3', 'r30_snap_heat_and_eat_sua']]
+FIX_ID = 'c13v3_plus_r30'
+DESCRIPTION = 'r13_hold_fy2026_v3 plus r30_snap_heat_and_eat_sua'
 
 
 class reform(Reform):

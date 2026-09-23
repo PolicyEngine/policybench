@@ -24,12 +24,14 @@ const rows = bundle.countries.us.modelStats.filter(
 );
 
 function renderFable5Chip(): string {
+  const sensitivity = servingSensitivityFor("claude-fable-5")!;
+  const board = rows.find((row) => row.model === "claude-fable-5")!;
   return renderToStaticMarkup(
     createElement(ServingSensitivityChip, {
       modelLabel: "Claude Fable 5",
-      boardExact: 83.6667,
-      sensitivity: servingSensitivityFor("claude-fable-5")!,
-      wouldRank: 6,
+      boardExact: board.exact ?? board.score,
+      sensitivity,
+      wouldRank: wouldRank(sensitivity.autoExact, rows),
     }),
   );
 }
@@ -58,10 +60,10 @@ describe("serving sensitivity", () => {
       }),
     );
     expect(rank).toBe(6);
-    expect(html).toContain("auto 91.5 · #6");
+    expect(html).toContain("auto 90.8 · #6");
     expect(html).toContain("switches Claude&#x27;s extended thinking off");
     expect(html).toContain("would rank #6");
-    expect(html).toContain("(+7.4 against its 84.1% on the unfiltered board)");
+    expect(html).toContain("(+7.4 against its 83.4% on the unfiltered board)");
     expect(html).toContain("sensitivity/claude-thinking-2026-08.md");
     expect(html).toContain("issues/139");
   });
@@ -71,12 +73,12 @@ describe("serving sensitivity", () => {
     const html = renderToStaticMarkup(
       createElement(ServingSensitivityChip, {
         modelLabel: "Claude Fable 5.1",
-        boardExact: 90.9,
+        boardExact: 90.1,
         sensitivity,
         wouldRank: wouldRank(sensitivity.autoExact, rows),
       }),
     );
-    expect(html).toContain("auto 91.7 · #5");
+    expect(html).toContain("auto 91.0 · #6");
     expect(html).toContain("rejects forced tool calls");
     expect(html).toContain("compares transports");
     expect(html).toContain('href="/notes/2026-09-01-claude-fable-5-1-added"');
@@ -107,7 +109,7 @@ describe("serving sensitivity", () => {
     // 88.183 − 86.945 = 1.238 → +1.2; rounding first would have said +1.3.
     expect(formatDelta(88.183, 86.945)).toBe("+1.2");
     expect(formatDelta(88.2, 86.945)).toBe("+1.3");
-    // The pinned Fable 5.1 pair on the frozen board: 91.72 − 90.86 = 0.86.
+    // The pinned Fable 5.1 pair on the frozen board: 91.018 − 90.109 = 0.909.
     expect(
       formatDelta(fable51Summary.sensitivity.exact, fable51Summary.board.exact),
     ).toBe("+0.9");
