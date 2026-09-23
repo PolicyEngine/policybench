@@ -221,17 +221,17 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # The judge's own class for each case (its verdict.json), not the
     # adjudicated one; the freezer refuses a record that differs from it.
     assert block["by_judge_verdict"] == {
-        "llm_error": 45,
+        "llm_error": 44,
         "prompt_ambiguity": 2,
         "reference_engine_defect": 11,
-        "reference_model_issue_fixed": 5,
+        "reference_model_issue_fixed": 6,
     }
     assert block["by_judge_verdict"] == dict(
         Counter(e["judge_failure_source"] for e in entries)
     )
     assert block["judge_flagged_by_reference_verdict"] == {
         "affirmed": 5,
-        "engine_defect": 19,
+        "engine_defect": 20,
         "regenerated": 6,
         "unlisted_input": 8,
     }

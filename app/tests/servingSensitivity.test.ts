@@ -109,7 +109,7 @@ describe("serving sensitivity", () => {
     // 88.183 − 86.945 = 1.238 → +1.2; rounding first would have said +1.3.
     expect(formatDelta(88.183, 86.945)).toBe("+1.2");
     expect(formatDelta(88.2, 86.945)).toBe("+1.3");
-    // The pinned Fable 5.1 pair on the frozen board: 91.018 − 90.109 = 0.909.
+    // The pinned Fable 5.1 pair on the frozen board: 91.067 − 90.158 = 0.909.
     expect(
       formatDelta(fable51Summary.sensitivity.exact, fable51Summary.board.exact),
     ).toBe("+0.9");

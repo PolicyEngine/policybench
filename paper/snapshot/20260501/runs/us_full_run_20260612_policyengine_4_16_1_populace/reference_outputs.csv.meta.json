@@ -532,7 +532,7 @@
       "rule": "An engine defect fixed in policyengine-us after the reference freeze is regenerated with the fix. A renter whose adjusted rent averages more than $450 a month gets no real property tax credit.",
       "defect": "PolicyEngine applies New York's $450-a-month renter cap to a quarter of rent instead of the rent itself",
       "basis": "N.Y. Tax Law 606(e)(7)(D); Form IT-214",
-      "upstream": "fixed in PolicyEngine/policyengine-us#9301 (issue #9298), after the reference freeze",
+      "upstream": "fixed in PolicyEngine/policyengine-us#9301 (issue #9298) and PolicyEngine/policyengine-us#9313 (the 2025 flat credit tables the sandbox module also applies), after the reference freeze",
       "engine_version": "policyengine-us 1.755.4",
       "fix_module": "r09_ny_rptc_rent_cap_v2.py",
       "fix_module_sha256": "ccdc92a415ad516e00d0ca2f4c8710b4aa3ae332e1fc2ec8e55a69781b9b26b9",

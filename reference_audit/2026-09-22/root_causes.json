@@ -75,7 +75,7 @@
     "defect": "PolicyEngine applies New York's $450-a-month renter cap to a quarter of rent instead of the rent itself",
     "law": "N.Y. Tax Law 606(e)(7)(D); Form IT-214",
     "alternative_reading": "A renter whose adjusted rent averages more than $450 a month gets no real property tax credit.",
-    "upstream": "fixed in PolicyEngine/policyengine-us#9301 (issue #9298), after the reference freeze",
+    "upstream": "fixed in PolicyEngine/policyengine-us#9301 (issue #9298) and PolicyEngine/policyengine-us#9313 (the 2025 flat credit tables the sandbox module also applies), after the reference freeze",
     "upstream_fixed": true
   },
   "r10_wi_homestead_income": {
@@ -309,7 +309,7 @@
     "alternative_reading": "A LIHEAP payment makes a household eligible for the standard utility allowance only if the household has an elderly or disabled member; other households take the allowance only if they incur heating or cooling costs.",
     "upstream": "",
     "measured_against": "c_snap_hold_fy2026",
-    "exclusion_note": "The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance and the frozen value would stand; the output is excluded either way."
+    "exclusion_note": "The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance, and the published value, 3,576.00 (the SNAP convention with the upstream SNAP fixes), would stand; the output is excluded either way."
   },
   "r31_snap_income_limit_rounding": {
     "class": "engine_defect",

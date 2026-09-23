@@ -543,6 +543,47 @@ class PaperResults:
     def n_households_fmt(self) -> str:
         return f"{self.n_households:,}"
 
+    def _benchmark_people(self) -> list[dict]:
+        """Every person in the frozen US scenarios, with their prompt inputs."""
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        scenarios = pd.read_csv(run_dir / "scenarios.csv")
+        people = []
+        for text in scenarios["scenario_json"]:
+            scenario = json.loads(text)
+            people += scenario.get("adults", []) + scenario.get("children", [])
+        return people
+
+    @property
+    def benchmark_person_count(self) -> int:
+        return len(self._benchmark_people())
+
+    @property
+    def disabled_person_count(self) -> int:
+        """People the prompt lists with the general ``is disabled`` fact."""
+        return sum(
+            bool(person.get("inputs", {}).get("is_disabled"))
+            for person in self._benchmark_people()
+        )
+
+    @property
+    def program_disability_input_count(self) -> int:
+        """People carrying any program-specific disability input (the paper
+        says none do)."""
+        inputs = (
+            "meets_ssi_disability_criteria",
+            "months_receiving_social_security_disability",
+            "is_permanently_and_totally_disabled",
+            "retired_on_total_disability",
+            "is_incapable_of_self_care",
+            "is_permanently_disabled_veteran",
+            "is_surviving_spouse_of_disabled_veteran",
+            "is_surviving_child_of_disabled_veteran",
+        )
+        return sum(
+            any(person.get("inputs", {}).get(name) for name in inputs)
+            for person in self._benchmark_people()
+        )
+
     @property
     def n_output_groups(self) -> int:
         return self.manifest["scope"]["output_groups"]["us"]

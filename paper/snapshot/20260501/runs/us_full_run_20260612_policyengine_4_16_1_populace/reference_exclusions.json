@@ -80,12 +80,12 @@
       "unlisted_input": "meets_ssi_disability_criteria",
       "alternative_reading": "The household fact 'is disabled' is read as satisfying SSI's disability criterion (the engine input meets_ssi_disability_criteria, which the certified microdata never sets and the prompt never lists). Recomputed with policyengine-us 1.755.4 with each person in a correctly built marital unit; the run's own situation placed every household member in one marital unit, which deems the whole household's income to the adult and masks the change.",
       "frozen_value": 461.339722,
-      "alternative_value": 3596.039795,
+      "alternative_value": 3576.0,
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-05",
       "decided_by": "developer",
       "judge_verdict": "llm_error where any row was judged",
-      "note": "SSI itself stays $0 under either reading (the head's countable income exceeds the federal benefit rate); SNAP moves because SSI-disabled status switches on the elderly-or-disabled SNAP rules."
+      "note": "SSI itself stays $0 under either reading (the head's countable income exceeds the federal benefit rate); SNAP moves because SSI-disabled status switches on the elderly-or-disabled SNAP rules. The 2026-09-05 record gave 3,596.04 under that reading on the frozen engine; the 2026-09-22 audit recomputes it with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_057",
@@ -94,12 +94,12 @@
       "unlisted_input": "meets_ssi_disability_criteria",
       "alternative_reading": "The household fact 'is disabled' is read as satisfying SSI's disability criterion (the engine input meets_ssi_disability_criteria, which the certified microdata never sets and the prompt never lists). Recomputed with policyengine-us 1.755.4 with each person in a correctly built marital unit; the run's own situation placed every household member in one marital unit, which deems the whole household's income to the adult and masks the change.",
       "frozen_value": 2669.217041,
-      "alternative_value": 883.617065,
+      "alternative_value": 840.0,
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-05",
       "decided_by": "developer",
       "judge_verdict": "llm_error where any row was judged",
-      "note": "Moves with the additional SSI counted as household income."
+      "note": "Moves with the additional SSI counted as household income. The 2026-09-05 record gave 883.62 under that reading on the frozen engine; the 2026-09-22 audit recomputes it with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_100",
@@ -108,12 +108,12 @@
       "unlisted_input": "meets_ssi_disability_criteria",
       "alternative_reading": "The household fact 'is disabled' is read as satisfying SSI's disability criterion (the engine input meets_ssi_disability_criteria, which the certified microdata never sets and the prompt never lists). Recomputed with policyengine-us 1.755.4 with each person in a correctly built marital unit; the run's own situation placed every household member in one marital unit, which deems the whole household's income to the adult and masks the change.",
       "frozen_value": 8625.889648,
-      "alternative_value": 8917.490234,
+      "alternative_value": 8844.0,
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-05",
       "decided_by": "developer",
       "judge_verdict": "llm_error where any row was judged",
-      "note": "SSI stays $0 under either reading ($2,800 in the bank exceeds the $2,000 resource limit); SNAP moves through the elderly-or-disabled SNAP rules."
+      "note": "SSI stays $0 under either reading ($2,800 in the bank exceeds the $2,000 resource limit); SNAP moves through the elderly-or-disabled SNAP rules. The 2026-09-05 record gave 8,917.49 under that reading on the frozen engine; the 2026-09-22 audit recomputes it with every publication convention and upstream fix. r30_snap_heat_and_eat_sua (engine defect, not fixed upstream) also moves this output on the stated facts, from 8,556.00 to 6,924.00; the record keeps its 2026-09-05 classification."
     },
     {
       "scenario_id": "scenario_057",
@@ -486,7 +486,7 @@
       "defect": "PolicyEngine grants the heat-and-eat standard utility allowance to households without an elderly or disabled member, which P.L. 119-21 sec. 10103 ended",
       "law": "7 U.S.C. 2014(e)(6)(C)(iv)(I), as amended by P.L. 119-21 sec. 10103(a) (approved 2025-07-04)",
       "upstream": "to be filed",
-      "note": "Corrected value applies r30_snap_heat_and_eat_sua with every publication convention and upstream fix. The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance and the frozen value would stand; the output is excluded either way."
+      "note": "Corrected value applies r30_snap_heat_and_eat_sua with every publication convention and upstream fix. The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance, and the published value, 3,576.00 (the SNAP convention with the upstream SNAP fixes), would stand; the output is excluded either way."
     },
     {
       "scenario_id": "scenario_081",

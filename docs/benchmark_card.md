@@ -78,8 +78,9 @@ September 5 additions joined, and Claude Opus 5.5 for 171 cases the September
 audit_annotation_artifacts.judge_provenance block carries the tally. Verdicts
 change no score. A judge verdict outside the final classes, and every
 reference-suspect flag, is resolved by a recorded developer adjudication
-(annotations/.../us_adjudications.json), which keeps the judge's original
-verdict beside the decision and the reasoning. This snapshot carries 63: one
+(annotations/.../us_adjudications.json), which keeps the judge's
+verdict (the case's current verdict.json; a flag an earlier judge run raised is
+kept and says so) beside the decision and the reasoning. This snapshot carries 63: one
 for each excluded output, plus the flagged references the adjudication
 affirmed or replaced with a regenerated reference.
 
@@ -113,8 +114,14 @@ reference leave the score with rows that did not, so every model is scored on
 1,932 of its 1,984 requested outputs. The rows on those outputs stay annotated
 as description: each carries its exclusion's class, except the 50 answers that
 never parsed, which stay parse_contract_failure; no scored row carries a
-descriptive class. Do not read a $0 SSI reference for a disabled under-65
-household member as a finding about that person's SSI eligibility.
+descriptive class. The prompt states disability as one general fact
+(any of the six Current Population Survey disability-difficulty items); SSI,
+SNAP, Medicare and the tax code each apply their own determination, which no
+benchmark person carries, so a disabled person's references take the
+non-disabled path unless another listed fact establishes the determination
+(manuscript section "Disability in the household facts"). Do not read a $0 SSI
+reference for a disabled under-65 household member as a finding about that
+person's SSI eligibility.
 
 A scored reference follows from the stated facts and from law published before
 the references were frozen on 2026-07-03. Where policyengine-us projected a

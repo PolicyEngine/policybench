@@ -227,6 +227,32 @@ def combined_value(scenario_id: str, variable: str, fixes: list[str]) -> float:
 PENDING_JUDGE: list[str] = []
 
 
+def compute_many(requests: list[tuple[tuple[str, str], list[str]]]) -> dict:
+    """Values for (output, fixes) requests, one tax-benefit system at a time."""
+    values = {}
+    for key, fixes in sorted(requests, key=lambda item: (item[1], item[0])):
+        values[(key, tuple(fixes))] = combined_value(key[0], key[1], fixes)
+    return values
+
+
+# The alternative reading of each unlisted input behind the 2026-09-05
+# exclusions, as a situation patch (sweep/fixes/u_*.py).
+UNLISTED_PATCH = {
+    "meets_ssi_disability_criteria": "u_ssi_disability_criteria",
+    "months_receiving_social_security_disability": "u_ssdi_months",
+}
+FLAG_SOURCE_EARLIER_RUN = (
+    "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); "
+    "the case's current verdict.json does not flag it"
+)
+
+
+def judge_flag_for(scenario_id: str, variable: str) -> bool:
+    """Whether the case's current verdict.json flags the reference as suspect."""
+    path = AUDIT_CASES / f"us__{scenario_id}__{variable}" / "verdict.json"
+    return bool(path.exists() and json.loads(path.read_text()).get("reference_suspect"))
+
+
 def judge_verdict_for(scenario_id: str, variable: str) -> tuple[str, str]:
     """The judge's own class for the case, from its verdict.json.
 
@@ -485,7 +511,15 @@ def main() -> None:
                 "judge_failure_source": judge_verdict_for(*key)[0],
                 "judge_failure_subtype": judge_verdict_for(*key)[1],
                 "adjudicated_failure_source": "llm_error",
-                "adjudicated_failure_subtype": "thresholds_rates",
+                # A convention changes parameter values, so the models' misses
+                # against the regenerated reference are threshold and rate
+                # errors; where an upstream fix also regenerates the reference,
+                # the judge's own subtype stands.
+                "adjudicated_failure_subtype": (
+                    judge_verdict_for(*key)[1]
+                    if any(r.get("kind") == "upstream_fix" for r, _ in sources)
+                    else "thresholds_rates"
+                ),
                 "adjudicated_on": DECIDED_ON,
                 "adjudicator": "developer",
                 "judge_reference_suspect": True,
@@ -533,7 +567,50 @@ def main() -> None:
     new_keys = {(e["scenario_id"], e["variable"]) for e in new_adjudications}
     kept = [e for e in adjudications_doc["adjudications"] if (e["scenario_id"], e["variable"]) not in new_keys]
     adjudications_doc["adjudications"] = kept + new_adjudications
+    # The 2026-09-05 exclusions keep their classification; their alternative
+    # value is recomputed like every other corrected value, on top of every
+    # publication convention and upstream fix, and a defect not fixed upstream
+    # that also moves the output is named in the note.
+    carried = [e for e in exclusions_doc["exclusions"] if e["decided_on"] != DECIDED_ON]
+    requests = []
+    for e in carried:
+        key = (e["scenario_id"], e["variable"])
+        requests.append((key, [UNLISTED_PATCH[e["unlisted_input"]]] + published_fixes))
+        for c in sorted(moved.get(key, {}).get("causes", {})):
+            if causes[c]["class"] == "engine_defect" and not causes[c].get("upstream_fixed"):
+                requests += [(key, published_fixes), (key, [SWEEP_FOR[c]] + published_fixes)]
+    carried_values = compute_many(requests)
+    for e in carried:
+        key = (e["scenario_id"], e["variable"])
+        fixes = [UNLISTED_PATCH[e["unlisted_input"]]] + published_fixes
+        value = carried_values[(key, tuple(fixes))]
+        notes = [e["note"]] if e.get("note") else []
+        if abs(value - float(e["alternative_value"])) > 1e-6:
+            notes.append(
+                f"The 2026-09-05 record gave {float(e['alternative_value']):,.2f} under that "
+                f"reading on the frozen engine; the {DECIDED_ON} audit recomputes it with "
+                "every publication convention and upstream fix."
+            )
+            e["alternative_value"] = round(value, 6)
+        for c in sorted(moved.get(key, {}).get("causes", {})):
+            if causes[c]["class"] == "engine_defect" and not causes[c].get("upstream_fixed"):
+                base = carried_values[(key, tuple(published_fixes))]
+                fixed_value = carried_values[(key, tuple([SWEEP_FOR[c]] + published_fixes))]
+                notes.append(
+                    f"{c} (engine defect, not fixed upstream) also moves this output on "
+                    f"the stated facts, from {base:,.2f} to {fixed_value:,.2f}; the record "
+                    "keeps its 2026-09-05 classification."
+                )
+        if notes:
+            e["note"] = " ".join(notes)
     exclusions_doc["exclusions"] = exclusions_doc["exclusions"] + new_exclusions
+    # judge_reference_suspect records every flag the wave raised; where the
+    # case's current verdict does not carry it, the entry says which run did.
+    for entry in adjudications_doc["adjudications"]:
+        key = (entry["scenario_id"], entry["variable"])
+        entry.pop("judge_reference_suspect_source", None)
+        if entry.get("judge_reference_suspect") and not judge_flag_for(*key):
+            entry["judge_reference_suspect_source"] = FLAG_SOURCE_EARLIER_RUN
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     (args.out_dir / "reference_exclusions.json").write_text(json.dumps(exclusions_doc, indent=2) + "\n")

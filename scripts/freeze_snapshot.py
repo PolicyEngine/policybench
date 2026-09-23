@@ -114,8 +114,8 @@ PUBLISHED_DASHBOARD_ARTIFACT = {
         "https://github.com/PolicyEngine/policybench/releases/download/"
         "dashboard-data-20260922/dashboard-data.json"
     ),
-    "sha256": "652c11677c9a6c0989c86c6724b56bda72bbce46aa614f8c7d8e7c6828955900",
-    "bytes": 116_095_639,
+    "sha256": "352edfff1a391662cc2b55a2e66834a96d7de7ad77b74a373aaaf96c4ddcdf15",
+    "bytes": 116_113_619,
 }
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
@@ -372,6 +372,16 @@ def verify_adjudications_keep_judge_verdicts(
         verdict = json.loads(verdict_path.read_text())
         recorded = (entry["judge_failure_source"], entry["judge_failure_subtype"])
         judged = (verdict["case_failure_source"], verdict["case_failure_subtype"])
+        # A flag an earlier judge run raised stays recorded, and then says so.
+        flagged = bool(entry.get("judge_reference_suspect"))
+        if flagged != bool(verdict.get("reference_suspect")) and not (
+            flagged and entry.get("judge_reference_suspect_source")
+        ):
+            mismatched.append(
+                f"{entry['scenario_id']}:{entry['variable']} records "
+                f"judge_reference_suspect={flagged}, judge said "
+                f"{bool(verdict.get('reference_suspect'))} and no earlier run is named"
+            )
         if recorded != judged:
             mismatched.append(
                 f"{entry['scenario_id']}:{entry['variable']} records {recorded}, "

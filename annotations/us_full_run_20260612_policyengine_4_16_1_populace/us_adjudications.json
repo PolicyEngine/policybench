@@ -253,7 +253,8 @@
       "judge_reference_suspect": true,
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); Cal. R&TC 17024.5 (conformity date), 17076",
-      "reasoning": "The frozen reference is 41,051.51; the corrected value is 40,920.40. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions."
+      "reasoning": "The frozen reference is 41,051.51; the corrected value is 40,920.40. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions.",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it"
     },
     {
       "country": "us",
@@ -508,7 +509,8 @@
       "judge_reference_suspect": true,
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
-      "reasoning": "The frozen reference is 4,439.29; the corrected value is 4,441.46. PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return."
+      "reasoning": "The frozen reference is 4,439.29; the corrected value is 4,441.46. PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return.",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it"
     },
     {
       "country": "us",
@@ -600,14 +602,14 @@
       "scenario_id": "scenario_091",
       "variable": "state_income_tax_before_refundable_credits",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
+      "judge_failure_source": "reference_model_issue_fixed",
       "judge_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_failure_source": "reference_engine_defect",
       "adjudicated_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_on": "2026-09-22",
       "adjudicator": "developer",
       "excluded_from_scoring": true,
-      "judge_reference_suspect": false,
+      "judge_reference_suspect": true,
       "reference_verdict": "engine_defect",
       "reference_basis": "Wis. Stat. 71.05(6)(b)9; 26 U.S.C. 852(b)(3)(B); 2025 Wisconsin Schedule SB instructions, line 5",
       "reasoning": "The frozen reference is 843.66; the corrected value is 878.52. PolicyEngine's Wisconsin capital gain subtraction leaves out capital gain distributions reported without Schedule D, so once they reach federal AGI Wisconsin taxes all of them instead of 70%."
@@ -763,7 +765,8 @@
       "judge_reference_suspect": true,
       "reference_verdict": "unlisted_input",
       "reference_basis": "weekly_hours_worked_before_lsr",
-      "reasoning": "The frozen reference is 287.68; the alternative is 0.00. The prompt lists no hours worked and says to treat unlisted numeric inputs as 0; the reference assumed 40 hours a week, which clears the SNAP work requirement for able-bodied adults without dependents. Under the zero-hours reading the time limit applies, which ends benefits after three countable months unless an exemption or area waiver applies; the alternative value is the engine's zero-hours result, not a certified entitlement."
+      "reasoning": "The frozen reference is 287.68; the alternative is 0.00. The prompt lists no hours worked and says to treat unlisted numeric inputs as 0; the reference assumed 40 hours a week, which clears the SNAP work requirement for able-bodied adults without dependents. Under the zero-hours reading the time limit applies, which ends benefits after three countable months unless an exemption or area waiver applies; the alternative value is the engine's zero-hours result, not a certified entitlement.",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it"
     },
     {
       "country": "us",
@@ -898,7 +901,8 @@
       "judge_reference_suspect": true,
       "reference_verdict": "affirmed",
       "reference_basis": "42 U.S.C. 1397jj(b)(1)(C); 42 CFR 457.310(b)(2)(ii); Pennsylvania CHIP state plan 4.1.7",
-      "reasoning": "Child 3 has employer-sponsored group coverage, which bars CHIP; the household's income passes Pennsylvania's CHIP limit, so the judge's income-limit hypothesis fails."
+      "reasoning": "Child 3 has employer-sponsored group coverage, which bars CHIP; the household's income passes Pennsylvania's CHIP limit, so the judge's income-limit hypothesis fails.",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it"
     },
     {
       "country": "us",
@@ -972,13 +976,14 @@
       "judge_failure_source": "llm_error",
       "judge_failure_subtype": "categorical_eligibility",
       "adjudicated_failure_source": "llm_error",
-      "adjudicated_failure_subtype": "thresholds_rates",
+      "adjudicated_failure_subtype": "categorical_eligibility",
       "adjudicated_on": "2026-09-22",
       "adjudicator": "developer",
       "judge_reference_suspect": true,
       "reference_verdict": "regenerated",
       "reference_basis": "7 U.S.C. 2012(u), 2017(a); USDA FY2026 SNAP COLA memorandum (signed 2025-08-14); 7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)(C)",
-      "reasoning": "The frozen 287.68 is regenerated as 288.00: it applies the publication rule: SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention.; it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#9162 (merged 2026-07-28), after the reference freeze): The minimum benefit is 8% of the maximum allotment for a household of one, rounded to the nearest whole dollar ($24 a month for FY2026, as USDA published)."
+      "reasoning": "The frozen 287.68 is regenerated as 288.00: it applies the publication rule: SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention.; it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#9162 (merged 2026-07-28), after the reference freeze): The minimum benefit is 8% of the maximum allotment for a household of one, rounded to the nearest whole dollar ($24 a month for FY2026, as USDA published).",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it"
     },
     {
       "country": "us",
@@ -988,13 +993,14 @@
       "judge_failure_source": "llm_error",
       "judge_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_failure_source": "llm_error",
-      "adjudicated_failure_subtype": "thresholds_rates",
+      "adjudicated_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_on": "2026-09-22",
       "adjudicator": "developer",
       "judge_reference_suspect": true,
       "reference_verdict": "regenerated",
       "reference_basis": "26 U.S.C. 61(a)(3), 852(b)(3)(B); Form 1040 line 7",
-      "reasoning": "The frozen 1,979.16 is regenerated as 2,361.96: it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze): Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base."
+      "reasoning": "The frozen 1,979.16 is regenerated as 2,361.96: it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze): Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base.",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it"
     },
     {
       "country": "us",
@@ -1010,7 +1016,8 @@
       "judge_reference_suspect": true,
       "reference_verdict": "regenerated",
       "reference_basis": "26 U.S.C. 61(a)(3), 852(b)(3)(B); Form 1040 line 7",
-      "reasoning": "The frozen 814.95 is regenerated as 820.35: it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze): Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base."
+      "reasoning": "The frozen 814.95 is regenerated as 820.35: it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze): Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base.",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it"
     },
     {
       "country": "us",
@@ -1026,7 +1033,8 @@
       "judge_reference_suspect": true,
       "reference_verdict": "regenerated",
       "reference_basis": "7 U.S.C. 2012(u), 2017(a); USDA FY2026 SNAP COLA memorandum (signed 2025-08-14)",
-      "reasoning": "The frozen 3,596.04 is regenerated as 3,576.00: it applies the publication rule: SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention."
+      "reasoning": "The frozen 3,596.04 is regenerated as 3,576.00: it applies the publication rule: SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention.",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it"
     },
     {
       "country": "us",
@@ -1036,13 +1044,14 @@
       "judge_failure_source": "llm_error",
       "judge_failure_subtype": "categorical_eligibility",
       "adjudicated_failure_source": "llm_error",
-      "adjudicated_failure_subtype": "thresholds_rates",
+      "adjudicated_failure_subtype": "categorical_eligibility",
       "adjudicated_on": "2026-09-22",
       "adjudicator": "developer",
       "judge_reference_suspect": true,
       "reference_verdict": "regenerated",
       "reference_basis": "N.Y. Tax Law 606(e)(7)(D); Form IT-214",
-      "reasoning": "The frozen 375.00 is regenerated as 0.00: it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#9301 (issue #9298), after the reference freeze): A renter whose adjusted rent averages more than $450 a month gets no real property tax credit."
+      "reasoning": "The frozen 375.00 is regenerated as 0.00: it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#9301 (issue #9298) and PolicyEngine/policyengine-us#9313 (the 2025 flat credit tables the sandbox module also applies), after the reference freeze): A renter whose adjusted rent averages more than $450 a month gets no real property tax credit.",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it"
     },
     {
       "country": "us",
@@ -1058,7 +1067,8 @@
       "judge_reference_suspect": true,
       "reference_verdict": "regenerated",
       "reference_basis": "7 U.S.C. 2012(u), 2017(a); USDA FY2026 SNAP COLA memorandum (signed 2025-08-14); 7 CFR 273.10(e)(2)(ii)(A)",
-      "reasoning": "The frozen 8,020.55 is regenerated as 7,932.00: it applies the publication rule: SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention.; it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#9318 (merged 2026-08-25), after the reference freeze): If 30% of net income ends in cents, the state rounds it up to the next dollar or rounds the allotment down to the next dollar; with a whole-dollar maximum allotment both give the same whole-dollar allotment."
+      "reasoning": "The frozen 8,020.55 is regenerated as 7,932.00: it applies the publication rule: SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention.; it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#9318 (merged 2026-08-25), after the reference freeze): If 30% of net income ends in cents, the state rounds it up to the next dollar or rounds the allotment down to the next dollar; with a whole-dollar maximum allotment both give the same whole-dollar allotment.",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it"
     }
   ]
 }

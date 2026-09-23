@@ -52,6 +52,9 @@ EXTRA_FIXES = [
     "c13v3_r28_r29c.py",
     "r29_snap_net_nearest.py",
     "r29_snap_net_cents.py",
+    # The unlisted readings behind the 2026-09-05 exclusions (situation patches).
+    "u_ssi_disability_criteria.py",
+    "u_ssdi_months.py",
 ]
 SCRIPTS = [
     HERE / "sweep" / "sweep.py",

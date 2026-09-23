@@ -280,12 +280,12 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     assert r.engine_defect_exclusion_count == 28
     assert r.engine_defect_root_cause_count == 11
     assert r.snap_engine_defect_exclusion_count == 1
-    assert r.engine_defect_unflagged_count == 9
+    assert r.engine_defect_unflagged_count == 8
     assert r.regenerated_reference_count == 26
     assert r.regenerated_by_convention_count == 23
     assert r.regenerated_by_upstream_fix_count == 15
     assert r.upstream_fixed_root_cause_count == 7
-    assert r.upstream_fix_prs_fmt == "#8839, #9162, #9301, #9318 and #9363"
+    assert r.upstream_fix_prs_fmt == "#8839, #9162, #9301, #9313, #9318 and #9363"
     assert r.excluded_outputs_by_input["meets_ssi_disability_criteria"] == 6
     assert (
         r.excluded_outputs_by_input["months_receiving_social_security_disability"] == 5
@@ -313,3 +313,11 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
         }
     for stats in r.model_stats:
         assert stats["n"] == 1932
+
+
+def test_disability_section_counts_come_from_the_frozen_scenarios():
+    assert r.benchmark_person_count == 177
+    assert r.disabled_person_count == 33
+    # The paper says no benchmark person carries a program-specific
+    # disability determination; only the general flag reaches the prompt.
+    assert r.program_disability_input_count == 0

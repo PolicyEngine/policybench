@@ -81,6 +81,19 @@ PRISTINE_EXPLANATIONS = Path(
 # nodes, so it never shows why net income is zero; the grounding states the
 # engine facts, each read from a 1.755.4 run of the frozen engine.
 FROZEN_NARRATIVES = {
+    ("scenario_091", "state_income_tax_before_refundable_credits"): (
+        "Federal gross income is $35,055.84: $26,073.84 of wages ($27,000 less "
+        "$926.16 of pre-tax contributions), $4,806 of taxable interest and $4,176 "
+        "of dividends. The engine leaves the $1,170 of capital gain distributions "
+        "reported without Schedule D out of gross income, so they reach neither "
+        "federal nor Wisconsin income. A $43.28 traditional IRA deduction gives "
+        "federal adjusted gross income of $35,012.56, which is also Wisconsin "
+        "adjusted gross income: with no capital gains in it, Wisconsin's capital "
+        "gain subtraction is $0. The Wisconsin standard deduction is $12,067.66 "
+        "and the personal exemption $700, leaving Wisconsin taxable income of "
+        "$22,244.90 and tax of $843.66 before refundable credits; no "
+        "nonrefundable credit applies."
+    ),
     ("scenario_080", "snap"): (
         "Monthly SNAP gross income is $301.33: $300 of financial assistance and "
         "$1.33 of dividends; capital gains are not counted. The SNAP standard "
@@ -348,7 +361,10 @@ def narratives(args) -> None:
                 continue
             todo.append((revision, item))
     frozen = pd.read_csv(BUNDLE / "reference_outputs.csv").set_index(["scenario_id", "variable"])["value"]
+    only = set(args.frozen) if args.frozen else set(FROZEN_NARRATIVES)
     for (scenario_id, variable), grounding in FROZEN_NARRATIVES.items():
+        if f"{scenario_id}:{variable}" not in only and (scenario_id, variable) not in only:
+            continue
         todo.append(
             (
                 {"frozen_grounding": grounding},
@@ -437,6 +453,8 @@ def main() -> None:
     parser.add_argument("step", choices=["references", "frozen-traces", "narratives"])
     parser.add_argument("--exclusions")
     parser.add_argument("--explanations")
+    # Rewrite only these FROZEN_NARRATIVES (scenario_id:variable); default all.
+    parser.add_argument("--frozen", nargs="*")
     parser.add_argument("--out-dir", required=True)
     args = parser.parse_args()
     {"references": references, "frozen-traces": frozen_traces, "narratives": narratives}[args.step](args)
