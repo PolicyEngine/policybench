@@ -65,39 +65,49 @@ be described as faithful reasoning traces.
 
 ## Audit scope
 
-The frozen US annotations cover 8,783 scored rows selected because their
-legacy threshold score is below 1 (293 further annotated rows sit on the eleven
+The frozen US annotations cover 7,493 scored rows selected because their
+legacy threshold score is below 1 (1,918 further annotated rows sit on the 55
 excluded outputs and are description, not audit). This audit universe contains
-8,780 of the snapshot's 8,780 exact-match misses and three exact hits. Another
-1,605 scored rows have a bounded score below 100 but fall outside the legacy-threshold selection
-and have no audit annotation. Two judge models produced the verdicts, both of
-them board rows: GPT-5.6 Sol through the Codex CLI for 318 cases, and Claude
-Opus 5 through the Claude Code CLI for the 350 cases a September 2026 addition
-joined; the manifest's audit_annotation_artifacts.judge_provenance block
-carries the tally. Verdicts change no score. A judge verdict outside the final
-classes is resolved by a recorded developer adjudication
-(annotations/.../us_adjudications.json). This snapshot carries eleven, one per
-excluded output: each affirms `prompt_ambiguity` and removes the output from
-scoring, keeping the judge's original verdict beside the decision and the
-reasoning: Claude Opus 5 judged six of the eleven (its prompt-ambiguity reading
-of scenario_064 SSI, and llm_error on the five Medicare outputs) and GPT-5.6 Sol
-judged five (llm_error on the three SNAP and two other SSI outputs).
+7,489 of the snapshot's 7,489 exact-match misses and four exact hits. Another
+1,842 scored rows have a bounded score below 100 but fall outside the
+legacy-threshold selection and have no audit annotation. Three judge models
+produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
+CLI for 314 cases, Claude Opus 5 through the Claude Code CLI for 183 cases the
+September 5 additions joined, and Claude Opus 5.5 for 171 cases the September
+22 additions joined or a regenerated reference changed; the manifest's
+audit_annotation_artifacts.judge_provenance block carries the tally. Verdicts
+change no score. A judge verdict outside the final classes, and every
+reference-suspect flag, is resolved by a recorded developer adjudication
+(annotations/.../us_adjudications.json), which keeps the judge's original
+verdict beside the decision and the reasoning. This snapshot carries 61: one
+for each excluded output, plus the flagged references the adjudication
+affirmed or replaced with a regenerated reference.
 
-Eleven outputs in ten households are excluded from scoring for every model
+Fifty-five outputs in 37 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
-manifest): their reference depends on an engine input the certified household
-data never carried and the prompt therefore never listed. The SSI disability
-criterion is false for every person in the June 2026 build, and months of SSDI
-receipt is never carried and never promptable. Each excluded reference was
-recomputed with policyengine-us 1.755.4 under the reading a careful reader could
-take of the stated `is disabled` or SSDI-income fact, and it moved. Exclusion is
-symmetric: rows that matched the frozen reference leave the score with rows that
-did not, so every model is scored on 1,973 of its 1,984 requested outputs. The
-rows on those outputs stay annotated (287 as `prompt_ambiguity`, six that never
-parsed as `parse_contract_failure`) as description; no scored row carries the
-ambiguity class. Do not read a $0 SSI reference
-for a disabled under-65 household member as a finding about that person's SSI
-eligibility.
+manifest). Thirty-one rest on defects in policyengine-us 1.755.4 across twelve
+root causes: each root cause's rule was implemented as a sandbox fix on that
+engine version, every reference was recomputed under it, and every output
+that moved by more than a dollar is excluded. Twenty-four depend on an input the
+prompt never states, such as the SSI disability criterion, months of SSDI
+receipt, weekly hours worked, the type of survivor benefits, who paid for the
+coverage behind a disability benefit, or whether an adult tax dependent is the
+filers' child; each was recomputed under the other reading a careful reader
+could take, and it moved. Exclusion is symmetric: rows that matched the frozen
+reference leave the score with rows that did not, so every model is scored on
+1,929 of its 1,984 requested outputs. The rows on those outputs stay annotated
+with their exclusion's class as description; no scored row carries a
+descriptive class. Do not read a $0 SSI reference for a disabled under-65
+household member as a finding about that person's SSI eligibility.
+
+A scored reference follows from the stated facts and from law published before
+the references were frozen on 2026-07-03. Where policyengine-us projected a
+2026 amount with a price index, the reference takes the amount published
+before the freeze or, where none was, the last one published: 23 references
+were regenerated with the same engine version on that rule (14 SNAP outputs,
+whose October to December months hold the FY2026 figures, and nine in federal
+and state income tax). The reference sidecar records each regenerated value
+with the fix that produced it.
 
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be
@@ -174,7 +184,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-09-05 snapshot scores
+- Activation is a snapshot decision: the current 2026-09-22 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should

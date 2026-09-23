@@ -1,0 +1,269 @@
+{
+ "_about": "One entry per root cause from the 2026-09-22 reference triage. build_records.py turns these, the verified sweep outputs in sweep/out/, and the case verdicts in verdicts.json into reference_exclusions.json entries and us_adjudications.json entries. The text fields appear on policybench.org beside each excluded output. 'upstream' is filled in once the issue is filed.",
+ "r01_ira_compensation": {
+  "class": "engine_defect",
+  "subtype": "taxable_income_or_deductions",
+  "defect": "PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return",
+  "law": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
+  "alternative_reading": "A filer deducts traditional IRA contributions only up to their own compensation (wages plus net self-employment earnings), or the couple's combined compensation on a joint return, and a dependent's contributions never reach the parents' return.",
+  "upstream": ""
+ },
+ "r02_ira_219g": {
+  "class": "engine_defect",
+  "subtype": "taxable_income_or_deductions",
+  "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
+  "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
+  "alternative_reading": "A filer who defers wages into a 401(k) or 403(b) is an active participant, and above the 2026 phase-out range ($81,000 to $91,000 single or head of household, $129,000 to $149,000 joint) deducts nothing.",
+  "upstream": ""
+ },
+ "r03_estate_income": {
+  "class": "engine_defect",
+  "subtype": "taxable_income_or_deductions",
+  "defect": "PolicyEngine leaves estate income out of gross income while counting it as qualified business income",
+  "law": "26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
+  "alternative_reading": "Income from an interest in an estate is gross income to the beneficiary; the corrected value adds it to AGI and treats it as non-qualified business income, as the prompt's rule that unlisted flags are false implies.",
+  "upstream": "related: PolicyEngine/policyengine-us#9304"
+ },
+ "r04_capital_gain_distributions": {
+  "class": "engine_defect",
+  "subtype": "taxable_income_or_deductions",
+  "defect": "PolicyEngine leaves capital gain distributions reported without Schedule D out of gross income",
+  "law": "26 U.S.C. 61(a)(3), 852(b)(3)(B); Form 1040 line 7",
+  "alternative_reading": "Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base.",
+  "upstream": "fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze"
+ },
+ "r05_nj_worker_ui": {
+  "class": "engine_defect",
+  "subtype": "payroll_tax_base",
+  "defect": "PolicyEngine leaves the New Jersey worker unemployment and workforce contributions out of employee payroll tax",
+  "law": "N.J.S.A. 43:21-7(d)(1); NJDOL 2026 contribution rates",
+  "alternative_reading": "New Jersey workers contribute 0.3825% of wages to unemployment insurance and 0.0425% to the workforce funds, up to the 2026 wage base of $44,800, alongside the TDI and FLI contributions.",
+  "upstream": ""
+ },
+ "r06_wi_act15_before_refundable": {
+  "class": "engine_defect",
+  "subtype": "state_local_rule",
+  "defect": "PolicyEngine's Wisconsin tax before refundable credits ignores the retirement income exclusion the filer elects, which its final Wisconsin tax applies",
+  "law": "Wis. Stat. 71.05(6)(b)54m (2025 Wisconsin Act 15); 2025 Schedule SB line 16",
+  "alternative_reading": "A filer aged 67 or older who elects the retirement income exclusion computes Wisconsin tax on the reduced income and forfeits the credits, so the tax before refundable credits follows the elected path.",
+  "upstream": ""
+ },
+ "r07_idaho_health_premiums": {
+  "class": "engine_defect",
+  "subtype": "state_local_rule",
+  "defect": "PolicyEngine omits Idaho's subtraction for health insurance premiums the taxpayer pays",
+  "law": "Idaho Code 63-3022P; Idaho Form 39R",
+  "alternative_reading": "Idaho subtracts health insurance premiums the taxpayer pays that are not otherwise deducted or excluded.",
+  "upstream": ""
+ },
+ "r08_eitc_earned_income_deferrals": {
+  "class": "engine_defect",
+  "subtype": "credit_phaseout",
+  "defect": "PolicyEngine counts elective 401(k) deferrals as earned income for the EITC and refundable child tax credit",
+  "law": "26 U.S.C. 32(c)(2)(A)(i), 24(d)(1)(B)(i), 402(e)(3); Cal. R&TC 17052(c)(4)(A)",
+  "alternative_reading": "EITC earned income counts wages only if they are includible in gross income, which excludes elective deferrals (W-2 box 1 wages); the refundable child tax credit and state credits built on the EITC follow.",
+  "upstream": "",
+  "not_confirmed": {
+   "scenario_023:state_refundable_credits": "The verifier found the CalEITC increase an artifact of the missing AGI lookup (r17), not a confirmed correction."
+  }
+ },
+ "r09_ny_rptc_rent_cap": {
+  "class": "engine_defect",
+  "subtype": "state_local_rule",
+  "defect": "PolicyEngine applies New York's $450-a-month renter cap to a quarter of rent instead of the rent itself",
+  "law": "N.Y. Tax Law 606(e)(7)(D); Form IT-214",
+  "alternative_reading": "A renter whose adjusted rent averages more than $450 a month gets no real property tax credit.",
+  "upstream": "fixed in PolicyEngine/policyengine-us#9301 (issue #9298), after the reference freeze"
+ },
+ "r10_wi_homestead_income": {
+  "class": "unlisted_input",
+  "subtype": "state_local_rule",
+  "unlisted_input": "source of survivor_benefits (pension or annuity, or another survivor payment)",
+  "alternative_reading": "The prompt lists survivor benefits other than Social Security without saying what they are. Wisconsin homestead household income counts the gross amount of a survivor pension or annuity (Wis. Stat. 71.52(6); Schedule H line 9d), which is the reading under the alternative value; the reference leaves them out.",
+  "upstream": "",
+  "verification": "Independent verifier (2026-09-22) rejected the engine-defect framing: the listed input does not establish a countable subtype."
+ },
+ "r11_ca_itemized_conformity": {
+  "class": "engine_defect",
+  "subtype": "state_local_rule",
+  "defect": "PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions",
+  "law": "Cal. R&TC 17024.5 (conformity date), 17076",
+  "alternative_reading": "California itemizers deduct charitable gifts without the federal 0.5%-of-AGI floor and deduct miscellaneous expenses above 2% of AGI.",
+  "upstream": ""
+ },
+ "r12_ca_2026_indexing": {
+  "class": "superseded",
+  "note": "Withdrawn 2026-09-22. The independent verifier rejected the module (wrong CalEITC anchors, unverified cutoff), and California's 2026 factor (June 2026 CCPI, published by DIR on 2026-08-12) came out after the reference freeze. Under the benchmark's rule the 2026 California amounts hold the 2025 amounts: convention c_ca_hold_2025."
+ },
+ "r14_unlisted_weekly_hours_v2": {
+  "class": "unlisted_input",
+  "subtype": "categorical_eligibility",
+  "unlisted_input": "weekly_hours_worked_before_lsr",
+  "alternative_reading": "The prompt lists no hours worked and says to treat unlisted numeric inputs as 0; the reference assumed 40 hours a week, which clears the SNAP work requirement for able-bodied adults without dependents. Under the zero-hours reading the time limit applies, which ends benefits after three countable months unless an exemption or area waiver applies; the alternative value is the engine's zero-hours result, not a certified entitlement.",
+  "upstream": "PolicyEngine/policyengine-us#9254 (default changed to 0 after the reference freeze)"
+ },
+ "r15_snap_mortgage_interest": {
+  "class": "unlisted_input",
+  "subtype": "taxable_income_or_deductions",
+  "unlisted_input": "whether the listed home mortgage interest is on the home the SNAP household occupies",
+  "alternative_reading": "The prompt lists home mortgage interest without saying the mortgaged home is the household's residence; if it is, SNAP counts the mortgage payment, interest included, as a shelter cost (7 CFR 273.9(d)(6)(ii)(A)), which is the reading under the alternative value.",
+  "upstream": "",
+  "verification": "Independent verifier (2026-09-22) reclassified this from an engine defect to an unlisted input."
+ },
+ "r16_survivor_benefits_federal": {
+  "class": "unlisted_input",
+  "subtype": "taxable_income_or_deductions",
+  "unlisted_input": "taxability of survivor_benefits",
+  "alternative_reading": "The prompt lists survivor benefits other than Social Security without saying whether they are taxable; the reference treats them as nontaxable, while a survivor pension or annuity is taxable under 26 U.S.C. 72.",
+  "upstream": ""
+ },
+ "r13_snap_fy2027_parameters": {
+  "class": "regenerated",
+  "note": "Not excluded. Max (2026-09-22): grading any model on figures published after the freeze is unfair, and excluding them would leave no positive-benefit SNAP case scored. The SNAP references are regenerated with October to December 2026 held at the FY2026 figures, the last published before the 2026-07-03 freeze, with the statutory rounding of the minimum allotment and allotment (fix r13_hold_fy2026). No model's explanation used FY2027 figures. Verified fix: r13_hold_fy2026_v2 (also holds the SNAP poverty guidelines and the published FY2026 minimum allotment; bounded to calendar 2026)."
+ },
+ "c_snap_hold_fy2026": {
+  "class": "convention",
+  "fix": "r13_hold_fy2026_v2",
+  "outputs": "snap",
+  "rule": "SNAP October-December 2026 hold the FY2026 figures (maximum allotment, deductions, shelter cap, utility allowances, poverty guidelines, minimum allotment), the last published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. Statutory rounding: minimum allotment to the nearest dollar, 30% of net income rounded up (7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)).",
+  "basis": "7 U.S.C. 2012(u), 2017(a); 7 CFR 273.10(e)(2)(ii)",
+  "grounding": "The reference is the ANNUAL 2026 SNAP total: the sum of twelve monthly allotments, January through December 2026. Every month uses the FY2026 SNAP figures (maximum allotment, standard deduction, excess shelter cap, utility allowances, poverty guidelines, minimum allotment); October-December keep them because they were the last figures published before the benchmark's 2026-07-03 reference freeze. The minimum allotment is 8% of the one-person maximum rounded to the nearest dollar ($24 a month), and 30% of net income is rounded up to the next dollar (7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)). State the monthly allotment and the annual total separately and never call the annual total a monthly or quarterly amount."
+ },
+ "c_ca_hold_2025": {
+  "class": "convention",
+  "fix": "r19_ca_convention",
+  "outputs": "California income tax and credits",
+  "rule": "California's 2026 indexed income tax amounts hold the 2025 amounts FTB published (October 2025 Tax News; 2025 Form 540 and 3514 booklets), the last published before the 2026-07-03 reference freeze; the 2026 factor rests on June 2026 California CPI (BLS 2026-07-14; DIR 2026-08-12). The CalEITC final phase-out breakpoints take their statutory 2025 values ($252/$636), which policyengine-us 1.755.4 had projected ($257/$649).",
+  "basis": "Cal. R&TC 17041(h), 17052(o); FTB Tax News, October 2025; FTB 2026 Form 540-ES instructions",
+  "published": "FTB Tax News October 2025; 2026 Form 540-ES instructions use the 2025 amounts",
+  "verification": "Independent verifier (GPT-6 Astra, 2026-09-22, sweep/verify/report-v5a.md) sourced every value.",
+  "grounding": "California's 2026 indexed income tax amounts (bracket thresholds, exemption credits, renter's credit income limits, credit parameters) equal the 2025 amounts California published, the last published before the benchmark's 2026-07-03 reference freeze; the 2026 indexing factor rests on June 2026 California CPI, published after it. Where the reference is a federal amount, California income tax enters it through the state and local tax deduction."
+ },
+ "r17_caleitc_agi_comparison": {
+  "class": "engine_defect",
+  "subtype": "credit_phaseout",
+  "defect": "PolicyEngine phases out the CalEITC on earned income only, without the second lookup at adjusted gross income",
+  "law": "Cal. R&TC 17052(a), incorporating IRC 32(a)(2)(B); FTB 3514 instructions, CalEITC worksheet",
+  "alternative_reading": "When adjusted gross income exceeds the income at which the CalEITC starts to phase out, the credit is looked up again at AGI and the smaller amount applies.",
+  "upstream": "fixed in PolicyEngine/policyengine-us#9542 (merged 2026-09-20), after the reference freeze"
+ },
+ "c_irs_sales_tax_2025": {
+  "class": "convention",
+  "fix": "r19_irs_sales_tax_convention",
+  "outputs": "federal income tax of filers who deduct general sales tax",
+  "rule": "The optional state sales tax tables for 2026 are the 2025 tables the IRS published in the 2025 Instructions for Schedule A (posted 2025-12-18), the last published before the 2026-07-03 reference freeze; no 2026 edition had been published by 2026-09-22. policyengine-us 1.755.4 projected 2026 tables from its 2023 edition with chained CPI, which is not the IRS method.",
+  "basis": "IRS, 2025 Instructions for Schedule A (Form 1040), Optional State Sales Tax Tables",
+  "published": "2025-12-18",
+  "verification": "Independent verifier (GPT-6 Astra, 2026-09-22, sweep/verify/report-v5a.md) extracted all 5,814 cells from the IRS PDF.",
+  "grounding": "The general sales tax deduction uses the IRS optional state sales tax table from the 2025 Instructions for Schedule A (the last edition published before the benchmark's 2026-07-03 reference freeze), plus PolicyEngine's local sales tax component of 20% of the state table amount; the filer takes the larger of the standard deduction and itemized deductions."
+ },
+ "c_wi_published_2026": {
+  "class": "convention",
+  "fix": "r19_wi_convention",
+  "outputs": "Wisconsin income tax",
+  "rule": "Wisconsin's 2026 standard deduction and tax brackets are the amounts DOR published before the 2026-07-03 reference freeze (2026 Form 1-ES instructions, rev. 1-26; 2026 WT-4A worksheet, rev. 11-25), not policyengine-us 1.755.4's CPI projections.",
+  "basis": "Wisconsin DOR, 2026 Form 1-ES instructions (R. 1-26), pp. 2-3; 2026 WT-4A worksheet (R. 11-25), p. 2",
+  "published": "2026 Form 1-ES instructions (R. 1-26); 2026 WT-4A (R. 11-25)",
+  "verification": "Independent verifier (GPT-6 Astra, 2026-09-22, sweep/verify/report-v5a.md).",
+  "grounding": "Wisconsin's 2026 standard deduction and tax brackets are the amounts the Wisconsin DOR published for 2026 before the benchmark's 2026-07-03 reference freeze."
+ },
+ "c_id_hold_2025": {
+  "class": "convention",
+  "fix": "r19_id_convention",
+  "outputs": "Idaho income tax",
+  "rule": "Idaho's 2026 zero-rate taxable income thresholds hold the 2025 amounts ($4,811 single; $9,622 joint and head of household) the Tax Commission published, the last located before the 2026-07-03 reference freeze; no 2026 publication was found by 2026-09-22. The retirement-benefit caps take their statutory 2026 values; they do not affect any benchmark household.",
+  "basis": "Idaho Code 63-3024(3), 63-3022A",
+  "published": "2025 Form 40 instructions (EIN00046, rev. 2026-03-02)",
+  "verification": "Independent verifier (GPT-6 Astra, 2026-09-22, sweep/verify/report-v5a.md); the absence of a 2026 publication is provisional.",
+  "grounding": "Idaho's 2026 taxable income threshold for the zero rate equals the 2025 amount the Idaho State Tax Commission published, the last located before the benchmark's 2026-07-03 reference freeze."
+ },
+ "c_mn_published_2026": {
+  "class": "convention",
+  "fix": "r19_mn_convention",
+  "outputs": "Minnesota income tax and credits",
+  "rule": "Minnesota's 2026 inflation-adjusted amounts are those the Department of Revenue published on 2025-12-01 (announced 2025-12-16), before the 2026-07-03 reference freeze, not policyengine-us 1.755.4's CPI projections; the 2025 renter's credit schedule takes its published values. The marriage credit cap, first located in an August 2026 draft, holds its 2025 amount.",
+  "basis": "Minnesota Department of Revenue, 2026 inflation-adjusted amounts (2025-12-01), pp. 1-3, 5",
+  "published": "2025-12-01",
+  "verification": "Independent verifier (GPT-6 Astra, 2026-09-22, sweep/verify/report-v5b.md)",
+  "grounding": "Minnesota's 2026 standard deduction, brackets, exemptions and credit amounts are the inflation-adjusted amounts the Minnesota Department of Revenue published in December 2025, before the benchmark's 2026-07-03 reference freeze."
+ },
+ "c_md_2026": {
+  "class": "convention",
+  "fix": "r19_md_convention",
+  "outputs": "Maryland income tax; federal tax through the Maryland withholding proxy",
+  "rule": "Maryland's 2026 withholding allowance is the $3,400 the Comptroller published in the 2026 Employer Withholding Guide (revised December 2025); the 2026 flat standard deduction holds the published 2025 amounts ($3,350; $6,700), because no 2026 return amount was located before the 2026-07-03 reference freeze (provisional); the child and dependent care credit caps hold their 2025 amounts.",
+  "basis": "Md. Tax-Gen. 10-217 (Chapter 604 of 2025); Comptroller Tax Alert rev. 2025-12-22; 2026 Employer Withholding Guide",
+  "published": "2025-12 (withholding guide)",
+  "verification": "Independent verifier (GPT-6 Astra, 2026-09-22, sweep/verify/report-v5b.md); the 2026 standard-deduction hold is provisional.",
+  "grounding": "Maryland's 2026 standard deduction equals the flat 2025 amount ($3,350 single, $6,700 joint or head of household), the last located before the benchmark's 2026-07-03 reference freeze; Maryland withholding uses the published 2026 allowance of $3,400, and Maryland income tax enters federal amounts through the state and local tax deduction."
+ },
+ "c_mi_published_2026": {
+  "class": "convention",
+  "fix": "r19_mi_convention",
+  "outputs": "Michigan income tax and credits",
+  "rule": "Michigan's 2026 personal exemption ($5,900) and retirement limits are those Treasury published in the 2026 Form 446 (revised February 2026), before the 2026-07-03 reference freeze; amounts with no located 2026 publication (disability exemption, senior investment limits, homestead and home heating tables) hold their published 2025 values, which also replace the engine's projected 2025 entries.",
+  "basis": "Michigan Treasury Form 446 (2026, rev. February 2026); 2025 MI-1040 and MI-1040CR-7 instructions",
+  "published": "2026-02",
+  "verification": "Independent verifier (GPT-6 Astra, 2026-09-22, sweep/verify/report-v5b.md)",
+  "grounding": "Michigan's 2026 personal exemption is $5,900 per exemption, the amount Michigan Treasury published in February 2026, before the benchmark's 2026-07-03 reference freeze."
+ },
+ "c_mo_published_2026": {
+  "class": "convention",
+  "fix": "r19_mo_convention",
+  "outputs": "Missouri income tax",
+  "rule": "Missouri's 2026 income tax brackets are those the Department of Revenue published in its 2026 withholding formula (dated 2025-11-21), before the 2026-07-03 reference freeze, not policyengine-us 1.755.4's CPI projections.",
+  "basis": "Missouri DOR 2026 Withholding Formula (2025-11-21), annual table p. 2",
+  "published": "2025-11-21",
+  "verification": "Independent verifier (GPT-6 Astra, 2026-09-22, sweep/verify/report-v5b.md)",
+  "grounding": "Missouri's 2026 income tax brackets are those the Missouri Department of Revenue published in November 2025, before the benchmark's 2026-07-03 reference freeze."
+ },
+ "r20_adult_dependent_child": {
+  "class": "unlisted_input",
+  "subtype": "household_unit_or_filing_status",
+  "unlisted_input": "the relationship of an adult tax dependent to the filers who claim them",
+  "alternative_reading": "The prompt lists an adult 'Dependent' without saying whether that person is the claiming filers' child. If the dependent is their child, 42 CFR 435.603(f)(2) puts the dependent in the parents' Medicaid household, whose combined MAGI decides eligibility; the reference treats the dependent as a non-child whose household is their own (42 CFR 435.603(f)(2)(i), (f)(3)).",
+  "upstream": "",
+  "verification": "Investigated by GPT-6 Astra (2026-09-22, sweep/verify/report-v6-067.md); the scenario encodes no parent-child link."
+ },
+ "r21_adult_dependent_nonchild": {
+  "class": "unlisted_input",
+  "subtype": "household_unit_or_filing_status",
+  "unlisted_input": "the relationship of an adult tax dependent to the filers who claim them",
+  "alternative_reading": "The prompt lists an 18-year-old 'Dependent' separately from the household's children without saying whose child they are. Read as a non-child tax dependent, the dependent's Medicaid household is their own under 42 CFR 435.603(f)(2)(i), with $0 of MAGI; the reference places them in the claiming filers' household.",
+  "upstream": "",
+  "verification": "Investigated by GPT-6 Astra (2026-09-22, sweep/verify/report-v6-067.md)."
+ },
+ "r22_ma_part_a_loss_offset": {
+  "class": "engine_defect",
+  "subtype": "taxable_income_or_deductions",
+  "defect": "PolicyEngine taxes Massachusetts Part A dividends gross, without the short-term capital loss offset its own Part A AGI computes",
+  "law": "M.G.L. c. 62 sec. 2(b), 2(c)(2)(a), 2(c)(4), 2(f); DOR TIR 02-21",
+  "alternative_reading": "Massachusetts applies excess short-term capital losses against Part A interest and dividends, up to $2,000 of combined losses, before taxing Part A income.",
+  "upstream": "",
+  "verification": "Investigated by GPT-6 Astra (2026-09-22, sweep/verify/report-v6-081.md); release 2.8.0 and upstream main unchanged."
+ },
+ "r23_ma_interest_source": {
+  "class": "unlisted_input",
+  "subtype": "taxable_income_or_deductions",
+  "unlisted_input": "whether listed taxable interest comes from a Massachusetts bank deposit (Part B) or is ordinary interest (Part A)",
+  "alternative_reading": "The prompt does not say the interest is from a Massachusetts bank; as ordinary interest it falls in Part A (M.G.L. c. 62 sec. 2(b)(1)), where the short-term capital loss also offsets it.",
+  "upstream": "",
+  "verification": "Investigated by GPT-6 Astra (2026-09-22, sweep/verify/report-v6-081.md)."
+ },
+ "r24_disability_benefits_taxability": {
+  "class": "unlisted_input",
+  "subtype": "taxable_income_or_deductions",
+  "unlisted_input": "who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable",
+  "alternative_reading": "The prompt lists disability benefits from employment without saying who paid for the coverage. Benefits from employer-paid coverage are included in gross income (26 U.S.C. 105(a)); benefits from coverage the employee paid for with after-tax money are excluded (26 U.S.C. 104(a)(3)). The reference excludes them; the alternative value includes them.",
+  "upstream": "",
+  "verification": "Raised as prompt_ambiguity rows by the Opus 5.5 judge on scenario_107 federal (2026-09-22); swept with r24_disability_benefits_taxable over all 1,984 outputs."
+ },
+ "r25_niit_in_federal_output": {
+  "class": "unlisted_input",
+  "subtype": "other",
+  "unlisted_input": "whether federal income tax before refundable credits includes the net investment income tax, which the output's definition does not say",
+  "alternative_reading": "The prompt defines the output as federal individual income tax after nonrefundable credits and before refundable credits. The reference adds the net investment income tax (26 U.S.C. 1411), which Form 1040 reports on Schedule 2, Part II with self-employment tax, after line 22's tax after nonrefundable credits; read as line 22, the output excludes it.",
+  "upstream": "",
+  "verification": "Raised as prompt_ambiguity rows by the Opus 5.5 judge on scenario_020 federal (2026-09-22); swept with r25_niit_excluded over all 1,984 outputs."
+ }
+}

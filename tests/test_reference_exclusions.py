@@ -1,6 +1,7 @@
 """Outputs whose reference depends on an unlisted input are scored for no model."""
 
 import json
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
@@ -148,14 +149,22 @@ def test_scoring_ignores_excluded_outputs_symmetrically(tmp_path: Path):
 
 def test_frozen_snapshot_carries_the_exclusion_record():
     scored, exclusions = scored_reference_for(RUN_DIR / "reference_outputs.csv")
-    assert len(exclusions) == 11
-    inputs = {e["unlisted_input"] for e in exclusions}
-    assert inputs == {
+    assert len(exclusions) == 55
+    reasons = Counter(e["reason_code"] for e in exclusions)
+    assert reasons == Counter(
+        {"reference_engine_defect": 31, "reference_depends_on_unlisted_input": 24}
+    )
+    inputs = {
+        e["unlisted_input"]
+        for e in exclusions
+        if e["reason_code"] == "reference_depends_on_unlisted_input"
+    }
+    assert {
         "meets_ssi_disability_criteria",
         "months_receiving_social_security_disability",
-    }
+    } <= inputs
     reference = pd.read_csv(RUN_DIR / "reference_outputs.csv")
-    assert len(scored) == len(reference) - 11
+    assert len(scored) == len(reference) - 55
     verify_exclusions_against_reference(reference, exclusions)
 
 

@@ -20,8 +20,8 @@ Sources, in order of authority:
   serving treatments, their evidence kinds, and the registry commit.
 * the frozen audit annotations dir (``manifest['audit_annotation_artifacts']``)
   -- the rows selected by the legacy threshold score, their adjudicated
-  failure sources, and the fact that zero rows are reference-suspect (no
-  PolicyEngine bugs found).
+  failure sources, and the developer adjudications that settle every
+  reference-suspect flag.
 
 The qmd imports ``r`` once in an ``#| echo: false`` setup cell and then every
 inline number is a ```{python} r.field``` placeholder, so a future
@@ -418,11 +418,39 @@ class PaperResults:
             row["evidence"]["kind"] == "registry"
             for row in self.serving_config["models"].values()
         )
+        # Newer fingerprints also pin the reasoning setup and timeout, so the
+        # registry supplies them only for the rows whose fingerprint omits them.
+        registry_keys = {
+            "reasoning setup": "reasoning_setup",
+            "timeouts": "request_timeout_seconds",
+        }
+        run_state_rows = [
+            row
+            for row in self.serving_config["models"].values()
+            if row["evidence"]["kind"] == "run_state"
+        ]
+        fully_pinned = sum(
+            all(
+                registry_keys[label] not in row["registry_derived"]
+                for label in field_labels["registry_for_run_state"]
+            )
+            for row in run_state_rows
+        )
+        if not fully_pinned:
+            return (
+                f"Supervised-run fingerprints pin {fingerprint_counts}. "
+                f"{registry_fields.capitalize()} for every row, and all fields for "
+                f"the other {registry_count} rows, are the harness registry as "
+                "frozen in the snapshot's serving-configuration file."
+            )
+        other_fingerprinted = len(run_state_rows) - fully_pinned
         return (
-            f"Supervised-run fingerprints pin {fingerprint_counts}. "
-            f"{registry_fields.capitalize()} for every row, and all fields for "
-            f"the other {registry_count} rows, are the harness registry as frozen "
-            "in the snapshot's serving-configuration file."
+            f"Supervised-run fingerprints pin {fingerprint_counts}; "
+            f"{registry_fields} for {_sentence_count(fully_pinned).lower()} rows. "
+            f"{registry_fields.capitalize()} for the other "
+            f"{_sentence_count(other_fingerprinted).lower()} fingerprinted rows, "
+            f"and all fields for the other {registry_count} rows, are the harness "
+            "registry as frozen in the snapshot's serving-configuration file."
         )
 
     @cached_property
@@ -1081,6 +1109,42 @@ class PaperResults:
             for r in self.reference_revisions
             if r["outputs"] == "snap"
         )
+
+    @property
+    def regenerated_reference_keys(self) -> set[tuple[str, str]]:
+        """Scored outputs whose reference a publication convention regenerated."""
+        return {
+            (change["scenario_id"], change.get("variable", "snap"))
+            for revision in self.reference_revisions
+            for change in revision["changed"]
+        }
+
+    @property
+    def regenerated_reference_count(self) -> int:
+        return len(self.regenerated_reference_keys)
+
+    @property
+    def regenerated_reference_household_count(self) -> int:
+        return len({scenario_id for scenario_id, _ in self.regenerated_reference_keys})
+
+    @property
+    def regenerated_non_snap_reference_count(self) -> int:
+        return sum(
+            1 for _, variable in self.regenerated_reference_keys if variable != "snap"
+        )
+
+    @property
+    def regenerated_references_by_convention(self) -> dict[str, int]:
+        """Regenerated references per convention (a revision may list none)."""
+        return {
+            revision.get("convention", revision["outputs"]): len(revision["changed"])
+            for revision in self.reference_revisions
+        }
+
+    @property
+    def publication_convention_count(self) -> int:
+        """Conventions in the reference sidecar, including any that moved no output."""
+        return len(self.reference_revisions)
 
     @property
     def later_law_exclusion_count(self) -> int:

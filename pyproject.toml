@@ -45,7 +45,9 @@ policybench = ["benchmark_specs.json", "population_weights.json"]
 [tool.ruff]
 line-length = 88
 target-version = "py310"
-extend-exclude = ["app/public/paper/web/index.out.ipynb"]
+# reference_audit/ holds byte-exact records of the audit's sandbox modules: the
+# reference sidecar pins their sha256, so they are never reformatted.
+extend-exclude = ["app/public/paper/web/index.out.ipynb", "reference_audit"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

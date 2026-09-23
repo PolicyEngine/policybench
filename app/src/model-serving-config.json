@@ -13,7 +13,7 @@
   },
   "evidence_summary": {
     "registry": 29,
-    "run_state": 10
+    "run_state": 13
   },
   "models": {
     "claude-fable-5": {
@@ -170,6 +170,63 @@
       "request_timeout_seconds": 300,
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
+    },
+    "claude-opus-5.5": {
+      "answer_contract": "json",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "initial_completion_budget_tokens",
+          "max_repair_rounds",
+          "model_id",
+          "prompt_contract_version",
+          "request_timeout_seconds",
+          "thinking",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "a32cbcf7da538881617ce1ed524024c8488e9f962b27939307b60928031065f4",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "adds202609",
+        "source_predictions_sha256": "77ce7395dafec31dcbf1d8b14941aa51750046a44ee501b0d414f6e89f6d023c",
+        "source_rows_sha256": "a32cbcf7da538881617ce1ed524024c8488e9f962b27939307b60928031065f4",
+        "treatment_fingerprint": {
+          "answer_contract": "json",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 3,
+          "initial_completion_budget_tokens": 16384,
+          "max_repair_rounds": 2,
+          "model_id": "claude-opus-5-5",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "request_timeout_seconds": 600,
+          "thinking": {
+            "mode": "provider_default"
+          },
+          "tool_choice_mode": null
+        }
+      },
+      "provider_id": "claude-opus-5-5",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 600,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": null
     },
     "claude-sonnet-4.6": {
       "answer_contract": "tool",
@@ -841,6 +898,120 @@
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
+    "gpt-6-luna": {
+      "answer_contract": "tool",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "initial_completion_budget_tokens",
+          "max_repair_rounds",
+          "model_id",
+          "prompt_contract_version",
+          "request_timeout_seconds",
+          "thinking",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "66deb97c4aac19e7e85f0128841d87bd7523394fbd9b439ffee45d7df40d5433",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "adds202609",
+        "source_predictions_sha256": "02537c603f784519510655092cce346eedf55776049fd68720503c1cfaa34eca",
+        "source_rows_sha256": "66deb97c4aac19e7e85f0128841d87bd7523394fbd9b439ffee45d7df40d5433",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 3,
+          "initial_completion_budget_tokens": 16384,
+          "max_repair_rounds": 2,
+          "model_id": "gpt-6-luna",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "request_timeout_seconds": 300,
+          "thinking": {
+            "mode": "provider_default"
+          },
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "gpt-6-luna",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
+    "gpt-6-sol": {
+      "answer_contract": "tool",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "initial_completion_budget_tokens",
+          "max_repair_rounds",
+          "model_id",
+          "prompt_contract_version",
+          "request_timeout_seconds",
+          "thinking",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "33491207380157db2dbf606b4e13177daf9ea6867b167f51d8e8d44f56682353",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "adds202609",
+        "source_predictions_sha256": "67699eed8dc234e9801ee7a5d537fafd7e133f59425527c97ab9def6fe5de85e",
+        "source_rows_sha256": "33491207380157db2dbf606b4e13177daf9ea6867b167f51d8e8d44f56682353",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 3,
+          "initial_completion_budget_tokens": 16384,
+          "max_repair_rounds": 2,
+          "model_id": "gpt-6-sol",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "request_timeout_seconds": 300,
+          "thinking": {
+            "mode": "provider_default"
+          },
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "gpt-6-sol",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
     "grok-4.3": {
       "answer_contract": "tool",
       "evidence": {
@@ -1129,7 +1300,7 @@
       "tool_choice": null
     }
   },
-  "registry_commit": "d1d841e99284757e8274ee5bffe1d26472fe73fe",
+  "registry_commit": "163ea4b87f0ccae245be25d6c9306073280ac913",
   "sources": [
     "policybench.config.MODELS",
     "policybench.model_cards",

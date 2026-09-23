@@ -1,0 +1,62 @@
+{
+  "slug": "2026-09-22-gpt-6-sol-debuts-first",
+  "date": "2026-09-22",
+  "title": "GPT-6 Sol debuts first, Claude Opus 5.5 second",
+  "paragraphs": [
+    "GPT-6 Sol, GPT-6 Luna and Claude Opus 5.5 joined the board on 2026-09-22. GPT-6 Sol leads at {solExact}% of answers within $1, #{solRank} of {nModels} and {solLead} points above Claude Opus 5.5 ({opusExact}%, #{opusRank}). GPT-5.6 Sol, the previous leader, is #{sol56Rank} at {sol56Exact}%.",
+    "GPT-6 Luna scores {lunaExact}% (#{lunaRank}) at ${lunaCost} a household, against ${solCost} for GPT-6 Sol and ${opusCost} for Claude Opus 5.5.",
+    "Claude Opus 5.5's API rejects forced tool calls, as Claude Fable 5.1's does, so its row answers as a JSON object and reasons at the provider default. Claude Opus 5's board row runs the forced tool call, which switches that model's thinking off, and scores {opus5BoardExact}%; its tool_choice auto re-run, where it reasons, scores {opus5AutoExact}%. The two Opus rows differ in serving shape as well as in model, so the {opusGap}-point gap between them is not a measure of the model change alone.",
+    "Every row is scored on {scoredOutputs} of its {totalOutputs} requested outputs. This release regenerated {regenerated} references and excludes {excluded} outputs from scoring for every model; the reference audit note explains both.",
+    "The next board version moves every model to tool_choice auto so each provider's default reasoning engages under the recorded request shape (policybench#139)."
+  ],
+  "facts": {
+    "solExact": 94.5,
+    "solRank": 1,
+    "nModels": 42,
+    "solLead": 1.3,
+    "opusExact": 93.2,
+    "opusRank": 2,
+    "sol56Rank": 3,
+    "sol56Exact": 92.9,
+    "lunaExact": 91.6,
+    "lunaRank": 4,
+    "lunaCost": 0.0019,
+    "solCost": 0.0271,
+    "opusCost": 0.0675,
+    "opus5BoardExact": 83.6,
+    "opus5AutoExact": 89.6,
+    "opusGap": 9.6,
+    "scoredOutputs": 1929,
+    "totalOutputs": 1984,
+    "regenerated": 23,
+    "excluded": 55
+  },
+  "data": [
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922"
+    },
+    {
+      "label": "Reference audit note",
+      "href": "/notes/2026-09-22-reference-audit"
+    },
+    {
+      "label": "Claude thinking sensitivity note",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-thinking-2026-08.md"
+    },
+    {
+      "label": "Paper serving-configuration table",
+      "href": "/paper"
+    },
+    {
+      "label": "GPT-6 Sol model page",
+      "href": "/model/gpt-6-sol"
+    },
+    {
+      "label": "Claude Opus 5.5 model page",
+      "href": "/model/claude-opus-5.5"
+    }
+  ],
+  "boardSnapshot": "2026-09-22",
+  "release": "dashboard-data-20260922"
+}

@@ -93,7 +93,7 @@ describe("parseDataVersionRegistry", () => {
     expect(
       registry.versions.find((version) => version.id === registry.default)
         ?.snapshotLabel,
-    ).toBe("Snapshot 2026-09-05");
+    ).toBe("Snapshot 2026-09-22");
   });
 });
 

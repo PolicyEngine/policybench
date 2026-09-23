@@ -1,0 +1,51 @@
+{
+  "slug": "2026-09-22-reference-audit",
+  "date": "2026-09-22",
+  "title": "A stronger judge audits the references",
+  "paragraphs": [
+    "Claude Opus 5.5 judged the misses in the cases the September 22 additions joined, and it flagged {flagged} references as suspect. Each flag was settled against statutes, regulations, agency publications and runs of the reference engine. The adjudication affirmed {affirmed}, replaced {regeneratedFlagged} under the publication rule below, traced {unlistedFlagged} to an input the prompt never states, and confirmed {defectFlagged} as defects in policyengine-us {engineVersion}.",
+    "Flags sample defects without bounding them. Each defect's rule was implemented as a fix on the same engine version and all {totalOutputs} references were recomputed under it: {defectOutputs} outputs in {defectHouseholds} households moved by more than a dollar, across {defectRootCauses} root causes, most of them never flagged. They are excluded from scoring for every model, as are {unlistedOutputs} outputs whose reference turns on an input the prompt never states, such as who paid for the coverage behind a disability benefit. Three of the defects were fixed upstream after the references were frozen.",
+    "The audit also tested a failure no judge flagged. policyengine-us extends a parameter past its last encoded year with a price-index projection, so a 2026 reference can rest on a forecast where a government published an amount. Recomputing every reference with each projection held found forecasts behind references in SNAP, California, the IRS sales tax tables, Wisconsin, Minnesota, Michigan, Missouri, Maryland and Idaho. The rule the benchmark now states: a scored reference follows from the household facts and from law published before the references were frozen on 2026-07-03. {regenerated} references were regenerated with the published amounts, or with the last ones published before the freeze, {regeneratedSnap} of them SNAP.",
+    "Every model is now scored on {scoredOutputs} of its {totalOutputs} requested outputs. The exclusion record, the adjudications and the reference sidecar listing each regenerated value ship with the release."
+  ],
+  "facts": {
+    "flagged": 36,
+    "affirmed": 5,
+    "regeneratedFlagged": 1,
+    "unlistedFlagged": 8,
+    "defectFlagged": 22,
+    "engineVersion": "1.755.4",
+    "totalOutputs": 1984,
+    "defectOutputs": 31,
+    "defectHouseholds": 22,
+    "defectRootCauses": 12,
+    "unlistedOutputs": 24,
+    "regenerated": 23,
+    "regeneratedSnap": 14,
+    "scoredOutputs": 1929
+  },
+  "data": [
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922"
+    },
+    {
+      "label": "Exclusion record",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json"
+    },
+    {
+      "label": "Developer adjudications",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json"
+    },
+    {
+      "label": "Reference sidecar with the regenerated values",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_outputs.csv.meta.json"
+    },
+    {
+      "label": "Paper audit section",
+      "href": "/paper"
+    }
+  ],
+  "boardSnapshot": "2026-09-22",
+  "release": "dashboard-data-20260922"
+}

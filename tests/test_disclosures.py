@@ -222,11 +222,11 @@ def test_current_board_copy_makes_no_identical_request_claim():
 def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     counts = _audit_counts_from_frozen_files()
     assert counts == {
-        "annotated": 8_783,
-        "exact_misses": 8_780,
-        "annotated_exact_misses": 8_780,
-        "annotated_exact_hits": 3,
-        "unannotated_below_full_bounded_score": 1_605,
+        "annotated": 7_493,
+        "exact_misses": 7_489,
+        "annotated_exact_misses": 7_489,
+        "annotated_exact_hits": 4,
+        "unannotated_below_full_bounded_score": 1_842,
     }
 
     for path in (

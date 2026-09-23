@@ -31,7 +31,15 @@ SENSITIVITY_NOTE_PATH = ROOT / "sensitivity/claude-thinking-2026-08.md"
 CLAUDE_NOTE = "2026-09-01-claude-fable-5-1-added"
 SNAP_NOTE = "2026-09-03-six-snap-households"
 ASTRA_NOTE = "2026-09-05-gpt-6-astra-debuts-second"
-OPUS55_NOTE = "2026-09-22-claude-opus-5-5-debuts-first"
+SOL6_NOTE = "2026-09-22-gpt-6-sol-debuts-first"
+AUDIT_NOTE = "2026-09-22-reference-audit"
+EXCLUSIONS_PATH = RUN_DIR / "reference_exclusions.json"
+ADJUDICATIONS_PATH = (
+    ROOT
+    / "annotations"
+    / "us_full_run_20260612_policyengine_4_16_1_populace"
+    / "us_adjudications.json"
+)
 CLAUDE_THINKING_SENSITIVITY_PATH = (
     ROOT / "sensitivity/data/claude-thinking-2026-08.json"
 )
@@ -386,33 +394,105 @@ def test_astra_note_facts() -> None:
     )
 
 
-def test_opus55_note_facts() -> None:
-    note = _note(OPUS55_NOTE)
+def _rank(exact: float, rows: list[dict]) -> int:
+    """1 + rows with strictly higher exact, as the app's wouldRank does."""
+    return 1 + sum(row["exact"] > exact for row in rows)
+
+
+def _cost_per_household(row: dict) -> float:
+    return float(f"{row['costUsd'] / 100:.4f}")
+
+
+def test_gpt6_sol_note_facts() -> None:
+    note = _note(SOL6_NOTE)
     if not _recompute_against_frozen_snapshot(note):
         return
     board_rows = [
         row for row in _dashboard()["modelStats"] if row["condition"] == "no_tools"
     ]
     by_model = {row["model"]: row for row in board_rows}
-    target = by_model["claude-opus-5.5"]
-    sol = by_model["gpt-5.6-sol"]
-    opus5 = by_model["claude-opus-5"]
+    sol, opus, luna = (
+        by_model["gpt-6-sol"],
+        by_model["claude-opus-5.5"],
+        by_model["gpt-6-luna"],
+    )
+    sol56, opus5 = by_model["gpt-5.6-sol"], by_model["claude-opus-5"]
     sensitivity = _load_json(CLAUDE_THINKING_SENSITIVITY_PATH)
     opus5_auto = float(
         sensitivity["runs"]["claude-opus-5-thinking"]["sensitivity"]["exact"]
     )
-
+    meta = _load_json(REFERENCE_META_PATH)
+    regenerated = {
+        (change["scenario_id"], change.get("variable", "snap"))
+        for revision in meta["revisions"]
+        for change in revision["changed"]
+    }
     derived = {
-        "exactRate": _display_one_decimal(target["exact"]),
-        "rank": 1 + sum(row["exact"] > target["exact"] for row in board_rows),
-        "nModels": len(board_rows),
         "solExact": _display_one_decimal(sol["exact"]),
-        "solGap": _display_one_decimal(target["exact"] - sol["exact"]),
-        "parsed": target["nParsed"],
-        "scoredOutputs": target["n"],
+        "solRank": _rank(sol["exact"], board_rows),
+        "nModels": len(board_rows),
+        "solLead": _display_one_decimal(sol["exact"] - opus["exact"]),
+        "opusExact": _display_one_decimal(opus["exact"]),
+        "opusRank": _rank(opus["exact"], board_rows),
+        "sol56Rank": _rank(sol56["exact"], board_rows),
+        "sol56Exact": _display_one_decimal(sol56["exact"]),
+        "lunaExact": _display_one_decimal(luna["exact"]),
+        "lunaRank": _rank(luna["exact"], board_rows),
+        "lunaCost": _cost_per_household(luna),
+        "solCost": _cost_per_household(sol),
+        "opusCost": _cost_per_household(opus),
         "opus5BoardExact": _display_one_decimal(opus5["exact"]),
         "opus5AutoExact": _display_one_decimal(opus5_auto),
-        "opusGap": _display_one_decimal(target["exact"] - opus5["exact"]),
+        "opusGap": _display_one_decimal(opus["exact"] - opus5["exact"]),
+        "scoredOutputs": opus["n"],
+        "totalOutputs": sum(1 for _ in open(REFERENCES_PATH)) - 1,
+        "regenerated": len(regenerated),
+        "excluded": len(_load_json(EXCLUSIONS_PATH)["exclusions"]),
     }
     assert note["facts"] == derived
-    assert target["nParsed"] == target["n"]
+    for row in (sol, opus, luna):
+        assert row["nParsed"] == row["n"]
+
+
+def test_reference_audit_note_facts() -> None:
+    note = _note(AUDIT_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    exclusions = _load_json(EXCLUSIONS_PATH)["exclusions"]
+    adjudications = _load_json(ADJUDICATIONS_PATH)["adjudications"]
+    flagged = [a for a in adjudications if a.get("judge_reference_suspect") is True]
+    verdicts = [a["reference_verdict"] for a in flagged]
+    defects = [e for e in exclusions if e["reason_code"] == "reference_engine_defect"]
+    root_causes = {cause for e in defects for cause in e["root_cause"].split("+")}
+    meta = _load_json(REFERENCE_META_PATH)
+    regenerated = {
+        (change["scenario_id"], change.get("variable", "snap"))
+        for revision in meta["revisions"]
+        for change in revision["changed"]
+    }
+    board_rows = _dashboard()["modelStats"]
+    derived = {
+        "flagged": len(flagged),
+        "affirmed": verdicts.count("affirmed"),
+        "regeneratedFlagged": verdicts.count("regenerated"),
+        "unlistedFlagged": verdicts.count("unlisted_input"),
+        "defectFlagged": verdicts.count("engine_defect"),
+        "engineVersion": meta["policyengine_bundles"]["us"]["model_version"],
+        "totalOutputs": sum(1 for _ in open(REFERENCES_PATH)) - 1,
+        "defectOutputs": len(defects),
+        "defectHouseholds": len({e["scenario_id"] for e in defects}),
+        "defectRootCauses": len(root_causes),
+        "unlistedOutputs": sum(
+            e["reason_code"] == "reference_depends_on_unlisted_input"
+            for e in exclusions
+        ),
+        "regenerated": len(regenerated),
+        "regeneratedSnap": sum(variable == "snap" for _, variable in regenerated),
+        "scoredOutputs": board_rows[0]["n"],
+    }
+    assert len(flagged) == sum(
+        verdicts.count(v)
+        for v in ("affirmed", "regenerated", "unlisted_input", "engine_defect")
+    )
+    assert {row["n"] for row in board_rows} == {derived["scoredOutputs"]}
+    assert note["facts"] == derived

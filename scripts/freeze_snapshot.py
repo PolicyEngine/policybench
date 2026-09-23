@@ -73,8 +73,8 @@ from policybench.snapshot_payload import (
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the September 2026 US-only populace refresh (40-model
-# board, corrected v1.1 references).
+# Configuration for the September 2026 US-only populace refresh (42-model
+# board, September 22 references: 23 regenerated under the publication rule).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -98,22 +98,23 @@ SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
-# is the exact payload uploaded as dashboard-data-20260905c (the 39-model board:
-# the 33-model dashboard-data-20260901c payload plus six September 2026 adds,
-# eleven outputs whose reference depends on an unlisted input excluded from
-# scoring for every model, per reference_exclusions.json). Superseded tags:
-# 20260905 carried the judge's prompt_ambiguity verdict before adjudication;
-# 20260905b scored all 1,984 outputs and classified those rows llm_error.
-PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board40.json"
+# is the exact payload uploaded as dashboard-data-20260922 (the 42-model board:
+# the 39-model dashboard-data-20260905c board plus Claude Opus 5.5, GPT-6 Sol and
+# GPT-6 Luna, on the September 22 references: 23 references regenerated under
+# the publication rule, and 55 outputs excluded from scoring for every model, per
+# reference_exclusions.json). Superseded tags: 20260905c (39 models, v1.1
+# references, eleven exclusions); 20260905 carried the judge's prompt_ambiguity
+# verdict before adjudication; 20260905b scored all 1,984 outputs.
+PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board42.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
-    "tag": "dashboard-data-20260905c",
+    "tag": "dashboard-data-20260922",
     "asset": "dashboard-data.json",
     "url": (
         "https://github.com/PolicyEngine/policybench/releases/download/"
-        "dashboard-data-20260905c/dashboard-data.json"
+        "dashboard-data-20260922/dashboard-data.json"
     ),
-    "sha256": "838bb3757db372fc473daf717616c1faea9254ecadfd1581d6217b1c796890a6",
-    "bytes": 109_225_250,
+    "sha256": "a4eadbbc9d329b09a33183117596c2c34cd41df69bad56c767bf60e2a9e8edf8",
+    "bytes": 116_127_282,
 }
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
@@ -132,6 +133,8 @@ REFERENCE_META_SOURCE = RUN_DEST / "reference_outputs.csv.meta.json"
 # fingerprints; those rows honestly remain registry-backed until rerun.
 RUN_STATE_EVIDENCE = {
     "claude-opus-5.5": "results/local/adds202609/opus55/run/run_state.json",
+    "gpt-6-sol": "results/local/adds202609/gpt6sol/run/run_state.json",
+    "gpt-6-luna": "results/local/adds202609/gpt6luna/run/run_state.json",
     "claude-fable-5.1": "results/local/fable51/run/run_state.json",
     "gpt-6-astra": "results/local/newmodels/astra/run/run_state.json",
     "gemini-3.8-flash": "results/local/newmodels/gemini38flash/run/run_state.json",
@@ -169,6 +172,10 @@ JUDGE_RUNNERS = {
     "workflow": (
         "Claude Code Workflow subagents (results/local/adds202609/judge_stages.py)"
     ),
+    # One case (scenario_020 federal tax, re-judged after its reference reverted)
+    # was judged in the Claude Code session running the add, because Workflow
+    # subagents and Subfleet Claude lanes had no capacity; its sidecar says so.
+    "session": ("Claude Code main session (results/local/adds202609/judge_stages.py)"),
 }
 
 
@@ -254,6 +261,8 @@ def audit_judge_provenance(
                 if "run_audit_codex" in runner_text
                 else "workflow"
                 if "Workflow" in runner_text
+                else "session"
+                if "main session" in runner_text
                 else "claude"
             )
             runner = JUDGE_RUNNERS[runner_key]
@@ -323,10 +332,10 @@ def reference_exclusions_block() -> dict:
         "scored_outputs_per_model": int(len(reference) - len(exclusions)),
         "note": (
             "Outputs are removed from scoring for every model, symmetrically, "
-            "when the reference depends on an engine input the certified "
-            "household data never carried (so the prompt never listed it), or "
-            "when the engine that produced the reference misapplies the law on "
-            "facts the prompt states. Their rows stay in the payload with "
+            "when the reference depends on an input or definition the prompt "
+            "never states (a careful reader could take the stated facts either "
+            "way), or when the engine that produced the reference misapplies the "
+            "law on facts the prompt states. Their rows stay in the payload with "
             "scored=false. An unlisted-input entry records the alternative "
             "reading and the reference under both readings; an engine-defect "
             "entry records the root cause, the law, the upstream issue, and the "
@@ -368,9 +377,9 @@ def developer_adjudications_block() -> dict:
             "the adjudicated class; applied to the bundle before export so the "
             "published payload and the frozen annotations agree. Every case the "
             "judge flagged reference-suspect carries a reference verdict "
-            "(affirmed, engine_defect, unlisted_input, later_law) that clears "
-            "the flag; judge_reference_suspect records which entries the judge "
-            "flagged."
+            "(affirmed, regenerated, engine_defect, unlisted_input, later_law) "
+            "that clears the flag; judge_reference_suspect records which "
+            "entries the judge flagged."
         ),
     }
 

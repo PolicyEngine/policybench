@@ -1,6 +1,7 @@
 """Developer adjudications resolve non-final judge verdicts auditably."""
 
 import json
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
@@ -183,18 +184,32 @@ def test_load_validates_the_record(tmp_path: Path):
 
 def test_committed_record_is_applied_to_the_frozen_annotations():
     entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
-    assert len(entries) == 11
-    assert {e["adjudicated_failure_source"] for e in entries} == {"prompt_ambiguity"}
-    assert all(e["excluded_from_scoring"] for e in entries)
+    assert len(entries) == 61
+    assert Counter(e["adjudicated_failure_source"] for e in entries) == Counter(
+        {"reference_engine_defect": 31, "prompt_ambiguity": 24, "llm_error": 6}
+    )
+    # Every excluded output has its adjudication; the six llm_error entries are
+    # the references a flag questioned and the adjudication affirmed or replaced
+    # with a regenerated reference.
+    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 55
     keys = {(e["scenario_id"], e["variable"]) for e in entries}
     assert ("scenario_064", "ssi") in keys and (
         "scenario_074",
         "head_medicare_eligible",
     ) in keys
-    opus = next(e for e in entries if e["scenario_id"] == "scenario_064")
+    opus = next(
+        e
+        for e in entries
+        if (e["scenario_id"], e["variable"]) == ("scenario_064", "ssi")
+    )
     assert opus["judge_failure_source"] == "prompt_ambiguity"
-    sol = next(e for e in entries if e["scenario_id"] == "scenario_067")
-    assert sol["judge_failure_source"] == "llm_error"
+    rejudged = next(
+        e
+        for e in entries
+        if (e["scenario_id"], e["variable"]) == ("scenario_067", "ssi")
+    )
+    assert rejudged["judge_model"] == "claude-opus-5-5"
+    assert rejudged["reference_verdict"] == "unlisted_input"
     rows = pd.read_csv(ANNOTATIONS / "us_audit_row_annotations.csv")
     cases = pd.read_csv(ANNOTATIONS / "us_case_notes.csv")
     verify_adjudications_applied(rows, cases, entries)
@@ -202,10 +217,21 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert set(zip(ambiguous["scenario_id"], ambiguous["variable"])) <= keys
     manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
     block = manifest["audit_annotation_artifacts"]["developer_adjudications"]
-    assert block["cases"] == 11
-    assert block["by_judge_verdict"] == {"llm_error": 10, "prompt_ambiguity": 1}
+    assert block["cases"] == 61
+    assert block["by_judge_verdict"] == {
+        "llm_error": 42,
+        "prompt_ambiguity": 2,
+        "reference_engine_defect": 9,
+        "reference_model_issue_fixed": 8,
+    }
+    assert block["judge_flagged_by_reference_verdict"] == {
+        "affirmed": 5,
+        "engine_defect": 22,
+        "regenerated": 1,
+        "unlisted_input": 8,
+    }
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
-    assert manifest["reference_exclusions"]["outputs"] == 11
+    assert manifest["reference_exclusions"]["outputs"] == 55
 
 
 def test_verify_requires_agreement_with_the_complete_record():

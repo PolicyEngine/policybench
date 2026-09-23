@@ -59,5 +59,352 @@
   "seed": 42,
   "split": "public",
   "split_seed": 1042,
-  "task": "reference_outputs"
+  "task": "reference_outputs",
+  "reference_csv_sha256": "7918105f979c1e28218a88fba951b24c1bd6597e294f4675980b91393ed27d37",
+  "revisions": [
+    {
+      "date": "2026-09-22",
+      "convention": "c_snap_hold_fy2026",
+      "outputs": "snap",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. SNAP October-December 2026 hold the FY2026 figures (maximum allotment, deductions, shelter cap, utility allowances, poverty guidelines, minimum allotment), the last published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. Statutory rounding: minimum allotment to the nearest dollar, 30% of net income rounded up (7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)).",
+      "basis": "7 U.S.C. 2012(u), 2017(a); 7 CFR 273.10(e)(2)(ii)",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r13_hold_fy2026_v2.py",
+      "fix_module_sha256": "ce5e4ffa550ec05cf20ff3af8e8178ed1e4502ec2de56018bb4b4df1fd37c799",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_wi_published_2026"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_008",
+          "variable": "snap",
+          "frozen": 15246.9052734375,
+          "regenerated": 15120.0
+        },
+        {
+          "scenario_id": "scenario_012",
+          "variable": "snap",
+          "frozen": 4952.08935546875,
+          "regenerated": 4884.0
+        },
+        {
+          "scenario_id": "scenario_027",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_030",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_038",
+          "variable": "snap",
+          "frozen": 7286.9443359375,
+          "regenerated": 7212.0
+        },
+        {
+          "scenario_id": "scenario_043",
+          "variable": "snap",
+          "frozen": 3596.039794921875,
+          "regenerated": 3576.0
+        },
+        {
+          "scenario_id": "scenario_045",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_054",
+          "variable": "snap",
+          "frozen": 6125.68896484375,
+          "regenerated": 6060.0
+        },
+        {
+          "scenario_id": "scenario_066",
+          "variable": "snap",
+          "frozen": 3596.039794921875,
+          "regenerated": 3576.0
+        },
+        {
+          "scenario_id": "scenario_073",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_079",
+          "variable": "snap",
+          "frozen": 2428.017333984375,
+          "regenerated": 2376.0
+        },
+        {
+          "scenario_id": "scenario_080",
+          "variable": "snap",
+          "frozen": 3596.039794921875,
+          "regenerated": 3576.0
+        },
+        {
+          "scenario_id": "scenario_108",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_109",
+          "variable": "snap",
+          "frozen": 8020.55419921875,
+          "regenerated": 7932.0
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "convention": "c_ca_hold_2025",
+      "outputs": "California income tax and credits",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. California's 2026 indexed income tax amounts hold the 2025 amounts FTB published (October 2025 Tax News; 2025 Form 540 and 3514 booklets), the last published before the 2026-07-03 reference freeze; the 2026 factor rests on June 2026 California CPI (BLS 2026-07-14; DIR 2026-08-12). The CalEITC final phase-out breakpoints take their statutory 2025 values ($252/$636), which policyengine-us 1.755.4 had projected ($257/$649).",
+      "basis": "Cal. R&TC 17041(h), 17052(o); FTB Tax News, October 2025; FTB 2026 Form 540-ES instructions",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r19_ca_convention.py",
+      "fix_module_sha256": "937429d39a8695bc70bdf33ee74c3fc67771f782f82b3d288668ad73b9057e8c",
+      "applied_together_with": [
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_022",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 11131.3271484375,
+          "regenerated": 11113.5703125
+        },
+        {
+          "scenario_id": "scenario_023",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 6.7984771728515625,
+          "regenerated": 12.776718139648438
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "convention": "c_irs_sales_tax_2025",
+      "outputs": "federal income tax of filers who deduct general sales tax",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. The optional state sales tax tables for 2026 are the 2025 tables the IRS published in the 2025 Instructions for Schedule A (posted 2025-12-18), the last published before the 2026-07-03 reference freeze; no 2026 edition had been published by 2026-09-22. policyengine-us 1.755.4 projected 2026 tables from its 2023 edition with chained CPI, which is not the IRS method.",
+      "basis": "IRS, 2025 Instructions for Schedule A (Form 1040), Optional State Sales Tax Tables",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r19_irs_sales_tax_convention.py",
+      "fix_module_sha256": "202f05cad631b28692edc315b61b5f1a2a5604e66d7ae3df72c66e794b8a3895",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_000",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 2883.49365234375,
+          "regenerated": 2906.45361328125
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "convention": "c_wi_published_2026",
+      "outputs": "Wisconsin income tax",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Wisconsin's 2026 standard deduction and tax brackets are the amounts DOR published before the 2026-07-03 reference freeze (2026 Form 1-ES instructions, rev. 1-26; 2026 WT-4A worksheet, rev. 11-25), not policyengine-us 1.755.4's CPI projections.",
+      "basis": "Wisconsin DOR, 2026 Form 1-ES instructions (R. 1-26), pp. 2-3; 2026 WT-4A worksheet (R. 11-25), p. 2",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r19_wi_convention.py",
+      "fix_module_sha256": "d66c3786882542eba0e9da02b197faa3b6459b78fae6f1b5c19c1774dd04a250",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": []
+    },
+    {
+      "date": "2026-09-22",
+      "convention": "c_id_hold_2025",
+      "outputs": "Idaho income tax",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Idaho's 2026 zero-rate taxable income thresholds hold the 2025 amounts ($4,811 single; $9,622 joint and head of household) the Tax Commission published, the last located before the 2026-07-03 reference freeze; no 2026 publication was found by 2026-09-22. The retirement-benefit caps take their statutory 2026 values; they do not affect any benchmark household.",
+      "basis": "Idaho Code 63-3024(3), 63-3022A",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r19_id_convention.py",
+      "fix_module_sha256": "3449518830d4d2c341365241810d631f1cc3b18f26f5e3d67e64f0f1fd8ddd51",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_076",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 6806.78662109375,
+          "regenerated": 6818.34423828125
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "convention": "c_mn_published_2026",
+      "outputs": "Minnesota income tax and credits",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Minnesota's 2026 inflation-adjusted amounts are those the Department of Revenue published on 2025-12-01 (announced 2025-12-16), before the 2026-07-03 reference freeze, not policyengine-us 1.755.4's CPI projections; the 2025 renter's credit schedule takes its published values. The marriage credit cap, first located in an August 2026 draft, holds its 2025 amount.",
+      "basis": "Minnesota Department of Revenue, 2026 inflation-adjusted amounts (2025-12-01), pp. 1-3, 5",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r19_mn_convention.py",
+      "fix_module_sha256": "b3d386f6c74af02f0b22869f5f8b6fc25e4b2a645b71762399626391c7cd42b3",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_122",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 1028.216552734375,
+          "regenerated": 1025.54150390625
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "convention": "c_md_2026",
+      "outputs": "Maryland income tax; federal tax through the Maryland withholding proxy",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Maryland's 2026 withholding allowance is the $3,400 the Comptroller published in the 2026 Employer Withholding Guide (revised December 2025); the 2026 flat standard deduction holds the published 2025 amounts ($3,350; $6,700), because no 2026 return amount was located before the 2026-07-03 reference freeze (provisional); the child and dependent care credit caps hold their 2025 amounts.",
+      "basis": "Md. Tax-Gen. 10-217 (Chapter 604 of 2025); Comptroller Tax Alert rev. 2025-12-22; 2026 Employer Withholding Guide",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r19_md_convention.py",
+      "fix_module_sha256": "91afaba40009fbae5cc430841d5882ae04c9f025ede425bd99321e52f6c5fb1d",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_068",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 1252.9677734375,
+          "regenerated": 1255.3427734375
+        },
+        {
+          "scenario_id": "scenario_078",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 24772.693359375,
+          "regenerated": 24780.61328125
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "convention": "c_mi_published_2026",
+      "outputs": "Michigan income tax and credits",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Michigan's 2026 personal exemption ($5,900) and retirement limits are those Treasury published in the 2026 Form 446 (revised February 2026), before the 2026-07-03 reference freeze; amounts with no located 2026 publication (disability exemption, senior investment limits, homestead and home heating tables) hold their published 2025 values, which also replace the engine's projected 2025 entries.",
+      "basis": "Michigan Treasury Form 446 (2026, rev. February 2026); 2025 MI-1040 and MI-1040CR-7 instructions",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r19_mi_convention.py",
+      "fix_module_sha256": "15e16cfaeac13805ce3e9f32f91fc427f3b5fb687b31cc19f18c2604a233e974",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_045",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 1288.8375244140625,
+          "regenerated": 1290.9625244140625
+        }
+      ]
+    },
+    {
+      "date": "2026-09-22",
+      "convention": "c_mo_published_2026",
+      "outputs": "Missouri income tax",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. Missouri's 2026 income tax brackets are those the Department of Revenue published in its 2026 withholding formula (dated 2025-11-21), before the 2026-07-03 reference freeze, not policyengine-us 1.755.4's CPI projections.",
+      "basis": "Missouri DOR 2026 Withholding Formula (2025-11-21), annual table p. 2",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r19_mo_convention.py",
+      "fix_module_sha256": "a277c0790d2692f584d63773f62c215c917b8ebf12722a4d01d15f04f71025fc",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_093",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 3389.65087890625,
+          "regenerated": 3388.24560546875
+        }
+      ]
+    }
+  ]
 }
