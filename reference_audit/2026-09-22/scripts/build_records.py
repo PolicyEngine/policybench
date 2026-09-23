@@ -580,6 +580,7 @@ def main() -> None:
             if causes[c]["class"] == "engine_defect" and not causes[c].get("upstream_fixed"):
                 requests += [(key, published_fixes), (key, [SWEEP_FOR[c]] + published_fixes)]
     carried_values = compute_many(requests)
+    carried_sentences = {}
     for e in carried:
         key = (e["scenario_id"], e["variable"])
         fixes = [UNLISTED_PATCH[e["unlisted_input"]]] + published_fixes
@@ -591,21 +592,40 @@ def main() -> None:
                 f"reading on the frozen engine; the {DECIDED_ON} audit recomputes it with "
                 "every publication convention and upstream fix."
             )
+            carried_sentences.setdefault(key, []).append(
+                f"The {DECIDED_ON} audit recomputes the alternative as {value:,.2f} with every "
+                f"publication convention and upstream fix (the frozen-engine value above was "
+                f"{float(e['alternative_value']):,.2f})."
+            )
             e["alternative_value"] = round(value, 6)
         for c in sorted(moved.get(key, {}).get("causes", {})):
             if causes[c]["class"] == "engine_defect" and not causes[c].get("upstream_fixed"):
                 base = carried_values[(key, tuple(published_fixes))]
                 fixed_value = carried_values[(key, tuple([SWEEP_FOR[c]] + published_fixes))]
-                notes.append(
+                sentence = (
                     f"{c} (engine defect, not fixed upstream) also moves this output on "
                     f"the stated facts, from {base:,.2f} to {fixed_value:,.2f}; the record "
                     "keeps its 2026-09-05 classification."
                 )
+                notes.append(sentence)
+                carried_sentences.setdefault(key, []).append(sentence)
         if notes:
             e["note"] = " ".join(notes)
     exclusions_doc["exclusions"] = exclusions_doc["exclusions"] + new_exclusions
     # judge_reference_suspect records every flag the wave raised; where the
     # case's current verdict does not carry it, the entry says which run did.
+    # The carried 2026-09-05 adjudications state the recomputed alternative too,
+    # so their reasoning agrees with the exclusion record (replaced, not
+    # appended again, on each run).
+    marker = f" The {DECIDED_ON} audit recomputes the alternative"
+    for entry in adjudications_doc["adjudications"]:
+        key = (entry["scenario_id"], entry["variable"])
+        if entry.get("adjudicated_on") != DECIDED_ON:
+            reasoning = entry["reasoning"].split(marker)[0]
+            reasoning = reasoning.split(" r30_snap_heat_and_eat_sua (engine defect")[0]
+            if key in carried_sentences:
+                reasoning = reasoning + " " + " ".join(carried_sentences[key])
+            entry["reasoning"] = reasoning
     for entry in adjudications_doc["adjudications"]:
         key = (entry["scenario_id"], entry["variable"])
         entry.pop("judge_reference_suspect_source", None)

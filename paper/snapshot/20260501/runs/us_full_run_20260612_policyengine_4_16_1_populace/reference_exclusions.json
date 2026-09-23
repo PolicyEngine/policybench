@@ -486,7 +486,7 @@
       "defect": "PolicyEngine grants the heat-and-eat standard utility allowance to households without an elderly or disabled member, which P.L. 119-21 sec. 10103 ended",
       "law": "7 U.S.C. 2014(e)(6)(C)(iv)(I), as amended by P.L. 119-21 sec. 10103(a) (approved 2025-07-04)",
       "upstream": "to be filed",
-      "note": "Corrected value applies r30_snap_heat_and_eat_sua with every publication convention and upstream fix. The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance, and the published value, 3,576.00 (the SNAP convention with the upstream SNAP fixes), would stand; the output is excluded either way."
+      "note": "Corrected value applies r30_snap_heat_and_eat_sua with every publication convention and upstream fix. The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance, and the value the publication conventions and upstream SNAP fixes give, 3,576.00 (the reference it would carry if scored), would stand; the output is excluded either way."
     },
     {
       "scenario_id": "scenario_081",

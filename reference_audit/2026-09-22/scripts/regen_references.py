@@ -82,6 +82,9 @@ PRISTINE_EXPLANATIONS = Path(
 # engine facts, each read from a 1.755.4 run of the frozen engine.
 FROZEN_NARRATIVES = {
     ("scenario_091", "state_income_tax_before_refundable_credits"): (
+        "The household lists $1,170 of capital gain distributions reported without "
+        "Schedule D, and the engine leaves them out of gross income, so no capital "
+        "gains reach federal or Wisconsin adjusted gross income. "
         "Federal gross income is $35,055.84: $26,073.84 of wages ($27,000 less "
         "$926.16 of pre-tax contributions), $4,806 of taxable interest and $4,176 "
         "of dividends. The engine leaves the $1,170 of capital gain distributions "
@@ -119,6 +122,13 @@ FROZEN_NARRATIVES = {
         "tests it meets; that asset test adds vehicle value only in Texas, so the "
         "$3,570 vehicle value counts nowhere."
     ),
+}
+
+
+# Figures a frozen narrative must state; a narrative missing one is regenerated
+# with an explicit instruction, and the step fails if it still omits it.
+FROZEN_REQUIRED = {
+    ("scenario_091", "state_income_tax_before_refundable_credits"): ["1,170"],
 }
 
 
@@ -388,7 +398,7 @@ def narratives(args) -> None:
             f"({cause['upstream']}): {cause['alternative_reading']}"
         )
 
-    async def one(revision, item):
+    async def one(revision, item, extra=""):
         row = scenarios.loc[item["scenario_id"]]
         traced = traces[item.get("trace_key", f"{item['scenario_id']}|{item['variable']}")]
         trace = traced["trace"]
@@ -400,7 +410,7 @@ def narratives(args) -> None:
             item["regenerated"],
             YEAR,
             trace,
-            grounding=grounding_for(revision),
+            grounding=grounding_for(revision) + extra,
         )
         response = await litellm.acompletion(
             model=REFERENCE_MODEL,
@@ -417,7 +427,25 @@ def narratives(args) -> None:
     async def run_all():
         return await asyncio.gather(*(one(c, item) for c, item in todo))
 
-    for item, text, n_lines in asyncio.run(run_all()):
+    results = asyncio.run(run_all())
+    for index, (item, text, n_lines) in enumerate(results):
+        key = (item["scenario_id"], item["variable"])
+        required = FROZEN_REQUIRED.get(key, [])
+        for attempt in range(3):
+            missing = [figure for figure in required if figure not in text]
+            if not missing:
+                break
+            extra = (
+                " The narrative must state these figures and the fact behind each: "
+                + ", ".join(missing)
+                + "."
+            )
+            item, text, n_lines = asyncio.run(one(todo[index][0], item, extra))
+        missing = [figure for figure in required if figure not in text]
+        if missing:
+            raise SystemExit(f"{key}: narrative still omits {missing}")
+        results[index] = (item, text, n_lines)
+    for item, text, n_lines in results:
         mask = (explanations["scenario_id"] == item["scenario_id"]) & (
             explanations["variable"] == item["variable"]
         )

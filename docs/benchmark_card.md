@@ -87,7 +87,7 @@ affirmed or replaced with a regenerated reference.
 The September 22 audit implemented each defect it confirmed in policyengine-us
 1.755.4 as a sandbox fix on that engine version and recomputed every
 reference under it. Seven of those root causes were fixed in policyengine-us
-after the references were frozen (#8839, #9162, #9301, #9318 and #9363:
+after the references were frozen (#8839, #9162, #9301, #9313, #9318 and #9363:
 capital gain distributions, New York's renter cap, the CalEITC's lookup at
 adjusted gross income, and the engine's SNAP rounding). The scored references
 they move are regenerated with the fix on the same engine version: 15

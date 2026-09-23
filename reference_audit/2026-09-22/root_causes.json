@@ -309,7 +309,7 @@
     "alternative_reading": "A LIHEAP payment makes a household eligible for the standard utility allowance only if the household has an elderly or disabled member; other households take the allowance only if they incur heating or cooling costs.",
     "upstream": "",
     "measured_against": "c_snap_hold_fy2026",
-    "exclusion_note": "The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance, and the published value, 3,576.00 (the SNAP convention with the upstream SNAP fixes), would stand; the output is excluded either way."
+    "exclusion_note": "The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance, and the value the publication conventions and upstream SNAP fixes give, 3,576.00 (the reference it would carry if scored), would stand; the output is excluded either way."
   },
   "r31_snap_income_limit_rounding": {
     "class": "engine_defect",

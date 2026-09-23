@@ -344,3 +344,32 @@ def test_adjudication_keeps_the_judges_verdict_verbatim(tmp_path: Path):
     missing = dict(_adjudication("llm_error", "thresholds_rates"), variable="wic")
     with pytest.raises(SystemExit, match="no verdict"):
         verify_adjudications_keep_judge_verdicts([missing], cases)
+
+
+def test_adjudication_flag_matches_the_verdict_or_names_its_run(tmp_path: Path):
+    cases = tmp_path / "cases"
+    _case(cases, "us__scenario_001__snap", VERDICT)  # the verdict does not flag
+    entry = _adjudication("llm_error", "thresholds_rates")
+    # A flag the current verdict does not raise must name the run that raised it.
+    with pytest.raises(SystemExit, match="no earlier run is named"):
+        verify_adjudications_keep_judge_verdicts(
+            [dict(entry, judge_reference_suspect=True)], cases
+        )
+    verify_adjudications_keep_judge_verdicts(
+        [
+            dict(
+                entry,
+                judge_reference_suspect=True,
+                judge_reference_suspect_source="an earlier judge run",
+            )
+        ],
+        cases,
+    )
+    # A verdict that flags the reference must be recorded as flagged.
+    flagged = dict(VERDICT, reference_suspect=True)
+    _case(cases, "us__scenario_002__snap", flagged)
+    with pytest.raises(SystemExit, match="judge_reference_suspect=False"):
+        verify_adjudications_keep_judge_verdicts(
+            [dict(entry, scenario_id="scenario_002", judge_reference_suspect=False)],
+            cases,
+        )

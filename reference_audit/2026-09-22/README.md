@@ -5,7 +5,7 @@ This directory records how the September 22 references and exclusion record were
 ## The rules
 
 1. A scored reference follows from the stated facts and from law published before the 2026-07-03 freeze (Max, 2026-09-22). Where the engine projected a 2026 parameter with a price index, a publication convention regenerates the reference with the amount published before the freeze, or with the last amount published. A convention changes parameter values only.
-2. An engine defect fixed in policyengine-us after the freeze is regenerated with its fix, on the same engine version (Max, 2026-09-23). Seven root causes qualify: `r04` (#8839), `r09` (#9301), `r17` (#9363), `r26` and `r27` (#9318), and `r28` and `r31` (#9162).
+2. An engine defect fixed in policyengine-us after the freeze is regenerated with its fix, on the same engine version (Max, 2026-09-23). Seven root causes qualify: `r04` (#8839), `r09` (#9301 and #9313), `r17` (#9363), `r26` and `r27` (#9318), and `r28` and `r31` (#9162).
 3. An engine defect not fixed upstream excludes every output its fix moves by more than $1.
 4. A reference that turns on an input or definition the prompt never states is excluded.
 
