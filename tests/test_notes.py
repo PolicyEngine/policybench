@@ -7,12 +7,13 @@ import gzip
 import json
 import re
 import sys
+from collections import Counter
 from functools import cache
 from pathlib import Path
 
 import pytest
 
-from policybench.snapshot_payload import read_run_payload
+from policybench.snapshot_payload import read_run_payload, run_payload_path
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTES_DIR = ROOT / "app/src/notes"
@@ -528,11 +529,16 @@ BBCE_ROWS_PATH = ROOT / "notes/data/bbce_households_20260922.csv"
 BBCE_ROWS_META_PATH = BBCE_ROWS_PATH.with_suffix(BBCE_ROWS_PATH.suffix + ".meta.json")
 SNAP_FIX_PATH = ROOT / "reference_audit/2026-09-22/fixes/c13v3_plus_upstream_snap.py"
 TOP_THREE_0922 = ("gpt-6-sol", "claude-opus-5.5", "gpt-5.6-sol")
+PREFACE_UNLISTED_STATUS = (
+    "Treat any unlisted numeric input as 0 and any other unlisted household "
+    "fact, boolean, or status input as false."
+)
 PREFACE_TAKE_UP = "Assume tax filing and program take-up when required."
 PREFACE_NO_INFERENCE = (
     "Do not infer unlisted income, expenses, assets, benefit receipt, rent, "
     "or health coverage."
 )
+PREFACE_SENTENCES = (PREFACE_UNLISTED_STATUS, PREFACE_TAKE_UP, PREFACE_NO_INFERENCE)
 
 
 def _sha256_file(path: Path) -> str:
@@ -545,6 +551,16 @@ def _whole_or_cents(value: float) -> int | str:
     """A dollar amount as the note shows it: whole dollars as a number (the
     app adds thousands separators), otherwise a string with cents."""
     return int(value) if float(value).is_integer() else f"{value:,.2f}"
+
+
+def _named_models(text: str, display_names: dict[str, str]) -> set[str]:
+    """Board models whose display name appears in the text as a whole name,
+    so "Claude Opus 5" does not match inside "Claude Opus 5.5"."""
+    return {
+        model
+        for model, name in display_names.items()
+        if re.search(rf"(?<![\w.-]){re.escape(name)}(?!\.?[\w-])", text)
+    }
 
 
 def _snap_output_references(variable: str) -> dict[str, float]:
@@ -608,7 +624,16 @@ def test_bbce_households_note_facts() -> None:
     rows_meta = _load_json(BBCE_ROWS_META_PATH)
     assert rows_meta["households"] == households
     assert rows_meta["mention_pattern"] == regexes["bbce"]
-    assert rows_meta["release"] == note["release"]
+    assert rows_meta["release"] == note["release"] == _frozen_release()
+    # The rows come from the committed run payload; the release asset is a
+    # different file carrying the same US payload, pinned by the manifest.
+    assert rows_meta["run_payload_sha256"] == _sha256_file(run_payload_path(RUN_DIR))
+    manifest = _load_json(ROOT / "paper/snapshot/20260501/manifest.json")
+    assert (
+        rows_meta["release_payload_sha256"]
+        == manifest["published_dashboard_artifact"]["sha256"]
+    )
+    assert rows_meta["rows"] == len(rows)
 
     five = [by_id[scenario_id] for scenario_id in households]
     amounts = {references[scenario_id] for scenario_id in households}
@@ -626,6 +651,18 @@ def test_bbce_households_note_facts() -> None:
         float(row["expected_contribution_jan"]) > float(row["max_allotment_jan"])
         for row in five
     )
+    # Every household's SNAP gross income is above the ordinary gross limit in
+    # every month; the households that pass the gross test anyway are the
+    # ones with an elderly or disabled member, whom the engine exempts from it.
+    snap_parameters = pathway_meta["snap_parameters"]
+    assert snap_parameters["2026-01-01"] == snap_parameters["2026-10-01"]
+    snap_gross_limit = snap_parameters["2026-01-01"]["gross_income_limit_fpg"]
+    assert all(
+        float(row["gross_income_fpg_ratio_min"]) > snap_gross_limit for row in five
+    )
+    for row in five:
+        exempt = row["elderly_or_disabled_member"] == "True"
+        assert row["gross_income_test_months"] == ("12" if exempt else "0")
     # Categorical eligibility comes from the non-cash benefit: no TANF cash,
     # no SSI, and each ordinary test either holds all year or fails all year.
     tanf_references = _snap_output_references("tanf")
@@ -666,7 +703,31 @@ def test_bbce_households_note_facts() -> None:
         for model in by_model
         if all(row["prediction"] == 0.0 for row in rows if row["model"] == model)
     ]
-    answers_276 = [row for row in rows if row["prediction"] == 276.0]
+    # Answers that did not parse carry no value and no explanation; every
+    # other answer has an explanation.
+    missing = [row for row in rows if row["prediction"] == ""]
+    for row in missing:
+        entry = predictions[row["scenario_id"]]["snap"][row["model"]]
+        assert entry["parsed"] is False and not entry.get("explanation")
+    explained = [
+        row
+        for row in rows
+        if (
+            predictions[row["scenario_id"]]["snap"][row["model"]].get("explanation")
+            or ""
+        ).strip()
+    ]
+    assert len(explained) == len(rows) - len(missing)
+    # The most common wrong amount other than $0, and twelve months of what.
+    wrong_amounts = Counter(
+        row["prediction"]
+        for row in rows
+        if row["prediction"] not in ("", 0.0) and not row["within_1_dollar"]
+    ).most_common(2)
+    (common_annual, common_count), (_, runner_up_count) = wrong_amounts
+    assert common_count > runner_up_count
+    assert float(common_annual / 12).is_integer()
+    answers_common = [row for row in rows if row["prediction"] == common_annual]
     minimum_regex = re.compile("minimum", re.IGNORECASE)
     mentions = [row for row in rows if row["mentions_categorical_eligibility"]]
 
@@ -700,11 +761,19 @@ def test_bbce_households_note_facts() -> None:
     assert float(row_030["expected_contribution_jan"]) > float(
         row_030["max_allotment_jan"]
     )
+    # The engine counts financial assistance as SNAP unearned income.
+    for instant in ("2026-01-01", "2026-10-01"):
+        assert (
+            "financial_assistance"
+            in pathway_meta["snap_parameters"][instant]["unearned_income_sources"]
+        )
     bbce_regex = re.compile(regexes["bbce"], re.IGNORECASE)
+    board_households = len(predictions)
+    assert board_households == len(pathways) == len(payload["scenarios"])
 
     def bbce_mentions(model: str) -> int:
         entries = [variables["snap"][model] for variables in predictions.values()]
-        assert len(entries) == 100
+        assert len(entries) == board_households
         return sum(bool(bbce_regex.search(e.get("explanation") or "")) for e in entries)
 
     # The engine's BBCE rule and the four states' parameters.
@@ -728,16 +797,27 @@ def test_bbce_households_note_facts() -> None:
     high = {rules[state]["gross_income_limit_fpg"] for state in ("CT", "MI", "WI")}
     assert len(high) == 1
 
-    # What the prompt says, and the one $0 explanation that argues from receipt.
+    # What the prompt says, in every answer contract's variant, and the one
+    # $0 explanation that argues from receipt.
     for scenario_id in households:
-        prompt = payload["scenarios"][scenario_id]["prompt"]["tool"]
-        assert PREFACE_TAKE_UP in prompt and PREFACE_NO_INFERENCE in prompt
-        assert not re.search(r"categorical|non-cash", prompt, re.IGNORECASE)
-        tanf_lines = [line for line in prompt.splitlines() if "TANF" in line]
-        assert tanf_lines == [
-            "- tanf: annual Temporary Assistance for Needy Families (TANF) "
-            "benefit amount"
-        ]
+        variants = payload["scenarios"][scenario_id]["prompt"]
+        assert set(variants) == {"tool", "json"}
+        for prompt in variants.values():
+            assert all(sentence in prompt for sentence in PREFACE_SENTENCES)
+            assert not re.search(r"categorical|non-cash", prompt, re.IGNORECASE)
+            tanf_lines = [line for line in prompt.splitlines() if "TANF" in line]
+            assert tanf_lines == [
+                "- tanf: annual Temporary Assistance for Needy Families (TANF) "
+                "benefit amount"
+            ]
+    # Every quotation in the prompt paragraph is the preface's own wording.
+    prompt_paragraph = next(
+        paragraph for paragraph in note["paragraphs"] if "program take-up" in paragraph
+    )
+    quotes = re.findall(r'"([^"]+)"', prompt_paragraph)
+    assert len(quotes) == len(PREFACE_SENTENCES)
+    for quote, sentence in zip(quotes, PREFACE_SENTENCES):
+        assert quote.rstrip(".,").lower() in sentence.lower()
     tanf_regex = re.compile(regexes["tanf"], re.IGNORECASE)
     zero_rows = [row for row in rows if row["prediction"] == 0.0]
     zero_tanf = [
@@ -772,17 +852,50 @@ def test_bbce_households_note_facts() -> None:
     excluded_112 = snap_exclusions["scenario_112"]
     assert excluded_112["reason_code"] == "reference_depends_on_unlisted_input"
     assert excluded_112["unlisted_input"] == "weekly_hours_worked_before_lsr"
-    assert "assumed 40 hours a week" in excluded_112["alternative_reading"]
+    assumed_hours = re.search(
+        r"the reference assumed (\d+) hours a week",
+        excluded_112["alternative_reading"],
+    )
+    assert assumed_hours is not None
+    assert "treat unlisted numeric inputs as 0" in excluded_112["alternative_reading"]
+    assert (
+        "Under the zero-hours reading the time limit applies"
+        in excluded_112["alternative_reading"]
+    )
     assert excluded_112["alternative_value"] == 0
-    prompt_112 = payload["scenarios"]["scenario_112"]["prompt"]["tool"]
     assert payload["scenarios"]["scenario_112"]["state"] == "TX"
-    assert "hours" not in prompt_112.split("Provide the following")[0]
+    for prompt_112 in payload["scenarios"]["scenario_112"]["prompt"].values():
+        assert PREFACE_UNLISTED_STATUS in prompt_112
+        assert "hours" not in prompt_112.split("Provide the following")[0]
     assert {
         by_id["scenario_112"]["pathway_jan_sep"],
         by_id["scenario_112"]["pathway_oct_dec"],
     } == {"ordinary"}
     claude_note = _note(CLAUDE_NOTE)
     assert claude_note["boardSnapshot"] == previous["boardSnapshot"]
+
+    # The models the prose names by hand, and what it says about each.
+    from policybench.paper_results import MODEL_DISPLAY_NAMES
+
+    display = {model: MODEL_DISPLAY_NAMES[model] for model in by_model}
+    text = " ".join(note["paragraphs"])
+    zero_tanf_model, zero_tanf_scenario = zero_tanf[0]
+    assert _named_models(text, display) == {
+        "gpt-6-astra",
+        *TOP_THREE_0922,
+        zero_tanf_model,
+    }
+    sol6_name, opus_name, sol56_name = (display[m] for m in TOP_THREE_0922)
+    for fragment in (
+        f"{display['gpt-6-astra']} gets the most",
+        f"{sol6_name} answers $0 for four households and ${{sol6On030}}",
+        f"{opus_name} answers ${{opusOn108}} for scenario_108",
+        f"{sol56_name} answers $0 for all five",
+        f"both {sol6_name} and {opus_name} compute the benefit from wages alone",
+        f"the SNAP explanations of {sol6_name} mention categorical eligibility",
+        f"{display[zero_tanf_model]}, on {zero_tanf_scenario}, writes",
+    ):
+        assert fragment in text, fragment
 
     derived = {
         "scoredEligible": sum(
@@ -795,23 +908,27 @@ def test_bbce_households_note_facts() -> None:
         "minimumMonthly": _whole_or_cents(minimum),
         "nModels": len(board),
         "answers": len(rows),
+        "missingAnswers": len(missing),
         "hits": sum(hits_by_household.values()),
         "hits027": hits_by_household["scenario_027"],
         "hits073": hits_by_household["scenario_073"],
         "hits108": hits_by_household["scenario_108"],
         "zeroAllFive": len(zero_all_five),
         "astraHits": best,
-        "answers276": len(answers_276),
-        "answers276Minimum": sum(
+        "commonAnnual": _whole_or_cents(common_annual),
+        "commonMonthly": _whole_or_cents(common_annual / 12),
+        "commonAnswers": len(answers_common),
+        "commonAnswersMinimum": sum(
             bool(
                 minimum_regex.search(
                     predictions[row["scenario_id"]]["snap"][row["model"]]["explanation"]
                     or ""
                 )
             )
-            for row in answers_276
+            for row in answers_common
         ),
         "fiveBbceMentions": len(mentions),
+        "explanations": len(explained),
         "fiveBbceModels": len({row["model"] for row in mentions}),
         "fiveBbceZeros": sum(row["prediction"] == 0.0 for row in mentions),
         "sol6On030": _whole_or_cents(sol6["scenario_030"]),
@@ -819,6 +936,7 @@ def test_bbce_households_note_facts() -> None:
         "opusOn030": _whole_or_cents(opus["scenario_030"]),
         "financialAssistance": _whole_or_cents(financial_assistance),
         "maxAllotmentOne": _whole_or_cents(float(row_030["max_allotment_jan"])),
+        "boardHouseholds": board_households,
         "sol6BbceMentions": bbce_mentions("gpt-6-sol"),
         "opusBbceMentions": bbce_mentions("claude-opus-5.5"),
         "sol56BbceMentions": bbce_mentions("gpt-5.6-sol"),
@@ -826,7 +944,9 @@ def test_bbce_households_note_facts() -> None:
         "bbceGrossLimitHigh": round(100 * high.pop()),
         "bbceGrossLimitTx": round(100 * rules["TX"]["gross_income_limit_fpg"]),
         "bbceAssetLimitTx": _whole_or_cents(rules["TX"]["asset_limit"]),
+        "snapGrossLimit": round(100 * snap_gross_limit),
         "failGross": sum(row["gross_income_test_months"] == "0" for row in five),
+        "grossExempt": sum(row["elderly_or_disabled_member"] == "True" for row in five),
         "failNet": sum(row["net_income_test_months"] == "0" for row in five),
         "failAssets": sum(row["asset_test_months"] == "0" for row in five),
         "zeroAnswers": len(zero_rows),
@@ -835,5 +955,38 @@ def test_bbce_households_note_facts() -> None:
         "previousReference": f"{frozen_value:.2f}",
         "previousMonthlyJanSep": f"{jan:.2f}",
         "previousMonthlyOctDec": f"{oct_:.2f}",
+        "assumedHours": int(assumed_hours.group(1)),
     }
     assert note["facts"] == derived
+
+
+@pytest.mark.slow
+def test_snap_pathways_20260922_regenerates() -> None:
+    """Rerun the September 22 pathway recomputation and compare it with the
+    committed CSV and meta, which the note test reads.
+
+    It needs the engine version behind the references, which the repository's
+    environment does not pin, so it skips elsewhere. Run it with
+
+      PYTHONPATH=. <1.755.4 venv>/bin/python -m pytest -m slow \\
+        tests/test_notes.py -k regenerates
+    """
+    from importlib.metadata import PackageNotFoundError, version
+
+    committed_meta = _load_json(PATHWAYS_0922_META_PATH)
+    needed = committed_meta["policyengine_us_version"]
+    try:
+        engine = version("policyengine-us")
+    except PackageNotFoundError:
+        pytest.skip("policyengine-us is not installed")
+    if engine != needed:
+        pytest.skip(f"needs policyengine-us {needed}, found {engine}")
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from snap_pathways_20260922 import build, csv_text
+
+    rows, meta = build()
+    assert csv_text(rows) == PATHWAYS_0922_PATH.read_bytes().decode("utf-8")
+    regenerated = json.loads(json.dumps(meta))
+    for record in (regenerated, committed_meta):
+        record.pop("generated_at_utc")
+    assert regenerated == committed_meta

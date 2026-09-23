@@ -6,14 +6,20 @@ SNAP publication convention and every SNAP fix merged upstream after the freeze
 recomputes, for each of the 100 frozen households, the monthly SNAP tests under
 that configuration and the minimum allotment under both that configuration and
 the unmodified engine, and checks the recomputed annual SNAP against the
-published references.
+published references. It also records whether each household has a member the
+engine treats as elderly or disabled (such households are exempt from the SNAP
+gross income test), the lowest monthly ratio of SNAP gross income to the
+poverty guideline, and the SNAP and state TANF non-cash parameters the note
+cites.
 
 It needs a policyengine-us 1.755.4 environment, as the audit harness does:
 
   PYTHONPATH=. <1.755.4 venv>/bin/python scripts/snap_pathways_20260922.py
 
 The repository's own environment pins an older policyengine-us; the script
-refuses to run on any version but 1.755.4.
+refuses to run on any version but 1.755.4. ``tests/test_notes.py`` reruns
+:func:`build` and compares it with the committed files when that version is
+installed (a slow test, skipped elsewhere).
 """
 
 from __future__ import annotations
@@ -21,6 +27,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import importlib.util
+import io
 import json
 import math
 import sys
@@ -143,6 +150,18 @@ def _bbce_parameters(system) -> dict:
     }
 
 
+def _snap_parameters(system) -> dict:
+    """The ordinary SNAP gross income limit and the unearned income sources."""
+    parameters = {}
+    for instant in (f"{YEAR}-01-01", f"{YEAR}-10-01"):
+        snap = system.parameters.gov.usda.snap(instant)
+        parameters[instant] = {
+            "gross_income_limit_fpg": float(snap.income.limit.gross),
+            "unearned_income_sources": list(snap.income.sources.unearned),
+        }
+    return parameters
+
+
 def build() -> tuple[list[dict], dict]:
     from policyengine_us import CountryTaxBenefitSystem, Simulation
 
@@ -190,6 +209,14 @@ def build() -> tuple[list[dict], dict]:
         }
         snap = _monthly(sim, "snap")
         tanf_cash = _monthly(sim, "tanf")
+        gross_ratio = _monthly(sim, "snap_gross_income_fpg_ratio")
+        # A YEAR variable: whether any member meets the USDA elderly or
+        # disabled definition, which exempts the household from the gross test.
+        elderly_disabled = _boolean(
+            [float(sim.calculate("has_usda_elderly_disabled", YEAR).sum())],
+            scenario.id,
+            "has_usda_elderly_disabled",
+        )[0]
         min_allotment = _monthly(sim, "snap_min_allotment")
         frozen_min_allotment = _monthly(frozen_sim, "snap_min_allotment")
         frozen_snap = sum(_monthly(frozen_sim, "snap"))
@@ -222,6 +249,8 @@ def build() -> tuple[list[dict], dict]:
             "snap_frozen": frozen_values[scenario.id],
             "snap_frozen_engine": round(frozen_snap, 4),
             "gross_income_test_months": sum(tests["meets_snap_gross_income_test"]),
+            "elderly_or_disabled_member": elderly_disabled,
+            "gross_income_fpg_ratio_min": round(min(gross_ratio), 4),
             "net_income_test_months": sum(tests["meets_snap_net_income_test"]),
             "asset_test_months": sum(tests["meets_snap_asset_test"]),
             "tanf_non_cash_eligible_months": sum(tests["is_tanf_non_cash_eligible"]),
@@ -292,20 +321,32 @@ def build() -> tuple[list[dict], dict]:
             "the *_months columns count the months of 2026 in which each test holds"
         ),
         "bbce_parameters": _bbce_parameters(reference_system),
+        "snap_parameters": _snap_parameters(reference_system),
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "script": SCRIPT_PATH,
     }
     return rows, run_meta
 
 
+def csv_text(rows: list[dict]) -> str:
+    """The pathway rows exactly as written to ``OUTPUT_PATH``."""
+    target = io.StringIO(newline="")
+    writer = csv.DictWriter(target, fieldnames=list(rows[0]))
+    writer.writeheader()
+    writer.writerows(rows)
+    return target.getvalue()
+
+
+def meta_text(run_meta: dict) -> str:
+    return json.dumps(run_meta, indent=2) + "\n"
+
+
 def main() -> None:
     rows, run_meta = build()
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with OUTPUT_PATH.open("w", encoding="utf-8", newline="") as target:
-        writer = csv.DictWriter(target, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
-    META_PATH.write_text(json.dumps(run_meta, indent=2) + "\n", encoding="utf-8")
+        target.write(csv_text(rows))
+    META_PATH.write_text(meta_text(run_meta), encoding="utf-8")
     print(f"Wrote {len(rows)} rows to {OUTPUT_PATH.relative_to(ROOT)}")
 
 

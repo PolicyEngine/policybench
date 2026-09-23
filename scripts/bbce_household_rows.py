@@ -8,6 +8,12 @@ qualifies only through broad-based categorical eligibility and gets the
 minimum benefit, read from ``notes/data/snap_pathways_20260922.csv``.
 ``tests/test_notes.py`` regenerates the rows and compares, so the note's
 counts stay tied to the frozen payload of release dashboard-data-20260922.
+
+The rows come from the run's committed payload (``data.json.gz`` in the run
+directory). The release asset ``dashboard-data.json`` carries the same US
+payload under ``countries.us`` but is a different file, so the meta records
+both hashes: ``run_payload_sha256`` for the committed payload and
+``release_payload_sha256`` for the asset, as the snapshot manifest pins it.
 """
 
 from __future__ import annotations
@@ -30,6 +36,7 @@ RUN_DIR = (
 PATHWAYS = ROOT / "notes/data/snap_pathways_20260922.csv"
 OUTPUT = ROOT / "notes/data/bbce_households_20260922.csv"
 META = OUTPUT.with_suffix(OUTPUT.suffix + ".meta.json")
+MANIFEST = ROOT / "paper/snapshot/20260501/manifest.json"
 RELEASE = "dashboard-data-20260922"
 # The note's mention pattern: the rule by name, or a household called
 # categorically eligible. It leaves out "categorically ineligible" and the
@@ -92,6 +99,16 @@ def read_pathways() -> list[dict[str, str]]:
         return list(csv.DictReader(source))
 
 
+def release_artifact() -> dict:
+    """The release asset the snapshot manifest pins for this board."""
+    artifact = json.loads(MANIFEST.read_text(encoding="utf-8"))[
+        "published_dashboard_artifact"
+    ]
+    if artifact["tag"] != RELEASE:
+        raise ValueError(f"The manifest pins {artifact['tag']}, not {RELEASE}.")
+    return artifact
+
+
 def main() -> None:
     payload = read_run_payload(RUN_DIR)
     households = bbce_households(read_pathways())
@@ -103,9 +120,10 @@ def main() -> None:
     meta = {
         "release": RELEASE,
         "source_run": RUN_DIR.name,
-        "payload_sha256": hashlib.sha256(
+        "run_payload_sha256": hashlib.sha256(
             run_payload_path(RUN_DIR).read_bytes()
         ).hexdigest(),
+        "release_payload_sha256": release_artifact()["sha256"],
         "households": households,
         "mention_pattern": BBCE_PATTERN,
         "rows": len(rows),

@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import {
+  NoteArticle,
   NotesPageContent,
   interpolateNoteText,
 } from "../src/components/NotesContent";
@@ -49,10 +50,20 @@ describe("notes", () => {
     // Cents stay as written; whole-dollar facts get thousands separators.
     expect(markup).toContain("$1,208.40 for scenario_030");
     expect(markup).toContain("$12,000 of financial assistance");
-    // The new note's reference is not the frozen annual reference, so it has
-    // no unrounded-reference footnote.
-    expect(markup).not.toContain("Unrounded frozen reference: $288.00");
     expect(markup).toContain("Claude Fable 5.1 added");
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*\}/);
+  });
+
+  test("only the September 3 note carries the unrounded-reference footnote", () => {
+    const footnoted = notes.filter((note) => {
+      const markup = renderToStaticMarkup(
+        createElement(NoteArticle, { note, titleLevel: "h1" }),
+      );
+      return markup.includes(`id="${note.slug}-reference-annual-note"`);
+    });
+    // The five-household note's $288 is a rounded reference, so it has none.
+    expect(footnoted.map((note) => note.slug)).toEqual([
+      "2026-09-03-six-snap-households",
+    ]);
   });
 });
