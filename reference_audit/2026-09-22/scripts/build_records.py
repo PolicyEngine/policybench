@@ -69,6 +69,18 @@ SWEEP_FOR = {
     "r23_ma_interest_source": "ma_part_a_ordinary_interest",
     "r24_disability_benefits_taxability": "r24_disability_benefits_taxable",
     "r25_niit_in_federal_output": "r25_niit_excluded",
+    "r26_snap_contribution_rounding": "r26_snap_contribution_rounding",
+    "r27_ca_snap_net_income_rounding": "r27_ca_snap_net_income_rounding",
+    "r28_snap_min_allotment_rounding": "r28_snap_min_allotment_rounding",
+}
+# The SNAP rounding defects are measured on top of the SNAP publication
+# convention (c_snap_hold_fy2026), since the convention's value is what would
+# otherwise be published: <defect>_on_c13v3.csv compares the convention alone
+# with the convention plus the defect's fix, and moved means more than $1.
+MEASURED_BY = {
+    "r26_snap_contribution_rounding": "r26_on_c13v3",
+    "r27_ca_snap_net_income_rounding": "r27_on_c13v3",
+    "r28_snap_min_allotment_rounding": "r28_on_c13v3",
 }
 REASON = {
     "engine_defect": "reference_engine_defect",
@@ -235,7 +247,7 @@ def main() -> None:
         if causes[cause]["class"] not in PRECEDENCE:
             continue
         not_confirmed = causes[cause].get("not_confirmed", {})
-        frame = pd.read_csv(HERE / "sweep" / "out" / f"{fix}.csv")
+        frame = pd.read_csv(HERE / "sweep" / "out" / f"{MEASURED_BY.get(cause, fix)}.csv")
         for _, r in frame[frame["moved"]].iterrows():
             key = (r["scenario_id"], r["variable"])
             if f"{key[0]}:{key[1]}" in not_confirmed:

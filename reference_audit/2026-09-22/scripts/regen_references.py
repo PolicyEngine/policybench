@@ -5,8 +5,9 @@ law published before the 2026-07-03 reference freeze. Where policyengine-us 1.75
 used a projection of an amount published after the freeze, the reference takes the
 last amount published before it. The conventions are the root_causes.json entries
 of class "convention"; each names the fix module that implements it:
-  c_snap_hold_fy2026  SNAP October-December 2026 at the FY2026 figures, with the
-                      statutory rounding (sweep/fixes/r13_hold_fy2026_v2.py)
+  c_snap_hold_fy2026  SNAP October-December 2026 at the FY2026 figures
+                      (sweep/fixes/r13_hold_fy2026_v3.py); the engine's SNAP
+                      rounding defects are root causes r26-r28, which exclude
   c_ca_hold_2025      California's 2026 indexed amounts at the published 2025
                       amounts (sweep/fixes/r19_ca_convention.py)
   ...                 and the other parameter conventions root_causes.json lists

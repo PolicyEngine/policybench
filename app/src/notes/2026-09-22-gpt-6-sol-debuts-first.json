@@ -10,26 +10,26 @@
     "The next board version moves every model to tool_choice auto so each provider's default reasoning engages under the recorded request shape (policybench#139)."
   ],
   "facts": {
-    "solExact": 94.5,
+    "solExact": 94.8,
     "solRank": 1,
     "nModels": 42,
-    "solLead": 1.3,
-    "opusExact": 93.2,
+    "solLead": 1.2,
+    "opusExact": 93.6,
     "opusRank": 2,
     "sol56Rank": 3,
-    "sol56Exact": 92.9,
-    "lunaExact": 91.6,
+    "sol56Exact": 93.3,
+    "lunaExact": 92.1,
     "lunaRank": 4,
     "lunaCost": 0.0019,
     "solCost": 0.0271,
     "opusCost": 0.0675,
-    "opus5BoardExact": 83.6,
-    "opus5AutoExact": 89.6,
-    "opusGap": 9.6,
-    "scoredOutputs": 1929,
+    "opus5BoardExact": 84.0,
+    "opus5AutoExact": 90.0,
+    "opusGap": 9.5,
+    "scoredOutputs": 1918,
     "totalOutputs": 1984,
-    "regenerated": 23,
-    "excluded": 55
+    "regenerated": 12,
+    "excluded": 66
   },
   "data": [
     {

@@ -51,14 +51,14 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
 - `population_weight_artifact`, with the committed scoring-weight path and
   sha256
 - `audit_annotation_artifacts`, with the row and case audit file hashes. The
-  frozen annotations cover 7,493 scored rows whose legacy threshold score is
-  below 1: 7,489 of 7,489 exact-match misses and four exact hits. Another 1,842
+  frozen annotations cover 7,051 scored rows whose legacy threshold score is
+  below 1: 7,047 of 7,047 exact-match misses and four exact hits. Another 1,841
   scored rows have bounded score below 100 but were outside that selection and are not
   annotated. A judge_provenance block tallies which judge model produced each
   case verdict.
 - `reference_exclusions`, with the outputs removed from scoring for every model
   because their reference rests on a defect in the reference engine or depends
-  on an input the prompt never states (55 in this snapshot; 1,929 of 1,984
+  on an input the prompt never states (66 in this snapshot; 1,918 of 1,984
   outputs per model are scored), the file's hash, and the tallies by unlisted
   input and by engine-defect root cause.
 - `reproducibility_notes`, covering model-alias instability and what is not

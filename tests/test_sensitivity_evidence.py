@@ -239,13 +239,17 @@ def test_by_variable_assets_recompute_on_the_scored_reference():
         pd.testing.assert_frame_equal(
             committed, expected, check_exact=False, atol=1e-9, check_dtype=False
         )
-        assert committed.loc[committed["variable"] == "snap", "n"].item() == 94
-        assert (
-            committed.loc[
-                committed["variable"] == "person_medicare_eligible", "n"
-            ].item()
-            == 172
+        # n counts the scored reference outputs in each program's group, so
+        # an excluded output leaves it.
+        scored_per_group = (
+            reference["variable"].map(output_group_id).value_counts().to_dict()
         )
+        for group in ("snap", "person_medicare_eligible"):
+            assert (
+                committed.loc[committed["variable"] == group, "n"].item()
+                == scored_per_group[group]
+            )
+        assert scored_per_group["snap"] < 100  # SNAP exclusions leave n
 
 
 def _doc_program_table(text: str, header: str) -> dict[str, tuple[float, float, float]]:

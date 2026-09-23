@@ -149,10 +149,10 @@ def test_scoring_ignores_excluded_outputs_symmetrically(tmp_path: Path):
 
 def test_frozen_snapshot_carries_the_exclusion_record():
     scored, exclusions = scored_reference_for(RUN_DIR / "reference_outputs.csv")
-    assert len(exclusions) == 55
+    assert len(exclusions) == 66
     reasons = Counter(e["reason_code"] for e in exclusions)
     assert reasons == Counter(
-        {"reference_engine_defect": 31, "reference_depends_on_unlisted_input": 24}
+        {"reference_engine_defect": 44, "reference_depends_on_unlisted_input": 22}
     )
     inputs = {
         e["unlisted_input"]
@@ -164,7 +164,7 @@ def test_frozen_snapshot_carries_the_exclusion_record():
         "months_receiving_social_security_disability",
     } <= inputs
     reference = pd.read_csv(RUN_DIR / "reference_outputs.csv")
-    assert len(scored) == len(reference) - 55
+    assert len(scored) == len(reference) - len(exclusions)
     verify_exclusions_against_reference(reference, exclusions)
 
 

@@ -44,6 +44,7 @@ import json
 import re
 import shutil
 import subprocess
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -74,7 +75,7 @@ from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
 # Configuration for the September 2026 US-only populace refresh (42-model
-# board, September 22 references: 23 regenerated under the publication rule).
+# board, September 22 references: 12 regenerated under the publication rule).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -100,8 +101,8 @@ SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
 # is the exact payload uploaded as dashboard-data-20260922 (the 42-model board:
 # the 39-model dashboard-data-20260905c board plus Claude Opus 5.5, GPT-6 Sol and
-# GPT-6 Luna, on the September 22 references: 23 references regenerated under
-# the publication rule, and 55 outputs excluded from scoring for every model, per
+# GPT-6 Luna, on the September 22 references: 12 references regenerated under
+# the publication rule, and 66 outputs excluded from scoring for every model, per
 # reference_exclusions.json). Superseded tags: 20260905c (39 models, v1.1
 # references, eleven exclusions); 20260905 carried the judge's prompt_ambiguity
 # verdict before adjudication; 20260905b scored all 1,984 outputs.
@@ -113,8 +114,8 @@ PUBLISHED_DASHBOARD_ARTIFACT = {
         "https://github.com/PolicyEngine/policybench/releases/download/"
         "dashboard-data-20260922/dashboard-data.json"
     ),
-    "sha256": "a4eadbbc9d329b09a33183117596c2c34cd41df69bad56c767bf60e2a9e8edf8",
-    "bytes": 116_127_282,
+    "sha256": "5b738d4b2d2714c7c4eb7e88a22c361f91c6740b265b28e869794fae8a604471",
+    "bytes": 116_403_352,
 }
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
@@ -382,6 +383,15 @@ def developer_adjudications_block() -> dict:
             "entries the judge flagged."
         ),
     }
+
+
+def _response_window_phrase(window: str) -> str:
+    """'2026-06-12 to 2026-09-22' -> 'June 12 and September 22, 2026'."""
+    start, end = (date.fromisoformat(part.strip()) for part in window.split(" to "))
+    first = f"{start:%B} {start.day}"
+    if start.year != end.year:
+        first += f", {start.year}"
+    return f"{first} and {end:%B} {end.day}, {end.year}"
 
 
 def _count(values) -> dict[str, int]:
@@ -1380,9 +1390,10 @@ def build_manifest(
             "are byte-identical to the corresponding compact source-run "
             "artifacts copied under "
             f"paper/snapshot/{SNAPSHOT_DIR_NAME}/runs/.",
-            "Model responses were collected in waves between June 12 and "
-            "September 1, 2026, as models were added to the board; each model's "
-            "full 100-household run is a single consistent wave. Reference "
+            "Model responses were collected in waves between "
+            f"{_response_window_phrase(MODEL_RESPONSE_DATE)}, as models were "
+            "added to the board; each model's full 100-household run is a "
+            "single consistent wave. Reference "
             "outputs were generated with policyengine.py "
             f"{reference_refresh['policyengine_version']} and policyengine-us "
             f"{reference_refresh['policyengine_us_version']} against the "

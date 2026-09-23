@@ -60,17 +60,17 @@
   "split": "public",
   "split_seed": 1042,
   "task": "reference_outputs",
-  "reference_csv_sha256": "7918105f979c1e28218a88fba951b24c1bd6597e294f4675980b91393ed27d37",
+  "reference_csv_sha256": "18e10470d6535dbed9d83bd63db8e174d287c60cf64dc108fc6a3ad2bbd501b9",
   "revisions": [
     {
       "date": "2026-09-22",
       "convention": "c_snap_hold_fy2026",
       "outputs": "snap",
-      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. SNAP October-December 2026 hold the FY2026 figures (maximum allotment, deductions, shelter cap, utility allowances, poverty guidelines, minimum allotment), the last published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. Statutory rounding: minimum allotment to the nearest dollar, 30% of net income rounded up (7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)).",
-      "basis": "7 U.S.C. 2012(u), 2017(a); 7 CFR 273.10(e)(2)(ii)",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances, and the SNAP poverty guidelines), the last published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The engine's own benefit formulas are unchanged; their rounding defects are the engine-defect root causes r26, r27 and r28, measured on top of this convention.",
+      "basis": "7 U.S.C. 2012(u), 2017(a); USDA FY2026 SNAP COLA memorandum (signed 2025-08-14)",
       "engine_version": "policyengine-us 1.755.4",
-      "fix_module": "r13_hold_fy2026_v2.py",
-      "fix_module_sha256": "ce5e4ffa550ec05cf20ff3af8e8178ed1e4502ec2de56018bb4b4df1fd37c799",
+      "fix_module": "r13_hold_fy2026_v3.py",
+      "fix_module_sha256": "f3e3f4b0d06c5a85e7eb5c45f0b76765990c6c9ade0a9659002ffd2d5675273d",
       "applied_together_with": [
         "c_ca_hold_2025",
         "c_id_hold_2025",
@@ -84,52 +84,10 @@
       "excluded_outputs_untouched": true,
       "changed": [
         {
-          "scenario_id": "scenario_008",
-          "variable": "snap",
-          "frozen": 15246.9052734375,
-          "regenerated": 15120.0
-        },
-        {
-          "scenario_id": "scenario_012",
-          "variable": "snap",
-          "frozen": 4952.08935546875,
-          "regenerated": 4884.0
-        },
-        {
-          "scenario_id": "scenario_027",
-          "variable": "snap",
-          "frozen": 287.68316650390625,
-          "regenerated": 288.0
-        },
-        {
-          "scenario_id": "scenario_030",
-          "variable": "snap",
-          "frozen": 287.68316650390625,
-          "regenerated": 288.0
-        },
-        {
-          "scenario_id": "scenario_038",
-          "variable": "snap",
-          "frozen": 7286.9443359375,
-          "regenerated": 7212.0
-        },
-        {
           "scenario_id": "scenario_043",
           "variable": "snap",
           "frozen": 3596.039794921875,
           "regenerated": 3576.0
-        },
-        {
-          "scenario_id": "scenario_045",
-          "variable": "snap",
-          "frozen": 287.68316650390625,
-          "regenerated": 288.0
-        },
-        {
-          "scenario_id": "scenario_054",
-          "variable": "snap",
-          "frozen": 6125.68896484375,
-          "regenerated": 6060.0
         },
         {
           "scenario_id": "scenario_066",
@@ -138,34 +96,10 @@
           "regenerated": 3576.0
         },
         {
-          "scenario_id": "scenario_073",
-          "variable": "snap",
-          "frozen": 287.68316650390625,
-          "regenerated": 288.0
-        },
-        {
-          "scenario_id": "scenario_079",
-          "variable": "snap",
-          "frozen": 2428.017333984375,
-          "regenerated": 2376.0
-        },
-        {
           "scenario_id": "scenario_080",
           "variable": "snap",
           "frozen": 3596.039794921875,
           "regenerated": 3576.0
-        },
-        {
-          "scenario_id": "scenario_108",
-          "variable": "snap",
-          "frozen": 287.68316650390625,
-          "regenerated": 288.0
-        },
-        {
-          "scenario_id": "scenario_109",
-          "variable": "snap",
-          "frozen": 8020.55419921875,
-          "regenerated": 7932.0
         }
       ]
     },

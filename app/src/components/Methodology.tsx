@@ -244,9 +244,10 @@ export default function Methodology({
         </SectionCard>
 
         <SectionCard title="Cost basis">
-          Each frozen row uses its recorded per-call cost: provider-reported
-          where the provider returns one, otherwise reconstructed at the
-          configured list price at request time. List-price overrides apply at
+          Each frozen row uses its recorded per-call cost: reconstructed from
+          token counts at the list price configured at request time, or the
+          provider-reported charge where no reconstruction was available.
+          List-price overrides apply at
           request time, not retroactively to recorded costs. Models without
           per-call costs use the frozen release-metadata cost.
         </SectionCard>

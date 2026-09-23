@@ -184,14 +184,14 @@ def test_load_validates_the_record(tmp_path: Path):
 
 def test_committed_record_is_applied_to_the_frozen_annotations():
     entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
-    assert len(entries) == 61
+    assert len(entries) == 72
     assert Counter(e["adjudicated_failure_source"] for e in entries) == Counter(
-        {"reference_engine_defect": 31, "prompt_ambiguity": 24, "llm_error": 6}
+        {"reference_engine_defect": 44, "prompt_ambiguity": 22, "llm_error": 6}
     )
     # Every excluded output has its adjudication; the six llm_error entries are
     # the references a flag questioned and the adjudication affirmed or replaced
     # with a regenerated reference.
-    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 55
+    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 66
     keys = {(e["scenario_id"], e["variable"]) for e in entries}
     assert ("scenario_064", "ssi") in keys and (
         "scenario_074",
@@ -217,21 +217,21 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert set(zip(ambiguous["scenario_id"], ambiguous["variable"])) <= keys
     manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
     block = manifest["audit_annotation_artifacts"]["developer_adjudications"]
-    assert block["cases"] == 61
+    assert block["cases"] == 72
     assert block["by_judge_verdict"] == {
-        "llm_error": 42,
+        "llm_error": 53,
         "prompt_ambiguity": 2,
         "reference_engine_defect": 9,
         "reference_model_issue_fixed": 8,
     }
     assert block["judge_flagged_by_reference_verdict"] == {
         "affirmed": 5,
-        "engine_defect": 22,
+        "engine_defect": 25,
         "regenerated": 1,
-        "unlisted_input": 8,
+        "unlisted_input": 7,
     }
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
-    assert manifest["reference_exclusions"]["outputs"] == 55
+    assert manifest["reference_exclusions"]["outputs"] == 66
 
 
 def test_verify_requires_agreement_with_the_complete_record():

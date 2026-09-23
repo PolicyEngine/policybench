@@ -65,11 +65,11 @@ be described as faithful reasoning traces.
 
 ## Audit scope
 
-The frozen US annotations cover 7,493 scored rows selected because their
-legacy threshold score is below 1 (1,918 further annotated rows sit on the 55
+The frozen US annotations cover 7,051 scored rows selected because their
+legacy threshold score is below 1 (2,375 further annotated rows sit on the 66
 excluded outputs and are description, not audit). This audit universe contains
-7,489 of the snapshot's 7,489 exact-match misses and four exact hits. Another
-1,842 scored rows have a bounded score below 100 but fall outside the
+7,047 of the snapshot's 7,047 exact-match misses and four exact hits. Another
+1,841 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
 CLI for 314 cases, Claude Opus 5 through the Claude Code CLI for 183 cases the
@@ -79,23 +79,26 @@ audit_annotation_artifacts.judge_provenance block carries the tally. Verdicts
 change no score. A judge verdict outside the final classes, and every
 reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's original
-verdict beside the decision and the reasoning. This snapshot carries 61: one
+verdict beside the decision and the reasoning. This snapshot carries 72: one
 for each excluded output, plus the flagged references the adjudication
 affirmed or replaced with a regenerated reference.
 
-Fifty-five outputs in 37 households are excluded from scoring for every model
+Sixty-six outputs in 44 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
-manifest). Thirty-one rest on defects in policyengine-us 1.755.4 across twelve
+manifest). Forty-four rest on defects in policyengine-us 1.755.4 across fourteen
 root causes: each root cause's rule was implemented as a sandbox fix on that
 engine version, every reference was recomputed under it, and every output
-that moved by more than a dollar is excluded. Twenty-four depend on an input the
+that moved by more than a dollar is excluded. The engine's SNAP rounding
+defects (cents in the allotment, an unrounded minimum benefit, California's
+net-income rounding) are measured against the SNAP publication convention's
+reference, the value that would otherwise be published. Twenty-two depend on an input the
 prompt never states, such as the SSI disability criterion, months of SSDI
 receipt, weekly hours worked, the type of survivor benefits, who paid for the
 coverage behind a disability benefit, or whether an adult tax dependent is the
 filers' child; each was recomputed under the other reading a careful reader
 could take, and it moved. Exclusion is symmetric: rows that matched the frozen
 reference leave the score with rows that did not, so every model is scored on
-1,929 of its 1,984 requested outputs. The rows on those outputs stay annotated
+1,918 of its 1,984 requested outputs. The rows on those outputs stay annotated
 with their exclusion's class as description; no scored row carries a
 descriptive class. Do not read a $0 SSI reference for a disabled under-65
 household member as a finding about that person's SSI eligibility.
@@ -103,10 +106,10 @@ household member as a finding about that person's SSI eligibility.
 A scored reference follows from the stated facts and from law published before
 the references were frozen on 2026-07-03. Where policyengine-us projected a
 2026 amount with a price index, the reference takes the amount published
-before the freeze or, where none was, the last one published: 23 references
-were regenerated with the same engine version on that rule (14 SNAP outputs,
+before the freeze or, where none was, the last one published: 12 references
+were regenerated with the same engine version on that rule (three SNAP outputs,
 whose October to December months hold the FY2026 figures, and nine in federal
-and state income tax). The reference sidecar records each regenerated value
+and state income tax). A convention changes parameter values only. The reference sidecar records each regenerated value
 with the fix that produced it.
 
 Canonical runs require numeric answers and explanations for each requested
@@ -208,9 +211,9 @@ the site's types and leaderboard already filter on `condition`.
 
 ## Cost basis
 
-Each frozen row uses its recorded per-call cost: provider-reported where the
-provider returns one, otherwise reconstructed at the configured list price at
-request time. List-price overrides apply at request time, not retroactively to
+Each frozen row uses its recorded per-call cost: reconstructed from token counts
+at the list price configured at request time, or the provider-reported charge
+where no reconstruction was available. List-price overrides apply at request time, not retroactively to
 recorded costs. Models without per-call costs use the frozen release-metadata
 cost. Published model costs retain these recorded totals rather than repricing
 past calls at today's rates.

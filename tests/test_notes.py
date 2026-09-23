@@ -482,12 +482,15 @@ def test_reference_audit_note_facts() -> None:
         "defectOutputs": len(defects),
         "defectHouseholds": len({e["scenario_id"] for e in defects}),
         "defectRootCauses": len(root_causes),
+        # Each flagged engine-defect verdict is one of the excluded outputs.
+        "defectUnflagged": len(defects) - verdicts.count("engine_defect"),
         "unlistedOutputs": sum(
             e["reason_code"] == "reference_depends_on_unlisted_input"
             for e in exclusions
         ),
         "regenerated": len(regenerated),
         "regeneratedSnap": sum(variable == "snap" for _, variable in regenerated),
+        "snapDefectOutputs": sum(e["variable"] == "snap" for e in defects),
         "scoredOutputs": board_rows[0]["n"],
     }
     assert len(flagged) == sum(
@@ -495,4 +498,10 @@ def test_reference_audit_note_facts() -> None:
         for v in ("affirmed", "regenerated", "unlisted_input", "engine_defect")
     )
     assert {row["n"] for row in board_rows} == {derived["scoredOutputs"]}
+    flagged_defects = {
+        (a["scenario_id"], a["variable"])
+        for a in flagged
+        if a["reference_verdict"] == "engine_defect"
+    }
+    assert flagged_defects <= {(e["scenario_id"], e["variable"]) for e in defects}
     assert note["facts"] == derived

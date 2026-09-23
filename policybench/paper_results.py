@@ -1088,6 +1088,32 @@ class PaperResults:
         return self.audit_flagged_by_verdict.get(verdict, 0)
 
     @property
+    def engine_defect_unflagged_count(self) -> int:
+        """Engine-defect exclusions no judge flagged: the fix sweeps found them."""
+        return self.engine_defect_exclusion_count - self.audit_flagged_count(
+            "engine_defect"
+        )
+
+    @property
+    def snap_engine_defect_exclusion_count(self) -> int:
+        """SNAP outputs excluded for an engine defect (the SNAP rounding defects)."""
+        return sum(
+            1
+            for e in self.reference_exclusions
+            if e["reason_code"] == ENGINE_DEFECT and e["variable"] == "snap"
+        )
+
+    @cached_property
+    def fable51_auto_uplift_fmt(self) -> str:
+        """Claude Fable 5.1's tool_choice auto sensitivity minus its board row."""
+        summary = json.loads(
+            (
+                ROOT / "sensitivity" / "data" / "claude-fable-5-1-thinking.json"
+            ).read_text()
+        )
+        return f"{summary['delta_exact']:.1f}"
+
+    @property
     def excluded_output_households_by_reason(self) -> dict[str, int]:
         households: dict[str, set[str]] = {}
         for entry in self.reference_exclusions:

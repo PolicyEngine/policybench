@@ -3,26 +3,29 @@
   "date": "2026-09-22",
   "title": "A stronger judge audits the references",
   "paragraphs": [
-    "Claude Opus 5.5 judged the misses in the cases the September 22 additions joined, and it flagged {flagged} references as suspect. Each flag was settled against statutes, regulations, agency publications and runs of the reference engine. The adjudication affirmed {affirmed}, replaced {regeneratedFlagged} under the publication rule below, traced {unlistedFlagged} to an input the prompt never states, and confirmed {defectFlagged} as defects in policyengine-us {engineVersion}.",
-    "Flags sample defects without bounding them. Each defect's rule was implemented as a fix on the same engine version and all {totalOutputs} references were recomputed under it: {defectOutputs} outputs in {defectHouseholds} households moved by more than a dollar, across {defectRootCauses} root causes, most of them never flagged. They are excluded from scoring for every model, as are {unlistedOutputs} outputs whose reference turns on an input the prompt never states, such as who paid for the coverage behind a disability benefit. Three of the defects were fixed upstream after the references were frozen.",
+    "Claude Opus 5.5 judged the misses in the cases the September 22 additions joined, and it flagged {flagged} references as suspect. Developers settled each flag against statutes, regulations, agency publications and runs of the reference engine. The adjudication affirmed {affirmed}, replaced {regeneratedFlagged} under the publication rule below, traced {unlistedFlagged} to an input the prompt never states, and confirmed {defectFlagged} as defects in policyengine-us {engineVersion}.",
+    "Flags sample defects without bounding them. For each defect we implemented the rule as a fix on the same engine version and recomputed all {totalOutputs} references under it: {defectOutputs} outputs in {defectHouseholds} households moved by more than a dollar, across {defectRootCauses} root causes, and {defectUnflagged} of those outputs had never been flagged. They are excluded from scoring for every model, as are {unlistedOutputs} outputs whose reference turns on an input the prompt never states, such as who paid for the coverage behind a disability benefit. Three of the defects were fixed upstream after the references were frozen.",
     "The audit also tested a failure no judge flagged. policyengine-us extends a parameter past its last encoded year with a price-index projection, so a 2026 reference can rest on a forecast where a government published an amount. Recomputing every reference with each projection held found forecasts behind references in SNAP, California, the IRS sales tax tables, Wisconsin, Minnesota, Michigan, Missouri, Maryland and Idaho. The rule the benchmark now states: a scored reference follows from the household facts and from law published before the references were frozen on 2026-07-03. {regenerated} references were regenerated with the published amounts, or with the last ones published before the freeze, {regeneratedSnap} of them SNAP.",
+    "Separating the SNAP convention's parameter holds from its arithmetic exposed engine defects in SNAP itself: the engine keeps cents in the monthly allotment where federal rules require whole dollars, sets the minimum benefit at $23.84 a month where the rule rounds it to $24, and floors California's net income where CalFresh rounds it to the nearest dollar. Every SNAP output they move by more than a dollar is excluded: {snapDefectOutputs} for these defects, and the rest were already excluded because their reference turns on an input the prompt never states.",
     "Every model is now scored on {scoredOutputs} of its {totalOutputs} requested outputs. The exclusion record, the adjudications and the reference sidecar listing each regenerated value ship with the release."
   ],
   "facts": {
-    "flagged": 36,
+    "flagged": 38,
     "affirmed": 5,
     "regeneratedFlagged": 1,
-    "unlistedFlagged": 8,
-    "defectFlagged": 22,
+    "unlistedFlagged": 7,
+    "defectFlagged": 25,
     "engineVersion": "1.755.4",
     "totalOutputs": 1984,
-    "defectOutputs": 31,
-    "defectHouseholds": 22,
-    "defectRootCauses": 12,
-    "unlistedOutputs": 24,
-    "regenerated": 23,
-    "regeneratedSnap": 14,
-    "scoredOutputs": 1929
+    "defectOutputs": 44,
+    "defectHouseholds": 34,
+    "defectRootCauses": 14,
+    "defectUnflagged": 19,
+    "unlistedOutputs": 22,
+    "regenerated": 12,
+    "regeneratedSnap": 3,
+    "snapDefectOutputs": 13,
+    "scoredOutputs": 1918
   },
   "data": [
     {
