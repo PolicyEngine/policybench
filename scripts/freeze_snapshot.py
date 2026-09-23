@@ -13,7 +13,7 @@ What it freezes (all paths relative to the repo root):
 * ``paper/snapshot/<dir>/runs/<label>/`` — compact copies of the run:
   ``data.json.gz`` (extracted from the byte-pinned published dashboard and
   stored as a deterministic gzip: the plain export passed GitHub's 100 MB
-  file limit at 39 models),
+  file limit at 40 models),
   ``predictions.csv.gz`` (deterministic gzip of the run's
   ``predictions.csv``), ``scenarios.csv`` (+ ``.meta.json``),
   ``reference_outputs.csv`` (+ ``.meta.json``), and ``analysis/`` CSVs
@@ -44,6 +44,7 @@ import json
 import re
 import shutil
 import subprocess
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -52,11 +53,14 @@ import pandas as pd
 from policybench.adjudications import (
     excluded_case_keys,
     load_adjudications,
+    unresolved_suspect_cases,
     verify_adjudications_applied,
 )
 from policybench.analysis import render_markdown_report, score_single_prediction
 from policybench.full_run_export import reference_policyengine_bundles
 from policybench.reference_exclusions import (
+    ENGINE_DEFECT,
+    exclusion_basis,
     exclusion_keys,
     load_reference_exclusions,
     scored_reference_for,
@@ -70,14 +74,14 @@ from policybench.snapshot_payload import (
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the September 2026 US-only populace refresh (39-model
-# board, corrected v1.1 references).
+# Configuration for the September 2026 US-only populace refresh (42-model
+# board, September 22 references: regenerated under the publication rules).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
-SNAPSHOT_DATE = "2026-09-05"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-09-05"
+SNAPSHOT_DATE = "2026-09-22"
+MODEL_RESPONSE_DATE = "2026-06-12 to 2026-09-22"
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
 # Completed runs live under the main clone's gitignored results/local. A
@@ -90,27 +94,28 @@ _MAIN_CLONE = next(
     ),
     ROOT,
 )
-SOURCE_RUN = (_MAIN_CLONE / "results/local/newmodels/publish" / RUN_LABEL).resolve()
+SOURCE_RUN = (_MAIN_CLONE / "results/local/adds202609/publish" / RUN_LABEL).resolve()
 SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
-# is the exact payload uploaded as dashboard-data-20260905c (the 39-model board:
-# the 33-model dashboard-data-20260901c payload plus six September 2026 adds,
-# eleven outputs whose reference depends on an unlisted input excluded from
-# scoring for every model, per reference_exclusions.json). Superseded tags:
-# 20260905 carried the judge's prompt_ambiguity verdict before adjudication;
-# 20260905b scored all 1,984 outputs and classified those rows llm_error.
-PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board39.json"
+# is the exact payload uploaded as dashboard-data-20260922 (the 42-model board:
+# the 39-model dashboard-data-20260905c board plus Claude Opus 5.5, GPT-6 Sol and
+# GPT-6 Luna, on the September 22 references: references regenerated under the
+# publication rules, and outputs excluded from scoring for every model, per
+# reference_exclusions.json). Superseded tags: 20260905c (39 models, v1.1
+# references, eleven exclusions); 20260905 carried the judge's prompt_ambiguity
+# verdict before adjudication; 20260905b scored all 1,984 outputs.
+PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board42.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
-    "tag": "dashboard-data-20260905c",
+    "tag": "dashboard-data-20260922",
     "asset": "dashboard-data.json",
     "url": (
         "https://github.com/PolicyEngine/policybench/releases/download/"
-        "dashboard-data-20260905c/dashboard-data.json"
+        "dashboard-data-20260922/dashboard-data.json"
     ),
-    "sha256": "838bb3757db372fc473daf717616c1faea9254ecadfd1581d6217b1c796890a6",
-    "bytes": 109_225_250,
+    "sha256": "f91ec845cba798dd2c68ae39b4bb34133f031451e817e6400e89292382195a96",
+    "bytes": 116_140_062,
 }
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
@@ -128,6 +133,9 @@ REFERENCE_META_SOURCE = RUN_DEST / "reference_outputs.csv.meta.json"
 # board row actually received. Older supervisor state files predate treatment
 # fingerprints; those rows honestly remain registry-backed until rerun.
 RUN_STATE_EVIDENCE = {
+    "claude-opus-5.5": "results/local/adds202609/opus55/run/run_state.json",
+    "gpt-6-sol": "results/local/adds202609/gpt6sol/run/run_state.json",
+    "gpt-6-luna": "results/local/adds202609/gpt6luna/run/run_state.json",
     "claude-fable-5.1": "results/local/fable51/run/run_state.json",
     "gpt-6-astra": "results/local/newmodels/astra/run/run_state.json",
     "gemini-3.8-flash": "results/local/newmodels/gemini38flash/run/run_state.json",
@@ -159,6 +167,16 @@ AUDIT_CASES_DIR = _MAIN_CLONE / "results/local/unified_audit/audit/cases"
 JUDGE_RUNNERS = {
     "claude": "Claude Code CLI (scripts/run_audit_claude.sh)",
     "codex": "Codex CLI (scripts/run_audit_codex.sh)",
+    # Native Claude Code Workflow subagents, one per case, returning the audit
+    # schema as structured output; the sidecar carries the same fields the
+    # CLI runner writes (results/local/adds202609/judge_stages.py).
+    "workflow": (
+        "Claude Code Workflow subagents (results/local/adds202609/judge_stages.py)"
+    ),
+    # One case (scenario_020 federal tax, re-judged after its reference reverted)
+    # was judged in the Claude Code session running the add, because Workflow
+    # subagents and Subfleet Claude lanes had no capacity; its sidecar says so.
+    "session": ("Claude Code main session (results/local/adds202609/judge_stages.py)"),
 }
 
 
@@ -238,9 +256,14 @@ def audit_judge_provenance(
                 judge = "claude-opus-5"
             if judge == "default" and len(reported) == 1:
                 judge = reported[0]
+            runner_text = str(meta.get("judge_runner", ""))
             runner_key = (
                 "codex"
-                if "run_audit_codex" in str(meta.get("judge_runner", ""))
+                if "run_audit_codex" in runner_text
+                else "workflow"
+                if "Workflow" in runner_text
+                else "session"
+                if "main session" in runner_text
                 else "claude"
             )
             runner = JUDGE_RUNNERS[runner_key]
@@ -253,13 +276,19 @@ def audit_judge_provenance(
         else:
             judge, runner, day = "unknown", "unknown", ""
         entry = by_judge.setdefault(
-            judge, {"runner": runner, "cases": 0, "judged_on_utc": []}
+            judge,
+            {"runner": runner, "runners": {runner}, "cases": 0, "judged_on_utc": []},
         )
+        entry["runners"].add(runner)
         entry["cases"] += 1
         if day and day not in entry["judged_on_utc"]:
             entry["judged_on_utc"].append(day)
     for entry in by_judge.values():
         entry["judged_on_utc"].sort()
+        # One judge model can be served by more than one runner (the Opus 5.5
+        # add split its sweep between the CLI runner and Workflow subagents);
+        # the field stays a string so the manifest shape does not change.
+        entry["runner"] = " and ".join(sorted(entry.pop("runners")))
     return {
         "cases_judged": judged,
         "by_judge": dict(sorted(by_judge.items())),
@@ -268,8 +297,8 @@ def audit_judge_provenance(
             "case's verdict by sha256 (either runner), else, for a case with no "
             "sidecar, the codex.log model header when the log was written "
             "alongside the verdict (Codex runner before it wrote sidecars). "
-            "Verdicts classify misses after scoring and change no score. Both "
-            "judge models are also board rows."
+            "Verdicts classify misses after scoring and change no score. Every "
+            "judge model is also a board row."
         ),
     }
 
@@ -291,28 +320,85 @@ def reference_exclusions_block() -> dict:
     reference = pd.read_csv(RUN_DEST / "reference_outputs.csv")
     verify_exclusions_against_reference(reference, exclusions)
     by_input: dict[str, int] = {}
+    by_root_cause: dict[str, int] = {}
     for entry in exclusions:
-        by_input[entry["unlisted_input"]] = by_input.get(entry["unlisted_input"], 0) + 1
+        bucket = by_root_cause if entry["reason_code"] == ENGINE_DEFECT else by_input
+        key = exclusion_basis(entry)
+        bucket[key] = bucket.get(key, 0) + 1
     return {
         "file": EXCLUSIONS_NAME if exclusions else None,
         "outputs": len(exclusions),
         "by_unlisted_input": dict(sorted(by_input.items())),
+        "by_engine_defect_root_cause": dict(sorted(by_root_cause.items())),
         "scored_outputs_per_model": int(len(reference) - len(exclusions)),
         "note": (
-            "Outputs whose reference depends on an engine input the certified "
-            "household data never carried (so the prompt never listed it) are "
-            "removed from scoring for every model, symmetrically; their rows stay "
-            "in the payload with scored=false. Each entry records the alternative "
-            "reading and the reference under both readings, recomputed with the "
-            "engine version that produced the references."
+            "Outputs are removed from scoring for every model, symmetrically, "
+            "when the reference depends on an input or definition the prompt "
+            "never states (a careful reader could take the stated facts either "
+            "way), or when the engine that produced the reference misapplies the "
+            "law on facts the prompt states. Their rows stay in the payload with "
+            "scored=false. An unlisted-input entry records the alternative "
+            "reading and the reference under both readings; an engine-defect "
+            "entry records the root cause, the law, the upstream issue, and the "
+            "corrected value computed with the same engine version and a "
+            "sandbox fix."
         ),
     }
 
 
-def developer_adjudications_block() -> dict:
+def verify_adjudications_keep_judge_verdicts(
+    entries: list[dict], cases_dir: Path = AUDIT_CASES_DIR
+) -> None:
+    """Refuse an adjudication whose recorded judge verdict is not the judge's.
+
+    Each entry keeps the judge's class verbatim beside the adjudicated one, so
+    ``judge_failure_source`` and ``judge_failure_subtype`` must equal the case's
+    current ``verdict.json``. The annotations cannot supply them: by the time
+    the records are built, apply_adjudications has written the adjudicated
+    class into the case notes.
+    """
+    mismatched = []
+    for entry in entries:
+        verdict_path = (
+            cases_dir
+            / f"{entry['country']}__{entry['scenario_id']}__{entry['variable']}"
+            / "verdict.json"
+        )
+        if not verdict_path.is_file():
+            mismatched.append(
+                f"{entry['scenario_id']}:{entry['variable']} (no verdict)"
+            )
+            continue
+        verdict = json.loads(verdict_path.read_text())
+        recorded = (entry["judge_failure_source"], entry["judge_failure_subtype"])
+        judged = (verdict["case_failure_source"], verdict["case_failure_subtype"])
+        # A flag an earlier judge run raised stays recorded, and then says so.
+        flagged = bool(entry.get("judge_reference_suspect"))
+        if flagged != bool(verdict.get("reference_suspect")) and not (
+            flagged and entry.get("judge_reference_suspect_source")
+        ):
+            mismatched.append(
+                f"{entry['scenario_id']}:{entry['variable']} records "
+                f"judge_reference_suspect={flagged}, judge said "
+                f"{bool(verdict.get('reference_suspect'))} and no earlier run is named"
+            )
+        if recorded != judged:
+            mismatched.append(
+                f"{entry['scenario_id']}:{entry['variable']} records {recorded}, "
+                f"judge said {judged}"
+            )
+    if mismatched:
+        raise SystemExit(
+            "Adjudications must keep the judge's verdict verbatim: "
+            + "; ".join(mismatched)
+        )
+
+
+def developer_adjudications_block(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
     """Summarize the committed adjudication record for the manifest."""
     path = ANNOTATIONS_DEST / ADJUDICATIONS_NAME
     entries = load_adjudications(path)
+    verify_adjudications_keep_judge_verdicts(entries, cases_dir)
     return {
         "file": ADJUDICATIONS_NAME if entries else None,
         "cases": len(entries),
@@ -326,14 +412,42 @@ def developer_adjudications_block() -> dict:
         )
         if entries
         else {},
+        "by_reference_verdict": _count(
+            e["reference_verdict"] for e in entries if e.get("reference_verdict")
+        ),
+        "judge_flagged_by_reference_verdict": _count(
+            e["reference_verdict"]
+            for e in entries
+            if e.get("judge_reference_suspect") and e.get("reference_verdict")
+        ),
         "note": (
             "Judge verdicts outside the final classes (llm_error, "
             "parse_contract_failure) are resolved by a recorded developer "
             "adjudication that keeps the judge's verdict and reasoning beside "
             "the adjudicated class; applied to the bundle before export so the "
-            "published payload and the frozen annotations agree."
+            "published payload and the frozen annotations agree. Every case the "
+            "judge flagged reference-suspect carries a reference verdict "
+            "(affirmed, regenerated, engine_defect, unlisted_input, later_law) "
+            "that clears the flag; judge_reference_suspect records which "
+            "entries the judge flagged."
         ),
     }
+
+
+def _response_window_phrase(window: str) -> str:
+    """'2026-06-12 to 2026-09-22' -> 'June 12 and September 22, 2026'."""
+    start, end = (date.fromisoformat(part.strip()) for part in window.split(" to "))
+    first = f"{start:%B} {start.day}"
+    if start.year != end.year:
+        first += f", {start.year}"
+    return f"{first} and {end:%B} {end.day}, {end.year}"
+
+
+def _count(values) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for value in values:
+        counts[str(value)] = counts.get(str(value), 0) + 1
+    return dict(sorted(counts.items()))
 
 
 # Legacy household-equal impact metric (removed from the package in #58 but
@@ -1169,11 +1283,21 @@ def freeze_annotations() -> dict[str, str]:
     # adjudicated classes; refuse to freeze a bundle that disagrees with the
     # committed record.
     adjudications = load_adjudications(adjudications_path)
+    frozen_cases = pd.read_csv(ANNOTATIONS_DEST / "us_case_notes.csv")
     verify_adjudications_applied(
         pd.read_csv(ANNOTATIONS_DEST / "us_audit_row_annotations.csv"),
-        pd.read_csv(ANNOTATIONS_DEST / "us_case_notes.csv"),
+        frozen_cases,
         adjudications,
     )
+    # A snapshot carries no open reference question: every case the judge
+    # flagged reference-suspect has a developer reference verdict (affirmed,
+    # or excluded as an engine defect or an unlisted input).
+    unresolved = unresolved_suspect_cases(frozen_cases, adjudications)
+    if unresolved:
+        raise SystemExit(
+            f"{len(unresolved)} reference-suspect case(s) have no developer "
+            f"reference verdict: {unresolved}"
+        )
 
     # The publish bundle added an Ox Alpha row annotation without its matching
     # case note. Add that deterministic aggregate note before hashing.
@@ -1315,9 +1439,10 @@ def build_manifest(
             "are byte-identical to the corresponding compact source-run "
             "artifacts copied under "
             f"paper/snapshot/{SNAPSHOT_DIR_NAME}/runs/.",
-            "Model responses were collected in waves between June 12 and "
-            "September 1, 2026, as models were added to the board; each model's "
-            "full 100-household run is a single consistent wave. Reference "
+            "Model responses were collected in waves between "
+            f"{_response_window_phrase(MODEL_RESPONSE_DATE)}, as models were "
+            "added to the board; each model's full 100-household run is a "
+            "single consistent wave. Reference "
             "outputs were generated with policyengine.py "
             f"{reference_refresh['policyengine_version']} and policyengine-us "
             f"{reference_refresh['policyengine_us_version']} against the "

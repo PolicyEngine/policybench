@@ -51,7 +51,8 @@ Structured responses are collected through the transport each model card
 records: a forced answer-schema tool call (`submit_outputs`) where the card
 selects the tool transport and the provider accepts a forced call, or the same
 fields returned as a JSON object — because the provider rejects a forced tool
-(Kimi K3, Qwen 3.8 Max, Claude Fable 5.1) or because the card selects JSON
+(Kimi K3, Qwen 3.8 Max, Claude Fable 5.1, Claude Opus 5.5) or because the card
+selects JSON
 for the family (the older Gemini and DeepSeek rows). The per-model transport
 is in the snapshot's `model_serving_config.json`.
 This is an output format, not a capability — nothing executes, no result is
@@ -64,39 +65,74 @@ be described as faithful reasoning traces.
 
 ## Audit scope
 
-The frozen US annotations cover 8,783 scored rows selected because their
-legacy threshold score is below 1 (293 further annotated rows sit on the eleven
+The frozen US annotations cover 7,583 scored rows selected because their
+legacy threshold score is below 1 (1,793 further annotated rows sit on the 52
 excluded outputs and are description, not audit). This audit universe contains
-8,780 of the snapshot's 8,780 exact-match misses and three exact hits. Another
-1,605 scored rows have a bounded score below 100 but fall outside the legacy-threshold selection
-and have no audit annotation. Two judge models produced the verdicts, both of
-them board rows: GPT-5.6 Sol through the Codex CLI for 318 cases, and Claude
-Opus 5 through the Claude Code CLI for the 350 cases a September 2026 addition
-joined; the manifest's audit_annotation_artifacts.judge_provenance block
-carries the tally. Verdicts change no score. A judge verdict outside the final
-classes is resolved by a recorded developer adjudication
-(annotations/.../us_adjudications.json). This snapshot carries eleven, one per
-excluded output: each affirms `prompt_ambiguity` and removes the output from
-scoring, keeping the judge's original verdict beside the decision and the
-reasoning: Claude Opus 5 judged six of the eleven (its prompt-ambiguity reading
-of scenario_064 SSI, and llm_error on the five Medicare outputs) and GPT-5.6 Sol
-judged five (llm_error on the three SNAP and two other SSI outputs).
+7,579 of the snapshot's 7,579 exact-match misses and four exact hits. Another
+1,843 scored rows have a bounded score below 100 but fall outside the
+legacy-threshold selection and have no audit annotation. Three judge models
+produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
+CLI for 314 cases, Claude Opus 5 through the Claude Code CLI for 183 cases the
+September 5 additions joined, and Claude Opus 5.5 for 171 cases the September
+22 additions joined or a regenerated reference changed; the manifest's
+audit_annotation_artifacts.judge_provenance block carries the tally. Verdicts
+change no score. A judge verdict outside the final classes, and every
+reference-suspect flag, is resolved by a recorded developer adjudication
+(annotations/.../us_adjudications.json), which keeps the judge's
+verdict (the case's current verdict.json; a flag an earlier judge run raised is
+kept and says so) beside the decision and the reasoning. This snapshot carries 63: one
+for each excluded output, plus the flagged references the adjudication
+affirmed or replaced with a regenerated reference.
 
-Eleven outputs in ten households are excluded from scoring for every model
+The September 22 audit implemented each defect it confirmed in policyengine-us
+1.755.4 as a sandbox fix on that engine version and recomputed every
+reference under it. Seven of those root causes were fixed in policyengine-us
+after the references were frozen (#8839, #9162, #9301, #9313, #9318 and #9363:
+capital gain distributions, New York's renter cap, the CalEITC's lookup at
+adjusted gross income, and the engine's SNAP rounding). The scored references
+they move are regenerated with the fix on the same engine version: 15
+references. An output one of them moves that an unfixed cause also moves stays
+excluded. The capital gain fix as first built also applied Wisconsin's capital
+gain exclusion to the distributions, which the upstream fix does not; that
+part is recorded as its own defect, not fixed upstream.
+
+Fifty-two outputs in 36 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
-manifest): their reference depends on an engine input the certified household
-data never carried and the prompt therefore never listed. The SSI disability
-criterion is false for every person in the June 2026 build, and months of SSDI
-receipt is never carried and never promptable. Each excluded reference was
-recomputed with policyengine-us 1.755.4 under the reading a careful reader could
-take of the stated `is disabled` or SSDI-income fact, and it moved. Exclusion is
-symmetric: rows that matched the frozen reference leave the score with rows that
-did not, so every model is scored on 1,973 of its 1,984 requested outputs. The
-rows on those outputs stay annotated (287 as `prompt_ambiguity`, six that never
-parsed as `parse_contract_failure`) as description; no scored row carries the
-ambiguity class. Do not read a $0 SSI reference
-for a disabled under-65 household member as a finding about that person's SSI
-eligibility.
+manifest). Every output a defect not fixed upstream moves by more than a dollar
+is excluded: 28 are recorded as engine-defect exclusions across the eleven such
+root causes (among them the IRA deduction's compensation limit and phase-out,
+estate income, and the heat-and-eat SNAP utility allowance that P.L. 119-21
+ended for households without an elderly or disabled member), and an output
+such a defect moves that was already excluded for an unstated input keeps that
+record. Twenty-four depend on an input the
+prompt never states, such as the SSI disability criterion, months of SSDI
+receipt, weekly hours worked, the type of survivor benefits, who paid for the
+coverage behind a disability benefit, or whether an adult tax dependent is the
+filers' child; each was recomputed under the other reading a careful reader
+could take, and it moved. Exclusion is symmetric: rows that matched the frozen
+reference leave the score with rows that did not, so every model is scored on
+1,932 of its 1,984 requested outputs. The rows on those outputs stay annotated
+as description: each carries its exclusion's class, except the 50 answers that
+never parsed, which stay parse_contract_failure; no scored row carries a
+descriptive class. The prompt states disability as one general fact
+(any of the six Current Population Survey disability-difficulty items); SSI,
+SNAP, Medicare and the tax code each apply their own determination, which no
+benchmark person carries, so a disabled person's references take the
+non-disabled path unless another listed fact establishes the determination
+(manuscript section "Disability in the household facts"). Do not read a $0 SSI
+reference for a disabled under-65 household member as a finding about that
+person's SSI eligibility.
+
+A scored reference follows from the stated facts and from law published before
+the references were frozen on 2026-07-03. Where policyengine-us projected a
+2026 amount with a price index, the reference takes the amount published
+before the freeze or, where none was, the last one published; a convention
+changes parameter values only. With the upstream fixes, 26 references in 24
+households are regenerated on the same engine version: 13 SNAP outputs, whose
+October to December months hold the FY2026 figures and whose allotments apply
+the SNAP rounding fixes, and 13 in federal and state income tax and credits.
+The reference sidecar records each regenerated value with the convention or
+fix that produced it.
 
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be
@@ -173,7 +209,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-09-05 snapshot scores
+- Activation is a snapshot decision: the current 2026-09-22 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should
@@ -197,9 +233,9 @@ the site's types and leaderboard already filter on `condition`.
 
 ## Cost basis
 
-Each frozen row uses its recorded per-call cost: provider-reported where the
-provider returns one, otherwise reconstructed at the configured list price at
-request time. List-price overrides apply at request time, not retroactively to
+Each frozen row uses its recorded per-call cost: reconstructed from token counts
+at the list price configured at request time, or the provider-reported charge
+where no reconstruction was available. List-price overrides apply at request time, not retroactively to
 recorded costs. Models without per-call costs use the frozen release-metadata
 cost. Published model costs retain these recorded totals rather than repricing
 past calls at today's rates.

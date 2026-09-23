@@ -20,8 +20,8 @@ Sources, in order of authority:
   serving treatments, their evidence kinds, and the registry commit.
 * the frozen audit annotations dir (``manifest['audit_annotation_artifacts']``)
   -- the rows selected by the legacy threshold score, their adjudicated
-  failure sources, and the fact that zero rows are reference-suspect (no
-  PolicyEngine bugs found).
+  failure sources, and the developer adjudications that settle every
+  reference-suspect flag.
 
 The qmd imports ``r`` once in an ``#| echo: false`` setup cell and then every
 inline number is a ```{python} r.field``` placeholder, so a future
@@ -32,14 +32,22 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from collections import Counter
 from functools import cached_property
 from pathlib import Path
 
 import pandas as pd
 
+from policybench.reference_exclusions import (
+    ENGINE_DEFECT,
+    LATER_LAW,
+    UNLISTED_INPUT,
+    exclusion_basis,
+    exclusion_keys,
+    load_reference_exclusions,
+)
 from policybench.reference_exclusions import FILENAME as EXCLUSIONS_FILENAME
-from policybench.reference_exclusions import exclusion_keys, load_reference_exclusions
 from policybench.snapshot_payload import read_run_payload
 
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
@@ -50,10 +58,13 @@ SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 # appear here fall back to a humanized form of the PolicyBench id.
 MODEL_DISPLAY_NAMES = {
     "gpt-6-astra": "GPT-6 Astra",
+    "gpt-6-sol": "GPT-6 Sol",
+    "gpt-6-luna": "GPT-6 Luna",
     "gpt-5.6-sol": "GPT-5.6 Sol",
     "gpt-5.6-terra": "GPT-5.6 Terra",
     "gpt-5.6-luna": "GPT-5.6 Luna",
     "claude-fable-5.1": "Claude Fable 5.1",
+    "claude-opus-5.5": "Claude Opus 5.5",
     "claude-fable-5": "Claude Fable 5",
     "claude-sonnet-5": "Claude Sonnet 5",
     "ox-alpha": "GLM-5.3-Flash (preview)",
@@ -408,11 +419,39 @@ class PaperResults:
             row["evidence"]["kind"] == "registry"
             for row in self.serving_config["models"].values()
         )
+        # Newer fingerprints also pin the reasoning setup and timeout, so the
+        # registry supplies them only for the rows whose fingerprint omits them.
+        registry_keys = {
+            "reasoning setup": "reasoning_setup",
+            "timeouts": "request_timeout_seconds",
+        }
+        run_state_rows = [
+            row
+            for row in self.serving_config["models"].values()
+            if row["evidence"]["kind"] == "run_state"
+        ]
+        fully_pinned = sum(
+            all(
+                registry_keys[label] not in row["registry_derived"]
+                for label in field_labels["registry_for_run_state"]
+            )
+            for row in run_state_rows
+        )
+        if not fully_pinned:
+            return (
+                f"Supervised-run fingerprints pin {fingerprint_counts}. "
+                f"{registry_fields.capitalize()} for every row, and all fields for "
+                f"the other {registry_count} rows, are the harness registry as "
+                "frozen in the snapshot's serving-configuration file."
+            )
+        other_fingerprinted = len(run_state_rows) - fully_pinned
         return (
-            f"Supervised-run fingerprints pin {fingerprint_counts}. "
-            f"{registry_fields.capitalize()} for every row, and all fields for "
-            f"the other {registry_count} rows, are the harness registry as frozen "
-            "in the snapshot's serving-configuration file."
+            f"Supervised-run fingerprints pin {fingerprint_counts}; "
+            f"{registry_fields} for {_sentence_count(fully_pinned).lower()} rows. "
+            f"{registry_fields.capitalize()} for the other "
+            f"{_sentence_count(other_fingerprinted).lower()} fingerprinted rows, "
+            f"and all fields for the other {registry_count} rows, are the harness "
+            "registry as frozen in the snapshot's serving-configuration file."
         )
 
     @cached_property
@@ -503,6 +542,47 @@ class PaperResults:
     @property
     def n_households_fmt(self) -> str:
         return f"{self.n_households:,}"
+
+    def _benchmark_people(self) -> list[dict]:
+        """Every person in the frozen US scenarios, with their prompt inputs."""
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        scenarios = pd.read_csv(run_dir / "scenarios.csv")
+        people = []
+        for text in scenarios["scenario_json"]:
+            scenario = json.loads(text)
+            people += scenario.get("adults", []) + scenario.get("children", [])
+        return people
+
+    @property
+    def benchmark_person_count(self) -> int:
+        return len(self._benchmark_people())
+
+    @property
+    def disabled_person_count(self) -> int:
+        """People the prompt lists with the general ``is disabled`` fact."""
+        return sum(
+            bool(person.get("inputs", {}).get("is_disabled"))
+            for person in self._benchmark_people()
+        )
+
+    @property
+    def program_disability_input_count(self) -> int:
+        """People carrying any program-specific disability input (the paper
+        says none do)."""
+        inputs = (
+            "meets_ssi_disability_criteria",
+            "months_receiving_social_security_disability",
+            "is_permanently_and_totally_disabled",
+            "retired_on_total_disability",
+            "is_incapable_of_self_care",
+            "is_permanently_disabled_veteran",
+            "is_surviving_spouse_of_disabled_veteran",
+            "is_surviving_child_of_disabled_veteran",
+        )
+        return sum(
+            any(person.get("inputs", {}).get(name) for name in inputs)
+            for person in self._benchmark_people()
+        )
 
     @property
     def n_output_groups(self) -> int:
@@ -923,10 +1003,32 @@ class PaperResults:
 
     @property
     def excluded_outputs_by_input(self) -> dict[str, int]:
+        """Unlisted-input exclusions, counted by the input they turn on."""
         counts: dict[str, int] = {}
         for entry in self.reference_exclusions:
+            if entry["reason_code"] != UNLISTED_INPUT:
+                continue
             counts[entry["unlisted_input"]] = counts.get(entry["unlisted_input"], 0) + 1
         return counts
+
+    @property
+    def excluded_outputs_by_root_cause(self) -> dict[str, int]:
+        """Engine-defect exclusions, counted by root cause."""
+        counts: dict[str, int] = {}
+        for entry in self.reference_exclusions:
+            if entry["reason_code"] != ENGINE_DEFECT:
+                continue
+            key = exclusion_basis(entry)
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    @property
+    def unlisted_input_exclusion_count(self) -> int:
+        return sum(self.excluded_outputs_by_input.values())
+
+    @property
+    def engine_defect_exclusion_count(self) -> int:
+        return sum(self.excluded_outputs_by_root_cause.values())
 
     @property
     def excluded_output_households_fmt(self) -> str:
@@ -999,6 +1101,11 @@ class PaperResults:
         return f"{entry['cases']:,}"
 
     @property
+    def audit_opus55_judged_case_count_fmt(self) -> str:
+        entry = self.audit_judge_provenance["by_judge"]["claude-opus-5-5"]
+        return f"{entry['cases']:,}"
+
+    @property
     def audit_sol_judged_case_count_fmt(self) -> str:
         entry = self.audit_judge_provenance["by_judge"]["gpt-5.6-sol"]
         return f"{entry['cases']:,}"
@@ -1007,6 +1114,178 @@ class PaperResults:
     def audit_developer_adjudications(self) -> dict:
         """Manifest summary of recorded developer adjudications."""
         return self.manifest["audit_annotation_artifacts"]["developer_adjudications"]
+
+    @property
+    def audit_flagged_by_verdict(self) -> dict[str, int]:
+        """Judge-flagged cases by the developer's reference verdict."""
+        return self.audit_developer_adjudications.get(
+            "judge_flagged_by_reference_verdict", {}
+        )
+
+    @property
+    def audit_flagged_case_count(self) -> int:
+        return sum(self.audit_flagged_by_verdict.values())
+
+    def audit_flagged_count(self, verdict: str) -> int:
+        return self.audit_flagged_by_verdict.get(verdict, 0)
+
+    @property
+    def engine_defect_unflagged_count(self) -> int:
+        """Engine-defect exclusions no judge flagged: the fix sweeps found them."""
+        return self.engine_defect_exclusion_count - self.audit_flagged_count(
+            "engine_defect"
+        )
+
+    @property
+    def snap_engine_defect_exclusion_count(self) -> int:
+        """SNAP outputs excluded for an engine defect (the SNAP rounding defects)."""
+        return sum(
+            1
+            for e in self.reference_exclusions
+            if e["reason_code"] == ENGINE_DEFECT and e["variable"] == "snap"
+        )
+
+    @cached_property
+    def fable51_auto_uplift_fmt(self) -> str:
+        """Claude Fable 5.1's tool_choice auto sensitivity minus its board row."""
+        summary = json.loads(
+            (
+                ROOT / "sensitivity" / "data" / "claude-fable-5-1-thinking.json"
+            ).read_text()
+        )
+        return f"{summary['delta_exact']:.1f}"
+
+    @property
+    def excluded_output_households_by_reason(self) -> dict[str, int]:
+        households: dict[str, set[str]] = {}
+        for entry in self.reference_exclusions:
+            households.setdefault(entry["reason_code"], set()).add(entry["scenario_id"])
+        return {reason: len(ids) for reason, ids in households.items()}
+
+    @cached_property
+    def reference_revisions(self) -> list[dict]:
+        """Revisions recorded in the frozen reference sidecar (oldest first)."""
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        meta = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+        return meta.get("revisions", [])
+
+    @property
+    def regenerated_reference_keys(self) -> set[tuple[str, str]]:
+        """Scored outputs a convention or an upstream fix regenerated."""
+        return {
+            (change["scenario_id"], change.get("variable", "snap"))
+            for revision in self.reference_revisions
+            for change in revision["changed"]
+        }
+
+    def _regenerated_keys_of_kind(self, kind: str) -> set[tuple[str, str]]:
+        return {
+            (change["scenario_id"], change.get("variable", "snap"))
+            for revision in self.reference_revisions
+            if revision.get("kind", "convention") == kind
+            for change in revision["changed"]
+        }
+
+    @property
+    def regenerated_reference_count(self) -> int:
+        return len(self.regenerated_reference_keys)
+
+    @property
+    def regenerated_snap_reference_count(self) -> int:
+        return sum(1 for _, v in self.regenerated_reference_keys if v == "snap")
+
+    @property
+    def regenerated_reference_household_count(self) -> int:
+        return len({scenario_id for scenario_id, _ in self.regenerated_reference_keys})
+
+    @property
+    def regenerated_non_snap_reference_count(self) -> int:
+        return sum(
+            1 for _, variable in self.regenerated_reference_keys if variable != "snap"
+        )
+
+    @property
+    def regenerated_by_upstream_fix_count(self) -> int:
+        """References regenerated with a fix merged upstream after the freeze."""
+        return len(self._regenerated_keys_of_kind("upstream_fix"))
+
+    @property
+    def regenerated_by_convention_count(self) -> int:
+        return len(self._regenerated_keys_of_kind("convention"))
+
+    @property
+    def upstream_fixed_root_causes(self) -> list[str]:
+        return sorted(
+            r["root_cause"]
+            for r in self.reference_revisions
+            if r.get("kind") == "upstream_fix"
+        )
+
+    @property
+    def upstream_fixed_root_cause_count(self) -> int:
+        return len(self.upstream_fixed_root_causes)
+
+    @property
+    def upstream_fix_prs_fmt(self) -> str:
+        """The policyengine-us pull requests behind the upstream fixes, in order."""
+        prs = sorted(
+            {
+                int(match)
+                for r in self.reference_revisions
+                if r.get("kind") == "upstream_fix"
+                for match in re.findall(r"policyengine-us#(\d+)", r["upstream"])
+            }
+        )
+        labels = [f"#{n}" for n in prs]
+        return (
+            ", ".join(labels[:-1]) + f" and {labels[-1]}"
+            if len(labels) > 1
+            else "".join(labels)
+        )
+
+    @property
+    def regenerated_references_by_source(self) -> dict[str, int]:
+        """Regenerated references per convention or upstream fix (may be none)."""
+        return {
+            revision.get("convention") or revision.get("root_cause"): len(
+                revision["changed"]
+            )
+            for revision in self.reference_revisions
+        }
+
+    @property
+    def publication_convention_count(self) -> int:
+        """Conventions in the reference sidecar, including any that moved no output."""
+        return sum(
+            1
+            for r in self.reference_revisions
+            if r.get("kind", "convention") == "convention"
+        )
+
+    @property
+    def later_law_exclusion_count(self) -> int:
+        return sum(
+            1 for e in self.reference_exclusions if e["reason_code"] == LATER_LAW
+        )
+
+    @property
+    def engine_defect_root_cause_count(self) -> int:
+        """Distinct root causes behind the engine-defect exclusions."""
+        causes: set[str] = set()
+        for entry in self.reference_exclusions:
+            if entry["reason_code"] == ENGINE_DEFECT:
+                causes.update(exclusion_basis(entry).split("+"))
+        return len(causes)
+
+    @property
+    def excluded_descriptive_row_count(self) -> int:
+        """Annotated rows on excluded outputs that carry a descriptive class."""
+        return sum(
+            1
+            for row in self._excluded_output_annotation_rows
+            if row["failure_source"]
+            in {"prompt_ambiguity", "reference_engine_defect", "reference_later_law"}
+        )
 
     @property
     def audit_adjudicated_case_count_fmt(self) -> str:
@@ -1139,6 +1418,9 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # platform.claude.com/docs/en/models/fable-5-1/overview ("Released
     # September 1, 2026")
     "claude-fable-5.1": "2026-09-01",
+    # Models API created_at 2026-09-21 (api.anthropic.com/v1/models, read
+    # 2026-09-22)
+    "claude-opus-5.5": "2026-09-21",
     # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
     "claude-fable-5": "2026-06-09",
     # announced and available 2026-07-24 (fortune.com, bloomberg.com,
@@ -1189,6 +1471,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # day (en.wikipedia.org/wiki/GPT-6_Astra citing Japan Today 2026-09-04);
     # the trusted-partner day is excluded under the public-availability rule
     "gpt-6-astra": "2026-09-04",
+    # openai.com/index/introducing-gpt-6-sol-and-luna (2026-09-22; API and
+    # ChatGPT availability the same day per techcrunch.com 2026-09-22)
+    "gpt-6-sol": "2026-09-22",
+    "gpt-6-luna": "2026-09-22",
     # piunikaweb.com 2026-04-17 SuperGrok beta (paid public tier)
     "grok-4.3": "2026-04-17",
     # x.ai/news/grok-4-5; techcrunch.com 2026-07-08

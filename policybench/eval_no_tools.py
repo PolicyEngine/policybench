@@ -87,12 +87,13 @@ NO_TOOLS_RESULT_COLUMNS = (
 
 # litellm resolves an unprefixed model's provider (and prices it) through its
 # model-cost map, whose remote refresh can time out mid-run and whose bundled
-# backup lags brand-new models. Register the Claude Fable line locally so
-# provider routing and cost reconstruction never depend on the remote fetch.
+# backup lags brand-new models. Register the Claude models litellm does not
+# yet price locally so provider routing and cost reconstruction never depend
+# on the remote fetch.
 # Prices come from the canonical per-million overrides so registration and
 # PolicyBench's reconstruction cannot drift apart.
-_LOCAL_CLAUDE_FABLE_MODELS = ("claude-fable-5", "claude-fable-5.1")
-for _display_id in _LOCAL_CLAUDE_FABLE_MODELS:
+_LOCAL_CLAUDE_MODELS = ("claude-fable-5", "claude-fable-5.1", "claude-opus-5.5")
+for _display_id in _LOCAL_CLAUDE_MODELS:
     _model_id = MODELS[_display_id]
     if _model_id in litellm.model_cost:
         continue
@@ -200,6 +201,7 @@ THINKING_DEFAULT_CLAUDE_MODELS = (
     "claude-fable-5-1",
     "claude-sonnet-5",
     "claude-opus-5",
+    "claude-opus-5-5",
 )
 THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS", 300

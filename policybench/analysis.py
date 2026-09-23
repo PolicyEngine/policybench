@@ -17,6 +17,7 @@ from policybench.population_weights import (
     normalize_weights,
 )
 from policybench.prompts import make_no_tools_batch_prompt
+from policybench.reference_exclusions import exclusion_basis
 from policybench.scenarios import scenario_from_dict
 from policybench.spec import (
     expand_programs_for_scenario,
@@ -2145,6 +2146,33 @@ def build_failure_modes_payload(
     }
 
 
+def _reference_exclusion_payload(entry: dict) -> dict:
+    """Serialize one exclusion record entry for the dashboard payload."""
+    item = {
+        "scenarioId": str(entry["scenario_id"]),
+        "variable": str(entry["variable"]),
+        "reasonCode": str(entry["reason_code"]),
+        "alternativeReading": str(entry["alternative_reading"]),
+        "frozenValue": float(entry["frozen_value"]),
+        "alternativeValue": float(entry["alternative_value"]),
+        "engineVersion": str(entry["engine_version"]),
+        "decidedOn": str(entry["decided_on"]),
+        "note": str(entry.get("note", "")),
+    }
+    if entry.get("unlisted_input"):
+        item["unlistedInput"] = str(entry["unlisted_input"])
+    for key, field in (
+        ("rootCause", "root_cause"),
+        ("defect", "defect"),
+        ("law", "law"),
+        ("upstream", "upstream"),
+        ("published", "published"),
+    ):
+        if entry.get(field):
+            item[key] = str(entry[field])
+    return item
+
+
 def build_dashboard_payload(
     ground_truth: pd.DataFrame,
     predictions: pd.DataFrame,
@@ -2446,7 +2474,7 @@ def build_dashboard_payload(
         exclusion = excluded_keys.get((str(row["scenario_id"]), str(row["variable"])))
         if exclusion is not None:
             prediction_item["excludedReason"] = str(exclusion["reason_code"])
-            prediction_item["excludedInput"] = str(exclusion["unlisted_input"])
+            prediction_item["excludedInput"] = exclusion_basis(exclusion)
         explanation = row.get("explanation")
         if isinstance(explanation, str) and explanation.strip():
             prediction_item["explanation"] = explanation.strip()
@@ -2526,18 +2554,7 @@ def build_dashboard_payload(
         "policyengineBundles": policyengine_bundles,
         "scenarios": scenario_payload,
         "referenceExclusions": [
-            {
-                "scenarioId": str(entry["scenario_id"]),
-                "variable": str(entry["variable"]),
-                "reasonCode": str(entry["reason_code"]),
-                "unlistedInput": str(entry["unlisted_input"]),
-                "alternativeReading": str(entry["alternative_reading"]),
-                "frozenValue": float(entry["frozen_value"]),
-                "alternativeValue": float(entry["alternative_value"]),
-                "engineVersion": str(entry["engine_version"]),
-                "decidedOn": str(entry["decided_on"]),
-                "note": str(entry.get("note", "")),
-            }
+            _reference_exclusion_payload(entry)
             for entry in (reference_exclusions or [])
         ],
         "modelStats": model_stats,

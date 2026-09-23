@@ -70,11 +70,11 @@ def test_doc_table_row_matches_the_summary():
     )
 
 
-def test_doc_table_ranks_match_the_frozen_39_model_board():
+def test_doc_table_ranks_match_the_frozen_42_model_board():
     text = DOC.read_text()
-    assert "on the 39-model board (2026-09-05)" in text
+    assert "on the 42-model board (2026-09-22)" in text
     rows = read_run_payload(RUN_DIR)["modelStats"]
-    assert len(rows) == 39
+    assert len(rows) == 42
     board_by_model = {row["model"]: row for row in rows}
 
     for label, model in SENSITIVITY_ROWS.items():
@@ -239,13 +239,17 @@ def test_by_variable_assets_recompute_on_the_scored_reference():
         pd.testing.assert_frame_equal(
             committed, expected, check_exact=False, atol=1e-9, check_dtype=False
         )
-        assert committed.loc[committed["variable"] == "snap", "n"].item() == 97
-        assert (
-            committed.loc[
-                committed["variable"] == "person_medicare_eligible", "n"
-            ].item()
-            == 172
+        # n counts the scored reference outputs in each program's group, so
+        # an excluded output leaves it.
+        scored_per_group = (
+            reference["variable"].map(output_group_id).value_counts().to_dict()
         )
+        for group in ("snap", "person_medicare_eligible"):
+            assert (
+                committed.loc[committed["variable"] == group, "n"].item()
+                == scored_per_group[group]
+            )
+        assert scored_per_group["snap"] < 100  # SNAP exclusions leave n
 
 
 def _doc_program_table(text: str, header: str) -> dict[str, tuple[float, float, float]]:

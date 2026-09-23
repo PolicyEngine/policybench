@@ -1,6 +1,7 @@
 """Outputs whose reference depends on an unlisted input are scored for no model."""
 
 import json
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
@@ -10,6 +11,7 @@ from policybench.analysis import analyze_no_tools, build_dashboard_payload
 from policybench.reference_exclusions import (
     FILENAME,
     ReferenceExclusionError,
+    exclusion_basis,
     exclusion_keys,
     load_reference_exclusions,
     scored_reference_for,
@@ -147,12 +149,82 @@ def test_scoring_ignores_excluded_outputs_symmetrically(tmp_path: Path):
 
 def test_frozen_snapshot_carries_the_exclusion_record():
     scored, exclusions = scored_reference_for(RUN_DIR / "reference_outputs.csv")
-    assert len(exclusions) == 11
-    inputs = {e["unlisted_input"] for e in exclusions}
-    assert inputs == {
+    assert len(exclusions) == 52
+    reasons = Counter(e["reason_code"] for e in exclusions)
+    assert reasons == Counter(
+        {"reference_engine_defect": 28, "reference_depends_on_unlisted_input": 24}
+    )
+    inputs = {
+        e["unlisted_input"]
+        for e in exclusions
+        if e["reason_code"] == "reference_depends_on_unlisted_input"
+    }
+    assert {
         "meets_ssi_disability_criteria",
         "months_receiving_social_security_disability",
-    }
+    } <= inputs
     reference = pd.read_csv(RUN_DIR / "reference_outputs.csv")
-    assert len(scored) == len(reference) - 11
+    assert len(scored) == len(reference) - len(exclusions)
     verify_exclusions_against_reference(reference, exclusions)
+
+
+def _defect_entry(**overrides: object) -> dict:
+    entry = {
+        "scenario_id": "scenario_001",
+        "variable": "snap",
+        "reason_code": "reference_engine_defect",
+        "root_cause": "r15_snap_mortgage_interest",
+        "defect": "SNAP shelter costs leave out the listed mortgage interest",
+        "law": "7 CFR 273.9(d)(6)(ii)(A)",
+        "alternative_reading": "Mortgage payments, including interest, count.",
+        "frozen_value": 1200.0,
+        "alternative_value": 1956.24,
+        "engine_version": "policyengine-us 1.755.4",
+        "upstream": "PolicyEngine/policyengine-us#0000",
+        "decided_on": "2026-09-22",
+        "decided_by": "developer",
+    }
+    entry.update(overrides)
+    return entry
+
+
+def test_engine_defect_entries_validate_and_name_their_root_cause(tmp_path):
+    path = tmp_path / FILENAME
+    path.write_text(json.dumps({"exclusions": [_entry(), _defect_entry()]}))
+    entries = load_reference_exclusions(path)
+    assert [exclusion_basis(e) for e in entries] == [
+        "meets_ssi_disability_criteria",
+        "r15_snap_mortgage_interest",
+    ]
+    scored, excluded = split_reference(_reference(), entries)
+    assert len(scored) == 1 and len(excluded) == 2
+
+
+def test_engine_defect_entries_require_the_defect_fields(tmp_path):
+    path = tmp_path / FILENAME
+    for field in ("root_cause", "defect", "law", "upstream"):
+        path.write_text(json.dumps({"exclusions": [_defect_entry(**{field: ""})]}))
+        with pytest.raises(ReferenceExclusionError, match=field):
+            load_reference_exclusions(path)
+    # An unlisted-input entry still needs its input; a defect entry does not.
+    path.write_text(json.dumps({"exclusions": [_entry(unlisted_input="")]}))
+    with pytest.raises(ReferenceExclusionError, match="unlisted_input"):
+        load_reference_exclusions(path)
+
+
+def test_later_law_entries_name_what_was_published(tmp_path):
+    path = tmp_path / FILENAME
+    entry = _defect_entry(
+        reason_code="reference_law_published_after_freeze",
+        root_cause="r13_snap_fy2027_parameters",
+        published="USDA-FNS FY2027 SNAP COLA memo, 2026-08-21",
+        law="7 U.S.C. 2012(u), 2017(a)",
+        upstream="",
+    )
+    path.write_text(json.dumps({"exclusions": [entry]}))
+    assert exclusion_basis(load_reference_exclusions(path)[0]) == (
+        "r13_snap_fy2027_parameters"
+    )
+    path.write_text(json.dumps({"exclusions": [entry | {"published": ""}]}))
+    with pytest.raises(ReferenceExclusionError, match="published"):
+        load_reference_exclusions(path)

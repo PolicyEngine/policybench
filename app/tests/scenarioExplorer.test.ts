@@ -200,3 +200,49 @@ describe("predictionStatus", () => {
     expect(findReferenceExclusion([SSI_EXCLUSION], null, "ssi")).toBeUndefined();
   });
 });
+
+describe("engine-defect exclusion note", () => {
+  const DEFECT_EXCLUSION: ReferenceExclusion = {
+    scenarioId: "scenario_049",
+    variable: "federal_income_tax_before_refundable_credits",
+    reasonCode: "reference_engine_defect",
+    rootCause: "r02_ira_219g",
+    defect:
+      "The engine deducts traditional IRA contributions without the active-participant phase-out",
+    law: "26 U.S.C. 219(g); IRS Notice 2025-67",
+    upstream: "PolicyEngine/policyengine-us#0000",
+    alternativeReading:
+      "Under 219(g) a covered participant above $149,000 of joint MAGI deducts nothing.",
+    frozenValue: 30543.91,
+    alternativeValue: 30702.59,
+    engineVersion: "policyengine-us 1.755.4",
+    decidedOn: "2026-09-22",
+    note: "",
+  };
+
+  test("states the defect, the law, the corrected value and the upstream issue", async () => {
+    const { default: ExclusionNote } = await import("../src/components/ExclusionNote");
+    const html = renderToStaticMarkup(
+      createElement(ExclusionNote, {
+        pred: excludedRow({
+          groundTruth: 30543.91,
+          prediction: 30702.59,
+          excludedReason: "reference_engine_defect",
+          excludedInput: "r02_ira_219g",
+        }),
+        exclusion: DEFECT_EXCLUSION,
+        isBinary: false,
+        currencySymbol: "$",
+      }),
+    );
+    expect(html).toContain("misapplies the law");
+    expect(html).toContain("active-participant phase-out");
+    expect(html).toContain("26 U.S.C. 219(g)");
+    expect(html).toContain("$30,703");
+    expect(html).toContain("$30,544");
+    expect(html).toContain("PolicyEngine/policyengine-us#0000");
+    // The engine-defect note never presents the root cause as an unlisted input.
+    expect(html).not.toContain("never listed");
+    expect(html).not.toContain("<code");
+  });
+});

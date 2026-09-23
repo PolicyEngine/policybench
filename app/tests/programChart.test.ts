@@ -21,7 +21,7 @@ describe("program bars", () => {
     const federal = bars.find(
       (b) => b.variable === "federal_income_tax_before_refundable_credits",
     )!;
-    expect(federal.exact).toBeCloseTo(69.0, 1);
+    expect(federal.exact).toBeCloseTo(76.5, 1);
     expect(federal.weightShare).toBeCloseTo(0.191, 2);
     const total = bars.reduce((sum, b) => sum + (b.weightShare ?? 0), 0);
     expect(total).toBeCloseTo(1, 3);
@@ -37,10 +37,10 @@ describe("program bars", () => {
     );
     expect(html.match(/<li /g)?.length).toBe(18);
     expect(html).toContain("Federal tax before refundable credits");
-    expect(html).toContain(">69.0%<");
+    expect(html).toContain(">76.5%<");
     expect(html).toContain(">19%<");
-    expect(html).toContain("69.0% exact");
-    expect(html).toContain("width:69%");
+    expect(html).toContain("76.5% exact");
+    expect(html).toContain("width:76.47058823529412%");
   });
 
   test("narrow rows stack the bar under the label; wide rows reserve a bar track", () => {

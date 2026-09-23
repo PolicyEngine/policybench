@@ -346,7 +346,16 @@ export type ReferenceExclusion = {
   scenarioId: string;
   variable: string;
   reasonCode: string;
-  unlistedInput: string;
+  /** Present on reference_depends_on_unlisted_input entries. */
+  unlistedInput?: string;
+  /** Present on reference_engine_defect entries. */
+  rootCause?: string;
+  defect?: string;
+  law?: string;
+  upstream?: string;
+  /** Present on reference_law_published_after_freeze entries: what was published, and when. */
+  published?: string;
+  /** Unlisted input: the other reading. Engine defect: the rule as the law states it. Later law: the published figure. */
   alternativeReading: string;
   frozenValue: number;
   alternativeValue: number;

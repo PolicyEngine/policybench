@@ -249,7 +249,7 @@ def test_snapshot_source_run_payloads_match_scope():
         ]
         assert len(country_models) == expected_models
         top_model = max(country_models, key=lambda row: row["within1pct"])
-        assert top_model["model"] == "gpt-5.6-sol"
+        assert top_model["model"] == "gpt-6-sol"
 
 
 def test_snapshot_serving_configuration_matches_frozen_roster():
@@ -370,11 +370,29 @@ def test_snapshot_serving_configuration_records_evidence_schema():
         assert evidence["source_rows_sha256"] == evidence["frozen_rows_sha256"]
         assert re.fullmatch(r"[0-9a-f]{64}", evidence["source_predictions_sha256"])
         assert evidence["fields"] == sorted(evidence["treatment_fingerprint"])
-        assert set(row["registry_derived"]) == {
-            "reasoning_setup",
-            "request_timeout_seconds",
-            "shared_completion_budget_tokens",
-        }
+        # Fingerprint version 2 and later also pins the reasoning setup, the
+        # request timeout and the shared completion budget, so no serving field
+        # is left to the registry; older fingerprints pin the four transport
+        # fields only.
+        fingerprint_version = evidence["treatment_fingerprint"].get(
+            "fingerprint_version"
+        )
+        if fingerprint_version is not None and fingerprint_version >= 2:
+            assert set(row["registry_derived"]) == set()
+            # The fields that replace the registry must be pinned.
+            assert {
+                "thinking",
+                "request_timeout_seconds",
+                "initial_completion_budget_tokens",
+            } <= set(evidence["treatment_fingerprint"])
+            if fingerprint_version >= 3:
+                assert "max_repair_rounds" in evidence["treatment_fingerprint"]
+        else:
+            assert set(row["registry_derived"]) == {
+                "reasoning_setup",
+                "request_timeout_seconds",
+                "shared_completion_budget_tokens",
+            }
         assert not evidence["run"].endswith("_thinking")
 
     assert observed == summary
@@ -581,16 +599,16 @@ def test_snapshot_copied_artifacts_match_source_runs():
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_audit_counts = {
         "us": {
-            "annotated": 8_783,
-            "exact_misses": 8_780,
-            "annotated_exact_misses": 8_780,
-            "annotated_exact_hits": 3,
-            "below_full_bounded_score": 10_388,
-            "unannotated_below_full_bounded_score": 1_605,
+            "annotated": 7_583,
+            "exact_misses": 7_579,
+            "annotated_exact_misses": 7_579,
+            "annotated_exact_hits": 4,
+            "below_full_bounded_score": 9_426,
+            "unannotated_below_full_bounded_score": 1_843,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 8_082, "parse_contract_failure": 701},
+        "us": {"llm_error": 6_926, "parse_contract_failure": 657},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -687,13 +705,16 @@ def test_snapshot_audit_annotations_have_no_orphan_rows():
             for path in sorted(ANNOTATIONS_DIR.glob(f"{country}_*_annotations.csv"))
         )
         # Rows on outputs excluded from scoring stay annotated (as description)
-        # but are not wrong rows; every one of them must carry prompt_ambiguity.
+        # but are not wrong rows; each carries its exclusion's descriptive class
+        # (or parse_contract_failure for an answer that never parsed).
         excluded = result["excluded_outputs"]
         on_excluded = annotations.merge(
             excluded, on=["scenario_id", "variable"], how="inner"
         )
         assert set(on_excluded["failure_source"]) <= {
             "prompt_ambiguity",
+            "reference_engine_defect",
+            "reference_later_law",
             "parse_contract_failure",
         }
         scored_annotations = annotations.merge(

@@ -24,12 +24,14 @@ const rows = bundle.countries.us.modelStats.filter(
 );
 
 function renderFable5Chip(): string {
+  const sensitivity = servingSensitivityFor("claude-fable-5")!;
+  const board = rows.find((row) => row.model === "claude-fable-5")!;
   return renderToStaticMarkup(
     createElement(ServingSensitivityChip, {
       modelLabel: "Claude Fable 5",
-      boardExact: 80.4266,
-      sensitivity: servingSensitivityFor("claude-fable-5")!,
-      wouldRank: 3,
+      boardExact: board.exact ?? board.score,
+      sensitivity,
+      wouldRank: wouldRank(sensitivity.autoExact, rows),
     }),
   );
 }
@@ -57,11 +59,11 @@ describe("serving sensitivity", () => {
         wouldRank: rank,
       }),
     );
-    expect(rank).toBe(3);
-    expect(html).toContain("auto 87.5 · #3");
+    expect(rank).toBe(6);
+    expect(html).toContain("auto 90.9 · #6");
     expect(html).toContain("switches Claude&#x27;s extended thinking off");
-    expect(html).toContain("would rank #3");
-    expect(html).toContain("(+7.1 against its 80.4% on the unfiltered board)");
+    expect(html).toContain("would rank #6");
+    expect(html).toContain("(+7.4 against its 83.4% on the unfiltered board)");
     expect(html).toContain("sensitivity/claude-thinking-2026-08.md");
     expect(html).toContain("issues/139");
   });
@@ -71,12 +73,12 @@ describe("serving sensitivity", () => {
     const html = renderToStaticMarkup(
       createElement(ServingSensitivityChip, {
         modelLabel: "Claude Fable 5.1",
-        boardExact: 86.9,
+        boardExact: 90.2,
         sensitivity,
         wouldRank: wouldRank(sensitivity.autoExact, rows),
       }),
     );
-    expect(html).toContain("auto 88.2 · #2");
+    expect(html).toContain("auto 91.1 · #6");
     expect(html).toContain("rejects forced tool calls");
     expect(html).toContain("compares transports");
     expect(html).toContain('href="/notes/2026-09-01-claude-fable-5-1-added"');
@@ -105,13 +107,17 @@ describe("serving sensitivity", () => {
       expect(SERVING_SENSITIVITY[run.model].autoExact).toBe(run.sensitivity.exact);
     }
     // 88.183 − 86.945 = 1.238 → +1.2; rounding first would have said +1.3.
-    expect(formatDelta(88.183, fable51Summary.board.exact)).toBe("+1.2");
+    expect(formatDelta(88.183, 86.945)).toBe("+1.2");
     expect(formatDelta(88.2, 86.945)).toBe("+1.3");
+    // The pinned Fable 5.1 pair on the frozen board: 91.067 − 90.158 = 0.909.
+    expect(
+      formatDelta(fable51Summary.sensitivity.exact, fable51Summary.board.exact),
+    ).toBe("+0.9");
     expect(formatDelta(80.775, 80.8)).toBe("−0.0");
     const fable5 = Object.values(augustSummary.runs).find(
       (run) => run.model === "claude-fable-5",
     )!;
-    expect(formatDelta(fable5.sensitivity.exact, fable5.board.exact)).toBe("+7.1");
+    expect(formatDelta(fable5.sensitivity.exact, fable5.board.exact)).toBe("+7.4");
   });
 
   test("the open panel stays inside the viewport, horizontally and vertically", () => {

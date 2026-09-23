@@ -41,8 +41,9 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
   source-run dashboard exports, snapshot CSV hashes, and per-run compact
   artefacts (`runs/<run_label>/`) including
   `predictions.csv.gz` with raw provider responses wherever the transport
-  exposed them (blank for Claude Fable 5's batch-served rows and 64 Kimi K3
-  parse failures)
+  exposed them (blank for Claude Fable 5's batch-served rows, 78 GLM-5.3 rows
+  and 64 Kimi K3 parse failures; the paper's reproducibility note computes the
+  tally from the frozen predictions)
 - `published_dashboard_artifact` and `live_dashboard_artifact`, with the
   pinned release URL, byte count, and sha256 for each dashboard payload
 - `rendered_paper_artifacts`, with the rendered PDF and web bundle hashes
@@ -51,15 +52,16 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
 - `population_weight_artifact`, with the committed scoring-weight path and
   sha256
 - `audit_annotation_artifacts`, with the row and case audit file hashes. The
-  frozen annotations cover 8,783 scored rows whose legacy threshold score is
-  below 1: 8,780 of 8,780 exact-match misses and three exact hits. Another 1,605
+  frozen annotations cover 7,583 scored rows whose legacy threshold score is
+  below 1: 7,579 of 7,579 exact-match misses and four exact hits. Another 1,843
   scored rows have bounded score below 100 but were outside that selection and are not
   annotated. A judge_provenance block tallies which judge model produced each
   case verdict.
 - `reference_exclusions`, with the outputs removed from scoring for every model
-  because their reference depends on an input the data never carried (eleven in
-  this snapshot; 1,973 of 1,984 outputs per model are scored), the file's hash,
-  and the tally by unlisted input.
+  because their reference rests on a reference-engine defect not fixed upstream
+  or depends on an input the prompt never states (52 in this snapshot; 1,932 of 1,984
+  outputs per model are scored), the file's hash, and the tallies by unlisted
+  input and by engine-defect root cause.
 - `reproducibility_notes`, covering model-alias instability and what is not
   retained locally (LiteLLM cache, since it is a generated request cache)
 

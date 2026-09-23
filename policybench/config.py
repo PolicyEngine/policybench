@@ -32,17 +32,21 @@ GPT_56_MODELS = {
     "gpt-5.6-terra": "gpt-5.6-terra",
     "gpt-5.6-luna": "gpt-5.6-luna",
 }
-# GPT-6 Astra (API availability 2026-09-04) shares the GPT-5.6 line's
+# GPT-6 Astra (API availability 2026-09-04), GPT-6 Sol and GPT-6 Luna (both
+# announced and available 2026-09-22) share the GPT-5.6 line's
 # Responses-API transport and pricing structure (cache reads at a tenth,
 # cache writes at 1.25x, doubled input and 1.5x output above 272k tokens).
 GPT_6_MODELS = {
     "gpt-6-astra": "gpt-6-astra",
+    "gpt-6-sol": "gpt-6-sol",
+    "gpt-6-luna": "gpt-6-luna",
 }
 GPT_RESPONSES_MODELS = {**GPT_56_MODELS, **GPT_6_MODELS}
 
 MODELS = {
     "claude-fable-5": "claude-fable-5",
     "claude-fable-5.1": "claude-fable-5-1",
+    "claude-opus-5.5": "claude-opus-5-5",
     "claude-opus-5": "claude-opus-5",
     "claude-opus-4.8": "claude-opus-4-8",
     "claude-opus-4.7": "claude-opus-4-7",
@@ -84,9 +88,10 @@ MODELS = {
 }
 
 # Configured per-1M-token USD list prices, keyed by the predictions.csv.gz model
-# id. The frozen row's cost is its recorded per-call cost: provider-reported
-# where the provider returns one, otherwise reconstructed at the configured
-# list price at request time. List-price overrides apply at request time, not
+# id. The frozen row's cost is its recorded per-call cost: reconstructed from
+# token counts at the list price configured at request time, or the
+# provider-reported charge where no reconstruction was available (see
+# eval_no_tools usage accounting). List-price overrides apply at request time, not
 # retroactively to recorded costs. Analysis preserves each recorded total.
 PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # GPT-5.6 list prices from OpenAI's general-availability announcement
@@ -96,6 +101,13 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # writes, $20 / $75 above 272k prompt tokens (OpenAI model page and the
     # OpenRouter mirror, retrieved 2026-09-04).
     "gpt-6-astra": {"input": 10.0, "output": 50.0},
+    # gpt-6-sol: $2 / $10 per 1M input/output, $0.20 cached input; gpt-6-luna:
+    # $0.10 / $0.50, $0.01 cached input; both double input and cache and take
+    # 1.5x output above 272k tokens (developers.openai.com/api/docs/models/
+    # gpt-6-sol and /gpt-6-luna, read 2026-09-22, the day OpenAI announced
+    # both; the Models API lists each id with created 2026-09-14).
+    "gpt-6-sol": {"input": 2.0, "output": 10.0},
+    "gpt-6-luna": {"input": 0.10, "output": 0.50},
     "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
     "gpt-5.6-terra": {"input": 2.5, "output": 15.0},
     "gpt-5.6-luna": {"input": 1.0, "output": 6.0},
@@ -149,6 +161,17 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # map carries the same figures; this fallback keeps the leaderboard priced
     # if reconstruction is unavailable. Introductory billing ($2 / $10 through
     # 2026-08-31) is intentionally not used — costs compare at standard rates.
+    # claude-opus-5-5: $4 / $20 per 1M input/output tokens, $5 five-minute
+    # cache writes and $0.20 cache reads (0.05x base input; platform.claude.com
+    # /docs/en/about-claude/pricing, read 2026-09-22). The Models API lists
+    # the id with created_at 2026-09-21. litellm's map lacked the id at
+    # onboarding; eval_no_tools registers it locally, as for the Fable line.
+    "claude-opus-5.5": {
+        "input": 4.0,
+        "output": 20.0,
+        "cache_read": 0.20,
+        "cache_write": 5.0,
+    },
     "claude-sonnet-5": {"input": 3.0, "output": 15.0},
     # Open-weight additions, per-1M USD from the OpenRouter live model list
     # (https://openrouter.ai/api/v1/models, retrieved 2026-07-05). DeepSeek

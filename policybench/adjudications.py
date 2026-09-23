@@ -38,9 +38,25 @@ REQUIRED_FIELDS = (
 )
 FINAL_SOURCES = frozenset({"llm_error", "parse_contract_failure"})
 # A developer may affirm a judge's (or override a judge's) verdict as prompt
-# ambiguity only when the output is also removed from scoring for every model
-# (see policybench.reference_exclusions); an ambiguous output is never scored.
-AFFIRMABLE_WITH_EXCLUSION = frozenset({"prompt_ambiguity"})
+# ambiguity, or record a reference engine defect, only when the output is also
+# removed from scoring for every model (see policybench.reference_exclusions);
+# an ambiguous or defective reference is never scored.
+AFFIRMABLE_WITH_EXCLUSION = frozenset(
+    {"prompt_ambiguity", "reference_engine_defect", "reference_later_law"}
+)
+# The developer's verdict on a case's reference, recorded whenever the case
+# carried a reference-suspect flag. Applying it clears the flag: "affirmed"
+# keeps the output scored against the reference; "engine_defect" and
+# "unlisted_input" go with an exclusion of the matching reason code.
+REFERENCE_VERDICTS = {
+    "affirmed": None,
+    # The flagged reference was replaced by a regenerated one under a recorded
+    # convention (the reference sidecar's revisions); the output stays scored.
+    "regenerated": None,
+    "engine_defect": "reference_engine_defect",
+    "unlisted_input": "prompt_ambiguity",
+    "later_law": "reference_later_law",
+}
 
 
 class AdjudicationError(ValueError):
@@ -75,7 +91,46 @@ def load_adjudications(path: Path) -> list[dict]:
         elif excluded:
             raise AdjudicationError(
                 f"{path}: excluded_from_scoring is only valid with "
-                f"prompt_ambiguity, got {adjudicated!r}"
+                f"{' or '.join(sorted(AFFIRMABLE_WITH_EXCLUSION))}, got {adjudicated!r}"
+            )
+        verdict = entry.get("reference_verdict")
+        if verdict is not None:
+            if verdict not in REFERENCE_VERDICTS:
+                raise AdjudicationError(
+                    f"{path}: unknown reference_verdict {verdict!r}"
+                )
+            expected = REFERENCE_VERDICTS[verdict]
+            if expected is None:
+                if excluded or adjudicated not in FINAL_SOURCES:
+                    raise AdjudicationError(
+                        f"{path}: an {verdict} reference keeps the output scored "
+                        f"with a final class, got {adjudicated!r}, excluded={excluded}"
+                    )
+            elif adjudicated != expected:
+                raise AdjudicationError(
+                    f"{path}: reference_verdict {verdict!r} requires "
+                    f"adjudicated_failure_source {expected!r}, got {adjudicated!r}"
+                )
+            if not entry.get("reference_basis"):
+                raise AdjudicationError(
+                    f"{path}: reference_verdict needs reference_basis (the law or "
+                    f"evidence the verdict rests on): {entry}"
+                )
+        if "judge_reference_suspect" in entry and not isinstance(
+            entry["judge_reference_suspect"], bool
+        ):
+            raise AdjudicationError(
+                f"{path}: judge_reference_suspect must be true or false: {entry}"
+            )
+        if entry.get("judge_reference_suspect") and not verdict:
+            raise AdjudicationError(
+                f"{path}: a case the judge flagged needs a reference_verdict: {entry}"
+            )
+        if verdict is not None:
+            pass
+        elif adjudicated in ("reference_engine_defect", "reference_later_law"):
+            raise AdjudicationError(
+                f"{path}: {adjudicated} requires a reference_verdict"
             )
         for field in ("judge_failure_source",):
             if entry[field] not in FAILURE_SOURCE_VALUES:
@@ -99,14 +154,34 @@ def _strip_adjudication_sentence(note: str) -> str:
     return note if index < 0 else note[:index]
 
 
+_REFERENCE_VERDICT_PHRASES = {
+    "affirmed": "Reference affirmed",
+    "regenerated": "Reference regenerated",
+    "engine_defect": "Reference is an engine defect; output excluded from scoring",
+    "unlisted_input": (
+        "Reference depends on an unlisted input; output excluded from scoring"
+    ),
+    "later_law": (
+        "Reference depends on law published after the reference freeze; output "
+        "excluded from scoring"
+    ),
+}
+
+
 def adjudication_sentence(entry: dict) -> str:
     """The sentence a case note carries once ``entry`` has been applied."""
-    return (
+    sentence = (
         f" Developer adjudication ({entry['adjudicated_on']}): the judge "
         f"({entry['judge_model']}) returned {entry['judge_failure_source']}; "
         f"adjudicated {entry['adjudicated_failure_source']} "
         f"({entry['adjudicated_failure_subtype']}). {entry['reasoning']}"
     )
+    verdict = entry.get("reference_verdict")
+    if verdict:
+        sentence += (
+            f" {_REFERENCE_VERDICT_PHRASES[verdict]} ({entry['reference_basis']})."
+        )
+    return sentence
 
 
 def _case_mask(frame: pd.DataFrame, entry: dict) -> pd.Series:
@@ -152,6 +227,13 @@ def apply_adjudications(
             .any(axis=1)
             .sum()
         )
+        if entry.get("reference_verdict"):
+            # The developer's verdict resolves the judge's reference-suspect
+            # flag on every row of the case, parse failures included.
+            if "reference_suspect" in rows.columns:
+                rows.loc[_case_mask(rows, entry), "reference_suspect"] = False
+            if "reference_suspect" in cases.columns:
+                cases.loc[case_mask, "reference_suspect"] = False
         cases.loc[case_mask, "case_failure_sources"] = entry[
             "adjudicated_failure_source"
         ]
@@ -235,6 +317,19 @@ def verify_adjudications_applied(
                 f"{entry['adjudicated_failure_source']!r}/"
                 f"{entry['adjudicated_failure_subtype']!r}"
             )
+        if entry.get("reference_verdict"):
+            for frame, mask, label in (
+                (rows, row_mask, "rows"),
+                (cases, case_mask, "case note"),
+            ):
+                if "reference_suspect" not in frame.columns:
+                    continue
+                flags = frame.loc[mask, "reference_suspect"].map(_truthy)
+                if flags.any():
+                    raise AdjudicationError(
+                        f"{label} of {key} still carry reference_suspect after "
+                        "the reference verdict"
+                    )
         sentence = adjudication_sentence(entry).strip()
         for note in cases.loc[case_mask, "case_annotation"].astype(str):
             if sentence not in note:
@@ -242,6 +337,33 @@ def verify_adjudications_applied(
                     f"case note for {key} does not carry the recorded adjudication "
                     "sentence (revised record not re-applied?)"
                 )
+
+
+def _truthy(value: object) -> bool:
+    return str(value).strip().lower() in {"true", "1", "yes"}
+
+
+def unresolved_suspect_cases(
+    cases: pd.DataFrame, adjudications: list[dict]
+) -> list[tuple[str, str, str]]:
+    """Cases still flagged reference-suspect with no developer reference verdict.
+
+    A frozen snapshot may not carry one: every flag the judge raises is settled
+    by an adjudication that affirms the reference or excludes the output.
+    """
+    if "reference_suspect" not in cases.columns:
+        return []
+    decided = {
+        tuple(str(e[c]) for c in CASE_KEY)
+        for e in adjudications
+        if e.get("reference_verdict")
+    }
+    flagged = cases.loc[cases["reference_suspect"].map(_truthy), CASE_KEY]
+    return [
+        tuple(str(v) for v in row)
+        for row in flagged.itertuples(index=False)
+        if tuple(str(v) for v in row) not in decided
+    ]
 
 
 def excluded_case_keys(adjudications: list[dict]) -> set[tuple[str, str]]:

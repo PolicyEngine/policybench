@@ -1,16 +1,37 @@
-"""Reference outputs excluded from scoring because the reference is not determinate.
+"""Reference outputs excluded from scoring because the reference is not sound.
 
 A benchmark output is scored only when its reference follows from the facts the
-prompt states. When a reference instead depends on an engine input the
-household facts never carried (so the prompt could not list it and the model
-could not know it), the output is excluded from scoring for every model: no
-model gains or loses from it. The record lives beside the reference CSV as
-``reference_exclusions.json`` and travels with the run into the frozen
-snapshot, where the manifest pins it.
+prompt states under the law for the benchmark year. Two cases fail that test,
+and each output that fails is excluded from scoring for every model, so no
+model gains or loses from it:
 
-Each entry names the output, the unlisted input, the alternative reading a
-careful reader could take of the stated facts, and the reference under both
-readings as recomputed with the engine version that produced the references.
+``reference_depends_on_unlisted_input``
+    The reference depends on an engine input the household facts never
+    carried, so the prompt could not list it and a careful reader could take
+    the stated facts the other way. The entry names the unlisted input and the
+    alternative reading, and records the reference under both readings.
+
+``reference_engine_defect``
+    The engine that produced the reference misapplies the law on facts the
+    prompt does state. The entry names the root cause, the defect and the law,
+    and records the frozen reference beside the corrected value, computed with
+    the same engine version and a sandbox fix that implements the rule. It
+    also points to the upstream issue or fix. A later reference version that
+    uses a fixed engine brings the output back.
+
+``reference_law_published_after_freeze``
+    The reference depends on a law or official parameter published after the
+    references were frozen, so the frozen value is the engine's projection
+    and no model could have known the governing figure when it answered. The
+    entry names what was published and when, and records the frozen
+    projection beside the value under the published figure.
+
+The record lives beside the reference CSV as ``reference_exclusions.json`` and
+travels with the run into the frozen snapshot, where the manifest pins it.
+Every entry carries ``alternative_reading`` and ``alternative_value``: for an
+unlisted input they are the other reading and the reference under it; for an
+engine defect they are the rule as the law states it and the corrected value;
+for later-published law they are the published figure and the value under it.
 Exclusion is symmetric: rows whose answer happened to match the frozen
 reference leave the score along with rows that did not.
 """
@@ -23,12 +44,14 @@ from pathlib import Path
 import pandas as pd
 
 FILENAME = "reference_exclusions.json"
-REASON_CODES = frozenset({"reference_depends_on_unlisted_input"})
-REQUIRED_FIELDS = (
+UNLISTED_INPUT = "reference_depends_on_unlisted_input"
+ENGINE_DEFECT = "reference_engine_defect"
+LATER_LAW = "reference_law_published_after_freeze"
+REASON_CODES = frozenset({UNLISTED_INPUT, ENGINE_DEFECT, LATER_LAW})
+COMMON_FIELDS = (
     "scenario_id",
     "variable",
     "reason_code",
-    "unlisted_input",
     "alternative_reading",
     "frozen_value",
     "alternative_value",
@@ -36,6 +59,13 @@ REQUIRED_FIELDS = (
     "decided_on",
     "decided_by",
 )
+REQUIRED_FIELDS_BY_REASON = {
+    UNLISTED_INPUT: COMMON_FIELDS + ("unlisted_input",),
+    ENGINE_DEFECT: COMMON_FIELDS + ("root_cause", "defect", "law", "upstream"),
+    LATER_LAW: COMMON_FIELDS + ("root_cause", "published", "law"),
+}
+# Kept for readers that predate the engine-defect reason code.
+REQUIRED_FIELDS = REQUIRED_FIELDS_BY_REASON[UNLISTED_INPUT]
 
 
 class ReferenceExclusionError(ValueError):
@@ -60,17 +90,17 @@ def load_reference_exclusions(path: Path) -> list[dict]:
         raise ReferenceExclusionError(f"{path}: 'exclusions' must be a list")
     seen: set[tuple[str, str]] = set()
     for entry in entries:
+        if entry.get("reason_code") not in REASON_CODES:
+            raise ReferenceExclusionError(
+                f"{path}: unknown reason_code {entry.get('reason_code')!r}"
+            )
         missing = [
             field
-            for field in REQUIRED_FIELDS
+            for field in REQUIRED_FIELDS_BY_REASON[entry["reason_code"]]
             if field not in entry or entry[field] in (None, "")
         ]
         if missing:
             raise ReferenceExclusionError(f"{path}: entry missing {missing}: {entry}")
-        if entry["reason_code"] not in REASON_CODES:
-            raise ReferenceExclusionError(
-                f"{path}: unknown reason_code {entry['reason_code']!r}"
-            )
         try:
             frozen = float(entry["frozen_value"])
             alternative = float(entry["alternative_value"])
@@ -88,6 +118,13 @@ def load_reference_exclusions(path: Path) -> list[dict]:
             raise ReferenceExclusionError(f"{path}: duplicate exclusion for {key}")
         seen.add(key)
     return entries
+
+
+def exclusion_basis(entry: dict) -> str:
+    """What an exclusion turns on: the unlisted input or the engine root cause."""
+    if entry["reason_code"] in (ENGINE_DEFECT, LATER_LAW):
+        return str(entry["root_cause"])
+    return str(entry["unlisted_input"])
 
 
 def exclusion_keys(exclusions: list[dict]) -> set[tuple[str, str]]:

@@ -31,6 +31,18 @@ SENSITIVITY_NOTE_PATH = ROOT / "sensitivity/claude-thinking-2026-08.md"
 CLAUDE_NOTE = "2026-09-01-claude-fable-5-1-added"
 SNAP_NOTE = "2026-09-03-six-snap-households"
 ASTRA_NOTE = "2026-09-05-gpt-6-astra-debuts-second"
+SOL6_NOTE = "2026-09-22-gpt-6-sol-debuts-first"
+AUDIT_NOTE = "2026-09-22-reference-audit"
+EXCLUSIONS_PATH = RUN_DIR / "reference_exclusions.json"
+ADJUDICATIONS_PATH = (
+    ROOT
+    / "annotations"
+    / "us_full_run_20260612_policyengine_4_16_1_populace"
+    / "us_adjudications.json"
+)
+CLAUDE_THINKING_SENSITIVITY_PATH = (
+    ROOT / "sensitivity/data/claude-thinking-2026-08.json"
+)
 ASTRA_ROWS_PATH = ROOT / "notes/data/astra_vs_sol_20260905.csv"
 TOP_MODELS = ("gpt-5.6-sol", "claude-fable-5.1", "kimi-k3")
 PLACEHOLDER = re.compile(r"\{([A-Za-z][A-Za-z0-9]*)\}")
@@ -61,8 +73,11 @@ def _frozen_release() -> str:
 # A note keeps the release its facts were checked against. Facts of a note on
 # the frozen release are recomputed here; a note on a superseded release keeps
 # the facts verified when that release was frozen (git history holds the run).
-SUPERSEDED_RELEASES = {"dashboard-data-20260901c": "2026-09-01"}
-CURRENT_RELEASE_SNAPSHOT = "2026-09-05"
+SUPERSEDED_RELEASES = {
+    "dashboard-data-20260901c": "2026-09-01",
+    "dashboard-data-20260905c": "2026-09-05",
+}
+CURRENT_RELEASE_SNAPSHOT = "2026-09-22"
 
 
 @cache
@@ -304,7 +319,8 @@ def test_astra_note_facts() -> None:
     )
 
     note = _note(ASTRA_NOTE)
-    assert note["release"] == _frozen_release()
+    if not _recompute_against_frozen_snapshot(note):
+        return
     payload = _dashboard()
     annotations = _judge_annotations()
 
@@ -376,3 +392,128 @@ def test_astra_note_facts() -> None:
         r["scenario_id"] == "scenario_074" and "medicare" in r["variable"]
         for r in expected_rows
     )
+
+
+def _rank(exact: float, rows: list[dict]) -> int:
+    """1 + rows with strictly higher exact, as the app's wouldRank does."""
+    return 1 + sum(row["exact"] > exact for row in rows)
+
+
+def _cost_per_household(row: dict) -> float:
+    return float(f"{row['costUsd'] / 100:.4f}")
+
+
+def test_gpt6_sol_note_facts() -> None:
+    note = _note(SOL6_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    board_rows = [
+        row for row in _dashboard()["modelStats"] if row["condition"] == "no_tools"
+    ]
+    by_model = {row["model"]: row for row in board_rows}
+    sol, opus, luna = (
+        by_model["gpt-6-sol"],
+        by_model["claude-opus-5.5"],
+        by_model["gpt-6-luna"],
+    )
+    sol56, opus5 = by_model["gpt-5.6-sol"], by_model["claude-opus-5"]
+    sensitivity = _load_json(CLAUDE_THINKING_SENSITIVITY_PATH)
+    opus5_auto = float(
+        sensitivity["runs"]["claude-opus-5-thinking"]["sensitivity"]["exact"]
+    )
+    meta = _load_json(REFERENCE_META_PATH)
+    regenerated = {
+        (change["scenario_id"], change.get("variable", "snap"))
+        for revision in meta["revisions"]
+        for change in revision["changed"]
+    }
+    derived = {
+        "solExact": _display_one_decimal(sol["exact"]),
+        "solRank": _rank(sol["exact"], board_rows),
+        "nModels": len(board_rows),
+        "solLead": _display_one_decimal(sol["exact"] - opus["exact"]),
+        "opusExact": _display_one_decimal(opus["exact"]),
+        "opusRank": _rank(opus["exact"], board_rows),
+        "sol56Rank": _rank(sol56["exact"], board_rows),
+        "sol56Exact": _display_one_decimal(sol56["exact"]),
+        "lunaExact": _display_one_decimal(luna["exact"]),
+        "lunaRank": _rank(luna["exact"], board_rows),
+        "lunaCost": _cost_per_household(luna),
+        "solCost": _cost_per_household(sol),
+        "opusCost": _cost_per_household(opus),
+        "opus5BoardExact": _display_one_decimal(opus5["exact"]),
+        "opus5AutoExact": _display_one_decimal(opus5_auto),
+        "opusGap": _display_one_decimal(opus["exact"] - opus5["exact"]),
+        "scoredOutputs": opus["n"],
+        "totalOutputs": sum(1 for _ in open(REFERENCES_PATH)) - 1,
+        "regenerated": len(regenerated),
+        "excluded": len(_load_json(EXCLUSIONS_PATH)["exclusions"]),
+    }
+    assert note["facts"] == derived
+    for row in (sol, opus, luna):
+        assert row["nParsed"] == row["n"]
+
+
+def test_reference_audit_note_facts() -> None:
+    note = _note(AUDIT_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    exclusions = _load_json(EXCLUSIONS_PATH)["exclusions"]
+    adjudications = _load_json(ADJUDICATIONS_PATH)["adjudications"]
+    flagged = [a for a in adjudications if a.get("judge_reference_suspect") is True]
+    verdicts = [a["reference_verdict"] for a in flagged]
+    defects = [e for e in exclusions if e["reason_code"] == "reference_engine_defect"]
+    root_causes = {cause for e in defects for cause in e["root_cause"].split("+")}
+    meta = _load_json(REFERENCE_META_PATH)
+    regenerated = {
+        (change["scenario_id"], change.get("variable", "snap"))
+        for revision in meta["revisions"]
+        for change in revision["changed"]
+    }
+    board_rows = _dashboard()["modelStats"]
+    derived = {
+        "flagged": len(flagged),
+        "affirmed": verdicts.count("affirmed"),
+        "regeneratedFlagged": verdicts.count("regenerated"),
+        "unlistedFlagged": verdicts.count("unlisted_input"),
+        "defectFlagged": verdicts.count("engine_defect"),
+        "engineVersion": meta["policyengine_bundles"]["us"]["model_version"],
+        "totalOutputs": sum(1 for _ in open(REFERENCES_PATH)) - 1,
+        "defectOutputs": len(defects),
+        "defectHouseholds": len({e["scenario_id"] for e in defects}),
+        "defectRootCauses": len(root_causes),
+        # Each flagged engine-defect verdict is one of the excluded outputs.
+        "defectUnflagged": len(defects) - verdicts.count("engine_defect"),
+        "unlistedOutputs": sum(
+            e["reason_code"] == "reference_depends_on_unlisted_input"
+            for e in exclusions
+        ),
+        "regenerated": len(regenerated),
+        "regeneratedSnap": sum(variable == "snap" for _, variable in regenerated),
+        "upstreamFixed": sum(
+            1
+            for revision in meta["revisions"]
+            if revision.get("kind") == "upstream_fix"
+        ),
+        "regeneratedByFix": len(
+            {
+                (change["scenario_id"], change["variable"])
+                for revision in meta["revisions"]
+                if revision.get("kind") == "upstream_fix"
+                for change in revision["changed"]
+            }
+        ),
+        "scoredOutputs": board_rows[0]["n"],
+    }
+    assert len(flagged) == sum(
+        verdicts.count(v)
+        for v in ("affirmed", "regenerated", "unlisted_input", "engine_defect")
+    )
+    assert {row["n"] for row in board_rows} == {derived["scoredOutputs"]}
+    flagged_defects = {
+        (a["scenario_id"], a["variable"])
+        for a in flagged
+        if a["reference_verdict"] == "engine_defect"
+    }
+    assert flagged_defects <= {(e["scenario_id"], e["variable"]) for e in defects}
+    assert note["facts"] == derived

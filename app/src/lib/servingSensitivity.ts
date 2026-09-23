@@ -1,10 +1,11 @@
 /**
  * The tool_choice: auto sensitivity runs of the Claude rows
- * (sensitivity/claude-thinking-2026-08.md), scored on the same 1,973 outputs
+ * (sensitivity/claude-thinking-2026-08.md), scored on the same outputs
  * the board scores. The board's forced answer-tool call switches Claude's
  * extended thinking off (other reasoning-by-default providers reason
  * regardless); Claude Fable 5.1 rejects forced tool calls and answers as JSON,
- * reasoning in both runs, so its comparison is one of transport. Scores are
+ * reasoning in both runs, so its comparison is one of transport. Claude Opus
+ * 5.5 rejects forced calls the same way and has no auto re-run. Scores are
  * the pinned three-decimal measurements from sensitivity/data/*.json; round
  * only for display. Each entry's "would rank" is derived from the live board
  * rows at render time, never typed by hand.
@@ -33,7 +34,7 @@ const FORCED_TOOL =
 
 export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
   "claude-fable-5": {
-    autoExact: 87.542,
+    autoExact: 90.851,
     boardTreatment: `${FORCED_TOOL}, one output per request`,
     autoTreatment:
       "re-run with tool_choice: auto and the whole household in one request",
@@ -41,14 +42,14 @@ export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-opus-5": {
-    autoExact: 86.201,
+    autoExact: 89.342,
     boardTreatment: FORCED_TOOL,
     autoTreatment: "re-run with tool_choice: auto",
     thinkingSuppressedOnBoard: true,
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-sonnet-5": {
-    autoExact: 80.775,
+    autoExact: 84.211,
     boardTreatment: `${FORCED_TOOL}, one output per request`,
     autoTreatment:
       "re-run with tool_choice: auto and the whole household in one request",
@@ -56,7 +57,7 @@ export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-fable-5.1": {
-    autoExact: 88.183,
+    autoExact: 91.067,
     boardTreatment:
       "rejects forced tool calls, so its row answers as a JSON object and reasons at the provider default",
     autoTreatment:
