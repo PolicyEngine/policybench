@@ -14,7 +14,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from freeze_snapshot import audit_judge_provenance, verdict_provenance  # noqa: E402
+from freeze_snapshot import (  # noqa: E402
+    audit_judge_provenance,
+    verdict_provenance,
+    verify_adjudications_keep_judge_verdicts,
+)
 
 from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
 
@@ -307,3 +311,36 @@ def test_backfill_binds_only_with_ownership_evidence(tmp_path: Path):
     assert by_judge == {"claude-opus-5": 2, "gpt-5.6-sol": 1, "unknown": 1}
     # Idempotent: a second pass changes nothing.
     assert backfill(cases, tolerance=600.0, dry_run=False)["already"] == 3
+
+
+def _adjudication(judge_source: str, judge_subtype: str) -> dict:
+    return {
+        "country": "us",
+        "scenario_id": "scenario_001",
+        "variable": "snap",
+        "judge_failure_source": judge_source,
+        "judge_failure_subtype": judge_subtype,
+        "adjudicated_failure_source": "reference_engine_defect",
+        "adjudicated_failure_subtype": "benefit_formula",
+    }
+
+
+def test_adjudication_keeps_the_judges_verdict_verbatim(tmp_path: Path):
+    cases = tmp_path / "cases"
+    _case(cases, "us__scenario_001__snap", VERDICT)
+    verify_adjudications_keep_judge_verdicts(
+        [_adjudication("llm_error", "thresholds_rates")], cases
+    )
+    # The adjudicated class recorded as the judge's is refused.
+    with pytest.raises(SystemExit, match="judge said"):
+        verify_adjudications_keep_judge_verdicts(
+            [_adjudication("reference_engine_defect", "thresholds_rates")], cases
+        )
+    with pytest.raises(SystemExit, match="judge said"):
+        verify_adjudications_keep_judge_verdicts(
+            [_adjudication("llm_error", "benefit_formula")], cases
+        )
+    # So is an entry whose case has no verdict to keep.
+    missing = dict(_adjudication("llm_error", "thresholds_rates"), variable="wic")
+    with pytest.raises(SystemExit, match="no verdict"):
+        verify_adjudications_keep_judge_verdicts([missing], cases)

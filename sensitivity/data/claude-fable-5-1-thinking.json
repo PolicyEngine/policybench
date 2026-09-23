@@ -10,23 +10,23 @@
       "bytes": 183014
     },
     "sensitivity-claude-fable-5-1-thinking-by-variable.csv.gz": {
-      "sha256": "5f57175ac6f1e9d738b12818359eb981a31d99046eef1abb901239495ef4e8b9",
-      "bytes": 854
+      "sha256": "ec75e07253b48345546afc85372fcbee762b37a59f5e5816d6e0857dadd482c5",
+      "bytes": 849
     }
   },
   "board": {
-    "exact": 90.109,
-    "within1pct": 91.52,
-    "score": 96.37,
+    "exact": 90.158,
+    "within1pct": 91.569,
+    "score": 96.372,
     "cost_per_household": 0.257,
     "latency_seconds": 49.12,
-    "n_parsed": 1933,
-    "n": 1933
+    "n_parsed": 1932,
+    "n": 1932
   },
   "sensitivity": {
-    "exact": 91.018,
+    "exact": 91.067,
     "would_rank": 6,
-    "within1pct": 92.447,
+    "within1pct": 92.496,
     "score": 96.892,
     "cost_per_household": 0.3481,
     "cost_usd": 34.81,
@@ -35,5 +35,5 @@
     "n": 1984
   },
   "delta_exact": 0.909,
-  "scored_against": "the frozen 42-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the fifty-one outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,933 scored outputs); exact, within-1% and the bounded score all on that universe. The fold used results/local/fable51/predictions32.csv as the incumbent base"
+  "scored_against": "the frozen 42-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 52 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,932 scored outputs); exact, within-1% and the bounded score all on that universe. The fold used results/local/fable51/predictions32.csv as the incumbent base"
 }

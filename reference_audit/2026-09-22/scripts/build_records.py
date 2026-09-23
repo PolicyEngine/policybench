@@ -47,11 +47,13 @@ AUDIT_CASES = Path(
 # The fix module whose sweep defines each root cause's moved set and values: the
 # independently verified v2 modules (sweep/verify reports, 2026-09-22). r10 keeps
 # its original module, which encodes the alternative reading of the unlisted input.
+# r04 is the faithful backport of upstream #8839; the Wisconsin exclusion the v2
+# module also applied is r32, which is not fixed upstream (split 2026-09-23).
 SWEEP_FOR = {
     "r01_ira_compensation": "r01_ira_compensation_v2",
     "r02_ira_219g": "r02_ira_219g_v2",
     "r03_estate_income": "r03_estate_income__qbi_false_v2",
-    "r04_capital_gain_distributions": "r04_capital_gain_distributions_v2",
+    "r04_capital_gain_distributions": "r04_capital_gain_distributions",
     "r05_nj_worker_ui": "r05_nj_worker_ui_v2",
     "r06_wi_act15_before_refundable": "r06_wi_act15_before_refundable_v2",
     "r07_idaho_health_premiums": "r07_idaho_health_premiums_v2",
@@ -74,17 +76,21 @@ SWEEP_FOR = {
     "r28_snap_min_allotment_rounding": "r28_snap_min_allotment_rounding",
     "r30_snap_heat_and_eat_sua": "r30_snap_heat_and_eat_sua",
     "r31_snap_income_limit_rounding": "r31_snap_income_limit_rounding",
+    "r32_wi_capital_gain_distributions": "r32_wi_capital_gain_distributions",
 }
-# The SNAP rounding defects are measured on top of the SNAP publication
-# convention (c_snap_hold_fy2026), since the convention's value is what would
-# otherwise be published: <defect>_on_c13v3.csv compares the convention alone
-# with the convention plus the defect's fix, and moved means more than $1.
+# The SNAP defects are measured on top of the SNAP publication convention
+# (c_snap_hold_fy2026), since the convention's value is what would otherwise be
+# published: <defect>_on_c13v3.csv compares the convention alone with the
+# convention plus the defect's fix, and moved means more than $1. r32 needs the
+# distributions in federal AGI, so it is measured on top of the Wisconsin
+# convention plus #8839 (r32_on_cwi_r04.csv). make_on_convention.py writes both.
 MEASURED_BY = {
     "r26_snap_contribution_rounding": "r26_on_c13v3",
     "r27_snap_net_income_rounding": "r27_on_c13v3",
     "r28_snap_min_allotment_rounding": "r28_on_c13v3",
     "r30_snap_heat_and_eat_sua": "r30_on_c13v3",
     "r31_snap_income_limit_rounding": "r31_on_c13v3",
+    "r32_wi_capital_gain_distributions": "r32_on_cwi_r04",
 }
 REASON = {
     "engine_defect": "reference_engine_defect",
@@ -171,23 +177,42 @@ def flatten(reform) -> list:
     return [reform]
 
 
+_SYSTEMS: dict[tuple[str, ...], tuple] = {}
+
+
+def _system_for(fixes: list[str]):
+    """The tax-benefit system and situation patches for a set of fixes.
+
+    Only the latest system is kept (one is several gigabytes), so callers
+    compute outputs grouped by their fix set.
+    """
+    from policyengine_us import CountryTaxBenefitSystem
+
+    key = tuple(fixes)
+    if key not in _SYSTEMS:
+        _SYSTEMS.clear()
+        reforms, patches = [], []
+        for fix in fixes:
+            reform, patch = load_fix(fix)
+            reforms.extend(flatten(reform))
+            if patch is not None:
+                patches.append(patch)
+        system = CountryTaxBenefitSystem(reform=tuple(reforms)) if reforms else None
+        _SYSTEMS[key] = (system, patches)
+    return _SYSTEMS[key]
+
+
 def combined_value(scenario_id: str, variable: str, fixes: list[str]) -> float:
     """Recompute one output with every listed fix module applied together."""
-    from policyengine_us import CountryTaxBenefitSystem, Simulation
+    from policyengine_us import Simulation
 
-    reforms, patches = [], []
-    for fix in fixes:
-        reform, patch = load_fix(fix)
-        reforms.extend(flatten(reform))
-        if patch is not None:
-            patches.append(patch)
+    system, patches = _system_for(fixes)
     scenarios = pd.read_csv(BUNDLE / "scenarios.csv")
     row = scenarios.loc[scenarios["scenario_id"] == scenario_id]
     scenario = scenario_from_dict(json.loads(row["scenario_json"].iloc[0]))
     situation = build_situation(scenario)
     for patch in patches:
         situation = patch(copy.deepcopy(situation), scenario)
-    system = CountryTaxBenefitSystem(reform=tuple(reforms)) if reforms else None
     sim = (
         Simulation(tax_benefit_system=system, situation=situation)
         if system is not None
@@ -200,6 +225,20 @@ def combined_value(scenario_id: str, variable: str, fixes: list[str]) -> float:
 
 
 PENDING_JUDGE: list[str] = []
+
+
+def judge_verdict_for(scenario_id: str, variable: str) -> tuple[str, str]:
+    """The judge's own class for the case, from its verdict.json.
+
+    Not us_case_notes.csv: apply_adjudications has already replaced the judge's
+    class there with the adjudicated one by the time this script reads it.
+    """
+    path = AUDIT_CASES / f"us__{scenario_id}__{variable}" / "verdict.json"
+    if not path.exists():
+        PENDING_JUDGE.append(f"{scenario_id}:{variable}")
+        return "pending", "pending"
+    verdict = json.loads(path.read_text())
+    return verdict["case_failure_source"], verdict["case_failure_subtype"]
 
 
 def judge_model_for(scenario_id: str, variable: str) -> str:
@@ -264,18 +303,25 @@ def main() -> None:
             item = moved.setdefault(key, {"frozen": float(r["frozen"]), "causes": {}})
             item["causes"][cause] = float(r["recomputed"])
 
-    # The publication conventions (class "convention"): the references are
-    # regenerated under them, and an excluded output's corrected value applies
-    # every convention that changes it alongside its own fixes.
-    convention_fixes = {}
-    for name, cause in causes.items():
-        if isinstance(cause, dict) and cause.get("class") == "convention":
-            frame = pd.read_csv(HERE / "sweep" / "out" / f"{cause['fix']}.csv")
-            for key in map(tuple, frame.loc[frame["delta"].abs() > 1e-6, ["scenario_id", "variable"]].values):
-                convention_fixes.setdefault(key, []).append(cause["fix"])
+    # The publication conventions and the upstream fixes: the references are
+    # regenerated under all of them together (regen_references.py), so an
+    # excluded output's corrected value applies all of them with its own fixes.
+    # A source that changes nothing for a household leaves its value alone, and
+    # one that only matters in combination (a SNAP rounding fix once r30 cuts the
+    # allotment below the maximum) still applies.
+    published_fixes = [
+        cause["fix"]
+        for cause in causes.values()
+        if isinstance(cause, dict) and cause.get("class") == "convention"
+    ] + [
+        SWEEP_FOR[name]
+        for name, cause in causes.items()
+        if isinstance(cause, dict) and cause.get("upstream_fixed")
+    ]
 
     new_exclusions, new_adjudications, summary = [], [], []
     regenerated_by_fix = []
+    decisions = {}
     for key, item in sorted(moved.items()):
         if key in existing:
             continue
@@ -294,16 +340,21 @@ def main() -> None:
         klass = next(k for k in PRECEDENCE if k in classes.values())
         primary = sorted(c for c, k in classes.items() if k == klass)
         # Corrected value: the primary class's fixes applied together, and for an
-        # engine defect also any later-law fix on the same output, with every
-        # upstream fix and convention that changes it.
+        # engine defect also any later-law fix on the same output, on top of every
+        # publication convention and upstream fix, as the published references are.
         applied = primary + sorted(
             c for c, k in classes.items() if klass == "engine_defect" and k == "later_law"
-        ) + fixed
-        fixes = [SWEEP_FOR[c] for c in applied] + convention_fixes.get(key, [])
-        if len(fixes) == 1:
-            corrected = item["causes"][applied[0]]
-        else:
-            corrected = combined_value(key[0], key[1], fixes)
+        )
+        decisions[key] = (klass, primary, [SWEEP_FOR[c] for c in applied])
+    # One system per fix set, computed in fix-set order.
+    corrected_values = {}
+    for key in sorted(decisions, key=lambda k: (decisions[k][2], k)):
+        fixes = decisions[key][2]
+        corrected_values[key] = combined_value(key[0], key[1], fixes + published_fixes)
+
+    for key, (klass, primary, fixes) in sorted(decisions.items()):
+        item = moved[key]
+        corrected = corrected_values[key]
         texts = [causes[c] for c in primary]
         others = sorted(set(item["causes"]) - set(primary))
         entry = {
@@ -331,9 +382,12 @@ def main() -> None:
             entry.pop("unlisted_input", None)
         else:
             entry.pop("root_cause", None)
-        notes = []
-        if len(fixes) > 1:
-            notes.append("Corrected value applies " + " and ".join(fixes) + " together.")
+        notes = [
+            "Corrected value applies " + " and ".join(fixes)
+            + (" together" if len(fixes) > 1 else "")
+            + " with every publication convention and upstream fix."
+        ]
+        notes += [causes[c]["exclusion_note"] for c in primary if causes[c].get("exclusion_note")]
         if others:
             notes.append(
                 "The output also moves under "
@@ -345,11 +399,9 @@ def main() -> None:
                 )
                 + "."
             )
-        if notes:
-            entry["note"] = " ".join(notes)
+        entry["note"] = " ".join(notes)
         new_exclusions.append(entry)
 
-        case = case_index.loc[key]
         verdict = {"engine_defect": "engine_defect", "unlisted_input": "unlisted_input", "later_law": "later_law"}[klass]
         new_adjudications.append(
             {
@@ -357,8 +409,8 @@ def main() -> None:
                 "scenario_id": key[0],
                 "variable": key[1],
                 "judge_model": judge_model_for(*key),
-                "judge_failure_source": str(case["case_failure_sources"]).split(";")[0],
-                "judge_failure_subtype": str(case["case_failure_subtypes"]).split(";")[0],
+                "judge_failure_source": judge_verdict_for(*key)[0],
+                "judge_failure_subtype": judge_verdict_for(*key)[1],
                 "adjudicated_failure_source": ADJUDICATED_SOURCE[klass],
                 "adjudicated_failure_subtype": causes[primary[0]]["subtype"],
                 "adjudicated_on": DECIDED_ON,
@@ -379,15 +431,14 @@ def main() -> None:
 
     # 2. Affirmed references.
     for key, spec in AFFIRMED.items():
-        case = case_index.loc[key]
         new_adjudications.append(
             {
                 "country": "us",
                 "scenario_id": key[0],
                 "variable": key[1],
                 "judge_model": judge_model_for(*key),
-                "judge_failure_source": str(case["case_failure_sources"]).split(";")[0],
-                "judge_failure_subtype": str(case["case_failure_subtypes"]).split(";")[0],
+                "judge_failure_source": judge_verdict_for(*key)[0],
+                "judge_failure_subtype": judge_verdict_for(*key)[1],
                 "adjudicated_failure_source": "llm_error",
                 "adjudicated_failure_subtype": spec["subtype"],
                 "adjudicated_on": DECIDED_ON,
@@ -425,15 +476,14 @@ def main() -> None:
                 convention = causes[revision["convention"]]
                 parts.append(f"it applies the publication rule: {convention['rule']}")
                 bases.append(convention["basis"])
-        case = case_index.loc[key]
         new_adjudications.append(
             {
                 "country": "us",
                 "scenario_id": key[0],
                 "variable": key[1],
                 "judge_model": judge_model_for(*key),
-                "judge_failure_source": str(case["case_failure_sources"]).split(";")[0],
-                "judge_failure_subtype": str(case["case_failure_subtypes"]).split(";")[0],
+                "judge_failure_source": judge_verdict_for(*key)[0],
+                "judge_failure_subtype": judge_verdict_for(*key)[1],
                 "adjudicated_failure_source": "llm_error",
                 "adjudicated_failure_subtype": "thresholds_rates",
                 "adjudicated_on": DECIDED_ON,
@@ -467,12 +517,15 @@ def main() -> None:
             meta = json.loads(meta_path.read_text())
             judged_on = str(meta.get("judged_at_utc", ""))[:10]
             if judged_on and judged_on > str(entry.get("judged_on_utc", "")):
-                case = case_index.loc[key]
                 entry["judge_model"] = judge_model_for(*key)
                 entry["judged_on_utc"] = judged_on
-                entry["judge_failure_source"] = str(case["case_failure_sources"]).split(";")[0]
-                entry["judge_failure_subtype"] = str(case["case_failure_subtypes"]).split(";")[0]
                 refreshed.append(f"{key[0]}:{key[1]}")
+        # The judge's class is always the case's current verdict.json, which the
+        # freezer checks (verify_adjudications_keep_judge_verdicts).
+        if (AUDIT_CASES / f"us__{key[0]}__{key[1]}" / "verdict.json").exists():
+            source, subtype = judge_verdict_for(*key)
+            entry["judge_failure_source"] = source
+            entry["judge_failure_subtype"] = subtype
         if key in flagged and not entry.get("reference_verdict"):
             entry["judge_reference_suspect"] = True
             entry["reference_verdict"] = "unlisted_input"

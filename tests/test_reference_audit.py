@@ -18,7 +18,6 @@ RUN_DIR = (
     / "us_full_run_20260612_policyengine_4_16_1_populace"
 )
 DECIDED_ON = "2026-09-22"
-SNAP_CONVENTION = "c_snap_hold_fy2026"
 
 
 def _load(path: Path) -> dict:
@@ -78,11 +77,14 @@ def test_sweep_rows_are_internally_consistent():
     causes = _causes()
     rows = _moves()
     pre_audit = _pre_audit_references()
-    convention_value = {
-        (row["scenario_id"], row["variable"]): row["recomputed"]
-        for row in rows
-        if row["root_cause"] == SNAP_CONVENTION
-    }
+    # The value of every output under each source or combination a defect can be
+    # measured against: a convention's rows, or a "baseline" combination's rows.
+    value_under = {}
+    for row in rows:
+        if row["class"] in ("convention", "baseline"):
+            value_under.setdefault(row["root_cause"], {})[
+                (row["scenario_id"], row["variable"])
+            ] = row["recomputed"]
     assert rows
     for row in rows:
         key = (row["root_cause"], row["scenario_id"], row["variable"])
@@ -95,7 +97,9 @@ def test_sweep_rows_are_internally_consistent():
         else:
             moved = abs(row["recomputed"] - row["baseline"]) > 1
         assert row["moved_over_1"] == moved, key
-        if row["class"] == "screen":
+        if row["class"] in ("screen", "baseline"):
+            assert row["measured_against"] == "frozen", key
+            assert row["baseline"] == row["frozen"], key
             continue
         cause = causes[row["root_cause"]]
         assert row["class"] == cause["class"], key
@@ -104,9 +108,11 @@ def test_sweep_rows_are_internally_consistent():
         if expected == "frozen":
             assert row["baseline"] == row["frozen"], key
         else:
-            # Measured on top of the SNAP convention: the baseline is the
-            # convention's value, or the frozen value where it changes nothing.
-            baseline = convention_value.get(output, row["frozen"])
+            # Measured on top of a convention or a combination of sources: the
+            # baseline is that source's value, or the frozen value where it
+            # changes nothing.
+            assert expected in value_under, (key, expected)
+            baseline = value_under[expected].get(output, row["frozen"])
             assert abs(row["baseline"] - baseline) < 1e-4, key
 
 

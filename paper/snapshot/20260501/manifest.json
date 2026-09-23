@@ -2,17 +2,18 @@
   "audit_annotation_artifacts": {
     "developer_adjudications": {
       "by_judge_verdict": {
-        "llm_error": 9,
-        "prompt_ambiguity": 23,
-        "reference_engine_defect": 30
+        "llm_error": 45,
+        "prompt_ambiguity": 2,
+        "reference_engine_defect": 11,
+        "reference_model_issue_fixed": 5
       },
       "by_reference_verdict": {
         "affirmed": 5,
-        "engine_defect": 27,
+        "engine_defect": 28,
         "regenerated": 6,
         "unlisted_input": 16
       },
-      "cases": 62,
+      "cases": 63,
       "file": "us_adjudications.json",
       "judge_flagged_by_reference_verdict": {
         "affirmed": 5,
@@ -23,10 +24,10 @@
       "note": "Judge verdicts outside the final classes (llm_error, parse_contract_failure) are resolved by a recorded developer adjudication that keeps the judge's verdict and reasoning beside the adjudicated class; applied to the bundle before export so the published payload and the frozen annotations agree. Every case the judge flagged reference-suspect carries a reference verdict (affirmed, regenerated, engine_defect, unlisted_input, later_law) that clears the flag; judge_reference_suspect records which entries the judge flagged."
     },
     "files": {
-      "us_adjudications.json": "d7c1ee928ec879ce41ee8c37e17a06bf832056df353e0a9996d73e7c99646626",
-      "us_audit_row_annotations.csv": "6db3153a883761c2200e7f3aa9f70ee9ef8c8a3d2bf43a745cf891270126ce33",
-      "us_case_notes.csv": "d631816dff006790ec803093ad0e16b437d45faddffa55533eadd9f999002cd2",
-      "us_case_reference_explanations.csv": "cf83b21a8fa7e4583b17d1f06bcb96fb2b4ceeaad0a89a22660fa0af95c8b631"
+      "us_adjudications.json": "0f4e59cbeabf7fadccae27b869183be258079d44b004c806a34bc95e6bb94af2",
+      "us_audit_row_annotations.csv": "39976271da1f8df39bba548f17f69b54b6438cff28970da46a183d31130dac04",
+      "us_case_notes.csv": "1afb6285faeee1d932efd83ae37c41d3145432b62fa1fb28d4c954bbd0c57f9e",
+      "us_case_reference_explanations.csv": "19379a6b3a224eb81aa3cfb8b4b6d8737cd04120d87d46356cc63b73ae958c33"
     },
     "judge_provenance": {
       "by_judge": {
@@ -63,22 +64,22 @@
   },
   "committed_snapshot_artifacts": {
     "model_serving_config.json": "7823e509b1db3f25b2a7b1abd8f4d0b1127751370627c21c8ea022ab39bee3ad",
-    "us_impact_summary_by_model.csv": "c7f92c396668aca8ad28c93f5d0c6837bc475c0b1c3f23fff8357907039248a5",
-    "us_reference_outputs.csv": "228baf55abefa8703eb45fa74d7cf472b3ee266b833b96e89c8c6f8802ca803a",
+    "us_impact_summary_by_model.csv": "aa8ebeae1c55ab091d0184348bc918c9f716716df26b9c0db19df5a61da23c96",
+    "us_reference_outputs.csv": "37e2c2bd52908e92c8e9396fa863b2a3838e5136135187a27e1c4cd88e3d5808",
     "us_scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"
   },
   "description": "The 2026-09-22 scored manuscript snapshot reports the household-impact-weighted exact-match rate as its headline metric.",
   "files": [
     {
       "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json.gz",
-      "sha256": "a6b031330347cc1b7b2c087d2f3e34c7318605d97f7eca10b4df70ec2e773a6b"
+      "sha256": "027101dd6b7b772d4d73700c51a0335c3c644d3e2646e0f73c75b729129a5457"
     }
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 116062863,
+    "bytes": 116095639,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "7ad5b32c9e37fbac9c7c0a24c1edc74a86bed4a1b46bf0b02ffa4fb516d05090",
+    "sha256": "652c11677c9a6c0989c86c6724b56bda72bbce46aa614f8c7d8e7c6828955900",
     "tag": "dashboard-data-20260922",
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260922/dashboard-data.json"
   },
@@ -94,8 +95,8 @@
   },
   "published_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 116062863,
-    "sha256": "7ad5b32c9e37fbac9c7c0a24c1edc74a86bed4a1b46bf0b02ffa4fb516d05090",
+    "bytes": 116095639,
+    "sha256": "652c11677c9a6c0989c86c6724b56bda72bbce46aa614f8c7d8e7c6828955900",
     "tag": "dashboard-data-20260922",
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260922/dashboard-data.json"
   },
@@ -107,12 +108,13 @@
       "r02_ira_219g+r11_ca_itemized_conformity": 2,
       "r03_estate_income": 2,
       "r05_nj_worker_ui": 1,
-      "r06_wi_act15_before_refundable": 1,
+      "r06_wi_act15_before_refundable+r32_wi_capital_gain_distributions": 1,
       "r07_idaho_health_premiums": 2,
       "r08_eitc_earned_income_deferrals": 4,
       "r11_ca_itemized_conformity": 1,
       "r22_ma_part_a_loss_offset": 1,
-      "r30_snap_heat_and_eat_sua": 1
+      "r30_snap_heat_and_eat_sua": 1,
+      "r32_wi_capital_gain_distributions": 1
     },
     "by_unlisted_input": {
       "meets_ssi_disability_criteria": 6,
@@ -128,8 +130,8 @@
     },
     "file": "reference_exclusions.json",
     "note": "Outputs are removed from scoring for every model, symmetrically, when the reference depends on an input or definition the prompt never states (a careful reader could take the stated facts either way), or when the engine that produced the reference misapplies the law on facts the prompt states. Their rows stay in the payload with scored=false. An unlisted-input entry records the alternative reading and the reference under both readings; an engine-defect entry records the root cause, the law, the upstream issue, and the corrected value computed with the same engine version and a sandbox fix.",
-    "outputs": 51,
-    "scored_outputs_per_model": 1933
+    "outputs": 52,
+    "scored_outputs_per_model": 1932
   },
   "reference_output_refresh": {
     "date": "2026-07-03",
@@ -140,19 +142,19 @@
     "policyengine_us_dataset_uri": "hf://policyengine/populace-us/populace_us_2024.h5@populace-us-2024-5da5a95-20260611",
     "policyengine_us_version": "1.755.4",
     "policyengine_version": "4.16.1",
-    "reference_csv_sha256": "228baf55abefa8703eb45fa74d7cf472b3ee266b833b96e89c8c6f8802ca803a",
+    "reference_csv_sha256": "37e2c2bd52908e92c8e9396fa863b2a3838e5136135187a27e1c4cd88e3d5808",
     "row_count": 1984,
     "snapshot_date": "2026-09-22"
   },
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "f7083ea206d469aa10884aaa409f153474e30ac15e785a374505ee631c06d3ee"
+      "sha256": "efa62a3b6af7286ae7e74ec75636e2cfa9db115531572b9bf65be49985a0a77d"
     },
     "web": {
       "files": {
-        "figures/positive_zero_scatter.png": "03300782462b1c41c209ea8bb9c8b32e28247dcbbf5eb457d9f645ff73d3092e",
-        "index.html": "e0a4d8a965ee20a314839df01fb17213c7323e19e76f1376e8fab7c0e4a1fe42",
+        "figures/positive_zero_scatter.png": "c508c0cf424f35b69e490d07e1aae090a04c723357a1736fee836009ca4e38fe",
+        "index.html": "fb012d3279412ed6e20b9829dc25d90799779c24ecfbb79c0a49818ebb848c94",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -205,17 +207,17 @@
     "note": "Compact copies of run outputs used to verify this snapshot. The run data.json retains parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime metadata used by the dashboard. predictions.csv.gz is a deterministic gzip of the run's raw provider responses.",
     "us_full_run_20260612_policyengine_4_16_1_populace": {
       "files": {
-        "analysis/impact_summary_by_model.csv": "c7f92c396668aca8ad28c93f5d0c6837bc475c0b1c3f23fff8357907039248a5",
-        "analysis/metrics.csv": "83d2150eef03e7e5584cb1da6681f4c92798c3aead61b09b20a8e8db9c0f9684",
-        "analysis/report.md": "a31a99c0a0236791e0ffc676171ed12e5d1f87bfb04c14bd99d3239fe451da2e",
-        "analysis/summary_by_model.csv": "93460fe75e0707381138e277b867f81f8ae5c6443b43451b1eb7e4a52fa479ea",
-        "analysis/summary_by_variable.csv": "89921a61985a1d1c591fdd59ab7b7d3eedd6f65b113474e55325bdb4e877dadc",
+        "analysis/impact_summary_by_model.csv": "aa8ebeae1c55ab091d0184348bc918c9f716716df26b9c0db19df5a61da23c96",
+        "analysis/metrics.csv": "47cde8f27bf90b480b2a43d63ab33933f06a60c77c8d502fe517b2d6d4127095",
+        "analysis/report.md": "7f0e40fe16eb5f5f69a78c89eb1b92552e64aae1b5425e82ec5a26e9ca596826",
+        "analysis/summary_by_model.csv": "826b07b79bbd518980048f01ff247c2002cbda60f141abf266fa5ee46cf47081",
+        "analysis/summary_by_variable.csv": "1093e9c4b3bfaf3686d26e5e05f3fe2484a535023ae091b773956f7d038bdad9",
         "analysis/usage_summary.csv": "f5d622d0be4ff925d583833a5d0f0c00cf039d914da7cee72c3cb282e409ca17",
-        "data.json.gz": "a6b031330347cc1b7b2c087d2f3e34c7318605d97f7eca10b4df70ec2e773a6b",
+        "data.json.gz": "027101dd6b7b772d4d73700c51a0335c3c644d3e2646e0f73c75b729129a5457",
         "predictions.csv.gz": "cb712f7ab0b5061153c7f6303b072755161ee8d082c3c6f4161586e61c813bb0",
-        "reference_exclusions.json": "db27479796b9b436b357a7d875bfdf739058681826f60a780e8b030dd26d427f",
-        "reference_outputs.csv": "228baf55abefa8703eb45fa74d7cf472b3ee266b833b96e89c8c6f8802ca803a",
-        "reference_outputs.csv.meta.json": "e88ed754159e5e2004ad96b8f28d60ef841db73d3588be2a85c67d5012e585ff",
+        "reference_exclusions.json": "c893d6a8daa6e675a78344037aff42eb8560db465af0e622fb93f20403bb08d3",
+        "reference_outputs.csv": "37e2c2bd52908e92c8e9396fa863b2a3838e5136135187a27e1c4cd88e3d5808",
+        "reference_outputs.csv.meta.json": "d384a24ecf839e262a293f1e55a0a8bccb623bb59dba53ba3edfc8cacd26e8dc",
         "scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
         "scenarios.csv.meta.json": "03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb"
       },

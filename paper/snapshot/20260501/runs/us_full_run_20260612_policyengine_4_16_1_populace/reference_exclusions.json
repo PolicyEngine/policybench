@@ -167,7 +167,8 @@
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-22",
       "decided_by": "developer",
-      "unlisted_input": "who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable"
+      "unlisted_input": "who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable",
+      "note": "Corrected value applies r24_disability_benefits_taxable with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_003",
@@ -182,7 +183,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return",
       "law": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r01_ira_compensation_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_005",
@@ -198,7 +200,7 @@
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
       "upstream": "to be filed",
-      "note": "The output also moves under r25_niit_in_federal_output (unlisted input)."
+      "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix. The output also moves under r25_niit_in_federal_output (unlisted input)."
     },
     {
       "scenario_id": "scenario_005",
@@ -214,7 +216,7 @@
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); Cal. R&TC 17024.5 (conformity date), 17076",
       "upstream": "to be filed",
-      "note": "Corrected value applies r02_ira_219g_v2 and r11_ca_itemized_conformity_v2 and r19_ca_convention together."
+      "note": "Corrected value applies r02_ira_219g_v2 and r11_ca_itemized_conformity_v2 together with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_007",
@@ -230,7 +232,7 @@
       "defect": "PolicyEngine omits Idaho's subtraction for health insurance premiums the taxpayer pays",
       "law": "Idaho Code 63-3022P; Idaho Form 39R",
       "upstream": "to be filed",
-      "note": "Corrected value applies r07_idaho_health_premiums_v2 and r19_id_convention together."
+      "note": "Corrected value applies r07_idaho_health_premiums_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_008",
@@ -245,7 +247,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine leaves the New Jersey worker unemployment and workforce contributions out of employee payroll tax",
       "law": "N.J.S.A. 43:21-7(d)(1); NJDOL 2026 contribution rates",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r05_nj_worker_ui_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_020",
@@ -258,7 +261,7 @@
       "decided_on": "2026-09-22",
       "decided_by": "developer",
       "unlisted_input": "whether federal income tax before refundable credits includes the net investment income tax, which the output's definition does not say",
-      "note": "Corrected value applies r25_niit_excluded and r19_irs_sales_tax_convention together."
+      "note": "Corrected value applies r25_niit_excluded with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_022",
@@ -274,7 +277,7 @@
       "defect": "PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions",
       "law": "Cal. R&TC 17024.5 (conformity date), 17076",
       "upstream": "to be filed",
-      "note": "Corrected value applies r11_ca_itemized_conformity_v2 and r19_ca_convention together."
+      "note": "Corrected value applies r11_ca_itemized_conformity_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_039",
@@ -289,7 +292,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine leaves estate income out of gross income while counting it as qualified business income",
       "law": "26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
-      "upstream": "related: PolicyEngine/policyengine-us#9304"
+      "upstream": "related: PolicyEngine/policyengine-us#9304",
+      "note": "Corrected value applies r03_estate_income__qbi_false_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_039",
@@ -304,23 +308,24 @@
       "decided_by": "developer",
       "defect": "PolicyEngine leaves estate income out of gross income while counting it as qualified business income",
       "law": "26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
-      "upstream": "related: PolicyEngine/policyengine-us#9304"
+      "upstream": "related: PolicyEngine/policyengine-us#9304",
+      "note": "Corrected value applies r03_estate_income__qbi_false_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_042",
       "variable": "state_income_tax_before_refundable_credits",
       "reason_code": "reference_engine_defect",
-      "root_cause": "r06_wi_act15_before_refundable",
-      "alternative_reading": "A filer aged 67 or older who elects the retirement income exclusion computes Wisconsin tax on the reduced income and forfeits the credits, so the tax before refundable credits follows the elected path.",
+      "root_cause": "r06_wi_act15_before_refundable+r32_wi_capital_gain_distributions",
+      "alternative_reading": "A filer aged 67 or older who elects the retirement income exclusion computes Wisconsin tax on the reduced income and forfeits the credits, so the tax before refundable credits follows the elected path. Wisconsin subtracts 30% of net long-term capital gain, and a capital gain distribution reported without Schedule D is long-term capital gain.",
       "frozen_value": 284.74090576171875,
       "alternative_value": 0.0,
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-22",
       "decided_by": "developer",
-      "defect": "PolicyEngine's Wisconsin tax before refundable credits ignores the retirement income exclusion the filer elects, which its final Wisconsin tax applies",
-      "law": "Wis. Stat. 71.05(6)(b)54m (2025 Wisconsin Act 15); 2025 Schedule SB line 16",
+      "defect": "PolicyEngine's Wisconsin tax before refundable credits ignores the retirement income exclusion the filer elects, which its final Wisconsin tax applies; PolicyEngine's Wisconsin capital gain subtraction leaves out capital gain distributions reported without Schedule D, so once they reach federal AGI Wisconsin taxes all of them instead of 70%",
+      "law": "Wis. Stat. 71.05(6)(b)54m (2025 Wisconsin Act 15); 2025 Schedule SB line 16; Wis. Stat. 71.05(6)(b)9; 26 U.S.C. 852(b)(3)(B); 2025 Wisconsin Schedule SB instructions, line 5",
       "upstream": "to be filed",
-      "note": "Corrected value applies r06_wi_act15_before_refundable_v2 and r04_capital_gain_distributions_v2 and r19_wi_convention together. The output also moves under r04_capital_gain_distributions (engine defect, fixed upstream)."
+      "note": "Corrected value applies r06_wi_act15_before_refundable_v2 and r32_wi_capital_gain_distributions together with every publication convention and upstream fix. The output also moves under r04_capital_gain_distributions (engine defect, fixed upstream)."
     },
     {
       "scenario_id": "scenario_049",
@@ -335,7 +340,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_052",
@@ -351,7 +357,7 @@
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
       "upstream": "to be filed",
-      "note": "The output also moves under r25_niit_in_federal_output (unlisted input)."
+      "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix. The output also moves under r25_niit_in_federal_output (unlisted input)."
     },
     {
       "scenario_id": "scenario_053",
@@ -367,7 +373,7 @@
       "defect": "PolicyEngine omits Idaho's subtraction for health insurance premiums the taxpayer pays",
       "law": "Idaho Code 63-3022P; Idaho Form 39R",
       "upstream": "to be filed",
-      "note": "Corrected value applies r07_idaho_health_premiums_v2 and r19_id_convention together."
+      "note": "Corrected value applies r07_idaho_health_premiums_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_056",
@@ -380,7 +386,7 @@
       "decided_on": "2026-09-22",
       "decided_by": "developer",
       "unlisted_input": "weekly_hours_worked_before_lsr and whether the listed home mortgage interest is on the home the SNAP household occupies",
-      "note": "Corrected value applies r14_unlisted_weekly_hours_v2_v2 and r15_snap_mortgage_interest_v2 together."
+      "note": "Corrected value applies r14_unlisted_weekly_hours_v2_v2 and r15_snap_mortgage_interest_v2 together with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_062",
@@ -392,7 +398,8 @@
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-22",
       "decided_by": "developer",
-      "unlisted_input": "taxability of survivor_benefits"
+      "unlisted_input": "taxability of survivor_benefits",
+      "note": "Corrected value applies r16_survivor_benefits_federal_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_064",
@@ -404,7 +411,8 @@
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-22",
       "decided_by": "developer",
-      "unlisted_input": "the relationship of an adult tax dependent to the filers who claim them"
+      "unlisted_input": "the relationship of an adult tax dependent to the filers who claim them",
+      "note": "Corrected value applies r067_adult_dependent_relationship with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_064",
@@ -416,7 +424,8 @@
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-22",
       "decided_by": "developer",
-      "unlisted_input": "the relationship of an adult tax dependent to the filers who claim them"
+      "unlisted_input": "the relationship of an adult tax dependent to the filers who claim them",
+      "note": "Corrected value applies r067_adult_dependent_nonchild with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_064",
@@ -431,7 +440,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return",
       "law": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r01_ira_compensation_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_064",
@@ -447,7 +457,7 @@
       "defect": "PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return",
       "law": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
       "upstream": "to be filed",
-      "note": "Corrected value applies r01_ira_compensation_v2 and r19_wi_convention together."
+      "note": "Corrected value applies r01_ira_compensation_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_067",
@@ -459,7 +469,8 @@
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-22",
       "decided_by": "developer",
-      "unlisted_input": "the relationship of an adult tax dependent to the filers who claim them"
+      "unlisted_input": "the relationship of an adult tax dependent to the filers who claim them",
+      "note": "Corrected value applies r067_adult_dependent_relationship with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_080",
@@ -468,14 +479,14 @@
       "root_cause": "r30_snap_heat_and_eat_sua",
       "alternative_reading": "A LIHEAP payment makes a household eligible for the standard utility allowance only if the household has an elderly or disabled member; other households take the allowance only if they incur heating or cooling costs.",
       "frozen_value": 3596.039794921875,
-      "alternative_value": 3244.799561,
+      "alternative_value": 3240.0,
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-22",
       "decided_by": "developer",
       "defect": "PolicyEngine grants the heat-and-eat standard utility allowance to households without an elderly or disabled member, which P.L. 119-21 sec. 10103 ended",
       "law": "7 U.S.C. 2014(e)(6)(C)(iv)(I), as amended by P.L. 119-21 sec. 10103(a) (approved 2025-07-04)",
       "upstream": "to be filed",
-      "note": "Corrected value applies r30_snap_heat_and_eat_sua and r13_hold_fy2026_v3 together."
+      "note": "Corrected value applies r30_snap_heat_and_eat_sua with every publication convention and upstream fix. The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance and the frozen value would stand; the output is excluded either way."
     },
     {
       "scenario_id": "scenario_081",
@@ -491,7 +502,7 @@
       "defect": "PolicyEngine taxes Massachusetts Part A dividends gross, without the short-term capital loss offset its own Part A AGI computes",
       "law": "M.G.L. c. 62 sec. 2(b), 2(c)(2)(a), 2(c)(4), 2(f); DOR TIR 02-21",
       "upstream": "to be filed",
-      "note": "The output also moves under r23_ma_interest_source (unlisted input)."
+      "note": "Corrected value applies ma_part_a_loss_offset with every publication convention and upstream fix. The output also moves under r23_ma_interest_source (unlisted input)."
     },
     {
       "scenario_id": "scenario_082",
@@ -506,7 +517,24 @@
       "decided_by": "developer",
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix."
+    },
+    {
+      "scenario_id": "scenario_091",
+      "variable": "state_income_tax_before_refundable_credits",
+      "reason_code": "reference_engine_defect",
+      "root_cause": "r32_wi_capital_gain_distributions",
+      "alternative_reading": "Wisconsin subtracts 30% of net long-term capital gain, and a capital gain distribution reported without Schedule D is long-term capital gain.",
+      "frozen_value": 843.6614990234375,
+      "alternative_value": 878.515747,
+      "engine_version": "policyengine-us 1.755.4",
+      "decided_on": "2026-09-22",
+      "decided_by": "developer",
+      "defect": "PolicyEngine's Wisconsin capital gain subtraction leaves out capital gain distributions reported without Schedule D, so once they reach federal AGI Wisconsin taxes all of them instead of 70%",
+      "law": "Wis. Stat. 71.05(6)(b)9; 26 U.S.C. 852(b)(3)(B); 2025 Wisconsin Schedule SB instructions, line 5",
+      "upstream": "to be filed",
+      "note": "Corrected value applies r32_wi_capital_gain_distributions with every publication convention and upstream fix. The output also moves under r04_capital_gain_distributions (engine defect, fixed upstream)."
     },
     {
       "scenario_id": "scenario_099",
@@ -521,7 +549,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_099",
@@ -537,7 +566,7 @@
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); Cal. R&TC 17024.5 (conformity date), 17076",
       "upstream": "to be filed",
-      "note": "Corrected value applies r02_ira_219g_v2 and r11_ca_itemized_conformity_v2 and r19_ca_convention together."
+      "note": "Corrected value applies r02_ira_219g_v2 and r11_ca_itemized_conformity_v2 together with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_100",
@@ -552,7 +581,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine counts elective 401(k) deferrals as earned income for the EITC and refundable child tax credit",
       "law": "26 U.S.C. 32(c)(2)(A)(i), 24(d)(1)(B)(i), 402(e)(3); Cal. R&TC 17052(c)(4)(A)",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r08_eitc_earned_income_deferrals_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_100",
@@ -567,7 +597,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine counts elective 401(k) deferrals as earned income for the EITC and refundable child tax credit",
       "law": "26 U.S.C. 32(c)(2)(A)(i), 24(d)(1)(B)(i), 402(e)(3); Cal. R&TC 17052(c)(4)(A)",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r08_eitc_earned_income_deferrals_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_107",
@@ -579,7 +610,8 @@
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-22",
       "decided_by": "developer",
-      "unlisted_input": "who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable"
+      "unlisted_input": "who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable",
+      "note": "Corrected value applies r24_disability_benefits_taxable with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_108",
@@ -592,7 +624,7 @@
       "decided_on": "2026-09-22",
       "decided_by": "developer",
       "unlisted_input": "source of survivor_benefits (pension or annuity, or another survivor payment) and taxability of survivor_benefits",
-      "note": "Corrected value applies r10_wi_homestead_income and r16_survivor_benefits_federal_v2 together."
+      "note": "Corrected value applies r10_wi_homestead_income and r16_survivor_benefits_federal_v2 together with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_110",
@@ -608,7 +640,7 @@
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine leaves estate income out of gross income while counting it as qualified business income",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); 26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
       "upstream": "related: PolicyEngine/policyengine-us#9304",
-      "note": "Corrected value applies r02_ira_219g_v2 and r03_estate_income__qbi_false_v2 together."
+      "note": "Corrected value applies r02_ira_219g_v2 and r03_estate_income__qbi_false_v2 together with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_110",
@@ -624,7 +656,7 @@
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine leaves estate income out of gross income while counting it as qualified business income",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); 26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
       "upstream": "related: PolicyEngine/policyengine-us#9304",
-      "note": "Corrected value applies r02_ira_219g_v2 and r03_estate_income__qbi_false_v2 together."
+      "note": "Corrected value applies r02_ira_219g_v2 and r03_estate_income__qbi_false_v2 together with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_112",
@@ -637,7 +669,7 @@
       "decided_on": "2026-09-22",
       "decided_by": "developer",
       "unlisted_input": "weekly_hours_worked_before_lsr",
-      "note": "Corrected value applies r14_unlisted_weekly_hours_v2_v2 and r28_snap_min_allotment_rounding and r13_hold_fy2026_v3 together. The output also moves under r28_snap_min_allotment_rounding (engine defect, fixed upstream)."
+      "note": "Corrected value applies r14_unlisted_weekly_hours_v2_v2 with every publication convention and upstream fix. The output also moves under r28_snap_min_allotment_rounding (engine defect, fixed upstream)."
     },
     {
       "scenario_id": "scenario_118",
@@ -650,7 +682,7 @@
       "decided_on": "2026-09-22",
       "decided_by": "developer",
       "unlisted_input": "whether the listed home mortgage interest is on the home the SNAP household occupies",
-      "note": "Corrected value applies r15_snap_mortgage_interest_v2 and r26_snap_contribution_rounding and r13_hold_fy2026_v3 together. The output also moves under r26_snap_contribution_rounding (engine defect, fixed upstream)."
+      "note": "Corrected value applies r15_snap_mortgage_interest_v2 with every publication convention and upstream fix. The output also moves under r26_snap_contribution_rounding (engine defect, fixed upstream)."
     },
     {
       "scenario_id": "scenario_119",
@@ -665,7 +697,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine counts elective 401(k) deferrals as earned income for the EITC and refundable child tax credit",
       "law": "26 U.S.C. 32(c)(2)(A)(i), 24(d)(1)(B)(i), 402(e)(3); Cal. R&TC 17052(c)(4)(A)",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r08_eitc_earned_income_deferrals_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_119",
@@ -680,7 +713,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine counts elective 401(k) deferrals as earned income for the EITC and refundable child tax credit",
       "law": "26 U.S.C. 32(c)(2)(A)(i), 24(d)(1)(B)(i), 402(e)(3); Cal. R&TC 17052(c)(4)(A)",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r08_eitc_earned_income_deferrals_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_120",
@@ -696,7 +730,7 @@
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
       "upstream": "to be filed",
-      "note": "The output also moves under r25_niit_in_federal_output (unlisted input)."
+      "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix. The output also moves under r25_niit_in_federal_output (unlisted input)."
     },
     {
       "scenario_id": "scenario_120",
@@ -711,7 +745,8 @@
       "decided_by": "developer",
       "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
       "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "upstream": "to be filed"
+      "upstream": "to be filed",
+      "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_121",
@@ -719,11 +754,12 @@
       "reason_code": "reference_depends_on_unlisted_input",
       "alternative_reading": "The prompt lists disability benefits from employment without saying who paid for the coverage. Benefits from employer-paid coverage are included in gross income (26 U.S.C. 105(a)); benefits from coverage the employee paid for with after-tax money are excluded (26 U.S.C. 104(a)(3)). The reference excludes them; the alternative value includes them.",
       "frozen_value": 0.0,
-      "alternative_value": 848.184937,
+      "alternative_value": 875.337524,
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-22",
       "decided_by": "developer",
-      "unlisted_input": "who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable"
+      "unlisted_input": "who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable",
+      "note": "Corrected value applies r24_disability_benefits_taxable with every publication convention and upstream fix."
     },
     {
       "scenario_id": "scenario_121",
@@ -735,7 +771,8 @@
       "engine_version": "policyengine-us 1.755.4",
       "decided_on": "2026-09-22",
       "decided_by": "developer",
-      "unlisted_input": "who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable"
+      "unlisted_input": "who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable",
+      "note": "Corrected value applies r24_disability_benefits_taxable with every publication convention and upstream fix."
     }
   ]
 }

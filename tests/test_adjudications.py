@@ -184,14 +184,14 @@ def test_load_validates_the_record(tmp_path: Path):
 
 def test_committed_record_is_applied_to_the_frozen_annotations():
     entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
-    assert len(entries) == 62
+    assert len(entries) == 63
     assert Counter(e["adjudicated_failure_source"] for e in entries) == Counter(
-        {"reference_engine_defect": 27, "prompt_ambiguity": 24, "llm_error": 11}
+        {"reference_engine_defect": 28, "prompt_ambiguity": 24, "llm_error": 11}
     )
     # Every excluded output has its adjudication; the six llm_error entries are
     # the references a flag questioned and the adjudication affirmed or replaced
     # with a regenerated reference.
-    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 51
+    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 52
     keys = {(e["scenario_id"], e["variable"]) for e in entries}
     assert ("scenario_064", "ssi") in keys and (
         "scenario_074",
@@ -217,12 +217,18 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert set(zip(ambiguous["scenario_id"], ambiguous["variable"])) <= keys
     manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
     block = manifest["audit_annotation_artifacts"]["developer_adjudications"]
-    assert block["cases"] == 62
+    assert block["cases"] == 63
+    # The judge's own class for each case (its verdict.json), not the
+    # adjudicated one; the freezer refuses a record that differs from it.
     assert block["by_judge_verdict"] == {
-        "llm_error": 9,
-        "prompt_ambiguity": 23,
-        "reference_engine_defect": 30,
+        "llm_error": 45,
+        "prompt_ambiguity": 2,
+        "reference_engine_defect": 11,
+        "reference_model_issue_fixed": 5,
     }
+    assert block["by_judge_verdict"] == dict(
+        Counter(e["judge_failure_source"] for e in entries)
+    )
     assert block["judge_flagged_by_reference_verdict"] == {
         "affirmed": 5,
         "engine_defect": 19,
@@ -230,7 +236,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
         "unlisted_input": 8,
     }
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
-    assert manifest["reference_exclusions"]["outputs"] == 51
+    assert manifest["reference_exclusions"]["outputs"] == 52
 
 
 def test_verify_requires_agreement_with_the_complete_record():

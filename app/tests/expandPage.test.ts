@@ -71,7 +71,7 @@ test("expand page derives its exact-score headline from the live summary", async
   ).text();
 
   expect(leader.model).toBe("gpt-6-sol");
-  expect(leader.exact).toBeCloseTo(94.186, 3);
+  expect(leader.exact).toBeCloseTo(94.235, 3);
   expect(pageSource).toContain("const leader = headlineExactLeader(dashboard);");
   expect(pageSource).toContain(
     "const leaderLabel = MODEL_LABELS[leader.model] ?? leader.model;",

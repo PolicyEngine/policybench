@@ -599,16 +599,16 @@ def test_snapshot_copied_artifacts_match_source_runs():
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_audit_counts = {
         "us": {
-            "annotated": 7_625,
-            "exact_misses": 7_621,
-            "annotated_exact_misses": 7_621,
+            "annotated": 7_583,
+            "exact_misses": 7_579,
+            "annotated_exact_misses": 7_579,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 9_468,
+            "below_full_bounded_score": 9_426,
             "unannotated_below_full_bounded_score": 1_843,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 6_967, "parse_contract_failure": 658},
+        "us": {"llm_error": 6_926, "parse_contract_failure": 657},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())

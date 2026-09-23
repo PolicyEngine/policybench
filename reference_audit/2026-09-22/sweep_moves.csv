@@ -37,6 +37,11 @@ c_snap_hold_fy2026,convention,r13_hold_fy2026_v3.py,frozen,scenario_118,NY,snap,
 c_wi_published_2026,convention,r19_wi_convention.py,frozen,scenario_042,WI,state_income_tax_before_refundable_credits,284.740906,284.740906,279.234802,-5.506104,True
 c_wi_published_2026,convention,r19_wi_convention.py,frozen,scenario_064,WI,state_income_tax_before_refundable_credits,4605.99707,4605.99707,4598.476074,-7.520996,True
 c_wi_published_2026,convention,r19_wi_convention.py,frozen,scenario_091,WI,state_income_tax_before_refundable_credits,843.661499,843.661499,838.155457,-5.506042,True
+c_wi_published_2026+r04_capital_gain_distributions,baseline,cwi_plus_r04.py,frozen,scenario_042,WI,federal_income_tax_before_refundable_credits,1979.158325,1979.158325,2361.964844,382.806519,True
+c_wi_published_2026+r04_capital_gain_distributions,baseline,cwi_plus_r04.py,frozen,scenario_042,WI,state_income_tax_before_refundable_credits,284.740906,284.740906,464.1828,179.441895,True
+c_wi_published_2026+r04_capital_gain_distributions,baseline,cwi_plus_r04.py,frozen,scenario_051,LA,state_income_tax_before_refundable_credits,814.950012,814.950012,820.349976,5.399963,True
+c_wi_published_2026+r04_capital_gain_distributions,baseline,cwi_plus_r04.py,frozen,scenario_064,WI,state_income_tax_before_refundable_credits,4605.99707,4605.99707,4598.476074,-7.520996,True
+c_wi_published_2026+r04_capital_gain_distributions,baseline,cwi_plus_r04.py,frozen,scenario_091,WI,state_income_tax_before_refundable_credits,843.661499,843.661499,895.81311,52.151611,True
 r01_ira_compensation,engine_defect,r01_ira_compensation_v2.py,frozen,scenario_003,TX,federal_income_tax_before_refundable_credits,22154.699219,22154.699219,22400.654297,245.955078,True
 r01_ira_compensation,engine_defect,r01_ira_compensation_v2.py,frozen,scenario_064,WI,federal_income_tax_before_refundable_credits,4439.289551,4439.289551,4441.455078,2.165527,True
 r01_ira_compensation,engine_defect,r01_ira_compensation_v2.py,frozen,scenario_064,WI,state_income_tax_before_refundable_credits,4605.99707,4605.99707,4607.14209,1.14502,True
@@ -57,10 +62,10 @@ r03_estate_income,engine_defect,r03_estate_income__qbi_false_v2.py,frozen,scenar
 r03_estate_income,engine_defect,r03_estate_income__qbi_false_v2.py,frozen,scenario_039,VA,state_income_tax_before_refundable_credits,514.498413,514.498413,1975.798218,1461.299805,True
 r03_estate_income,engine_defect,r03_estate_income__qbi_false_v2.py,frozen,scenario_110,OH,federal_income_tax_before_refundable_credits,23897.443359,23897.443359,25700.166016,1802.722656,True
 r03_estate_income,engine_defect,r03_estate_income__qbi_false_v2.py,frozen,scenario_110,OH,state_income_tax_before_refundable_credits,4057.472168,4057.472168,4231.353027,173.880859,True
-r04_capital_gain_distributions,engine_defect,r04_capital_gain_distributions_v2.py,frozen,scenario_042,WI,federal_income_tax_before_refundable_credits,1979.158325,1979.158325,2361.964844,382.806519,True
-r04_capital_gain_distributions,engine_defect,r04_capital_gain_distributions_v2.py,frozen,scenario_042,WI,state_income_tax_before_refundable_credits,284.740906,284.740906,414.204346,129.46344,True
-r04_capital_gain_distributions,engine_defect,r04_capital_gain_distributions_v2.py,frozen,scenario_051,LA,state_income_tax_before_refundable_credits,814.950012,814.950012,820.349976,5.399963,True
-r04_capital_gain_distributions,engine_defect,r04_capital_gain_distributions_v2.py,frozen,scenario_091,WI,state_income_tax_before_refundable_credits,843.661499,843.661499,884.021851,40.360352,True
+r04_capital_gain_distributions,engine_defect,r04_capital_gain_distributions.py,frozen,scenario_042,WI,federal_income_tax_before_refundable_credits,1979.158325,1979.158325,2361.964844,382.806519,True
+r04_capital_gain_distributions,engine_defect,r04_capital_gain_distributions.py,frozen,scenario_042,WI,state_income_tax_before_refundable_credits,284.740906,284.740906,469.688782,184.947876,True
+r04_capital_gain_distributions,engine_defect,r04_capital_gain_distributions.py,frozen,scenario_051,LA,state_income_tax_before_refundable_credits,814.950012,814.950012,820.349976,5.399963,True
+r04_capital_gain_distributions,engine_defect,r04_capital_gain_distributions.py,frozen,scenario_091,WI,state_income_tax_before_refundable_credits,843.661499,843.661499,901.319092,57.657593,True
 r05_nj_worker_ui,engine_defect,r05_nj_worker_ui_v2.py,frozen,scenario_008,NJ,payroll_tax,2162.76001,2162.76001,2276.659912,113.899902,True
 r06_wi_act15_before_refundable,engine_defect,r06_wi_act15_before_refundable_v2.py,frozen,scenario_042,WI,state_income_tax_before_refundable_credits,284.740906,284.740906,0.0,-284.740906,True
 r07_idaho_health_premiums,engine_defect,r07_idaho_health_premiums_v2.py,frozen,scenario_007,ID,state_income_tax_before_refundable_credits,755.77832,755.77832,645.53833,-110.23999,True
@@ -156,3 +161,5 @@ r28_snap_min_allotment_rounding,engine_defect,r28_snap_min_allotment_rounding.py
 r28_snap_min_allotment_rounding,engine_defect,r28_snap_min_allotment_rounding.py,c_snap_hold_fy2026,scenario_112,TX,snap,287.683167,286.079987,288.0,1.920013,True
 r30_snap_heat_and_eat_sua,engine_defect,r30_snap_heat_and_eat_sua.py,c_snap_hold_fy2026,scenario_080,PA,snap,3596.039795,3576.0,3244.799561,-331.200439,True
 r30_snap_heat_and_eat_sua,engine_defect,r30_snap_heat_and_eat_sua.py,c_snap_hold_fy2026,scenario_100,MT,snap,8625.889648,8566.799805,6936.0,-1630.799805,True
+r32_wi_capital_gain_distributions,engine_defect,r32_wi_capital_gain_distributions.py,c_wi_published_2026+r04_capital_gain_distributions,scenario_042,WI,state_income_tax_before_refundable_credits,284.740906,464.1828,408.698425,-55.484375,True
+r32_wi_capital_gain_distributions,engine_defect,r32_wi_capital_gain_distributions.py,c_wi_published_2026+r04_capital_gain_distributions,scenario_091,WI,state_income_tax_before_refundable_credits,843.661499,895.81311,878.515747,-17.297363,True

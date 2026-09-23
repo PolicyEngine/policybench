@@ -31,7 +31,8 @@
     "law": "26 U.S.C. 61(a)(3), 852(b)(3)(B); Form 1040 line 7",
     "alternative_reading": "Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base.",
     "upstream": "fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze",
-    "upstream_fixed": true
+    "upstream_fixed": true,
+    "fix_note": "Regenerated with r04_capital_gain_distributions.py, the faithful backport of #8839 (federal gross income, net investment income and the preferential-rate base). The verified r04_capital_gain_distributions_v2.py also extended Wisconsin's capital gain exclusion to the distributions; #8839 does not, so that part is r32."
   },
   "r05_nj_worker_ui": {
     "class": "engine_defect",
@@ -307,7 +308,8 @@
     "law": "7 U.S.C. 2014(e)(6)(C)(iv)(I), as amended by P.L. 119-21 sec. 10103(a) (approved 2025-07-04)",
     "alternative_reading": "A LIHEAP payment makes a household eligible for the standard utility allowance only if the household has an elderly or disabled member; other households take the allowance only if they incur heating or cooling costs.",
     "upstream": "",
-    "measured_against": "c_snap_hold_fy2026"
+    "measured_against": "c_snap_hold_fy2026",
+    "exclusion_note": "The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance and the frozen value would stand; the output is excluded either way."
   },
   "r31_snap_income_limit_rounding": {
     "class": "engine_defect",
@@ -318,5 +320,15 @@
     "upstream": "fixed in PolicyEngine/policyengine-us#9162 (merged 2026-07-28), after the reference freeze",
     "upstream_fixed": true,
     "measured_against": "c_snap_hold_fy2026"
+  },
+  "r32_wi_capital_gain_distributions": {
+    "class": "engine_defect",
+    "subtype": "taxable_income_or_deductions",
+    "defect": "PolicyEngine's Wisconsin capital gain subtraction leaves out capital gain distributions reported without Schedule D, so once they reach federal AGI Wisconsin taxes all of them instead of 70%",
+    "law": "Wis. Stat. 71.05(6)(b)9; 26 U.S.C. 852(b)(3)(B); 2025 Wisconsin Schedule SB instructions, line 5",
+    "alternative_reading": "Wisconsin subtracts 30% of net long-term capital gain, and a capital gain distribution reported without Schedule D is long-term capital gain.",
+    "upstream": "",
+    "measured_against": "c_wi_published_2026+r04_capital_gain_distributions",
+    "split_from": "r04_capital_gain_distributions_v2 (2026-09-23): #8839 fixed the federal inclusion only"
   }
 }

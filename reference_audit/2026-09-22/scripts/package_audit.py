@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from make_on_convention import MEASUREMENTS
+
 HERE = Path(__file__).resolve().parent
 FIXES = HERE / "sweep" / "fixes"
 OUT = HERE / "sweep" / "out"
@@ -40,6 +42,11 @@ EXTRA_FIXES = [
     "c13v3_plus_r30.py",
     "c13v3_plus_r31.py",
     "c13v3_plus_upstream_snap.py",
+    "c13v3_upstream_plus_r30.py",
+    "cwi_plus_r04.py",
+    "cwi_plus_r04_r32.py",
+    # Superseded for r04 on 2026-09-23: #8839 plus the Wisconsin part now in r32.
+    "r04_capital_gain_distributions_v2.py",
     "c13v3_r26_r28.py",
     "c13v3_r28_r29n.py",
     "c13v3_r28_r29c.py",
@@ -99,10 +106,18 @@ def sweep_moves(causes: dict, sweep_for: dict, measured_by: dict) -> pd.DataFram
     entries = [(k, causes[k]["class"], v) for k, v in sweep_for.items() if k in causes]
     entries += [(k, "convention", v["fix"]) for k, v in causes.items() if isinstance(v, dict) and v.get("class") == "convention"]
     entries += [("r18_hold_all_projections", "screen", "r18_hold_all_projections")]
+    # A defect measured on top of a combination of sources that is not itself a
+    # convention (r32: the WI convention plus #8839) gets that combination's own
+    # rows, class "baseline", so its baseline values can be checked.
+    convention_fixes = {v["fix"] for v in causes.values() if isinstance(v, dict) and v.get("class") == "convention"}
+    for cause, measured in measured_by.items():
+        base = MEASUREMENTS[measured][0]
+        if base not in convention_fixes:
+            entries.append((causes[cause]["measured_against"], "baseline", base))
     for cause, klass, fix in entries:
         measured = measured_by.get(cause)
         frame = pd.read_csv(OUT / f"{measured or fix}.csv")
-        baseline = frame["convention"] if measured else frame["frozen"]
+        baseline = frame["baseline"] if measured else frame["frozen"]
         delta = frame["recomputed"] - baseline
         for i in frame.index[delta.abs() > 1e-6]:
             r = frame.loc[i]
@@ -110,7 +125,7 @@ def sweep_moves(causes: dict, sweep_for: dict, measured_by: dict) -> pd.DataFram
                 "root_cause": cause,
                 "class": klass,
                 "fix_module": f"{fix}.py",
-                "measured_against": "c_snap_hold_fy2026" if measured else "frozen",
+                "measured_against": causes[cause]["measured_against"] if measured else "frozen",
                 "scenario_id": r["scenario_id"],
                 "state": r["state"],
                 "variable": r["variable"],

@@ -114,8 +114,8 @@ PUBLISHED_DASHBOARD_ARTIFACT = {
         "https://github.com/PolicyEngine/policybench/releases/download/"
         "dashboard-data-20260922/dashboard-data.json"
     ),
-    "sha256": "7ad5b32c9e37fbac9c7c0a24c1edc74a86bed4a1b46bf0b02ffa4fb516d05090",
-    "bytes": 116_062_863,
+    "sha256": "652c11677c9a6c0989c86c6724b56bda72bbce46aa614f8c7d8e7c6828955900",
+    "bytes": 116_095_639,
 }
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME
@@ -346,10 +346,49 @@ def reference_exclusions_block() -> dict:
     }
 
 
-def developer_adjudications_block() -> dict:
+def verify_adjudications_keep_judge_verdicts(
+    entries: list[dict], cases_dir: Path = AUDIT_CASES_DIR
+) -> None:
+    """Refuse an adjudication whose recorded judge verdict is not the judge's.
+
+    Each entry keeps the judge's class verbatim beside the adjudicated one, so
+    ``judge_failure_source`` and ``judge_failure_subtype`` must equal the case's
+    current ``verdict.json``. The annotations cannot supply them: by the time
+    the records are built, apply_adjudications has written the adjudicated
+    class into the case notes.
+    """
+    mismatched = []
+    for entry in entries:
+        verdict_path = (
+            cases_dir
+            / f"{entry['country']}__{entry['scenario_id']}__{entry['variable']}"
+            / "verdict.json"
+        )
+        if not verdict_path.is_file():
+            mismatched.append(
+                f"{entry['scenario_id']}:{entry['variable']} (no verdict)"
+            )
+            continue
+        verdict = json.loads(verdict_path.read_text())
+        recorded = (entry["judge_failure_source"], entry["judge_failure_subtype"])
+        judged = (verdict["case_failure_source"], verdict["case_failure_subtype"])
+        if recorded != judged:
+            mismatched.append(
+                f"{entry['scenario_id']}:{entry['variable']} records {recorded}, "
+                f"judge said {judged}"
+            )
+    if mismatched:
+        raise SystemExit(
+            "Adjudications must keep the judge's verdict verbatim: "
+            + "; ".join(mismatched)
+        )
+
+
+def developer_adjudications_block(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
     """Summarize the committed adjudication record for the manifest."""
     path = ANNOTATIONS_DEST / ADJUDICATIONS_NAME
     entries = load_adjudications(path)
+    verify_adjudications_keep_judge_verdicts(entries, cases_dir)
     return {
         "file": ADJUDICATIONS_NAME if entries else None,
         "cases": len(entries),

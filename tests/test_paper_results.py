@@ -42,25 +42,25 @@ def test_frozen_roster_has_42_display_names_and_release_dates():
 def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     assert r.parse_contract_failure_counts == Counter(
         {
-            "kimi-k2.6": 395,
+            "kimi-k2.6": 394,
             "glm-5.2": 133,
             "glm-5.3": 71,
             "kimi-k3": 59,
         }
     )
-    assert r.parse_contract_failure_count == 658
-    assert r.parse_contract_failure_count_fmt == "658"
+    assert r.parse_contract_failure_count == 657
+    assert r.parse_contract_failure_count_fmt == "657"
     assert r.parse_contract_failure_pct_fmt == "0.8"
 
 
 def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
-    assert r.audit_annotated_row_count == 7_625
-    assert r.audit_annotated_row_count_fmt == "7,625"
+    assert r.audit_annotated_row_count == 7_583
+    assert r.audit_annotated_row_count_fmt == "7,583"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 7_621
-    assert r.exact_match_miss_count_fmt == "7,621"
-    assert r.annotated_exact_miss_count == 7_621
-    assert r.annotated_exact_miss_count_fmt == "7,621"
+    assert r.exact_match_miss_count == 7_579
+    assert r.exact_match_miss_count_fmt == "7,579"
+    assert r.annotated_exact_miss_count == 7_579
+    assert r.annotated_exact_miss_count_fmt == "7,579"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
     assert r.unannotated_below_full_bounded_score_count == 1_843
@@ -68,7 +68,7 @@ def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
 
 
 def test_contract_violations_are_counted_both_ways():
-    """658 scored rows never parsed a number (rows on excluded outputs are outside
+    """657 scored rows never parsed a number (rows on excluded outputs are outside
     every count); 61 more parsed a number but carry no explanation.
     The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
@@ -77,7 +77,7 @@ def test_contract_violations_are_counted_both_ways():
         "claude-haiku-4.5": 1,
     }
     assert r.explanation_missing_count_fmt == "61"
-    assert r.contract_violation_count_fmt == "719"
+    assert r.contract_violation_count_fmt == "718"
     assert r.explanation_missing_breakdown_fmt == (
         "Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)"
     )
@@ -273,25 +273,26 @@ def test_joint_credit_table_orders_ties_deterministically():
 
 
 def test_excluded_outputs_are_outside_the_scored_audit_universe():
-    assert r.excluded_output_count == 51
-    assert r.excluded_output_phrase == "51 outputs"
-    assert r.excluded_output_households_phrase == "35 households"
+    assert r.excluded_output_count == 52
+    assert r.excluded_output_phrase == "52 outputs"
+    assert r.excluded_output_households_phrase == "36 households"
     assert r.unlisted_input_exclusion_count == 24
-    assert r.engine_defect_exclusion_count == 27
-    assert r.engine_defect_root_cause_count == 10
+    assert r.engine_defect_exclusion_count == 28
+    assert r.engine_defect_root_cause_count == 11
     assert r.snap_engine_defect_exclusion_count == 1
-    assert r.engine_defect_unflagged_count == 8
-    assert r.regenerated_reference_count == 27
-    assert r.regenerated_by_upstream_fix_count == 16
+    assert r.engine_defect_unflagged_count == 9
+    assert r.regenerated_reference_count == 26
+    assert r.regenerated_by_convention_count == 23
+    assert r.regenerated_by_upstream_fix_count == 15
     assert r.upstream_fixed_root_cause_count == 7
     assert r.upstream_fix_prs_fmt == "#8839, #9162, #9301, #9318 and #9363"
     assert r.excluded_outputs_by_input["meets_ssi_disability_criteria"] == 6
     assert (
         r.excluded_outputs_by_input["months_receiving_social_security_disability"] == 5
     )
-    assert r.scored_outputs_per_model_fmt == "1,933"
+    assert r.scored_outputs_per_model_fmt == "1,932"
     assert r.total_outputs_per_model_fmt == "1,984"
-    assert r.excluded_output_annotation_row_count == 1751
+    assert r.excluded_output_annotation_row_count == 1793
     assert r.prompt_ambiguity_row_count == 616
     # No scored row carries a descriptive class; every excluded-output row
     # carries its exclusion's class unless it never parsed.
@@ -311,4 +312,4 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
             "parse_contract_failure",
         }
     for stats in r.model_stats:
-        assert stats["n"] == 1933
+        assert stats["n"] == 1932

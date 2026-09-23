@@ -60,7 +60,7 @@ describe("serving sensitivity", () => {
       }),
     );
     expect(rank).toBe(6);
-    expect(html).toContain("auto 90.8 · #6");
+    expect(html).toContain("auto 90.9 · #6");
     expect(html).toContain("switches Claude&#x27;s extended thinking off");
     expect(html).toContain("would rank #6");
     expect(html).toContain("(+7.4 against its 83.4% on the unfiltered board)");
@@ -73,12 +73,12 @@ describe("serving sensitivity", () => {
     const html = renderToStaticMarkup(
       createElement(ServingSensitivityChip, {
         modelLabel: "Claude Fable 5.1",
-        boardExact: 90.1,
+        boardExact: 90.2,
         sensitivity,
         wouldRank: wouldRank(sensitivity.autoExact, rows),
       }),
     );
-    expect(html).toContain("auto 91.0 · #6");
+    expect(html).toContain("auto 91.1 · #6");
     expect(html).toContain("rejects forced tool calls");
     expect(html).toContain("compares transports");
     expect(html).toContain('href="/notes/2026-09-01-claude-fable-5-1-added"');

@@ -8,11 +8,14 @@ index, and with it the maximum allotments, deductions and minimum the engine
 derives from it. The poverty guideline is not held: the engine already uses the
 2026 HHS guideline (published in January 2026, before the freeze) from October.
 
-This is r13_hold_fy2026_v2 without its formula corrections, which are engine
-defects swept separately: r26_snap_contribution_rounding (7 CFR
-273.10(e)(2)(ii)(A)), r27_ca_snap_net_income_rounding (MPP 63-503.311) and
-r28_snap_min_allotment_rounding (7 CFR 273.10(e)(2)(ii)(C)); and without v2's
-poverty-guideline and published-minimum overrides.
+This is r13_hold_fy2026_v2 without its formula corrections and without v2's
+poverty-guideline and published-minimum overrides. The corrections are engine
+defects fixed in policyengine-us after the freeze, each in its own module and
+applied with this convention when the references are regenerated:
+r26_snap_contribution_rounding (7 CFR 273.10(e)(2)(ii)(A)),
+r27_snap_net_income_rounding (7 CFR 273.10(e)(1)(ii)), both #9318;
+r28_snap_min_allotment_rounding (7 CFR 273.10(e)(2)(ii)(C)) and
+r31_snap_income_limit_rounding (7 CFR 273.9(a)(3)), both #9162.
 
 Sources: USDA FY2026 SNAP COLA memorandum, attachment pp. 3-7 (signed
 2025-08-14); 7 USC 2017(a). Parameter changes are limited to calendar 2026.

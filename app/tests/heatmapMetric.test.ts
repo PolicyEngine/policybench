@@ -39,7 +39,7 @@ describe("program heatmap metric", () => {
     expect(Math.round(heatmapValue(federal, "exact"))).toBe(76);
     expect(Math.round(heatmapValue(federal, "score"))).toBe(94);
     const stateTax = fable51("state_income_tax_before_refundable_credits");
-    expect(Math.round(heatmapValue(stateTax, "exact"))).toBe(72);
+    expect(Math.round(heatmapValue(stateTax, "exact"))).toBe(73);
     expect(Math.round(heatmapValue(stateTax, "score"))).toBe(94);
   });
 

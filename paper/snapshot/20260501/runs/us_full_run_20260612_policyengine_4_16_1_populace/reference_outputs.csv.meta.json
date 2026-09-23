@@ -60,7 +60,7 @@
   "split": "public",
   "split_seed": 1042,
   "task": "reference_outputs",
-  "reference_csv_sha256": "228baf55abefa8703eb45fa74d7cf472b3ee266b833b96e89c8c6f8802ca803a",
+  "reference_csv_sha256": "37e2c2bd52908e92c8e9396fa863b2a3838e5136135187a27e1c4cd88e3d5808",
   "revisions": [
     {
       "date": "2026-09-22",
@@ -71,7 +71,7 @@
       "basis": "7 U.S.C. 2012(u), 2017(a); USDA FY2026 SNAP COLA memorandum (signed 2025-08-14)",
       "engine_version": "policyengine-us 1.755.4",
       "fix_module": "r13_hold_fy2026_v3.py",
-      "fix_module_sha256": "e46807cbd1e16fa24a3b63d9d788a54f5591af1419c8a742c6e4afca2f0e7051",
+      "fix_module_sha256": "7de931064360e7ff68ab4ca72144f6239f79baffa73ffb49b67caa4e26739d70",
       "applied_together_with": [
         "c_ca_hold_2025",
         "c_id_hold_2025",
@@ -285,14 +285,7 @@
         "r31_snap_income_limit_rounding"
       ],
       "excluded_outputs_untouched": true,
-      "changed": [
-        {
-          "scenario_id": "scenario_091",
-          "variable": "state_income_tax_before_refundable_credits",
-          "frozen": 843.6614990234375,
-          "regenerated": 878.5157470703125
-        }
-      ]
+      "changed": []
     },
     {
       "date": "2026-09-22",
@@ -495,8 +488,8 @@
       "basis": "26 U.S.C. 61(a)(3), 852(b)(3)(B); Form 1040 line 7",
       "upstream": "fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze",
       "engine_version": "policyengine-us 1.755.4",
-      "fix_module": "r04_capital_gain_distributions_v2.py",
-      "fix_module_sha256": "86d001a3cdfc36add8da4689f32049a01815f2b268701ad2c491dfd44147e562",
+      "fix_module": "r04_capital_gain_distributions.py",
+      "fix_module_sha256": "ccbbf3dd0b866975347319bfb6778bcfcf1c6415faa4f1149c4059a9cd9ed929",
       "measured_against": "frozen",
       "applied_together_with": [
         "c_ca_hold_2025",
@@ -528,12 +521,6 @@
           "variable": "state_income_tax_before_refundable_credits",
           "frozen": 814.9500122070312,
           "regenerated": 820.3499755859375
-        },
-        {
-          "scenario_id": "scenario_091",
-          "variable": "state_income_tax_before_refundable_credits",
-          "frozen": 843.6614990234375,
-          "regenerated": 878.5157470703125
         }
       ]
     },

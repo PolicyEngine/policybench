@@ -17,19 +17,19 @@
     "opusExact": 92.9,
     "opusRank": 2,
     "sol56Rank": 3,
-    "sol56Exact": 92.6,
-    "lunaExact": 91.3,
+    "sol56Exact": 92.7,
+    "lunaExact": 91.4,
     "lunaRank": 4,
     "lunaCost": 0.0019,
     "solCost": 0.0271,
     "opusCost": 0.0675,
-    "opus5BoardExact": 83.3,
+    "opus5BoardExact": 83.4,
     "opus5AutoExact": 89.3,
-    "opusGap": 9.5,
-    "scoredOutputs": 1933,
+    "opusGap": 9.6,
+    "scoredOutputs": 1932,
     "totalOutputs": 1984,
-    "regenerated": 27,
-    "excluded": 51
+    "regenerated": 26,
+    "excluded": 52
   },
   "data": [
     {
