@@ -117,8 +117,8 @@ PUBLISHED_DASHBOARD_ARTIFACT = {
         "https://github.com/PolicyEngine/policybench/releases/download/"
         "dashboard-data-20260922b/dashboard-data.json"
     ),
-    "sha256": "f098f11db1a209f86916775d14b2eea2b2f736fcca1038e8af1b170ad9937809",
-    "bytes": 116_205_571,
+    "sha256": "b1c4ee340a01328f75158bb4ba40b49030a979d2b03badb2c01d57c16554d3b4",
+    "bytes": 116_205_632,
 }
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME

@@ -1526,10 +1526,15 @@ def test_bbce_households_note_facts() -> None:
         "counts legally obligated child support paid to nonhousehold members "
         "in gross income and deducts it when computing net income"
     ) in worker_exclusion["alternative_reading"]
+    # The editions the record cites: the 16th (p. 15) and 17th (p. 21) list
+    # Michigan as a deduction state; the 15th lists it as an exclusion state,
+    # which Michigan's BEM 556 contradicts.
     assert (
-        "USDA's State Options Reports list Michigan"
-        in worker_exclusion["alternative_reading"]
-    )
+        "USDA's 16th and 17th State Options Reports list Michigan among those "
+        "states (the 15th lists it among the exclusion states)"
+    ) in worker_exclusion["alternative_reading"]
+    assert "16th edition" in worker_exclusion["law"]
+    assert "17th edition" in worker_exclusion["law"]
     assert "the household is not categorically eligible" in worker_exclusion["note"]
     upstream_fix = re.fullmatch(
         r"fix open in PolicyEngine/policyengine-us#(\d+) \(not merged\)",

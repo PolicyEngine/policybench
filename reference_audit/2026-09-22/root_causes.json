@@ -336,7 +336,7 @@
     "subtype": "state_local_rule",
     "defect": "PolicyEngine reads its SNAP child support flag as the option to exclude child support paid from gross income, but the values carry the opposite meaning: for 2026 it excludes the payments from gross income in 37 jurisdictions that USDA's State Options Report lists as deducting them from net income, Michigan among them, and deducts them in 9 of the 14 it lists as excluding them",
     "law": "7 CFR 273.9(c)(17); 7 CFR 273.9(d)(5); USDA SNAP State Options Report, 16th edition (June 2024), Treatment of Child Support Payments, p. 15, and 17th edition, p. 21 (Michigan: child support income expense deduction); Michigan Bridges Eligibility Manual 556 (11-1-2025), line 20",
-    "alternative_reading": "A state that does not take the option in 7 CFR 273.9(c)(17) counts legally obligated child support paid to nonhousehold members in gross income and deducts it when computing net income (7 CFR 273.9(d)(5)). USDA's State Options Reports list Michigan among those states, and Michigan's budget (BEM 556) subtracts child support at line 20, after gross income at line 10.",
+    "alternative_reading": "A state that does not take the option in 7 CFR 273.9(c)(17) counts legally obligated child support paid to nonhousehold members in gross income and deducts it when computing net income (7 CFR 273.9(d)(5)). USDA's 16th and 17th State Options Reports list Michigan among those states (the 15th lists it among the exclusion states), and Michigan's budget (BEM 556) subtracts child support at line 20, after gross income at line 10.",
     "upstream": "fix open in PolicyEngine/policyengine-us#9586 (not merged)",
     "measured_against": "c_snap_hold_fy2026",
     "decided_on": "2026-09-24",

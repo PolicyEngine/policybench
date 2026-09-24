@@ -332,7 +332,7 @@
       "variable": "snap",
       "reason_code": "reference_engine_defect",
       "root_cause": "r33_snap_child_support_treatment",
-      "alternative_reading": "A state that does not take the option in 7 CFR 273.9(c)(17) counts legally obligated child support paid to nonhousehold members in gross income and deducts it when computing net income (7 CFR 273.9(d)(5)). USDA's State Options Reports list Michigan among those states, and Michigan's budget (BEM 556) subtracts child support at line 20, after gross income at line 10.",
+      "alternative_reading": "A state that does not take the option in 7 CFR 273.9(c)(17) counts legally obligated child support paid to nonhousehold members in gross income and deducts it when computing net income (7 CFR 273.9(d)(5)). USDA's 16th and 17th State Options Reports list Michigan among those states (the 15th lists it among the exclusion states), and Michigan's budget (BEM 556) subtracts child support at line 20, after gross income at line 10.",
       "frozen_value": 287.68316650390625,
       "alternative_value": 0.0,
       "engine_version": "policyengine-us 1.755.4",
