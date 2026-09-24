@@ -11,7 +11,7 @@
     "r31_snap_income_limit_rounding": "9800f9c2275733d825039041de6e3df2b792cf4a72663f0c2e687be61eb4bf35"
   },
   "scenarios_sha256": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
-  "reference_csv_sha256": "37e2c2bd52908e92c8e9396fa863b2a3838e5136135187a27e1c4cd88e3d5808",
+  "reference_csv_sha256": "81f84aa2b9141a47303ff90484f28e4442259cbf8d7d600e3102a9d774db97f8",
   "months": "the *_months columns count the months of 2026 in which each test holds",
   "bbce_parameters": {
     "state_tanf_non_cash": {
@@ -130,6 +130,6 @@
       ]
     }
   },
-  "generated_at_utc": "2026-09-23T22:58:44.270129+00:00",
+  "generated_at_utc": "2026-09-24T03:44:33.499125+00:00",
   "script": "scripts/snap_pathways_20260922.py"
 }
