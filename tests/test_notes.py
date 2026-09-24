@@ -409,10 +409,8 @@ def _cost_per_household(row: dict) -> float:
     return float(f"{row['costUsd'] / 100:.4f}")
 
 
-def test_gpt6_sol_note_facts() -> None:
-    note = _note(SOL6_NOTE)
-    if not _recompute_against_frozen_snapshot(note):
-        return
+def _gpt6_sol_facts() -> dict:
+    """The GPT-6 Sol note's facts, computed on the frozen snapshot."""
     board_rows = [
         row for row in _dashboard()["modelStats"] if row["condition"] == "no_tools"
     ]
@@ -455,15 +453,20 @@ def test_gpt6_sol_note_facts() -> None:
         "regenerated": len(regenerated),
         "excluded": len(_load_json(EXCLUSIONS_PATH)["exclusions"]),
     }
-    assert note["facts"] == derived
     for row in (sol, opus, luna):
         assert row["nParsed"] == row["n"]
+    return derived
 
 
-def test_reference_audit_note_facts() -> None:
-    note = _note(AUDIT_NOTE)
+def test_gpt6_sol_note_facts() -> None:
+    note = _note(SOL6_NOTE)
     if not _recompute_against_frozen_snapshot(note):
         return
+    assert note["facts"] == _gpt6_sol_facts()
+
+
+def _reference_audit_facts() -> dict:
+    """The reference audit note's facts, computed on the frozen snapshot."""
     exclusions = _load_json(EXCLUSIONS_PATH)["exclusions"]
     adjudications = _load_json(ADJUDICATIONS_PATH)["adjudications"]
     flagged = [a for a in adjudications if a.get("judge_reference_suspect") is True]
@@ -522,7 +525,14 @@ def test_reference_audit_note_facts() -> None:
         if a["reference_verdict"] == "engine_defect"
     }
     assert flagged_defects <= {(e["scenario_id"], e["variable"]) for e in defects}
-    assert note["facts"] == derived
+    return derived
+
+
+def test_reference_audit_note_facts() -> None:
+    note = _note(AUDIT_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    assert note["facts"] == _reference_audit_facts()
 
 
 BBCE_NOTE = "2026-09-23-five-snap-households-bbce"
@@ -809,15 +819,21 @@ def test_bbce_households_note_facts() -> None:
                 for value in (float(v) for v in row["monthly_snap"].split())
             )
     pin(
+        # USDA's FY2026 minimum allotment for households of one or two in the
+        # 48 states and DC, effective October 1, 2025 through September 30,
+        # 2026, is $24 (fns.usda.gov/snap/allotment/cola, read 2026-09-24); the
+        # engine's January minimum above is that value, and the note states no
+        # FY2027 amount.
         "SNAP pays every eligible household of one or two people at least a "
-        "minimum benefit.",
+        "minimum benefit, ${minimumMonthly} a month.",
         "A model that answers $0 treats the household as ineligible, and that "
         "answer could keep someone who qualifies from applying.",
         # PolicyBench scores every answer against the PolicyEngine reference
-        # (the payload's groundTruth is the committed reference CSV).
+        # (the payload's groundTruth is the committed reference CSV); twelve
+        # months of the minimum (above).
         "PolicyEngine, the open-source tax and benefit model PolicyBench grades "
         "answers against, puts the correct amount for each household at that "
-        "minimum, ${minimumMonthly} a month or ${referenceAmount} for 2026.",
+        "minimum, ${referenceAmount} for 2026.",
     )
 
     # Who the four are, and the ordinary tests each fails. Every one has gross
@@ -894,19 +910,20 @@ def test_bbce_households_note_facts() -> None:
     # The surviving spouse in Wisconsin.
     widow = _person(scenarios["scenario_108"], "head")
     assert sizes["scenario_108"] == 1 and widow["is_surviving_spouse"] is True
+    assert sorted(exempt_from_gross) == ["scenario_027", "scenario_073", "scenario_108"]
     pin(
         "All {householdCount:words} households have gross income above "
-        "{snapGrossLimit}% of the guideline, but only one fails SNAP's ordinary "
-        f"gross income test: a {{txAge}}-year-old {names['scenario_030']} "
-        "resident with wages and ${financialAssistance} of financial assistance.",
-        "SNAP exempts the other three from that test because each has an "
-        f"elderly or disabled member: a {names['scenario_027']} couple on Social "
-        f"Security disability income, a disabled {names['scenario_073']} resident "
-        f"living alone, and an {{wiAge}}-year-old surviving spouse in "
-        f"{names['scenario_108']}.",
-        "All three fail SNAP's ordinary net income test, and the "
-        f"{names['scenario_027']} couple also holds ${{ctSavings}} in savings, "
-        "above SNAP's asset limit.",
+        "{snapGrossLimit}% of the guideline, but SNAP exempts households with an "
+        "elderly or disabled member from its ordinary gross income test.",
+        "Three of the {householdCount:words} have such a member: a "
+        f"{names['scenario_027']} couple on Social Security disability income, a "
+        f"disabled {names['scenario_073']} resident living alone, and an "
+        f"{{wiAge}}-year-old surviving spouse in {names['scenario_108']}.",
+        f"The fourth, a {{txAge}}-year-old {names['scenario_030']} resident with "
+        "wages and ${financialAssistance} of financial assistance, fails that test.",
+        "The three exempt households fail SNAP's ordinary net income test "
+        f"instead, and the {names['scenario_027']} couple also holds "
+        "${ctSavings} in savings, above SNAP's asset limit.",
     )
     # The tests above follow the engine's reading of the listed employer-
     # sponsored insurance premiums, which it documents as employer-paid. The
@@ -938,11 +955,12 @@ def test_bbce_households_note_facts() -> None:
     for prompt in payload["scenarios"]["scenario_073"]["prompt"].values():
         assert "- employer sponsored insurance premiums: $" in _household_block(prompt)
     pin(
-        f"PolicyEngine reads the {names['scenario_073']} resident's listed "
-        "employer-sponsored insurance premiums as paid by the employer.",
+        "The prompt lists employer-sponsored insurance premiums for the "
+        f"{names['scenario_073']} resident, and PolicyEngine treats the employer "
+        "as paying them.",
         "Had the resident paid them, SNAP would count them as a medical expense, "
-        "and the household would pass the net income test and qualify without "
-        "BBCE, for the same ${minimumMonthly} minimum.",
+        "and the household would pass the net income test and get the same "
+        "${minimumMonthly} minimum without BBCE.",
     )
 
     # The engine's BBCE rule: categorical eligibility through SSI, TANF cash,
@@ -993,7 +1011,7 @@ def test_bbce_households_note_facts() -> None:
     pin(
         "Each household qualifies only through broad-based categorical "
         "eligibility (BBCE).",
-        "Without BBCE, SNAP tests a household's gross income against "
+        "Ordinarily, SNAP tests a household's gross income against "
         "{snapGrossLimit}% of the federal poverty guideline, its net income "
         "after deductions for costs such as housing, and its savings.",
         # The rule, 7 CFR 273.2(j)(2)(ii): every member "receive[s] or [is]
@@ -1068,11 +1086,17 @@ def test_bbce_households_note_facts() -> None:
         for row in asset_rows
         if row["scenario_id"] == "scenario_080"
     )
+    assert "heat-and-eat standard utility allowance" in pennsylvania["defect"]
+    # The Pennsylvania household's answers are in the share above $0 (below):
+    # its corrected value, without the allowance, and the engine's, with it,
+    # are both above $0.
+    assert "scenario_080" in asset_households
     pin(
         f"PolicyBench does not score the {STATE_NAMES['PA']} household's SNAP "
-        "amount, because PolicyEngine grants it a utility allowance under a rule "
-        f"that a {law_year.group(1)} law narrowed.",
-        "The household qualifies for a benefit either way.",
+        "amount, because PolicyEngine grants it the heat-and-eat utility "
+        f"allowance, which a {law_year.group(1)} law narrowed.",
+        "With or without that allowance, the household qualifies for a benefit, "
+        "so its answers count toward the share above $0.",
     )
 
     # The answers. Answers that did not parse carry no value and no
@@ -1089,10 +1113,15 @@ def test_bbce_households_note_facts() -> None:
         return predictions[scenario_id]["snap"][model].get("explanation") or ""
 
     assert len(rows) == len(board) * len(households)
+    assert len(asset_rows) == len(board) * len(asset_households)
     missing = [row for row in rows if row["prediction"] == ""]
-    for row in missing:
+    asset_missing = [row for row in asset_rows if row["prediction"] == ""]
+    for row in [*missing, *asset_missing]:
         entry = predictions[row["scenario_id"]]["snap"][row["model"]]
         assert entry["parsed"] is False and not entry.get("explanation")
+    # The answers models give: every requested answer that came back.
+    returned = [row for row in rows if row["prediction"] != ""]
+    asset_returned = [row for row in asset_rows if row["prediction"] != ""]
     explained = [
         row for row in rows if explanation(row["scenario_id"], row["model"]).strip()
     ]
@@ -1108,11 +1137,12 @@ def test_bbce_households_note_facts() -> None:
             row["within_1_dollar"] for row in rows if row["scenario_id"] == scenario_id
         )
         assert 2 * hits_here < len(board), scenario_id
-    # The title holds for all four: Texas qualifies under its higher gross
-    # limit, and the other three states drop the net income test (above).
+    # The title holds for all four: each qualifies only through BBCE, Texas
+    # under its higher gross limit and the other three because their states
+    # drop the net income test (above).
     assert note["title"] == (
-        "Most models answer $0 for households that qualify for SNAP under a "
-        "state's looser income rules"
+        "Most models answer $0 for households that qualify for SNAP because "
+        "their states open it to higher incomes"
     )
     pin(
         "For each of {householdCount:words} households that qualify for SNAP "
@@ -1134,9 +1164,11 @@ def test_bbce_households_note_facts() -> None:
     pin(
         "When savings rather than income hold a household back, most models "
         "answer above $0.",
-        "For those {assetOnlyCount:words} households, {assetOnlyAbove0Share}% of "
-        "answers come in above $0, against {incomeAbove0Share}% for the "
-        "{householdCount:words} held back by income.",
+        # Both shares count the answers models give (above), as the
+        # explanation counts below do.
+        "Of the answers models give for those {assetOnlyCount:words} households, "
+        "{assetOnlyAbove0Share}% come in above $0, against {incomeAbove0Share}% "
+        "for the {householdCount:words} held back by income.",
     )
     asset_explained = [
         row
@@ -1146,6 +1178,10 @@ def test_bbce_households_note_facts() -> None:
     asset_mentions = [
         row for row in asset_rows if row["mentions_categorical_eligibility"]
     ]
+    # Every answer a model gives comes with an explanation, so the shares above
+    # $0 and the explanation counts share their denominators.
+    assert len(returned) == len(explained)
+    assert len(asset_returned) == len(asset_explained)
     # The models that answer above $0 on every household held back by savings
     # and $0 on each household held back by income: the two the prose names
     # (top models in the September 3 note) and the others it counts.
@@ -1267,7 +1303,7 @@ def test_bbce_households_note_facts() -> None:
         f"surviving spouse, citing {names['scenario_108']}'s BBCE and its "
         "{bbceGrossLimitHigh}% limit.",
         f"For the {names['scenario_027']} couple and the disabled "
-        f"{names['scenario_073']} resident it answers $0, citing SNAP's "
+        f"{names['scenario_073']} resident, it answers $0, citing SNAP's "
         "ordinary net income test, which BBCE removes in both states.",
     )
 
@@ -1300,6 +1336,20 @@ def test_bbce_households_note_facts() -> None:
     # educational assistance) as income, which takes the household above the
     # ordinary gross and net limits and leaves BBCE as its only route.
     assert sol6["scenario_030"] > 0 and opus["scenario_030"] > 0
+    # Both miss the correct amount: neither is within $1 of it.
+    for model in ("gpt-6-sol", "claude-opus-5.5"):
+        assert not any(
+            row["within_1_dollar"]
+            for row in rows
+            if (row["model"], row["scenario_id"]) == (model, "scenario_030")
+        )
+        assert (
+            abs(
+                predictions["scenario_030"]["snap"][model]["prediction"]
+                - reference_amount
+            )
+            > 1
+        )
     assert "monthly wages" in explanation("scenario_030", "gpt-6-sol")
     assert "financial and educational assistance are not counted" in explanation(
         "scenario_030", "claude-opus-5.5"
@@ -1326,9 +1376,14 @@ def test_bbce_households_note_facts() -> None:
     texas_paragraph = next(p for p in note["paragraphs"] if "labels that money" in p)
     assert re.findall(r'"([^"]+)"', texas_paragraph) == ["financial assistance"]
     pin(
-        f"For the {names['scenario_030']} resident, {sol6_name} answers "
-        f"${{sol6On030}} and {opus_name} answers ${{opusOn030}}, and both "
-        "compute an ordinary benefit from wages alone.",
+        # Both count the wages and leave out the financial assistance that
+        # PolicyEngine counts (above and below); counting wages alone, the
+        # household passes the ordinary gross income test.
+        f"{sol6_name} and {opus_name} miss the {names['scenario_030']} "
+        "resident's amount because they count less income than PolicyEngine "
+        "does, not because of BBCE.",
+        f"{sol6_name} answers ${{sol6On030}} and {opus_name} answers "
+        "${opusOn030}, and both compute an ordinary benefit from wages alone.",
         "PolicyEngine also counts the ${financialAssistance} of financial "
         "assistance as income, which puts the household above SNAP's ordinary "
         "limits and leaves BBCE as its only route.",
@@ -1338,7 +1393,6 @@ def test_bbce_households_note_facts() -> None:
         'The prompt labels that money only "financial assistance", without '
         "naming its source, and SNAP counts some kinds of assistance as income "
         "but excludes others, such as educational assistance.",
-        "Both answers turn on what counts as income, not on BBCE.",
     )
 
     # What the prompt says, in every household's prompt and every answer
@@ -1374,16 +1428,19 @@ def test_bbce_households_note_facts() -> None:
     for quote, sentence in zip(quotes, PREFACE_SENTENCES):
         assert quote.rstrip(".,").lower() in sentence.lower()
     pin(
-        "Prompts mention TANF only to ask for the household's TANF amount, and "
-        "none mentions the non-cash benefit.",
+        # Each prompt's only TANF line asks for the TANF amount (above).
+        "No prompt mentions the non-cash benefit, and each mentions TANF only "
+        "to ask for the household's TANF amount.",
         "Every prompt tells the model to treat any unlisted household fact or "
         'status "as false", to assume "program take-up when required", and not '
         'to infer unlisted "benefit receipt".',
         # The quotations follow the preface's order (above): the unlisted-status
-        # rule, the take-up rule, and the no-inference rule.
-        "Under the rules on unlisted statuses and benefit receipt, a model "
-        "assumes the household lacks the non-cash benefit.",
-        "Under the take-up rule, it assumes the household takes the benefit up.",
+        # rule, the take-up rule, and the no-inference rule. The sentence says
+        # what the rules tell a model, not what models do: only one
+        # explanation of a $0 answer mentions TANF (below).
+        "The rules on unlisted statuses and benefit receipt tell a model the "
+        "household lacks the non-cash benefit, while the take-up rule tells it "
+        "the household takes that benefit up.",
         # The engine checks is_tanf_non_cash_eligible (above).
         "PolicyEngine applies BBCE to any household eligible for the non-cash "
         "benefit, without checking whether the household receives it or holds "
@@ -1508,16 +1565,27 @@ def test_bbce_households_note_facts() -> None:
         + worker_exclusion["upstream"]
     )
     assert set(pathway_meta["excluded_snap_rows"]["households"]) == set(snap_exclusions)
+    # The first version (a637921, PR #175) counted the four and the worker:
+    # facts answers 210 and zeroAnswers 172. The predictions are the same in
+    # both releases, so the worker's answers recompute its figures.
+    previous_answers = len(board) * (len(households) + 1)
+    worker_zeros = sum(
+        predictions[worker_id]["snap"][model].get("prediction") == 0
+        for model in by_model
+    )
+    assert set(predictions[worker_id]["snap"]) == set(by_model)
+    previous_zero_answers = len(zero_rows) + worker_zeros
     pin(
         f"PolicyBench revised this note on {_month_day(revised)}.",
         f"Its first version, published {_month_day(note['date'])}, counted a "
-        f"fifth household: a {worker_state_name} worker who pays child support.",
+        f"fifth household, a {worker_state_name} worker who pays child support, "
+        "and reported {previousZeroAnswers} of {previousAnswers} answers at $0.",
         "PolicyEngine subtracts that child support from the worker's gross "
         f"income, while {worker_state_name} counts it in gross income and "
         "deducts it only when computing net income.",
-        "Counted that way, the worker's gross income exceeds "
-        f"{worker_state_name}'s {{bbceGrossLimitHigh}}% limit, so the household "
-        "does not qualify.",
+        f"Counted {worker_state_name}'s way, the worker's gross income exceeds "
+        "the state's {bbceGrossLimitHigh}% limit, so the household does not "
+        "qualify.",
         # "Not yet merged": the exclusion record's upstream field (above).
         # Only the SNAP output is excluded; the household's other outputs stay
         # scored.
@@ -1576,15 +1644,13 @@ def test_bbce_households_note_facts() -> None:
         f"the {worker_state_name} worker among them; PolicyBench now scores the "
         "SNAP amounts of {householdCount:words} of them, at ${referenceAmount}.",
         "PolicyBench computed the ${previousReference} on "
-        f"{_month_day(freeze.group(1))}, when PolicyEngine left the minimum "
-        "unrounded: ${previousMonthlyJanSep} a month through September and a "
-        "projected ${previousMonthlyOctDec} from October.",
+        f"{_month_day(freeze.group(1))} from PolicyEngine's unrounded minimum: "
+        "${previousMonthlyJanSep} a month through September and a projected "
+        "${previousMonthlyOctDec} from October.",
         # Rule 2 of the reference audit: an upstream-fixed defect is
-        # regenerated with its fix.
-        "PolicyEngine began rounding the minimum to the nearest dollar on "
-        f"{_month_day(merged.group(1))} (policyengine-us #9162), and PolicyBench "
-        f"regenerated its {_month_day(note['boardSnapshot'])} correct amounts "
-        "with that fix.",
+        # regenerated with its fix, and the four references carry it (above).
+        "PolicyEngine has rounded the minimum to the nearest dollar since "
+        f"{_month_day(merged.group(1))} (policyengine-us #9162).",
     )
     # The household the note no longer scores: its reference assumed hours the
     # prompt does not list, and under the prompt's zero reading the engine
@@ -1606,6 +1672,20 @@ def test_bbce_households_note_facts() -> None:
     ) in alternative_reading
     assert excluded_112["alternative_value"] == 0
     assert payload["scenarios"]["scenario_112"]["state"] == "TX"
+    # One adult under 60, no children, and no disability: at 0 hours no
+    # exemption applies. In policyengine-us 1.755.4,
+    # meets_snap_general_work_requirements requires 30 hours a week absent an
+    # exemption or work program participation, and for a person without a
+    # dependent child meets_snap_work_requirements_person requires it and the
+    # able-bodied-adult requirement together; the engine checks both each
+    # month, so at 0 hours it gives $0 all year (the exclusion's alternative
+    # value). A run of the frozen scenario on 1.755.4 on 2026-09-24 gave
+    # False for both requirements and $0 in every month at 0 hours, and True
+    # for both and the frozen $287.68 for the year at the reference's 40.
+    household_112 = scenarios["scenario_112"]
+    assert len(household_112["adults"]) == 1 and not household_112["children"]
+    worker_112 = _person(household_112, "head")
+    assert worker_112["age"] < 60 and not worker_112.get("is_disabled")
     for prompt_112 in payload["scenarios"]["scenario_112"]["prompt"].values():
         assert PREFACE_UNLISTED_STATUS in prompt_112
         assert "hours" not in _household_block(prompt_112)
@@ -1635,14 +1715,23 @@ def test_bbce_households_note_facts() -> None:
         "work a week, which the prompt does not list.",
         # PREFACE_UNLISTED_STATUS: "Treat any unlisted numeric input as 0".
         "The prompt tells models to treat unlisted numbers as 0, and at 0 hours "
-        "PolicyEngine applies SNAP's time limit for able-bodied adults without "
-        "dependents and gives $0.",
-        "The top three models in that note gave the same answer.",
-        f"The {_month_day(previous['date'])} note also described BBCE as "
-        "covering households that receive the non-cash benefit; PolicyEngine's "
-        "correct amounts extend it to every household eligible for that benefit.",
+        "PolicyEngine gives $0, because the household's one adult then fails "
+        "SNAP's work requirements.",
+        "The top three models in that note also answered $0 for that household.",
+        # The engine behind that note's references (its referenceEngineVersion,
+        # asserted below) is the one whose BBCE rule the pathway record reads
+        # (above): eligibility for the non-cash benefit, not receipt of it.
+        f"The {_month_day(previous['date'])} note described BBCE as covering "
+        "households that receive the non-cash benefit, but PolicyEngine, which "
+        "computed that note's correct amounts, applies BBCE to every household "
+        "eligible for that benefit.",
         "The same note said these states waive the asset test, but "
         f"{texas} keeps a ${{bbceAssetLimitTx}} asset limit.",
+    )
+
+    assert (
+        previous["facts"]["referenceEngineVersion"]
+        == pathway_meta["policyengine_us_version"]
     )
 
     # The September 3 note points to this correction in its last paragraph and
@@ -1651,15 +1740,19 @@ def test_bbce_households_note_facts() -> None:
     unscored = sorted(set(previous["facts"]["deniedScenarios"]) - set(households))
     assert unscored == [worker_id, "scenario_112"]
     assert all(scenario_id in snap_exclusions for scenario_id in unscored)
+    # It describes the two households it no longer scores, as this note does.
     assert previous["paragraphs"][-1] == (
         f"A later note, first published {_month_day(note['date'])} and revised "
-        f"{_month_day(revised)}, corrects this one: PolicyBench now scores the "
-        f"SNAP amounts of {number_words[len(households)]} of these "
-        f"{number_words[previous['facts']['deniedCount']]} households, at "
-        f"${reference_amount:,.0f} each, and no longer scores those of "
-        f"{unscored[0]} and {unscored[1]}."
+        f"{_month_day(revised)}, corrects this one. PolicyBench now scores the "
+        "SNAP amounts of {laterScoredCount:words} of these {deniedCount:words} "
+        "households, at ${laterReference} each. It no longer scores those of a "
+        f"{worker_state_name} worker who pays child support and of a "
+        f"{STATE_NAMES[payload['scenarios'][unscored[1]]['state']]} household "
+        "whose reference assumed hours of work the prompt does not list."
     )
-    assert not PLACEHOLDER.findall(previous["paragraphs"][-1])
+    assert previous["facts"]["laterScoredCount"] == len(households)
+    assert previous["facts"]["laterReference"] == _whole_or_cents(reference_amount)
+    assert previous["facts"]["deniedCount"] == len(unscored) + len(households)
     assert {entry["label"]: entry["href"] for entry in previous["data"]}[
         f"Later note on these households ({_month_day(note['date'])})"
     ] == (f"/notes/{note['slug']}")
@@ -1727,8 +1820,8 @@ def test_bbce_households_note_facts() -> None:
         "bbceGrossLimitHigh": high_limit,
         "bbceGrossLimitTx": round(100 * rules["TX"]["gross_income_limit_fpg"]),
         "assetOnlyCount": len(asset_households),
-        "assetOnlyAbove0Share": _percent(len(asset_above_zero), len(asset_rows)),
-        "incomeAbove0Share": _percent(len(above_zero), len(rows)),
+        "assetOnlyAbove0Share": _percent(len(asset_above_zero), len(asset_returned)),
+        "incomeAbove0Share": _percent(len(above_zero), len(returned)),
         "splitOtherModels": len(split_models) - len(named_split),
         "assetOnlyBbceMentions": len(asset_mentions),
         "assetOnlyExplanations": len(asset_explained),
@@ -1747,6 +1840,8 @@ def test_bbce_households_note_facts() -> None:
         "sol6On030": _whole_or_cents(sol6["scenario_030"]),
         "opusOn030": _whole_or_cents(opus["scenario_030"]),
         "zeroTanfMentions": len(zero_tanf),
+        "previousZeroAnswers": previous_zero_answers,
+        "previousAnswers": previous_answers,
         "previousHouseholdCount": previous["facts"]["deniedCount"],
         "previousReference": f"{frozen_value:.2f}",
         "previousMonthlyJanSep": f"{jan:.2f}",
@@ -1755,6 +1850,146 @@ def test_bbce_households_note_facts() -> None:
         "bbceAssetLimitTx": _whole_or_cents(rules["TX"]["asset_limit"]),
     }
     assert note["facts"] == derived
+
+
+# The release that superseded dashboard-data-20260922 on the same snapshot,
+# which the September 22 notes' closing paragraphs describe.
+LATER_RELEASE = "dashboard-data-20260922b"
+
+
+def _later_facts(note: dict) -> dict:
+    return {k: v for k, v in note["facts"].items() if k.startswith("later")}
+
+
+def test_september_22_notes_point_to_the_later_release() -> None:
+    """The two September 22 notes keep the facts of their release and close
+    with the figures of the release that replaced it, recomputed here while
+    that release is the frozen one."""
+    sol, audit = _note(SOL6_NOTE), _note(AUDIT_NOTE)
+    opening = (
+        f"A later release, {LATER_RELEASE}, excludes one more output for every "
+        "model: the SNAP amount of a Michigan worker who pays child support."
+    )
+    for note in (sol, audit):
+        assert note["release"] == "dashboard-data-20260922"
+        assert note["paragraphs"][-1].startswith(opening + " ")
+        assert not any(LATER_RELEASE in p for p in note["paragraphs"][:-1])
+        links = {entry["label"]: entry["href"] for entry in note["data"]}
+        assert links[f"Later release {LATER_RELEASE}"] == (
+            "https://github.com/PolicyEngine/policybench/releases/tag/" + LATER_RELEASE
+        )
+    if _frozen_release() != LATER_RELEASE:
+        return
+
+    # One more exclusion, the Michigan worker's SNAP output, decided after
+    # the notes' release for an engine defect not fixed upstream.
+    exclusions = _load_json(EXCLUSIONS_PATH)["exclusions"]
+    assert len(exclusions) == sol["facts"]["excluded"] + 1
+    later = [e for e in exclusions if e["decided_on"] > sol["date"]]
+    assert [(e["scenario_id"], e["variable"]) for e in later] == [
+        ("scenario_045", "snap")
+    ]
+    (worker,) = later
+    assert worker["reason_code"] == "reference_engine_defect"
+    assert worker["root_cause"] == "r33_snap_child_support_treatment"
+    assert worker["upstream"] == (
+        "fix open in PolicyEngine/policyengine-us#9586 (not merged)"
+    )
+    payload = _dashboard()
+    assert payload["scenarios"]["scenario_045"]["state"] == "MI"
+    head = next(
+        person
+        for person in json.loads(
+            next(
+                row["scenario_json"]
+                for row in csv.DictReader(
+                    (RUN_DIR / "scenarios.csv").open(encoding="utf-8", newline="")
+                )
+                if row["scenario_id"] == "scenario_045"
+            )
+        )["adults"]
+        if person["name"] == "head"
+    )
+    assert head["inputs"]["child_support_expense"] > 0 and head["employment_income"] > 0
+    # The September 22 release had regenerated that output: the regenerated
+    # counts each fall by one, and the record names the upstream fix that
+    # moved it.
+    assert (
+        "r28_snap_min_allotment_rounding (engine defect, fixed upstream)"
+        in (worker["note"])
+    )
+    meta = _load_json(REFERENCE_META_PATH)
+    assert ("scenario_045", "snap") not in {
+        (change["scenario_id"], change.get("variable", "snap"))
+        for revision in meta["revisions"]
+        for change in revision["changed"]
+    }
+
+    # The audit note: the counts its closing paragraph restates.
+    audit_now = _reference_audit_facts()
+    later_audit = _later_facts(audit)
+    assert later_audit == {
+        "laterDefectOutputs": audit_now["defectOutputs"],
+        "laterDefectHouseholds": audit_now["defectHouseholds"],
+        "laterDefectRootCauses": audit_now["defectRootCauses"],
+        "laterDefectUnflagged": audit_now["defectUnflagged"],
+        "laterRegenerated": audit_now["regenerated"],
+        "laterRegeneratedSnap": audit_now["regeneratedSnap"],
+        "laterRegeneratedByFix": audit_now["regeneratedByFix"],
+        "laterScoredOutputs": audit_now["scoredOutputs"],
+    }
+    for key in ("regenerated", "regeneratedSnap", "regeneratedByFix"):
+        assert audit["facts"][key] - audit_now[key] == 1, key
+    for key in ("defectOutputs", "defectHouseholds", "defectRootCauses"):
+        assert audit_now[key] - audit["facts"][key] == 1, key
+    assert audit["facts"]["totalOutputs"] == audit_now["totalOutputs"]
+    assert audit["paragraphs"][-1] == (
+        opening + " policyengine-us subtracts that child support from gross income, "
+        "while Michigan counts it there and deducts it only when computing net "
+        "income, and PolicyEngine has not yet merged its fix (policyengine-us "
+        "#9586). That release excludes {laterDefectOutputs} outputs in "
+        "{laterDefectHouseholds} households for engine defects across "
+        "{laterDefectRootCauses} root causes, and {laterDefectUnflagged} of "
+        "those outputs had never been flagged. The September 22 release had "
+        "regenerated the Michigan output, so the later one regenerates "
+        "{laterRegenerated} references, {laterRegeneratedSnap} of them SNAP and "
+        "{laterRegeneratedByFix} with upstream fixes. It scores every model on "
+        "{laterScoredOutputs} of its {totalOutputs} requested outputs."
+    )
+    assert {entry["label"]: entry["href"] for entry in audit["data"]}[
+        "Later note on the SNAP households that qualify through BBCE (September 23)"
+    ] == f"/notes/{BBCE_NOTE}"
+
+    # The GPT-6 Sol note: the figures that moved, and every other figure the
+    # same on the later release.
+    sol_now = _gpt6_sol_facts()
+    assert _later_facts(sol) == {
+        "laterScoredOutputs": sol_now["scoredOutputs"],
+        "laterRegenerated": sol_now["regenerated"],
+        "laterExcluded": sol_now["excluded"],
+        "laterSolExact": sol_now["solExact"],
+        "laterOpusExact": sol_now["opusExact"],
+        "laterOpus5AutoExact": sol_now["opus5AutoExact"],
+    }
+    moved = {
+        "scoredOutputs",
+        "regenerated",
+        "excluded",
+        "solExact",
+        "opusExact",
+        "opus5AutoExact",
+    }
+    for key, value in sol_now.items():
+        if key not in moved:
+            assert sol["facts"][key] == value, key
+    assert sol["paragraphs"][-1] == (
+        opening + " It scores every row on {laterScoredOutputs} of its {totalOutputs} "
+        "requested outputs, regenerates {laterRegenerated} references and "
+        "excludes {laterExcluded} outputs. On it GPT-6 Sol scores "
+        "{laterSolExact}% and Claude Opus 5.5 {laterOpusExact}%, and Claude "
+        "Opus 5's tool_choice auto re-run scores {laterOpus5AutoExact}%. Every "
+        "other figure in this note stays the same."
+    )
 
 
 @pytest.mark.slow

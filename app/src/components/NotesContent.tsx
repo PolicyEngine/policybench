@@ -23,7 +23,7 @@ const NUMBER_WORDS = [
 ];
 
 export const NOTES_INTRO =
-  "Dated records of board changes and findings. Each note names the data release its numbers come from; a test in the repository checks every number against the frozen snapshot of that release.";
+  "Dated records of board changes and findings. Each note names the data release its numbers come from, and a test in the repository checked every number against the frozen snapshot of that release.";
 
 export function formatNoteDate(date: string): string {
   return new Intl.DateTimeFormat("en-US", {

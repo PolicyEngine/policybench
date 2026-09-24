@@ -7,7 +7,8 @@
     "Flags sample defects without bounding them. For each defect we implemented the rule as a fix on the same engine version and recomputed all {totalOutputs} references under it. {upstreamFixed} of the root causes had been fixed in policyengine-us after the references were frozen, so the {regeneratedByFix} scored references they move are regenerated with the fix. One of those fixes as first built went further than the upstream fix, applying Wisconsin's capital gain exclusion to capital gain distributions; upstream still leaves them out, so that part counts as a defect not yet fixed. Every output a defect not yet fixed upstream moves by more than a dollar is excluded from scoring for every model: {defectOutputs} outputs in {defectHouseholds} households are recorded as engine-defect exclusions across {defectRootCauses} root causes, and {defectUnflagged} of them had never been flagged. An output such a defect moves that was already excluded for an unstated input keeps that record. Also excluded are {unlistedOutputs} outputs whose reference turns on an input the prompt never states, such as who paid for the coverage behind a disability benefit.",
     "The audit also tested a failure no judge flagged. policyengine-us extends a parameter past its last encoded year with a price-index projection, so a 2026 reference can rest on a forecast where a government published an amount. Recomputing every reference with each projection held found forecasts behind references in SNAP, California, the IRS sales tax tables, Wisconsin, Minnesota, Michigan, Missouri, Maryland and Idaho. The rule the benchmark now states: a scored reference follows from the household facts and from law published before the references were frozen on 2026-07-03. The scored references among them were regenerated with the published amounts, or with the last ones published before the freeze; Wisconsin's published amounts reach only the corrected values of Wisconsin outputs excluded for engine defects.",
     "Separating the SNAP convention's parameter holds from its arithmetic exposed engine defects in SNAP itself: the engine kept cents in the monthly allotment where federal rules require whole dollars, set the minimum benefit at $23.84 a month where the rule rounds it to $24, and rounded net income down. policyengine-us fixed each after the freeze, so the SNAP references apply those fixes. One SNAP defect is not fixed upstream: the engine grants the heat-and-eat utility allowance to households without an elderly or disabled member, which a July 2025 law ended, and the scored SNAP output it moves is excluded.",
-    "In all, {regenerated} references are regenerated, {regeneratedSnap} of them SNAP, and every model is scored on {scoredOutputs} of its {totalOutputs} requested outputs. The exclusion record, the adjudications and the reference sidecar, which lists each regenerated value with its source, ship with the release."
+    "In all, {regenerated} references are regenerated, {regeneratedSnap} of them SNAP, and every model is scored on {scoredOutputs} of its {totalOutputs} requested outputs. The exclusion record, the adjudications and the reference sidecar, which lists each regenerated value with its source, ship with the release.",
+    "A later release, dashboard-data-20260922b, excludes one more output for every model: the SNAP amount of a Michigan worker who pays child support. policyengine-us subtracts that child support from gross income, while Michigan counts it there and deducts it only when computing net income, and PolicyEngine has not yet merged its fix (policyengine-us #9586). That release excludes {laterDefectOutputs} outputs in {laterDefectHouseholds} households for engine defects across {laterDefectRootCauses} root causes, and {laterDefectUnflagged} of those outputs had never been flagged. The September 22 release had regenerated the Michigan output, so the later one regenerates {laterRegenerated} references, {laterRegeneratedSnap} of them SNAP and {laterRegeneratedByFix} with upstream fixes. It scores every model on {laterScoredOutputs} of its {totalOutputs} requested outputs."
   ],
   "facts": {
     "flagged": 39,
@@ -26,12 +27,24 @@
     "regeneratedSnap": 13,
     "upstreamFixed": 7,
     "regeneratedByFix": 15,
-    "scoredOutputs": 1932
+    "scoredOutputs": 1932,
+    "laterDefectOutputs": 29,
+    "laterDefectHouseholds": 21,
+    "laterDefectRootCauses": 12,
+    "laterDefectUnflagged": 9,
+    "laterRegenerated": 25,
+    "laterRegeneratedSnap": 12,
+    "laterRegeneratedByFix": 14,
+    "laterScoredOutputs": 1931
   },
   "data": [
     {
       "label": "Dashboard data release",
       "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922"
+    },
+    {
+      "label": "Later release dashboard-data-20260922b",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922b"
     },
     {
       "label": "Exclusion record",
@@ -48,6 +61,10 @@
     {
       "label": "Paper audit section",
       "href": "/paper"
+    },
+    {
+      "label": "Later note on the SNAP households that qualify through BBCE (September 23)",
+      "href": "/notes/2026-09-23-five-snap-households-bbce"
     }
   ],
   "boardSnapshot": "2026-09-22",

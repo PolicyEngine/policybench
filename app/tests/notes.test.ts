@@ -48,7 +48,7 @@ describe("notes", () => {
     expect(markup).toContain("release dashboard-data-20260901c");
     expect(markup).toContain("Six SNAP households the top three models deny");
     expect(markup).toContain(
-      "Most models answer $0 for households that qualify for SNAP under a state&#x27;s looser income rules",
+      "Most models answer $0 for households that qualify for SNAP because their states open it to higher incomes",
     );
     expect(markup).toContain("release dashboard-data-20260922");
     // The BBCE note moved to the release that excludes the Michigan worker.
@@ -63,7 +63,13 @@ describe("notes", () => {
     expect(markup).toContain("$12,000 of financial assistance");
     expect(markup).toContain("holds $48,000 in savings");
     // Whole-number shares are not board rates, so they keep no decimal.
-    expect(markup).toContain("74% of answers come in above $0");
+    expect(markup).toContain("75% come in above $0, against 19%");
+    // The September 22 notes close with the later release's figures; board
+    // rates keep one decimal there too.
+    expect(markup).toContain(
+      "A later release, dashboard-data-20260922b, excludes one more output for every model",
+    );
+    expect(markup).toContain("Claude Opus 5.5 93.0%");
     expect(markup).toContain("Claude Fable 5.1 added");
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
@@ -99,7 +105,7 @@ describe("notes", () => {
     );
     expect(markup).toContain("GPT-6 Astra gets three of the four households right");
     expect(markup).toContain(
-      "PolicyBench revised this note on September 24. Its first version, published September 23, counted a fifth household: a Michigan worker who pays child support.",
+      "PolicyBench revised this note on September 24. Its first version, published September 23, counted a fifth household, a Michigan worker who pays child support, and reported 172 of 210 answers at $0.",
     );
     expect(markup).toContain(
       "PolicyBench no longer scores the worker&#x27;s SNAP amount",
@@ -117,8 +123,9 @@ describe("notes", () => {
       createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "A later note, first published September 23 and revised September 24, corrects this one",
+      "A later note, first published September 23 and revised September 24, corrects this one. PolicyBench now scores the SNAP amounts of four of these six households, at $288 each.",
     );
+    expect(markup).not.toContain("scenario_045 and scenario_112");
     expect(markup).toContain(
       'href="/notes/2026-09-23-five-snap-households-bbce"',
     );
