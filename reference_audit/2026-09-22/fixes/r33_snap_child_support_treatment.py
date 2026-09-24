@@ -1,4 +1,4 @@
-"""Treat child support paid as USDA's State Options Reports record it (engine defect).
+"""Treat child support paid as USDA's 17th State Options Report records it for 2026 (engine defect).
 
 7 CFR 273.9(c)(17) lets a state exclude legally obligated child support paid to
 nonhousehold members from gross income; a state that does not take the option

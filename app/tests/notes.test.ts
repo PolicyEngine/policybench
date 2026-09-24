@@ -48,7 +48,7 @@ describe("notes", () => {
     expect(markup).toContain("release dashboard-data-20260901c");
     expect(markup).toContain("Six SNAP households the top three models deny");
     expect(markup).toContain(
-      "Most models answer $0 for households that qualify for SNAP because their states open it to higher incomes",
+      "Most models answer $0 for households that qualify for SNAP under their states&#x27; higher income limits",
     );
     expect(markup).toContain("release dashboard-data-20260922");
     // The BBCE note moved to the release that excludes the Michigan worker.
@@ -105,7 +105,7 @@ describe("notes", () => {
     );
     expect(markup).toContain("GPT-6 Astra gets three of the four households right");
     expect(markup).toContain(
-      "PolicyBench revised this note on September 24. Its first version, published September 23, counted a fifth household, a Michigan worker who pays child support, and reported 172 of 210 answers at $0.",
+      "PolicyBench revised this note on September 24. Its first version, published September 23, reported 172 of 210 answers at $0 across five households, among them a Michigan worker who pays child support.",
     );
     expect(markup).toContain(
       "PolicyBench no longer scores the worker&#x27;s SNAP amount",
@@ -123,7 +123,10 @@ describe("notes", () => {
       createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "A later note, first published September 23 and revised September 24, corrects this one. PolicyBench now scores the SNAP amounts of four of these six households, at $288 each.",
+      "A later note, first published September 23 and revised September 24, corrects this one. On release dashboard-data-20260922b, PolicyBench scores the SNAP amounts of four of these six households, at $288 each.",
+    );
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922b"',
     );
     expect(markup).not.toContain("scenario_045 and scenario_112");
     expect(markup).toContain(
