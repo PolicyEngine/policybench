@@ -59,6 +59,21 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*\}/);
   });
 
+  test("the five-household note links each household by description", () => {
+    const note = notes.find(
+      (entry) => entry.slug === "2026-09-23-five-snap-households-bbce",
+    );
+    expect(note).toBeDefined();
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(">Connecticut couple</a>");
+    expect(markup).toContain(
+      "For each of 5 households that qualify for SNAP food benefits, most of the 42 models on PolicyBench answer $0.",
+    );
+    expect(markup).not.toMatch(/>scenario_\d+<\/a>/);
+  });
+
   test("only the September 3 note carries the unrounded-reference footnote", () => {
     const footnoted = notes.filter((note) => {
       const markup = renderToStaticMarkup(
