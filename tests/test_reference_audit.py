@@ -283,3 +283,59 @@ def test_records_after_the_wave_carry_their_root_cause_date():
         if row["root_cause"] == "r33_snap_child_support_treatment"
     ]
     assert moved == [("scenario_045", "snap")]
+
+
+def _regen_module():
+    """The committed regen_references.py, loaded for its narrative tables."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "committed_regen_references", AUDIT / "scripts" / "regen_references.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _reference_explanations() -> dict[tuple[str, str], str]:
+    path = (
+        ROOT
+        / "annotations"
+        / "us_full_run_20260612_policyengine_4_16_1_populace"
+        / "us_case_reference_explanations.csv"
+    )
+    with path.open(newline="", encoding="utf-8") as source:
+        return {
+            (row["scenario_id"], row["variable"]): row["explanation"]
+            for row in csv.DictReader(source)
+        }
+
+
+def test_frozen_narratives_state_the_frozen_path():
+    """An excluded output whose frozen-bundle narrative misstated the engine's
+    path carries the narrative rewritten from the frozen trace: it states the
+    figures FROZEN_REQUIRED names, a hand-corrected one is published as
+    written, and each is an excluded output that keeps its frozen reference."""
+    regen = _regen_module()
+    explanations = _reference_explanations()
+    references = _references()
+    excluded = {(e["scenario_id"], e["variable"]): e for e in _exclusions()}
+    assert set(regen.HAND_CORRECTED) <= set(regen.FROZEN_NARRATIVES)
+    assert set(regen.FROZEN_REQUIRED) <= set(regen.FROZEN_NARRATIVES)
+    for key in regen.FROZEN_NARRATIVES:
+        assert key in excluded, key
+        assert references[key] == excluded[key]["frozen_value"], key
+        for figure in regen.FROZEN_REQUIRED.get(key, []):
+            assert figure in explanations[key], (key, figure)
+    for key, text in regen.HAND_CORRECTED.items():
+        assert explanations[key] == text, key
+    # scenario_045 SNAP (r33): the narrative attributes the child support
+    # exclusion to PolicyEngine and sums twelve monthly minimums to the annual
+    # value, 9 x 23.84 + 3 x 24.3744.
+    narrative = explanations[("scenario_045", "snap")]
+    assert "PolicyEngine's child support parameter for Michigan excludes" in narrative
+    assert "annual 2026 SNAP total of $287.68" in narrative
+    assert "monthly SNAP benefit of $287.68" not in narrative
+    assert "average" not in narrative
+    assert f"{9 * 23.84 + 3 * 24.3744:.2f}" == "287.68"
+    assert round(references[("scenario_045", "snap")], 2) == 287.68

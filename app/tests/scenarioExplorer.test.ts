@@ -133,6 +133,31 @@ describe("prediction detail for excluded outputs", () => {
     expect(html).not.toContain("Not yet reviewed");
   });
 
+  test("says the audit note of an excluded output compares with the frozen reference", () => {
+    const html = renderDetail(excludedRow());
+
+    expect(html).toContain('data-testid="excluded-audit-caveat"');
+    expect(html).toContain(
+      "This audit note compares the answer with the frozen reference, which assumes one reading of the unlisted input described above.",
+    );
+    const defect = renderDetail(
+      excludedRow({ excludedReason: "reference_engine_defect" }),
+      {},
+    );
+    expect(defect).toContain(
+      "This audit note compares the answer with the frozen reference, which carries the engine defect described above.",
+    );
+  });
+
+  test("a scored miss carries no excluded-output caveat", () => {
+    const html = renderDetail(
+      excludedRow({ scored: true, excludedReason: undefined, excludedInput: undefined }),
+      {},
+    );
+    expect(html).not.toContain("excluded-audit-caveat");
+    expect(html).toContain("never the SSI disability criterion");
+  });
+
   test("falls back to the row's own exclusion fields without a release record", () => {
     const html = renderDetail(excludedRow(), {});
 

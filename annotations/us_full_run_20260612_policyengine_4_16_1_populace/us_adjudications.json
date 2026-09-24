@@ -381,7 +381,7 @@
       "variable": "snap",
       "judge_model": "claude-opus-5-5",
       "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "state_local_rule",
+      "judge_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_failure_source": "reference_engine_defect",
       "adjudicated_failure_subtype": "state_local_rule",
       "adjudicated_on": "2026-09-24",

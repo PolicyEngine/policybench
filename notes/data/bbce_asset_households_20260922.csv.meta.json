@@ -1,8 +1,8 @@
 {
   "release": "dashboard-data-20260922b",
   "source_run": "us_full_run_20260612_policyengine_4_16_1_populace",
-  "run_payload_sha256": "87e7d5d068be9d8a2f6357956109c1698fd34ef29c4fd7c8994c7f9f4296e43f",
-  "release_payload_sha256": "b926e1c138bb19ff17121c15b5521ed43d93ccdf3a059d38b93a5483dfada0af",
+  "run_payload_sha256": "826defcc08ed92a27618fd08223c91eb5d637b1a60331a1b859873d9b3a2860d",
+  "release_payload_sha256": "f098f11db1a209f86916775d14b2eea2b2f736fcca1038e8af1b170ad9937809",
   "households": [
     "scenario_008",
     "scenario_054",
@@ -14,6 +14,6 @@
     "mentions_assets": "asset|resource"
   },
   "rows": 168,
-  "generated_at_utc": "2026-09-24T03:45:40.514128+00:00",
+  "generated_at_utc": "2026-09-24T04:34:19.419206+00:00",
   "script": "scripts/bbce_household_rows.py"
 }

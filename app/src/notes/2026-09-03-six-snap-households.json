@@ -7,7 +7,8 @@
     "Five of the six qualify through broad-based categorical eligibility: Connecticut, Michigan, Texas, and Wisconsin confer SNAP eligibility on households receiving a TANF-funded non-cash benefit, with gross-income limits of 200% of poverty (CT, MI, WI) and 165% (TX) and the net-income and asset tests waived. The sixth, scenario_112 in Texas, passes the federal tests; the models counted farm-rent income the rules exclude.",
     "{categoricalOnlyCount} of the {eligibleCount} eligible households qualify only through categorical eligibility: {categoricalIncomeCount} because income exceeds the federal limits (one of those also exceeds the asset limit), {categoricalAssetCount} because savings alone exceed the federal asset limit. On the {categoricalAssetCount} asset cases the models compute benefits near the reference: Sol within 1% on three and 10% on one, Fable 5.1 within 1% on all four.",
     "Across the 100 households, Sol's SNAP explanations mention categorical eligibility in {solCategoricalMentions} and assets in {solAssetMentions}; Fable 5.1's mention broad-based categorical eligibility in {fableBbceMentions}; Kimi K3's mention categorical eligibility in {kimiCategoricalMentions}.",
-    "Pathways were recomputed with policyengine-us {pathwayEngineVersion} from the frozen scenarios and agree with the frozen reference SNAP values for all 100 households; the reference itself was generated with policyengine-us {referenceEngineVersion}."
+    "Pathways were recomputed with policyengine-us {pathwayEngineVersion} from the frozen scenarios and agree with the frozen reference SNAP values for all 100 households; the reference itself was generated with policyengine-us {referenceEngineVersion}.",
+    "A later note, first published September 23 and revised September 24, corrects this one: PolicyBench now scores the SNAP amounts of four of these six households, at $288 each, and no longer scores those of scenario_045 and scenario_112."
   ],
   "facts": {
     "eligibleCount": 20,
@@ -93,6 +94,10 @@
     {
       "label": "SNAP minimum-allotment parameters",
       "href": "https://github.com/PolicyEngine/policyengine-us/tree/main/policyengine_us/parameters/gov/usda/snap/min_allotment"
+    },
+    {
+      "label": "Later note on these households (September 23)",
+      "href": "/notes/2026-09-23-five-snap-households-bbce"
     }
   ],
   "boardSnapshot": "2026-09-01",

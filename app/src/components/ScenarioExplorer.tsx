@@ -20,6 +20,7 @@ import {
 } from "../modelMeta";
 import { binaryFlag } from "../lib/scoring";
 import {
+  describeExcludedAuditNote,
   findReferenceExclusion,
   isExcludedOutput,
   predictionStatus,
@@ -1201,6 +1202,16 @@ export function DetailContent({
           <div className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
             Audit tags
           </div>
+          {excluded && pred.annotation ? (
+            <p
+              className="mt-2 text-xs text-text-muted leading-relaxed"
+              data-testid="excluded-audit-caveat"
+            >
+              {describeExcludedAuditNote(
+                exclusion?.reasonCode ?? pred.excludedReason,
+              )}
+            </p>
+          ) : null}
           {pred.annotation ? (
             <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
               {pred.annotation}

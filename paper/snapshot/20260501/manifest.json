@@ -24,10 +24,10 @@
       "note": "Judge verdicts outside the final classes (llm_error, parse_contract_failure) are resolved by a recorded developer adjudication that keeps the judge's verdict and reasoning beside the adjudicated class; applied to the bundle before export so the published payload and the frozen annotations agree. Every case the judge flagged reference-suspect carries a reference verdict (affirmed, regenerated, engine_defect, unlisted_input, later_law) that clears the flag; judge_reference_suspect records which entries the judge flagged."
     },
     "files": {
-      "us_adjudications.json": "fba469c8e599c2e92f8b82177136cfe262d7e4c2b6905520c06db42a9ab7e496",
-      "us_audit_row_annotations.csv": "efc634e1227852cd9069e8c3293a3e5d2af5022b95866e5f4455e658256bb6fc",
-      "us_case_notes.csv": "5dd763bada5c9aa84739d630984d2a5f60e18ac03b06ab928fa4565feaff3e82",
-      "us_case_reference_explanations.csv": "a6daed98f4d83f68e09e13326146a051d6f9fe30f63a61e98583facb25492a57"
+      "us_adjudications.json": "0361a95841d710fa9574f143222c5927ffa4f12b87c65fc363c22797da665d68",
+      "us_audit_row_annotations.csv": "3b9bdeebdecef23f586e05071acf431110779c5c50e6d1231e212cb9ecd7674c",
+      "us_case_notes.csv": "9f382108bbca82ab3fc3cd8c0e0c22a58468cd316ba08583a38d8f6127619784",
+      "us_case_reference_explanations.csv": "873fdb4ffc65c2f3246f7d19bf8985aa1ccb997c724ebac47059af98f36d8863"
     },
     "judge_provenance": {
       "by_judge": {
@@ -73,14 +73,14 @@
   "files": [
     {
       "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json.gz",
-      "sha256": "87e7d5d068be9d8a2f6357956109c1698fd34ef29c4fd7c8994c7f9f4296e43f"
+      "sha256": "826defcc08ed92a27618fd08223c91eb5d637b1a60331a1b859873d9b3a2860d"
     }
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 116198253,
+    "bytes": 116205571,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "b926e1c138bb19ff17121c15b5521ed43d93ccdf3a059d38b93a5483dfada0af",
+    "sha256": "f098f11db1a209f86916775d14b2eea2b2f736fcca1038e8af1b170ad9937809",
     "tag": "dashboard-data-20260922b",
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260922b/dashboard-data.json"
   },
@@ -96,8 +96,8 @@
   },
   "published_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 116198253,
-    "sha256": "b926e1c138bb19ff17121c15b5521ed43d93ccdf3a059d38b93a5483dfada0af",
+    "bytes": 116205571,
+    "sha256": "f098f11db1a209f86916775d14b2eea2b2f736fcca1038e8af1b170ad9937809",
     "tag": "dashboard-data-20260922b",
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260922b/dashboard-data.json"
   },
@@ -151,12 +151,12 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "bc8523565de86bdb6095deeb27f0dadfc4cfb7b563df294ae9fc2a51b4d45863"
+      "sha256": "e71ee2ab4f023ee9385df1981be47f0be5062fb957cfa2f25805c51d012d81f5"
     },
     "web": {
       "files": {
         "figures/positive_zero_scatter.png": "20e12eb4c23fe1f5477d1f6944381a1b6a66a87daa794b8b323f55a20ae176ed",
-        "index.html": "325a9e534aaa772d11862a7444181bbc265d3ade5ce901d1a9d89b6b4607b0fb",
+        "index.html": "2cbaa691bea9501e4bc0ac14de646d15a157fa6f95e84b06f18fd44ee8ae8e4d",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -215,7 +215,7 @@
         "analysis/summary_by_model.csv": "6af140d86b6b7a96287528cebda1cda106ebb3d30eb57510c64108348fee7b6f",
         "analysis/summary_by_variable.csv": "f3d4b0389c3f1d1bea7502ff5fe1095ba3427b2bcbec87effa0ec47078a1bfa7",
         "analysis/usage_summary.csv": "f5d622d0be4ff925d583833a5d0f0c00cf039d914da7cee72c3cb282e409ca17",
-        "data.json.gz": "87e7d5d068be9d8a2f6357956109c1698fd34ef29c4fd7c8994c7f9f4296e43f",
+        "data.json.gz": "826defcc08ed92a27618fd08223c91eb5d637b1a60331a1b859873d9b3a2860d",
         "predictions.csv.gz": "cb712f7ab0b5061153c7f6303b072755161ee8d082c3c6f4161586e61c813bb0",
         "reference_exclusions.json": "d5ff58e4bc8141b21c8fc88d352d426fc531813591ed772ad0ba0e453b4f5837",
         "reference_outputs.csv": "81f84aa2b9141a47303ff90484f28e4442259cbf8d7d600e3102a9d774db97f8",
