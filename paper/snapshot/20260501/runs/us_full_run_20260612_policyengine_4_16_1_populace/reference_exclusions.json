@@ -328,6 +328,22 @@
       "note": "Corrected value applies r06_wi_act15_before_refundable_v2 and r32_wi_capital_gain_distributions together with every publication convention and upstream fix. The output also moves under r04_capital_gain_distributions (engine defect, fixed upstream)."
     },
     {
+      "scenario_id": "scenario_045",
+      "variable": "snap",
+      "reason_code": "reference_engine_defect",
+      "root_cause": "r33_snap_child_support_treatment",
+      "alternative_reading": "A state that does not take the option in 7 CFR 273.9(c)(17) counts legally obligated child support paid to nonhousehold members in gross income and deducts it when computing net income (7 CFR 273.9(d)(5)). USDA's 16th and 17th State Options Reports list Michigan among those states (the 15th lists it among the exclusion states), and Michigan's budget (BEM 556) subtracts child support at line 20, after gross income at line 10.",
+      "frozen_value": 287.68316650390625,
+      "alternative_value": 0.0,
+      "engine_version": "policyengine-us 1.755.4",
+      "decided_on": "2026-09-24",
+      "decided_by": "developer",
+      "defect": "PolicyEngine reads its SNAP child support flag as the option to exclude child support paid from gross income, but the values carry the opposite meaning: for 2026 it excludes the payments from gross income in 37 jurisdictions that USDA's State Options Report lists as deducting them from net income, Michigan among them, and deducts them in 9 of the 14 it lists as excluding them",
+      "law": "7 CFR 273.9(c)(17); 7 CFR 273.9(d)(5); USDA SNAP State Options Report, 16th edition (June 2024), Treatment of Child Support Payments, p. 15, and 17th edition, p. 21 (Michigan: child support income expense deduction); Michigan Bridges Eligibility Manual 556 (11-1-2025), line 20",
+      "upstream": "fix open in PolicyEngine/policyengine-us#9586 (not merged)",
+      "note": "Corrected value applies r33_snap_child_support_treatment with every publication convention and upstream fix. The engine excludes the $433.33 a month of child support the household pays from SNAP gross income, which leaves $2,589.63 a month, 198.6 percent of the poverty guideline in January and 194.7 percent from October, within the 200 percent gross limit of Michigan's broad-based categorical eligibility, so the household receives the $24 monthly minimum ($288 a year, the reference the publication conventions and upstream SNAP fixes give, which the output would carry if scored). Counted in gross income, as Michigan's deduction treatment requires, the payments leave gross income at $3,022.97, 231.8 percent of the guideline in January: the household is not categorically eligible, has no elderly or disabled member, fails the 130 percent gross income test, and receives $0. Net income is $1,102 a month either way. The fix sets every jurisdiction's value as the upstream pull request does; recomputed under it, no other reference changes. The output also moves under r28_snap_min_allotment_rounding (engine defect, fixed upstream)."
+    },
+    {
       "scenario_id": "scenario_049",
       "variable": "federal_income_tax_before_refundable_credits",
       "reason_code": "reference_engine_defect",

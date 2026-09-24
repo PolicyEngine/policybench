@@ -12,6 +12,15 @@ gross income test), the lowest monthly ratio of SNAP gross income to the
 poverty guideline, and the SNAP and state TANF non-cash parameters the note
 cites.
 
+The meta also names each household whose SNAP output the release excludes, with
+the exclusion record's reason, so its row reads as PolicyEngine's computation
+rather than a scored reference (scenario_045's categorical pathway rests on the
+r33 child support treatment, whose fix is open upstream). And for each household
+that lists employer-sponsored insurance premiums and has a member the engine
+treats as elderly or disabled, it recomputes the SNAP tests with those premiums
+read as paid by the household: policyengine-us documents the input as
+employer-paid, so the engine counts none of it as a medical expense.
+
 It needs a policyengine-us 1.755.4 environment, as the audit harness does:
 
   PYTHONPATH=. <1.755.4 venv>/bin/python scripts/snap_pathways_20260922.py
@@ -24,6 +33,7 @@ installed (a slow test, skipped elsewhere).
 
 from __future__ import annotations
 
+import copy
 import csv
 import hashlib
 import importlib.util
@@ -63,6 +73,11 @@ TESTS = (
     "is_tanf_non_cash_eligible",
     "is_snap_eligible",
 )
+# The engine's input for employer-sponsored insurance premiums, which it documents
+# as employer-paid, and the person-paid premium input SNAP's medical expense
+# deduction reads.
+EMPLOYER_PREMIUMS = "employer_sponsored_insurance_premiums"
+PERSON_PREMIUMS = "health_insurance_premiums_without_medicare_part_b"
 csv.field_size_limit(sys.maxsize)
 
 
@@ -85,6 +100,36 @@ def _situation(scenario) -> dict:
             if old in person:
                 person[new] = person.pop(old)
     return situation
+
+
+def _premiums_paid_by_household(situation: dict) -> dict | None:
+    """The situation with each person's employer-sponsored premiums moved into
+    their own premiums, or None when nobody lists any."""
+    moved = copy.deepcopy(situation)
+    found = False
+    for person in moved["people"].values():
+        premiums = person.pop(EMPLOYER_PREMIUMS, None) or {}
+        for period, value in premiums.items():
+            if value:
+                found = True
+                own = person.setdefault(PERSON_PREMIUMS, {})
+                own[period] = own.get(period, 0) + value
+    return moved if found else None
+
+
+def _excluded_snap_rows(exclusions: list[dict]) -> dict:
+    """Each excluded SNAP output's reason, as the release's exclusion record
+    states it."""
+    rows = {}
+    for exclusion in exclusions:
+        if exclusion["variable"] != "snap":
+            continue
+        cause = exclusion.get("root_cause") or exclusion.get("unlisted_input")
+        text = f"{exclusion['reason_code']} ({cause})"
+        if exclusion.get("upstream"):
+            text += f"; upstream: {exclusion['upstream']}"
+        rows[exclusion["scenario_id"]] = text
+    return dict(sorted(rows.items()))
 
 
 def _monthly(sim, variable: str) -> list[float]:
@@ -180,9 +225,10 @@ def build() -> tuple[list[dict], dict]:
             for row in csv.DictReader(source)
             if row["variable"] == "snap"
         }
+    exclusions = json.loads(EXCLUSIONS_PATH.read_text())["exclusions"]
     excluded = {
         exclusion["scenario_id"]
-        for exclusion in json.loads(EXCLUSIONS_PATH.read_text())["exclusions"]
+        for exclusion in exclusions
         if exclusion["variable"] == "snap"
     }
     meta = json.loads(REFERENCE_META_PATH.read_text())
@@ -198,6 +244,7 @@ def build() -> tuple[list[dict], dict]:
         raise ValueError(f"Expected 100 frozen scenarios, found {len(scenario_rows)}.")
 
     rows = []
+    premium_readings = {}
     for scenario_row in scenario_rows:
         scenario = scenario_from_dict(json.loads(scenario_row["scenario_json"]))
         situation = _situation(scenario)
@@ -274,6 +321,43 @@ def build() -> tuple[list[dict], dict]:
             "monthly_snap": " ".join(f"{value:g}" for value in snap),
         }
         rows.append(row)
+        moved = _premiums_paid_by_household(situation) if elderly_disabled else None
+        if moved is not None:
+            alt = Simulation(tax_benefit_system=reference_system, situation=moved)
+            alt_tests = {
+                test: _boolean(_monthly(alt, test), scenario.id, test) for test in TESTS
+            }
+            alt_snap = _monthly(alt, "snap")
+            alt_tanf = _monthly(alt, "tanf")
+            alt_pathways = [
+                _pathway(
+                    eligible=alt_snap[index] > 0,
+                    gross=alt_tests["meets_snap_gross_income_test"][index],
+                    net=alt_tests["meets_snap_net_income_test"][index],
+                    assets=alt_tests["meets_snap_asset_test"][index],
+                    tanf_non_cash=alt_tests["is_tanf_non_cash_eligible"][index],
+                    tanf_cash=alt_tanf[index] > 0,
+                )
+                for index in range(len(MONTHS))
+            ]
+            premium_readings[scenario.id] = {
+                "net_income_jan": round(
+                    float(sim.calculate("snap_net_income", MONTHS[0]).sum()), 4
+                ),
+                "net_income_jan_premiums_paid": round(
+                    float(alt.calculate("snap_net_income", MONTHS[0]).sum()), 4
+                ),
+                "net_income_test_months_premiums_paid": sum(
+                    alt_tests["meets_snap_net_income_test"]
+                ),
+                "pathway_jan_sep_premiums_paid": _one_pathway(
+                    alt_pathways[:9], scenario.id, "January-September"
+                ),
+                "pathway_oct_dec_premiums_paid": _one_pathway(
+                    alt_pathways[9:], scenario.id, "October-December"
+                ),
+                "snap_premiums_paid": round(sum(alt_snap), 4),
+            }
         print(
             scenario.id,
             row["pathway_jan_sep"],
@@ -322,6 +406,24 @@ def build() -> tuple[list[dict], dict]:
         ),
         "bbce_parameters": _bbce_parameters(reference_system),
         "snap_parameters": _snap_parameters(reference_system),
+        "excluded_snap_rows": {
+            "note": (
+                "Rows whose snap_scored is False show PolicyEngine's computation, "
+                "which the release's exclusion record sets aside for every model "
+                "(reference_exclusions.json)"
+            ),
+            "households": _excluded_snap_rows(exclusions),
+        },
+        "employer_premiums_paid_by_household": {
+            "engine_documentation": reference_system.variables[
+                EMPLOYER_PREMIUMS
+            ].documentation,
+            "reading": (
+                f"{EMPLOYER_PREMIUMS} moved into {PERSON_PREMIUMS}, for households "
+                "with a member the engine treats as elderly or disabled"
+            ),
+            "households": premium_readings,
+        },
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "script": SCRIPT_PATH,
     }

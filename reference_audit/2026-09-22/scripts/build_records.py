@@ -14,8 +14,11 @@ policyengine-us 1.755.4 triage venv so multi-cause outputs can be recomputed
 under their combined fixes:
 
   cd /Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage
-  PYTHONPATH=/Users/maxghenis/PolicyEngine/policybench-wt/opus55 \\
+  PYTHONPATH=/Users/maxghenis/PolicyEngine/policybench-wt/r33-20260922b \\
     .venv-pe1755/bin/python build_records.py --annotations <dir> --out-dir records/
+
+(2026-09-22/23 ran from policybench-wt/opus55; the 2026-09-24 revision, which adds
+r33, from policybench-wt/r33-20260922b.)
 """
 
 from __future__ import annotations
@@ -40,6 +43,11 @@ from policybench.ground_truth import (  # noqa: E402
 from policybench.scenarios import scenario_from_dict  # noqa: E402
 
 DECIDED_ON = "2026-09-22"
+# Dates of this audit's records. A root cause added after the September 22 wave
+# carries its own "decided_on" in root_causes.json (r33: 2026-09-24), which its
+# exclusions and adjudications take; every run rebuilds all of them.
+REVISED_ON = ("2026-09-24",)
+WAVE_DATES = (DECIDED_ON, *REVISED_ON)
 ENGINE = "policyengine-us 1.755.4"
 AUDIT_CASES = Path(
     "/Users/maxghenis/PolicyEngine/policybench/results/local/unified_audit/audit/cases"
@@ -77,6 +85,7 @@ SWEEP_FOR = {
     "r30_snap_heat_and_eat_sua": "r30_snap_heat_and_eat_sua",
     "r31_snap_income_limit_rounding": "r31_snap_income_limit_rounding",
     "r32_wi_capital_gain_distributions": "r32_wi_capital_gain_distributions",
+    "r33_snap_child_support_treatment": "r33_snap_child_support_treatment",
 }
 # The SNAP defects are measured on top of the SNAP publication convention
 # (c_snap_hold_fy2026), since the convention's value is what would otherwise be
@@ -91,6 +100,7 @@ MEASURED_BY = {
     "r30_snap_heat_and_eat_sua": "r30_on_c13v3",
     "r31_snap_income_limit_rounding": "r31_on_c13v3",
     "r32_wi_capital_gain_distributions": "r32_on_cwi_r04",
+    "r33_snap_child_support_treatment": "r33_on_c13v3",
 }
 REASON = {
     "engine_defect": "reference_engine_defect",
@@ -383,6 +393,7 @@ def main() -> None:
         corrected = corrected_values[key]
         texts = [causes[c] for c in primary]
         others = sorted(set(item["causes"]) - set(primary))
+        decided = max(t.get("decided_on", DECIDED_ON) for t in texts)
         entry = {
             "scenario_id": key[0],
             "variable": key[1],
@@ -392,7 +403,7 @@ def main() -> None:
             "frozen_value": item["frozen"],
             "alternative_value": round(corrected, 6),
             "engine_version": ENGINE,
-            "decided_on": DECIDED_ON,
+            "decided_on": decided,
             "decided_by": "developer",
         }
         if klass == "engine_defect":
@@ -439,7 +450,7 @@ def main() -> None:
                 "judge_failure_subtype": judge_verdict_for(*key)[1],
                 "adjudicated_failure_source": ADJUDICATED_SOURCE[klass],
                 "adjudicated_failure_subtype": causes[primary[0]]["subtype"],
-                "adjudicated_on": DECIDED_ON,
+                "adjudicated_on": decided,
                 "adjudicator": "developer",
                 "excluded_from_scoring": True,
                 "judge_reference_suspect": key in flagged,
@@ -541,7 +552,7 @@ def main() -> None:
     # earlier waves' records, so an output this run no longer excludes loses
     # the adjudication a previous run gave it.
     adjudications_doc["adjudications"] = [
-        e for e in adjudications_doc["adjudications"] if e.get("adjudicated_on") != DECIDED_ON
+        e for e in adjudications_doc["adjudications"] if e.get("adjudicated_on") not in WAVE_DATES
     ]
     refreshed = []
     for entry in adjudications_doc["adjudications"]:
@@ -571,7 +582,7 @@ def main() -> None:
     # value is recomputed like every other corrected value, on top of every
     # publication convention and upstream fix, and a defect not fixed upstream
     # that also moves the output is named in the note.
-    carried = [e for e in exclusions_doc["exclusions"] if e["decided_on"] != DECIDED_ON]
+    carried = [e for e in exclusions_doc["exclusions"] if e["decided_on"] not in WAVE_DATES]
     requests = []
     for e in carried:
         key = (e["scenario_id"], e["variable"])
@@ -620,7 +631,7 @@ def main() -> None:
     marker = f" The {DECIDED_ON} audit recomputes the alternative"
     for entry in adjudications_doc["adjudications"]:
         key = (entry["scenario_id"], entry["variable"])
-        if entry.get("adjudicated_on") != DECIDED_ON:
+        if entry.get("adjudicated_on") not in WAVE_DATES:
             reasoning = entry["reasoning"].split(marker)[0]
             reasoning = reasoning.split(" r30_snap_heat_and_eat_sua (engine defect")[0]
             if key in carried_sentences:

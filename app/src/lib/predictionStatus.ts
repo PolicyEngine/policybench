@@ -76,3 +76,27 @@ export function describeExclusionReason(reasonCode?: string): string {
   if (!reasonCode) return EXCLUSION_REASON_LABELS.reference_depends_on_unlisted_input;
   return EXCLUSION_REASON_LABELS[reasonCode] ?? reasonCode.replaceAll("_", " ");
 }
+
+// What the frozen reference of an excluded output rests on, as the exclusion
+// note above the audit notes describes it.
+const EXCLUDED_REFERENCE_BASIS: Record<string, string> = {
+  reference_depends_on_unlisted_input:
+    "which assumes one reading of the unlisted input described above",
+  reference_engine_defect: "which carries the engine defect described above",
+  reference_law_published_after_freeze:
+    "which uses the engine's projection described above",
+};
+
+/**
+ * The line shown before the audit note of an excluded output. The audit note
+ * compares the answer with the frozen reference, which the exclusion sets
+ * aside, so an answer the note calls wrong can be right under the rule the
+ * exclusion states.
+ */
+export function describeExcludedAuditNote(reasonCode?: string): string {
+  const basis =
+    EXCLUDED_REFERENCE_BASIS[
+      reasonCode ?? "reference_depends_on_unlisted_input"
+    ] ?? "which the exclusion above sets aside";
+  return `This audit note compares the answer with the frozen reference, ${basis}.`;
+}

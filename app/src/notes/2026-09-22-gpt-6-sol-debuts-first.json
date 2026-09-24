@@ -7,7 +7,8 @@
     "GPT-6 Luna scores {lunaExact}% (#{lunaRank}) at ${lunaCost} a household, against ${solCost} for GPT-6 Sol and ${opusCost} for Claude Opus 5.5.",
     "Claude Opus 5.5's API rejects forced tool calls, as Claude Fable 5.1's does, so its row answers as a JSON object and reasons at the provider default. Claude Opus 5's board row runs the forced tool call, which switches that model's thinking off, and scores {opus5BoardExact}%; its tool_choice auto re-run, where it reasons, scores {opus5AutoExact}%. The two Opus rows differ in serving shape as well as in model, so the {opusGap}-point gap between them is not a measure of the model change alone.",
     "Every row is scored on {scoredOutputs} of its {totalOutputs} requested outputs. This release regenerated {regenerated} references and excludes {excluded} outputs from scoring for every model; the reference audit note explains both.",
-    "The next board version moves every model to tool_choice auto so each provider's default reasoning engages under the recorded request shape (policybench#139)."
+    "The next board version moves every model to tool_choice auto so each provider's default reasoning engages under the recorded request shape (policybench#139).",
+    "A later release, dashboard-data-20260922b, excludes one more output for every model: the SNAP amount of a Michigan worker who pays child support. It scores every row on {laterScoredOutputs} of its {totalOutputs} requested outputs, regenerates {laterRegenerated} references and excludes {laterExcluded} outputs. On that release, GPT-6 Sol scores {laterSolExact}% and Claude Opus 5.5 {laterOpusExact}%, and Claude Opus 5's tool_choice auto re-run scores {laterOpus5AutoExact}%. The other scores, gaps, ranks and costs stay the same on that release."
   ],
   "facts": {
     "solExact": 94.2,
@@ -29,12 +30,22 @@
     "scoredOutputs": 1932,
     "totalOutputs": 1984,
     "regenerated": 26,
-    "excluded": 52
+    "excluded": 52,
+    "laterScoredOutputs": 1931,
+    "laterRegenerated": 25,
+    "laterExcluded": 53,
+    "laterSolExact": 94.3,
+    "laterOpusExact": 93.0,
+    "laterOpus5AutoExact": 89.4
   },
   "data": [
     {
       "label": "Dashboard data release",
       "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922"
+    },
+    {
+      "label": "Later release dashboard-data-20260922b",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922b"
     },
     {
       "label": "Reference audit note",

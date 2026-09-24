@@ -3,10 +3,27 @@ import { Fragment, type ReactNode } from "react";
 
 import { notes, type NoteFact, type PolicyBenchNote } from "../notes";
 
-const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9]*)\}/g;
+// A fact placeholder: `{key}`, or `{key:words}` to spell out a whole number
+// under ten in running prose ("four households", not "4 households").
+const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9]*)(?::(words))?\}/g;
+
+type FactFormat = "words" | undefined;
+
+const NUMBER_WORDS = [
+  "zero",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+];
 
 export const NOTES_INTRO =
-  "Dated records of board changes and findings. Each note names the data release its numbers come from; a test in the repository checks every number against the frozen snapshot of that release.";
+  "Dated records of board changes and findings. Each note names the data release its numbers come from, and a test in the repository checked every number against the frozen snapshot of that release.";
 
 export function formatNoteDate(date: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -21,8 +38,17 @@ export function formatNoteDate(date: string): string {
 // a whole-number rate (88.0) keeps its decimal like every other row.
 const ONE_DECIMAL_FACT = /(Exact|Rate)$/;
 
-function factText(key: string, fact: NoteFact): string {
+function factText(key: string, fact: NoteFact, format?: FactFormat): string {
   if (Array.isArray(fact)) return fact.join(", ");
+  if (
+    format === "words" &&
+    typeof fact === "number" &&
+    Number.isInteger(fact) &&
+    fact >= 0 &&
+    fact < NUMBER_WORDS.length
+  ) {
+    return NUMBER_WORDS[fact];
+  }
   if (key === "referenceAnnual" && typeof fact === "number") {
     return String(Math.round(fact));
   }
@@ -39,11 +65,14 @@ export function interpolateNoteText(
   note: PolicyBenchNote,
   paragraph: string,
 ): string {
-  return paragraph.replace(PLACEHOLDER, (_, key: string) => {
-    const fact = note.facts[key];
-    if (fact === undefined) throw new Error(`Unknown note fact: ${key}`);
-    return factText(key, fact);
-  });
+  return paragraph.replace(
+    PLACEHOLDER,
+    (_, key: string, format: FactFormat) => {
+      const fact = note.facts[key];
+      if (fact === undefined) throw new Error(`Unknown note fact: ${key}`);
+      return factText(key, fact, format);
+    },
+  );
 }
 
 function NoteLink({ href, children }: { href: string; children: ReactNode }) {
@@ -66,6 +95,7 @@ function factNode(
   note: PolicyBenchNote,
   key: string,
   fact: NoteFact,
+  format?: FactFormat,
 ): ReactNode {
   if (Array.isArray(fact)) {
     return fact.map((item, index) => {
@@ -94,7 +124,7 @@ function factNode(
       </>
     );
   }
-  return factText(key, fact);
+  return factText(key, fact, format);
 }
 
 function NoteParagraph({
@@ -110,9 +140,14 @@ function NoteParagraph({
     const index = match.index;
     if (index > cursor) content.push(paragraph.slice(cursor, index));
     const key = match[1];
+    const format = match[2] as FactFormat;
     const fact = note.facts[key];
     if (fact === undefined) throw new Error(`Unknown note fact: ${key}`);
-    content.push(<Fragment key={`${key}-${index}`}>{factNode(note, key, fact)}</Fragment>);
+    content.push(
+      <Fragment key={`${key}-${index}`}>
+        {factNode(note, key, fact, format)}
+      </Fragment>,
+    );
     cursor = index + match[0].length;
   }
   if (cursor < paragraph.length) content.push(paragraph.slice(cursor));

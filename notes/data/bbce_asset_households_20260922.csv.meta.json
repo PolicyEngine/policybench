@@ -4,16 +4,16 @@
   "run_payload_sha256": "3d7c4ef5632c923e36f308b20248592a7c3f5683dede47d14f6eb9a3ece00c5e",
   "release_payload_sha256": "b1c4ee340a01328f75158bb4ba40b49030a979d2b03badb2c01d57c16554d3b4",
   "households": [
-    "scenario_027",
-    "scenario_030",
-    "scenario_073",
-    "scenario_108"
+    "scenario_008",
+    "scenario_054",
+    "scenario_066",
+    "scenario_080"
   ],
   "mention_patterns": {
     "mentions_categorical_eligibility": "broad-based|\\bbbce\\b|categorical(?:ly)?[- ]eligib",
-    "mentions_net_income_limit": "\\bnet[- ](?:income[- ])?(?:limit|test|screen|threshold|ceiling|rule)|(?<![\\d.])100(?:\\.0+)?\\s*%[^.;]{0,20}?(?:fpl|fpg|poverty)"
+    "mentions_assets": "asset|resource"
   },
   "rows": 168,
-  "generated_at_utc": "2026-09-24T05:28:42.922582+00:00",
+  "generated_at_utc": "2026-09-24T05:28:42.927883+00:00",
   "script": "scripts/bbce_household_rows.py"
 }

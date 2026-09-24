@@ -163,3 +163,4 @@ r30_snap_heat_and_eat_sua,engine_defect,r30_snap_heat_and_eat_sua.py,c_snap_hold
 r30_snap_heat_and_eat_sua,engine_defect,r30_snap_heat_and_eat_sua.py,c_snap_hold_fy2026,scenario_100,MT,snap,8625.889648,8566.799805,6936.0,-1630.799805,True
 r32_wi_capital_gain_distributions,engine_defect,r32_wi_capital_gain_distributions.py,c_wi_published_2026+r04_capital_gain_distributions,scenario_042,WI,state_income_tax_before_refundable_credits,284.740906,464.1828,408.698425,-55.484375,True
 r32_wi_capital_gain_distributions,engine_defect,r32_wi_capital_gain_distributions.py,c_wi_published_2026+r04_capital_gain_distributions,scenario_091,WI,state_income_tax_before_refundable_credits,843.661499,895.81311,878.515747,-17.297363,True
+r33_snap_child_support_treatment,engine_defect,r33_snap_child_support_treatment.py,c_snap_hold_fy2026,scenario_045,MI,snap,287.683167,286.079987,0.0,-286.079987,True

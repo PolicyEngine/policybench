@@ -2,7 +2,7 @@
 
 The SNAP convention (c_snap_hold_fy2026, fix r13_hold_fy2026_v3) regenerates SNAP
 references with the FY2026 schedule held for October-December. The engine's SNAP
-defects (r26, r27, r28, r30, r31) are measured against that convention's value:
+defects (r26, r27, r28, r30, r31, r33) are measured against that convention's value:
 an output is moved when the convention plus the defect's fix differs from the
 convention alone by more than $1 (a binary output: when the flag flips). The
 Wisconsin defect r32 only matters once #8839 puts the distributions in federal
@@ -14,14 +14,15 @@ AGI, so it is measured against the Wisconsin convention plus the #8839 backport
       the convention with r26 and r28 applied under three net-income procedures
       (the engine's floor, nearest dollar, cents kept) in every state, against
       the convention alone
-  sweep/out/r30_on_published_snap.csv
-      r30 against the convention with every upstream SNAP fix, the SNAP value
-      actually published: a check that r30 moves the same outputs either way
+  sweep/out/r30_on_published_snap.csv, sweep/out/r33_on_published_snap.csv
+      r30 and r33 against the convention with every upstream SNAP fix, the SNAP
+      value actually published: a check that each moves the same outputs either
+      way
 
 Run after the sweeps (./run_one.sh <fix> for r13_hold_fy2026_v3, c13v3_plus_r26,
-c13v3_plus_r27, c13v3_plus_r28, c13v3_plus_r30, c13v3_plus_r31, c13v3_r26_r28,
-c13v3_r28_r29n, c13v3_r28_r29c, c13v3_plus_upstream_snap, c13v3_upstream_plus_r30,
-cwi_plus_r04, cwi_plus_r04_r32):
+c13v3_plus_r27, c13v3_plus_r28, c13v3_plus_r30, c13v3_plus_r31, c13v3_plus_r33,
+c13v3_r26_r28, c13v3_r28_r29n, c13v3_r28_r29c, c13v3_plus_upstream_snap,
+c13v3_upstream_plus_r30, c13v3_upstream_plus_r33, cwi_plus_r04, cwi_plus_r04_r32):
 
   python3 make_on_convention.py
 """
@@ -41,8 +42,10 @@ MEASUREMENTS = {
     "r28_on_c13v3": ("r13_hold_fy2026_v3", "c13v3_plus_r28"),
     "r30_on_c13v3": ("r13_hold_fy2026_v3", "c13v3_plus_r30"),
     "r31_on_c13v3": ("r13_hold_fy2026_v3", "c13v3_plus_r31"),
+    "r33_on_c13v3": ("r13_hold_fy2026_v3", "c13v3_plus_r33"),
     "r32_on_cwi_r04": ("cwi_plus_r04", "cwi_plus_r04_r32"),
     "r30_on_published_snap": ("c13v3_plus_upstream_snap", "c13v3_upstream_plus_r30"),
+    "r33_on_published_snap": ("c13v3_plus_upstream_snap", "c13v3_upstream_plus_r33"),
 }
 PROCEDURES = {
     "floor": "c13v3_r26_r28",
