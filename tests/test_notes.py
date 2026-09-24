@@ -7,7 +7,6 @@ import gzip
 import json
 import re
 import sys
-from collections import Counter
 from functools import cache
 from pathlib import Path
 
@@ -527,8 +526,11 @@ PATHWAYS_0922_META_PATH = PATHWAYS_0922_PATH.with_suffix(
 )
 BBCE_ROWS_PATH = ROOT / "notes/data/bbce_households_20260922.csv"
 BBCE_ROWS_META_PATH = BBCE_ROWS_PATH.with_suffix(BBCE_ROWS_PATH.suffix + ".meta.json")
+BBCE_ASSET_ROWS_PATH = ROOT / "notes/data/bbce_asset_households_20260922.csv"
+BBCE_ASSET_ROWS_META_PATH = BBCE_ASSET_ROWS_PATH.with_suffix(
+    BBCE_ASSET_ROWS_PATH.suffix + ".meta.json"
+)
 SNAP_FIX_PATH = ROOT / "reference_audit/2026-09-22/fixes/c13v3_plus_upstream_snap.py"
-TOP_THREE_0922 = ("gpt-6-sol", "claude-opus-5.5", "gpt-5.6-sol")
 PREFACE_UNLISTED_STATUS = (
     "Treat any unlisted numeric input as 0 and any other unlisted household "
     "fact, boolean, or status input as false."
@@ -539,6 +541,16 @@ PREFACE_NO_INFERENCE = (
     "or health coverage."
 )
 PREFACE_SENTENCES = (PREFACE_UNLISTED_STATUS, PREFACE_TAKE_UP, PREFACE_NO_INFERENCE)
+STATE_NAMES = {
+    "CT": "Connecticut",
+    "MI": "Michigan",
+    "NC": "North Carolina",
+    "NJ": "New Jersey",
+    "PA": "Pennsylvania",
+    "TX": "Texas",
+    "VA": "Virginia",
+    "WI": "Wisconsin",
+}
 
 
 def _sha256_file(path: Path) -> str:
@@ -551,6 +563,14 @@ def _whole_or_cents(value: float) -> int | str:
     """A dollar amount as the note shows it: whole dollars as a number (the
     app adds thousands separators), otherwise a string with cents."""
     return int(value) if float(value).is_integer() else f"{value:,.2f}"
+
+
+def _percent(numerator: int, denominator: int) -> int:
+    """A share as a whole-number percentage, rounded half up."""
+    from decimal import ROUND_HALF_UP, Decimal
+
+    share = Decimal(100 * numerator) / Decimal(denominator)
+    return int(share.quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
 def _named_models(text: str, display_names: dict[str, str]) -> set[str]:
@@ -572,9 +592,77 @@ def _snap_output_references(variable: str) -> dict[str, float]:
         }
 
 
+def _read_csv(path: Path) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8", newline="") as source:
+        return list(csv.DictReader(source))
+
+
+def _scenario_inputs() -> dict[str, dict]:
+    """Each household's frozen scenario: people with their inputs, and units."""
+    return {
+        row["scenario_id"]: json.loads(row["scenario_json"])
+        for row in _read_csv(RUN_DIR / "scenarios.csv")
+    }
+
+
+def _person(scenario: dict, name: str) -> dict:
+    """A person's inputs, with wages folded in as the prompt lists them."""
+    person = next(
+        p
+        for group in ("adults", "children")
+        for p in scenario[group]
+        if p["name"] == name
+    )
+    return {
+        "age": person["age"],
+        "employment_income": person["employment_income"],
+        **person["inputs"],
+    }
+
+
+def _household_block(prompt: str) -> str:
+    """The listed household facts: from "Household:" to the requested outputs."""
+    return prompt[prompt.index("Household:") : prompt.index("Provide the following")]
+
+
+def _check_committed_rows(
+    rows: list[dict],
+    path: Path,
+    meta_path: Path,
+    households: list[str],
+    patterns: dict[str, str],
+    release: str,
+) -> None:
+    """The committed rows are the regenerated rows, from the committed payload
+    of the note's release, with the note's own mention patterns."""
+    assert _read_csv(path) == [
+        {key: str(value) for key, value in row.items()} for row in rows
+    ]
+    meta = _load_json(meta_path)
+    assert meta["households"] == households
+    assert meta["mention_patterns"] == patterns
+    assert meta["release"] == release == _frozen_release()
+    # The rows come from the committed run payload; the release asset is a
+    # different file carrying the same US payload, pinned by the manifest.
+    assert meta["run_payload_sha256"] == _sha256_file(run_payload_path(RUN_DIR))
+    manifest = _load_json(ROOT / "paper/snapshot/20260501/manifest.json")
+    assert (
+        meta["release_payload_sha256"]
+        == manifest["published_dashboard_artifact"]["sha256"]
+    )
+    assert meta["rows"] == len(rows)
+
+
 def test_bbce_households_note_facts() -> None:
     sys.path.insert(0, str(ROOT / "scripts"))
-    from bbce_household_rows import bbce_households, household_rows
+    from bbce_household_rows import (
+        asset_household_rows,
+        asset_test_households,
+        bbce_households,
+        household_rows,
+    )
+
+    from policybench.paper_results import MODEL_DISPLAY_NAMES
 
     note = _note(BBCE_NOTE)
     if not _recompute_against_frozen_snapshot(note):
@@ -587,12 +675,13 @@ def test_bbce_households_note_facts() -> None:
         if e["variable"] == "snap"
     }
     reference_meta = _load_json(REFERENCE_META_PATH)
+    scenarios = _scenario_inputs()
+    text = " ".join(note["paragraphs"])
 
     # The committed pathway recomputation is tied to these references: it
     # reproduces every scored SNAP reference, and it was run on the committed
     # scenarios, references and SNAP fix modules.
-    with PATHWAYS_0922_PATH.open(encoding="utf-8", newline="") as source:
-        pathways = list(csv.DictReader(source))
+    pathways = _read_csv(PATHWAYS_0922_PATH)
     pathway_meta = _load_json(PATHWAYS_0922_META_PATH)
     assert len(pathways) == 100
     for row in pathways:
@@ -606,35 +695,50 @@ def test_bbce_households_note_facts() -> None:
     assert pathway_meta["fix_module_sha256"] == _sha256_file(SNAP_FIX_PATH)
     for part, digest in pathway_meta["fix_parts_sha256"].items():
         assert _sha256_file(SNAP_FIX_PATH.parent / f"{part}.py") == digest
-    engine_version = pathway_meta["policyengine_us_version"]
     assert (
-        engine_version == reference_meta["policyengine_bundles"]["us"]["model_version"]
+        pathway_meta["policyengine_us_version"]
+        == reference_meta["policyengine_bundles"]["us"]["model_version"]
     )
     by_id = {row["scenario_id"]: row for row in pathways}
 
-    # The five households and every model's answer for them.
-    households = bbce_households(pathways)
+    # Every model's answer for the five households at the minimum and the four
+    # held back by savings, regenerated from the payload with the note's
+    # mention patterns and compared with the committed rows.
     regexes = note["mentionRegexes"]
-    rows = household_rows(payload, households, regexes["bbce"])
-    with BBCE_ROWS_PATH.open(encoding="utf-8", newline="") as source:
-        committed = list(csv.DictReader(source))
-    assert committed == [
-        {key: str(value) for key, value in row.items()} for row in rows
-    ]
-    rows_meta = _load_json(BBCE_ROWS_META_PATH)
-    assert rows_meta["households"] == households
-    assert rows_meta["mention_pattern"] == regexes["bbce"]
-    assert rows_meta["release"] == note["release"] == _frozen_release()
-    # The rows come from the committed run payload; the release asset is a
-    # different file carrying the same US payload, pinned by the manifest.
-    assert rows_meta["run_payload_sha256"] == _sha256_file(run_payload_path(RUN_DIR))
-    manifest = _load_json(ROOT / "paper/snapshot/20260501/manifest.json")
-    assert (
-        rows_meta["release_payload_sha256"]
-        == manifest["published_dashboard_artifact"]["sha256"]
+    households = bbce_households(pathways)
+    five_patterns = {
+        "mentions_categorical_eligibility": regexes["bbce"],
+        "mentions_net_income_limit": regexes["netLimit"],
+    }
+    rows = household_rows(payload, households, five_patterns)
+    _check_committed_rows(
+        rows,
+        BBCE_ROWS_PATH,
+        BBCE_ROWS_META_PATH,
+        households,
+        five_patterns,
+        note["release"],
     )
-    assert rows_meta["rows"] == len(rows)
+    asset_households = asset_test_households(pathways)
+    asset_patterns = {
+        "mentions_categorical_eligibility": regexes["bbce"],
+        "mentions_assets": regexes["assets"],
+    }
+    asset_rows = asset_household_rows(payload, asset_households)
+    _check_committed_rows(
+        asset_rows,
+        BBCE_ASSET_ROWS_PATH,
+        BBCE_ASSET_ROWS_META_PATH,
+        asset_households,
+        asset_patterns,
+        note["release"],
+    )
+    # "Assets" is the September 3 note's pattern.
+    previous = _note(SNAP_NOTE)
+    assert regexes["assets"] == previous["mentionRegexes"]["assets"]
+    assert not set(households) & set(asset_households)
 
+    # The correct amount: twelve months of the minimum benefit.
     five = [by_id[scenario_id] for scenario_id in households]
     amounts = {references[scenario_id] for scenario_id in households}
     minimums = {
@@ -645,138 +749,88 @@ def test_bbce_households_note_facts() -> None:
     assert len(amounts) == 1 and len(minimums) == 1
     reference_amount, minimum = amounts.pop(), minimums.pop()
     assert reference_amount == 12 * minimum
-    assert {row["state"] for row in five} == {"CT", "MI", "TX", "WI"}
-    assert all(int(row["household_size"]) <= 2 for row in five)
     assert all(
-        float(row["expected_contribution_jan"]) > float(row["max_allotment_jan"])
+        [float(value) for value in row["monthly_snap"].split()] == [minimum] * 12
         for row in five
     )
-    # Every household's SNAP gross income is above the ordinary gross limit in
-    # every month; the households that pass the gross test anyway are the
-    # ones with an elderly or disabled member, whom the engine exempts from it.
+    # At their incomes the regular formula pays nothing: 30% of net income is
+    # at least the maximum allotment.
+    assert all(
+        float(row["expected_contribution_jan"]) >= float(row["max_allotment_jan"])
+        for row in five
+    )
+
+    # Who the five are, and the ordinary tests each fails. Every one has gross
+    # income above the ordinary gross limit; the ones that pass the gross test
+    # anyway have a member the engine treats as elderly or disabled, which
+    # exempts them from it, and fail the net income test instead.
     snap_parameters = pathway_meta["snap_parameters"]
     assert snap_parameters["2026-01-01"] == snap_parameters["2026-10-01"]
     snap_gross_limit = snap_parameters["2026-01-01"]["gross_income_limit_fpg"]
-    assert all(
-        float(row["gross_income_fpg_ratio_min"]) > snap_gross_limit for row in five
-    )
     for row in five:
+        assert row["pathway_jan_sep"] == row["pathway_oct_dec"]
+        assert row["pathway_jan_sep"] in {"categorical_income", "categorical_both"}
+        assert float(row["gross_income_fpg_ratio_min"]) > snap_gross_limit
         exempt = row["elderly_or_disabled_member"] == "True"
         assert row["gross_income_test_months"] == ("12" if exempt else "0")
-    # Categorical eligibility comes from the non-cash benefit: no TANF cash,
-    # no SSI, and each ordinary test either holds all year or fails all year.
-    tanf_references = _snap_output_references("tanf")
-    ssi_references = _snap_output_references("ssi")
-    for row in five:
-        assert row["tanf_non_cash_eligible_months"] == "12"
-        assert float(row["tanf"]) == 0
-        assert tanf_references[row["scenario_id"]] == 0
-        assert ssi_references[row["scenario_id"]] == 0
         for key in (
             "gross_income_test_months",
             "net_income_test_months",
             "asset_test_months",
         ):
             assert row[key] in {"0", "12"}
+        assert "0" in {row["gross_income_test_months"], row["net_income_test_months"]}
 
-    board = [row for row in payload["modelStats"] if row["condition"] == "no_tools"]
-    by_model = {row["model"]: row for row in board}
-    predictions = payload["scenarioPredictions"]
-    hits_by_household = {
-        scenario_id: sum(
-            row["within_1_dollar"] for row in rows if row["scenario_id"] == scenario_id
-        )
-        for scenario_id in households
+    def failing(key: str) -> set[str]:
+        return {row["scenario_id"] for row in five if row[key] == "0"}
+
+    fail_gross = failing("gross_income_test_months")
+    fail_net = failing("net_income_test_months")
+    fail_assets = failing("asset_test_months")
+    assert fail_gross == {"scenario_030", "scenario_045"}
+    assert fail_net == {"scenario_027", "scenario_030", "scenario_073", "scenario_108"}
+    assert fail_assets == {"scenario_027"}
+    states = {s: payload["scenarios"][s]["state"] for s in households}
+    assert states == {
+        "scenario_027": "CT",
+        "scenario_030": "TX",
+        "scenario_045": "MI",
+        "scenario_073": "MI",
+        "scenario_108": "WI",
     }
-    assert hits_by_household["scenario_030"] == hits_by_household["scenario_045"] == 0
-    hits_by_model = {
-        model: sum(row["within_1_dollar"] for row in rows if row["model"] == model)
-        for model in by_model
-    }
-    best = max(hits_by_model.values())
-    assert [m for m, h in hits_by_model.items() if h == best] == ["gpt-6-astra"]
-    assert best < len(households)
-    astra = [predictions[s]["snap"]["gpt-6-astra"]["prediction"] for s in households]
-    assert sorted(astra) == [0.0] * (len(households) - best) + [reference_amount] * best
-    zero_all_five = [
-        model
-        for model in by_model
-        if all(row["prediction"] == 0.0 for row in rows if row["model"] == model)
-    ]
-    # Answers that did not parse carry no value and no explanation; every
-    # other answer has an explanation.
-    missing = [row for row in rows if row["prediction"] == ""]
-    for row in missing:
-        entry = predictions[row["scenario_id"]]["snap"][row["model"]]
-        assert entry["parsed"] is False and not entry.get("explanation")
-    explained = [
-        row
-        for row in rows
-        if (
-            predictions[row["scenario_id"]]["snap"][row["model"]].get("explanation")
-            or ""
-        ).strip()
-    ]
-    assert len(explained) == len(rows) - len(missing)
-    # The most common wrong amount other than $0, and twelve months of what.
-    wrong_amounts = Counter(
-        row["prediction"]
-        for row in rows
-        if row["prediction"] not in ("", 0.0) and not row["within_1_dollar"]
-    ).most_common(2)
-    (common_annual, common_count), (_, runner_up_count) = wrong_amounts
-    assert common_count > runner_up_count
-    assert float(common_annual / 12).is_integer()
-    answers_common = [row for row in rows if row["prediction"] == common_annual]
-    minimum_regex = re.compile("minimum", re.IGNORECASE)
-    mentions = [row for row in rows if row["mentions_categorical_eligibility"]]
+    sizes = {s: int(by_id[s]["household_size"]) for s in households}
+    # The Michigan worker who pays child support.
+    worker = _person(scenarios["scenario_045"], "head")
+    assert sizes["scenario_045"] == 1
+    assert worker["employment_income"] > 0 and worker["child_support_expense"] > 0
+    # The Texas resident with wages and financial assistance.
+    texan = _person(scenarios["scenario_030"], "head")
+    assert sizes["scenario_030"] == 1
+    assert texan["employment_income"] > 0
+    financial_assistance = texan["financial_assistance"]
+    # The Connecticut couple on Social Security disability income, with savings
+    # above the asset limit.
+    couple = scenarios["scenario_027"]
+    assert sizes["scenario_027"] == 2 and couple["filing_status"] == "joint"
+    assert [p["name"] for p in couple["adults"]] == ["head", "spouse"]
+    assert not couple["children"]
+    couple_head = _person(couple, "head")
+    assert couple_head["social_security_disability"] > 0
+    savings = couple_head["bank_account_assets"]
+    assert savings > 0 and not _person(couple, "spouse").get("bank_account_assets")
+    # The disabled Michigan resident living alone: under 60, on Social Security
+    # disability income, and counted by the engine as a disabled member.
+    alone = _person(scenarios["scenario_073"], "head")
+    assert sizes["scenario_073"] == 1
+    assert alone["age"] < 60 and alone["social_security_disability"] > 0
+    assert by_id["scenario_073"]["elderly_or_disabled_member"] == "True"
+    # The surviving spouse in Wisconsin.
+    widow = _person(scenarios["scenario_108"], "head")
+    assert sizes["scenario_108"] == 1 and widow["is_surviving_spouse"] is True
 
-    # The top three on the board and their answers.
-    ranks = [_rank(by_model[model]["exact"], board) for model in TOP_THREE_0922]
-    assert ranks == [1, 2, 3]
-    top_answers = {
-        model: {s: predictions[s]["snap"][model]["prediction"] for s in households}
-        for model in TOP_THREE_0922
-    }
-    sol6, opus, sol56 = (top_answers[model] for model in TOP_THREE_0922)
-    assert [s for s, v in sol6.items() if v != 0] == ["scenario_030"]
-    assert [s for s, v in opus.items() if v != 0] == ["scenario_030", "scenario_108"]
-    assert set(sol56.values()) == {0.0}
-    assert (
-        "monthly wages"
-        in predictions["scenario_030"]["snap"]["gpt-6-sol"]["explanation"]
-    )
-    assert (
-        "financial and educational assistance are not counted"
-        in predictions["scenario_030"]["snap"]["claude-opus-5.5"]["explanation"]
-    )
-    with (RUN_DIR / "scenarios.csv").open(encoding="utf-8", newline="") as source:
-        scenario_030 = next(
-            json.loads(row["scenario_json"])
-            for row in csv.DictReader(source)
-            if row["scenario_id"] == "scenario_030"
-        )
-    financial_assistance = scenario_030["adults"][0]["inputs"]["financial_assistance"]
-    row_030 = by_id["scenario_030"]
-    assert float(row_030["expected_contribution_jan"]) > float(
-        row_030["max_allotment_jan"]
-    )
-    # The engine counts financial assistance as SNAP unearned income.
-    for instant in ("2026-01-01", "2026-10-01"):
-        assert (
-            "financial_assistance"
-            in pathway_meta["snap_parameters"][instant]["unearned_income_sources"]
-        )
-    bbce_regex = re.compile(regexes["bbce"], re.IGNORECASE)
-    board_households = len(predictions)
-    assert board_households == len(pathways) == len(payload["scenarios"])
-
-    def bbce_mentions(model: str) -> int:
-        entries = [variables["snap"][model] for variables in predictions.values()]
-        assert len(entries) == board_households
-        return sum(bool(bbce_regex.search(e.get("explanation") or "")) for e in entries)
-
-    # The engine's BBCE rule and the four states' parameters.
+    # The engine's BBCE rule: categorical eligibility through SSI, TANF cash,
+    # or eligibility for (not receipt of) the TANF-funded non-cash benefit, and
+    # the four states' limits for that benefit.
     bbce = pathway_meta["bbce_parameters"]
     assert bbce["snap_categorical_eligibility_programs"] == [
         "ssi",
@@ -786,6 +840,7 @@ def test_bbce_households_note_facts() -> None:
     state_rules = bbce["state_tanf_non_cash"]
     assert state_rules["2026-01-01"] == state_rules["2026-10-01"]
     rules = state_rules["2026-01-01"]
+    assert set(rules) == set(states.values())
     for state, rule in rules.items():
         assert (
             rule["gross_income_limit_fpg"]
@@ -794,22 +849,216 @@ def test_bbce_households_note_facts() -> None:
         assert not rule["net_income_test_applies"]
         assert not rule["net_income_test_applies_elderly_disabled"]
         assert (rule["asset_limit"] is None) == (state != "TX")
-    high = {rules[state]["gross_income_limit_fpg"] for state in ("CT", "MI", "WI")}
-    assert len(high) == 1
+    high = max(rule["gross_income_limit_fpg"] for rule in rules.values())
+    high_states = sorted(
+        s for s, r in rules.items() if r["gross_income_limit_fpg"] == high
+    )
+    assert high_states == ["CT", "MI", "WI"]
+    assert rules["TX"]["gross_income_limit_fpg"] < high
+    high_limit = round(100 * high)
+    # Each household is eligible for the non-cash benefit all year and under
+    # its state's gross limit, and receives neither TANF cash nor SSI.
+    tanf_references = _snap_output_references("tanf")
+    ssi_references = _snap_output_references("ssi")
+    for row in five:
+        rule = rules[row["state"]]
+        assert row["tanf_non_cash_eligible_months"] == "12"
+        assert float(row["gross_income_fpg_ratio_min"]) < rule["gross_income_limit_fpg"]
+        assert float(row["tanf"]) == 0
+        assert tanf_references[row["scenario_id"]] == 0
+        assert ssi_references[row["scenario_id"]] == 0
 
-    # What the prompt says, in every answer contract's variant, and the one
-    # $0 explanation that argues from receipt.
+    # The households held back by savings: they pass both income tests all
+    # year, fail the asset test, qualify through BBCE, and get a benefit.
+    held_back = [by_id[scenario_id] for scenario_id in asset_households]
+    for row in held_back:
+        assert row["gross_income_test_months"] == row["net_income_test_months"] == "12"
+        assert row["asset_test_months"] == "0"
+        assert row["tanf_non_cash_eligible_months"] == "12"
+        assert float(row["snap_recomputed"]) > 0
+        head = _person(scenarios[row["scenario_id"]], "head")
+        spouse = next(
+            (
+                _person(scenarios[row["scenario_id"]], "spouse")
+                for p in scenarios[row["scenario_id"]]["adults"]
+                if p["name"] == "spouse"
+            ),
+            {},
+        )
+        assert (
+            head.get("bank_account_assets", 0) + spouse.get("bank_account_assets", 0)
+            > 0
+        )
+    asset_states = [STATE_NAMES[row["state"]] for row in held_back]
+    assert (
+        f"households in {', '.join(asset_states[:-1])}, and {asset_states[-1]} "
+        "that pass SNAP's income tests but hold savings above its asset limit"
+    ) in text
+
+    # The answers. Answers that did not parse carry no value and no
+    # explanation; every other answer has an explanation.
+    board = [row for row in payload["modelStats"] if row["condition"] == "no_tools"]
+    by_model = {row["model"]: row for row in board}
+    predictions = payload["scenarioPredictions"]
+    display = {model: MODEL_DISPLAY_NAMES[model] for model in by_model}
+
+    def explanation(scenario_id: str, model: str) -> str:
+        return predictions[scenario_id]["snap"][model].get("explanation") or ""
+
+    assert len(rows) == len(board) * len(households)
+    missing = [row for row in rows if row["prediction"] == ""]
+    for row in missing:
+        entry = predictions[row["scenario_id"]]["snap"][row["model"]]
+        assert entry["parsed"] is False and not entry.get("explanation")
+    explained = [
+        row for row in rows if explanation(row["scenario_id"], row["model"]).strip()
+    ]
+    assert len(explained) == len(rows) - len(missing)
+    zero_rows = [row for row in rows if row["prediction"] == 0.0]
+    above_zero = [row for row in rows if row["prediction"] not in ("", 0.0)]
+    assert all(row["prediction"] > 0 for row in above_zero)
+    # Most models answer $0 for each of the five.
     for scenario_id in households:
-        variants = payload["scenarios"][scenario_id]["prompt"]
-        assert set(variants) == {"tool", "json"}
-        for prompt in variants.values():
-            assert all(sentence in prompt for sentence in PREFACE_SENTENCES)
-            assert not re.search(r"categorical|non-cash", prompt, re.IGNORECASE)
-            tanf_lines = [line for line in prompt.splitlines() if "TANF" in line]
-            assert tanf_lines == [
-                "- tanf: annual Temporary Assistance for Needy Families (TANF) "
-                "benefit amount"
-            ]
+        zeros = sum(row["scenario_id"] == scenario_id for row in zero_rows)
+        assert 2 * zeros > len(board), scenario_id
+    hits_by_model = {
+        model: sum(row["within_1_dollar"] for row in rows if row["model"] == model)
+        for model in by_model
+    }
+
+    # Most models answer above $0 for each household held back by savings.
+    asset_above_zero = [row for row in asset_rows if row["prediction"] not in ("", 0.0)]
+    assert all(row["prediction"] > 0 for row in asset_above_zero)
+    for scenario_id in asset_households:
+        above = sum(row["scenario_id"] == scenario_id for row in asset_above_zero)
+        assert 2 * above > len(board), scenario_id
+    asset_explained = [
+        row
+        for row in asset_rows
+        if explanation(row["scenario_id"], row["model"]).strip()
+    ]
+    asset_mentions = [
+        row for row in asset_rows if row["mentions_categorical_eligibility"]
+    ]
+    # The two models the prose names answer above $0 on every household held
+    # back by savings and $0 on each of the five.
+    for model in ("gpt-5.6-sol", "claude-fable-5.1"):
+        assert all(
+            row["prediction"] not in ("", 0.0)
+            for row in asset_rows
+            if row["model"] == model
+        )
+        assert all(row["prediction"] == 0.0 for row in rows if row["model"] == model)
+    five_mentions = [row for row in rows if row["mentions_categorical_eligibility"]]
+    five_mention_zeros = [row for row in five_mentions if row["prediction"] == 0.0]
+    # None of the four states applies a net income test under BBCE (above).
+
+    # GPT-6 Astra gets the most, each hit citing its state's high gross limit
+    # for categorical eligibility, and answers $0 for the two households that
+    # fail the ordinary gross test.
+    best = max(hits_by_model.values())
+    assert [m for m, h in hits_by_model.items() if h == best] == ["gpt-6-astra"]
+    astra_answers = {
+        s: predictions[s]["snap"]["gpt-6-astra"]["prediction"] for s in households
+    }
+    astra_hits = sorted(
+        s for s in households if predictions[s]["snap"]["gpt-6-astra"]["exact"] == 100
+    )
+    assert len(astra_hits) == best
+    for scenario_id in astra_hits:
+        assert states[scenario_id] in high_states
+        assert (
+            f"{STATE_NAMES[states[scenario_id]]}'s {high_limit}%-of-poverty categorical"
+        ) in explanation(scenario_id, "gpt-6-astra")
+    assert {s for s, v in astra_answers.items() if v == 0} == fail_gross
+    assert set(astra_hits) | fail_gross == set(households)
+
+    # Claude Opus 5.5: the minimum for the Wisconsin surviving spouse, citing
+    # Wisconsin's BBCE and its gross limit; $0 for the Connecticut couple and
+    # the Michigan resident on disability income, citing the net income limit.
+    opus = {
+        s: predictions[s]["snap"]["claude-opus-5.5"]["prediction"] for s in households
+    }
+    assert opus["scenario_108"] == reference_amount
+    opus_108 = explanation("scenario_108", "claude-opus-5.5")
+    assert "Wisconsin's broad-based categorical eligibility" in opus_108
+    assert f"under {high_limit}% FPL" in opus_108
+    net_regex = re.compile(regexes["netLimit"], re.IGNORECASE)
+    bbce_regex = re.compile(regexes["bbce"], re.IGNORECASE)
+    for scenario_id in ("scenario_027", "scenario_073"):
+        assert opus[scenario_id] == 0
+        opus_text = explanation(scenario_id, "claude-opus-5.5")
+        assert "net income limit" in opus_text and net_regex.search(opus_text)
+        assert not bbce_regex.search(opus_text)
+        assert rules[states[scenario_id]]["net_income_test_applies"] is False
+
+    # GPT-6 Sol leads the board; its answers and its BBCE mentions across the
+    # whole board.
+    assert _rank(by_model["gpt-6-sol"]["exact"], board) == 1
+    sol6 = {s: predictions[s]["snap"]["gpt-6-sol"]["prediction"] for s in households}
+    assert [s for s, v in sol6.items() if v != 0] == ["scenario_030"]
+    board_households = len(predictions)
+    assert board_households == len(pathways) == len(payload["scenarios"])
+
+    def bbce_mentions(model: str) -> int:
+        entries = [variables["snap"][model] for variables in predictions.values()]
+        assert len(entries) == board_households
+        return sum(bool(bbce_regex.search(e.get("explanation") or "")) for e in entries)
+
+    # The Texas resident: both models compute a regular benefit from wages
+    # alone; the engine counts the financial assistance (and not the
+    # educational assistance) as income, which takes the household above the
+    # ordinary gross limit and leaves BBCE as its only route.
+    assert sol6["scenario_030"] > 0 and opus["scenario_030"] > 0
+    assert "monthly wages" in explanation("scenario_030", "gpt-6-sol")
+    assert "financial and educational assistance are not counted" in explanation(
+        "scenario_030", "claude-opus-5.5"
+    )
+    for instant in ("2026-01-01", "2026-10-01"):
+        sources = snap_parameters[instant]["unearned_income_sources"]
+        assert "financial_assistance" in sources
+        assert "educational_assistance" not in sources
+    row_030 = by_id["scenario_030"]
+    ratio_030 = float(row_030["gross_income_fpg_ratio_min"])
+    wages_030 = texan["employment_income"]
+    wages_only_ratio = ratio_030 * wages_030 / (wages_030 + financial_assistance)
+    assert wages_only_ratio < snap_gross_limit < ratio_030
+    assert row_030["pathway_jan_sep"] == "categorical_income"
+    # The prompt labels the money only "financial assistance".
+    for prompt in payload["scenarios"]["scenario_030"]["prompt"].values():
+        lines = [
+            line
+            for line in _household_block(prompt).splitlines()
+            if "financial" in line.lower()
+        ]
+        assert lines == [f"- financial assistance: ${financial_assistance:,.0f}"]
+    texas_paragraph = next(p for p in note["paragraphs"] if "labels that money" in p)
+    assert re.findall(r'"([^"]+)"', texas_paragraph) == ["financial assistance"]
+
+    # What the prompt says, in every household's prompt and every answer
+    # contract's variant.
+    all_prompts = [
+        prompt
+        for scenario in payload["scenarios"].values()
+        for prompt in scenario["prompt"].values()
+    ]
+    assert len(all_prompts) == 2 * board_households
+    for scenario in payload["scenarios"].values():
+        assert set(scenario["prompt"]) == {"tool", "json"}
+    for prompt in all_prompts:
+        assert all(sentence in prompt for sentence in PREFACE_SENTENCES)
+        assert not re.search("categorical", prompt, re.IGNORECASE)
+        # "Non-cash" appears only in charitable non-cash donations.
+        assert not re.search(
+            "non-cash",
+            prompt.replace("charitable non-cash donations", ""),
+            re.IGNORECASE,
+        )
+        tanf_lines = [line for line in prompt.splitlines() if "TANF" in line]
+        assert tanf_lines == [
+            "- tanf: annual Temporary Assistance for Needy Families (TANF) "
+            "benefit amount"
+        ]
     # Every quotation in the prompt paragraph is the preface's own wording.
     prompt_paragraph = next(
         paragraph for paragraph in note["paragraphs"] if "program take-up" in paragraph
@@ -818,22 +1067,20 @@ def test_bbce_households_note_facts() -> None:
     assert len(quotes) == len(PREFACE_SENTENCES)
     for quote, sentence in zip(quotes, PREFACE_SENTENCES):
         assert quote.rstrip(".,").lower() in sentence.lower()
+    # The one $0 explanation that mentions TANF argues from receipt.
     tanf_regex = re.compile(regexes["tanf"], re.IGNORECASE)
-    zero_rows = [row for row in rows if row["prediction"] == 0.0]
     zero_tanf = [
         (row["model"], row["scenario_id"])
         for row in zero_rows
-        if tanf_regex.search(
-            predictions[row["scenario_id"]]["snap"][row["model"]]["explanation"] or ""
-        )
+        if tanf_regex.search(explanation(row["scenario_id"], row["model"]))
     ]
     assert zero_tanf == [("claude-sonnet-4.6", "scenario_030")]
-    sonnet = predictions["scenario_030"]["snap"]["claude-sonnet-4.6"]["explanation"]
+    sonnet = explanation("scenario_030", "claude-sonnet-4.6")
     assert "households receiving TANF/SSI" in sonnet and "receives neither" in sonnet
 
     # What changed since the September 3 note.
-    previous = _note(SNAP_NOTE)
     assert previous["facts"]["deniedScenarios"] == [*households, "scenario_112"]
+    assert previous["facts"]["deniedCount"] == len(previous["facts"]["deniedScenarios"])
     frozen = {float(row["snap_frozen"]) for row in five}
     frozen_jan = {float(row["frozen_engine_min_allotment_jan"]) for row in five}
     frozen_oct = {float(row["frozen_engine_min_allotment_oct"]) for row in five}
@@ -841,14 +1088,33 @@ def test_bbce_households_note_facts() -> None:
     frozen_value, jan, oct_ = frozen.pop(), frozen_jan.pop(), frozen_oct.pop()
     assert abs(9 * jan + 3 * oct_ - frozen_value) < 0.01
     assert round(frozen_value, 2) == previous["facts"]["referenceAnnual"]
+    assert jan == previous["facts"]["referenceMonthly"]
+    # The October value was projected: USDA published FY2027 after the freeze,
+    # and the frozen engine's October minimum differs from the FY2026 one.
+    conventions = {
+        revision["convention"]: revision
+        for revision in reference_meta["revisions"]
+        if revision.get("kind") == "convention"
+    }
+    hold_rule = conventions["c_snap_hold_fy2026"]["rule"]
+    freeze = re.search(r"the (\d{4}-\d{2}-\d{2}) reference freeze", hold_rule)
+    fy2027 = re.search(r"USDA published FY2027 on (\d{4}-\d{2}-\d{2})", hold_rule)
+    assert freeze and fy2027 and freeze.group(1) < fy2027.group(1)
+    assert oct_ != jan
     fixes = {
         revision["root_cause"]: revision
         for revision in reference_meta["revisions"]
         if revision.get("kind") == "upstream_fix"
     }
     min_fix = fixes["r28_snap_min_allotment_rounding"]
-    assert "#9162" in min_fix["upstream"]
+    assert "rounded to the nearest whole dollar" in min_fix["rule"]
     assert {c["scenario_id"] for c in min_fix["changed"]} >= set(households)
+    merged = re.search(r"#9162 \(merged (\d{4})-(\d{2})-(\d{2})\)", min_fix["upstream"])
+    assert merged is not None
+    from datetime import date
+
+    merged_on = date(*(int(part) for part in merged.groups()))
+    assert f"to the nearest dollar since {merged_on:%B} {merged_on.day} (#9162)" in text
     excluded_112 = snap_exclusions["scenario_112"]
     assert excluded_112["reason_code"] == "reference_depends_on_unlisted_input"
     assert excluded_112["unlisted_input"] == "weekly_hours_worked_before_lsr"
@@ -858,104 +1124,105 @@ def test_bbce_households_note_facts() -> None:
     )
     assert assumed_hours is not None
     assert "treat unlisted numeric inputs as 0" in excluded_112["alternative_reading"]
-    assert (
-        "Under the zero-hours reading the time limit applies"
-        in excluded_112["alternative_reading"]
-    )
     assert excluded_112["alternative_value"] == 0
     assert payload["scenarios"]["scenario_112"]["state"] == "TX"
     for prompt_112 in payload["scenarios"]["scenario_112"]["prompt"].values():
         assert PREFACE_UNLISTED_STATUS in prompt_112
-        assert "hours" not in prompt_112.split("Provide the following")[0]
-    assert {
-        by_id["scenario_112"]["pathway_jan_sep"],
-        by_id["scenario_112"]["pathway_oct_dec"],
-    } == {"ordinary"}
-    claude_note = _note(CLAUDE_NOTE)
-    assert claude_note["boardSnapshot"] == previous["boardSnapshot"]
+        assert "hours" not in _household_block(prompt_112)
+    # What the September 3 note said about the rule, which this note corrects.
+    previous_text = " ".join(previous["paragraphs"])
+    assert "households receiving a TANF-funded non-cash benefit" in previous_text
+    assert "the net-income and asset tests waived" in previous_text
 
     # The models the prose names by hand, and what it says about each.
-    from policybench.paper_results import MODEL_DISPLAY_NAMES
-
-    display = {model: MODEL_DISPLAY_NAMES[model] for model in by_model}
-    text = " ".join(note["paragraphs"])
-    zero_tanf_model, zero_tanf_scenario = zero_tanf[0]
+    zero_tanf_model, _ = zero_tanf[0]
     assert _named_models(text, display) == {
         "gpt-6-astra",
-        *TOP_THREE_0922,
+        "claude-opus-5.5",
+        "gpt-6-sol",
+        "gpt-5.6-sol",
+        "claude-fable-5.1",
         zero_tanf_model,
     }
-    sol6_name, opus_name, sol56_name = (display[m] for m in TOP_THREE_0922)
+    astra, opus_name, sol6_name = (
+        display[m] for m in ("gpt-6-astra", "claude-opus-5.5", "gpt-6-sol")
+    )
     for fragment in (
-        f"{display['gpt-6-astra']} gets the most",
-        f"{sol6_name} answers $0 for four households and ${{sol6On030}}",
-        f"{opus_name} answers ${{opusOn108}} for scenario_108",
-        f"{sol56_name} answers $0 for all five",
-        f"both {sol6_name} and {opus_name} compute the benefit from wages alone",
-        f"the SNAP explanations of {sol6_name} mention categorical eligibility",
-        f"{display[zero_tanf_model]}, on {zero_tanf_scenario}, writes",
+        f"{display['gpt-5.6-sol']} and {display['claude-fable-5.1']} answer above "
+        "$0 for each household held back by savings and $0 for each of the "
+        "{householdCount}",
+        f"{astra} gets the most of these households right, {{astraHits}} of",
+        f"{STATE_NAMES['TX']} resident and the {STATE_NAMES['MI']} worker, whose "
+        "gross incomes exceed SNAP's ordinary limit",
+        f"{opus_name} answers ${{opusOn108}} for the {STATE_NAMES['WI']} surviving "
+        f"spouse, citing {STATE_NAMES['WI']}'s BBCE",
+        f"For the {STATE_NAMES['CT']} couple and the disabled {STATE_NAMES['MI']} "
+        "resident it answers $0, citing SNAP's ordinary net income limit",
+        f"{sol6_name}, which leads PolicyBench overall, answers $0 for "
+        "{sol6ZeroCount} of the {householdCount}",
+        f"For the {STATE_NAMES['TX']} resident, {sol6_name} answers ${{sol6On030}} "
+        f"and {opus_name} answers ${{opusOn030}}, and both compute a regular "
+        "benefit from wages alone",
+        f"from {display[zero_tanf_model]} for the {STATE_NAMES['TX']} resident",
+        f"A {STATE_NAMES['MI']} worker who pays child support has gross income "
+        "above SNAP's ordinary limit of {snapGrossLimit}%",
+        f"a {{txAge}}-year-old in {STATE_NAMES['TX']} with wages and "
+        "${financialAssistance} of financial assistance",
+        f"A {STATE_NAMES['CT']} couple on Social Security disability income, a "
+        f"disabled {STATE_NAMES['MI']} resident living alone, and an "
+        f"{{wiAge}}-year-old surviving spouse in {STATE_NAMES['WI']} fail SNAP's "
+        "ordinary net income test",
+        f"The {STATE_NAMES['CT']} couple also holds ${{ctSavings}} in savings",
+        f"{', '.join(STATE_NAMES[s] for s in high_states[:-1])}, and "
+        f"{STATE_NAMES[high_states[-1]]} set that benefit's gross income limit at "
+        f"{{bbceGrossLimitHigh}}% of the guideline and {STATE_NAMES['TX']} at "
+        "{bbceGrossLimitTx}%, none of them applies a net income test, and only "
+        f"{STATE_NAMES['TX']} keeps an asset limit",
+        f"{STATE_NAMES['TX']} keeps a ${{bbceAssetLimitTx}} asset limit",
     ):
         assert fragment in text, fragment
 
     derived = {
-        "scoredEligible": sum(
-            value > 0 and scenario_id not in snap_exclusions
-            for scenario_id, value in references.items()
-        ),
-        "householdCount": len(households),
-        "households": households,
-        "referenceAmount": _whole_or_cents(reference_amount),
-        "minimumMonthly": _whole_or_cents(minimum),
         "nModels": len(board),
+        "householdCount": len(households),
+        "minimumMonthly": _whole_or_cents(minimum),
+        "referenceAmount": _whole_or_cents(reference_amount),
         "answers": len(rows),
-        "missingAnswers": len(missing),
-        "hits": sum(hits_by_household.values()),
-        "hits027": hits_by_household["scenario_027"],
-        "hits073": hits_by_household["scenario_073"],
-        "hits108": hits_by_household["scenario_108"],
-        "zeroAllFive": len(zero_all_five),
-        "astraHits": best,
-        "commonAnnual": _whole_or_cents(common_annual),
-        "commonMonthly": _whole_or_cents(common_annual / 12),
-        "commonAnswers": len(answers_common),
-        "commonAnswersMinimum": sum(
-            bool(
-                minimum_regex.search(
-                    predictions[row["scenario_id"]]["snap"][row["model"]]["explanation"]
-                    or ""
-                )
-            )
-            for row in answers_common
-        ),
-        "fiveBbceMentions": len(mentions),
-        "explanations": len(explained),
-        "fiveBbceModels": len({row["model"] for row in mentions}),
-        "fiveBbceZeros": sum(row["prediction"] == 0.0 for row in mentions),
-        "sol6On030": _whole_or_cents(sol6["scenario_030"]),
-        "opusOn108": _whole_or_cents(opus["scenario_108"]),
-        "opusOn030": _whole_or_cents(opus["scenario_030"]),
-        "financialAssistance": _whole_or_cents(financial_assistance),
-        "maxAllotmentOne": _whole_or_cents(float(row_030["max_allotment_jan"])),
-        "boardHouseholds": board_households,
-        "sol6BbceMentions": bbce_mentions("gpt-6-sol"),
-        "opusBbceMentions": bbce_mentions("claude-opus-5.5"),
-        "sol56BbceMentions": bbce_mentions("gpt-5.6-sol"),
-        "engineVersion": engine_version,
-        "bbceGrossLimitHigh": round(100 * high.pop()),
-        "bbceGrossLimitTx": round(100 * rules["TX"]["gross_income_limit_fpg"]),
-        "bbceAssetLimitTx": _whole_or_cents(rules["TX"]["asset_limit"]),
-        "snapGrossLimit": round(100 * snap_gross_limit),
-        "failGross": sum(row["gross_income_test_months"] == "0" for row in five),
-        "grossExempt": sum(row["elderly_or_disabled_member"] == "True" for row in five),
-        "failNet": sum(row["net_income_test_months"] == "0" for row in five),
-        "failAssets": sum(row["asset_test_months"] == "0" for row in five),
         "zeroAnswers": len(zero_rows),
+        "hits": sum(row["within_1_dollar"] for row in rows),
+        "snapGrossLimit": round(100 * snap_gross_limit),
+        "txAge": texan["age"],
+        "financialAssistance": _whole_or_cents(financial_assistance),
+        "wiAge": widow["age"],
+        "ctSavings": _whole_or_cents(savings),
+        "bbceGrossLimitHigh": high_limit,
+        "bbceGrossLimitTx": round(100 * rules["TX"]["gross_income_limit_fpg"]),
+        "assetOnlyCount": len(asset_households),
+        "assetOnlyAbove0Share": _percent(len(asset_above_zero), len(asset_rows)),
+        "fiveAbove0Share": _percent(len(above_zero), len(rows)),
+        "assetOnlyBbceMentions": len(asset_mentions),
+        "assetOnlyExplanations": len(asset_explained),
+        "assetOnlyBbceAssets": sum(row["mentions_assets"] for row in asset_mentions),
+        "fiveBbceMentions": len(five_mentions),
+        "explanations": len(explained),
+        "fiveBbceZeros": len(five_mention_zeros),
+        "fiveBbceZeroWithNetLimit": sum(
+            row["mentions_net_income_limit"] for row in five_mention_zeros
+        ),
+        "astraHits": best,
+        "opusOn108": _whole_or_cents(opus["scenario_108"]),
+        "sol6ZeroCount": sum(value == 0 for value in sol6.values()),
+        "sol6BbceMentions": bbce_mentions("gpt-6-sol"),
+        "boardHouseholds": board_households,
+        "sol6On030": _whole_or_cents(sol6["scenario_030"]),
+        "opusOn030": _whole_or_cents(opus["scenario_030"]),
         "zeroTanfMentions": len(zero_tanf),
-        "previousModels": claude_note["facts"]["nModels"],
+        "previousHouseholdCount": previous["facts"]["deniedCount"],
         "previousReference": f"{frozen_value:.2f}",
         "previousMonthlyJanSep": f"{jan:.2f}",
         "previousMonthlyOctDec": f"{oct_:.2f}",
         "assumedHours": int(assumed_hours.group(1)),
+        "bbceAssetLimitTx": _whole_or_cents(rules["TX"]["asset_limit"]),
     }
     assert note["facts"] == derived
 
