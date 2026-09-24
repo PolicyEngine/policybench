@@ -63,7 +63,7 @@ describe("serving sensitivity", () => {
     expect(html).toContain("auto 90.9 · #6");
     expect(html).toContain("switches Claude&#x27;s extended thinking off");
     expect(html).toContain("would rank #6");
-    expect(html).toContain("(+7.4 against its 83.4% on the unfiltered board)");
+    expect(html).toContain("(+7.4 against its 83.5% on the unfiltered board)");
     expect(html).toContain("sensitivity/claude-thinking-2026-08.md");
     expect(html).toContain("issues/139");
   });
@@ -109,7 +109,7 @@ describe("serving sensitivity", () => {
     // 88.183 − 86.945 = 1.238 → +1.2; rounding first would have said +1.3.
     expect(formatDelta(88.183, 86.945)).toBe("+1.2");
     expect(formatDelta(88.2, 86.945)).toBe("+1.3");
-    // The pinned Fable 5.1 pair on the frozen board: 91.067 − 90.158 = 0.909.
+    // The pinned Fable 5.1 pair on the frozen board: 91.108 − 90.198 = 0.910.
     expect(
       formatDelta(fable51Summary.sensitivity.exact, fable51Summary.board.exact),
     ).toBe("+0.9");

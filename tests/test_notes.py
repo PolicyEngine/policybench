@@ -77,6 +77,9 @@ def _frozen_release() -> str:
 SUPERSEDED_RELEASES = {
     "dashboard-data-20260901c": "2026-09-01",
     "dashboard-data-20260905c": "2026-09-05",
+    # Superseded by dashboard-data-20260922b, which excludes one more output
+    # (scenario_045 SNAP, root cause r33) on the same 42-model snapshot.
+    "dashboard-data-20260922": "2026-09-22",
 }
 CURRENT_RELEASE_SNAPSHOT = "2026-09-22"
 
@@ -973,6 +976,11 @@ def test_snap_pathways_20260922_regenerates() -> None:
     """
     from importlib.metadata import PackageNotFoundError, version
 
+    # The pathway files belong to the BBCE note's release; once a later release
+    # is frozen, the committed references they were checked against are in git
+    # history, not in the snapshot this test reads.
+    if not _recompute_against_frozen_snapshot(_note(BBCE_NOTE)):
+        pytest.skip("the pathway files belong to a superseded release")
     committed_meta = _load_json(PATHWAYS_0922_META_PATH)
     needed = committed_meta["policyengine_us_version"]
     try:

@@ -17,7 +17,9 @@ RUN_DIR = (
     / "runs"
     / "us_full_run_20260612_policyengine_4_16_1_populace"
 )
-DECIDED_ON = "2026-09-22"
+# The audit's records: the September 22 wave, and the 2026-09-24 revision that
+# added r33 (release dashboard-data-20260922b).
+AUDIT_DATES = ("2026-09-22", "2026-09-24")
 
 
 def _load(path: Path) -> dict:
@@ -172,7 +174,7 @@ def test_every_new_exclusion_has_a_qualifying_move_of_its_class():
         for name, cause in causes.items()
         if cause.get("class") == "unlisted_input"
     }
-    new = [e for e in _exclusions() if e["decided_on"] == DECIDED_ON]
+    new = [e for e in _exclusions() if e["decided_on"] in AUDIT_DATES]
     assert new
     for entry in new:
         key = (entry["scenario_id"], entry["variable"])
@@ -239,3 +241,45 @@ def test_snap_net_income_procedures_move_no_scored_reference():
         # keeping cents instead moves it by no more than the $1 tolerance.
         assert abs(float(row["nearest"]) - references[key]) < 1e-6, key
         assert abs(float(row["cents"]) - float(row["nearest"])) <= 1, key
+
+
+def test_records_after_the_wave_carry_their_root_cause_date():
+    """An exclusion or adjudication a later revision added (r33, 2026-09-24)
+    takes its root cause's decided_on; every other audit record is the wave's."""
+    causes = _causes()
+    adjudications = _load(
+        ROOT
+        / "annotations"
+        / "us_full_run_20260612_policyengine_4_16_1_populace"
+        / "us_adjudications.json"
+    )["adjudications"]
+    adjudicated_on = {
+        (e["scenario_id"], e["variable"]): e["adjudicated_on"] for e in adjudications
+    }
+    audit = [e for e in _exclusions() if e["decided_on"] != "2026-09-05"]
+    assert audit
+    for entry in audit:
+        key = (entry["scenario_id"], entry["variable"])
+        named = entry["root_cause"].split("+") if "root_cause" in entry else []
+        expected = max(
+            [causes[c].get("decided_on", AUDIT_DATES[0]) for c in named],
+            default=AUDIT_DATES[0],
+        )
+        assert entry["decided_on"] == expected, key
+        assert adjudicated_on[key] == expected, key
+    # The 2026-09-24 revision added r33 alone, and it rests on a fix that is
+    # open upstream, not merged, so its output is excluded, not regenerated.
+    late = [e for e in _exclusions() if e["decided_on"] == AUDIT_DATES[1]]
+    assert [(e["scenario_id"], e["variable"], e["root_cause"]) for e in late] == [
+        ("scenario_045", "snap", "r33_snap_child_support_treatment")
+    ]
+    r33 = causes["r33_snap_child_support_treatment"]
+    assert r33["class"] == "engine_defect" and not r33.get("upstream_fixed")
+    assert "#9586" in r33["upstream"] and "not merged" in r33["upstream"]
+    assert late[0]["alternative_value"] == 0
+    moved = [
+        (row["scenario_id"], row["variable"])
+        for row in _moves()
+        if row["root_cause"] == "r33_snap_child_support_treatment"
+    ]
+    assert moved == [("scenario_045", "snap")]

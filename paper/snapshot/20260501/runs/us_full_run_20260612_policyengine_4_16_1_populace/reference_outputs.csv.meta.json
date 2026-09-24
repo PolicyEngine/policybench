@@ -60,7 +60,7 @@
   "split": "public",
   "split_seed": 1042,
   "task": "reference_outputs",
-  "reference_csv_sha256": "37e2c2bd52908e92c8e9396fa863b2a3838e5136135187a27e1c4cd88e3d5808",
+  "reference_csv_sha256": "81f84aa2b9141a47303ff90484f28e4442259cbf8d7d600e3102a9d774db97f8",
   "revisions": [
     {
       "date": "2026-09-22",
@@ -126,12 +126,6 @@
           "variable": "snap",
           "frozen": 3596.039794921875,
           "regenerated": 3576.0
-        },
-        {
-          "scenario_id": "scenario_045",
-          "variable": "snap",
-          "frozen": 287.68316650390625,
-          "regenerated": 288.0
         },
         {
           "scenario_id": "scenario_054",
@@ -714,12 +708,6 @@
         },
         {
           "scenario_id": "scenario_030",
-          "variable": "snap",
-          "frozen": 287.68316650390625,
-          "regenerated": 288.0
-        },
-        {
-          "scenario_id": "scenario_045",
           "variable": "snap",
           "frozen": 287.68316650390625,
           "regenerated": 288.0

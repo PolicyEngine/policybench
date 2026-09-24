@@ -25,7 +25,8 @@ HERE = Path(__file__).resolve().parent
 FIXES = HERE / "sweep" / "fixes"
 OUT = HERE / "sweep" / "out"
 WK = Path("/Users/maxghenis/PolicyEngine/_wk")
-DEST = Path("/Users/maxghenis/PolicyEngine/policybench-wt/opus55/reference_audit/2026-09-22")
+# 2026-09-22/23: policybench-wt/opus55; 2026-09-24 (r33): policybench-wt/r33-20260922b.
+DEST = Path("/Users/maxghenis/PolicyEngine/policybench-wt/r33-20260922b/reference_audit/2026-09-22")
 
 # Modules the recorded ones load at run time, and the measurement modules.
 EXTRA_FIXES = [
@@ -43,6 +44,8 @@ EXTRA_FIXES = [
     "c13v3_plus_r31.py",
     "c13v3_plus_upstream_snap.py",
     "c13v3_upstream_plus_r30.py",
+    "c13v3_plus_r33.py",
+    "c13v3_upstream_plus_r33.py",
     "cwi_plus_r04.py",
     "cwi_plus_r04_r32.py",
     # Superseded for r04 on 2026-09-23: #8839 plus the Wisconsin part now in r32.
