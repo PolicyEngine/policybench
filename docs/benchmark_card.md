@@ -65,10 +65,10 @@ be described as faithful reasoning traces.
 
 ## Audit scope
 
-The frozen US annotations cover 7,541 scored rows selected because their
-legacy threshold score is below 1 (1,835 further annotated rows sit on the 53
+The frozen US annotations cover 7,545 scored rows selected because their
+legacy threshold score is below 1 (1,793 further annotated rows sit on the 52
 excluded outputs and are description, not audit). This audit universe contains
-7,537 of the snapshot's 7,537 exact-match misses and four exact hits. Another
+7,541 of the snapshot's 7,541 exact-match misses and four exact hits. Another
 1,843 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
@@ -80,34 +80,33 @@ change no score. A judge verdict outside the final classes, and every
 reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's
 verdict (the case's current verdict.json; a flag an earlier judge run raised is
-kept and says so) beside the decision and the reasoning. This snapshot carries 64: one
+kept and says so) beside the decision and the reasoning. This snapshot carries 63: one
 for each excluded output, plus the flagged references the adjudication
 affirmed or replaced with a regenerated reference.
 
 The September 22 audit implemented each defect it confirmed in policyengine-us
 1.755.4 as a sandbox fix on that engine version and recomputed every
-reference under it. Seven of those root causes were fixed in policyengine-us
-after the references were frozen (#8839, #9162, #9301, #9313, #9318 and #9363:
-capital gain distributions, New York's renter cap, the CalEITC's lookup at
-adjusted gross income, and the engine's SNAP rounding). The scored references
-they move are regenerated with the fix on the same engine version: 14
-references. An output one of them moves that an unfixed cause also moves stays
+reference under it. Eight of those root causes were fixed in policyengine-us
+after the references were frozen (#8839, #9162, #9301, #9313, #9318, #9363 and
+#9586: capital gain distributions, New York's renter cap, the CalEITC's lookup
+at adjusted gross income, the engine's SNAP rounding, and the SNAP child
+support option, whose engine values carried the opposite meaning: the engine
+excluded child support paid from gross income in Michigan, which deducts it
+from net income). The scored references they move are regenerated with the
+fix on the same engine version: 15 references. The child support fix merged on
+2026-09-24; release dashboard-data-20260922b excluded the one output it moves
+while the fix was open, and release dashboard-data-20260922c regenerates it. An output one of them moves that an unfixed cause also moves stays
 excluded. The capital gain fix as first built also applied Wisconsin's capital
 gain exclusion to the distributions, which the upstream fix does not; that
 part is recorded as its own defect, not fixed upstream.
 
-Fifty-three outputs in 37 households are excluded from scoring for every model
+Fifty-two outputs in 36 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
 manifest). Every output a defect not fixed upstream moves by more than a dollar
-is excluded: 29 are recorded as engine-defect exclusions across the twelve such
+is excluded: 28 are recorded as engine-defect exclusions across the eleven such
 root causes (among them the IRA deduction's compensation limit and phase-out,
-estate income, the heat-and-eat SNAP utility allowance that P.L. 119-21
-ended for households without an elderly or disabled member, and the SNAP child
-support option, whose engine values carry the opposite meaning: the engine
-excludes child support paid from gross income in Michigan, which deducts it
-from net income; that one was added on 2026-09-24, in release
-dashboard-data-20260922b, with a fix open upstream in policyengine-us #9586),
-and an output
+estate income, and the heat-and-eat SNAP utility allowance that P.L. 119-21
+ended for households without an elderly or disabled member), and an output
 such a defect moves that was already excluded for an unstated input keeps that
 record. Twenty-four depend on an input the
 prompt never states, such as the SSI disability criterion, months of SSDI
@@ -116,8 +115,8 @@ coverage behind a disability benefit, or whether an adult tax dependent is the
 filers' child; each was recomputed under the other reading a careful reader
 could take, and it moved. Exclusion is symmetric: rows that matched the frozen
 reference leave the score with rows that did not, so every model is scored on
-1,931 of its 1,984 requested outputs. The rows on those outputs stay annotated
-as description: each carries its exclusion's class, except the 51 answers that
+1,932 of its 1,984 requested outputs. The rows on those outputs stay annotated
+as description: each carries its exclusion's class, except the 50 answers that
 never parsed, which stay parse_contract_failure; no scored row carries a
 descriptive class. The prompt states disability as one general fact
 (any of the six Current Population Survey disability-difficulty items); SSI,
@@ -132,8 +131,8 @@ A scored reference follows from the stated facts and from law published before
 the references were frozen on 2026-07-03. Where policyengine-us projected a
 2026 amount with a price index, the reference takes the amount published
 before the freeze or, where none was, the last one published; a convention
-changes parameter values only. With the upstream fixes, 25 references in 24
-households are regenerated on the same engine version: 12 SNAP outputs, whose
+changes parameter values only. With the upstream fixes, 26 references in 24
+households are regenerated on the same engine version: 13 SNAP outputs, whose
 October to December months hold the FY2026 figures and whose allotments apply
 the SNAP rounding fixes, and 13 in federal and state income tax and credits.
 The reference sidecar records each regenerated value with the convention or

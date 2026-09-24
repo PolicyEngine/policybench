@@ -67,7 +67,7 @@ describe("notes", () => {
     // The September 22 notes close with the later release's figures; board
     // rates keep one decimal there too.
     expect(markup).toContain(
-      "A later release, dashboard-data-20260922b, excludes one more output for every model",
+      "A later release, dashboard-data-20260922c, corrects the reference for one output",
     );
     expect(markup).toContain("Claude Opus 5.5 93.0%");
     expect(markup).toContain("Claude Fable 5.1 added");
@@ -108,7 +108,7 @@ describe("notes", () => {
       "PolicyBench revised this note on September 24. Its first version, published September 23, reported 172 of 210 answers at $0 across five households, among them a Michigan worker who pays child support.",
     );
     expect(markup).toContain(
-      "PolicyBench no longer scores the worker&#x27;s SNAP amount",
+      "stopped scoring the worker&#x27;s SNAP amount. PolicyEngine merged its fix, policyengine-us #9586, the same day, and from release dashboard-data-20260922c PolicyBench scores that amount against the corrected $0.",
     );
     expect(markup).toContain(">policyengine-us #9586 (SNAP child support treatment)</a>");
     expect(markup).not.toContain("scenario_045");
@@ -123,10 +123,10 @@ describe("notes", () => {
       createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "A later note, first published September 23 and revised September 24, corrects this one. On release dashboard-data-20260922b, PolicyBench scores the SNAP amounts of four of these six households, at $288 each.",
+      "A later note, first published September 23 and revised September 24, corrects this one. On release dashboard-data-20260922c, PolicyBench scores the SNAP amounts of four of these six households at $288 each, and scores a Michigan worker who pays child support at $0",
     );
     expect(markup).toContain(
-      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922b"',
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922c"',
     );
     expect(markup).not.toContain("scenario_045 and scenario_112");
     expect(markup).toContain(

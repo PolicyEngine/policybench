@@ -60,7 +60,7 @@
   "split": "public",
   "split_seed": 1042,
   "task": "reference_outputs",
-  "reference_csv_sha256": "81f84aa2b9141a47303ff90484f28e4442259cbf8d7d600e3102a9d774db97f8",
+  "reference_csv_sha256": "800a19bc1c225656b93c4507933d98907e8d1a939248c8b021a9f26d33e9e0c5",
   "revisions": [
     {
       "date": "2026-09-22",
@@ -87,7 +87,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -126,6 +127,12 @@
           "variable": "snap",
           "frozen": 3596.039794921875,
           "regenerated": 3576.0
+        },
+        {
+          "scenario_id": "scenario_045",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 0.0
         },
         {
           "scenario_id": "scenario_054",
@@ -190,7 +197,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -239,7 +247,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -276,7 +285,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": []
@@ -306,7 +316,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -343,7 +354,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -380,7 +392,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -423,7 +436,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -460,7 +474,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -500,7 +515,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -546,7 +562,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -586,7 +603,8 @@
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -626,7 +644,8 @@
         "r17_caleitc_agi_comparison",
         "r27_snap_net_income_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -696,7 +715,8 @@
         "r17_caleitc_agi_comparison",
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -711,6 +731,12 @@
           "variable": "snap",
           "frozen": 287.68316650390625,
           "regenerated": 288.0
+        },
+        {
+          "scenario_id": "scenario_045",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 0.0
         },
         {
           "scenario_id": "scenario_073",
@@ -754,7 +780,8 @@
         "r17_caleitc_agi_comparison",
         "r26_snap_contribution_rounding",
         "r28_snap_min_allotment_rounding",
-        "r31_snap_income_limit_rounding"
+        "r31_snap_income_limit_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": [
@@ -806,10 +833,52 @@
         "r17_caleitc_agi_comparison",
         "r26_snap_contribution_rounding",
         "r27_snap_net_income_rounding",
-        "r28_snap_min_allotment_rounding"
+        "r28_snap_min_allotment_rounding",
+        "r33_snap_child_support_treatment"
       ],
       "excluded_outputs_untouched": true,
       "changed": []
+    },
+    {
+      "date": "2026-09-22",
+      "kind": "upstream_fix",
+      "root_cause": "r33_snap_child_support_treatment",
+      "outputs": "snap",
+      "rule": "An engine defect fixed in policyengine-us after the reference freeze is regenerated with the fix. A state that does not take the option in 7 CFR 273.9(c)(17) counts legally obligated child support paid to nonhousehold members in gross income and deducts it when computing net income (7 CFR 273.9(d)(5)). USDA's 16th and 17th State Options Reports list Michigan among those states (the 15th lists it among the exclusion states), and Michigan's budget (BEM 556) subtracts child support at line 20, after gross income at line 10.",
+      "defect": "PolicyEngine reads its SNAP child support flag as the option to exclude child support paid from gross income, but the values carry the opposite meaning: for 2026 it excludes the payments from gross income in 37 jurisdictions that USDA's State Options Report lists as deducting them from net income, Michigan among them, and deducts them in 9 of the 14 it lists as excluding them",
+      "basis": "7 CFR 273.9(c)(17); 7 CFR 273.9(d)(5); USDA SNAP State Options Report, 16th edition (June 2024), Treatment of Child Support Payments, p. 15, and 17th edition, p. 21 (Michigan: child support income expense deduction); Michigan Bridges Eligibility Manual 556 (11-1-2025), line 20",
+      "upstream": "fixed in PolicyEngine/policyengine-us#9586 (merged 2026-09-24)",
+      "engine_version": "policyengine-us 1.755.4",
+      "fix_module": "r33_snap_child_support_treatment.py",
+      "fix_module_sha256": "1c05732b502a83ce164c443e88341dc9c48040cb8cb4c454bdf42273c97dffad",
+      "measured_against": "c_snap_hold_fy2026",
+      "applied_together_with": [
+        "c_ca_hold_2025",
+        "c_id_hold_2025",
+        "c_irs_sales_tax_2025",
+        "c_md_2026",
+        "c_mi_published_2026",
+        "c_mn_published_2026",
+        "c_mo_published_2026",
+        "c_snap_hold_fy2026",
+        "c_wi_published_2026",
+        "r04_capital_gain_distributions",
+        "r09_ny_rptc_rent_cap",
+        "r17_caleitc_agi_comparison",
+        "r26_snap_contribution_rounding",
+        "r27_snap_net_income_rounding",
+        "r28_snap_min_allotment_rounding",
+        "r31_snap_income_limit_rounding"
+      ],
+      "excluded_outputs_untouched": true,
+      "changed": [
+        {
+          "scenario_id": "scenario_045",
+          "variable": "snap",
+          "frozen": 287.68316650390625,
+          "regenerated": 0.0
+        }
+      ]
     }
   ]
 }

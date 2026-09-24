@@ -18,8 +18,12 @@ RUN_DIR = (
     / "us_full_run_20260612_policyengine_4_16_1_populace"
 )
 # The audit's records: the September 22 wave, and the 2026-09-24 revision that
-# added r33 (release dashboard-data-20260922b).
+# added r33 (release dashboard-data-20260922b excluded its output; from
+# dashboard-data-20260922c, after its fix merged, the output is regenerated).
 AUDIT_DATES = ("2026-09-22", "2026-09-24")
+R33 = "r33_snap_child_support_treatment"
+# policyengine-us#9586, squash-merged on 2026-09-24.
+R33_MERGE_COMMIT = "d9e801df417352b8246a4c292a19ec082a518790"
 
 
 def _load(path: Path) -> dict:
@@ -267,22 +271,59 @@ def test_records_after_the_wave_carry_their_root_cause_date():
         )
         assert entry["decided_on"] == expected, key
         assert adjudicated_on[key] == expected, key
-    # The 2026-09-24 revision added r33 alone, and it rests on a fix that is
-    # open upstream, not merged, so its output is excluded, not regenerated.
-    late = [e for e in _exclusions() if e["decided_on"] == AUDIT_DATES[1]]
-    assert [(e["scenario_id"], e["variable"], e["root_cause"]) for e in late] == [
-        ("scenario_045", "snap", "r33_snap_child_support_treatment")
-    ]
-    r33 = causes["r33_snap_child_support_treatment"]
-    assert r33["class"] == "engine_defect" and not r33.get("upstream_fixed")
-    assert "#9586" in r33["upstream"] and "not merged" in r33["upstream"]
-    assert late[0]["alternative_value"] == 0
+    # The 2026-09-24 revision added r33 alone. Release dashboard-data-20260922b
+    # excluded its one output while the fix was open; policyengine-us#9586
+    # merged the same day, so from dashboard-data-20260922c the output is
+    # regenerated with the fix (rule 2) and no exclusion carries that date.
+    assert not [e for e in _exclusions() if e["decided_on"] == AUDIT_DATES[1]]
+    assert not [e for e in adjudications if e["adjudicated_on"] == AUDIT_DATES[1]]
+    r33 = causes[R33]
+    assert r33["class"] == "engine_defect" and r33["upstream_fixed"] is True
+    assert r33["decided_on"] == AUDIT_DATES[1]
+    assert r33["upstream"] == (
+        "fixed in PolicyEngine/policyengine-us#9586 (merged 2026-09-24)"
+    )
+    assert "dashboard-data-20260922b excluded" in r33["note"]
+    assert R33_MERGE_COMMIT in r33["note"]
     moved = [
         (row["scenario_id"], row["variable"])
         for row in _moves()
-        if row["root_cause"] == "r33_snap_child_support_treatment"
+        if row["root_cause"] == R33
     ]
     assert moved == [("scenario_045", "snap")]
+
+
+def test_r33_is_regenerated_with_the_merged_fix():
+    """The r33 module embeds the merged parameter file, and its one output is
+    regenerated at $0 and scored for every model."""
+    module = (AUDIT / "fixes" / f"{R33}.py").read_text()
+    assert f'UPSTREAM_MERGE_COMMIT = "{R33_MERGE_COMMIT}"' in module
+    assert "3f15666" not in module.split('"""', 2)[2]
+    (revision,) = [r for r in _revisions() if r.get("root_cause") == R33]
+    assert revision["kind"] == "upstream_fix"
+    assert revision["upstream"] == (
+        "fixed in PolicyEngine/policyengine-us#9586 (merged 2026-09-24)"
+    )
+    assert revision["fix_module"] == f"{R33}.py"
+    assert [
+        (c["scenario_id"], c["variable"], c["regenerated"]) for c in revision["changed"]
+    ] == [("scenario_045", "snap", 0.0)]
+    key = ("scenario_045", "snap")
+    assert _references()[key] == 0
+    assert key not in {(e["scenario_id"], e["variable"]) for e in _exclusions()}
+    # The SNAP convention and the minimum-rounding fix also move the output on
+    # their own, so their revisions list it at the combined value.
+    listing = {
+        _source(r)
+        for r in _revisions()
+        for c in r["changed"]
+        if (c["scenario_id"], c["variable"]) == key
+    }
+    assert listing == {"c_snap_hold_fy2026", "r28_snap_min_allotment_rounding", R33}
+    # Measured on the SNAP convention, the fix moves it from $286.08 to $0.
+    (row,) = [r for r in _moves() if r["root_cause"] == R33]
+    assert row["measured_against"] == "c_snap_hold_fy2026"
+    assert round(row["baseline"], 2) == 286.08 and row["recomputed"] == 0
 
 
 def _regen_module():
@@ -320,7 +361,9 @@ def test_frozen_narratives_state_the_frozen_path():
     explanations = _reference_explanations()
     references = _references()
     excluded = {(e["scenario_id"], e["variable"]): e for e in _exclusions()}
-    assert set(regen.HAND_CORRECTED) <= set(regen.FROZEN_NARRATIVES)
+    assert set(regen.HAND_CORRECTED) <= set(regen.FROZEN_NARRATIVES) | set(
+        regen.REGENERATED_NARRATIVES
+    )
     assert set(regen.FROZEN_REQUIRED) <= set(regen.FROZEN_NARRATIVES)
     for key in regen.FROZEN_NARRATIVES:
         assert key in excluded, key
@@ -329,13 +372,40 @@ def test_frozen_narratives_state_the_frozen_path():
             assert figure in explanations[key], (key, figure)
     for key, text in regen.HAND_CORRECTED.items():
         assert explanations[key] == text, key
-    # scenario_045 SNAP (r33): the narrative attributes the child support
-    # exclusion to PolicyEngine and sums twelve monthly minimums to the annual
-    # value, 9 x 23.84 + 3 x 24.3744.
-    narrative = explanations[("scenario_045", "snap")]
-    assert "PolicyEngine's child support parameter for Michigan excludes" in narrative
-    assert "annual 2026 SNAP total of $287.68" in narrative
-    assert "monthly SNAP benefit of $287.68" not in narrative
-    assert "average" not in narrative
-    assert f"{9 * 23.84 + 3 * 24.3744:.2f}" == "287.68"
-    assert round(references[("scenario_045", "snap")], 2) == 287.68
+
+
+def test_regenerated_narratives_state_the_fixed_path():
+    """A regenerated output whose narrative is grounded in stated engine facts
+    (REGENERATED_NARRATIVES) is scored at its regenerated value, and its
+    published narrative states the figures REGENERATED_REQUIRED names."""
+    regen = _regen_module()
+    explanations = _reference_explanations()
+    references = _references()
+    excluded = {(e["scenario_id"], e["variable"]) for e in _exclusions()}
+    regenerated = {
+        (c["scenario_id"], c["variable"]): c["regenerated"]
+        for r in _revisions()
+        for c in r["changed"]
+    }
+    assert set(regen.REGENERATED_REQUIRED) <= set(regen.REGENERATED_NARRATIVES)
+    assert not set(regen.REGENERATED_NARRATIVES) & set(regen.FROZEN_NARRATIVES)
+    for key in regen.REGENERATED_NARRATIVES:
+        assert key not in excluded, key
+        assert references[key] == regenerated[key], key
+        for figure in regen.REGENERATED_REQUIRED.get(key, []):
+            assert figure in explanations[key], (key, figure)
+    # scenario_045 SNAP (r33, fixed in #9586): the child support counts in
+    # gross income, which is above both the 130% test and Michigan's 200% BBCE
+    # limit, so the reference is $0. The ratios follow from the stated monthly
+    # figures.
+    key = ("scenario_045", "snap")
+    narrative = explanations[key]
+    assert references[key] == 0
+    assert "annual 2026 SNAP amount of $0" in narrative
+    assert "#9586" in narrative
+    assert "287.68" not in narrative and "$24" not in narrative
+    assert f"{100 * 3022.97 / 1304.17:.1f}%" == "231.8%"
+    assert f"{100 * 3022.97 / 1330:.1f}%" == "227.3%"
+    for figure in ("231.8%", "227.3%", "130%", "200%", "$433.33", "$1,102"):
+        assert figure in narrative, figure
+    assert round(3022.97 - 209 - 604.59 - 433.33 - 673.98) == 1102

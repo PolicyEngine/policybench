@@ -79,9 +79,12 @@ def _frozen_release() -> str:
 SUPERSEDED_RELEASES = {
     "dashboard-data-20260901c": "2026-09-01",
     "dashboard-data-20260905c": "2026-09-05",
-    # Superseded by dashboard-data-20260922b, which excludes one more output
+    # Superseded by dashboard-data-20260922b, which excluded one more output
     # (scenario_045 SNAP, root cause r33) on the same 42-model snapshot.
     "dashboard-data-20260922": "2026-09-22",
+    # Superseded by dashboard-data-20260922c, which regenerates that output
+    # with r33's fix (policyengine-us#9586, merged 2026-09-24).
+    "dashboard-data-20260922b": "2026-09-22",
 }
 CURRENT_RELEASE_SNAPSHOT = "2026-09-22"
 
@@ -1598,11 +1601,13 @@ def test_bbce_households_note_facts() -> None:
         f"Counted {worker_state_name}'s way, the worker's gross income exceeds "
         "the state's {bbceGrossLimitHigh}% limit, so the household does not "
         "qualify.",
-        # "Not yet merged": the exclusion record's upstream field (above).
-        # Only the SNAP output is excluded; the household's other outputs stay
-        # scored.
-        "PolicyBench no longer scores the worker's SNAP amount, and PolicyEngine "
-        f"has not yet merged its fix, policyengine-us #{upstream_fix.group(1)}.",
+        # The note's release excluded only the worker's SNAP output; the fix
+        # merged the same day and the next release scores it at $0.
+        f"Release {note['release']}, which this note's figures come from, "
+        "stopped scoring the worker's SNAP amount.",
+        f"PolicyEngine merged its fix, policyengine-us #{upstream_fix.group(1)}, "
+        "the same day, and from release dashboard-data-20260922c PolicyBench "
+        "scores that amount against the corrected $0.",
     )
 
     # What changed since the September 3 note, which counted the four, the
@@ -1653,8 +1658,9 @@ def test_bbce_households_note_facts() -> None:
     pin(
         f"The {_month_day(previous['date'])} note counted "
         "{previousHouseholdCount:words} households at ${previousReference} each, "
-        f"the {worker_state_name} worker among them; PolicyBench now scores the "
-        "SNAP amounts of {householdCount:words} of them, at ${referenceAmount}.",
+        f"the {worker_state_name} worker among them; release {note['release']} "
+        "scores the SNAP amounts of {householdCount:words} of them, at "
+        "${referenceAmount}.",
         "PolicyBench computed the ${previousReference} on "
         f"{_month_day(freeze.group(1))} from PolicyEngine's unrounded minimum: "
         "${previousMonthlyJanSep} a month through September and a projected "
@@ -1758,13 +1764,16 @@ def test_bbce_households_note_facts() -> None:
     # It describes the two households it no longer scores, as this note does.
     assert previous["paragraphs"][-1] == (
         f"A later note, first published {_month_day(note['date'])} and revised "
-        f"{_month_day(revised)}, corrects this one. On release {note['release']}, "
-        "PolicyBench scores the SNAP amounts of {laterScoredCount:words} of these "
-        "{deniedCount:words} households, at ${laterReference} each. It no longer "
-        f"scores the amounts of a {worker_state_name} worker who pays child support "
-        f"or of a {STATE_NAMES[payload['scenarios'][unscored[1]]['state']]} "
-        "household whose amount PolicyEngine computed with hours of work the "
-        "prompt does not list."
+        f"{_month_day(revised)}, corrects this one. On release "
+        "dashboard-data-20260922c, PolicyBench scores the SNAP amounts of "
+        "{laterScoredCount:words} of these {deniedCount:words} households at "
+        f"${{laterReference}} each, and scores a {worker_state_name} worker who "
+        "pays child support at $0: once PolicyEngine counts that child support in "
+        f"gross income, as {worker_state_name} does (policyengine-us #9586), the "
+        "worker does not qualify. It no longer scores the amount of a "
+        f"{STATE_NAMES[payload['scenarios'][unscored[1]]['state']]} household "
+        "whose amount PolicyEngine computed with hours of work the prompt does "
+        "not list."
     )
     assert previous["facts"]["laterScoredCount"] == len(households)
     assert previous["facts"]["laterReference"] == _whole_or_cents(reference_amount)
@@ -1873,8 +1882,10 @@ def test_bbce_households_note_facts() -> None:
 
 
 # The release that superseded dashboard-data-20260922 on the same snapshot,
-# which the September 22 notes' closing paragraphs describe.
-LATER_RELEASE = "dashboard-data-20260922b"
+# which the September 22 notes' closing paragraphs describe, and the interim
+# release between them.
+LATER_RELEASE = "dashboard-data-20260922c"
+INTERIM_RELEASE = "dashboard-data-20260922b"
 
 
 def _later_facts(note: dict) -> dict:
@@ -1887,12 +1898,17 @@ def test_september_22_notes_point_to_the_later_release() -> None:
     that release is the frozen one."""
     sol, audit = _note(SOL6_NOTE), _note(AUDIT_NOTE)
     opening = (
-        f"A later release, {LATER_RELEASE}, excludes one more output for every "
-        "model: the SNAP amount of a Michigan worker who pays child support."
+        f"A later release, {LATER_RELEASE}, corrects the reference for one "
+        "output: the SNAP amount of a Michigan worker who pays child support."
+    )
+    interim = (
+        f"An interim release, {INTERIM_RELEASE}, excluded that output while the "
+        "fix was open."
     )
     for note in (sol, audit):
         assert note["release"] == "dashboard-data-20260922"
         assert note["paragraphs"][-1].startswith(opening + " ")
+        assert note["paragraphs"][-1].endswith(" " + interim)
         assert not any(LATER_RELEASE in p for p in note["paragraphs"][:-1])
         links = {entry["label"]: entry["href"] for entry in note["data"]}
         assert links[f"Later release {LATER_RELEASE}"] == (
@@ -1901,20 +1917,11 @@ def test_september_22_notes_point_to_the_later_release() -> None:
     if _frozen_release() != LATER_RELEASE:
         return
 
-    # One more exclusion, the Michigan worker's SNAP output, decided after
-    # the notes' release for an engine defect not fixed upstream.
+    # The same exclusions as the notes' release: the interim release's one
+    # extra exclusion is gone, and no exclusion postdates the notes.
     exclusions = _load_json(EXCLUSIONS_PATH)["exclusions"]
-    assert len(exclusions) == sol["facts"]["excluded"] + 1
-    later = [e for e in exclusions if e["decided_on"] > sol["date"]]
-    assert [(e["scenario_id"], e["variable"]) for e in later] == [
-        ("scenario_045", "snap")
-    ]
-    (worker,) = later
-    assert worker["reason_code"] == "reference_engine_defect"
-    assert worker["root_cause"] == "r33_snap_child_support_treatment"
-    assert worker["upstream"] == (
-        "fix open in PolicyEngine/policyengine-us#9586 (not merged)"
-    )
+    assert len(exclusions) == sol["facts"]["excluded"]
+    assert not [e for e in exclusions if e["decided_on"] > sol["date"]]
     payload = _dashboard()
     assert payload["scenarios"]["scenario_045"]["state"] == "MI"
     head = next(
@@ -1931,51 +1938,38 @@ def test_september_22_notes_point_to_the_later_release() -> None:
         if person["name"] == "head"
     )
     assert head["inputs"]["child_support_expense"] > 0 and head["employment_income"] > 0
-    # The September 22 release had regenerated that output: the regenerated
-    # counts each fall by one, and the record names the upstream fix that
-    # moved it.
-    assert (
-        "r28_snap_min_allotment_rounding (engine defect, fixed upstream)"
-        in (worker["note"])
-    )
+    # The worker's SNAP reference is regenerated at $0 with the merged fix;
+    # the notes' release had regenerated it at $288 with r28 alone.
+    assert _snap_references()["scenario_045"] == 0
     meta = _load_json(REFERENCE_META_PATH)
-    assert ("scenario_045", "snap") not in {
-        (change["scenario_id"], change.get("variable", "snap"))
+    r33 = next(
+        revision
         for revision in meta["revisions"]
-        for change in revision["changed"]
-    }
+        if revision.get("root_cause") == "r33_snap_child_support_treatment"
+    )
+    assert r33["kind"] == "upstream_fix" and "#9586" in r33["upstream"]
+    assert "merged" in r33["upstream"]
+    assert [
+        (c["scenario_id"], c["variable"], c["regenerated"]) for c in r33["changed"]
+    ] == [("scenario_045", "snap", 0.0)]
 
-    # The audit note: the counts its closing paragraph restates.
+    # The audit note: one more root cause fixed upstream, every other count
+    # the same.
     audit_now = _reference_audit_facts()
-    later_audit = _later_facts(audit)
-    assert later_audit == {
-        "laterDefectOutputs": audit_now["defectOutputs"],
-        "laterDefectHouseholds": audit_now["defectHouseholds"],
-        "laterDefectRootCauses": audit_now["defectRootCauses"],
-        "laterDefectUnflagged": audit_now["defectUnflagged"],
-        "laterRegenerated": audit_now["regenerated"],
-        "laterRegeneratedSnap": audit_now["regeneratedSnap"],
-        "laterRegeneratedByFix": audit_now["regeneratedByFix"],
-        "laterScoredOutputs": audit_now["scoredOutputs"],
-    }
-    for key in ("regenerated", "regeneratedSnap", "regeneratedByFix"):
-        assert audit["facts"][key] - audit_now[key] == 1, key
-    for key in ("defectOutputs", "defectHouseholds", "defectRootCauses"):
-        assert audit_now[key] - audit["facts"][key] == 1, key
-    assert audit["facts"]["totalOutputs"] == audit_now["totalOutputs"]
+    assert _later_facts(audit) == {"laterUpstreamFixed": audit_now["upstreamFixed"]}
+    assert audit_now["upstreamFixed"] - audit["facts"]["upstreamFixed"] == 1
+    for key, value in audit_now.items():
+        if key != "upstreamFixed":
+            assert audit["facts"][key] == value, key
     assert audit["paragraphs"][-1] == (
-        opening + " policyengine-us subtracts that child support from gross income, "
-        "while Michigan counts it in gross income and deducts it only when "
-        "computing net income. PolicyEngine has not yet merged its fix "
-        "(policyengine-us #9586). That release excludes {laterDefectOutputs} "
-        "outputs in {laterDefectHouseholds} households for engine defects across "
-        "{laterDefectRootCauses} root causes, and {laterDefectUnflagged} of "
-        "those outputs had never been flagged. The September 22 release had "
-        "regenerated the Michigan output with an upstream fix; the later release "
-        "excludes that output and regenerates {laterRegenerated} references, "
-        "{laterRegeneratedSnap} of them SNAP and {laterRegeneratedByFix} with "
-        "upstream fixes. It scores every model on {laterScoredOutputs} of its "
-        "{totalOutputs} requested outputs."
+        opening + " policyengine-us subtracted that child support from gross "
+        "income, while Michigan counts it in gross income and deducts it only "
+        "when computing net income. PolicyEngine fixed this after the audit "
+        "(policyengine-us #9586), so the later release regenerates the output "
+        "with the fix: counted in gross income, the worker's income exceeds "
+        "Michigan's broad-based categorical eligibility limit, and the reference "
+        "is $0 instead of $288. That makes {laterUpstreamFixed} root causes "
+        "fixed upstream; every other count in this note stays the same. " + interim
     )
     assert {entry["label"]: entry["href"] for entry in audit["data"]}[
         "Later note on the SNAP households that qualify through BBCE (September 23)"
@@ -1985,32 +1979,26 @@ def test_september_22_notes_point_to_the_later_release() -> None:
     # same on the later release.
     sol_now = _gpt6_sol_facts()
     assert _later_facts(sol) == {
-        "laterScoredOutputs": sol_now["scoredOutputs"],
-        "laterRegenerated": sol_now["regenerated"],
-        "laterExcluded": sol_now["excluded"],
         "laterSolExact": sol_now["solExact"],
         "laterOpusExact": sol_now["opusExact"],
         "laterOpus5AutoExact": sol_now["opus5AutoExact"],
     }
-    moved = {
-        "scoredOutputs",
-        "regenerated",
-        "excluded",
-        "solExact",
-        "opusExact",
-        "opus5AutoExact",
-    }
+    moved = {"solExact", "opusExact", "opus5AutoExact"}
     for key, value in sol_now.items():
         if key not in moved:
             assert sol["facts"][key] == value, key
     # "The other scores, gaps, ranks and costs": every unchanged figure is one
-    # of those, apart from the model and output counts.
+    # of those, apart from the model and output counts ("the same outputs ...
+    # references ... outputs").
     unchanged = set(sol_now) - moved
     kinds = {"Exact": "score", "Lead": "gap", "Gap": "gap", "Rank": "rank"}
     kinds["Cost"] = "cost"
     assert {k for k in unchanged if not k.endswith(tuple(kinds))} == {
         "nModels",
         "totalOutputs",
+        "scoredOutputs",
+        "regenerated",
+        "excluded",
     }
     assert {kinds[s] for k in unchanged for s in kinds if k.endswith(s)} == {
         "score",
@@ -2019,12 +2007,14 @@ def test_september_22_notes_point_to_the_later_release() -> None:
         "cost",
     }
     assert sol["paragraphs"][-1] == (
-        opening + " It scores every row on {laterScoredOutputs} of its {totalOutputs} "
-        "requested outputs, regenerates {laterRegenerated} references and "
-        "excludes {laterExcluded} outputs. On that release, GPT-6 Sol scores "
-        "{laterSolExact}% and Claude Opus 5.5 {laterOpusExact}%, and Claude "
-        "Opus 5's tool_choice auto re-run scores {laterOpus5AutoExact}%. The "
-        "other scores, gaps, ranks and costs stay the same on that release."
+        opening + " PolicyEngine had subtracted that child support from the "
+        "worker's gross income; with its fix (policyengine-us #9586) the worker "
+        "does not qualify, and the reference is $0 instead of $288. The later "
+        "release scores the same outputs, regenerates the same references and "
+        "excludes the same outputs as this one. On it, GPT-6 Sol scores "
+        "{laterSolExact}% and Claude Opus 5.5 {laterOpusExact}%, and Claude Opus "
+        "5's tool_choice auto re-run scores {laterOpus5AutoExact}%. The other "
+        "scores, gaps, ranks and costs stay the same. " + interim
     )
 
 

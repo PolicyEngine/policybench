@@ -11,17 +11,19 @@ AGI, so it is measured against the Wisconsin convention plus the #8839 backport
 
   sweep/out/<defect>_on_<base>.csv      frozen, baseline, recomputed, delta, moved
   sweep/out/snap_net_income_sensitivity.csv
-      the convention with r26 and r28 applied under three net-income procedures
-      (the engine's floor, nearest dollar, cents kept) in every state, against
-      the convention alone
+      the convention with r26, r28 and r33 applied under three net-income
+      procedures (the engine's floor, nearest dollar, cents kept) in every state,
+      against the convention alone (r33 since policyengine-us#9586 merged on
+      2026-09-24; it moves only scenario_045 SNAP, to $0 under every procedure)
   sweep/out/r30_on_published_snap.csv, sweep/out/r33_on_published_snap.csv
-      r30 and r33 against the convention with every upstream SNAP fix, the SNAP
-      value actually published: a check that each moves the same outputs either
-      way
+      r30 and r33 against the convention with the SNAP rounding fixes merged
+      upstream (c13v3_plus_upstream_snap), the SNAP value published before
+      r33's own fix merged (policyengine-us#9586, 2026-09-24): a check that each
+      moves the same outputs either way
 
 Run after the sweeps (./run_one.sh <fix> for r13_hold_fy2026_v3, c13v3_plus_r26,
 c13v3_plus_r27, c13v3_plus_r28, c13v3_plus_r30, c13v3_plus_r31, c13v3_plus_r33,
-c13v3_r26_r28, c13v3_r28_r29n, c13v3_r28_r29c, c13v3_plus_upstream_snap,
+c13v3_r26_r28_r33, c13v3_r28_r29n_r33, c13v3_r28_r29c_r33, c13v3_plus_upstream_snap,
 c13v3_upstream_plus_r30, c13v3_upstream_plus_r33, cwi_plus_r04, cwi_plus_r04_r32):
 
   python3 make_on_convention.py
@@ -48,9 +50,9 @@ MEASUREMENTS = {
     "r33_on_published_snap": ("c13v3_plus_upstream_snap", "c13v3_upstream_plus_r33"),
 }
 PROCEDURES = {
-    "floor": "c13v3_r26_r28",
-    "nearest": "c13v3_r28_r29n",
-    "cents": "c13v3_r28_r29c",
+    "floor": "c13v3_r26_r28_r33",
+    "nearest": "c13v3_r28_r29n_r33",
+    "cents": "c13v3_r28_r29c_r33",
 }
 
 
