@@ -11,10 +11,10 @@
     "scenario_108"
   ],
   "mention_patterns": {
-    "mentions_categorical_eligibility": "broad-based|\\bbbce\\b|categorical(?:ly)? eligib",
+    "mentions_categorical_eligibility": "broad-based|\\bbbce\\b|categorical(?:ly)?[- ]eligib",
     "mentions_net_income_limit": "\\bnet[- ](?:income[- ])?(?:limit|test|screen|threshold|ceiling|rule)|(?<![\\d.])100(?:\\.0+)?\\s*%[^.;]{0,20}?(?:fpl|fpg|poverty)"
   },
   "rows": 210,
-  "generated_at_utc": "2026-09-24T00:09:01.192432+00:00",
+  "generated_at_utc": "2026-09-24T01:06:42.096702+00:00",
   "script": "scripts/bbce_household_rows.py"
 }

@@ -51,6 +51,11 @@ describe("notes", () => {
     expect(markup).toContain("release dashboard-data-20260922");
     // Cents stay as written; whole-dollar facts get thousands separators.
     expect(markup).toContain("GPT-6 Sol answers $1,208.40");
+    // The unrounded October minimum keeps all four decimals, so nine months
+    // of $23.84 and three of it add up to the $287.68 beside them.
+    expect(markup).toContain(
+      "$23.84 a month through September and a projected $24.3744 from October",
+    );
     expect(markup).toContain("$12,000 of financial assistance");
     expect(markup).toContain("holds $48,000 in savings");
     // Whole-number shares are not board rates, so they keep no decimal.

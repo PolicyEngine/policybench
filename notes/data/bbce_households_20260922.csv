@@ -143,7 +143,7 @@ gpt-6-astra,scenario_027,CT,288.0,288.0,True,True,False
 gpt-6-astra,scenario_030,TX,288.0,0.0,False,False,False
 gpt-6-astra,scenario_045,MI,288.0,0.0,False,False,False
 gpt-6-astra,scenario_073,MI,288.0,288.0,True,True,False
-gpt-6-astra,scenario_108,WI,288.0,288.0,True,False,False
+gpt-6-astra,scenario_108,WI,288.0,288.0,True,True,False
 gpt-6-luna,scenario_027,CT,288.0,0.0,False,False,False
 gpt-6-luna,scenario_030,TX,288.0,0.0,False,False,False
 gpt-6-luna,scenario_045,MI,288.0,0.0,False,False,False

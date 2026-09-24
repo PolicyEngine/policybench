@@ -145,7 +145,7 @@ inkling,scenario_066,VA,3576.0,True,3600.0,False,False
 inkling,scenario_080,PA,3596.039794921875,False,0.0,False,True
 kimi-k2.6,scenario_008,NJ,15108.0,True,,False,False
 kimi-k2.6,scenario_054,NC,6060.0,True,0.0,False,True
-kimi-k2.6,scenario_066,VA,3576.0,True,0.0,False,True
+kimi-k2.6,scenario_066,VA,3576.0,True,0.0,True,True
 kimi-k2.6,scenario_080,PA,3596.039794921875,False,0.0,False,True
 kimi-k3,scenario_008,NJ,15108.0,True,15117.9,False,False
 kimi-k3,scenario_054,NC,6060.0,True,6036.0,True,False

@@ -51,9 +51,10 @@ MANIFEST = ROOT / "paper/snapshot/20260501/manifest.json"
 RELEASE = "dashboard-data-20260922"
 # The note's mention patterns, matched case-insensitively.
 # Categorical eligibility: the rule by name, or a household called
-# categorically eligible. It leaves out "categorically ineligible" and the
-# ABAWD "categorically exempt" wording.
-BBCE_PATTERN = r"broad-based|\bbbce\b|categorical(?:ly)? eligib"
+# categorically eligible, with a space or a hyphen ("categorical-eligibility
+# ceiling"). It leaves out "categorically ineligible" and the ABAWD
+# "categorically exempt" wording.
+BBCE_PATTERN = r"broad-based|\bbbce\b|categorical(?:ly)?[- ]eligib"
 # Assets: the September 3 note's pattern.
 ASSETS_PATTERN = r"asset|resource"
 # A net income limit or test: "net income limit", "net-income test", "net
