@@ -1621,8 +1621,8 @@ def app_paper_snapshot(manifest: dict) -> dict:
     """The /paper page's view of the manifest: dates and cache keys.
 
     The keys are the first 12 hex digits of the served ``index.html`` and PDF
-    hashes the manifest pins, so they change exactly when a render changes what
-    readers see.
+    hashes the manifest pins, so they change whenever a render changes either
+    served file.
     """
     rendered = manifest["rendered_paper_artifacts"]
     return {

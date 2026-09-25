@@ -81,7 +81,7 @@ def test_paper_page_snapshot_matches_the_manifest():
 
     scripts/freeze_snapshot.py writes app/src/paperSnapshot.json whenever it
     pins the rendered paper, so a re-render changes the manuscript URLs the page
-    embeds and browsers holding an earlier render fetch the new one.
+    embeds, and the page keeps no hand-kept snapshot date or cache key.
     """
     from scripts.freeze_snapshot import app_paper_snapshot
 
@@ -96,20 +96,31 @@ def test_paper_page_snapshot_matches_the_manifest():
     assert page_snapshot["webVersion"] == rendered["web"]["files"]["index.html"][:12]
     assert page_snapshot["pdfVersion"] == rendered["pdf"]["sha256"][:12]
 
+    # The whole file is checked, comments included, so nothing can hide a
+    # hand-kept key or date behind a comment or inside a string.
     page = (ROOT / "app" / "src" / "app" / "paper" / "page.tsx").read_text()
-    code = re.sub(r"//[^\n]*|/\*.*?\*/", "", page, flags=re.S)
-    assert re.search(r"policybench\.pdf\?v=\$\{paperSnapshot\.pdfVersion\}", code)
-    assert re.search(r"index\.html\?v=\$\{paperSnapshot\.webVersion\}", code)
+    assert re.search(r"policybench\.pdf\?v=\$\{paperSnapshot\.pdfVersion\}", page)
+    assert re.search(r"index\.html\?v=\$\{paperSnapshot\.webVersion\}", page)
     for field in ("responseWindow", "snapshotDate"):
-        assert f"paperSnapshot.{field}" in code
-    months = "|".join(calendar.month_name[1:])
-    hard_coded = re.search(
-        rf"20\d\d-?\d\d-?\d\d|\?v=[0-9A-Za-z]|\b({months}) \d{{1,2}}\b", code
+        assert f"{{paperSnapshot.{field}}}" in page
+    stray_keys = re.findall(
+        r"\?v=(?!\$\{paperSnapshot\.(?:pdfVersion|webVersion)\})\S*", page
     )
-    assert not hard_coded, (
-        "the /paper page should take its dates and cache keys from "
-        f"paperSnapshot.json, found {hard_coded.group(0)!r}"
+    assert not stray_keys, f"cache keys not taken from paperSnapshot: {stray_keys}"
+    month = "(?:{})\\.?".format(
+        "|".join(
+            f"{name[:3]}(?:{name[3:]})?" for name in calendar.month_name[1:]
+        )
+        + "|Sept"
     )
+    date_patterns = (
+        r"20\d\d-?\d\d-?\d\d",  # 2026-09-22, 20260922
+        rf"\b{month} \d{{1,2}}\b",  # September 22, Sept. 22
+        rf"\b\d{{1,2}} {month}\b",  # 22 September
+        r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",  # 9/22/2026
+    )
+    hard_coded = [m.group(0) for p in date_patterns for m in re.finditer(p, page)]
+    assert not hard_coded, f"dates not taken from paperSnapshot: {hard_coded}"
 
 
 def test_snapshot_manifest_hashes_match_population_weight_artifact():
