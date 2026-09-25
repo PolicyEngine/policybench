@@ -14,11 +14,13 @@ policyengine-us 1.755.4 triage venv so multi-cause outputs can be recomputed
 under their combined fixes:
 
   cd /Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage
-  PYTHONPATH=/Users/maxghenis/PolicyEngine/policybench-wt/r33-20260922b \\
+  PYTHONPATH=/Users/maxghenis/PolicyEngine/policybench-wt/r33-20260922c \\
     .venv-pe1755/bin/python build_records.py --annotations <dir> --out-dir records/
 
 (2026-09-22/23 ran from policybench-wt/opus55; the 2026-09-24 revision, which adds
-r33, from policybench-wt/r33-20260922b.)
+r33, from policybench-wt/r33-20260922b while its fix was open, and from
+policybench-wt/r33-20260922c once policyengine-us#9586 merged: r33 is then
+upstream_fixed, so its output is regenerated, not excluded.)
 """
 
 from __future__ import annotations
@@ -45,7 +47,8 @@ from policybench.scenarios import scenario_from_dict  # noqa: E402
 DECIDED_ON = "2026-09-22"
 # Dates of this audit's records. A root cause added after the September 22 wave
 # carries its own "decided_on" in root_causes.json (r33: 2026-09-24), which its
-# exclusions and adjudications take; every run rebuilds all of them.
+# exclusions and adjudications take; every run rebuilds all of them. (r33 is
+# fixed upstream since 2026-09-24, so it has none from release 20260922c on.)
 REVISED_ON = ("2026-09-24",)
 WAVE_DATES = (DECIDED_ON, *REVISED_ON)
 ENGINE = "policyengine-us 1.755.4"

@@ -1,4 +1,4 @@
-"""c13v3_upstream_plus_r33: the SNAP convention, the upstream SNAP fixes and r33, to measure r33 against the SNAP value actually published."""
+"""c13v3_upstream_plus_r33: the SNAP convention with every upstream SNAP fix, r33 included since policyengine-us#9586 merged (2026-09-24), to measure r33 against the SNAP value published before it (c13v3_plus_upstream_snap)."""
 import importlib.util
 from pathlib import Path
 

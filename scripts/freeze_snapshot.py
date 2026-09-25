@@ -99,26 +99,28 @@ SOURCE_US = SOURCE_RUN / "us"
 SOURCE_ANNOTATIONS = SOURCE_RUN / "annotations"
 
 # The publication driver adds release metadata after exporting SOURCE_RUN. This
-# is the exact payload uploaded as dashboard-data-20260922b (the 42-model board:
+# is the exact payload uploaded as dashboard-data-20260922c (the 42-model board:
 # the 39-model dashboard-data-20260905c board plus Claude Opus 5.5, GPT-6 Sol and
 # GPT-6 Luna, on the September 22 references: references regenerated under the
 # publication rules, and outputs excluded from scoring for every model, per
-# reference_exclusions.json). Superseded tags: 20260922 (the same board and
-# predictions before the 2026-09-24 revision excluded scenario_045 SNAP for the
-# child support defect r33: 52 exclusions, 1,932 scored outputs); 20260905c (39
+# reference_exclusions.json). Superseded tags: 20260922b (the same board and
+# predictions while r33's fix was open: scenario_045 SNAP excluded for the child
+# support defect r33, 53 exclusions, 1,931 scored outputs); 20260922 (before
+# r33 was found: scenario_045 SNAP scored at $288, 52 exclusions, 1,932 scored
+# outputs); 20260905c (39
 # models, v1.1 references, eleven exclusions); 20260905 carried the judge's
 # prompt_ambiguity verdict before adjudication; 20260905b scored all 1,984
 # outputs.
 PUBLISHED_DASHBOARD_SOURCE = SOURCE_RUN.parents[1] / "data-board42.json"
 PUBLISHED_DASHBOARD_ARTIFACT = {
-    "tag": "dashboard-data-20260922b",
+    "tag": "dashboard-data-20260922c",
     "asset": "dashboard-data.json",
     "url": (
         "https://github.com/PolicyEngine/policybench/releases/download/"
-        "dashboard-data-20260922b/dashboard-data.json"
+        "dashboard-data-20260922c/dashboard-data.json"
     ),
-    "sha256": "b1c4ee340a01328f75158bb4ba40b49030a979d2b03badb2c01d57c16554d3b4",
-    "bytes": 116_205_632,
+    "sha256": "01e7e72b3a6bdd2d3178ba32625ff769d5b81dc07541af6ea8da2c852774ddcc",
+    "bytes": 116_100_222,
 }
 
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / SNAPSHOT_DIR_NAME

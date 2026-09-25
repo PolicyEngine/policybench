@@ -25,8 +25,9 @@ HERE = Path(__file__).resolve().parent
 FIXES = HERE / "sweep" / "fixes"
 OUT = HERE / "sweep" / "out"
 WK = Path("/Users/maxghenis/PolicyEngine/_wk")
-# 2026-09-22/23: policybench-wt/opus55; 2026-09-24 (r33): policybench-wt/r33-20260922b.
-DEST = Path("/Users/maxghenis/PolicyEngine/policybench-wt/r33-20260922b/reference_audit/2026-09-22")
+# 2026-09-22/23: policybench-wt/opus55; 2026-09-24 (r33): policybench-wt/r33-20260922b,
+# then policybench-wt/r33-20260922c once #9586 merged.
+DEST = Path("/Users/maxghenis/PolicyEngine/policybench-wt/r33-20260922c/reference_audit/2026-09-22")
 
 # Modules the recorded ones load at run time, and the measurement modules.
 EXTRA_FIXES = [
@@ -53,6 +54,10 @@ EXTRA_FIXES = [
     "c13v3_r26_r28.py",
     "c13v3_r28_r29n.py",
     "c13v3_r28_r29c.py",
+    # The net-income sensitivity with r33, from release dashboard-data-20260922c.
+    "c13v3_r26_r28_r33.py",
+    "c13v3_r28_r29n_r33.py",
+    "c13v3_r28_r29c_r33.py",
     "r29_snap_net_nearest.py",
     "r29_snap_net_cents.py",
     # The unlisted readings behind the 2026-09-05 exclusions (situation patches).

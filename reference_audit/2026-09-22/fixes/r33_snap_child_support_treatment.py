@@ -1,4 +1,4 @@
-"""Treat child support paid as USDA's 17th State Options Report records it for 2026 (engine defect).
+"""Treat child support paid as USDA's State Options Reports record it (engine defect, fixed upstream).
 
 7 CFR 273.9(c)(17) lets a state exclude legally obligated child support paid to
 nonhousehold members from gross income; a state that does not take the option
@@ -15,12 +15,20 @@ deduction state (16th edition, "Treatment of Child Support Payments", p. 15;
 17th edition, p. 21), and Michigan's Bridges Eligibility Manual 556 subtracts
 child support at line 20, after gross income (line 10).
 
-The fix is open upstream and not merged: PolicyEngine/policyengine-us#9586,
-head 3f156660320436e02258a94b40bc6e7ba1d7208e. VALUES below are that head's
-policyengine_us/parameters/gov/usda/snap/income/deductions/child_support.yaml,
+The fix is merged upstream: PolicyEngine/policyengine-us#9586, squash-merged on
+2026-09-24 as d9e801df417352b8246a4c292a19ec082a518790. VALUES below are that
+commit's policyengine_us/parameters/gov/usda/snap/income/deductions/child_support.yaml,
 every jurisdiction and date (true = excluded from gross income), copied
-verbatim; the pull request changes no formula. The module replaces each
-jurisdiction's history from 2010-01-01 with them, as the pull request does.
+verbatim. The merge changes no formula's logic: its three variable files change
+only documentation, references and comments. The module replaces each
+jurisdiction's history from 2010-01-01 with them, as the merged file does
+(every jurisdiction's first date is 2010-01-01).
+
+2026-09-24: this module first embedded the open pull request's head 3f15666
+(release dashboard-data-20260922b, which excluded the one output r33 moves).
+The merged values differ from that head for 2026 only in Louisiana and North
+Carolina, which now exclude child support from gross income; recomputed under
+the merged values, the output r33 moves is still only scenario_045 SNAP.
 """
 
 from policyengine_core.periods import instant
@@ -29,20 +37,20 @@ from policyengine_core.reforms import Reform
 FIX_ID = "r33_snap_child_support_treatment"
 DESCRIPTION = (
     "Set the SNAP child support exclusion flag to USDA's State Options Report "
-    "values, as PolicyEngine/policyengine-us#9586 (head 3f15666) does."
+    "values, as PolicyEngine/policyengine-us#9586 (merged as d9e801d) does."
 )
 UPSTREAM_PR = "PolicyEngine/policyengine-us#9586"
-UPSTREAM_HEAD = "3f156660320436e02258a94b40bc6e7ba1d7208e"
+UPSTREAM_MERGE_COMMIT = "d9e801df417352b8246a4c292a19ec082a518790"
 PARAMETER = "gov.usda.snap.income.deductions.child_support"
 
-# policyengine-us#9586 at 3f15666: jurisdiction -> ((effective date, excluded), ...)
+# policyengine-us at d9e801d (#9586 merged): jurisdiction -> ((effective date, excluded), ...)
 VALUES = {
     "AK": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "AL": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "AR": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "AZ": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
+    "AZ": (("2010-01-01", True), ("2013-09-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "CA": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
-    "CO": (("2010-01-01", False), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
+    "CO": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "CT": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "DC": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "DE": (("2010-01-01", False), ("2010-06-10", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
@@ -50,43 +58,43 @@ VALUES = {
     "GA": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "GU": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "HI": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "IA": (("2010-01-01", False), ("2017-10-01", True), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
+    "IA": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "ID": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "IL": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "IN": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "KS": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "KY": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "LA": (("2010-01-01", False), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", False), ("2024-10-01", False),),
-    "MA": (("2010-01-01", False), ("2017-01-13", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
+    "LA": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
+    "MA": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "MD": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "ME": (("2010-01-01", False), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
+    "ME": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "MI": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "MN": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "MO": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
+    "MO": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "MS": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "MT": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "NC": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
+    "NC": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "ND": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "NE": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "NH": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "NJ": (("2010-01-01", False), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
+    "NJ": (("2010-01-01", False), ("2013-11-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "NM": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "NV": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "NY": (("2010-01-01", False), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
+    "NY": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "OH": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "OK": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "OR": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-01-19", True), ("2023-10-01", True), ("2024-10-01", True),),
     "PA": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "RI": (("2010-01-01", False), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
+    "RI": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "SC": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "SD": (("2010-01-01", False), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
+    "SD": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "TN": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "TX": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "UT": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "VA": (("2010-01-01", False), ("2017-10-01", False), ("2018-10-31", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "VI": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
-    "VT": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", True), ("2024-10-01", False),),
-    "WA": (("2010-01-01", False), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
+    "VT": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
+    "WA": (("2010-01-01", True), ("2017-10-01", True), ("2022-10-01", True), ("2023-10-01", True), ("2024-10-01", True),),
     "WI": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "WV": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),
     "WY": (("2010-01-01", False), ("2017-10-01", False), ("2022-10-01", False), ("2023-10-01", False), ("2024-10-01", False),),

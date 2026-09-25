@@ -149,10 +149,10 @@ def test_scoring_ignores_excluded_outputs_symmetrically(tmp_path: Path):
 
 def test_frozen_snapshot_carries_the_exclusion_record():
     scored, exclusions = scored_reference_for(RUN_DIR / "reference_outputs.csv")
-    assert len(exclusions) == 53
+    assert len(exclusions) == 52
     reasons = Counter(e["reason_code"] for e in exclusions)
     assert reasons == Counter(
-        {"reference_engine_defect": 29, "reference_depends_on_unlisted_input": 24}
+        {"reference_engine_defect": 28, "reference_depends_on_unlisted_input": 24}
     )
     inputs = {
         e["unlisted_input"]

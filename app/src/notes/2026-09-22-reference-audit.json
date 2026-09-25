@@ -8,7 +8,7 @@
     "The audit also tested a failure no judge flagged. policyengine-us extends a parameter past its last encoded year with a price-index projection, so a 2026 reference can rest on a forecast where a government published an amount. Recomputing every reference with each projection held found forecasts behind references in SNAP, California, the IRS sales tax tables, Wisconsin, Minnesota, Michigan, Missouri, Maryland and Idaho. The rule the benchmark now states: a scored reference follows from the household facts and from law published before the references were frozen on 2026-07-03. The scored references among them were regenerated with the published amounts, or with the last ones published before the freeze; Wisconsin's published amounts reach only the corrected values of Wisconsin outputs excluded for engine defects.",
     "Separating the SNAP convention's parameter holds from its arithmetic exposed engine defects in SNAP itself: the engine kept cents in the monthly allotment where federal rules require whole dollars, set the minimum benefit at $23.84 a month where the rule rounds it to $24, and rounded net income down. policyengine-us fixed each after the freeze, so the SNAP references apply those fixes. One SNAP defect is not fixed upstream: the engine grants the heat-and-eat utility allowance to households without an elderly or disabled member, which a July 2025 law ended, and the scored SNAP output it moves is excluded.",
     "In all, {regenerated} references are regenerated, {regeneratedSnap} of them SNAP, and every model is scored on {scoredOutputs} of its {totalOutputs} requested outputs. The exclusion record, the adjudications and the reference sidecar, which lists each regenerated value with its source, ship with the release.",
-    "A later release, dashboard-data-20260922b, excludes one more output for every model: the SNAP amount of a Michigan worker who pays child support. policyengine-us subtracts that child support from gross income, while Michigan counts it in gross income and deducts it only when computing net income. PolicyEngine has not yet merged its fix (policyengine-us #9586). That release excludes {laterDefectOutputs} outputs in {laterDefectHouseholds} households for engine defects across {laterDefectRootCauses} root causes, and {laterDefectUnflagged} of those outputs had never been flagged. The September 22 release had regenerated the Michigan output with an upstream fix; the later release excludes that output and regenerates {laterRegenerated} references, {laterRegeneratedSnap} of them SNAP and {laterRegeneratedByFix} with upstream fixes. It scores every model on {laterScoredOutputs} of its {totalOutputs} requested outputs."
+    "A later release, dashboard-data-20260922c, corrects the reference for one output: the SNAP amount of a Michigan worker who pays child support. policyengine-us subtracted that child support from gross income, while Michigan counts it in gross income and deducts it only when computing net income. PolicyEngine fixed this after the audit (policyengine-us #9586), so the later release regenerates the output with the fix: counted in gross income, the worker's income exceeds Michigan's broad-based categorical eligibility limit, and the reference is $0 instead of $288. That makes {laterUpstreamFixed} root causes fixed upstream; every other count in this note stays the same. An interim release, dashboard-data-20260922b, excluded that output while the fix was open."
   ],
   "facts": {
     "flagged": 39,
@@ -28,14 +28,7 @@
     "upstreamFixed": 7,
     "regeneratedByFix": 15,
     "scoredOutputs": 1932,
-    "laterDefectOutputs": 29,
-    "laterDefectHouseholds": 21,
-    "laterDefectRootCauses": 12,
-    "laterDefectUnflagged": 9,
-    "laterRegenerated": 25,
-    "laterRegeneratedSnap": 12,
-    "laterRegeneratedByFix": 14,
-    "laterScoredOutputs": 1931
+    "laterUpstreamFixed": 8
   },
   "data": [
     {
@@ -43,8 +36,8 @@
       "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922"
     },
     {
-      "label": "Later release dashboard-data-20260922b",
-      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922b"
+      "label": "Later release dashboard-data-20260922c",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922c"
     },
     {
       "label": "Exclusion record",

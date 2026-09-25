@@ -2,18 +2,18 @@
   "audit_annotation_artifacts": {
     "developer_adjudications": {
       "by_judge_verdict": {
-        "llm_error": 45,
+        "llm_error": 44,
         "prompt_ambiguity": 2,
         "reference_engine_defect": 11,
         "reference_model_issue_fixed": 6
       },
       "by_reference_verdict": {
         "affirmed": 5,
-        "engine_defect": 29,
+        "engine_defect": 28,
         "regenerated": 6,
         "unlisted_input": 16
       },
-      "cases": 64,
+      "cases": 63,
       "file": "us_adjudications.json",
       "judge_flagged_by_reference_verdict": {
         "affirmed": 5,
@@ -24,10 +24,10 @@
       "note": "Judge verdicts outside the final classes (llm_error, parse_contract_failure) are resolved by a recorded developer adjudication that keeps the judge's verdict and reasoning beside the adjudicated class; applied to the bundle before export so the published payload and the frozen annotations agree. Every case the judge flagged reference-suspect carries a reference verdict (affirmed, regenerated, engine_defect, unlisted_input, later_law) that clears the flag; judge_reference_suspect records which entries the judge flagged."
     },
     "files": {
-      "us_adjudications.json": "0361a95841d710fa9574f143222c5927ffa4f12b87c65fc363c22797da665d68",
-      "us_audit_row_annotations.csv": "3b9bdeebdecef23f586e05071acf431110779c5c50e6d1231e212cb9ecd7674c",
-      "us_case_notes.csv": "9f382108bbca82ab3fc3cd8c0e0c22a58468cd316ba08583a38d8f6127619784",
-      "us_case_reference_explanations.csv": "873fdb4ffc65c2f3246f7d19bf8985aa1ccb997c724ebac47059af98f36d8863"
+      "us_adjudications.json": "41e2b96f7987defad073e1ed53358f1584872411883a464e2d1c136f97d79a1f",
+      "us_audit_row_annotations.csv": "d9c66a9cc3c79a51f096c2f9599f4e337630621af3dc072884435a68e742cf80",
+      "us_case_notes.csv": "d63f678fbcd04819e6c38f8935e66dad67866b3ff282e57530fbe94e6f7e9f7f",
+      "us_case_reference_explanations.csv": "d91062be687f7601c07d75fb979bf9ffcaff80474369c02d3ee61eb82f5f27f2"
     },
     "judge_provenance": {
       "by_judge": {
@@ -60,29 +60,29 @@
       "cases_judged": 668,
       "note": "Judge model per case: the verdict.meta.json sidecar bound to the case's verdict by sha256 (either runner), else, for a case with no sidecar, the codex.log model header when the log was written alongside the verdict (Codex runner before it wrote sidecars). Verdicts classify misses after scoring and change no score. Every judge model is also a board row."
     },
-    "note": "Model-assisted, developer-adjudicated row and case audit annotations for the 9,376 prediction rows selected because their legacy threshold score was below 1. This audit universe is not identical to the exact-match or bounded-score miss sets. The annotations were produced under the decisive-diagnosis contract (per-model diagnoses grounded in engine facts; hedged verdicts mechanically rejected and re-judged). Row-level failure_source values are llm_error for substantive misses and parse_contract_failure for missing or unparseable answers; zero rows are reference-suspect. Case notes are stored as us_case_notes.csv with case_failure_sources / case_failure_subtypes columns. Reference narratives the judge and dashboard display are frozen as us_case_reference_explanations.csv. Judge provenance per case is tallied under judge_provenance.",
+    "note": "Model-assisted, developer-adjudicated row and case audit annotations for the 9,338 prediction rows selected because their legacy threshold score was below 1. This audit universe is not identical to the exact-match or bounded-score miss sets. The annotations were produced under the decisive-diagnosis contract (per-model diagnoses grounded in engine facts; hedged verdicts mechanically rejected and re-judged). Row-level failure_source values are llm_error for substantive misses and parse_contract_failure for missing or unparseable answers; zero rows are reference-suspect. Case notes are stored as us_case_notes.csv with case_failure_sources / case_failure_subtypes columns. Reference narratives the judge and dashboard display are frozen as us_case_reference_explanations.csv. Judge provenance per case is tallied under judge_provenance.",
     "path": "annotations/us_full_run_20260612_policyengine_4_16_1_populace"
   },
   "committed_snapshot_artifacts": {
     "model_serving_config.json": "7823e509b1db3f25b2a7b1abd8f4d0b1127751370627c21c8ea022ab39bee3ad",
-    "us_impact_summary_by_model.csv": "92a243af83d9677579c1517e8c811e7a20c3197ab6705a388fd56944126bfb4b",
-    "us_reference_outputs.csv": "81f84aa2b9141a47303ff90484f28e4442259cbf8d7d600e3102a9d774db97f8",
+    "us_impact_summary_by_model.csv": "a9a7a4a78fd2df449a06bab2435c052f3e302d2e490235f2105d7d5819a794a1",
+    "us_reference_outputs.csv": "800a19bc1c225656b93c4507933d98907e8d1a939248c8b021a9f26d33e9e0c5",
     "us_scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"
   },
   "description": "The 2026-09-22 scored manuscript snapshot reports the household-impact-weighted exact-match rate as its headline metric.",
   "files": [
     {
       "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json.gz",
-      "sha256": "3d7c4ef5632c923e36f308b20248592a7c3f5683dede47d14f6eb9a3ece00c5e"
+      "sha256": "3c5f5bbf36126ebbfceccae6ff9fa8703b05ceea47ba5eb36c8004666776790f"
     }
   ],
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 116205632,
+    "bytes": 116100222,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "b1c4ee340a01328f75158bb4ba40b49030a979d2b03badb2c01d57c16554d3b4",
-    "tag": "dashboard-data-20260922b",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260922b/dashboard-data.json"
+    "sha256": "01e7e72b3a6bdd2d3178ba32625ff769d5b81dc07541af6ea8da2c852774ddcc",
+    "tag": "dashboard-data-20260922c",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260922c/dashboard-data.json"
   },
   "live_dashboard_note": "The live dashboard payload is a published release asset; the committed pointer app/src/data.artifact.json must reference the artifact pinned under live_dashboard_artifact. The separate published_dashboard_artifact freezes the combined export of the source run data.json files listed under source_run_artifacts. A later publication may advance the live entry without changing the frozen pin.",
   "model_response_date": "2026-06-12 to 2026-09-22",
@@ -96,10 +96,10 @@
   },
   "published_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 116205632,
-    "sha256": "b1c4ee340a01328f75158bb4ba40b49030a979d2b03badb2c01d57c16554d3b4",
-    "tag": "dashboard-data-20260922b",
-    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260922b/dashboard-data.json"
+    "bytes": 116100222,
+    "sha256": "01e7e72b3a6bdd2d3178ba32625ff769d5b81dc07541af6ea8da2c852774ddcc",
+    "tag": "dashboard-data-20260922c",
+    "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260922c/dashboard-data.json"
   },
   "reference_exclusions": {
     "by_engine_defect_root_cause": {
@@ -115,8 +115,7 @@
       "r11_ca_itemized_conformity": 1,
       "r22_ma_part_a_loss_offset": 1,
       "r30_snap_heat_and_eat_sua": 1,
-      "r32_wi_capital_gain_distributions": 1,
-      "r33_snap_child_support_treatment": 1
+      "r32_wi_capital_gain_distributions": 1
     },
     "by_unlisted_input": {
       "meets_ssi_disability_criteria": 6,
@@ -132,8 +131,8 @@
     },
     "file": "reference_exclusions.json",
     "note": "Outputs are removed from scoring for every model, symmetrically, when the reference depends on an input or definition the prompt never states (a careful reader could take the stated facts either way), or when the engine that produced the reference misapplies the law on facts the prompt states. Their rows stay in the payload with scored=false. An unlisted-input entry records the alternative reading and the reference under both readings; an engine-defect entry records the root cause, the law, the upstream issue, and the corrected value computed with the same engine version and a sandbox fix.",
-    "outputs": 53,
-    "scored_outputs_per_model": 1931
+    "outputs": 52,
+    "scored_outputs_per_model": 1932
   },
   "reference_output_refresh": {
     "date": "2026-07-03",
@@ -144,19 +143,19 @@
     "policyengine_us_dataset_uri": "hf://policyengine/populace-us/populace_us_2024.h5@populace-us-2024-5da5a95-20260611",
     "policyengine_us_version": "1.755.4",
     "policyengine_version": "4.16.1",
-    "reference_csv_sha256": "81f84aa2b9141a47303ff90484f28e4442259cbf8d7d600e3102a9d774db97f8",
+    "reference_csv_sha256": "800a19bc1c225656b93c4507933d98907e8d1a939248c8b021a9f26d33e9e0c5",
     "row_count": 1984,
     "snapshot_date": "2026-09-22"
   },
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "47eddc0c00c960aee3fd3a380564b727ccb585b10d1d0eb03b02e8afc25030e8"
+      "sha256": "c659886b152a953a3cbf8ab803dcac87551161ec66bc567cdd2a3621c04a1d3c"
     },
     "web": {
       "files": {
-        "figures/positive_zero_scatter.png": "20e12eb4c23fe1f5477d1f6944381a1b6a66a87daa794b8b323f55a20ae176ed",
-        "index.html": "65dbde2b80f87fad4113c2b02acc89ade03bf0449b0c432fa9403ea26f2bcb91",
+        "figures/positive_zero_scatter.png": "7968dcdbd2875b09a46651ab8477e05310f705e8673a4a8046cb3940f0bc2519",
+        "index.html": "c517f1fa3cc63e72838a2008a3f01b94b6cd18d3c8ac0d72c76e9e08d7e064fb",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -209,17 +208,17 @@
     "note": "Compact copies of run outputs used to verify this snapshot. The run data.json retains parsed scenario predictions, explanations, summaries, heatmaps, and PolicyEngine runtime metadata used by the dashboard. predictions.csv.gz is a deterministic gzip of the run's raw provider responses.",
     "us_full_run_20260612_policyengine_4_16_1_populace": {
       "files": {
-        "analysis/impact_summary_by_model.csv": "92a243af83d9677579c1517e8c811e7a20c3197ab6705a388fd56944126bfb4b",
-        "analysis/metrics.csv": "6c64cc562f0e3f83b8c22860f48bc6ec9d40366729b4c33cb34ef49090493479",
-        "analysis/report.md": "7a1e630d2e388257d9875e2d4c30898c208a03d5fb731b8e0b557f323d750c11",
-        "analysis/summary_by_model.csv": "6af140d86b6b7a96287528cebda1cda106ebb3d30eb57510c64108348fee7b6f",
-        "analysis/summary_by_variable.csv": "f3d4b0389c3f1d1bea7502ff5fe1095ba3427b2bcbec87effa0ec47078a1bfa7",
+        "analysis/impact_summary_by_model.csv": "a9a7a4a78fd2df449a06bab2435c052f3e302d2e490235f2105d7d5819a794a1",
+        "analysis/metrics.csv": "70b00159f8a635ac340bcf1a38fd5496e08e7190f78d9b6c486c2dba8ef4af80",
+        "analysis/report.md": "04035938376f168ec8718fb98e9c4b650e2aab79f6b17f7c54eacac12bfc10c7",
+        "analysis/summary_by_model.csv": "a298926e069b84bfcb8d70593ab8583883a39eca4348b562a49e9f4da3f19db0",
+        "analysis/summary_by_variable.csv": "d248a77ccd5bbefb9b5d62f94155b586b090ee684d5b615afd512475b5271b9a",
         "analysis/usage_summary.csv": "f5d622d0be4ff925d583833a5d0f0c00cf039d914da7cee72c3cb282e409ca17",
-        "data.json.gz": "3d7c4ef5632c923e36f308b20248592a7c3f5683dede47d14f6eb9a3ece00c5e",
+        "data.json.gz": "3c5f5bbf36126ebbfceccae6ff9fa8703b05ceea47ba5eb36c8004666776790f",
         "predictions.csv.gz": "cb712f7ab0b5061153c7f6303b072755161ee8d082c3c6f4161586e61c813bb0",
-        "reference_exclusions.json": "e11ec62ebbd1364eb776004292358c1310d515d3ac9cdce998295c94d12ce35e",
-        "reference_outputs.csv": "81f84aa2b9141a47303ff90484f28e4442259cbf8d7d600e3102a9d774db97f8",
-        "reference_outputs.csv.meta.json": "08c4fe21c54e0aa2a23210d8149fc13cffa21b9c74c29517a4b81c7d072fc7f3",
+        "reference_exclusions.json": "25c4a9fd5fee59d07666254bdc1eae409b4a7c9f4ea0381dc8878a6ac0213035",
+        "reference_outputs.csv": "800a19bc1c225656b93c4507933d98907e8d1a939248c8b021a9f26d33e9e0c5",
+        "reference_outputs.csv.meta.json": "df94cc52e2146de8b9b167772e1d6b747ce21e90b1f64e96f94bb2ac4f237d93",
         "scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
         "scenarios.csv.meta.json": "03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb"
       },
