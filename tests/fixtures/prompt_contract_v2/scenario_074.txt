@@ -1,0 +1,44 @@
+Household prompt contract: policybench-us-household-prompt/2.0.0:sha256:a1a25d39795acbe6c4ee25adec297bdad8167479154ca70fb50755b8eee08a3a
+Status: opt-in, unactivated household-fact slice; not a complete evaluation contract.
+Declared calculation version: policyengine-us 1.755.4 (caller-supplied; not verified).
+
+Estimate requested outputs under the declared PolicyEngine-US version and the calculation conventions below. All listed people live together in the stated household group. Unless dated explicitly, facts apply throughout the tax-benefit year without changes in status or income volatility; wage amounts are annual totals including overtime, and hourly rates are straight-time rates. Unlisted numeric inputs, including unlisted integer inputs, are zero and unlisted boolean inputs are false, except for the explicitly listed unknown facts and the filing and take-up assumptions. Unknown facts and unknown provenance are never observed negatives. A supplied value with unknown provenance remains a supplied value, not an observation; an unknown value must not be replaced with zero or false. A general disability indicator is a survey characteristic and does not establish SSI disability, tax-specific disability, SSDI entitlement, or Medicare eligibility. SSI disability uses the separately stated criteria before the substantial-gainful-activity test; apply the earnings test separately. SNAP receipt-based disability, tax-specific disability, and self-care conditions are separate facts. Medicare eligibility is evaluated on January 1; SSDI benefit months are measured as of that date. Assume filing and full take-up of eligible requested benefits, plus eligible TANF/MOE noncash benefits used for SNAP categorical eligibility, and apply those computed benefits in downstream calculations. This exception permits computed receipt; it does not create substantive eligibility or historical entitlement. Social Security, SSDI, and veterans payments and histories are supplied inputs only. Infer no other income, expenses, assets, receipt, rent, or coverage. The SSI output includes federal SSI only; state supplements require a separate requested output. If neither weekly-hours input is supplied, this contract assumes 0 hours/week, not an observed zero. Do not derive hours from annual wages or an hourly rate. Supplied null hours remain unknown. These conventions are declared assumptions, not verified engine behavior.
+
+Household:
+- scenario: scenario_074
+- state: LA
+- tax year: 2026
+- Medicare/SSDI duration reference date: 2026-01-01
+- supplied filing status: Single
+- source dataset label (not fact provenance): enhanced_cps_2024
+- marital-unit mapping: not defined by this slice; do not infer couples from person names
+- provenance annotations are caller-supplied, not independently verified
+
+Person head:
+- Age [age]: 54 years
+- Bank account assets [bank_account_assets]: $510.0
+- Raw input [charitable_cash_donations]: 12329.8828125 (unsupported input; meaning and units not interpreted)
+- Raw input [child_support_expense]: 2400.0 (unsupported input; meaning and units not interpreted)
+- Gross wages and salaries [employment_income]: $0.0
+- Blindness indicator (not a program-specific disability finding) [is_blind]: unknown (not supplied; provenance: unknown)
+- General disability indicator (survey characteristic) [is_disabled]: unknown (not supplied; provenance: unknown)
+- Incapable of self-care for IRC 21 [is_incapable_of_self_care]: unknown (not supplied; provenance: unknown)
+- Permanent and total disability for IRC 152/22 [is_permanently_and_totally_disabled]: unknown (not supplied; provenance: unknown)
+- Tax unit head [is_tax_unit_head]: yes
+- Tax unit spouse [is_tax_unit_spouse]: no
+- SNAP receipt-based disability status [is_usda_disabled]: unknown (not supplied; provenance: unknown)
+- SSI disability criteria before the substantial-gainful-activity test [meets_ssi_disability_criteria]: unknown (not supplied; provenance: unknown)
+- SSDI benefit months as of January 1 [months_receiving_social_security_disability]: unknown (not supplied; provenance: unknown)
+- Pre-subsidy rent [pre_subsidy_rent]: $2,251.7646484375
+- Real estate taxes [real_estate_taxes]: $1,364.2940673828125
+- Raw input [salt_refund_income]: 3025.588134765625 (unsupported input; meaning and units not interpreted)
+- Social Security disability income [social_security_disability]: $33,640.0 (supplied value; provenance: unknown; not an observed fact)
+- Raw input [tax_exempt_private_pension_income]: 11228.0 (unsupported input; meaning and units not interpreted)
+- Raw input [taxable_ira_distributions]: 384.0 (unsupported input; meaning and units not interpreted)
+- Raw input [unreimbursed_business_employee_expenses]: 8613.0 (unsupported input; meaning and units not interpreted)
+- Weekly hours: 0 hours/week (contract assumption; no weekly-hours input supplied)
+
+Contract limitations:
+- Unsupported inputs remain visible and uninterpreted; resolve them before evaluation.
+- Resolve unknown values/provenance and unit mappings, then validate engine assumptions before scoring.
+- No output request, answer schema, reference certification, or board activation is supplied here.
