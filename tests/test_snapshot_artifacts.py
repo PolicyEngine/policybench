@@ -108,9 +108,7 @@ def test_paper_page_snapshot_matches_the_manifest():
     )
     assert not stray_keys, f"cache keys not taken from paperSnapshot: {stray_keys}"
     month = "(?:{})\\.?".format(
-        "|".join(
-            f"{name[:3]}(?:{name[3:]})?" for name in calendar.month_name[1:]
-        )
+        "|".join(f"{name[:3]}(?:{name[3:]})?" for name in calendar.month_name[1:])
         + "|Sept"
     )
     date_patterns = (
