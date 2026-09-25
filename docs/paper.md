@@ -23,6 +23,10 @@ It builds against:
 - Web: [`app/public/paper/web/`](https://policybench.org/paper/web/)
 - Both rendered artefacts are sha256-pinned in
   `paper/snapshot/20260501/manifest.json` under `rendered_paper_artifacts`.
+- The /paper page takes its snapshot date, response window and manuscript
+  `?v=` keys from `app/src/paperSnapshot.json`, which
+  `scripts/freeze_snapshot.py` writes from the manifest (including with
+  `--rendered-only`).
 
 ## What to cite
 

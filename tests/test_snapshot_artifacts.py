@@ -1,5 +1,6 @@
 """Checks for the frozen manuscript snapshot artifacts."""
 
+import calendar
 import hashlib
 import json
 import re
@@ -96,10 +97,18 @@ def test_paper_page_snapshot_matches_the_manifest():
     assert page_snapshot["pdfVersion"] == rendered["pdf"]["sha256"][:12]
 
     page = (ROOT / "app" / "src" / "app" / "paper" / "page.tsx").read_text()
-    for field in ("pdfVersion", "responseWindow", "snapshotDate", "webVersion"):
-        assert f"paperSnapshot.{field}" in page
-    assert not re.search(r"20\d\d-?\d\d-?\d\d", page), (
-        "the /paper page should take its dates and cache keys from paperSnapshot.json"
+    code = re.sub(r"//[^\n]*|/\*.*?\*/", "", page, flags=re.S)
+    assert re.search(r"policybench\.pdf\?v=\$\{paperSnapshot\.pdfVersion\}", code)
+    assert re.search(r"index\.html\?v=\$\{paperSnapshot\.webVersion\}", code)
+    for field in ("responseWindow", "snapshotDate"):
+        assert f"paperSnapshot.{field}" in code
+    months = "|".join(calendar.month_name[1:])
+    hard_coded = re.search(
+        rf"20\d\d-?\d\d-?\d\d|\?v=[0-9A-Za-z]|\b({months}) \d{{1,2}}\b", code
+    )
+    assert not hard_coded, (
+        "the /paper page should take its dates and cache keys from "
+        f"paperSnapshot.json, found {hard_coded.group(0)!r}"
     )
 
 

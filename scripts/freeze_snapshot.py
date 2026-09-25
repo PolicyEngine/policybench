@@ -29,6 +29,10 @@ What it freezes (all paths relative to the repo root):
   ``us_case_notes.csv`` (case-level), and
   ``us_case_reference_explanations.csv`` (reference narratives).
 * ``paper/snapshot/<dir>/manifest.json`` — the full manifest.
+* ``app/src/paperSnapshot.json`` — what the /paper page shows about the
+  embedded manuscript (snapshot date, response window, and ``?v=`` keys taken
+  from the rendered files' hashes), written from the manifest here and by
+  ``--rendered-only``.
 
 Run from the repo root::
 
@@ -1570,9 +1574,9 @@ def build_manifest(
 PUBLIC_PAPER_DIR = ROOT / "app" / "public" / "paper"
 PUBLIC_PAPER_PDF = PUBLIC_PAPER_DIR / "policybench.pdf"
 PUBLIC_PAPER_WEB_DIR = PUBLIC_PAPER_DIR / "web"
-# What the /paper page shows about the embedded manuscript: the snapshot date it
-# names and the cache keys on the manuscript URLs, so each re-render reaches
-# readers whose browsers cached an earlier one.
+# What the /paper page shows about the embedded manuscript: the snapshot date
+# and response window it names and the ``?v=`` keys on the manuscript URLs,
+# derived from the manifest instead of kept by hand in page.tsx.
 APP_PAPER_SNAPSHOT = ROOT / "app" / "src" / "paperSnapshot.json"
 
 

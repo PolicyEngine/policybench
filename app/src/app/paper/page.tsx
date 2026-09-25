@@ -38,8 +38,8 @@ export const metadata: Metadata = {
   },
 };
 
-// Written by scripts/freeze_snapshot.py from the paper snapshot manifest; the
-// cache keys change whenever a re-render changes the served manuscript.
+// paperSnapshot.json is written by scripts/freeze_snapshot.py from the paper
+// snapshot manifest; the ?v= keys follow the rendered files' hashes.
 const manuscriptPaths = {
   pdf: `/paper/policybench.pdf?v=${paperSnapshot.pdfVersion}`,
   web: `/paper/web/index.html?v=${paperSnapshot.webVersion}`,
