@@ -56,8 +56,9 @@ all 1,984 outputs the thinking runs scored 87.1, 85.8 and 80.3.
 | Claude Opus 5 | 83.4 (#17) | **89.4** | +6.0 | #8 | $0.067 → $0.152 | 51 | 1,984/1,984 |
 | Claude Sonnet 5 | 72.4 (#40) | **84.3** | +11.8 | #16 | $0.086 | 64 | 1,928/1,984 |
 
-Deltas are differences of the unrounded scores, so a delta can differ by 0.1
-from the difference of the rounded scores shown.
+In this table, deltas are differences of the unrounded scores, so a delta can
+differ by 0.1 from the difference of the rounded scores shown; the per-program
+tables below subtract the rounded rates.
 
 Under `auto`, Fable 5 and Opus 5 chose to call the answer tool on every
 response; Sonnet 5 failed to produce a parseable tool call on 56 of its
