@@ -5,8 +5,8 @@ predictions: one row per output group with the run's unweighted hit rates,
 the same rows the dashboard exporter writes into ``heatmap``. This script
 recomputes them against the scored reference (the frozen CSV minus
 ``reference_exclusions.json``) so the tables in
-``sensitivity/claude-thinking-2026-08.md`` describe the same 1,973 outputs
-the board scores, and prints those tables.
+``sensitivity/claude-thinking-2026-08.md`` describe the same outputs the
+board scores, and prints those tables.
 
     uv run python scripts/sensitivity_by_variable.py            # regenerate all
     uv run python scripts/sensitivity_by_variable.py --tables   # print doc tables

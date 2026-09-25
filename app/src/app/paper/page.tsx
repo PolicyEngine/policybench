@@ -3,11 +3,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import SiteHeader from "../../components/SiteHeader";
+import paperSnapshot from "../../paperSnapshot.json";
 
-const SNAPSHOT_DATE_LABEL = "Snapshot 2026-09-05";
+const SNAPSHOT_DATE_LABEL = `Snapshot ${paperSnapshot.snapshotDate}`;
 
-const PAPER_DESCRIPTION =
-  "PolicyBench paper: the 2026-09-05 manuscript snapshot reporting the household-impact-weighted exact-match rate, with model responses collected from June 12 through September 1 and PolicyEngine reference outputs on the US populace microdata.";
+const PAPER_DESCRIPTION = `PolicyBench paper: the ${paperSnapshot.snapshotDate} manuscript snapshot reporting the household-impact-weighted exact-match rate, with model responses collected between ${paperSnapshot.responseWindow}, against PolicyEngine reference outputs on the US populace microdata.`;
 
 export const metadata: Metadata = {
   title: "Paper",
@@ -38,9 +38,11 @@ export const metadata: Metadata = {
   },
 };
 
+// Written by scripts/freeze_snapshot.py from the paper snapshot manifest; the
+// cache keys change whenever a re-render changes the served manuscript.
 const manuscriptPaths = {
-  pdf: "/paper/policybench.pdf",
-  web: "/paper/web/index.html?v=20260901-refreeze",
+  pdf: `/paper/policybench.pdf?v=${paperSnapshot.pdfVersion}`,
+  web: `/paper/web/index.html?v=${paperSnapshot.webVersion}`,
 };
 const ssrnUrl = process.env.NEXT_PUBLIC_POLICYBENCH_SSRN_URL;
 
@@ -49,9 +51,10 @@ export default function PaperPage() {
     <>
       <p className="max-w-2xl text-sm leading-relaxed text-text-secondary sm:text-base">
         Benchmarking no-tool tax-and-benefit estimation in frontier language
-        models. This page embeds the 2026-09-05 scored manuscript snapshot: a
-        100-household public preview reporting the household-impact-weighted
-        exact-match rate against PolicyEngine reference outputs.
+        models. This page embeds the {paperSnapshot.snapshotDate} scored
+        manuscript snapshot: a 100-household public preview reporting the
+        household-impact-weighted exact-match rate against PolicyEngine
+        reference outputs.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-text-secondary">

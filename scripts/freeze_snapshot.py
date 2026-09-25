@@ -1570,6 +1570,10 @@ def build_manifest(
 PUBLIC_PAPER_DIR = ROOT / "app" / "public" / "paper"
 PUBLIC_PAPER_PDF = PUBLIC_PAPER_DIR / "policybench.pdf"
 PUBLIC_PAPER_WEB_DIR = PUBLIC_PAPER_DIR / "web"
+# What the /paper page shows about the embedded manuscript: the snapshot date it
+# names and the cache keys on the manuscript URLs, so each re-render reaches
+# readers whose browsers cached an earlier one.
+APP_PAPER_SNAPSHOT = ROOT / "app" / "src" / "paperSnapshot.json"
 
 
 def rendered_paper_artifacts() -> dict:
@@ -1609,6 +1613,28 @@ def rendered_paper_artifacts() -> dict:
     }
 
 
+def app_paper_snapshot(manifest: dict) -> dict:
+    """The /paper page's view of the manifest: dates and cache keys.
+
+    The keys are the first 12 hex digits of the served ``index.html`` and PDF
+    hashes the manifest pins, so they change exactly when a render changes what
+    readers see.
+    """
+    rendered = manifest["rendered_paper_artifacts"]
+    return {
+        "pdfVersion": rendered["pdf"]["sha256"][:12],
+        "responseWindow": _response_window_phrase(manifest["model_response_date"]),
+        "snapshotDate": manifest["snapshot_date"],
+        "webVersion": rendered["web"]["files"]["index.html"][:12],
+    }
+
+
+def write_app_paper_snapshot(manifest: dict) -> None:
+    APP_PAPER_SNAPSHOT.write_text(
+        json.dumps(app_paper_snapshot(manifest), indent=2, sort_keys=True) + "\n"
+    )
+
+
 def _existing_rendered_paper_artifacts() -> dict:
     """Return the rendered-paper block currently recorded in the manifest."""
     current = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -1629,6 +1655,7 @@ def repin_rendered_paper_artifacts() -> dict:
     block = rendered_paper_artifacts()
     manifest["rendered_paper_artifacts"] = block
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    write_app_paper_snapshot(manifest)
     return block
 
 
@@ -1656,6 +1683,7 @@ def main() -> None:
     (SNAPSHOT_DIR / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     )
+    write_app_paper_snapshot(manifest)
 
     print(f"Froze snapshot run: {RUN_LABEL}")
     print(f"  run dir:      {RUN_DEST.relative_to(ROOT)}")
@@ -1677,6 +1705,7 @@ if __name__ == "__main__":
         print("Re-pinned rendered_paper_artifacts from app/public/paper")
         print(f"  pdf sha256:   {block['pdf']['sha256']}")
         print(f"  web files:    {n_web}")
+        print(f"  app snapshot: {APP_PAPER_SNAPSHOT.relative_to(ROOT)}")
         print(f"  manifest:     {(SNAPSHOT_DIR / 'manifest.json').relative_to(ROOT)}")
     else:
         main()

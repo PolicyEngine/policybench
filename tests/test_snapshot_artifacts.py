@@ -75,6 +75,34 @@ def test_snapshot_manifest_hashes_match_rendered_paper_artifacts():
         _assert_hash(web_dir / relative_path, expected_hash)
 
 
+def test_paper_page_snapshot_matches_the_manifest():
+    """The /paper page names the manifest's snapshot and cache-keys its render.
+
+    scripts/freeze_snapshot.py writes app/src/paperSnapshot.json whenever it
+    pins the rendered paper, so a re-render changes the manuscript URLs the page
+    embeds and browsers holding an earlier render fetch the new one.
+    """
+    from scripts.freeze_snapshot import app_paper_snapshot
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    rendered = manifest["rendered_paper_artifacts"]
+    page_snapshot = json.loads(
+        (ROOT / "app" / "src" / "paperSnapshot.json").read_text()
+    )
+
+    assert page_snapshot == app_paper_snapshot(manifest)
+    assert page_snapshot["snapshotDate"] == manifest["snapshot_date"]
+    assert page_snapshot["webVersion"] == rendered["web"]["files"]["index.html"][:12]
+    assert page_snapshot["pdfVersion"] == rendered["pdf"]["sha256"][:12]
+
+    page = (ROOT / "app" / "src" / "app" / "paper" / "page.tsx").read_text()
+    for field in ("pdfVersion", "responseWindow", "snapshotDate", "webVersion"):
+        assert f"paperSnapshot.{field}" in page
+    assert not re.search(r"20\d\d-?\d\d-?\d\d", page), (
+        "the /paper page should take its dates and cache keys from paperSnapshot.json"
+    )
+
+
 def test_snapshot_manifest_hashes_match_population_weight_artifact():
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
     artifact = manifest["population_weight_artifact"]
@@ -837,6 +865,7 @@ def test_app_clean_preserves_the_tracked_serving_configuration():
     clean_command = package["scripts"]["clean"]
 
     assert "src/model-serving-config.json" not in clean_command
+    assert "src/paperSnapshot.json" not in clean_command
 
 
 def test_manuscript_bootstrap_point_estimates_reproduce_model_stats():
