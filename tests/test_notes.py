@@ -1760,6 +1760,9 @@ def test_bbce_households_note_facts() -> None:
     # links this note.
     unscored = sorted(set(previous["facts"]["deniedScenarios"]) - set(households))
     assert unscored == [worker_id, "scenario_112"]
+    # On the note's own release, dashboard-data-20260922b, both are excluded;
+    # from 20260922c the Michigan worker is scored at $0 (checked in
+    # test_september_3_and_bbce_notes_describe_the_later_release).
     assert all(scenario_id in snap_exclusions for scenario_id in unscored)
     # It describes the two households it no longer scores, as this note does.
     assert previous["paragraphs"][-1] == (
@@ -2055,7 +2058,15 @@ def test_september_3_and_bbce_notes_describe_the_later_release() -> None:
         "not qualify. It no longer scores the amount of a Texas household whose "
         "amount PolicyEngine computed with hours of work the prompt does not list."
     )
-    assert bbce["paragraphs"][8].endswith(
+    assert bbce["paragraphs"][8] == (
+        "PolicyBench revised this note on September 24. Its first version, "
+        "published September 23, reported {previousZeroAnswers} of "
+        "{previousAnswers} answers at $0 across five households, among them a "
+        "Michigan worker who pays child support. PolicyEngine subtracted that "
+        "child support from the worker's gross income, while Michigan counts it "
+        "in gross income and deducts it only when computing net income. Counted "
+        "Michigan's way, the worker's gross income exceeds the state's "
+        "{bbceGrossLimitHigh}% limit, so the household does not qualify. "
         f"Release {INTERIM_RELEASE}, which this note's figures come from, stopped "
         "scoring the worker's SNAP amount. PolicyEngine merged its fix, "
         "policyengine-us #9586, the same day, and from release "

@@ -95,10 +95,11 @@ excluded child support paid from gross income in Michigan, which deducts it
 from net income). The scored references they move are regenerated with the
 fix on the same engine version: 15 references. The child support fix merged on
 2026-09-24; release dashboard-data-20260922b excluded the one output it moves
-while the fix was open, and release dashboard-data-20260922c regenerates it. An output one of them moves that an unfixed cause also moves stays
-excluded. The capital gain fix as first built also applied Wisconsin's capital
-gain exclusion to the distributions, which the upstream fix does not; that
-part is recorded as its own defect, not fixed upstream.
+while the fix was open, and release dashboard-data-20260922c regenerates it.
+An output one of them moves that an unfixed cause also moves stays excluded.
+The capital gain fix as first built also applied Wisconsin's capital gain
+exclusion to the distributions, which the upstream fix does not; that part is
+recorded as its own defect, not fixed upstream.
 
 Fifty-two outputs in 36 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the

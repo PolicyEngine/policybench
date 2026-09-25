@@ -1,5 +1,6 @@
 """Checks for the frozen manuscript snapshot artifacts."""
 
+import calendar
 import hashlib
 import json
 import re
@@ -73,6 +74,51 @@ def test_snapshot_manifest_hashes_match_rendered_paper_artifacts():
     web_dir = ROOT / web["path"]
     for relative_path, expected_hash in web["files"].items():
         _assert_hash(web_dir / relative_path, expected_hash)
+
+
+def test_paper_page_snapshot_matches_the_manifest():
+    """The /paper page names the manifest's snapshot and cache-keys its render.
+
+    scripts/freeze_snapshot.py writes app/src/paperSnapshot.json whenever it
+    pins the rendered paper, so a re-render changes the manuscript URLs the page
+    embeds, and the page keeps no hand-kept snapshot date or cache key.
+    """
+    from scripts.freeze_snapshot import app_paper_snapshot
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    rendered = manifest["rendered_paper_artifacts"]
+    page_snapshot = json.loads(
+        (ROOT / "app" / "src" / "paperSnapshot.json").read_text()
+    )
+
+    assert page_snapshot == app_paper_snapshot(manifest)
+    assert page_snapshot["snapshotDate"] == manifest["snapshot_date"]
+    assert page_snapshot["webVersion"] == rendered["web"]["files"]["index.html"][:12]
+    assert page_snapshot["pdfVersion"] == rendered["pdf"]["sha256"][:12]
+
+    # The whole file is checked, comments included, so nothing can hide a
+    # hand-kept key or date behind a comment or inside a string.
+    page = (ROOT / "app" / "src" / "app" / "paper" / "page.tsx").read_text()
+    assert re.search(r"policybench\.pdf\?v=\$\{paperSnapshot\.pdfVersion\}", page)
+    assert re.search(r"index\.html\?v=\$\{paperSnapshot\.webVersion\}", page)
+    for field in ("responseWindow", "snapshotDate"):
+        assert f"{{paperSnapshot.{field}}}" in page
+    stray_keys = re.findall(
+        r"\?v=(?!\$\{paperSnapshot\.(?:pdfVersion|webVersion)\})\S*", page
+    )
+    assert not stray_keys, f"cache keys not taken from paperSnapshot: {stray_keys}"
+    month = "(?:{})\\.?".format(
+        "|".join(f"{name[:3]}(?:{name[3:]})?" for name in calendar.month_name[1:])
+        + "|Sept"
+    )
+    date_patterns = (
+        r"20\d\d-?\d\d-?\d\d",  # 2026-09-22, 20260922
+        rf"\b{month} \d{{1,2}}\b",  # September 22, Sept. 22
+        rf"\b\d{{1,2}} {month}\b",  # 22 September
+        r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",  # 9/22/2026
+    )
+    hard_coded = [m.group(0) for p in date_patterns for m in re.finditer(p, page)]
+    assert not hard_coded, f"dates not taken from paperSnapshot: {hard_coded}"
 
 
 def test_snapshot_manifest_hashes_match_population_weight_artifact():
@@ -837,6 +883,7 @@ def test_app_clean_preserves_the_tracked_serving_configuration():
     clean_command = package["scripts"]["clean"]
 
     assert "src/model-serving-config.json" not in clean_command
+    assert "src/paperSnapshot.json" not in clean_command
 
 
 def test_manuscript_bootstrap_point_estimates_reproduce_model_stats():
