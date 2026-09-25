@@ -1595,7 +1595,7 @@ def test_bbce_households_note_facts() -> None:
         "{previousZeroAnswers} of {previousAnswers} answers at $0 across "
         f"{number_words[len(households) + 1]} households, among them a "
         f"{worker_state_name} worker who pays child support.",
-        "PolicyEngine subtracts that child support from the worker's gross "
+        "PolicyEngine subtracted that child support from the worker's gross "
         f"income, while {worker_state_name} counts it in gross income and "
         "deducts it only when computing net income.",
         f"Counted {worker_state_name}'s way, the worker's gross income exceeds "
@@ -2013,8 +2013,53 @@ def test_september_22_notes_point_to_the_later_release() -> None:
         "release scores the same outputs, regenerates the same references and "
         "excludes the same outputs as this one. On it, GPT-6 Sol scores "
         "{laterSolExact}% and Claude Opus 5.5 {laterOpusExact}%, and Claude Opus "
-        "5's tool_choice auto re-run scores {laterOpus5AutoExact}%. The other "
-        "scores, gaps, ranks and costs stay the same. " + interim
+        "5's tool_choice auto re-run scores {laterOpus5AutoExact}%. The note's "
+        "other scores, gaps, ranks and costs stay the same. " + interim
+    )
+
+
+def test_september_3_and_bbce_notes_describe_the_later_release() -> None:
+    """The September 3 note's closing paragraph and the BBCE note's correction
+    describe release dashboard-data-20260922c; their figures are recomputed here
+    while it is the frozen release."""
+    previous, bbce = _note(SNAP_NOTE), _note(BBCE_NOTE)
+    assert bbce["release"] == INTERIM_RELEASE
+    if _frozen_release() != LATER_RELEASE:
+        return
+    references = _snap_references()
+    excluded = {
+        e["scenario_id"]
+        for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
+        if e["variable"] == "snap"
+    }
+    denied = previous["facts"]["deniedScenarios"]
+    scored = [s for s in denied if s not in excluded]
+    at_minimum = [s for s in scored if references[s] == 288]
+    # Four of the six are scored at $288, the Michigan worker at $0, and the
+    # second Texas household stays excluded (unlisted hours of work).
+    assert previous["facts"]["laterScoredCount"] == len(at_minimum) == 4
+    assert previous["facts"]["laterReference"] == 288
+    assert sorted(set(scored) - set(at_minimum)) == ["scenario_045"]
+    assert references["scenario_045"] == 0
+    assert sorted(set(denied) - set(scored)) == ["scenario_112"]
+    payload = _dashboard()
+    assert payload["scenarios"]["scenario_045"]["state"] == "MI"
+    assert payload["scenarios"]["scenario_112"]["state"] == "TX"
+    assert previous["paragraphs"][-1] == (
+        "A later note, first published September 23 and revised September 24, "
+        f"corrects this one. On release {LATER_RELEASE}, PolicyBench scores the "
+        "SNAP amounts of {laterScoredCount:words} of these {deniedCount:words} "
+        "households at ${laterReference} each, and scores a Michigan worker who "
+        "pays child support at $0: once PolicyEngine counts that child support in "
+        "gross income, as Michigan does (policyengine-us #9586), the worker does "
+        "not qualify. It no longer scores the amount of a Texas household whose "
+        "amount PolicyEngine computed with hours of work the prompt does not list."
+    )
+    assert bbce["paragraphs"][8].endswith(
+        f"Release {INTERIM_RELEASE}, which this note's figures come from, stopped "
+        "scoring the worker's SNAP amount. PolicyEngine merged its fix, "
+        "policyengine-us #9586, the same day, and from release "
+        f"{LATER_RELEASE} PolicyBench scores that amount against the corrected $0."
     )
 
 

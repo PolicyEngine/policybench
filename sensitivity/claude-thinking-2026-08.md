@@ -56,6 +56,9 @@ all 1,984 outputs the thinking runs scored 87.1, 85.8 and 80.3.
 | Claude Opus 5 | 83.4 (#17) | **89.4** | +6.0 | #8 | $0.067 → $0.152 | 51 | 1,984/1,984 |
 | Claude Sonnet 5 | 72.4 (#40) | **84.3** | +11.8 | #16 | $0.086 | 64 | 1,928/1,984 |
 
+Deltas are differences of the unrounded scores, so a delta can differ by 0.1
+from the difference of the rounded scores shown.
+
 Under `auto`, Fable 5 and Opus 5 chose to call the answer tool on every
 response; Sonnet 5 failed to produce a parseable tool call on 56 of its
 1,984 answers; the 55 on scored outputs count as misses inside its 84.3. Fable 5's
@@ -142,7 +145,7 @@ picture matches August: Fable 5.1's JSON board row (90.2) is 6.7 points
 above Fable 5's forced-tool board row (83.5) and 0.7 below Fable 5's
 `auto` run (90.9); Fable 5.1's own `auto` run (91.1) is 0.2 above Fable
 5's under the identical request. Scores are on the 1,932 scored outputs;
-on all 1,984 the auto run scored 87.8. The model called the answer tool on every
+on all 1,984 the auto run scored 87.9. The model called the answer tool on every
 one of its 1,984 answers under `auto`.
 
 Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`

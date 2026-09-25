@@ -459,9 +459,12 @@ def narratives(args) -> None:
             if key in queued:
                 continue
             queued.add(key)
-            if key in REGENERATED_NARRATIVES:
-                revision = {"regenerated_grounding": REGENERATED_NARRATIVES[key]}
-            todo.append((revision, item))
+            source = (
+                {"regenerated_grounding": REGENERATED_NARRATIVES[key]}
+                if key in REGENERATED_NARRATIVES
+                else revision
+            )
+            todo.append((source, item))
     frozen = pd.read_csv(BUNDLE / "reference_outputs.csv").set_index(["scenario_id", "variable"])["value"]
     # --frozen names the FROZEN_NARRATIVES to rewrite; omitted, all of them;
     # given with no names, none (2026-09-24, release dashboard-data-20260922c,

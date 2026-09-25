@@ -134,7 +134,8 @@ before the freeze or, where none was, the last one published; a convention
 changes parameter values only. With the upstream fixes, 26 references in 24
 households are regenerated on the same engine version: 13 SNAP outputs, whose
 October to December months hold the FY2026 figures and whose allotments apply
-the SNAP rounding fixes, and 13 in federal and state income tax and credits.
+the SNAP rounding fixes (one of them also the child support fix, which puts it
+at $0), and 13 in federal and state income tax and credits.
 The reference sidecar records each regenerated value with the convention or
 fix that produced it.
 

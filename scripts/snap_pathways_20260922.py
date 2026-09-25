@@ -1,8 +1,12 @@
 """Recompute SNAP eligibility pathways under the September 22 reference configuration.
 
 The September 22 SNAP references come from policyengine-us 1.755.4 with the
-SNAP publication convention and every SNAP fix merged upstream after the freeze
-(``reference_audit/2026-09-22/fixes/c13v3_plus_upstream_snap.py``). This script
+SNAP publication convention and the SNAP fixes merged upstream after the freeze.
+This script, and the files it wrote for the BBCE note (release
+dashboard-data-20260922b), use the fixes merged before policyengine-us#9586
+(``reference_audit/2026-09-22/fixes/c13v3_plus_upstream_snap.py``); #9586, the
+r33 child support fix, merged on 2026-09-24 and release dashboard-data-20260922c
+regenerates scenario_045 SNAP with it. This script
 recomputes, for each of the 100 frozen households, the monthly SNAP tests under
 that configuration and the minimum allotment under both that configuration and
 the unmodified engine, and checks the recomputed annual SNAP against the
@@ -15,7 +19,8 @@ cites.
 The meta also names each household whose SNAP output the release excludes, with
 the exclusion record's reason, so its row reads as PolicyEngine's computation
 rather than a scored reference (scenario_045's categorical pathway rests on the
-r33 child support treatment, whose fix is open upstream). And for each household
+r33 child support treatment, whose fix was open upstream at release
+dashboard-data-20260922b). And for each household
 that lists employer-sponsored insurance premiums and has a member the engine
 treats as elderly or disabled, it recomputes the SNAP tests with those premiums
 read as paid by the household: policyengine-us documents the input as
