@@ -71,9 +71,11 @@ MODEL_DISPLAY_NAMES = {
     "ox-alpha": "GLM-5.3-Flash (preview)",
     "grok-4.5": "Grok 4.5",
     "grok-4.6": "Grok 4.6",
+    "grok-4.7": "Grok 4.7",
     "deepseek-v4-pro": "DeepSeek V4 Pro",
     "deepseek-v4-pro-0813": "DeepSeek V4 Pro 0813",
     "deepseek-v4-flash-0731": "DeepSeek V4 Flash 0731",
+    "deepseek-v4.1-flash": "DeepSeek V4.1 Flash",
     "claude-opus-5": "Claude Opus 5",
     "gemini-3.8-flash": "Gemini 3.8 Flash",
     "gemini-3.7-flash": "Gemini 3.7 Flash",
@@ -1486,6 +1488,11 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "grok-4.5": "2026-07-08",
     # x.ai/news/grok-4-6 (2026-08-12)
     "grok-4.6": "2026-08-12",
+    # x.ai/news/grok-4-7 (2026-09-21; the post puts the model in Cursor, Grok
+    # Build and the Grok API that day). The API's language-models record
+    # carries created 2026-09-02; like grok-4.6's (created 2026-08-06), that
+    # predates the public launch and is not a release date.
+    "grok-4.7": "2026-09-21",
     # API public beta per secondary trackers (bighatgroup.com xai-weekly
     # 2026-06-03); no vendor-dated announcement exists
     "grok-build-0.1": "2026-05-29",
@@ -1498,6 +1505,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # unsloth.ai/docs/models/deepseek-v4 (2026-07-31, 2026-08-13)
     "deepseek-v4-flash-0731": "2026-07-31",
     "deepseek-v4-pro-0813": "2026-08-13",
+    # api-docs.deepseek.com/news/news260910 ("DeepSeek-V4.1-Flash Release
+    # 2026/09/10", live on the API as deepseek-flash; MIT weights at
+    # huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash, created 2026-09-10)
+    "deepseek-v4.1-flash": "2026-09-10",
     # verdent.ai kimi-k2.6 guide; huggingface.co/moonshotai/Kimi-K2.6
     "kimi-k2.6": "2026-04-20",
     # simonwillison.net/2026/Jul/16/kimi-k3 (API launch; weights announced
@@ -1531,9 +1542,11 @@ MODEL_RELEASE_DATES: dict[str, str] = {
 # Models whose weights are publicly downloadable. GLM-5.3's weights shipped
 # 2026-08-28 under the GLM-5.3 License (MIT-style with a security-review
 # condition for the largest Model-as-a-Service providers), two weeks after
-# its API launch; the dated DeepSeek V4 checkpoints are MIT. Ox Alpha is not
-# marked: the preview checkpoint itself was never published, and Z.ai's later
-# identification of it as GLM-5.3-Flash is not a weights release of that row.
+# its API launch; the dated DeepSeek V4 checkpoints and DeepSeek V4.1 Flash
+# (huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash, 2026-09-10) are MIT.
+# Ox Alpha is not marked: the preview checkpoint itself was never
+# published, and Z.ai's later identification of it as GLM-5.3-Flash is
+# not a weights release of that row.
 # Qwen 3.7 Max and 3.8 Max
 # are API-only as of 2026-08-03 (3.8's weights are promised but unpublished);
 # Kimi K3's weights shipped on Hugging Face 2026-07-26/27 under a custom
@@ -1544,6 +1557,7 @@ OPEN_WEIGHT_MODELS: frozenset[str] = frozenset(
         "deepseek-v4-flash",
         "deepseek-v4-flash-0731",
         "deepseek-v4-pro-0813",
+        "deepseek-v4.1-flash",
         "kimi-k2.6",
         "kimi-k3",
         "glm-5.2",

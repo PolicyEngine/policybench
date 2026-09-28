@@ -57,6 +57,7 @@ MODELS = {
     "grok-4.3": "xai/grok-4.3",
     "grok-4.5": "xai/grok-4.5",
     "grok-4.6": "xai/grok-4.6",
+    "grok-4.7": "xai/grok-4.7",
     "grok-build-0.1": "xai/grok-build-0.1",
     **GPT_6_MODELS,
     **GPT_56_MODELS,
@@ -74,8 +75,26 @@ MODELS = {
     "ox-alpha": "openrouter/stealth/ox-alpha",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
+    # DeepSeek retired V4 Flash when it released V4.1 Flash on 2026-09-10
+    # (api-docs.deepseek.com/news/news260910). The legacy name
+    # deepseek-v4-flash now routes to V4.1 Flash: on 2026-09-28 a request
+    # under that name answered as model "deepseek-flash" with the same system
+    # fingerprint as a deepseek-flash request. Rows recorded under
+    # deepseek-v4-flash before the retirement are V4 Flash, and that name can
+    # no longer re-run them. The same post says deepseek-v4-pro routes to
+    # V4.1 Flash from 2026-09-14 until V4.1 Pro launches, but on 2026-09-28 a
+    # deepseek-v4-pro request still answered as "deepseek-v4-pro" with a
+    # different fingerprint and prompt-token count, and the pricing page
+    # lists it as DeepSeek-V4-Pro-0813. Either way that name no longer
+    # reaches the model the deepseek-v4-pro row ran on: the alias had already
+    # moved to the August release (see the deepseek-v4-pro-0813 model card).
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
     "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
+    # deepseek-flash is DeepSeek's current name for V4.1 Flash and is itself
+    # a moving alias: GET /models maps it to DeepSeek-V4.1-Flash, and
+    # responses echo "deepseek-flash" with no version string, so each row's
+    # provider_system_fingerprint is the record of which build answered.
+    "deepseek-v4.1-flash": "deepseek/deepseek-flash",
     "deepseek-v4-pro-0813": "openrouter/deepseek/deepseek-v4-pro-0813",
     "deepseek-v4-flash-0731": "openrouter/deepseek/deepseek-v4-flash-0731",
     "kimi-k2.6": "openrouter/moonshotai/kimi-k2.6",
@@ -114,6 +133,16 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     "gpt-5.6-luna": {"input": 1.0, "output": 6.0},
     # grok-build-0.1: $1 / $2 per 1M input/output tokens (https://x.ai/api).
     "grok-build-0.1": {"input": 1.0, "output": 2.0},
+    # grok-4.7: $2 / $6 per 1M input/output tokens with $0.50 cached input
+    # (docs.x.ai/docs/models/grok-4.7, read 2026-09-28). The live record at
+    # api.x.ai/v1/language-models/grok-4.7 gives 20000 / 60000 / 5000 in its
+    # unit of $0.0001 per 1M tokens, identical to grok-4.6's record, which
+    # litellm's map prices at $2 / $6 with $0.50 cache reads. Doubled rates
+    # above 200k prompt tokens are not modeled; benchmark prompts stay far
+    # below that. On the 2026-09-28 reasoning probe these rates reproduced
+    # xAI's reported charge (cost_in_usd_ticks) exactly. litellm's bundled
+    # map lacks the id, so the override keeps costs off the remote fetch.
+    "grok-4.7": {"input": 2.0, "output": 6.0, "cache_read": 0.50},
     # kimi-k3: $3 / $15 per 1M input/output tokens (OpenRouter model listing,
     # 2026-07-17); litellm's price map does not yet cover the id.
     "kimi-k3": {"input": 3.0, "output": 15.0},
@@ -190,9 +219,22 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     },
     # Open-weight additions, per-1M USD from the OpenRouter live model list
     # (https://openrouter.ai/api/v1/models, retrieved 2026-07-05). DeepSeek
-    # runs on its native API at the same list prices.
+    # runs on its native API at the same list prices. These two rates
+    # predate the 2026-09-10 V4.1 Flash release (see MODELS) and are left
+    # unchanged; neither name can re-run its row.
     "deepseek-v4-pro": {"input": 0.435, "output": 0.87},
     "deepseek-v4-flash": {"input": 0.09, "output": 0.18},
+    # deepseek-v4.1-flash (model name deepseek-flash): $0.30 per 1M input on
+    # a cache miss, $0.006 on a cache hit, $1.20 per 1M output
+    # (api-docs.deepseek.com/quick_start/pricing, read 2026-09-28). These are
+    # the peak rates; off-peak rates are half, and a request's rate depends
+    # on the hour it lands (peak is 01:00-04:00 and 06:00-10:00 UTC on
+    # weekdays other than Chinese public holidays). The row is priced at the
+    # peak list rate whenever the run happens, as claude-sonnet-5 is priced
+    # at its standard rather than its introductory rate. DeepSeek lists no
+    # cache-write charge and its usage reports none. litellm's bundled map
+    # lacks the id.
+    "deepseek-v4.1-flash": {"input": 0.30, "output": 1.20, "cache_read": 0.006},
     "kimi-k2.6": {"input": 0.66, "output": 3.41},
     "glm-5.2": {"input": 0.574, "output": 1.804},
     "minimax-m3": {"input": 0.3, "output": 1.2},

@@ -291,6 +291,13 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "per 1M (litellm map). The 100-scenario run cost $8.70."
         ),
     ),
+    # PROVISIONAL until the onboarding gauntlet runs.
+    "xai/grok-4.7": ModelCard(
+        litellm_id="xai/grok-4.7",
+        answer_contract="tool",
+        request_timeout_seconds=1800,
+        thinking_budget=True,
+    ),
     "deepseek/deepseek-v4-pro": ModelCard(
         litellm_id="deepseek/deepseek-v4-pro",
         answer_contract="json",
@@ -302,6 +309,20 @@ MODEL_CARDS: dict[str, ModelCard] = {
         litellm_id="deepseek/deepseek-v4-flash",
         answer_contract="json",
         thinking_budget=True,
+    ),
+    "deepseek/deepseek-flash": ModelCard(
+        litellm_id="deepseek/deepseek-flash",
+        answer_contract="json",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.017,
+        notes=(
+            "Onboarded 2026-09-28 as DeepSeek V4.1 Flash (the deepseek-flash "
+            "name). The forced tool contract is rejected in thinking mode "
+            "('Thinking mode does not support this tool_choice'), as for the "
+            "V4 rows; the JSON contract passed 3/3 (80s, 19,313 tokens) and "
+            "16/16 whole-scenario (56s, 13,789 tokens). Thinking stays at "
+            "the provider default (on). Priced at the peak list rate."
+        ),
     ),
     "openrouter/moonshotai/kimi-k2.6": ModelCard(
         litellm_id="openrouter/moonshotai/kimi-k2.6",

@@ -197,6 +197,13 @@ minimax-m3
 qwen-3.7-max
 ```
 
+DeepSeek retired V4 Flash on 2026-09-10, when it released V4.1 Flash
+([news](https://api-docs.deepseek.com/news/news260910)). The
+`deepseek-v4-flash` name now routes to V4.1 Flash, and `deepseek-v4-pro` had
+already moved to the August V4 Pro release, so neither row can be re-run under
+its name. V4.1 Flash is the `deepseek-v4.1-flash` row, which calls
+DeepSeek's current name `deepseek-flash`.
+
 OpenAI made [GPT-5.6 generally available](https://openai.com/index/gpt-5-6/)
 across ChatGPT, Codex, and the API on 2026-07-09, with a global rollout over 24
 hours. Because these models are new to the PolicyBench harness, run the serving

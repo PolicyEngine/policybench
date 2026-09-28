@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from policybench.analysis import model_cost_latency
-from policybench.config import PRICE_OVERRIDES_PER_1M
+from policybench.config import MODELS, PRICE_OVERRIDES_PER_1M
 from policybench.paper_results import (
     MODEL_DISPLAY_NAMES,
     MODEL_RELEASE_DATES,
@@ -37,6 +37,23 @@ def test_frozen_roster_has_42_display_names_and_release_dates():
     assert MODEL_RELEASE_DATES["gpt-6-sol"] == "2026-09-22"
     assert MODEL_RELEASE_DATES["gpt-6-luna"] == "2026-09-22"
     assert MODEL_DISPLAY_NAMES["claude-opus-5.5"] == "Claude Opus 5.5"
+
+
+def test_app_release_dates_mirror_the_paper_registry():
+    """app/src/modelMeta.ts copies MODEL_RELEASE_DATES (its comment says to
+    update both together); every runnable model has a date, and the two
+    copies agree key for key."""
+    source = (ROOT / "app" / "src" / "modelMeta.ts").read_text()
+    block = source[source.index("export const MODEL_RELEASE_DATES") :]
+    block = block[: block.index("};")]
+    app_dates = dict(
+        re.findall(r'^\s*"?([\w.\-]+)"?:\s*"(\d{4}-\d{2}-\d{2})"', block, re.M)
+    )
+
+    assert set(MODELS) <= set(MODEL_RELEASE_DATES)
+    assert app_dates == MODEL_RELEASE_DATES
+    assert MODEL_RELEASE_DATES["grok-4.7"] == "2026-09-21"
+    assert MODEL_RELEASE_DATES["deepseek-v4.1-flash"] == "2026-09-10"
 
 
 def test_parse_contract_failure_counts_come_from_frozen_dashboard():
