@@ -30,6 +30,7 @@ from policybench.eval_no_tools import (
     _chat_completion_request_kwargs,
     _merge_repair_response,
     _required_explanation_chunk_size,
+    is_infrastructure_error_text,
     run_single_no_tools,
 )
 from policybench.reparse_predictions import parse_serialized_response
@@ -850,9 +851,10 @@ class ScriptedAdapter(FakeAdapter):
     from the response.
     """
 
-    def __init__(self, script):
+    def __init__(self, script, error_text="batch_errored: scripted failure"):
         super().__init__()
         self.script = script
+        self.error_text = error_text
 
     def build_request_body(self, scenario, unit, model_id):
         return {"variables": unit.variables, "repair": unit.repair}
@@ -864,9 +866,7 @@ class ScriptedAdapter(FakeAdapter):
             if answers == MISSING:
                 continue
             if answers == ERROR:
-                yield NormalizedResult(
-                    custom_id=custom_id, error="batch_errored: scripted failure"
-                )
+                yield NormalizedResult(custom_id=custom_id, error=self.error_text)
                 continue
             outputs = {
                 variable: answers[variable]
@@ -878,6 +878,7 @@ class ScriptedAdapter(FakeAdapter):
                 tool_calls=[_answer_tool_call(outputs)],
                 prompt_tokens=10,
                 completion_tokens=5,
+                provider_response_id=f"{batch_id}/{custom_id}",
             )
 
     def requested_rounds(self) -> list[list[str]]:
@@ -921,8 +922,8 @@ def _run_sync_script(scenario, variables, script):
         answers = script[len(requested_rounds)]
         requested_rounds.append(sorted(requested))
         if answers in (ERROR, MISSING):
-            # Sync has no missing-result case; a request that returns nothing
-            # usable fails like an errored one.
+            # A batch result that never arrives is modeled as a sync request
+            # that raises.
             raise RuntimeError("scripted failure")
         message = SimpleNamespace(
             content=None,
@@ -1134,9 +1135,10 @@ def test_merge_repair_response_invariants_exhaustive():
 
 def _attempt_rows(attempt, index: int) -> list[dict]:
     """Rows for one attempt at cell ("s", "v"): a (prediction, explanation)
-    pair, or ERROR for a provider failure."""
+    pair, ERROR for a provider failure, or MISSING for no result entry."""
     unit = BatchUnit(scenario_id="s", variables=["v"], chunk_index=0)
-    if attempt == ERROR:
+    if attempt in (ERROR, MISSING):
+        prefix = "batch_errored" if attempt == ERROR else "batch_missing"
         return rows_from_unit(
             model_name=CHUNKED_MODEL,
             model_id=CHUNKED_MODEL,
@@ -1144,7 +1146,7 @@ def _attempt_rows(attempt, index: int) -> list[dict]:
             predictions={"v": None},
             explanations={"v": None},
             raw_response=None,
-            error=f"batch_errored: attempt {index}",
+            error=f"{prefix}: attempt {index}",
             result=None,
         )
     prediction, explanation = attempt
@@ -1164,14 +1166,17 @@ def _attempt_rows(attempt, index: int) -> list[dict]:
 
 def test_merge_attempt_rows_exhaustive_over_three_attempts():
     """Invariants 1-3 for every sequence of three attempts at one cell, plus
-    the metadata rules: raw responses and usage aggregate, error is latest."""
-    attempts_domain = [*CELL_DOMAIN, ERROR]
+    the metadata rules: raw responses and usage aggregate over attempts, and
+    error follows the latest attempt that returned a result entry."""
+    failures = (ERROR, MISSING)
+    attempts_domain = [*CELL_DOMAIN, *failures]
     for sequence in itertools.product(attempts_domain, repeat=3):
         rows_by_key: dict = {}
         attempts_by_key: dict = {}
         disagreements: list = []
         first_prediction = None
         first_explanation = None
+        expected_error = None
         for index, attempt in enumerate(sequence):
             before = dict(rows_by_key.get(("s", "v"), {}))
             merge_attempt_rows(
@@ -1179,28 +1184,35 @@ def test_merge_attempt_rows_exhaustive_over_three_attempts():
                 attempts_by_key,
                 _attempt_rows(attempt, index),
                 disagreements,
+                result_missing=attempt == MISSING,
             )
             row = rows_by_key[("s", "v")]
             case = f"sequence={sequence!r} step={index}"
-            if attempt != ERROR:
+            if attempt not in failures:
                 if first_prediction is None:
                     first_prediction = attempt[0]
                 if first_explanation is None and _present(attempt[1]):
                     first_explanation = attempt[1]
+            if attempt == ERROR:
+                expected_error = f"batch_errored: attempt {index}"
+            elif attempt != MISSING:
+                expected_error = None
+            elif not before:
+                expected_error = f"batch_missing: attempt {index}"
             # 1. Nothing present is ever replaced or cleared.
             if before.get("prediction") is not None:
                 assert row["prediction"] == before["prediction"], case
             if _present(before.get("explanation")):
                 assert row["explanation"] == before["explanation"], case
-            # 2-3. Each field holds the first value supplied for it.
+            # 2-3. Each field holds the first value supplied for it; a blank
+            # explanation counts as missing from the first attempt on.
             assert row["prediction"] == first_prediction, case
-            if index > 0 or _present(row["explanation"]):
-                assert row["explanation"] == first_explanation, case
-            assert row["error"] == (
-                f"batch_errored: attempt {index}" if attempt == ERROR else None
-            ), case
+            assert row["explanation"] == first_explanation, case
+            assert row["error"] == expected_error, case
 
-        raws = [f"raw {i}" for i, attempt in enumerate(sequence) if attempt != ERROR]
+        raws = [
+            f"raw {i}" for i, attempt in enumerate(sequence) if attempt not in failures
+        ]
         expected_raw = (
             None
             if not raws
@@ -1210,7 +1222,7 @@ def test_merge_attempt_rows_exhaustive_over_three_attempts():
         )
         assert row["raw_response"] == expected_raw, sequence
         expected_prompt_tokens = [
-            10 + i for i, attempt in enumerate(sequence) if attempt != ERROR
+            10 + i for i, attempt in enumerate(sequence) if attempt not in failures
         ]
         assert row["prompt_tokens"] == (
             sum(expected_prompt_tokens) if expected_prompt_tokens else None
@@ -1222,8 +1234,9 @@ def test_failed_repairs_never_erase_a_valid_prediction(
     tmp_path, scenario, repair_rounds, failure
 ):
     """Regression: round 0 returns 123.0 without an explanation and every
-    repair fails. Row-level merging replaced the row with the failed repair's
-    empty one, so the final row lost the valid 123.0."""
+    repair fails. Row-level merging replaced the row with an errored repair's
+    empty one, so the final row lost the valid 123.0. (It already kept the row
+    when the repair's result entry was missing; that still holds.)"""
     script = [{"eitc": {"value": 123.0}}, failure, failure]
     frame, cells, adapter = _run_batch_script(
         tmp_path, scenario, ["eitc"], script, model_id=WHOLE_SCENARIO_MODEL
@@ -1233,10 +1246,10 @@ def test_failed_repairs_never_erase_a_valid_prediction(
     # The cell stayed broken, so every repair round re-requested it.
     assert adapter.requested_rounds() == [["eitc"], ["eitc"], ["eitc"]]
     (row,) = frame.to_dict("records")
+    # A missing entry never overwrites the error of an attempt that returned
+    # one, here round 0's (none).
     assert row["error"] == (
-        "batch_errored: scripted failure"
-        if failure == ERROR
-        else "batch_missing: no result entry returned"
+        "batch_errored: scripted failure" if failure == ERROR else None
     )
     # The stored raw response still reproduces the value it kept.
     predictions, _ = parse_serialized_response(row["raw_response"], ["eitc"])
@@ -1245,6 +1258,55 @@ def test_failed_repairs_never_erase_a_valid_prediction(
     sync_cells, _, sync_result = _run_sync_script(scenario, ["eitc"], script)
     assert sync_cells == cells
     assert "scripted failure" in sync_result["error"]
+
+
+def test_missing_repairs_keep_an_earlier_infrastructure_error(
+    tmp_path, scenario, repair_rounds
+):
+    """A provider timeout followed by repairs whose entries never come back
+    stays an infrastructure error, so resume and retries still see it."""
+    script = [ERROR, MISSING, MISSING]
+    frame, cells, _ = _run_batch_script(
+        tmp_path,
+        scenario,
+        ["eitc"],
+        script,
+        model_id=WHOLE_SCENARIO_MODEL,
+        adapter=ScriptedAdapter(script, error_text="batch_errored: request Timeout"),
+    )
+
+    assert cells == {"eitc": (None, None)}
+    (row,) = frame.to_dict("records")
+    assert row["error"] == "batch_errored: request Timeout"
+    assert is_infrastructure_error_text(row["error"])
+
+
+def test_repeated_result_entries_are_merged_once(tmp_path, scenario, repair_rounds):
+    """A provider repeating a request's entry (even as an error) neither
+    doubles its usage nor pins the repeat's error on the completed cell."""
+
+    class RepeatingAdapter(ScriptedAdapter):
+        def results(self, batch_id):
+            for result in super().results(batch_id):
+                yield result
+                yield result
+                yield NormalizedResult(custom_id=result.custom_id, error="dup")
+
+    script = [{"eitc": {"value": 5.0, "explanation": "A. value = 5"}}, ERROR, ERROR]
+    frame, cells, adapter = _run_batch_script(
+        tmp_path,
+        scenario,
+        ["eitc"],
+        script,
+        model_id=WHOLE_SCENARIO_MODEL,
+        adapter=RepeatingAdapter(script),
+    )
+
+    assert cells == {"eitc": (5.0, "A. value = 5")}
+    assert adapter.requested_rounds() == [["eitc"]]
+    (row,) = frame.to_dict("records")
+    assert pd.isna(row["error"])
+    assert row["prompt_tokens"] == 10.0
 
 
 def test_repair_fills_only_missing_cells_like_sync(tmp_path, scenario, repair_rounds):
@@ -1260,6 +1322,20 @@ def test_repair_fills_only_missing_cells_like_sync(tmp_path, scenario, repair_ro
 
     assert cells == {"eitc": (123.0, "Recomputed. value = 999")}
     assert adapter.requested_rounds() == [["eitc"], ["eitc"]]
+    # Usage sums both attempts, costs come from the ledger, and the provider
+    # response id is the first attempt's, as in a sync row.
+    (row,) = frame.to_dict("records")
+    ledger = read_spend_ledger(
+        tmp_path / "batches" / f"{WHOLE_SCENARIO_MODEL}.spend.jsonl"
+    )
+    assert len(ledger) == 2
+    assert row["total_tokens"] == 30.0
+    assert row["total_cost_usd"] == pytest.approx(
+        sum(record["total_cost_usd"] for record in ledger)
+    )
+    first_custom_id = adapter.submissions[0][0][0]
+    assert row["provider_response_id"] == f"batch_1/{first_custom_id}"
+    assert len(json.loads(row["raw_response"])["responses"]) == 2
     sync_cells, sync_rounds, sync_result = _run_sync_script(scenario, ["eitc"], script)
     assert sync_cells == cells
     assert sync_rounds == adapter.requested_rounds()
@@ -1273,8 +1349,10 @@ def test_batch_and_sync_repair_merges_agree_on_scripted_rounds(
 ):
     """Differential: identical scripted responses, identical final cells and
     repair requests. A round that fails is followed only by failing rounds,
-    since sync stops repairing at its first failed request while batch runs
-    its remaining rounds (which then fail too)."""
+    since sync stops repairing the (unchunked) scenario at its first failed
+    request while batch runs its remaining rounds, which then fail too.
+    Responses are never length-truncated, so sync's budget escalation, which
+    batch lacks, does not apply."""
     assert _required_explanation_chunk_size(WHOLE_SCENARIO_MODEL, True) is None
     programs = ["eitc", "snap"]
     variables = expand_programs_for_scenario(programs, scenario)
@@ -1314,6 +1392,9 @@ def test_batch_repair_matches_first_value_oracle(
     anywhere, whole-scenario and chunked: final cells and each round's repair
     targets match the first-value-wins oracle, and re-running the finished
     batch over the same results reproduces the frame exactly."""
+    assert _required_explanation_chunk_size(model_id, True) == (
+        None if model_id == WHOLE_SCENARIO_MODEL else 1
+    )
     programs = ["eitc", "snap"]
     variables = expand_programs_for_scenario(programs, scenario)
     assert expand_programs_for_scenario(programs, second_scenario) == variables

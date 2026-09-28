@@ -17,12 +17,18 @@ Semantics that differ from sync mode, by design:
   rates (litellm's price map plus ``PRICE_OVERRIDES_PER_1M``), matching the
   leaderboard's comparison basis. Actual spend is ~half of the reported
   figure; the state file records that the run used the batch endpoint.
-- Repair rounds merge cells through the same helper as the sync repair loop,
-  so the same responses yield the same values and explanations. Round control
-  differs: a batch runs its remaining repair rounds after a failed request,
-  where sync stops repairing a scenario at its first failed request, and a
-  batch has no counterpart to the explanation-only request sync makes when
-  every value is present but some explanations are still missing.
+- Repair rounds merge cells through the same helper as sync's value and
+  explanation repair rounds, so the same responses yield the same values and
+  explanations. Round control differs:
+  - a batch runs its remaining repair rounds after a failed request, where
+    sync stops repairing a request group (the scenario, or one chunk of a
+    chunked model) once a request still fails after its in-place retries;
+  - a batch does not re-request a length-truncated response at a larger
+    completion budget within the round, as sync does (sync then stops
+    repairing cells exhausted at the budget ceiling); it repairs them in the
+    next round instead;
+  - a batch has no counterpart to the explanation-only request sync makes
+    when every value is present but some explanations are still missing.
 
 xAI and DeepSeek have no batch APIs; use the sync chunked runner for them.
 """
@@ -705,40 +711,48 @@ def merge_attempt_rows(
     attempts_by_key: dict[tuple[str, str], list[dict]],
     rows: list[dict],
     disagreements: list[dict],
+    *,
+    result_missing: bool = False,
 ) -> None:
     """Fold one round's rows into the rows earlier rounds built, cell by cell.
 
     ``prediction`` and ``explanation`` merge through the sync repair merge
     (``_merge_repair_response``): a present value is never replaced, a missing
     one is filled from the later round, and an errored, missing or empty
-    result changes nothing. Usage and provenance aggregate over every attempt
-    at the cell as a sync row aggregates its requests, so ``raw_response``
-    keeps the response each stored value came from. ``error`` reports the
-    latest attempt, since a cell is only re-requested while it is still broken.
+    result changes nothing. Usage and provenance sum over every attempt at the
+    cell with the sync aggregator, so ``raw_response`` keeps the response each
+    stored value came from.
+
+    ``error`` keeps the rule of the old row-level merge: it comes from the
+    latest attempt that returned a result entry, and a missing entry
+    (``result_missing``) records its error only on a cell no earlier attempt
+    reached. A cell is only re-requested while it is still broken, so a
+    complete cell keeps the error of the attempt that completed it (none).
     """
     for row in rows:
         key = (row["scenario_id"], row["variable"])
         attempts = attempts_by_key.setdefault(key, [])
         attempts.append(row)
         existing = rows_by_key.get(key)
-        if existing is None:
-            rows_by_key[key] = row
-            continue
         variable = row["variable"]
         predictions, explanations = _merge_repair_response(
-            {variable: existing["prediction"]},
-            {variable: existing["explanation"]},
+            {variable: existing["prediction"] if existing else None},
+            {variable: existing["explanation"] if existing else None},
             {variable: row["prediction"]},
             {variable: row["explanation"]},
             disagreements=disagreements,
         )
-        rows_by_key[key] = {
-            **existing,
-            **_aggregate_request_results(attempts),
-            "prediction": predictions[variable],
-            "explanation": explanations[variable],
-            "error": row["error"],
-        }
+        if existing is None:
+            merged = dict(row)
+        else:
+            merged = {
+                **existing,
+                **_aggregate_request_results(attempts),
+                "error": existing["error"] if result_missing else row["error"],
+            }
+        merged["prediction"] = predictions[variable]
+        merged["explanation"] = explanations[variable]
+        rows_by_key[key] = merged
 
 
 def _batch_spend_record(
@@ -1006,7 +1020,9 @@ def run_batch_eval(
         disagreements_before_round = len(repair_disagreements)
         for result in adapter.results(state.batch_id):
             unit = unit_index.get(result.custom_id)
-            if unit is None:
+            # A provider returns one entry per request; if it repeats one,
+            # keep the first so the request is not merged or counted twice.
+            if unit is None or result.custom_id in seen:
                 continue
             seen.add(result.custom_id)
             predictions, explanations, raw_response, error = parse_unit_result(
@@ -1069,7 +1085,13 @@ def run_batch_eval(
                 error=missing_error,
                 result=None,
             )
-            merge_attempt_rows(rows_by_key, attempts_by_key, rows, repair_disagreements)
+            merge_attempt_rows(
+                rows_by_key,
+                attempts_by_key,
+                rows,
+                repair_disagreements,
+                result_missing=True,
+            )
 
         state.completed_at = clock()
         state.save(run_dir)

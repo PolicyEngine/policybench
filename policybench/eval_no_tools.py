@@ -1690,8 +1690,10 @@ def _merge_repair_response(
 ) -> tuple[dict[str, float | None], dict[str, str | None]]:
     """Merge one repair response into the cells earlier responses produced.
 
-    The sync repair loop and the batch runner both merge through this, so the
-    two harnesses keep the same cells for the same responses. Each field merges
+    Sync's value and explanation repair rounds and the batch runner both merge
+    through this, so the two harnesses keep the same cells for the same
+    responses. (Sync's explanation-only pass merges its explanations with
+    ``_merge_repair_cells`` directly.) Each field merges
     independently via ``_merge_repair_cells``: a present value is never replaced,
     a missing one is filled from the response, and a missing response value
     changes nothing. A blank explanation counts as missing, as it does in
