@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
+import sys
+import textwrap
 from pathlib import Path
 
 import pandas as pd
@@ -23,6 +26,14 @@ from policybench.eval_no_tools import (
     run_no_tools_single_output_eval,
 )
 from policybench.model_cards import MODEL_CARDS, ModelCard
+from policybench.policyengine_runtime import (
+    POLICYENGINE_PROVENANCE_ENV,
+    POLICYENGINE_PROVENANCE_FILENAME,
+    POLICYENGINE_PROVENANCE_NOT_REUSED,
+    policyengine_bundles_for_countries,
+    resolve_policyengine_bundles,
+    write_policyengine_provenance,
+)
 from policybench.scenarios import Person, Scenario, scenario_to_dict
 from policybench.spend_ledger import spend_ledger_path, upsert_spend_ledger
 from policybench.supervisor import (
@@ -35,6 +46,20 @@ from policybench.supervisor import (
 )
 
 N_SCENARIOS = 6
+
+
+@pytest.fixture(autouse=True)
+def provenance_written_in_process(monkeypatch):
+    """Write run provenance in this process, whose PolicyEngine import is
+    cached, instead of the fresh interpreter a real run starts for it; the
+    end-to-end test at the bottom keeps the real one."""
+    monkeypatch.setattr(
+        Supervisor,
+        "_compute_policyengine_provenance",
+        lambda self, path, countries, env: write_policyengine_provenance(
+            path, countries
+        ),
+    )
 
 
 @pytest.fixture
@@ -482,6 +507,7 @@ def test_worker_schema_and_treatment_parity(
         "programs",
         "models",
         "treatment",
+        "policyengine_bundles",
         "response_contract",
         "completion_budget_escalation",
     ],
@@ -1037,3 +1063,381 @@ def test_run_cli_maps_sensitivity_knob_error_to_system_exit(
         main()
 
     assert not run_dir.exists()
+
+
+# -- PolicyEngine provenance is computed once per run -------------------------
+
+
+def _run_worker_in_process(supervisor, monkeypatch, output_path: Path) -> str:
+    """Run the worker's eval path in-process and return its sidecar text."""
+
+    def response(_scenario, variables, _model, **_kwargs):
+        return {
+            "predictions": dict.fromkeys(variables, 1.0),
+            "explanations": dict.fromkeys(variables, "test explanation"),
+            "raw_response": "test response",
+        }
+
+    monkeypatch.setattr("policybench.eval_no_tools.run_single_no_tools", response)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    run_no_tools_eval(
+        scenarios=[supervisor.scenarios[0]],
+        models={supervisor.model: supervisor.litellm_id},
+        programs=PROGRAMS,
+        output_path=str(output_path),
+    )
+    return Path(f"{output_path}.meta.json").read_text()
+
+
+def _capture_worker_launches(monkeypatch) -> list:
+    real_popen = subprocess.Popen
+    launches = []
+
+    def fake_popen(cmd, **kwargs):
+        launches.append((cmd, kwargs["env"]))
+        kwargs["stdout"].close()
+        return real_popen(["true"])
+
+    monkeypatch.setattr("policybench.supervisor.subprocess.Popen", fake_popen)
+    return launches
+
+
+def test_supervisor_drops_inherited_provenance_file(manifest, tmp_path, monkeypatch):
+    monkeypatch.setenv(POLICYENGINE_PROVENANCE_ENV, str(tmp_path / "stale.json"))
+
+    supervisor = make_supervisor(
+        manifest,
+        tmp_path,
+        env={POLICYENGINE_PROVENANCE_ENV: str(tmp_path / "also-stale.json")},
+    )
+
+    assert POLICYENGINE_PROVENANCE_ENV not in supervisor.env
+
+
+def test_run_writes_provenance_once_and_hands_it_to_every_worker(
+    manifest, tmp_path, monkeypatch
+):
+    supervisor = make_supervisor(manifest, tmp_path, max_rounds=1)
+    writes = []
+    real_compute = Supervisor._compute_policyengine_provenance
+
+    def counting_compute(self, path, countries, env):
+        writes.append((path, countries, POLICYENGINE_PROVENANCE_ENV in env))
+        return real_compute(self, path, countries, env)
+
+    monkeypatch.setattr(
+        Supervisor, "_compute_policyengine_provenance", counting_compute
+    )
+    launches = _capture_worker_launches(monkeypatch)
+    supervisor.run(poll_seconds=0.01)
+
+    path = (supervisor.run_dir / POLICYENGINE_PROVENANCE_FILENAME).resolve()
+    assert writes == [(path, ["us"], False)]
+    assert len(launches) == N_SCENARIOS
+    assert all(cmd[3] == "eval-no-tools" for cmd, _ in launches)
+    assert all(env[POLICYENGINE_PROVENANCE_ENV] == str(path) for _, env in launches)
+    assert resolve_policyengine_bundles(
+        {"us"}, env={POLICYENGINE_PROVENANCE_ENV: str(path)}
+    ) == policyengine_bundles_for_countries({"us"})
+    heartbeat = json.loads((supervisor.run_dir / "run_state.json").read_text())
+    assert heartbeat["policyengine_provenance"] == str(path)
+    assert heartbeat["policyengine_provenance_recomputed"] == 0
+
+
+def test_run_leaves_workers_to_compute_when_the_file_is_unusable(
+    manifest, tmp_path, monkeypatch
+):
+    supervisor = make_supervisor(manifest, tmp_path, max_rounds=1)
+    monkeypatch.setattr(
+        Supervisor,
+        "_compute_policyengine_provenance",
+        lambda self, path, countries, env: False,
+    )
+    launches = _capture_worker_launches(monkeypatch)
+    supervisor.run(poll_seconds=0.01)
+
+    assert launches
+    assert all(POLICYENGINE_PROVENANCE_ENV not in env for _, env in launches)
+    assert supervisor._policyengine_bundles is None
+    heartbeat = json.loads((supervisor.run_dir / "run_state.json").read_text())
+    assert heartbeat["policyengine_provenance"] is None
+
+
+def test_supervisor_counts_workers_that_recomputed_provenance(
+    manifest, tmp_path, monkeypatch
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    stub_worker(supervisor, monkeypatch)
+    stub_spawn = supervisor._spawn
+
+    def spawn(index: int):
+        process = stub_spawn(index)
+        if index < 2:
+            supervisor.scenario_csv(index).with_suffix(".log").write_text(
+                f"{POLICYENGINE_PROVENANCE_NOT_REUSED} (/run/x.json): could not "
+                "read it (FileNotFoundError); computing it in this process.\n"
+            )
+        return process
+
+    monkeypatch.setattr(supervisor, "_spawn", spawn)
+    state = supervisor.run(poll_seconds=0.01)
+
+    assert state.policyengine_provenance_recomputed == 2
+    assert not any(result.timed_out for result in supervisor._recent)
+    heartbeat = json.loads((supervisor.run_dir / "run_state.json").read_text())
+    assert heartbeat["policyengine_provenance_recomputed"] == 2
+
+
+def test_worker_sidecar_is_byte_identical_with_the_provenance_file(
+    manifest, tmp_path, monkeypatch
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    monkeypatch.delenv(POLICYENGINE_PROVENANCE_ENV, raising=False)
+    computed = _run_worker_in_process(
+        supervisor, monkeypatch, tmp_path / "computed" / "scenario_000.csv"
+    )
+
+    supervisor._write_policyengine_provenance()
+    with monkeypatch.context() as patch:
+        patch.setenv(
+            POLICYENGINE_PROVENANCE_ENV, supervisor.env[POLICYENGINE_PROVENANCE_ENV]
+        )
+        patch.setattr(
+            "policybench.policyengine_runtime.policyengine_bundles_for_countries",
+            lambda countries: pytest.fail("worker computed PolicyEngine provenance"),
+        )
+        from_file = _run_worker_in_process(
+            supervisor, monkeypatch, supervisor.scenario_csv(0)
+        )
+
+    assert from_file == computed
+    assert supervisor._scenario_complete(0)
+
+
+def test_supervisor_checks_worker_provenance_against_its_own(
+    manifest, tmp_path, monkeypatch
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    supervisor._write_policyengine_provenance()
+    path = Path(supervisor.env[POLICYENGINE_PROVENANCE_ENV])
+    payload = json.loads(path.read_text())
+    payload["policyengine_bundles"]["us"]["bundle_id"] = "tampered"
+    path.write_text(json.dumps(payload))
+    monkeypatch.setenv(POLICYENGINE_PROVENANCE_ENV, str(path))
+
+    sidecar = _run_worker_in_process(
+        supervisor, monkeypatch, supervisor.scenario_csv(0)
+    )
+
+    assert json.loads(sidecar)["policyengine_bundles"]["us"]["bundle_id"] == (
+        "tampered"
+    )
+    with pytest.raises(ValueError, match="field 'policyengine_bundles'"):
+        supervisor._scenario_complete(0)
+
+
+# A sitecustomize for the end-to-end run. In every process it records which
+# PolicyEngine modules are loaded at exit; in workers it also swaps the LLM
+# transport in policybench.eval_no_tools for a local fake that returns a
+# schema-valid forced-tool answer and records the modules loaded at each
+# request. No network, no spend.
+PROCESS_PROBE = textwrap.dedent(
+    """
+    import atexit
+    import importlib.abc
+    import importlib.machinery
+    import json
+    import os
+    import sys
+
+    HEAVY = {
+        "policyengine",
+        "policyengine_core",
+        "policyengine_uk",
+        "policyengine_us",
+        "h5py",
+    }
+    requests = []
+
+
+    def heavy_modules():
+        return sorted(
+            name for name in list(sys.modules) if name.split(".")[0] in HEAVY
+        )
+
+
+    def fake_completion(**kwargs):
+        from types import SimpleNamespace
+
+        import litellm
+
+        requests.append(heavy_modules())
+        function = kwargs["tools"][0]["function"]
+        properties = function["parameters"]["properties"]
+        if "outputs" in properties:
+            arguments = {
+                "outputs": {
+                    variable: {"value": 1, "explanation": "so it is 1"}
+                    for variable in properties["outputs"]["properties"]
+                }
+            }
+        else:
+            arguments = {variable: "so it is 1" for variable in properties}
+        call = SimpleNamespace(
+            function=SimpleNamespace(
+                name=function["name"], arguments=json.dumps(arguments)
+            )
+        )
+        message = SimpleNamespace(content=None, function_call=None, tool_calls=[call])
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=message, finish_reason="tool_calls")],
+            usage=litellm.Usage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+
+
+    class PatchingLoader(importlib.abc.Loader):
+        def __init__(self, inner):
+            self.inner = inner
+
+        def create_module(self, spec):
+            return self.inner.create_module(spec)
+
+        def exec_module(self, module):
+            self.inner.exec_module(module)
+            module.completion = fake_completion
+            module.responses = fake_completion
+
+
+    class Finder(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname, path, target=None):
+            if fullname != "policybench.eval_no_tools":
+                return None
+            spec = importlib.machinery.PathFinder.find_spec(fullname, path, target)
+            spec.loader = PatchingLoader(spec.loader)
+            return spec
+
+
+    sys.meta_path.insert(0, Finder())
+
+
+    @atexit.register
+    def dump():
+        record = {"argv": sys.argv, "requests": requests, "at_exit": heavy_modules()}
+        directory = os.environ["POLICYBENCH_TEST_PROBE_DIR"]
+        with open(os.path.join(directory, f"{os.getpid()}.json"), "w") as handle:
+            json.dump(record, handle)
+    """
+)
+
+# The pre-change worker behavior: a fresh interpreter computing provenance.
+DIRECT_PROVENANCE = (
+    "import json, sys\n"
+    "from policybench.policyengine_runtime import policyengine_bundles_for_countries\n"
+    "bundles = policyengine_bundles_for_countries({'us'})\n"
+    "open(sys.argv[1], 'w').write(json.dumps(bundles))\n"
+)
+
+
+def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
+    """End to end through `policybench run` with real worker subprocesses.
+
+    Only the one-shot provenance writer imports PolicyEngine (which also shows
+    the probe detects it); the supervisor and every worker never do. Each
+    sidecar records exactly the bundles a fresh worker computing them itself
+    would have recorded.
+    """
+    repo_root = Path(__file__).resolve().parents[1]
+    scenarios = [
+        Scenario(
+            id=f"probe_{i}",
+            state="CA",
+            filing_status="single",
+            adults=[Person(name="adult", age=35, employment_income=50_000)],
+        )
+        for i in range(2)
+    ]
+    manifest = tmp_path / "scenarios.csv"
+    pd.DataFrame(
+        {
+            "scenario_id": [scenario.id for scenario in scenarios],
+            "scenario_json": [
+                json.dumps(scenario_to_dict(scenario)) for scenario in scenarios
+            ],
+        }
+    ).to_csv(manifest, index=False)
+    hook_dir = tmp_path / "probe_hook"
+    hook_dir.mkdir()
+    (hook_dir / "sitecustomize.py").write_text(PROCESS_PROBE)
+    probe_dir = tmp_path / "probe_records"
+    probe_dir.mkdir()
+    base_env = {
+        key: value
+        for key, value in os.environ.items()
+        if key != POLICYENGINE_PROVENANCE_ENV
+    }
+    base_env["PYTHONPATH"] = os.pathsep.join(
+        [str(repo_root), *filter(None, [os.environ.get("PYTHONPATH")])]
+    )
+    direct_path = tmp_path / "direct_bundles.json"
+    direct = subprocess.Popen(
+        [sys.executable, "-c", DIRECT_PROVENANCE, str(direct_path)],
+        env=base_env,
+        cwd=tmp_path,
+    )
+    run_dir = tmp_path / "run"
+    run = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "policybench.cli",
+            "run",
+            "--model",
+            "claude-sonnet-4.6",
+            "--scenario-manifest",
+            str(manifest),
+            "--run-dir",
+            str(run_dir),
+            "--max-workers",
+            "2",
+            "--max-rounds",
+            "1",
+        ],
+        env={
+            **base_env,
+            "PYTHONPATH": os.pathsep.join([str(hook_dir), base_env["PYTHONPATH"]]),
+            "POLICYBENCH_TEST_PROBE_DIR": str(probe_dir),
+            "POLICYBENCH_CACHE_DIR": str(tmp_path / "cache"),
+            "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+        },
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
+    assert direct.wait(timeout=900) == 0
+    assert run.returncode == 0, run.stdout + run.stderr
+
+    records = [json.loads(path.read_text()) for path in probe_dir.glob("*.json")]
+    supervisors = [r for r in records if r["argv"][1:2] == ["run"]]
+    writers = [r for r in records if r["argv"][0] == "-c"]
+    workers = [r for r in records if "eval-no-tools" in r["argv"]]
+    assert len(supervisors) == 1 and supervisors[0]["at_exit"] == []
+    assert len(writers) == 1 and "policyengine_us" in writers[0]["at_exit"]
+    assert len(workers) == 2
+    for worker in workers:
+        assert worker["requests"], "the worker never reached its LLM request"
+        assert all(loaded == [] for loaded in worker["requests"])
+        assert worker["at_exit"] == []
+
+    direct_bundles = json.loads(direct_path.read_text())
+    for index in range(2):
+        sidecar = json.loads(
+            (run_dir / "scenarios" / f"scenario_{index:03d}.csv.meta.json").read_text()
+        )
+        assert sidecar["policyengine_bundles"] == direct_bundles
+    heartbeat = json.loads((run_dir / "run_state.json").read_text())
+    assert heartbeat["completed"] == 2
+    assert heartbeat["policyengine_provenance"] == str(
+        (run_dir / POLICYENGINE_PROVENANCE_FILENAME).resolve()
+    )
+    assert heartbeat["policyengine_provenance_recomputed"] == 0

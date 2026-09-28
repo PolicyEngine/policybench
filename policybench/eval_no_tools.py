@@ -36,7 +36,7 @@ from policybench.model_cards import (
     completion_budget_ceiling_for,
     explanation_chunk_size_for,
 )
-from policybench.policyengine_runtime import policyengine_bundles_for_countries
+from policybench.policyengine_runtime import resolve_policyengine_bundles
 from policybench.prompts import (
     get_variable_description,
     make_explanation_repair_prompt,
@@ -3022,6 +3022,10 @@ def _scenario_hash(scenarios: list[Scenario]) -> str:
     return hashlib.sha256(scenario_signature.encode("utf-8")).hexdigest()
 
 
+def _scenario_countries(scenarios: list[Scenario]) -> set[str]:
+    return {(scenario.country or "us").lower() for scenario in scenarios}
+
+
 def _build_resume_metadata(
     *,
     task: str,
@@ -3031,8 +3035,15 @@ def _build_resume_metadata(
     run_id: str | None,
     include_explanations: bool,
     env: dict | None = None,
+    policyengine_bundles: dict | None = None,
 ) -> dict:
-    countries = {(scenario.country or "us").lower() for scenario in scenarios}
+    """Metadata recorded beside a resumable output and compared on resume.
+
+    ``policyengine_bundles``, when given, holds already-computed bundles keyed
+    by country (the supervisor's copy of its run's provenance file); otherwise
+    they are resolved for this process.
+    """
+    countries = _scenario_countries(scenarios)
     return {
         "metadata_version": RESUME_METADATA_VERSION,
         "task": task,
@@ -3053,7 +3064,13 @@ def _build_resume_metadata(
             single_output=task == "eval_no_tools_single_output",
             env=env,
         ),
-        "policyengine_bundles": policyengine_bundles_for_countries(countries),
+        "policyengine_bundles": (
+            resolve_policyengine_bundles(countries, env=env)
+            if policyengine_bundles is None
+            else {
+                country: policyengine_bundles[country] for country in sorted(countries)
+            }
+        ),
         "response_contract": _response_contract_metadata(),
         "completion_budget_escalation": {
             "strategy": "double_on_length_with_missing_payload",
