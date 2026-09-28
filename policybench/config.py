@@ -50,6 +50,7 @@ MODELS = {
     "claude-opus-5": "claude-opus-5",
     "claude-opus-4.8": "claude-opus-4-8",
     "claude-opus-4.7": "claude-opus-4-7",
+    "claude-sonnet-5.5": "claude-sonnet-5-5",
     "claude-sonnet-5": "claude-sonnet-5",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
@@ -173,6 +174,20 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
         "cache_write": 5.0,
     },
     "claude-sonnet-5": {"input": 3.0, "output": 15.0},
+    # claude-sonnet-5-5: $2 / $10 per 1M input/output tokens, $2.50
+    # five-minute cache writes and $0.20 cache reads (platform.claude.com/docs
+    # /en/about-claude/pricing, read 2026-09-28). No footnote marks the row as
+    # introductory, so this is the standard rate. (Footnote 3 on the same page
+    # now makes $2 / $10 Sonnet 5's standard price as well; the claude-sonnet-5
+    # entry above keeps $3 / $15 and is not changed here.) The Models API lists
+    # the id with created_at 2026-09-28. litellm's bundled map lacks the id;
+    # eval_no_tools registers it locally, as for Opus 5.5.
+    "claude-sonnet-5.5": {
+        "input": 2.0,
+        "output": 10.0,
+        "cache_read": 0.20,
+        "cache_write": 2.50,
+    },
     # Open-weight additions, per-1M USD from the OpenRouter live model list
     # (https://openrouter.ai/api/v1/models, retrieved 2026-07-05). DeepSeek
     # runs on its native API at the same list prices.

@@ -2472,8 +2472,14 @@ def test_explanation_repair_rejects_knobs_on_the_responses_transport(
     mock_responses.assert_not_called()
 
 
-@pytest.mark.parametrize("model_id", ["claude-fable-5", "claude-fable-5-1"])
-def test_claude_fable_line_resolves_without_remote_cost_map(model_id):
+@pytest.mark.parametrize(
+    "model_id",
+    ["claude-fable-5", "claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5"],
+)
+def test_local_claude_models_resolve_without_remote_cost_map(model_id):
+    """Every Claude model eval_no_tools registers locally routes to Anthropic
+    and carries the configured list prices, whether the entry came from the
+    remote cost map or from the local registration."""
     from litellm import get_llm_provider
 
     display_id = next(
@@ -2785,6 +2791,52 @@ def test_claude_sonnet_5_is_a_public_default():
         "input": 3.0,
         "output": 15.0,
     }
+
+
+def test_claude_sonnet_5_5_is_a_public_default():
+    """Sonnet 5.5 is a default model priced at the standard $2 / $10 rate with
+    $0.20 cache reads and $2.50 five-minute cache writes (pricing page, read
+    2026-09-28)."""
+    assert MODELS["claude-sonnet-5.5"] == "claude-sonnet-5-5"
+    assert PRICE_OVERRIDES_PER_1M["claude-sonnet-5.5"] == {
+        "input": 2.0,
+        "output": 10.0,
+        "cache_read": 0.20,
+        "cache_write": 2.50,
+    }
+
+
+@pytest.mark.parametrize(
+    (
+        "completion_tokens",
+        "cached_prompt_tokens",
+        "cache_write_prompt_tokens",
+        "expected",
+    ),
+    [
+        (0, 0, 0, 2.0),
+        (1_000_000, 0, 0, 12.0),
+        (0, 1_000_000, 0, 0.20),
+        (0, 0, 1_000_000, 2.50),
+    ],
+)
+def test_claude_sonnet_5_5_override_reconstructs_token_costs(
+    completion_tokens,
+    cached_prompt_tokens,
+    cache_write_prompt_tokens,
+    expected,
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="claude-sonnet-5.5",
+        model_id="claude-sonnet-5-5",
+        prompt_tokens=1_000_000,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+        cache_write_prompt_tokens=cache_write_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
 
 
 def test_gpt_55_uses_longer_full_output_timeout():
