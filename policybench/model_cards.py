@@ -291,12 +291,21 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "per 1M (litellm map). The 100-scenario run cost $8.70."
         ),
     ),
-    # PROVISIONAL until the onboarding gauntlet runs.
     "xai/grok-4.7": ModelCard(
         litellm_id="xai/grok-4.7",
         answer_contract="tool",
         request_timeout_seconds=1800,
         thinking_budget=True,
+        expected_cost_per_scenario_usd=0.2,
+        notes=(
+            "Onboarded 2026-09-28: forced tool contract passed 3/3 (247s, "
+            "19,125 tokens) and 16/16 whole-scenario (472s, 32,960 tokens). "
+            "A first attempt with a 600s timeout passed 3/3 in 454s (39,192 "
+            "tokens) and then timed out on the whole-scenario probe, so "
+            "latency sits near 600s and the timeout is 1800s. Heavier than "
+            "Grok 4.6 (26,260 tokens on the 3-variable probe); at $2/$6 per "
+            "1M the gauntlet estimates $0.20 per scenario."
+        ),
     ),
     "deepseek/deepseek-v4-pro": ModelCard(
         litellm_id="deepseek/deepseek-v4-pro",
