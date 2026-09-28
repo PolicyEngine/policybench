@@ -46,6 +46,8 @@ from policybench.supervisor import (
 )
 
 N_SCENARIOS = 6
+# The real writer (a fresh interpreter), before the fixture below replaces it.
+REAL_COMPUTE_PROVENANCE = Supervisor._compute_policyengine_provenance
 
 
 @pytest.fixture(autouse=True)
@@ -1161,6 +1163,67 @@ def test_run_leaves_workers_to_compute_when_the_file_is_unusable(
     assert supervisor._policyengine_bundles is None
     heartbeat = json.loads((supervisor.run_dir / "run_state.json").read_text())
     assert heartbeat["policyengine_provenance"] is None
+
+
+def test_mixed_country_run_leaves_workers_to_compute(manifest, tmp_path, monkeypatch):
+    supervisor = make_supervisor(manifest, tmp_path)
+    supervisor.scenarios[0].country = "uk"
+    monkeypatch.setattr(
+        Supervisor,
+        "_compute_policyengine_provenance",
+        lambda self, path, countries, env: pytest.fail("wrote mixed provenance"),
+    )
+
+    supervisor._write_policyengine_provenance()
+
+    assert POLICYENGINE_PROVENANCE_ENV not in supervisor.env
+    assert supervisor._policyengine_bundles is None
+
+
+def test_failed_write_removes_an_earlier_provenance_file(
+    manifest, tmp_path, monkeypatch
+):
+    supervisor = make_supervisor(manifest, tmp_path)
+    stale = supervisor.run_dir / POLICYENGINE_PROVENANCE_FILENAME
+    stale.parent.mkdir(parents=True)
+    stale.write_text("{}")
+    monkeypatch.setattr(
+        Supervisor,
+        "_compute_policyengine_provenance",
+        lambda self, path, countries, env: False,
+    )
+
+    supervisor._write_policyengine_provenance()
+
+    assert not stale.exists()
+    assert POLICYENGINE_PROVENANCE_ENV not in supervisor.env
+
+
+@pytest.mark.parametrize(
+    "outcome,expected",
+    [(0, True), (3, False), (1, False), ("timeout", False)],
+)
+def test_provenance_writer_runs_the_worker_python_with_a_timeout(
+    manifest, tmp_path, monkeypatch, outcome, expected
+):
+    supervisor = make_supervisor(manifest, tmp_path, python="/worker/python")
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        if outcome == "timeout":
+            raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+        return subprocess.CompletedProcess(cmd, outcome)
+
+    monkeypatch.setattr("policybench.supervisor.subprocess.run", fake_run)
+    path = tmp_path / "provenance.json"
+
+    assert REAL_COMPUTE_PROVENANCE(supervisor, path, ["us"], {"A": "1"}) is expected
+    ((cmd, kwargs),) = calls
+    assert cmd[:2] == ["/worker/python", "-c"]
+    assert cmd[3:] == [str(path), "us"]
+    assert kwargs["env"] == {"A": "1"}
+    assert kwargs["timeout"] > 0
 
 
 def test_supervisor_counts_workers_that_recomputed_provenance(

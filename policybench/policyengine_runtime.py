@@ -439,10 +439,13 @@ def _distribution_inputs(name: str) -> dict[str, Any]:
 
 
 def policyengine_provenance_inputs() -> dict[str, Any]:
-    """Fingerprint what ``policyengine_bundles_for_countries`` depends on.
+    """Fingerprint the environment ``policyengine_bundles_for_countries`` sees.
 
     Reads package metadata, files and environment flags only; importing
-    policyengine is the cost this exists to avoid. A provenance file is
+    policyengine is the cost this exists to avoid. The PolicyEngine packages,
+    their bundled release manifests, this module and the import flags are
+    recorded directly; everything else installed (pydantic, requests, ...) is
+    pinned through the interpreter's ``sys.prefix``. A provenance file is
     reused only when its recorded fingerprint equals the reader's, so a
     worker whose environment differs from the writer's recomputes instead.
     """
@@ -466,6 +469,7 @@ def policyengine_provenance_inputs() -> dict[str, Any]:
     }
     return {
         "python_version": platform.python_version(),
+        "python_prefix": sys.prefix,
         "distributions": {
             name: _distribution_inputs(name) for name in PROVENANCE_DISTRIBUTIONS
         },

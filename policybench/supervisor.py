@@ -71,8 +71,10 @@ ADAPTIVE_WINDOW = 8
 BUDGET_STOP_FRACTION = 0.9
 TREATMENT_FINGERPRINT_VERSION = 3
 # Writes the run's PolicyEngine provenance file. It runs in a fresh
-# interpreter, so the bundles are exactly what a worker computing them itself
-# would record, and so the supervisor never imports policyengine.
+# interpreter, as each worker did, so a single-country run records what a
+# worker computing the bundles itself would, and the supervisor never imports
+# policyengine.
+PROVENANCE_WRITER_TIMEOUT_SECONDS = 3600
 PROVENANCE_WRITER = (
     "import sys\n"
     "from policybench.policyengine_runtime import write_policyengine_provenance\n"
@@ -709,10 +711,14 @@ class Supervisor:
         self, path: Path, countries: list[str], env: dict
     ) -> bool:
         """Write the provenance file from a fresh worker interpreter."""
-        result = subprocess.run(
-            [self.python, "-c", PROVENANCE_WRITER, str(path), *countries],
-            env=env,
-        )
+        try:
+            result = subprocess.run(
+                [self.python, "-c", PROVENANCE_WRITER, str(path), *countries],
+                env=env,
+                timeout=PROVENANCE_WRITER_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            return False
         return result.returncode == 0
 
     def _write_policyengine_provenance(self) -> None:
@@ -726,7 +732,15 @@ class Supervisor:
         path = (self.run_dir / POLICYENGINE_PROVENANCE_FILENAME).resolve()
         self.env.pop(POLICYENGINE_PROVENANCE_ENV, None)
         self._policyengine_bundles = None
+        # A file left by an earlier supervisor must not outlive a failed write.
+        path.unlink(missing_ok=True)
         countries = sorted(_scenario_countries(self.scenarios))
+        # Each worker computed its one scenario's country in a fresh process.
+        # Whether ``import policyengine`` is attempted, and so which branch
+        # records the US bundle, can depend on what the same process looked
+        # up first, so the handoff covers single-country runs only.
+        if len(countries) != 1:
+            return
         if not self._compute_policyengine_provenance(path, countries, dict(self.env)):
             return
         try:
