@@ -1669,6 +1669,49 @@ def _merge_repair_cells(
     return merged
 
 
+def _nonblank_explanations(explanations: dict) -> dict:
+    return {
+        variable: (
+            explanation
+            if isinstance(explanation, str) and explanation.strip()
+            else None
+        )
+        for variable, explanation in explanations.items()
+    }
+
+
+def _merge_repair_response(
+    predictions: dict[str, float | None],
+    explanations: dict[str, str | None],
+    response_predictions: dict[str, float | None],
+    response_explanations: dict[str, str | None],
+    *,
+    disagreements: list[dict],
+) -> tuple[dict[str, float | None], dict[str, str | None]]:
+    """Merge one repair response into the cells earlier responses produced.
+
+    The sync repair loop and the batch runner both merge through this, so the
+    two harnesses keep the same cells for the same responses. Each field merges
+    independently via ``_merge_repair_cells``: a present value is never replaced,
+    a missing one is filled from the response, and a missing response value
+    changes nothing. A blank explanation counts as missing, as it does in
+    ``_missing_explanations``.
+    """
+    merged_predictions = _merge_repair_cells(
+        predictions,
+        response_predictions,
+        field="prediction",
+        disagreements=disagreements,
+    )
+    merged_explanations = _merge_repair_cells(
+        _nonblank_explanations(explanations),
+        _nonblank_explanations(response_explanations),
+        field="explanation",
+        disagreements=disagreements,
+    )
+    return merged_predictions, merged_explanations
+
+
 def _enforce_explanation_value_contract(
     predictions: dict[str, float | None],
     explanations: dict[str, str | None],
@@ -2513,16 +2556,11 @@ def _request_predictions_with_budget_escalation(
             raise
 
         request_results.append(result)
-        predictions = _merge_repair_cells(
+        predictions, explanations = _merge_repair_response(
             predictions,
-            result["predictions"],
-            field="prediction",
-            disagreements=repair_disagreements,
-        )
-        explanations = _merge_repair_cells(
             explanations,
+            result["predictions"],
             result.get("explanations", {}),
-            field="explanation",
             disagreements=repair_disagreements,
         )
 
