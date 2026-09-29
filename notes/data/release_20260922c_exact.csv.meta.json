@@ -1,0 +1,13 @@
+{
+  "release": "dashboard-data-20260922c",
+  "asset": "dashboard-data.json",
+  "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260922c/dashboard-data.json",
+  "asset_sha256": "01e7e72b3a6bdd2d3178ba32625ff769d5b81dc07541af6ea8da2c852774ddcc",
+  "asset_bytes": 116100222,
+  "pointer": "app/src/data.artifact.json at 3220a7a62b6be83032e9313c9df539c619ad8932",
+  "field": "countries.us.modelStats[condition == no_tools].exact",
+  "rows": 42,
+  "output_sha256": "8ef78b32f1e5b70ec277a0ac270c88b0d54e045604357de15ff5de8a563edbc1",
+  "generated_at_utc": "2026-09-29T13:48:54.378038+00:00",
+  "script": "scripts/release_20260922c_scores.py"
+}

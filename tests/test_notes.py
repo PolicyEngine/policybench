@@ -2121,12 +2121,34 @@ ADDED_MODELS = ("claude-sonnet-5.5", "grok-4.7", "deepseek-v4.1-flash")
 SERVING_CONFIG_PATH = ROOT / "paper/snapshot/20260501/model_serving_config.json"
 UPGRADE_README = ROOT / "reference_audit/2026-09-28/README.md"
 UPGRADE_CLUSTERS = ROOT / "reference_audit/2026-09-28/clusters.json"
-# The commit that froze release dashboard-data-20260922c, and the sha256 of its
-# committed run payload as that release's manifest pinned it.
-PREVIOUS_RELEASE_COMMIT = "cb312fd775b36af644b10803c076a0d0efc79f2e"
-PREVIOUS_RUN_PAYLOAD_SHA256 = (
-    "3c5f5bbf36126ebbfceccae6ff9fa8703b05ceea47ba5eb36c8004666776790f"
+# The no-tools exact scores release dashboard-data-20260922c published, copied
+# from its release asset by scripts/release_20260922c_scores.py. The asset's
+# sha256 is the one app/src/data.artifact.json pinned at commit 3220a7a6.
+PREVIOUS_RELEASE = "dashboard-data-20260922c"
+PREVIOUS_SCORES_PATH = ROOT / "notes/data/release_20260922c_exact.csv"
+PREVIOUS_SCORES_META_PATH = PREVIOUS_SCORES_PATH.with_suffix(".csv.meta.json")
+PREVIOUS_ASSET_SHA256 = (
+    "01e7e72b3a6bdd2d3178ba32625ff769d5b81dc07541af6ea8da2c852774ddcc"
 )
+# The verification sweep on the policyengine-us release current at publication.
+PUBLICATION_CHECK_PATH = (
+    ROOT / "reference_audit/2026-09-28/verification/latest_final_2170.csv"
+)
+# policyengine-us upload times on PyPI (pypi.org/pypi/policyengine-us/json,
+# read 2026-09-29); the upgrade record states the same times.
+ENGINE_UPLOADED_UTC = {"2.15.17": "00:23", "2.17.0": "12:21"}
+ORDINALS = {
+    1: "first",
+    2: "second",
+    3: "third",
+    4: "fourth",
+    5: "fifth",
+    6: "sixth",
+    7: "seventh",
+    8: "eighth",
+    9: "ninth",
+    10: "tenth",
+}
 # The engine upgrade's scored changes, keyed by the household's state.
 UPGRADE_CHANGES = {
     "NJ": ("scenario_008", "state_refundable_credits"),
@@ -2143,6 +2165,43 @@ def _engine_upgrade() -> dict:
 
 def _board_rows() -> list[dict]:
     return [row for row in _dashboard()["modelStats"] if row["condition"] == "no_tools"]
+
+
+@cache
+def _previous_release_scores() -> dict[str, float]:
+    """Every model's exact score as release dashboard-data-20260922c published
+    it, from the committed fixture, checked against its record."""
+    import hashlib
+
+    meta = _load_json(PREVIOUS_SCORES_META_PATH)
+    assert meta["release"] == PREVIOUS_RELEASE
+    assert meta["asset_sha256"] == PREVIOUS_ASSET_SHA256
+    assert meta["pointer"].endswith("3220a7a62b6be83032e9313c9df539c619ad8932")
+    assert (
+        hashlib.sha256(PREVIOUS_SCORES_PATH.read_bytes()).hexdigest()
+        == meta["output_sha256"]
+    )
+    with PREVIOUS_SCORES_PATH.open(encoding="utf-8", newline="") as source:
+        scores = {row["model"]: float(row["exact"]) for row in csv.DictReader(source)}
+    assert len(scores) == meta["rows"]
+    return scores
+
+
+def _neighbor_swaps(
+    before: dict[str, float], after: dict[str, float]
+) -> tuple[list[str], list[str], int]:
+    """The models that move up and the neighbors they pass, when every change
+    in order is two neighbors trading places; and how many models move."""
+    old_order = sorted(before, key=lambda m: -before[m])
+    new_order = sorted(before, key=lambda m: -after[m])
+    moved = [m for m, n in zip(old_order, new_order, strict=True) if m != n]
+    swaps = []
+    for index, (old, new) in enumerate(zip(old_order, new_order, strict=True)):
+        if old != new and (not swaps or swaps[-1][1] != index - 1):
+            assert new_order[index + 1] == old
+            swaps.append((new, index))
+    assert len(moved) == 2 * len(swaps)
+    return [m for m, _ in swaps], [old_order[i] for _, i in swaps], len(moved)
 
 
 @cache
@@ -2243,6 +2302,25 @@ def _release_20260929_facts() -> dict:
         for key, change in changes.items()
         if key not in excluded and key not in scored_changes
     ]
+    # The verification sweep on the release current at publication.
+    with PUBLICATION_CHECK_PATH.open(encoding="utf-8", newline="") as source:
+        (check_engine,) = {row["engine"] for row in csv.DictReader(source)}
+    # The BBCE note's households on this release (its September 29 data
+    # files): held back by income, the Arizona household among them, and held
+    # back by savings.
+    payload = _dashboard()
+    income_held = _load_json(
+        ROOT / "notes/data/bbce_households_20260929.csv.meta.json"
+    )["households"]
+    savings_held = _load_json(
+        ROOT / "notes/data/bbce_asset_households_20260929.csv.meta.json"
+    )["households"]
+    assert UPGRADE_CHANGES["AZ"][0] in income_held
+    bbce_states = [
+        STATE_NAMES[payload["scenarios"][s]["state"]]
+        for s in income_held
+        if s != UPGRADE_CHANGES["AZ"][0]
+    ]
     new_exclusions = [change for key, change in changes.items() if key in excluded]
     assert set(scored_changes) == set(UPGRADE_CHANGES.values())
     assert all(abs(c["regenerated"] - c["previous"]) <= 1 for c in within_tolerance)
@@ -2254,23 +2332,17 @@ def _release_20260929_facts() -> dict:
             _whole_or_cents(change["regenerated"]),
         )
 
-    # The incumbents: the previous release's roster, every board model the
-    # release does not add, scored on both releases' references.
-    incumbents = sorted(set(by_model) - set(ADDED_MODELS))
-    before, after = _exact_under(True), _exact_under(False)
+    # The incumbents: the models release 20260922c published, with the scores
+    # it published, against their scores on this release's references.
+    before = _previous_release_scores()
+    incumbents = sorted(before)
+    assert set(by_model) - set(incumbents) == set(ADDED_MODELS)
+    after = {m: by_model[m]["exact"] for m in incumbents}
     drift = [after[m] - before[m] for m in incumbents]
-    old_order = sorted(incumbents, key=lambda m: -before[m])
-    new_order = sorted(incumbents, key=lambda m: -after[m])
-    moved = [m for m, n in zip(old_order, new_order, strict=True) if m != n]
-    # Every change in order is two neighbors trading places.
-    swaps = []
-    for index, (old, new) in enumerate(zip(old_order, new_order, strict=True)):
-        if old != new and (not swaps or swaps[-1][1] != index - 1):
-            assert new_order[index + 1] == old
-            swaps.append((new, index))
-    assert len(moved) == 2 * len(swaps)
-    upper = [MODEL_DISPLAY_NAMES[m] for m, _ in swaps]
-    lower = [MODEL_DISPLAY_NAMES[old_order[i]] for _, i in swaps]
+    up, passed, _ = _neighbor_swaps(before, after)
+    swaps = list(zip(up, passed, strict=True))
+    upper = [MODEL_DISPLAY_NAMES[m] for m in up]
+    lower = [MODEL_DISPLAY_NAMES[m] for m in passed]
 
     derived = {
         "nModels": len(rows),
@@ -2313,6 +2385,14 @@ def _release_20260929_facts() -> dict:
         "newExclusions": len(new_exclusions),
         "scoredOutputs": sonnet["n"],
         "totalOutputs": sum(1 for _ in open(REFERENCES_PATH)) - 1,
+        "engineUploadedUtc": ENGINE_UPLOADED_UTC[
+            upgrade["engine_version"].removeprefix("policyengine-us ")
+        ],
+        "checkEngine": check_engine,
+        "checkEngineUploadedUtc": ENGINE_UPLOADED_UTC[check_engine],
+        "bbceIncomeHeldStates": ", ".join(bbce_states[:-1]) + " and " + bbce_states[-1],
+        "bbceIncomeHeldCount": len(bbce_states),
+        "bbceAssetHeldCount": len(savings_held),
         "excluded": len(exclusions),
         "withinTolerance": len(within_tolerance),
         "rechecked": len(upgrade["excluded_outputs_rechecked"]),
@@ -2372,9 +2452,21 @@ def test_release_20260929_note() -> None:
     by_model = {row["model"]: row for row in rows}
     display = {m: MODEL_DISPLAY_NAMES[m] for m in by_model}
 
-    # The three additions are the models the previous release lacked.
-    assert set(by_model) - set(_exact_under(True)) == set()
-    assert len(set(by_model) - set(ADDED_MODELS)) == facts["incumbents"]
+    # The three additions are the models release 20260922c lacked, and it
+    # published every other board model.
+    previous = _previous_release_scores()
+    assert set(by_model) - set(previous) == set(ADDED_MODELS)
+    assert set(previous) <= set(by_model)
+    assert len(previous) == facts["incumbents"] == 42
+    # The title: Sonnet 5.5's rank as an ordinal, and the sidecar's engine.
+    engine = _engine_upgrade()["engine_version"].removeprefix("policyengine-us ")
+    ordinal = ORDINALS[facts["sonnetRank"]]
+    assert note["title"] == (
+        f"Claude Sonnet 5.5 debuts {ordinal} as the references move to "
+        f"policyengine-us {engine}"
+    )
+    assert note["slug"] == f"{note['date']}-claude-sonnet-5-5-debuts-{ordinal}"
+    assert facts["engineVersion"] == engine
     assert (
         _frozen_release()
         == note["release"]
@@ -2402,13 +2494,29 @@ def test_release_20260929_note() -> None:
         "GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 "
         "({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%).",
     )
-    before = _exact_under(True)
-    assert max(before, key=before.get) == "gpt-6-sol"
+    # "Still": release 20260922c published GPT-6 Sol first too.
+    assert max(previous, key=previous.get) == "gpt-6-sol"
 
+    # DeepSeek V4.1 Flash is priced at the standard (peak) list rate the
+    # pricing page gives, wherever in the day its requests landed.
+    from policybench.config import PRICE_OVERRIDES_PER_1M
+
+    assert PRICE_OVERRIDES_PER_1M["deepseek-v4.1-flash"] == {
+        "input": 0.30,
+        "output": 1.20,
+        "cache_read": 0.006,
+    }
+    config_source = re.sub(
+        r"\s*#\s*", " ", (ROOT / "policybench/config.py").read_text()
+    )
+    assert "The row is priced at the peak list rate whenever the run happens" in (
+        config_source
+    )
     pin(
         "Claude Sonnet 5.5 costs ${sonnetCost} a household, against ${lunaCost} "
         "for GPT-6 Luna.",
-        "DeepSeek V4.1 Flash costs ${flashCost} and Grok 4.7 ${grokCost}.",
+        "DeepSeek V4.1 Flash costs ${flashCost} at DeepSeek's standard list "
+        "price, and Grok 4.7 costs ${grokCost}.",
     )
 
     # Serving: the frozen configuration and the model cards' onboarding notes.
@@ -2448,26 +2556,49 @@ def test_release_20260929_note() -> None:
         "which put V4.1 Flash on that alias.",
     )
 
-    # The engine move, as the upgrade record states it.
-    readme = UPGRADE_README.read_text()
-    assert "the newest release on PyPI when the references were rebuilt" in readme
+    # The engine move, as the upgrade record states it, with each release's
+    # PyPI upload time, and the check on the release current at publication.
+    readme = re.sub(r"\s+", " ", UPGRADE_README.read_text())
+    check = facts["checkEngine"]
+    assert (
+        f"policyengine-us {engine}, the newest release when PolicyBench began "
+        "sweeping the references on 2026-09-29 (uploaded "
+        f"{facts['engineUploadedUtc']} UTC)"
+    ) in readme
+    assert (
+        f"policyengine-us {check}, the newest release at publication (uploaded "
+        f"2026-09-29 {facts['checkEngineUploadedUtc']} UTC), gives the same value "
+        f"for all {facts['totalOutputs']:,} outputs"
+    ) in readme
     assert "are all in 2.15.17 and need no module" in readme
     assert "The nine publication conventions" in readme
     assert facts["conventions"] == 9
     manifest = _load_json(ROOT / "paper/snapshot/20260501/manifest.json")
+    refresh = manifest["reference_output_refresh"]
+    assert refresh["policyengine_us_version"] == facts["engineVersion"]
+    # PolicyBench began sweeping on the day it rebuilt the references.
+    assert refresh["regenerated_at_utc"][:10] == "2026-09-29"
+    # The freeze the conventions hold: the references' first generation, and
+    # the date the upgrade's rule names.
+    assert refresh["generated_at_utc"][:10] == "2026-07-03"
     assert (
-        manifest["reference_output_refresh"]["policyengine_us_version"]
-        == facts["engineVersion"]
+        "law published before the 2026-07-03 reference freeze"
+        in (_engine_upgrade()["rule"])
     )
     pin(
-        "The release also moves PolicyBench's references to the newest "
-        "policyengine-us release, {engineVersion}, from {previousEngine}.",
+        "The release also moves PolicyBench's scored references from "
+        "policyengine-us {previousEngine} to {engineVersion}, the newest release "
+        "when PolicyBench began sweeping the references on 2026-09-29 (uploaded "
+        "at {engineUploadedUtc} UTC).",
         "The newer version includes the {upstreamFixed:words} upstream fixes that "
         "PolicyBench applied as sandbox fixes for the September 22 references, and "
         "it encodes law the older version lacked.",
         "PolicyBench still builds each scored reference from the stated facts and "
         "law published before it froze the references on 2026-07-03, so it ported "
         "its {conventions:words} publication conventions to the new version.",
+        "With those conventions, policyengine-us {checkEngine}, the newest release "
+        "at publication (uploaded at {checkEngineUploadedUtc} UTC the same day), "
+        "gives the same value for all {totalOutputs} outputs.",
     )
 
     # The four scored changes, each with the basis the sidecar records.
@@ -2519,6 +2650,14 @@ def test_release_20260929_note() -> None:
         if e["decided_on"] == note["date"]
     ]
     assert len(new) == facts["newExclusions"]
+    # Every rechecked output is excluded, and its value moved on the new engine.
+    excluded_keys = {
+        (e["scenario_id"], e["variable"])
+        for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
+    }
+    for record in _engine_upgrade()["excluded_outputs_rechecked"]:
+        assert (record["scenario_id"], record["variable"]) in excluded_keys
+        assert record["value_on_2_15_17"] != record["kept_value"]
     for exclusion in new:
         assert exclusion["variable"] == "federal_income_tax_before_refundable_credits"
         assert exclusion["reason_code"] == "reference_depends_on_unlisted_input"
@@ -2543,9 +2682,9 @@ def test_release_20260929_note() -> None:
 
     # The incumbents' drift: every score rises, no one matched the federal
     # outputs now excluded, and every one matched Arizona's old reference.
-    incumbents = sorted(set(by_model) - set(ADDED_MODELS))
-    after = _exact_under(False)
-    assert all(after[m] > before[m] for m in incumbents)
+    incumbents = sorted(previous)
+    after = {m: by_model[m]["exact"] for m in incumbents}
+    assert all(after[m] > previous[m] for m in incumbents)
     for exclusion in new:
         key = (exclusion["scenario_id"], exclusion["variable"])
         previous = next(
@@ -2591,12 +2730,24 @@ def test_release_20260929_note() -> None:
     assert all(arizona[m].get("prediction") == 0 for m in by_model)
     bbce = _note(BBCE_NOTE)
     assert f"/notes/{RELEASE_NOTE}" in {entry["href"] for entry in bbce["data"]}
+    # The BBCE note's households held back by income: the four of September 23
+    # and, on this release, the Arizona household.
+    assert bbce["facts"]["householdCount"] == facts["bbceIncomeHeldCount"]
+    assert bbce["facts"]["assetOnlyCount"] == facts["bbceAssetHeldCount"]
+    assert (
+        "The new references add a fifth household held back by income, an "
+        "Arizona resident."
+    ) in " ".join(bbce["paragraphs"])
     pin(
-        "The Arizona household qualifies for SNAP only through broad-based "
-        "categorical eligibility, a fifth household to do so, and all {nModels} "
-        "models answer $0 for it.",
-        "PolicyBench's September 29 update to the note on those households gives "
-        "the three new models' answers for the other four.",
+        "The Arizona household's income keeps it from qualifying for SNAP under "
+        "the program's ordinary tests, so it qualifies only through broad-based "
+        "categorical eligibility, and all {nModels} models answer $0 for it.",
+        "That makes it the fifth household held back by income in PolicyBench's "
+        "September 23 note on such households.",
+        "The note's September 29 update gives the three new models' answers for "
+        "the {bbceIncomeHeldCount:words} other households held back by income, in "
+        "{bbceIncomeHeldStates}, and for the {bbceAssetHeldCount:words} held back "
+        "by savings.",
     )
 
     # The models the prose names, and no sentence left unpinned.
@@ -2623,35 +2774,19 @@ def test_release_20260929_note() -> None:
 
 
 def test_previous_release_scores_rebuild_from_this_snapshot() -> None:
-    """The drift baseline is the previous release's own board: every model's
-    exact score, rebuilt from this snapshot with the upgrade reverted, equals
-    the score release dashboard-data-20260922c published (its frozen payload,
-    read from git history where the clone has it), and the current scores
-    rebuild to this payload's."""
-    import hashlib
-    import subprocess
-
+    """The drift baseline is the previous release's own board. Every model's
+    exact score, rebuilt from this snapshot's predictions with the upgrade
+    reverted, equals the score release dashboard-data-20260922c published (the
+    committed fixture of its asset's scores); the current scores rebuild to this
+    payload's. So the note's drift is the reference change alone."""
     after = _exact_under(False)
     for row in _board_rows():
         assert after[row["model"]] == pytest.approx(row["exact"], abs=1e-9)
-    path = RUN_DIR.relative_to(ROOT) / "data.json.gz"
-    try:
-        blob = subprocess.run(
-            ["git", "show", f"{PREVIOUS_RELEASE_COMMIT}:{path.as_posix()}"],
-            cwd=ROOT,
-            capture_output=True,
-            check=True,
-        ).stdout
-    except (OSError, subprocess.CalledProcessError):
-        pytest.skip("the previous release's payload is not in this clone's history")
-    assert hashlib.sha256(blob).hexdigest() == PREVIOUS_RUN_PAYLOAD_SHA256
-    previous = json.loads(gzip.decompress(blob))
-    previous = previous.get("countries", {}).get("us", previous)
     before = _exact_under(True)
-    stats = [row for row in previous["modelStats"] if row["condition"] == "no_tools"]
-    assert {row["model"] for row in stats} == set(before) - set(ADDED_MODELS)
-    for row in stats:
-        assert before[row["model"]] == pytest.approx(row["exact"], abs=1e-9)
+    previous = _previous_release_scores()
+    assert set(previous) == set(before) - set(ADDED_MODELS)
+    for model, exact in previous.items():
+        assert before[model] == pytest.approx(exact, abs=1e-9), model
 
 
 BBCE_UPDATE_RELEASE = "dashboard-data-20260929"
@@ -2808,7 +2943,7 @@ def test_bbce_note_update_for_release_20260929() -> None:
     pin(
         "PolicyBench updated this note on September 29 for release "
         "dashboard-data-20260929, which adds Claude Sonnet 5.5, Grok 4.7 and "
-        "DeepSeek V4.1 Flash and moves the references to policyengine-us "
+        "DeepSeek V4.1 Flash and moves the scored references to policyengine-us "
         "{updateEngineVersion}.",
         "The {householdCount:words} households' references stay at "
         "${referenceAmount}, and none of the three new models gets any of them "
