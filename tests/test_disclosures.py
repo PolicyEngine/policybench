@@ -122,6 +122,21 @@ def _pdf_text() -> str:
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
+def _pdf_running_text() -> str:
+    """The PDF's text with the page-number lines at page breaks removed, so a
+    sentence that crosses a page reads as one sentence."""
+    pages = _pdf_text().split("\f")
+    kept = []
+    for page in pages:
+        lines = page.splitlines()
+        while lines and (not lines[-1].strip() or lines[-1].strip().isdigit()):
+            lines.pop()
+        while lines and (not lines[0].strip() or lines[0].strip().isdigit()):
+            lines.pop(0)
+        kept.append("\n".join(lines))
+    return "\n".join(kept)
+
+
 def _serving_rows() -> list[dict]:
     payload = json.loads(SERVING_CONFIG.read_text())
     rows = payload if isinstance(payload, list) else payload.get("models", payload)
@@ -600,9 +615,22 @@ def test_paper_abstract_scopes_the_exclusions_to_what_the_audits_found():
     parser.feed(PAPER_HTML.read_text())
     for text in (
         _straight_quotes(re.sub(r"\s+", " ", " ".join(parser.parts))),
-        _straight_quotes(re.sub(r"\s+", " ", _pdf_text())),
+        _straight_quotes(re.sub(r"\s+", " ", _pdf_running_text())),
     ):
         assert sentence in text
+
+
+def test_pdf_running_text_joins_a_sentence_across_a_page_break(monkeypatch):
+    import sys
+
+    module = sys.modules[__name__]
+    monkeypatch.setattr(
+        module, "_pdf_text", lambda: "the 28 outputs whose\n\n2\n\f3\nreferences rest"
+    )
+    assert (
+        re.sub(r"\s+", " ", _pdf_running_text())
+        == "the 28 outputs whose references rest"
+    )
 
 
 def test_paper_takes_its_engine_times_from_the_timing_record():
