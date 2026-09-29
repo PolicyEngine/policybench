@@ -64,6 +64,12 @@ FALSE_CLAIMS = (
 )
 
 PAPER_FALSE_CLAIM_PATTERNS = (
+    # Exclusion covers what the audits found, not every defect or unstated
+    # input: an output a fix or reading not run on the reference engine would
+    # move can still be scored (the paper's limitations say so).
+    r"every\s+output\s+whose\s+reference\s+rests\s+on",
+    r"every\s+output\s+whose\s+reference\s+depends\s+on",
+    r"re-ran\s+five",
     r"single\s+structured\s+response",
     r"one\s+response\s+per\s+household",
     r"one\s+structured\s+response",
@@ -367,13 +373,17 @@ FORCED_TOOL_OVERCLAIMS = (
 @pytest.mark.parametrize("path", [LEADERBOARD, SENSITIVITY_NOTE])
 def test_forced_tool_claims_are_qualified_by_contract(path):
     """Forcing applies to rows on the tool contract, not to every provider that
-    accepts a forced tool: older Gemini and DeepSeek rows select JSON by family."""
+    accepts a forced tool: the older Gemini rows take JSON from their family
+    default, and some cards select JSON without recording a rejection."""
     text = re.sub(r"\s+", " ", path.read_text())
     for pattern in FORCED_TOOL_OVERCLAIMS:
         assert re.search(pattern, text, re.IGNORECASE) is None, (
             f"{path.name} still matches {pattern!r}"
         )
-    assert re.search(r"selects? (the tool contract|JSON)", text) is not None, path.name
+    assert (
+        re.search(r"(selects? (the tool contract|JSON)|on the tool contract)", text)
+        is not None
+    ), path.name
 
 
 def test_benchmark_card_snapshot_scope_matches_scenario_metadata():
@@ -432,13 +442,18 @@ def test_paper_serving_table_publishes_the_transport_per_model():
 
 
 def test_json_transport_copy_names_both_reasons():
-    """JSON rows exist for two reasons — a provider that rejects a forced tool,
-    and a model card that selects JSON for a family — and the copy must not
-    attribute all of them to provider capability."""
-    for path in (METHODOLOGY, BENCHMARK_CARD):
+    """JSON rows exist for two reasons -- a provider that rejects a forced
+    tool, and a model card or its family default that selects JSON -- and the
+    copy must not attribute all of them to provider capability, nor attribute
+    the DeepSeek rows to a family choice: DeepSeek V4.1 Flash's card records
+    the rejection (and says the same of the V4 rows), and the family default
+    now reaches only the older Gemini rows."""
+    for path in (METHODOLOGY, BENCHMARK_CARD, SENSITIVITY_NOTE):
         text = re.sub(r"\s+", " ", path.read_text())
         assert "rejects a forced tool" in text, path.name
         assert "selects JSON" in text, path.name
+        assert re.search(r"Gemini and DeepSeek", text) is None, path.name
+        assert re.search(r"DeepSeek[^.]{0,40}famil", text) is None, path.name
 
 
 def test_paper_source_and_rendered_html_make_no_false_request_claims():
@@ -556,6 +571,57 @@ def test_rendered_pdf_prints_dollar_amounts_without_escapes():
     assert COST_SENTENCE.search(text), "cost sentence missing or escaped"
 
 
+def _paper_engine_times() -> tuple[str, str]:
+    """The paper's engine sentences, as the timing record dates them."""
+    timing = json.loads(
+        (ROOT / "reference_audit/2026-09-28/verification/sweep_timing.json").read_text()
+    )
+    uploaded = timing["pypi"]["wheel_uploaded_at_utc"][r.policyengine_us_version]
+    read_at = timing["pypi"]["read_at_utc"]
+    return (
+        "the newest release when it began sweeping the references that day "
+        f"(uploaded {uploaded[11:16]} UTC)",
+        f"policyengine-us {timing['pypi']['newest_at_read']}, the newest release "
+        f"when PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC, "
+        f"gives the same value as {r.policyengine_us_version}",
+    )
+
+
+def test_paper_abstract_scopes_the_exclusions_to_what_the_audits_found():
+    counts = (r.engine_defect_exclusion_count, r.unlisted_input_exclusion_count)
+    assert sum(counts) == r.excluded_output_count
+    sentence = (
+        "PolicyBench excludes from scoring, for every model, the "
+        f"{counts[0]} outputs whose references rest on engine defects the audits "
+        f"found and upstream has not fixed, and the {counts[1]} whose references "
+        "depend on an input the prompt does not state."
+    )
+    parser = _VisibleTextParser()
+    parser.feed(PAPER_HTML.read_text())
+    for text in (
+        _straight_quotes(re.sub(r"\s+", " ", " ".join(parser.parts))),
+        _straight_quotes(re.sub(r"\s+", " ", _pdf_text())),
+    ):
+        assert sentence in text
+
+
+def test_paper_takes_its_engine_times_from_the_timing_record():
+    """The paper renders both clock times from sweep_timing.json through
+    paper_results; its source hard-codes none."""
+    source = PAPER.read_text()
+    assert re.search(r"\d\d:\d\d UTC", source) is None
+    assert "r.reference_engine_uploaded_utc" in source
+    assert "r.publication_check_pypi_read_utc" in source
+    parser = _VisibleTextParser()
+    parser.feed(PAPER_HTML.read_text())
+    for text in (
+        _straight_quotes(re.sub(r"\s+", " ", " ".join(parser.parts))),
+        _straight_quotes(re.sub(r"\s+", " ", _pdf_text())),
+    ):
+        for sentence in _paper_engine_times():
+            assert sentence in text, sentence
+
+
 def test_live_version_description_states_the_reference_engines():
     """The dataset selector's one-line description of the live board names the
     engine behind each scored reference and the engines behind the excluded
@@ -591,15 +657,20 @@ def test_live_version_description_states_the_reference_engines():
 def test_newest_engine_claims_are_anchored_to_a_time():
     """policyengine-us releases often, so "newest" holds only at a stated time:
     2.15.17 when PolicyBench began sweeping the references (2026-09-29), 2.17.0
-    at publication. The upgrade record states the standing rule the same way:
-    the newest release when PolicyBench begins the reference sweep, checked
-    against the newest release at publication."""
+    when PolicyBench checked PyPI later that day. The upgrade record states the
+    standing rule the same way: the newest release when PolicyBench begins the
+    reference sweep, checked before publishing against the newest release on
+    PyPI, with the time recorded. No surface claims what is newest "at
+    publication", which a later release could make stale."""
     anchored = (
         "newest release when PolicyBench began sweeping",
         "newest release when it began sweeping",
-        "newest release at publication",
+        "newest release when PolicyBench checked PyPI on",
         "newest policyengine-us release when PolicyBench begins the",
-        "PolicyBench checks that the newest release gives the same values",
+        "PolicyBench checks that the newest release on PyPI gives the same "
+        "values, and records when it checked",
+        "PolicyBench read PyPI on 2026-09-29 at 14:58 UTC, when policyengine-us "
+        "2.17.0 was the newest release",
     )
     surfaces = (
         BENCHMARK_CARD,
@@ -615,8 +686,9 @@ def test_newest_engine_claims_are_anchored_to_a_time():
     )
     for path in surfaces:
         text = re.sub(r"\s+", " ", path.read_text())
+        assert "at publication" not in text, path.name
         for match in re.finditer(r"newest", text):
-            window = text[max(0, match.start() - 60) : match.end() + 60]
+            window = text[max(0, match.start() - 100) : match.end() + 80]
             assert any(phrase in window for phrase in anchored), (path.name, window)
 
 
@@ -655,11 +727,29 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
         f"{by_engine[engine]} with {engine}), and PolicyBench re-reviewed the "
         f"{len(upgrade['excluded_outputs_rechecked'])} of them that move on {engine}"
     ) in card
+    # The card's two times are the timing record's: the reference engine's
+    # PyPI upload, and when PolicyBench read PyPI for the check.
+    timing = json.loads(
+        (ROOT / "reference_audit/2026-09-28/verification/sweep_timing.json").read_text()
+    )
+    uploaded = timing["pypi"]["wheel_uploaded_at_utc"][engine]
+    read_at = timing["pypi"]["read_at_utc"]
+    assert timing["pypi"]["newest_at_read"] == check
     assert (
-        f"policyengine-us {check}, the newest release at publication (uploaded "
-        f"2026-09-29 12:21 UTC), gives the same value as {engine} for all "
-        f"{len(rows):,} outputs under the same conventions and adapter."
+        "the newest release when PolicyBench began sweeping the references on "
+        f"{timing['reference_sweep']['first_output_at_utc'][:10]} (uploaded "
+        f"{uploaded[11:16]} UTC)."
     ) in card
+    assert (
+        f"policyengine-us {check}, the newest release when PolicyBench checked "
+        f"PyPI on {read_at[:10]} at {read_at[11:16]} UTC, gives the same value as "
+        f"{engine} for all {len(rows):,} outputs under the same conventions and "
+        "adapter."
+    ) in card
+    # No other clock time appears in the card.
+    assert sorted(set(re.findall(r"\b\d\d:\d\d UTC", card))) == sorted(
+        {f"{uploaded[11:16]} UTC", f"{read_at[11:16]} UTC"}
+    )
 
 
 def _app_model_labels() -> dict[str, str]:
@@ -722,6 +812,16 @@ def test_json_transport_rows_are_attributed_as_their_cards_record():
     )
     methodology = re.sub(r"\s+", " ", METHODOLOGY.read_text())
     assert (
-        "a JSON object where the card selects JSON, for most such rows because "
-        "the provider rejects a forced tool call."
+        "a JSON object where the model card or its family default selects JSON, "
+        "for most such rows because the provider rejects a forced tool call."
     ) in methodology
+
+    # The sensitivity note attributes the same rows the same way.
+    note = re.sub(r"\s+", " ", SENSITIVITY_NOTE.read_text())
+    start = note.index("For most of them the card records that the provider")
+    note_choice = note[note.index("the cards of", start) :]
+    note_choice = note_choice[: note_choice.index("family default.")]
+    for model in card_choice:
+        assert names(model, note_choice), model
+    assert "older Gemini rows" in note_choice
+    assert sorted(m for m in serving if names(m, note_choice)) == sorted(card_choice)

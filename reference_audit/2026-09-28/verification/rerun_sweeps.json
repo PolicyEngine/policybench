@@ -1,0 +1,303 @@
+{
+  "note": "What each sweep PolicyBench ran on policyengine-us 2.15.17 for an exclusion's fix or reading moves, written by scripts/summarize_rerun_sweeps.py from the sweeps' CSVs in triage/sweep/out (sweep_latest.py output; each csv_sha256 is the file read). A sweep adds its fix or reading to its baseline sweep. 'moves' lists every output whose recomputed value differs, by any amount, from the baseline's or from latest_conventions'. Every other output of the 1,984 has the same value in the sweep, its baseline and latest_conventions.",
+  "engine": "2.15.17",
+  "baselines": {
+    "latest_conventions": {
+      "csv": "latest_conventions.csv",
+      "csv_sha256": "af37fd3e94b9953c7c31b5fc0fc8621c841af266f21c95efedbb2d51072a740b",
+      "module": "fixes/latest_conventions.py",
+      "module_sha256": "4155ed4a0be72c907815b33e2b3603cf0b5ea3eca351ad7509f8bd9ea5bb8ddb"
+    },
+    "latest_map_stated_hours": {
+      "csv": "latest_map_stated_hours.csv",
+      "csv_sha256": "edfd8b4562beadcdd21df09ab41e4573e91a1eaf4750daaf34d7bdb6c35fa098",
+      "module": "fixes/latest_map_stated_hours.py",
+      "module_sha256": "b210e780a31cfa0a3a0da2c49a8068ee14f00029b3ed39c00be67a1e917eda21",
+      "differs_from_latest_conventions": [
+        {
+          "scenario_id": "scenario_066",
+          "variable": "snap",
+          "latest_conventions": 0.0,
+          "latest_map_stated_hours": 3576.0
+        }
+      ]
+    }
+  },
+  "sweeps": [
+    {
+      "sweep": "latest_alt_r02_ira_219g",
+      "csv": "latest_alt_r02_ira_219g.csv",
+      "module": "fixes/latest_alt_r02_ira_219g.py",
+      "adds": "the IRA deduction limit fix (IRC 219(g) active-participant phase-out; reference_audit/2026-09-22/fixes/r02_ira_219g_v2.py)",
+      "september_22_root_cause": "r02_ira_219g",
+      "baseline": "latest_conventions",
+      "csv_sha256": "16ac691fcfc530206540bfda10b4865707ba390d86524bda0f3ec69e9a9b87ab",
+      "module_sha256": "3e71bab1db867988544e6f87f6dda4dc7c719d51320fbbb7558cd574a0374f6e",
+      "outputs": 1984,
+      "moves": [
+        {
+          "scenario_id": "scenario_005",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 107833.15625,
+          "latest_conventions": 107833.15625,
+          "recomputed": 108525.578125
+        },
+        {
+          "scenario_id": "scenario_005",
+          "variable": "state_income_tax_before_refundable_credits",
+          "baseline": 41267.01171875,
+          "latest_conventions": 41267.01171875,
+          "recomputed": 41492.3203125
+        },
+        {
+          "scenario_id": "scenario_049",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 30543.908203125,
+          "latest_conventions": 30543.908203125,
+          "recomputed": 30702.58984375
+        },
+        {
+          "scenario_id": "scenario_052",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 104211.40625,
+          "latest_conventions": 104211.40625,
+          "recomputed": 104225.2578125
+        },
+        {
+          "scenario_id": "scenario_082",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 9577.90234375,
+          "latest_conventions": 9577.90234375,
+          "recomputed": 9579.767578125
+        },
+        {
+          "scenario_id": "scenario_082",
+          "variable": "state_income_tax_before_refundable_credits",
+          "baseline": 5598.55224609375,
+          "latest_conventions": 5598.55224609375,
+          "recomputed": 5599.1435546875
+        },
+        {
+          "scenario_id": "scenario_099",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 10679.75,
+          "latest_conventions": 10679.75,
+          "recomputed": 10711.484375
+        },
+        {
+          "scenario_id": "scenario_099",
+          "variable": "state_income_tax_before_refundable_credits",
+          "baseline": 4640.77734375,
+          "latest_conventions": 4640.77734375,
+          "recomputed": 4652.375
+        },
+        {
+          "scenario_id": "scenario_110",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 23897.443359375,
+          "latest_conventions": 23897.443359375,
+          "recomputed": 23941.08203125
+        },
+        {
+          "scenario_id": "scenario_110",
+          "variable": "state_income_tax_before_refundable_credits",
+          "baseline": 4057.47216796875,
+          "latest_conventions": 4057.47216796875,
+          "recomputed": 4062.927001953125
+        },
+        {
+          "scenario_id": "scenario_120",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 40416.66796875,
+          "latest_conventions": 40416.66796875,
+          "recomputed": 40423.17578125
+        },
+        {
+          "scenario_id": "scenario_120",
+          "variable": "state_income_tax_before_refundable_credits",
+          "baseline": 11917.18359375,
+          "latest_conventions": 11917.18359375,
+          "recomputed": 11919.0576171875
+        }
+      ]
+    },
+    {
+      "sweep": "latest_conventions_plus_r25_niit_excluded",
+      "csv": "latest_conventions_r25_niit_excluded.csv",
+      "module": "fixes/alt_conventions_r25.py",
+      "adds": "the reading of federal income tax before refundable credits without the net investment income tax (reference_audit/2026-09-22/fixes/r25_niit_excluded.py)",
+      "september_22_root_cause": "r25_niit_in_federal_output",
+      "baseline": "latest_conventions",
+      "csv_sha256": "3ca822db83d0abdab90f7e6ce151b5f53168163bd39a79469ceb987da2eda455",
+      "module_sha256": "0f77fdd44e758581f7e563b0f7b70c4d4359a833b08a4ac45a614c380938775e",
+      "outputs": 1984,
+      "moves": [
+        {
+          "scenario_id": "scenario_005",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 107833.15625,
+          "latest_conventions": 107833.15625,
+          "recomputed": 102111.1796875
+        },
+        {
+          "scenario_id": "scenario_020",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 68334.734375,
+          "latest_conventions": 68334.734375,
+          "recomputed": 68112.09375
+        },
+        {
+          "scenario_id": "scenario_052",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 104211.40625,
+          "latest_conventions": 104211.40625,
+          "recomputed": 103992.984375
+        },
+        {
+          "scenario_id": "scenario_120",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 40416.66796875,
+          "latest_conventions": 40416.66796875,
+          "recomputed": 40253.26953125
+        }
+      ]
+    },
+    {
+      "sweep": "latest_alt_snap_mortgage_residence",
+      "csv": "latest_alt_snap_mortgage_residence.csv",
+      "module": "fixes/latest_alt_snap_mortgage_residence.py",
+      "adds": "the reading that listed mortgage interest is on the occupied home, a SNAP shelter cost",
+      "september_22_root_cause": "r15_snap_mortgage_interest",
+      "baseline": "latest_conventions",
+      "csv_sha256": "3dea0be87a30b52d8e693fe8bf45fd2339979ec2f340ac342ee7f416eb7114ac",
+      "module_sha256": "00cd13886a8c3d03c4e84944d35f7e8a1448af26838e8bc0761b914b887c70cd",
+      "outputs": 1984,
+      "moves": [
+        {
+          "scenario_id": "scenario_056",
+          "variable": "snap",
+          "baseline": 95.0,
+          "latest_conventions": 95.0,
+          "recomputed": 159.0
+        },
+        {
+          "scenario_id": "scenario_118",
+          "variable": "snap",
+          "baseline": 2868.0,
+          "latest_conventions": 2868.0,
+          "recomputed": 3576.0
+        }
+      ]
+    },
+    {
+      "sweep": "latest_alt_unlisted_hours_40",
+      "csv": "latest_alt_unlisted_hours_40.csv",
+      "module": "fixes/latest_alt_unlisted_hours_40.py",
+      "adds": "the reading that a person with no stated weekly hours works 40",
+      "september_22_root_cause": "r14_unlisted_weekly_hours_v2",
+      "baseline": "latest_map_stated_hours",
+      "csv_sha256": "466a20e7b3281606b2a9c845b37e05ad6201b295a00e6a7a3f4da6440f47c01e",
+      "module_sha256": "5e6538a903112243ad85051ccba26b6133bdfbd5b9e5ba3dfa81ba690c061b32",
+      "outputs": 1984,
+      "moves": [
+        {
+          "scenario_id": "scenario_056",
+          "variable": "snap",
+          "baseline": 95.0,
+          "latest_conventions": 95.0,
+          "recomputed": 1140.0
+        },
+        {
+          "scenario_id": "scenario_066",
+          "variable": "snap",
+          "baseline": 3576.0,
+          "latest_conventions": 0.0,
+          "recomputed": 3576.0
+        },
+        {
+          "scenario_id": "scenario_112",
+          "variable": "snap",
+          "baseline": 0.0,
+          "latest_conventions": 0.0,
+          "recomputed": 288.0
+        }
+      ]
+    },
+    {
+      "sweep": "latest_alt_salt_refund_no_prior_benefit",
+      "csv": "latest_alt_salt_refund_no_prior_benefit.csv",
+      "module": "fixes/latest_alt_salt_refund_no_prior_benefit.py",
+      "adds": "the reading that a listed state and local tax refund is not income (26 U.S.C. 111(a)); new on 2.15.17",
+      "september_22_root_cause": null,
+      "baseline": "latest_conventions",
+      "csv_sha256": "a9e21a71d942fd4da9dea1e7fd741b8306235a676150949b4113afe0dfa8db11",
+      "module_sha256": "d8a314093466caf5fe0a226f1060acba2e4364c4b87befbd80639ebf41cc4a2c",
+      "outputs": 1984,
+      "moves": [
+        {
+          "scenario_id": "scenario_005",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 107833.15625,
+          "latest_conventions": 107833.15625,
+          "recomputed": 106505.8984375
+        },
+        {
+          "scenario_id": "scenario_005",
+          "variable": "state_income_tax_before_refundable_credits",
+          "baseline": 41267.01171875,
+          "latest_conventions": 41267.01171875,
+          "recomputed": 41219.8671875
+        },
+        {
+          "scenario_id": "scenario_033",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 3818.148193359375,
+          "latest_conventions": 3818.148193359375,
+          "recomputed": 3788.988037109375
+        },
+        {
+          "scenario_id": "scenario_078",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 24164.45703125,
+          "latest_conventions": 24164.45703125,
+          "recomputed": 23772.80078125
+        },
+        {
+          "scenario_id": "scenario_078",
+          "variable": "state_income_tax_before_refundable_credits",
+          "baseline": 11295.388671875,
+          "latest_conventions": 11295.388671875,
+          "recomputed": 11294.5380859375
+        },
+        {
+          "scenario_id": "scenario_082",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 9577.90234375,
+          "latest_conventions": 9577.90234375,
+          "recomputed": 9563.052734375
+        },
+        {
+          "scenario_id": "scenario_117",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 24961.33984375,
+          "latest_conventions": 24961.33984375,
+          "recomputed": 24391.796875
+        },
+        {
+          "scenario_id": "scenario_117",
+          "variable": "state_income_tax_before_refundable_credits",
+          "baseline": 7984.53369140625,
+          "latest_conventions": 7984.53369140625,
+          "recomputed": 7984.05419921875
+        },
+        {
+          "scenario_id": "scenario_120",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "baseline": 40416.66796875,
+          "latest_conventions": 40416.66796875,
+          "recomputed": 40021.81640625
+        }
+      ]
+    }
+  ]
+}

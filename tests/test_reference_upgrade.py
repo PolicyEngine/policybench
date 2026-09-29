@@ -2,11 +2,12 @@
 
 References come from the newest policyengine-us release when PolicyBench begins
 the reference sweep, with the conventions that hold law published before the
-2026-07-03 freeze re-expressed for it (Max's ruling, 2026-09-28); at publication
-PolicyBench checks that the newest release gives the same values. PolicyBench
-began sweeping the references on policyengine-us 2.15.17 at 01:42 UTC on
-2026-09-29, built them at 11:57 UTC and rebuilt them (record text only) later
-that day, and checked them on 2.17.0, the release current at publication.
+2026-07-03 freeze re-expressed for it (Max's ruling, 2026-09-28); before
+publishing, PolicyBench checks that the newest release on PyPI gives the same
+values and records when it checked. PolicyBench began sweeping the references
+on policyengine-us 2.15.17 at 01:42 UTC on 2026-09-29, built them at 11:57 UTC
+and rebuilt them (record text only) later that day, and checked them on 2.17.0,
+the newest release when it read PyPI at 14:58 UTC that day.
 reference_audit/2026-09-28 records the modules, the per-output sweeps, and each
 root-cause cluster's investigation and independent review. Its directory name
 is the US Eastern date the wave began; the records date the upgrade by its UTC
@@ -32,7 +33,8 @@ RUN_DIR = (
     / "us_full_run_20260612_policyengine_4_16_1_populace"
 )
 ENGINE = "2.15.17"
-# The release current at publication, and its sweep under the same fix module.
+# The newest release when PolicyBench checked PyPI before publishing, and its
+# sweep under the same fix module.
 VERIFICATION_ENGINE = "2.17.0"
 VERIFICATION_CSV = AUDIT / "verification" / "latest_final_2170.csv"
 VERIFICATION_LOG = AUDIT / "verification" / "latest_final_2170.log"
@@ -266,16 +268,28 @@ def test_the_records_date_the_upgrade_by_its_utc_day():
 
 
 def test_the_engine_rule_is_anchored_to_the_sweep():
-    """Lead's ruling on the wording: "newest" holds at a stated time."""
-    rule = (
+    """Lead's rulings on the wording: "newest" holds at a stated time, and the
+    publication check says when it ran rather than claiming what is newest at
+    publication. The sidecar's revision keeps the rule as it was written on
+    2026-09-29."""
+    sweep_rule = (
         "References come from the newest policyengine-us release when PolicyBench "
-        "begins the reference sweep; at publication PolicyBench checks that the "
-        "newest release gives the same values."
+        "begins the reference sweep"
     )
-    assert rule in _upgrade()["rule"]
+    assert sweep_rule in _upgrade()["rule"]
     assert "Max's ruling, 2026-09-28" in _upgrade()["rule"]
     readme = " ".join((AUDIT / "README.md").read_text().split())
-    assert "1. " + rule in readme
+    assert (
+        f"1. {sweep_rule}. Before publishing, PolicyBench checks that the newest "
+        "release on PyPI gives the same values, and records when it checked "
+        "(step 6 of the method)."
+    ) in readme
+    read_at = _load(AUDIT / "verification" / "sweep_timing.json")["pypi"]["read_at_utc"]
+    assert (
+        f"6. **Verify.** Before publishing, PolicyBench read PyPI on {read_at[:10]} "
+        f"at {read_at[11:16]} UTC, when policyengine-us {VERIFICATION_ENGINE} was "
+        "the newest release"
+    ) in readme
 
 
 def test_the_sweep_began_while_the_reference_engine_was_the_newest_release():
@@ -311,9 +325,10 @@ def test_the_sweep_began_while_the_reference_engine_was_the_newest_release():
     readme = " ".join((AUDIT / "README.md").read_text().split())
     assert f"rebuilt them at {rebuilt[11:16]} UTC" in readme
     assert f"(uploaded {uploaded[ENGINE][11:16]} UTC)" in readme
+    read_at = timing["pypi"]["read_at_utc"]
     assert (
-        f"(uploaded {uploaded[VERIFICATION_ENGINE][:10]} "
-        f"{uploaded[VERIFICATION_ENGINE][11:16]} UTC)"
+        f"policyengine-us {VERIFICATION_ENGINE}, the newest release when "
+        f"PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC"
     ) in readme
     assert f"began at {sweep['first_output_at_utc'][11:16]} UTC" in readme
 
@@ -339,3 +354,138 @@ def test_the_pin_commit_time_in_the_timing_record_is_gits():
     utc = datetime.datetime.fromisoformat(when).astimezone(datetime.timezone.utc)
     assert utc.strftime("%Y-%m-%dT%H:%M:%SZ") == pin["committed_at_utc"]
     assert subject == pin["subject"]
+
+
+RERUN_SWEEPS = AUDIT / "verification" / "rerun_sweeps.json"
+
+
+def _moves_beyond_tolerance(variable: str, before: float, after: float) -> bool:
+    if variable.endswith("_eligible"):
+        return round(after) != round(before)
+    return abs(after - before) > 1.0
+
+
+def test_the_rerun_sweeps_move_no_scored_output_beyond_the_tolerance():
+    """verification/rerun_sweeps.json lists every output each exclusion sweep
+    re-run on 2.15.17 moves. Set against the same calculation without its fix
+    or reading (its baseline), no sweep moves a scored output by more than the
+    $1 exact-match tolerance, and three scored state income tax outputs move by
+    less. Against the conventions sweep alone, the 40-hour sweep also moves
+    scenario_066's SNAP; the stated-hours alias, which the references apply,
+    gives it the same value. Four sweeps are the September 22 audit's, and one
+    (the state and local tax refund reading) is new."""
+    summary = _load(RERUN_SWEEPS)
+    sweep = _sweep()
+    references = _references()
+    exclusions = _exclusions()
+    assert summary["engine"] == ENGINE
+
+    # The modules the summary names are the committed ones, and the baselines'
+    # values are the committed sweep's.
+    for entry in (*summary["baselines"].values(), *summary["sweeps"]):
+        module = AUDIT / entry["module"]
+        assert (
+            hashlib.sha256(module.read_bytes()).hexdigest() == (entry["module_sha256"])
+        ), entry["module"]
+    alias = summary["baselines"]["latest_map_stated_hours"]
+    (only,) = alias["differs_from_latest_conventions"]
+    alias_key = (only["scenario_id"], only["variable"])
+    assert alias_key == ("scenario_066", "snap")
+    assert only["latest_map_stated_hours"] == references[alias_key]
+    assert float(sweep[alias_key]["conventions"]) == only["latest_conventions"]
+
+    root_causes = _load(ROOT / "reference_audit" / "2026-09-22" / "root_causes.json")
+    september_22 = [s for s in summary["sweeps"] if s["september_22_root_cause"]]
+    new = [s for s in summary["sweeps"] if not s["september_22_root_cause"]]
+    assert len(september_22) == 4 and len(new) == 1
+    assert new[0]["sweep"] == "latest_alt_salt_refund_no_prior_benefit"
+    for entry in september_22:
+        assert entry["september_22_root_cause"] in root_causes
+
+    beyond_own, within_own, beyond_conventions = [], [], []
+    for entry in summary["sweeps"]:
+        assert entry["outputs"] == 1984
+        assert entry["baseline"] in summary["baselines"]
+        for move in entry["moves"]:
+            key = (move["scenario_id"], move["variable"])
+            assert abs(
+                float(sweep[key]["conventions"]) - move["latest_conventions"]
+            ) < (1e-6), key
+            if entry["baseline"] == "latest_conventions":
+                assert move["baseline"] == move["latest_conventions"], key
+            elif key != alias_key:
+                assert move["baseline"] == move["latest_conventions"], key
+            if key in exclusions:
+                continue
+            label = (entry["sweep"], *key)
+            if _moves_beyond_tolerance(key[1], move["baseline"], move["recomputed"]):
+                beyond_own.append(label)
+            elif move["recomputed"] != move["baseline"]:
+                within_own.append(label)
+            if _moves_beyond_tolerance(
+                key[1], move["latest_conventions"], move["recomputed"]
+            ):
+                beyond_conventions.append(label)
+    assert beyond_own == []
+    assert sorted(within_own) == [
+        (
+            "latest_alt_r02_ira_219g",
+            "scenario_082",
+            "state_income_tax_before_refundable_credits",
+        ),
+        (
+            "latest_alt_salt_refund_no_prior_benefit",
+            "scenario_078",
+            "state_income_tax_before_refundable_credits",
+        ),
+        (
+            "latest_alt_salt_refund_no_prior_benefit",
+            "scenario_117",
+            "state_income_tax_before_refundable_credits",
+        ),
+    ]
+    assert beyond_conventions == [("latest_alt_unlisted_hours_40", *alias_key)]
+
+    # The README, the card and the paper state the same counts.
+    words = {1: "one", 3: "three", 4: "four"}
+    readme = " ".join((AUDIT / "README.md").read_text().split())
+    assert (
+        f"On {ENGINE}, PolicyBench re-ran {words[len(september_22)]} of the "
+        "September 22 sweeps over every output"
+    ) in readme
+    assert (
+        "Against those baselines, no sweep moves a scored output by more than the "
+        f"$1 exact-match tolerance. {words[len(within_own)].capitalize()} scored "
+        "state income tax outputs move by less"
+    ) in readme
+    card = " ".join((ROOT / "docs" / "benchmark_card.md").read_text().split())
+    assert (
+        f"On policyengine-us {ENGINE}, PolicyBench re-ran "
+        f"{words[len(september_22)]} of the September 22 sweeps"
+    ) in card
+    assert (
+        f"Set against the same {ENGINE} calculation without its fix or reading, "
+        "no sweep moves a scored output by more than the $1 exact-match "
+        f"tolerance, and {words[len(within_own)]} scored outputs move by less."
+    ) in card
+    for text in (readme, card):
+        assert "re-ran five" not in text
+        assert "move no scored output except" not in text
+
+
+def test_paper_results_count_the_rerun_sweeps_the_same_way():
+    """Differential check: paper_results' partition of the re-run sweeps'
+    moves, which renders the paper's sentence, agrees with the test above."""
+    from policybench.paper_results import r
+
+    assert r.rerun_sweep_september_22_count == 4
+    assert r.rerun_sweep_new_count == 1
+    assert r.rerun_sweep_scored_beyond_tolerance_count == 0
+    assert r.rerun_sweep_scored_within_tolerance_count == 3
+    # The paper's two clock times come from the timing record.
+    timing = _load(AUDIT / "verification" / "sweep_timing.json")["pypi"]
+    uploaded = timing["wheel_uploaded_at_utc"][ENGINE]
+    assert r.reference_engine_uploaded_utc == uploaded[11:16]
+    assert r.publication_check_pypi_read_date == timing["read_at_utc"][:10]
+    assert r.publication_check_pypi_read_utc == timing["read_at_utc"][11:16]
+    assert r.publication_check_policyengine_us_version == timing["newest_at_read"]

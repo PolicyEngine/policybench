@@ -2130,19 +2130,25 @@ PREVIOUS_SCORES_META_PATH = PREVIOUS_SCORES_PATH.with_suffix(".csv.meta.json")
 PREVIOUS_ASSET_SHA256 = (
     "01e7e72b3a6bdd2d3178ba32625ff769d5b81dc07541af6ea8da2c852774ddcc"
 )
-# The verification sweep on the policyengine-us release current at publication.
+# The verification sweep on the newest policyengine-us release when
+# PolicyBench checked PyPI before publishing.
 PUBLICATION_CHECK_PATH = (
     ROOT / "reference_audit/2026-09-28/verification/latest_final_2170.csv"
 )
 # policyengine-us upload times on PyPI, as the upgrade's timing record read
 # them (reference_audit/2026-09-28/verification/sweep_timing.json, which
 # tests/test_reference_upgrade.py checks against the sweep and the build).
+SWEEP_TIMING = json.loads(
+    (ROOT / "reference_audit/2026-09-28/verification/sweep_timing.json").read_text()
+)
 ENGINE_UPLOADED_UTC = {
     version: uploaded[11:16]
-    for version, uploaded in json.loads(
-        (ROOT / "reference_audit/2026-09-28/verification/sweep_timing.json").read_text()
-    )["pypi"]["wheel_uploaded_at_utc"].items()
+    for version, uploaded in SWEEP_TIMING["pypi"]["wheel_uploaded_at_utc"].items()
 }
+# When PolicyBench read PyPI for the publication check, and the newest
+# release it found then.
+PYPI_READ_AT_UTC = SWEEP_TIMING["pypi"]["read_at_utc"]
+PYPI_NEWEST_AT_READ = SWEEP_TIMING["pypi"]["newest_at_read"]
 ORDINALS = {
     1: "first",
     2: "second",
@@ -2308,9 +2314,10 @@ def _release_20260929_facts() -> dict:
         for key, change in changes.items()
         if key not in excluded and key not in scored_changes
     ]
-    # The verification sweep on the release current at publication.
+    # The verification sweep on the newest release when PolicyBench read PyPI.
     with PUBLICATION_CHECK_PATH.open(encoding="utf-8", newline="") as source:
         (check_engine,) = {row["engine"] for row in csv.DictReader(source)}
+    assert check_engine == PYPI_NEWEST_AT_READ
     # The BBCE note's households on this release (its September 29 data
     # files): held back by income, the Arizona household among them, and held
     # back by savings.
@@ -2395,7 +2402,7 @@ def _release_20260929_facts() -> dict:
             upgrade["engine_version"].removeprefix("policyengine-us ")
         ],
         "checkEngine": check_engine,
-        "checkEngineUploadedUtc": ENGINE_UPLOADED_UTC[check_engine],
+        "checkPypiReadUtc": PYPI_READ_AT_UTC[11:16],
         "bbceIncomeHeldStates": ", ".join(bbce_states[:-1]) + " and " + bbce_states[-1],
         "bbceIncomeHeldCount": len(bbce_states),
         "bbceAssetHeldCount": len(savings_held),
@@ -2563,7 +2570,8 @@ def test_release_20260929_note() -> None:
     )
 
     # The engine move, as the upgrade record states it, with each release's
-    # PyPI upload time, and the check on the release current at publication.
+    # PyPI upload time, and the check on the newest release when PolicyBench
+    # read PyPI before publishing.
     readme = re.sub(r"\s+", " ", UPGRADE_README.read_text())
     check = facts["checkEngine"]
     assert (
@@ -2572,9 +2580,9 @@ def test_release_20260929_note() -> None:
         f"{facts['engineUploadedUtc']} UTC)"
     ) in readme
     assert (
-        f"policyengine-us {check}, the newest release at publication (uploaded "
-        f"2026-09-29 {facts['checkEngineUploadedUtc']} UTC), gives the same value "
-        f"as {engine} for all {facts['totalOutputs']:,} outputs"
+        f"policyengine-us {check}, the newest release when PolicyBench checked "
+        f"PyPI on {PYPI_READ_AT_UTC[:10]} at {facts['checkPypiReadUtc']} UTC, gives "
+        f"the same value as {engine} for all {facts['totalOutputs']:,} outputs"
     ) in readme
     assert "are all in 2.15.17 and need no module" in readme
     assert "The nine publication conventions" in readme
@@ -2616,8 +2624,9 @@ def test_release_20260929_note() -> None:
         "its {conventions:words} publication conventions to the new version.",
         "With those conventions and an adapter that keeps Maryland county tax out "
         "of state income tax, policyengine-us {checkEngine}, the newest release "
-        "at publication (uploaded at {checkEngineUploadedUtc} UTC the same day), "
-        "gives the same value as {engineVersion} for all {totalOutputs} outputs.",
+        f"when PolicyBench checked PyPI on {PYPI_READ_AT_UTC[:10]} at "
+        "{checkPypiReadUtc} UTC, gives the same value as {engineVersion} for all "
+        "{totalOutputs} outputs.",
     )
 
     # The four scored changes, each with the basis the sidecar records.

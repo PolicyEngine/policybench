@@ -85,9 +85,9 @@ changes parameter values only: SNAP's October to December months, for example,
 hold the FY2026 figures rather than USDA's FY2027 figures of 2026-08-21.
 policyengine-us 2.15.17 counts Maryland county income tax in its state income
 tax; an adapter takes it out again, because PolicyBench's state income tax
-output leaves local tax out. policyengine-us 2.17.0, the newest release at
-publication (uploaded 2026-09-29 12:21 UTC), gives the same value as 2.15.17
-for all 1,984 outputs under the same conventions and adapter.
+output leaves local tax out. policyengine-us 2.17.0, the newest release when
+PolicyBench checked PyPI on 2026-09-29 at 14:58 UTC, gives the same value as
+2.15.17 for all 1,984 outputs under the same conventions and adapter.
 
 Four changes between policyengine-us 1.755.4 and 2.15.17 each moved one scored
 reference: New Jersey's child tax credit schedule for 2026 to 2028 (P.L.2026,
@@ -175,14 +175,16 @@ non-disabled path unless another listed fact establishes the determination
 reference for a disabled under-65 household member as a finding about that
 person's SSI eligibility.
 
-On policyengine-us 2.15.17, PolicyBench re-ran five of the sweeps behind these
-exclusions over every output: the IRA deduction limit fix, the net investment
-income tax definition, and the readings for a state and local tax refund,
-mortgage residence and 40 unlisted weekly hours. They move no scored output except one SNAP output whose prompt
-states 40 hours. The other ten defect fixes and the other readings (the SSI
-disability criterion, months of SSDI receipt, survivor benefits, disability
-coverage, adult dependents and Massachusetts bank interest) ran on 1.755.4
-only. The engine-upgrade review covered only the outputs the upgrade moved, so
+On policyengine-us 2.15.17, PolicyBench re-ran four of the September 22 sweeps
+behind these exclusions over every output: the IRA deduction limit fix, the net
+investment income tax definition, and the readings for mortgage residence and
+40 unlisted weekly hours. It ran a new sweep for the state and local tax refund
+reading. Set against the same 2.15.17 calculation without its fix or reading,
+no sweep moves a scored output by more than the $1 exact-match tolerance, and
+three scored outputs move by less. The other ten defect fixes and the other
+readings (the SSI disability criterion, months of SSDI receipt, survivor
+benefits, disability coverage, adult dependents and Massachusetts bank
+interest) ran on 1.755.4 only. The engine-upgrade review covered only the outputs the upgrade moved, so
 an output that one of those fixes or readings would move on 2.15.17, but did
 not move on 1.755.4, could still be scored.
 

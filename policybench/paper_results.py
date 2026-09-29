@@ -55,11 +55,69 @@ from policybench.spec import metric_type_for_output
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 
-# The sweep that rechecked every reference on the policyengine-us release
-# current at publication, with the fix module the references were built with.
-PUBLICATION_CHECK_SWEEP = (
-    ROOT / "reference_audit" / "2026-09-28" / "verification" / "latest_final_2170.csv"
-)
+UPGRADE_VERIFICATION = ROOT / "reference_audit" / "2026-09-28" / "verification"
+# The sweep that rechecked every reference on the newest policyengine-us
+# release when PolicyBench checked PyPI before publishing, with the fix module
+# the references were built with.
+PUBLICATION_CHECK_SWEEP = UPGRADE_VERIFICATION / "latest_final_2170.csv"
+# When the reference sweep began, each release's PyPI upload time, and when
+# PolicyBench read PyPI for the publication check.
+SWEEP_TIMING = UPGRADE_VERIFICATION / "sweep_timing.json"
+# What each exclusion sweep re-run on the reference engine moves.
+RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
+
+NUMBER_WORDS = {
+    0: "no",
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten",
+}
+
+
+def moves_beyond_tolerance(variable: str, before: float, after: float) -> bool:
+    """Whether a value change leaves the exact-match tolerance: more than $1
+    for an amount output, any change for a 0/1 flag."""
+    if metric_type_for_output(variable) == "amount":
+        return abs(after - before) > 1
+    return after != before
+
+
+def partition_rerun_sweep_moves(
+    summary: dict, excluded: frozenset[tuple[str, str]] | set[tuple[str, str]]
+) -> dict[str, list[tuple[str, str, str]]]:
+    """Split what the re-run sweeps move (verification/rerun_sweeps.json).
+
+    Each listed move is (sweep, scenario_id, variable), compared with the
+    sweep's own baseline (the same calculation without its fix or reading):
+    scored outputs beyond the exact-match tolerance, scored outputs moved
+    within it, and excluded outputs.
+    """
+    groups: dict[str, list[tuple[str, str, str]]] = {
+        "scored_beyond_tolerance": [],
+        "scored_within_tolerance": [],
+        "excluded": [],
+    }
+    for sweep in summary["sweeps"]:
+        for move in sweep["moves"]:
+            if move["recomputed"] == move["baseline"]:
+                continue
+            key = (sweep["sweep"], move["scenario_id"], move["variable"])
+            if (move["scenario_id"], move["variable"]) in excluded:
+                groups["excluded"].append(key)
+            elif moves_beyond_tolerance(
+                move["variable"], move["baseline"], move["recomputed"]
+            ):
+                groups["scored_beyond_tolerance"].append(key)
+            else:
+                groups["scored_within_tolerance"].append(key)
+    return groups
 
 
 def partition_engine_upgrade_changes(
@@ -1326,12 +1384,84 @@ class PaperResults:
     @cached_property
     def publication_check_policyengine_us_version(self) -> str:
         """policyengine-us release of the sweep that rechecked every reference
-        at publication (reference_audit/2026-09-28/verification)."""
+        before publication (reference_audit/2026-09-28/verification)."""
         with PUBLICATION_CHECK_SWEEP.open(newline="") as source:
             engines = {row["engine"] for row in csv.DictReader(source)}
         if len(engines) != 1:
             raise ValueError(f"{PUBLICATION_CHECK_SWEEP} mixes engines: {engines}")
         return engines.pop()
+
+    @cached_property
+    def sweep_timing(self) -> dict:
+        """reference_audit/2026-09-28/verification/sweep_timing.json."""
+        return json.loads(SWEEP_TIMING.read_text())
+
+    @property
+    def reference_engine_uploaded_utc(self) -> str:
+        """PyPI upload time (UTC, HH:MM) of the reference engine's wheel."""
+        uploaded = self.sweep_timing["pypi"]["wheel_uploaded_at_utc"]
+        return uploaded[self.policyengine_us_version][11:16]
+
+    @property
+    def publication_check_pypi_read_date(self) -> str:
+        """UTC day PolicyBench read PyPI for the publication check."""
+        pypi = self.sweep_timing["pypi"]
+        if pypi["newest_at_read"] != self.publication_check_policyengine_us_version:
+            raise ValueError(
+                f"{SWEEP_TIMING} names {pypi['newest_at_read']} as newest, but the "
+                f"check ran {self.publication_check_policyengine_us_version}"
+            )
+        return pypi["read_at_utc"][:10]
+
+    @property
+    def publication_check_pypi_read_utc(self) -> str:
+        """Time (UTC, HH:MM) PolicyBench read PyPI for the publication check."""
+        return self.sweep_timing["pypi"]["read_at_utc"][11:16]
+
+    @cached_property
+    def rerun_sweeps(self) -> dict:
+        """reference_audit/2026-09-28/verification/rerun_sweeps.json."""
+        return json.loads(RERUN_SWEEPS.read_text())
+
+    @cached_property
+    def rerun_sweep_partition(self) -> dict[str, list[tuple[str, str, str]]]:
+        return partition_rerun_sweep_moves(
+            self.rerun_sweeps, self._excluded_output_keys
+        )
+
+    @property
+    def rerun_sweep_september_22_count(self) -> int:
+        """Sweeps of the September 22 audit re-run on the reference engine."""
+        return sum(
+            1
+            for sweep in self.rerun_sweeps["sweeps"]
+            if sweep["september_22_root_cause"] is not None
+        )
+
+    @property
+    def rerun_sweep_september_22_count_word(self) -> str:
+        return NUMBER_WORDS[self.rerun_sweep_september_22_count]
+
+    @property
+    def rerun_sweep_new_count(self) -> int:
+        """Sweeps first run on the reference engine."""
+        return sum(
+            1
+            for sweep in self.rerun_sweeps["sweeps"]
+            if sweep["september_22_root_cause"] is None
+        )
+
+    @property
+    def rerun_sweep_scored_beyond_tolerance_count(self) -> int:
+        return len(self.rerun_sweep_partition["scored_beyond_tolerance"])
+
+    @property
+    def rerun_sweep_scored_within_tolerance_count(self) -> int:
+        return len(self.rerun_sweep_partition["scored_within_tolerance"])
+
+    @property
+    def rerun_sweep_scored_within_tolerance_count_word(self) -> str:
+        return NUMBER_WORDS[self.rerun_sweep_scored_within_tolerance_count]
 
     @property
     def engine_upgrade_rechecked_count(self) -> int:

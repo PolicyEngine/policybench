@@ -2,14 +2,16 @@
 
 The leaderboard's canonical condition sends every model the same household
 facts and requested outputs and forces the answer tool call
-(`tool_choice: {type: "tool", name: "submit_outputs"}`) for every row whose
-model card selects the tool contract, with no reasoning-control parameters
+(`tool_choice: {type: "tool", name: "submit_outputs"}`) for every row on the
+tool contract, with no reasoning-control parameters
 for any provider. Ten models answer in one- or three-output subsets per
-request, and rows on the JSON contract answer as a JSON object, either
-because the provider rejects a forced tool or because the model card selects
-JSON for that family (older Gemini and DeepSeek rows); the per-model
-treatment is the manuscript's serving-configuration table. Claude Fable
-5.1, a JSON-transport row, has its own re-run (see its section below). A
+request. Rows whose model card or its family default selects JSON answer as a
+JSON object. For most of them the card records that the provider rejects a
+forced tool call; the cards of DeepSeek V4 Pro and GLM-5.2 select JSON without
+recording a rejection, and the older Gemini rows answer as JSON by the Gemini
+family default. The per-model treatment is the manuscript's
+serving-configuration table. Claude Fable 5.1, a JSON-transport row, has its
+own re-run (see its section below). A
 reader reviewing the run artifacts noticed that every Claude row logged zero reasoning tokens while
 the other reasoning-by-default providers spent most of their tokens on
 reasoning.

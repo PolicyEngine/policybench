@@ -31,5 +31,14 @@
     "engine_installed_evidence": "triage/.venv-pe2170/lib/python3.13/site-packages/policyengine_us-2.17.0.dist-info",
     "output_at_utc": "2026-09-29T13:25:31Z",
     "output": "triage/sweep/out/latest_final_2170.csv (committed as verification/latest_final_2170.csv)"
-  }
+  },
+  "later_checks": [
+    {
+      "read_at_utc": "2026-09-29T18:28:04Z",
+      "source": "https://pypi.org/pypi/policyengine-us/json",
+      "newest_at_read": "2.17.1",
+      "wheel_uploaded_at_utc": "2026-09-29T17:24:17.953926Z",
+      "result": "policyengine-us 2.17.1 (policyengine-core 3.32.10, policyengine 6.1.2) gives the same value as 2.15.17 for all 1,984 outputs under latest_final (verification/latest_final_2171.csv, sha256 0536eff572262063c0c62f82dc5a30be48b3e59fcb6d4a315cee2d16a3c3bab3)"
+    }
+  ]
 }
