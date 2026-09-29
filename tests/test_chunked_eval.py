@@ -691,6 +691,24 @@ def test_handoff_leaves_workers_to_compute_when_the_write_fails(
     assert handoff.bundles is None
 
 
+def test_handoff_ignores_an_earlier_file_when_its_own_write_fails(
+    tmp_path, monkeypatch
+):
+    """Only a file this invocation's writer produced reaches its workers; a
+    valid file another invocation left stays on disk, unused."""
+    path = tmp_path / POLICYENGINE_PROVENANCE_FILENAME
+    path.write_text(json.dumps({"policyengine_bundles": {"us": MOCK_BUNDLES["us"]}}))
+    monkeypatch.setattr(
+        "policybench.chunked_eval.run_policyengine_provenance_writer",
+        lambda python, path, countries, env, **kwargs: False,
+    )
+
+    env = PolicyEngineProvenanceHandoff(tmp_path).worker_env({"us"})
+
+    assert POLICYENGINE_PROVENANCE_ENV not in env
+    assert path.exists()
+
+
 def test_handoff_skips_mixed_country_chunks(provenance_writer, tmp_path):
     handoff = PolicyEngineProvenanceHandoff(tmp_path)
 
@@ -946,6 +964,12 @@ def _assert_policyengine_stayed_in_the_writer(records, *, orchestrator, workers)
         assert worker["requests"], "the worker never reached its LLM request"
         assert all(loaded == [] for loaded in worker["requests"])
         assert worker["at_exit"] == []
+    # Any other probed process must not have loaded PolicyEngine either.
+    classified = {id(r) for r in orchestrators + writers + chunk_workers}
+    for record in records:
+        if id(record) not in classified:
+            assert record["at_exit"] == [], record["argv"]
+            assert all(loaded == [] for loaded in record["requests"])
 
 
 def test_chunked_run_keeps_policyengine_out_of_chunk_workers(tmp_path, monkeypatch):

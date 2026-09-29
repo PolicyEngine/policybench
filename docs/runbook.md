@@ -248,12 +248,12 @@ the same file. The first time an invocation has a chunk to run, it writes
 `policyengine_provenance.json` into its `--output-dir` from a one-off Python
 process and passes `POLICYBENCH_POLICYENGINE_PROVENANCE` to every chunk
 subprocess of every model. A retry round writes one file at the round's root,
-not one per model. A pass with no pending chunks, such as the final merge pass
-in Section 6, writes nothing. Invocations that share an output directory, like
-the provider groups above, replace the file atomically rather than deleting
-it first, so none pulls it out from under another's workers. A chunk worker
-that cannot reuse the file computes the provenance itself and prints
-`PolicyEngine provenance file not reused` to the invocation's terminal.
+not one per model. A pass with no pending chunks writes nothing. Invocations
+that share an output directory, like the provider groups above, replace the
+file atomically instead of deleting it before they write. A chunk worker that
+finds the file missing, or written for a different environment, computes the
+provenance itself and prints `PolicyEngine provenance file not reused` to the
+invocation's terminal.
 
 ## 4b. Batch Mode (Anthropic, OpenAI, Gemini)
 
@@ -327,7 +327,10 @@ Each retry directory writes:
 
 - `retry_metadata.json`: the round's country, source and manifest paths with
   their sha256, and target counts.
-- A copy of the `--source-predictions` file, under its own name.
+- A copy of the `--source-predictions` file, under its own name. A round
+  whose source is an earlier round's `merged_predictions.csv.gz` overwrites
+  that copy with its own merged output; `retry_metadata.json` still records
+  the source path and sha256.
 - `target_units.csv`: full responses selected for retry.
 - `original_failed_responses.csv.gz`: the original rows for those responses.
 - `scenario_manifests/<model>.csv`: each model's retry scenarios.

@@ -60,11 +60,13 @@ class PolicyEngineProvenanceHandoff:
     existed. Nothing is written until a chunk needs to run, so a pass that
     only merges finished chunks does not import policyengine.
 
-    Unlike the supervisor, an earlier file is not deleted before writing: the
-    runbook runs several invocations on one output dir at once, and deleting
-    it would pull the file out from under their workers. The writer replaces
-    it atomically, and this invocation hands it on only after its own writer
-    succeeded.
+    Unlike the supervisor, an earlier file is not deleted before writing,
+    because the runbook runs several invocations on one output dir at once.
+    The writer replaces it atomically, and this invocation hands it on only
+    after its own writer succeeded. Another invocation can still replace or
+    remove the file while this one's workers run (a writer whose own check
+    fails removes it); a worker that then finds it missing or written for a
+    different environment computes the bundles itself.
     """
 
     def __init__(self, output_dir: str | Path, *, python: str | None = None):
