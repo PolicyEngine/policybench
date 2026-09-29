@@ -243,6 +243,17 @@ before; `run_state.json` counts those workers in
 `policyengine_provenance_recomputed`. When no file was written (a
 mixed-country manifest, or a failed write), `run_state.json` shows
 `policyengine_provenance: null` and every worker computes it.
+`eval-no-tools-chunked` and `retry-failed-responses` hand their chunk workers
+the same file. The first time an invocation has a chunk to run, it writes
+`policyengine_provenance.json` into its `--output-dir` from a one-off Python
+process and passes `POLICYBENCH_POLICYENGINE_PROVENANCE` to every chunk
+subprocess of every model. A retry round writes one file at the round's root,
+not one per model. A pass with no pending chunks writes nothing. Invocations
+that share an output directory, like the provider groups above, replace the
+file atomically instead of deleting it before they write. A chunk worker that
+finds the file missing, or written for a different environment, computes the
+provenance itself and prints `PolicyEngine provenance file not reused` to the
+invocation's terminal.
 
 ## 4b. Batch Mode (Anthropic, OpenAI, Gemini)
 
@@ -314,8 +325,19 @@ uv run policybench retry-failed-responses \
 
 Each retry directory writes:
 
+- `retry_metadata.json`: the round's country, source and manifest paths with
+  their sha256, and target counts.
+- A copy of the `--source-predictions` file, under its own name. A round
+  whose source is an earlier round's `merged_predictions.csv.gz` overwrites
+  that copy with its own merged output; `retry_metadata.json` still records
+  the source path and sha256.
 - `target_units.csv`: full responses selected for retry.
 - `original_failed_responses.csv.gz`: the original rows for those responses.
+- `scenario_manifests/<model>.csv`: each model's retry scenarios.
+- `model_runs/<model>/`: that model's chunked retry run (`chunks/` with resume
+  sidecars and call ledgers, and `by_model/<model>.csv`).
+- `policyengine_provenance.json`: the PolicyEngine provenance handed to the
+  retry's chunk workers (Section 4).
 - `retry_predictions.csv`: raw retry rows returned by the models.
 - `accepted_retry_units.csv`: responses that fully satisfied the contract.
 - `rejected_retry_units.csv`: responses rejected and why.
@@ -378,6 +400,9 @@ If a retry round is adopted for the public snapshot, point analysis and
 `export-full-run` at the final `merged_predictions.csv.gz`, not the pre-retry
 prediction file. Keep the retry directory with the frozen snapshot so readers
 can inspect both the original failed responses and the accepted replacements.
+Leave out its `policyengine_provenance.json`: it records the local Python
+environment's path (`sys.prefix`), and every chunk sidecar already carries the
+PolicyEngine bundles it holds.
 
 Then run verification before committing or deploying.
 

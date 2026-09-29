@@ -56,6 +56,8 @@ from policybench.policyengine_runtime import (
     POLICYENGINE_PROVENANCE_ENV,
     POLICYENGINE_PROVENANCE_FILENAME,
     POLICYENGINE_PROVENANCE_NOT_REUSED,
+    read_written_policyengine_bundles,
+    run_policyengine_provenance_writer,
 )
 from policybench.spend_ledger import (
     SPEND_LEDGER_SUFFIX,
@@ -74,16 +76,6 @@ ADAPTIVE_WINDOW = 8
 # cross this share of the budget.
 BUDGET_STOP_FRACTION = 0.9
 TREATMENT_FINGERPRINT_VERSION = 3
-PROVENANCE_WRITER_TIMEOUT_SECONDS = 3600
-# Writes the run's PolicyEngine provenance file. It runs in a fresh
-# interpreter, as each worker did, so a single-country run records what a
-# worker computing the bundles itself would, and the supervisor needs no
-# policyengine import of its own when the handoff succeeds.
-PROVENANCE_WRITER = (
-    "import sys\n"
-    "from policybench.policyengine_runtime import write_policyengine_provenance\n"
-    "sys.exit(0 if write_policyengine_provenance(sys.argv[1], sys.argv[2:]) else 3)\n"
-)
 
 
 @dataclass
@@ -715,15 +707,7 @@ class Supervisor:
         self, path: Path, countries: list[str], env: dict
     ) -> bool:
         """Write the provenance file from a fresh worker interpreter."""
-        try:
-            result = subprocess.run(
-                [self.python, "-c", PROVENANCE_WRITER, str(path), *countries],
-                env=env,
-                timeout=PROVENANCE_WRITER_TIMEOUT_SECONDS,
-            )
-        except subprocess.TimeoutExpired:
-            return False
-        return result.returncode == 0
+        return run_policyengine_provenance_writer(self.python, path, countries, env)
 
     def _write_policyengine_provenance(self) -> None:
         """Compute PolicyEngine provenance once and point workers at it.
@@ -748,13 +732,8 @@ class Supervisor:
             return
         if not self._compute_policyengine_provenance(path, countries, dict(self.env)):
             return
-        try:
-            bundles = json.loads(path.read_text(encoding="utf-8"))[
-                "policyengine_bundles"
-            ]
-        except (OSError, ValueError, KeyError, TypeError):
-            return
-        if not isinstance(bundles, dict) or not set(countries) <= set(bundles):
+        bundles = read_written_policyengine_bundles(path, countries)
+        if bundles is None:
             return
         self._policyengine_bundles = bundles
         self.env[POLICYENGINE_PROVENANCE_ENV] = str(path)

@@ -9,10 +9,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pandas as pd
@@ -43,6 +41,11 @@ from policybench.supervisor import (
     TREATMENT_FINGERPRINT_VERSION,
     ScenarioResult,
     Supervisor,
+)
+from tests.policyengine_probe import (
+    clean_environment,
+    probe_environment,
+    probe_records,
 )
 
 N_SCENARIOS = 6
@@ -1299,99 +1302,6 @@ def test_supervisor_checks_worker_provenance_against_its_own(
         supervisor._scenario_complete(0)
 
 
-# A sitecustomize for the end-to-end run. In every process it records which
-# PolicyEngine modules are loaded at exit; in workers it also swaps the LLM
-# transport in policybench.eval_no_tools for a local fake that returns a
-# schema-valid forced-tool answer and records the modules loaded at each
-# request. No network, no spend.
-PROCESS_PROBE = textwrap.dedent(
-    """
-    import atexit
-    import importlib.abc
-    import importlib.machinery
-    import json
-    import os
-    import sys
-
-    HEAVY = {
-        "policyengine",
-        "policyengine_core",
-        "policyengine_uk",
-        "policyengine_us",
-        "h5py",
-    }
-    requests = []
-
-
-    def heavy_modules():
-        return sorted(
-            name for name in list(sys.modules) if name.split(".")[0] in HEAVY
-        )
-
-
-    def fake_completion(**kwargs):
-        from types import SimpleNamespace
-
-        import litellm
-
-        requests.append(heavy_modules())
-        function = kwargs["tools"][0]["function"]
-        properties = function["parameters"]["properties"]
-        if "outputs" in properties:
-            arguments = {
-                "outputs": {
-                    variable: {"value": 1, "explanation": "so it is 1"}
-                    for variable in properties["outputs"]["properties"]
-                }
-            }
-        else:
-            arguments = {variable: "so it is 1" for variable in properties}
-        call = SimpleNamespace(
-            function=SimpleNamespace(
-                name=function["name"], arguments=json.dumps(arguments)
-            )
-        )
-        message = SimpleNamespace(content=None, function_call=None, tool_calls=[call])
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=message, finish_reason="tool_calls")],
-            usage=litellm.Usage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
-        )
-
-
-    class PatchingLoader(importlib.abc.Loader):
-        def __init__(self, inner):
-            self.inner = inner
-
-        def create_module(self, spec):
-            return self.inner.create_module(spec)
-
-        def exec_module(self, module):
-            self.inner.exec_module(module)
-            module.completion = fake_completion
-            module.responses = fake_completion
-
-
-    class Finder(importlib.abc.MetaPathFinder):
-        def find_spec(self, fullname, path, target=None):
-            if fullname != "policybench.eval_no_tools":
-                return None
-            spec = importlib.machinery.PathFinder.find_spec(fullname, path, target)
-            spec.loader = PatchingLoader(spec.loader)
-            return spec
-
-
-    sys.meta_path.insert(0, Finder())
-
-
-    @atexit.register
-    def dump():
-        record = {"argv": sys.argv, "requests": requests, "at_exit": heavy_modules()}
-        directory = os.environ["POLICYBENCH_TEST_PROBE_DIR"]
-        with open(os.path.join(directory, f"{os.getpid()}.json"), "w") as handle:
-            json.dump(record, handle)
-    """
-)
-
 # The pre-change worker behavior: a fresh interpreter computing provenance.
 DIRECT_PROVENANCE = (
     "import json, sys\n"
@@ -1409,7 +1319,6 @@ def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
     sidecar records exactly the bundles a fresh worker computing them itself
     would have recorded.
     """
-    repo_root = Path(__file__).resolve().parents[1]
     scenarios = [
         Scenario(
             id=f"probe_{i}",
@@ -1428,23 +1337,11 @@ def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
             ],
         }
     ).to_csv(manifest, index=False)
-    hook_dir = tmp_path / "probe_hook"
-    hook_dir.mkdir()
-    (hook_dir / "sitecustomize.py").write_text(PROCESS_PROBE)
-    probe_dir = tmp_path / "probe_records"
-    probe_dir.mkdir()
-    base_env = {
-        key: value
-        for key, value in os.environ.items()
-        if key != POLICYENGINE_PROVENANCE_ENV
-    }
-    base_env["PYTHONPATH"] = os.pathsep.join(
-        [str(repo_root), *filter(None, [os.environ.get("PYTHONPATH")])]
-    )
+    probed_env, probe_dir = probe_environment(tmp_path)
     direct_path = tmp_path / "direct_bundles.json"
     direct = subprocess.Popen(
         [sys.executable, "-c", DIRECT_PROVENANCE, str(direct_path)],
-        env=base_env,
+        env=clean_environment(),
         cwd=tmp_path,
     )
     run_dir = tmp_path / "run"
@@ -1465,13 +1362,7 @@ def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
             "--max-rounds",
             "1",
         ],
-        env={
-            **base_env,
-            "PYTHONPATH": os.pathsep.join([str(hook_dir), base_env["PYTHONPATH"]]),
-            "POLICYBENCH_TEST_PROBE_DIR": str(probe_dir),
-            "POLICYBENCH_CACHE_DIR": str(tmp_path / "cache"),
-            "LITELLM_LOCAL_MODEL_COST_MAP": "True",
-        },
+        env=probed_env,
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -1480,7 +1371,7 @@ def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
     assert direct.wait(timeout=900) == 0
     assert run.returncode == 0, run.stdout + run.stderr
 
-    records = [json.loads(path.read_text()) for path in probe_dir.glob("*.json")]
+    records = probe_records(probe_dir)
     supervisors = [r for r in records if r["argv"][1:2] == ["run"]]
     writers = [r for r in records if r["argv"][0] == "-c"]
     workers = [r for r in records if "eval-no-tools" in r["argv"]]

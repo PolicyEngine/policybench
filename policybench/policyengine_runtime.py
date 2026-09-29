@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import re
+import subprocess
 import sys
 from functools import lru_cache
 from importlib import metadata
@@ -17,14 +18,24 @@ MODEL_PACKAGES = {
     "uk": "policyengine-uk",
 }
 
-# A supervised run computes PolicyEngine provenance once and hands it to its
-# per-scenario workers through this file, so a worker that only calls an LLM
-# never imports policyengine.
+# A supervised run, and a chunked or retry invocation, computes PolicyEngine
+# provenance once and hands it to its eval-no-tools workers through this file,
+# so a worker that only calls an LLM never imports policyengine.
 POLICYENGINE_PROVENANCE_ENV = "POLICYBENCH_POLICYENGINE_PROVENANCE"
 POLICYENGINE_PROVENANCE_FILENAME = "policyengine_provenance.json"
 POLICYENGINE_PROVENANCE_FORMAT_VERSION = 1
 # Logged by a worker that could not reuse the file; the supervisor counts it.
 POLICYENGINE_PROVENANCE_NOT_REUSED = "PolicyEngine provenance file not reused"
+# Writes the provenance file. Orchestrators run it in a fresh interpreter, as
+# each worker computed the bundles in its own, so a single-country file records
+# what a worker computing them itself would, and the orchestrator does not
+# import policyengine to write it.
+PROVENANCE_WRITER_TIMEOUT_SECONDS = 3600
+PROVENANCE_WRITER = (
+    "import sys\n"
+    "from policybench.policyengine_runtime import write_policyengine_provenance\n"
+    "sys.exit(0 if write_policyengine_provenance(sys.argv[1], sys.argv[2:]) else 3)\n"
+)
 # Distributions whose metadata policyengine_release_bundle reads or whose code
 # runs when it imports policyengine.
 PROVENANCE_DISTRIBUTIONS = (
@@ -556,6 +567,50 @@ def write_policyengine_provenance(
         )
         return False
     return True
+
+
+def run_policyengine_provenance_writer(
+    python: str,
+    path: str | Path,
+    countries: list[str],
+    env: dict,
+    *,
+    timeout: float = PROVENANCE_WRITER_TIMEOUT_SECONDS,
+) -> bool:
+    """Write the provenance file from a fresh ``python`` interpreter.
+
+    ``python`` must be the interpreter the workers run, since the file's
+    fingerprint records it. Returns False on a timeout or a failed write.
+    """
+    try:
+        result = subprocess.run(
+            [python, "-c", PROVENANCE_WRITER, str(path), *countries],
+            env=env,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    return result.returncode == 0
+
+
+def read_written_policyengine_bundles(
+    path: str | Path, countries: list[str]
+) -> dict | None:
+    """The bundles a writer left at ``path``, or None unless it covers
+    every one of ``countries``.
+
+    This is the orchestrator's check that a handoff exists; each worker still
+    checks the file's fingerprint against its own before reusing it.
+    """
+    try:
+        bundles = json.loads(Path(path).read_text(encoding="utf-8"))[
+            "policyengine_bundles"
+        ]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not isinstance(bundles, dict) or not set(countries) <= set(bundles):
+        return None
+    return bundles
 
 
 def _read_policyengine_provenance(
