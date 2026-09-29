@@ -2328,6 +2328,71 @@ def test_resume_metadata_records_the_effective_treatment(mini_scenario, monkeypa
     assert sensitivity["treatment"] != base["treatment"]
 
 
+@pytest.mark.parametrize("countries", [("us",), ("uk",), ("us", "uk")])
+def test_resume_sidecar_is_byte_identical_with_provenance_file(
+    mini_scenario, uk_scenario, tmp_path, monkeypatch, countries
+):
+    """A supervised worker reads PolicyEngine provenance from the file its
+    supervisor wrote; the sidecar it writes must not change by a byte."""
+    from policybench.policyengine_runtime import (
+        POLICYENGINE_PROVENANCE_ENV,
+        write_policyengine_provenance,
+    )
+
+    by_country = {"us": mini_scenario, "uk": uk_scenario}
+    kwargs = {
+        "task": "eval_no_tools_batch",
+        "scenarios": [by_country[country] for country in countries],
+        "models": {"gpt-5.4": "gpt-5.4"},
+        "programs": ["income_tax"],
+        "run_id": None,
+        "include_explanations": True,
+    }
+    monkeypatch.delenv(POLICYENGINE_PROVENANCE_ENV, raising=False)
+    computed = tmp_path / "computed.csv"
+    _write_resume_metadata(str(computed), _build_resume_metadata(**kwargs))
+
+    provenance = tmp_path / "policyengine_provenance.json"
+    assert write_policyengine_provenance(provenance, {"us", "uk"})
+    monkeypatch.setenv(POLICYENGINE_PROVENANCE_ENV, str(provenance))
+    monkeypatch.setattr(
+        "policybench.policyengine_runtime.policyengine_bundles_for_countries",
+        lambda requested: pytest.fail("computed PolicyEngine provenance"),
+    )
+    from_file = tmp_path / "from_file.csv"
+    _write_resume_metadata(str(from_file), _build_resume_metadata(**kwargs))
+
+    sidecar = (tmp_path / "from_file.csv.meta.json").read_bytes()
+    assert sidecar == (tmp_path / "computed.csv.meta.json").read_bytes()
+    assert sorted(json.loads(sidecar)["policyengine_bundles"]) == sorted(countries)
+
+
+def test_resume_metadata_uses_precomputed_policyengine_bundles(
+    mini_scenario, uk_scenario, monkeypatch
+):
+    """The supervisor passes its copy of the run's bundles; only the countries
+    of the given scenarios are recorded, in sorted order."""
+    monkeypatch.setattr(
+        "policybench.policyengine_runtime.policyengine_bundles_for_countries",
+        lambda countries: pytest.fail("computed PolicyEngine provenance"),
+    )
+    held = {"uk": {"country_id": "uk"}, "us": {"country_id": "us"}}
+
+    def bundles_for(scenarios):
+        return _build_resume_metadata(
+            task="eval_no_tools_batch",
+            scenarios=scenarios,
+            models={"gpt-5.4": "gpt-5.4"},
+            programs=["income_tax"],
+            run_id=None,
+            include_explanations=True,
+            policyengine_bundles=held,
+        )["policyengine_bundles"]
+
+    assert bundles_for([mini_scenario]) == {"us": {"country_id": "us"}}
+    assert list(bundles_for([uk_scenario, mini_scenario])) == ["uk", "us"]
+
+
 def test_resume_metadata_records_max_repair_rounds(mini_scenario, monkeypatch):
     monkeypatch.setattr("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 5)
 
