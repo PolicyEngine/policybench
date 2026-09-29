@@ -814,3 +814,22 @@ def test_base_reference_bytes_are_checked_against_their_pins(monkeypatch):
     monkeypatch.setitem(driver.BASE_REFERENCE_SHA256, "reference_outputs.csv", "0" * 64)
     with pytest.raises(SystemExit):
         driver.base_reference_bytes("reference_outputs.csv")
+
+
+def test_a_re_export_after_the_freeze_gates_on_the_22c_asset(monkeypatch):
+    """After the freeze the live pointer names this release, so a re-export
+    reads the 22c payload from git and checks it against the 22c asset's
+    sha256; any other pointer is refused."""
+    pointer = json.loads((driver.ROOT / "app/src/data.artifact.json").read_text())
+    if pointer["tag"] == driver.BASE_TAG:
+        pytest.skip("this checkout is still at the 22c base")
+    live = driver.resolve_live_base(SimpleNamespace())
+    stats = live["countries"]["us"]["modelStats"]
+    assert len(stats) == 42
+    assert "claude-sonnet-5.5" not in {row["model"] for row in stats}
+    monkeypatch.setattr(driver, "BASE_SHA256", "0" * 64)
+    with pytest.raises(SystemExit, match="base payload SHA256 mismatch"):
+        driver.resolve_live_base(SimpleNamespace())
+    monkeypatch.setattr(driver, "RELEASE_TAG", "dashboard-data-20991231")
+    with pytest.raises(SystemExit, match="base pointer changed"):
+        driver.resolve_live_base(SimpleNamespace())

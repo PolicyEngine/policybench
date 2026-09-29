@@ -236,6 +236,40 @@ def resolve_base(args):
     return base, reference, live
 
 
+def resolve_live_base(args) -> dict:
+    """The September 22c payload an export compares the incumbents against.
+
+    Before the freeze the live pointer and the committed snapshot are 22c's,
+    and resolve_base checks all of them. After the freeze they are this
+    release's own, so a re-export (after a fix to the staged annotations)
+    reads the 22c run payload from BASE_COMMIT instead and checks that it
+    rewraps to the 22c release asset (BASE_SHA256). Any other pointer is
+    refused, as before.
+    """
+    pointer = json.loads((ROOT / "app/src/data.artifact.json").read_text())
+    if pointer["tag"] == BASE_TAG:
+        return resolve_base(args)[2]
+    require(
+        pointer["tag"] == RELEASE_TAG,
+        "base pointer changed; review the base before staging",
+    )
+    path = (SNAPSHOT / "data.json.gz").relative_to(ROOT)
+    blob = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{BASE_COMMIT}:{path.as_posix()}"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    live = {"countries": {"us": json.loads(gzip.decompress(blob))}}
+    require(
+        hashlib.sha256(json.dumps(live).encode()).hexdigest() == BASE_SHA256,
+        "base payload SHA256 mismatch",
+    )
+    require(
+        len(live["countries"]["us"]["modelStats"]) == 42, "base must have 42 models"
+    )
+    return live
+
+
 def prepare_inputs(args, runs, base, reference) -> tuple[Path, dict]:
     """Copy immutable inputs and fold full or explicitly partial cohorts."""
     import pandas as pd
@@ -877,8 +911,7 @@ def main(argv=None) -> None:
             triage(args, bundle)
         else:
             triage(args, bundle)
-            _, _, live = resolve_base(args)
-            export(args, bundle, live)
+            export(args, bundle, resolve_live_base(args))
 
 
 if __name__ == "__main__":
