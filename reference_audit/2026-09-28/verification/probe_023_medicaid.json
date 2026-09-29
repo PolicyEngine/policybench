@@ -1,0 +1,71 @@
+{
+ "scenario_id": "scenario_023",
+ "variable": "head_medicaid_eligible",
+ "pe_variable": "is_medicaid_eligible",
+ "engine_version": "policyengine-us 2.15.17",
+ "committed_reference": 1.0,
+ "fix_module": {
+  "module": "fixes/latest_final.py",
+  "sha256": "dbbdd228b99933c6f336af97970821c25c863a18606285e8d6d9ffb3bc9af78e"
+ },
+ "probe_sha256": "0f894a441509c3c358fd42bed05ad8d3d4797600ef7904d4dbbc0dacee2511ca",
+ "readings": {
+  "stated_facts": "the scenario as built, meets_ssi_disability_criteria unset",
+  "reading_a": "meets_ssi_disability_criteria false: the head does not meet the SSI/SSA disability criteria",
+  "reading_b": "meets_ssi_disability_criteria true: the head meets them"
+ },
+ "systems": {
+  "latest_final": "the reference system: policyengine-us 2.15.17 with fixes/latest_final.py; ca_wdp_disability_eligible reads is_disabled",
+  "latest_final_wdp_ssa_definition": "the same with ca_wdp_disability_eligible reading meets_ssi_disability_criteria (the SSA definition, 42 CFR 435.540(a)) in place of is_disabled"
+ },
+ "results": {
+  "latest_final/stated_facts": {
+   "head_medicaid_eligible": 1.0,
+   "medicaid_category": "WORKING_DISABLED_BUY_IN",
+   "ca_wdp_disability_eligible": true,
+   "ca_wdp_eligible": true,
+   "medicaid_income_level": 1.4119,
+   "ssi": 0.0
+  },
+  "latest_final/reading_a": {
+   "head_medicaid_eligible": 1.0,
+   "medicaid_category": "WORKING_DISABLED_BUY_IN",
+   "ca_wdp_disability_eligible": true,
+   "ca_wdp_eligible": true,
+   "medicaid_income_level": 1.4119,
+   "ssi": 0.0
+  },
+  "latest_final/reading_b": {
+   "head_medicaid_eligible": 1.0,
+   "medicaid_category": "SENIOR_OR_DISABLED",
+   "ca_wdp_disability_eligible": true,
+   "ca_wdp_eligible": true,
+   "medicaid_income_level": 1.4119,
+   "ssi": 0.0
+  },
+  "latest_final_wdp_ssa_definition/stated_facts": {
+   "head_medicaid_eligible": 0.0,
+   "medicaid_category": "NONE",
+   "ca_wdp_disability_eligible": false,
+   "ca_wdp_eligible": false,
+   "medicaid_income_level": 1.4119,
+   "ssi": 0.0
+  },
+  "latest_final_wdp_ssa_definition/reading_a": {
+   "head_medicaid_eligible": 0.0,
+   "medicaid_category": "NONE",
+   "ca_wdp_disability_eligible": false,
+   "ca_wdp_eligible": false,
+   "medicaid_income_level": 1.4119,
+   "ssi": 0.0
+  },
+  "latest_final_wdp_ssa_definition/reading_b": {
+   "head_medicaid_eligible": 1.0,
+   "medicaid_category": "SENIOR_OR_DISABLED",
+   "ca_wdp_disability_eligible": true,
+   "ca_wdp_eligible": true,
+   "medicaid_income_level": 1.4119,
+   "ssi": 0.0
+  }
+ }
+}

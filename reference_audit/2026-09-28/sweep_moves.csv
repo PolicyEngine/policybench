@@ -369,7 +369,7 @@ scenario_023,federal_income_tax_before_refundable_credits,CA,643.43359375,643.43
 scenario_023,federal_refundable_credits,CA,0.0,0.0,0.0,0.0,0.0,0.0,False,,,False
 scenario_023,free_school_meals_eligible,CA,0.0,0.0,0.0,0.0,0.0,0.0,False,,,False
 scenario_023,head_chip_eligible,CA,0.0,0.0,0.0,0.0,0.0,0.0,False,,,False
-scenario_023,head_medicaid_eligible,CA,1.0,1.0,1.0,1.0,1.0,1.0,False,,,False
+scenario_023,head_medicaid_eligible,CA,1.0,1.0,1.0,1.0,1.0,1.0,True,excl_snap_ssi_disability,exclude_unlisted_input,False
 scenario_023,head_medicare_eligible,CA,0.0,0.0,0.0,0.0,0.0,0.0,False,,,False
 scenario_023,head_wic_eligible,CA,0.0,0.0,0.0,0.0,0.0,0.0,False,,,False
 scenario_023,local_income_tax,CA,0.0,0.0,0.0,0.0,0.0,0.0,False,,,False

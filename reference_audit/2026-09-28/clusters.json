@@ -1682,6 +1682,18 @@
    "decided_by": "developer",
    "decided_on": "2026-09-29",
    "reason": "The two reviews conflict on this output, and the developer follows the salt_refund_gross_income_9122 review. The Maryland review settles the county question: under the withholding proxy the SALT cap binds at every 2026 county rate, so the value does not depend on the unlisted county. Its value of 24,164.46 still counts the $1,631.91 state and local tax refund as income, as policyengine-us#9422 (issue #9122) does. Left out of income, as 26 U.S.C. 111(a) requires when the refunded tax gave no benefit in the prior year, the value is 23,772.80. The prompt does not say whether the refund is taxable, the same unlisted input as 033 and 117, so the output is excluded with those two."
+  },
+  {
+   "scenario_id": "scenario_023",
+   "variable": "head_medicaid_eligible",
+   "cluster": "excl_snap_ssi_disability",
+   "cluster_review_action": null,
+   "flag": "out_of_cluster",
+   "final_action": "exclude_unlisted_input",
+   "cites_review": "excl_snap_ssi_disability",
+   "decided_by": "developer",
+   "decided_on": "2026-09-29",
+   "reason": "The excl_snap_ssi_disability investigation flagged this scored output out of cluster for the lead: ca_wdp_disability_eligible reads the broad is_disabled flag, so the reference of 1 follows reading B, and under reading A the law gives 0 (42 CFR 435.540(a)). The cluster's independent review agreed: under the stated facts the engine places the head in WORKING_DISABLED_BUY_IN, and that is disability Medi-Cal only if 'is disabled' means the Social Security definition. The head's MAGI is 141.2% of the federal poverty guideline, above the 138% adult limit, so only a disability pathway leads to Medi-Cal, and California's 250% Working Disabled Program requires the Social Security definition: meets_ssi_disability_criteria, the unlisted input that already excludes this household's SNAP. On 2.15.17 with fixes/latest_final.py (verification/probe_023_medicaid.json), the reference system gives 1 under either reading (WORKING_DISABLED_BUY_IN under reading A, SENIOR_OR_DISABLED under reading B). With the program's disability test reading meets_ssi_disability_criteria, reading A gives 0 (no Medicaid category) and reading B gives 1. Rule 4 excludes the output. The pre-merge review of the release found the flag without a recorded disposition (verification/reviews/pr182_review_023.md); final_actions.json lists the exclusion under audit_exclusions."
   }
  ]
 }

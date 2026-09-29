@@ -221,16 +221,111 @@ def test_the_builder_writes_the_committed_records():
         assert build.dump_record(json.loads(raw)) == raw, name
 
 
+def _audit_exclusions() -> dict[tuple[str, str], dict]:
+    """Outputs the audit excluded on review, apart from any engine change."""
+    return {
+        (a["scenario_id"], a["variable"]): a
+        for a in _load(AUDIT / "final_actions.json").get("audit_exclusions", [])
+    }
+
+
 def test_new_exclusions_are_computed_on_the_reference_engine():
+    """The records decided on the upgrade's day: the three the revision lists
+    and the one the audit excluded on review. Each alternative moves the output
+    beyond the exact-match tolerance ($1, or any change for a 0/1 flag)."""
+    from policybench.paper_results import moves_beyond_tolerance
+
     added = [e for e in _exclusions().values() if e["decided_on"] == "2026-09-29"]
+    listed = {
+        (c["scenario_id"], c["variable"])
+        for c in _upgrade()["changed"]
+        if c["cause"] == "excluded_reference_depends_on_unlisted_input"
+    }
     references = _references()
-    assert len(added) == 3
+    assert len(added) == 4 and len(listed) == 3
+    assert {(e["scenario_id"], e["variable"]) for e in added} == (
+        listed | set(_audit_exclusions())
+    )
     for entry in added:
         key = (entry["scenario_id"], entry["variable"])
         assert entry["reason_code"] == "reference_depends_on_unlisted_input"
         assert entry["engine_version"] == f"policyengine-us {ENGINE}"
         assert abs(entry["frozen_value"] - references[key]) < 1e-3, key
-        assert abs(entry["alternative_value"] - entry["frozen_value"]) > 1, key
+        assert moves_beyond_tolerance(
+            key[1], entry["frozen_value"], entry["alternative_value"]
+        ), key
+
+
+def test_the_audit_exclusion_is_recorded_and_computed():
+    """scenario_023 head_medicaid_eligible: the excl_snap_ssi_disability
+    investigation and its review flagged it, clusters.json records the
+    disposition, final_actions.json lists the exclusion with the record the
+    exclusion file carries, and the probe on 2.15.17 gives both values. The
+    reference did not move, so the engine_upgrade revision does not list it."""
+    key = ("scenario_023", "head_medicaid_eligible")
+    audit = _audit_exclusions()
+    assert set(audit) == {key}
+    action = audit[key]
+    record = _exclusions()[key]
+    assert record == action["exclusion"]
+    assert record["unlisted_input"] == "meets_ssi_disability_criteria"
+    assert record["decided_on"] == action["decided_on"] == UPGRADE_DATE
+    # The same unlisted input excludes the household's SNAP.
+    assert _exclusions()[(key[0], "snap")]["unlisted_input"] == record["unlisted_input"]
+    assert key not in {(c["scenario_id"], c["variable"]) for c in _upgrade()["changed"]}
+    row = _sweep()[key]
+    assert row["moved_vs_board"] == "False"
+    for column in ("v11_1755", "board_20260922c", "raw_2_15_17", "final", "reference"):
+        assert float(row[column]) == record["frozen_value"], column
+    assert (row["cluster"], row["action"]) == (
+        action["flagged_by"],
+        "exclude_unlisted_input",
+    )
+
+    # The flag and its disposition.
+    record_clusters = _load(AUDIT / "clusters.json")
+    cluster = next(
+        c for c in record_clusters["clusters"] if c["id"] == action["flagged_by"]
+    )
+    assert "head_medicaid_eligible" in cluster["investigation"]["summary"]
+    assert any("head_medicaid_eligible" in p for p in cluster["review"]["problems"])
+    (reconciled,) = [
+        r
+        for r in record_clusters["reconciliations"]
+        if (r["scenario_id"], r["variable"]) == key
+    ]
+    assert reconciled["final_action"] == "exclude_unlisted_input"
+    assert reconciled["cites_review"] == cluster["id"]
+    assert reconciled["decided_on"] == UPGRADE_DATE
+
+    # The probe's values, on the reference engine with the committed fix module.
+    probe = _load(AUDIT / "verification" / "probe_023_medicaid.json")
+    assert probe["engine_version"] == f"policyengine-us {ENGINE}"
+    script = AUDIT / "scripts" / "probe_023_medicaid.py"
+    assert probe["probe_sha256"] == hashlib.sha256(script.read_bytes()).hexdigest()
+    module = AUDIT / probe["fix_module"]["module"]
+    assert probe["fix_module"]["sha256"] == (
+        hashlib.sha256(module.read_bytes()).hexdigest()
+    )
+    assert probe["committed_reference"] == _references()[key]
+    results = {
+        name: r["head_medicaid_eligible"] for name, r in probe["results"].items()
+    }
+    for reading in ("stated_facts", "reading_a", "reading_b"):
+        assert results[f"latest_final/{reading}"] == record["frozen_value"]
+    law = "latest_final_wdp_ssa_definition"
+    assert results[f"{law}/reading_a"] == record["alternative_value"] == 0.0
+    assert results[f"{law}/reading_b"] == record["frozen_value"] == 1.0
+    category = probe["results"]["latest_final/stated_facts"]["medicaid_category"]
+    assert category == "WORKING_DISABLED_BUY_IN"
+    assert f"medicaid_category {category}" in record["alternative_reading"]
+    magi = probe["results"]["latest_final/stated_facts"]["medicaid_income_level"]
+    assert (
+        f"{magi * 100:.1f}% of the federal poverty guideline"
+        in (record["alternative_reading"])
+    )
+    review = (AUDIT / "verification" / "reviews" / "pr182_review_023.md").read_text()
+    assert "Reading A" in review and "Reading B" in review
 
 
 def _verification_rows() -> dict[tuple[str, str], dict]:
@@ -249,7 +344,9 @@ def test_the_publication_release_recomputes_every_scored_reference():
     assert {row["engine"] for row in rows.values()} == {VERIFICATION_ENGINE}
     assert {row["fix"] for row in rows.values()} == {"latest_final"}
     scored = set(references) - set(exclusions)
-    assert len(scored) == 1929
+    # 1,984 outputs less 56 exclusions: the 52 of release 20260922c, the
+    # three the upgrade added and the one the audit excluded on review.
+    assert len(scored) == 1928
     for key in scored:
         assert float(rows[key]["recomputed"]) == references[key], key
     # The sweep's frozen column is the committed reference, so its "moved"
