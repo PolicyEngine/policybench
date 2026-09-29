@@ -1,0 +1,1 @@
+Retain private launchd run-directory records so status and logs work after completion, exhausted retries, and stop. Clean up the configured agent directory and preserve diagnostics when run names are reused.

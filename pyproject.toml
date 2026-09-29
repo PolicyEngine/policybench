@@ -22,6 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "hypothesis>=6.0",
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "ruff>=0.4",
@@ -35,6 +36,13 @@ docs = [
 
 [project.scripts]
 policybench = "policybench.cli:main"
+
+[tool.uv]
+# This pinned release is absent from the index; retain the exact wheel already
+# recorded in uv.lock rather than changing the benchmark's PolicyEngine version.
+override-dependencies = [
+    "policyengine-us @ https://files.pythonhosted.org/packages/fb/9e/8611bf46cf488981f0450bbfda8df8c9fc3d21e7bb5fc4398da9890b3d3c/policyengine_us-1.723.0-py3-none-any.whl",
+]
 
 [tool.setuptools.packages.find]
 include = ["policybench*"]
