@@ -6,29 +6,29 @@
   "output": "results/local/v1_1/us/reference_outputs.csv",
   "policyengine_bundles": {
     "us": {
-      "bundle_id": "us-4.16.1",
-      "bundled_certified_by": "policyengine-bundles",
-      "bundled_compatibility_basis": "bundle_candidate",
-      "bundled_model_version": "1.723.0",
-      "bundled_policyengine_version": "4.16.1",
-      "certified_by": "installed model package; no matching policyengine.py bundle manifest",
-      "certified_data_artifact_sha256": "f32c2e5e9098bc6540724fdd5debf963af495da4c29b3a7a63fb53c2a4bb5a34",
-      "certified_data_build_id": "populace-us-2024-5da5a95-20260611",
-      "compatibility_basis": "installed_model_package_not_policyengine_py_bundle",
+      "bundle_id": null,
       "country_id": "us",
-      "data_build_fingerprint": null,
-      "data_build_model_git_sha": null,
-      "data_build_model_version": "1.723.0",
-      "data_package": "populace-data",
-      "data_version": "0.1.0",
+      "policyengine_version": "6.1.2",
+      "bundled_policyengine_version": null,
+      "model_package": "policyengine-us",
+      "model_version": "2.15.17",
+      "model_direct_url": null,
+      "bundled_model_version": "2.2.1",
+      "model_version_source": "installed package",
+      "model_matches_policyengine_bundle": false,
+      "data_package": "populace-us",
+      "data_version": null,
       "default_dataset": "populace_us_2024",
       "default_dataset_uri": "hf://policyengine/populace-us/populace_us_2024.h5@populace-us-2024-5da5a95-20260611",
-      "model_direct_url": null,
-      "model_matches_policyengine_bundle": false,
-      "model_package": "policyengine-us",
-      "model_version": "1.755.4",
-      "model_version_source": "installed package",
-      "policyengine_version": "4.16.1"
+      "certified_data_build_id": "populace-us-2024-5da5a95-20260611",
+      "certified_data_artifact_sha256": "f32c2e5e9098bc6540724fdd5debf963af495da4c29b3a7a63fb53c2a4bb5a34",
+      "data_build_model_version": null,
+      "data_build_model_git_sha": null,
+      "data_build_fingerprint": null,
+      "compatibility_basis": "installed_model_package_not_policyengine_py_bundle",
+      "bundled_compatibility_basis": null,
+      "certified_by": "installed model package; no matching policyengine.py bundle manifest",
+      "bundled_certified_by": null
     }
   },
   "private_fraction": 0.0,
@@ -60,7 +60,7 @@
   "split": "public",
   "split_seed": 1042,
   "task": "reference_outputs",
-  "reference_csv_sha256": "800a19bc1c225656b93c4507933d98907e8d1a939248c8b021a9f26d33e9e0c5",
+  "reference_csv_sha256": "e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466",
   "revisions": [
     {
       "date": "2026-09-22",
@@ -879,6 +879,283 @@
           "regenerated": 0.0
         }
       ]
+    },
+    {
+      "date": "2026-09-28",
+      "kind": "engine_upgrade",
+      "root_cause": "engine_upgrade_policyengine_us_2_15_17",
+      "outputs": "every scored output",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. References come from the newest policyengine-us release (Max, 2026-09-28: 'we should be using the latest pe for this always!'), with the conventions that hold pre-freeze law re-expressed for it.",
+      "engine_version": "policyengine-us 2.15.17",
+      "previous_engine_version": "policyengine-us 1.755.4",
+      "policyengine_py": "policyengine 6.1.2, provenance only: its certified US bundle is policyengine-us 2.2.1, and it refuses to import next to a newer model",
+      "fix_modules": [
+        {
+          "module": "latest_c_ca_hold_2025.py",
+          "sha256": "f19a47b9583032a0602a31e52f995eee824a427a76e87a9d4257d6682a016fa2"
+        },
+        {
+          "module": "latest_c_irs_sales_tax_2025.py",
+          "sha256": "7f7fd235b29c45d1d5cceded0c3391aceb38740518dfda770e3aebcc3003228e"
+        },
+        {
+          "module": "latest_c_wi_published_2026.py",
+          "sha256": "4edf4c714c05d300e6fa32c4b56879aad8aa0de1d9ddd9a77987eefe3b06acce"
+        },
+        {
+          "module": "latest_c_id_hold_2025.py",
+          "sha256": "39fb99292691600cd273a1c6ef3c90847453e21e4d7b872603bcaac71727f8a5"
+        },
+        {
+          "module": "latest_c_mn_published_2026.py",
+          "sha256": "02a8ccc1fce71485fc9411d4a55f33226de4c8de09cf6375f99866b79da70522"
+        },
+        {
+          "module": "latest_c_md_2026.py",
+          "sha256": "8111c77ffd2e43d434d083994a7e8506ba42461a0845b33ac47ce0df988c2c76"
+        },
+        {
+          "module": "latest_c_mi_published_2026.py",
+          "sha256": "787cf837422e0bdf331a8e01a6fa8e8f2e3b78c35c248a4da83f3b2dbfa9ef9e"
+        },
+        {
+          "module": "latest_c_mo_published_2026.py",
+          "sha256": "0474524c83a7eb0c8440abf06bbeee38d4394e08260464d0dacb195ed3a8d916"
+        },
+        {
+          "module": "latest_c_snap_hold_fy2026.py",
+          "sha256": "3a8709ef36582af2248e460136db618fd319d490b7aeed94adbd6143ad9c07dd"
+        },
+        {
+          "module": "latest_conventions.py",
+          "sha256": "4155ed4a0be72c907815b33e2b3603cf0b5ea3eca351ad7509f8bd9ea5bb8ddb"
+        },
+        {
+          "module": "latest_md_local_output_scope.py",
+          "sha256": "53a6de3cd9b149467e5d86a5bb1fcc258e859478a7c16b7d3df951c713e423dd"
+        }
+      ],
+      "builder": "policybench.scenarios.Scenario.to_pe_household passes stated usual weekly hours (hours_worked_last_week) to weekly_hours_worked_before_lsr as well; upstream policyengine-us#9261 changed that input's default from 40 to 0",
+      "excluded_outputs_untouched": true,
+      "excluded_outputs_rechecked": [
+        {
+          "scenario_id": "scenario_005",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "kept_value": 106505.8984375,
+          "value_on_2_15_17": 107833.15625,
+          "reason": "r02 is unfixed in 2.15.17. gov.irs.ald.deductions (2026) still lists traditional_ira_contributions; the list and the retirement variables are identical to 1.755.4 apart from uprating attributes (44001a4c24). No 219(g) or active-participant code exists, and upstream #8388 scoped 219(g) out with no follow-up. Both spouses list 401(k) deferrals, so both are active participants under 219(g)(5)(A)(i); ira_219g_magi is $543,076, far above $149,000, so the deductible limit is $0 and the engine's $2,163.84 deduction is wrong. The +$1,327.26 move is #9122 alone: salt_refund_income=0 on 2.15.17 gives ex"
+        },
+        {
+          "scenario_id": "scenario_005",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 41051.51171875,
+          "value_on_2_15_17": 41267.01171875,
+          "reason": "Both r11 and r02 are still in 2.15.17. The CA itemized, charity and misc variables and parameters, traditional_ira_contributions and gov/irs/ald/deductions.yaml are identical over 06665727d8..79be99f671, and git grep finds no active_participant or 219(g) logic. The stored, unscored value is 2.15.17 + conventions = 41,267.011719; I reproduced it in the harness and by hand. The +215.50 gap to the board splits as +168.36 from c_ca_hold_2025 (the board kept raw v1.1 for this excluded output) and +47.14 from #9122: 23.14 through the line 29 limitation (248.86 x 9.3%) and 24.00 through the exemption"
+        },
+        {
+          "scenario_id": "scenario_007",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 755.7783203125,
+          "value_on_2_15_17": 761.5570068359375,
+          "reason": "Reproduced with sweep_latest.py on 2.15.17. Raw gives 755.7783203125, identical to v11_1755. latest_conventions gives 761.5570068359375 (+5.7787 = 0.053 x (4920.0313 - 4811)). latest_conventions + r07_v2 gives 651.3170166. The subtractions.yaml and main/single.yaml files are identical between 1.755.4 and 2.15.17, and the premium subtraction is still absent, so the r07 defect is still present. The board row is the raw 755.7783 because the c_id_hold_2025 revision has excluded_outputs_untouched: true. By hand: taxable SS 13,784.125, Idaho TI 19,180, and 0.053 x (19,180 - 4,811) = 761.557. With th"
+        },
+        {
+          "scenario_id": "scenario_020",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "kept_value": 68056.7109375,
+          "value_on_2_15_17": 68334.734375,
+          "reason": "Confirmed. On 2.15.17, sweep_latest.py gives 68334.734375 both raw and with latest_conventions.py. latest_conventions plus r25_niit_excluded gives 68112.09375, exactly the exclusion record's alternative_value, so the two readings still differ by 222.64 (more than the $1 tolerance). The r25 root cause is the benchmark_specs.json output definition ('federal individual income tax after nonrefundable credits and before refundable credits'), which is unchanged. The engine formula (income_tax_before_refundable_credits.py; git diff 06665727d8..79be99f671 is empty; cmp of the installed files is identi"
+        },
+        {
+          "scenario_id": "scenario_022",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 2439.650146484375,
+          "value_on_2_15_17": 2505.8701171875,
+          "reason": "r11 is still present. ca_itemized_deductions_pre_limitation carries the federal charitable_deduction (0.5% floor from 2026: 14,847.67 instead of 15,393.41) and the federal misc_deduction (0 since 2018). R&TC 17076(c) (Stats. 2025 ch. 231, SB 711 Sec. 11, effective 2025-10-01) and the conformity date in 17024.5(a)(1)(Q) (IRC as of 2025-01-01) mean California allows both. The law-correct value is 1,968.81; I reproduced it by harness and by hand. Federal AGI is 109,149.16 and CA AGI is 91,524.41; itemized deductions are 8,829 + 15,393.41 + 6,167.56 = 30,389.97; CA taxable income 61,134.44 gives t"
+        },
+        {
+          "scenario_id": "scenario_023",
+          "variable": "snap",
+          "kept_value": 461.3397216796875,
+          "value_on_2_15_17": 408.0,
+          "reason": "Reproduced on the harness. latest_conventions gives 408 ($34/mo); raw 2.15.17 gives 462. Hand check: gross $2,120.22 (wages $1,453.55 plus 403(b) $666.67); minus 20% earned ($290.71) and the $209 standard deduction gives $1,620.51; minus the $744 cap (binds with or without the SUA) gives $876.51, rounded to $877; 30% is $263.10, rounded up to $264; $298 - $264 = $34. The unlisted input still decides the output under law. Under reading B, federal SSI is $0 (countable $1,340.94 > $994) and CA SSP is $0 (countable income over the $1,335.81 standard). She has no MAGI route (141.19% FPL > 138%). He"
+        },
+        {
+          "scenario_id": "scenario_042",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 284.74090576171875,
+          "value_on_2_15_17": 464.18280029296875,
+          "reason": "Both defects are still present in policyengine-us 2.15.17, and I confirmed each directly.\n- diff -rq shows wi_capital_gain_loss_subtraction.py and wi_income_tax_before_refundable_credits.py byte-identical to 1.755.4, and git log 06665727d8..79be99f671 shows no commit touching either file.\n- My probe of 2.15.17 plus latest_conventions shows non_sch_d_capital_gains 3,753 in federal AGI (50,580.71; net_capital_gain 4,681) but wi_capital_gain_loss_subtraction 0.\n- The probe also shows wi_income_tax 0 (the min with the line-16 exclusion path, since wi_retirement_income_exclusion_amount is 24,000 an"
+        },
+        {
+          "scenario_id": "scenario_053",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 2435.2783203125,
+          "value_on_2_15_17": 2441.05712890625,
+          "reason": "Reproduced with sweep_latest.py on 2.15.17. Raw gives 2435.2783203125, identical to v11_1755. latest_conventions gives 2441.05712890625. latest_conventions + r07_v2 gives 2176.05712890625 (-265.00 = 0.053 x 5,000). id_subtractions is 0 and the r07 defect is still present. By hand: 0.053 x (50,868.68 - 4,811) = 2441.057, and 0.053 x (45,868.68 - 4,811) = 2176.057. The alternative also assumes the $5,000 is not paid through a pre-tax salary reduction. The prompt leaves that unstated (the household has wages and ESI), which gives an additional unlisted-input reason to keep this output excluded. K"
+        },
+        {
+          "scenario_id": "scenario_056",
+          "variable": "snap",
+          "kept_value": 1140.0,
+          "value_on_2_15_17": 95.0,
+          "reason": "Two inputs are still unlisted: hours, and whether the mortgage (and the property tax) is on the occupied home. At 0 hours the value also depends on the county and on 3-in-36 history. Refresh the record: frozen_value 95, alternative_value 1,908, engine_version 2.15.17, flipped alternative_reading. The 95 is January 2026 only, from the FNS-approved 20-county waiver (letter 2024-12-16, through 2026-01-31; NJ DFD confirms) applied to the engine's Atlantic County fallback. The amount is the NJ state minimum $95 (law signed 2023-02-08; federal formula $54). The alternative of 40 hours with the mortg"
+        },
+        {
+          "scenario_id": "scenario_057",
+          "variable": "snap",
+          "kept_value": 2669.217041015625,
+          "value_on_2_15_17": 2628.0,
+          "reason": "Reproduced. latest_conventions gives 2,628 ($219/mo); raw gives 2,682. Hand and engine agree. Head SSI is $994 - $391.42 = $602.58/mo; gross is $1,472.42; minus $173.33 (20% of earned) and $209 gives $1,090.08, which rounds to $1,090; 30% is $327; $546 - $327 = $219. Under reading B (rv_probe conv_B, and with the r30 port and the title XIX route), both spouses get SSI at the couple rate: $1,491 - $392.42 = $1,098.58/mo in total ($6,591.50 per person per year). Net is $1,586, 30% is $476, $546 - $476 = $70, and 840 per year, so the recorded alternative of 840 stands on 2.15.17 plus the hold. LA"
+        },
+        {
+          "scenario_id": "scenario_064",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 4605.9970703125,
+          "value_on_2_15_17": 4598.47607421875,
+          "reason": "Root cause r01 is still present in 2.15.17. traditional_ira_contributions.py, ira_contribution_limit.py, ira_contribution_scale.py, above_the_line_deductions.py and gov/irs/ald/deductions.yaml have identical blobs at 06665727d8 and 79be99f671, and upstream/main is 79be99f671. The dependent's $18.03 IRA contribution (stated in the prompt; $0 wages) is still in the joint return's ALD (19,926.22 = 19,800 loss ALD + 108.19 + 18.03). Under 26 U.S.C. 219(a), (b)(1)(B) and (c) (LII, re-fetched this session) it is not deductible there. The review harness gives 2.15.17 + latest_conventions = 4,598.4760"
+        },
+        {
+          "scenario_id": "scenario_080",
+          "variable": "snap",
+          "kept_value": 3596.039794921875,
+          "value_on_2_15_17": 3576.0,
+          "reason": "The r30 defect is unfixed in 2.15.17. snap_state_using_standard_utility_allowance.py is byte-identical to 1.755.4 and returns p.always_standard[state]. always_standard.yaml's only change since 06665727d8 is metadata (d7fc17abfe), and PA stays true from 2015-10-01. snap_utility_allowance_type still grants the SUA on has_heating_cooling | always_sua. The only upstream fix in progress (draft PR #9610) covers California only. My trace on 2.15.17 + latest_conventions shows always_sua=True, has_heating_cooling_expense=False, is_usda_disabled=False and has_snap_elderly_disabled_member=False. The $857"
+        },
+        {
+          "scenario_id": "scenario_082",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "kept_value": 9563.052734375,
+          "value_on_2_15_17": 9577.90234375,
+          "reason": "r02 is unfixed in 2.15.17 (same evidence as 005). The HoH head lists a $181 traditional 401(k) deferral with $100,195 of wages, so is an active participant; ira_219g_magi is $117,661, above $91,000, so the limit is $0 but the engine deducts $8.48. The +$14.85 move is #9122 alone (67.50 at 22%); refund=0 on 2.15.17 gives exactly 9563.052734375. The alternative on 2.15.17 is 9579.767578125 with the refund in AGI, or 9564.9169921875 with both readings or under a hold. My engine-free calc reproduces these (standard deduction $24,150 + 170(p) $700; CTC $2,200; CDCC 20% of $3,000). No other unlisted"
+        },
+        {
+          "scenario_id": "scenario_091",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 843.6614990234375,
+          "value_on_2_15_17": 895.8131103515625,
+          "reason": "The r32 defect is still present in 2.15.17. The subtraction file is byte-identical to 1.755.4 and no commit in the range touches it. My probe on 2.15.17 plus conventions shows non_sch_d_capital_gains 1,170 in AGI 36,182.56 but wi_capital_gain_loss_subtraction 0.\nThe harness gives 895.81311 with latest_conventions and 878.515747 with r32 added; the engine-free recompute gives 895.8131 and 878.5158. 71.05(6)(b)9 subtracts 30% of long-term gain, IRC 852(b)(3)(B) treats capital gain dividends as long-term, and 2025 SB line 5 applies the 30% exclusion to distributions reported without Schedule WD.\n"
+        },
+        {
+          "scenario_id": "scenario_099",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 4493.7431640625,
+          "value_on_2_15_17": 4640.77734375,
+          "reason": "r11 and r02 are still present. The engine's federal floor removes 797.93 of charity (-63.83). Both spouses defer into a 401(k), which makes them active participants, and MAGI of 159,729.30 exceeds the $149,000 top of the 2026 joint range (IRS Notice 2025-67, posted 2025-11-13), so the $144.26 IRA deduction is fully phased out (+11.54 after r11). Together these give 4,588.48, the Sept 22 alternative. I confirm the new educator-expense defect: FTB 2025 Schedule CA line 11 says 'California law does not conform to federal law regarding educator expenses', but 2.15.17's ca_additions adds only ca_hs"
+        },
+        {
+          "scenario_id": "scenario_100",
+          "variable": "snap",
+          "kept_value": 8625.8896484375,
+          "value_on_2_15_17": 8556.0,
+          "reason": "Reproduced. latest_conventions gives 8,556 ($713/mo); raw gives 8,637. Pre-shelter net is $690.73 (earned $492.89 plus the engine's MT TANF of $505.41/mo, minus $98.58 and $209). With the $799 SUA (FNS FY2026 SUA table: MT HCSUA $799), net is $237, 30% rounds up to $72, and $785 - $72 = $713. r30 is confirmed still present in 2.15.17. The engine grants the always_standard SUA with has_heating_cooling_expense = 0 and no elderly-or-disabled member. My r30 port (rv_fix_r30.py, full sweep rv_r30_full.csv) moves only 080 and 100, giving 100 = 6,924: net $691, $208, $785 - $208 = $577. Keep the outp"
+        },
+        {
+          "scenario_id": "scenario_112",
+          "variable": "snap",
+          "kept_value": 287.68316650390625,
+          "value_on_2_15_17": 0.0,
+          "reason": "Hours are unlisted, and at 0 hours the law also depends on unlisted 3-in-36 history, so no engine version resolves this. Refresh the record: frozen_value 0 (the 2.15.17 plus conventions reference), alternative_value 288, engine_version 2.15.17, and flip the alternative_reading text. At 20 or more hours, TX BBCE (165%; $5,000 assets with one vehicle up to $22,000 excluded) is met, and the net income of about $1,269 (engine) or $1,429 (farm rent counted) leaves only the $24 one-person minimum: 12 x 24 = 288. The text should say the 0 comes from the engine's no-history shortcut (the law gives up "
+        },
+        {
+          "scenario_id": "scenario_118",
+          "variable": "snap",
+          "kept_value": 2903.9404296875,
+          "value_on_2_15_17": 2868.0,
+          "reason": "Keep excluded, now for three independent reasons.\n1. The mortgage-residence ambiguity (r15_snap_mortgage_interest), which no engine version resolves. 2.15.17 still counts only mortgage_payments, not mortgage interest, as a SNAP shelter cost.\n2. A second unlisted input, the county. The prompt gives only NY, and New York's FY2026 HCSUA is $877, $988 or $1,062 by region. That gives 2,868, 3,276 or 3,540 on 2.15.17 + conventions.\n3. An unfixed 2.15.17 defect: the NY State Supplement Program ($87 a month for an individual living alone in 2026, per the OTDA chart revised 2025-10-27; pre-freeze law) "
+        },
+        {
+          "scenario_id": "scenario_120",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "kept_value": 40021.81640625,
+          "value_on_2_15_17": 40416.66796875,
+          "reason": "r02 is unfixed in 2.15.17. The single head (76) lists a $617 traditional 401(k) deferral with $165,597 of wages, so is an active participant; ira_219g_magi is $234,414, above $91,000, so the limit is $0 but the engine deducts $28.85. The +$394.85 move is #9122 alone. Taxable income rises $1,645.22, because the engine's ct_withheld_income_tax proxy (CT single rates on federal AGI less $15,000) raises SALT by $113.77 and the 0.5% charitable floor rises $8.75; CT's own tax is unchanged at 11917.18 because CT subtracts salt_refund_income. Refund=0 gives exactly 40021.81640625. The alternative on 2"
+        }
+      ],
+      "changed": [
+        {
+          "scenario_id": "scenario_008",
+          "variable": "state_refundable_credits",
+          "frozen": 5342.39990234375,
+          "previous": 5342.39990234375,
+          "regenerated": 5842.39990234375,
+          "cause": "nj_ctc_fy2027_budget",
+          "basis": "New Jersey child tax credit schedule for 2026-2028 (P.L.2026, c.26, approved June 30, 2026), encoded upstream in policyengine-us#8971 (0319635b6e)."
+        },
+        {
+          "scenario_id": "scenario_013",
+          "variable": "snap",
+          "frozen": 0.0,
+          "previous": 0.0,
+          "regenerated": 240.0,
+          "cause": "az_snap_bbce_200",
+          "basis": "Arizona raised its expanded categorical eligibility gross limit from 185% to 200% of poverty from benefit month 03/2026 (DES CNAP \"What's Changed on 03/23/2026\"); encoded upstream after 1.755.4."
+        },
+        {
+          "scenario_id": "scenario_028",
+          "variable": "reduced_price_school_meals_eligible",
+          "frozen": 1.0,
+          "previous": 1.0,
+          "regenerated": 0.0,
+          "cause": "school_meals_child_support_income",
+          "basis": "Child support received counts as household income for school meals (7 CFR 245.6(a)(5)(ii)); policyengine-us added it to the school-meal income sources after 1.755.4."
+        },
+        {
+          "scenario_id": "scenario_033",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 3788.988037109375,
+          "previous": 3788.988037109375,
+          "regenerated": 3818.148193359375,
+          "cause": "excluded_reference_depends_on_unlisted_input",
+          "basis": "Newly excluded from scoring on 2026-09-28 (reference_exclusions.json): whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)"
+        },
+        {
+          "scenario_id": "scenario_078",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 24772.693359375,
+          "previous": 24780.61328125,
+          "regenerated": 24164.45703125,
+          "cause": "excluded_reference_depends_on_unlisted_input",
+          "basis": "Newly excluded from scoring on 2026-09-28 (reference_exclusions.json): whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)"
+        },
+        {
+          "scenario_id": "scenario_082",
+          "variable": "state_refundable_credits",
+          "frozen": 650.5,
+          "previous": 650.5,
+          "regenerated": 667.0,
+          "cause": "ny_ctc_phaseout_rounding_9425",
+          "basis": "New York Empire State child credit phase-out rounding corrected upstream (policyengine-us#9425)."
+        },
+        {
+          "scenario_id": "scenario_117",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 24391.796875,
+          "previous": 24391.796875,
+          "regenerated": 24961.33984375,
+          "cause": "excluded_reference_depends_on_unlisted_input",
+          "basis": "Newly excluded from scoring on 2026-09-28 (reference_exclusions.json): whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)"
+        },
+        {
+          "scenario_id": "scenario_078",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 6936.33740234375,
+          "previous": 6936.33740234375,
+          "regenerated": 6936.87646484375,
+          "cause": "engine_upgrade_within_1",
+          "basis": "Moves by $1 or less on policyengine-us 2.15.17; no score changes at the exact-match tolerance."
+        },
+        {
+          "scenario_id": "scenario_117",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 7984.05419921875,
+          "previous": 7984.05419921875,
+          "regenerated": 7984.53369140625,
+          "cause": "engine_upgrade_within_1",
+          "basis": "Moves by $1 or less on policyengine-us 2.15.17; no score changes at the exact-match tolerance."
+        }
+      ]
     }
-  ]
+  ],
+  "regenerated_at_utc": "2026-09-29T11:34:07.010973+00:00"
 }

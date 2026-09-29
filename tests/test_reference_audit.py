@@ -42,8 +42,24 @@ def _exclusions() -> list[dict]:
     return _load(RUN_DIR / "reference_exclusions.json")["exclusions"]
 
 
-def _revisions() -> list[dict]:
+def _all_revisions() -> list[dict]:
     return _load(RUN_DIR / "reference_outputs.csv.meta.json")["revisions"]
+
+
+def _revisions() -> list[dict]:
+    """The September 22 wave's revisions (the 2026-09-28 engine upgrade has its
+    own record, reference_audit/2026-09-28, tested in test_reference_upgrade)."""
+    return [r for r in _all_revisions() if r["kind"] in ("convention", "upstream_fix")]
+
+
+def _superseded() -> dict[tuple[str, str], dict]:
+    """Outputs the 2026-09-28 engine upgrade changed after this wave."""
+    return {
+        (c["scenario_id"], c["variable"]): c
+        for r in _all_revisions()
+        if r["kind"] == "engine_upgrade"
+        for c in r["changed"]
+    }
 
 
 def _causes() -> dict[str, dict]:
@@ -73,7 +89,7 @@ def _source(revision: dict) -> str:
 def _pre_audit_references() -> dict[tuple[str, str], float]:
     """The references frozen on 2026-07-03, before any regeneration."""
     values = _references()
-    for revision in _revisions():
+    for revision in _all_revisions():
         for change in revision["changed"]:
             values[(change["scenario_id"], change["variable"])] = change["frozen"]
     return values
@@ -148,12 +164,20 @@ def test_every_regeneration_names_a_committed_fix():
             assert causes[source]["upstream_fixed"] is True
             assert causes[source]["upstream"].startswith("fixed in ")
         changed = {(c["scenario_id"], c["variable"]): c for c in revision["changed"]}
+        superseded = _superseded()
         for key, change in changed.items():
+            if key in superseded:
+                # The engine upgrade replaced this value; it records it as the
+                # previous reference.
+                assert abs(superseded[key]["previous"] - change["regenerated"]) < 1e-6
+                continue
             # A regenerated reference is scored and is the frozen CSV's value.
             assert key not in excluded, key
             assert abs(references[key] - change["regenerated"]) < 1e-6, key
         # Each source regenerates exactly the scored outputs its sweep moves.
-        moved = {k for k in swept.get(source, {}) if k not in excluded}
+        moved = {
+            k for k in swept.get(source, {}) if k not in excluded or k in superseded
+        }
         assert moved == set(changed), source
 
 
@@ -260,7 +284,10 @@ def test_records_after_the_wave_carry_their_root_cause_date():
     adjudicated_on = {
         (e["scenario_id"], e["variable"]): e["adjudicated_on"] for e in adjudications
     }
-    audit = [e for e in _exclusions() if e["decided_on"] != "2026-09-05"]
+    # Records dated 2026-09-29 belong to the 2026-09-28 engine upgrade.
+    audit = [
+        e for e in _exclusions() if e["decided_on"] not in ("2026-09-05", "2026-09-29")
+    ]
     assert audit
     for entry in audit:
         key = (entry["scenario_id"], entry["variable"])

@@ -143,6 +143,15 @@ EXCLUDED_INPUT_VARIABLES = {
     "wy_power_shelter_qualified",
 }
 
+# Prompt-visible inputs PolicyEngine reads under another name. The prompt shows
+# hours_worked_last_week as "usual weekly hours worked"; the SNAP work rules read
+# weekly_hours_worked_before_lsr, which the prompt never shows. policyengine-us
+# defaulted that input to 40 until #9261 (2026-08-12) made it 0, so a stated 40
+# hours stopped reaching the SNAP work tests. The stated value is copied to the
+# engine name; a person with no stated hours keeps the engine default, which is
+# also the prompt's rule for unlisted numbers (0).
+PE_INPUT_ALIASES = {"hours_worked_last_week": "weekly_hours_worked_before_lsr"}
+
 EXCLUDED_INPUT_PREFIXES = (
     "takes_up_",
     "would_",
@@ -476,6 +485,9 @@ class Scenario:
             }
             for key, value in person.inputs.items():
                 person_data[key] = self._yearize(value)
+            for source, target in PE_INPUT_ALIASES.items():
+                if source in person.inputs and target not in person.inputs:
+                    person_data[target] = self._yearize(person.inputs[source])
             for key, value in DEFAULT_TAKEUP_INPUTS["person"].items():
                 person_data.setdefault(key, self._yearize(value))
             people[person.name] = person_data
@@ -488,6 +500,9 @@ class Scenario:
             }
             for key, value in person.inputs.items():
                 person_data[key] = self._yearize(value)
+            for source, target in PE_INPUT_ALIASES.items():
+                if source in person.inputs and target not in person.inputs:
+                    person_data[target] = self._yearize(person.inputs[source])
             for key, value in DEFAULT_TAKEUP_INPUTS["person"].items():
                 person_data.setdefault(key, self._yearize(value))
             people[person.name] = person_data

@@ -1,0 +1,206 @@
+{
+ "modules": [
+  {
+   "convention": "c_ca_hold_2025",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_c_ca_hold_2025.py",
+   "needed": true,
+   "reason": "Every amount r19 set is still a CA-CPI projection in 2.15.17, with 2026 values identical to 1.755.4's. The CalEITC final phase-out breakpoints are now projected without annual rounding: 251/635 for 2025 and 257/649 for 2026, not the statutory 252/636, which is held for both years. New in this port: 2.15.17 now uprates 30 amounts that 1.755.4 kept at their 2025 values (upstream #9059, df3482f4ef, 2026-07-21; #9429, 2572674b97). These are the standard deduction, AMT exemption, AMTI lower and upper thresholds, exemption-credit phase-out start, and itemized-limitation AGI threshold. They are held at FTB's 2025 amounts, which I read this session: 5,706/11,412 (FTB Tax News, Oct 2025); 92,749/123,667/61,830, 347,808/463,745/231,868 and 718,804/958,413/479,188 (2025 Schedule P (540) instructions); 252,203/504,411/378,310 (2025 540 booklet and 540 CA instructions). Attribution sweeps show both halves are needed. r19's set alone leaves 022 federal at +2.65 and 023 state at -2.59. The 30 new holds alone leave 022 federal at +17.76, 023 state at -5.98 and 023 refundable at +2.37."
+  },
+  {
+   "convention": "c_irs_sales_tax_2025",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_c_irs_sales_tax_2025.py",
+   "needed": true,
+   "reason": "2.15.17 now carries the IRS 2025 table (upstream #9616, 3f029abf5b, 2026-09-27), and all 5,814 cells match r19_irs_sales_tax_2025.json (asserted in the module). For 2026, tax.yaml says 'later years are uprated from 2025' by gov.irs.uprating, a projection (for example AL 1/1 is 312.93 against the published 306). The module holds the 2025 cells for 2026 only. On 2.15.17 it changes no scored output. In scenario_000 the filer takes the 18,150 standard deduction under either table (itemized 17,612.52 raw, 17,587.20 held). The module reproduces the board's underlying sales tax exactly: 931.0 state, 186.2 local, SALT 17,587.20."
+  },
+  {
+   "convention": "c_wi_published_2026",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_c_wi_published_2026.py",
+   "needed": true,
+   "reason": "The brackets are now carried: 2.15.17 has explicit 2026 entries citing the 2026 Form 1-ES, and they equal the published 15,110/51,950/332,720 and so on (asserted, not set). The standard deduction is still projected, now with $10 rounding (94e40f1471): 13,870/25,680/12,200/17,920 maxima and 19,990/28,850/13,690/19,990 phase-out starts. DOR publishes 13,960/25,840/12,280/18,030, 20,120/29,040/13,780/20,120 and 58,827 (2026 Form 1-ES instructions, D-101A R. 1-26, read this session). The module sets these 10 values. It changes only excluded outputs (042, 064, 091), as on the board (changed=[])."
+  },
+  {
+   "convention": "c_id_hold_2025",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_c_id_hold_2025.py",
+   "needed": true,
+   "reason": "The zero-rate thresholds are still projected in 2.15.17 (4,920.03/9,840.06), identical to 1.755.4. The published 2025 amounts, $4,811/$9,622 (2025 Form 40 instructions rev. 2026-03-02, read this session), are held. The retirement caps are still projected (49,308.72/73,963.07); the SSA-derived 49,824/74,736 is kept as in r19."
+  },
+  {
+   "convention": "c_mn_published_2026",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_c_mn_published_2026.py",
+   "needed": true,
+   "reason": "All 90 parameter-years r19 sets are unchanged from 1.755.4 in 2.15.17 (still CPI projections), so the r19 values are kept. I read the source this session: MN 2026 inflation-adjusted amounts, dated December 1, 2025 (5,300 exemption, 15,300/30,600/23,000 standard deduction, 33,310/48,700 thresholds). Two published amounts 1.755.4 lacked are now in 2.15.17 and consistent with the rule, so they are asserted but not set: the 1,107,750 alternate reduction threshold (2026 publication) and the 31,000/48,000 marriage-credit minimums (2025 M1MA, carried into 2026)."
+  },
+  {
+   "convention": "c_md_2026",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_c_md_2026.py",
+   "needed": true,
+   "reason": "Every MD value r19 set is unchanged from 1.755.4 in 2.15.17: withholding table 2,800/5,700, flat deduction 3,400/6,850, CDCC caps 114,600/178,250 and 62,250/93,450. The r19 values are kept. I read the 2026 Employer Withholding Guide ('Revised December 2025'; standard deduction $3,400; 'includes local income tax rates'). The module reproduces the MD part of both households: 068 md_income_tax_before_refundable_credits is 1,255.3428, equal to the board. The scored MD outputs still move because of a separate output-scope change; see latest_md_local_output_scope and the residuals."
+  },
+  {
+   "convention": "c_mi_published_2026",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_c_mi_published_2026.py",
+   "needed": true,
+   "reason": "The retirement tier-one limits are now carried: 2.15.17 has explicit 2026 values of 67,610/135,220 (#9073, b46a672edd; caf421bbe9), asserted rather than set. The personal exemption is still projected at 5,950 and is set to 5,900 (Form 446 Rev. 02-26, read this session). All HELD_2025 amounts are unchanged from 1.755.4 and are kept. The home-heating credit percentage in 2.15.17 is 0.60 from 2025 (TY2025 MI-1040CR-7 book), carried into 2026. That is the published-2025 hold the rule asks for (1.755.4 had 0.52), so it is asserted, not set."
+  },
+  {
+   "convention": "c_mo_published_2026",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_c_mo_published_2026.py",
+   "needed": true,
+   "reason": "The 2026 thresholds are still projected in 2.15.17 (1,342.76 through 9,399.29), identical to 1.755.4. They are set to the published 1,348 through 9,436 (2026 Withholding Formula, read this session). r19 re-pinned the 2026 pension cap by importing the baseline system; that step is dropped, because 2.15.17 applies reforms after its uprating pass (system.py), so the 2025 repair to 47,633 cannot move 2026. Checked: the 2026 cap stays 49,308.72, same as the board. 2.15.17's new 2026 MO property-tax-credit parameters, which upstream attributes to 'H.B. 594' (1d128732f9, 2026-08-04), were not dated by me. The credit is 0 in both MO households on both engines."
+  },
+  {
+   "convention": "combined: all eight conventions",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_state_conventions.py",
+   "needed": true,
+   "reason": "Composes the eight latest_c_* reforms, which touch disjoint parameter sets. Parameter-level check: on 2.15.17 it reproduces all 10,748 parameter-years the 1.755.4 board conventions changed, plus the 30 new CA holds, which equal 1.755.4's own 2025-carried values (latest/port_state/p21517_latest.json vs p1755_conv.json). It excludes SNAP and the MD output-scope candidate."
+  },
+  {
+   "convention": "md_local_output_scope (candidate output-definition adapter, not a law convention)",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_md_local_output_scope.py",
+   "needed": true,
+   "reason": "2.15.17 adds md_local_income_tax_before_refundable_credits to the list behind state_income_tax_before_refundable_credits (upstream #8888, 6b0bca0b9f, 2026-07-05). The PolicyBench prompt defines that output as 'excluding local income and payroll taxes'. The county is unlisted, so 2.15.17 falls back to Allegany's 3.03%. The module removes only that list entry and leaves county tax in the federal SALT proxy. With it, 068 state goes to 1,255.342773 (exact) and 078 state to 6,936.876 (within $1). Adopting it is the lead's call."
+  }
+ ],
+ "upstream_fixes": [
+  {
+   "root_cause": "r04_capital_gain_distributions (issue #8828)",
+   "present_in_2_15_17": true,
+   "evidence": "Commit 491642087f (2026-07-05, PR #8839) is an ancestor of 79be99f671. In the 2.15.17 site-packages, non_sch_d_capital_gains is in parameters/gov/irs/gross_income/sources.yaml:12 and investment/income/sources.yaml:9, and variables/gov/irs/tax/federal_income/capital_gains/net_capital_gain.py adds it to the preferential base. Raw 2.15.17 reproduces the board exactly: 042 federal 2,361.964844 and 051 state 820.349976."
+  },
+  {
+   "root_cause": "r09_ny_rptc_rent_cap (issue #9298; plus the 2025 flat tables)",
+   "present_in_2_15_17": true,
+   "evidence": "Commits ba4ee190d5 (2026-08-19, PR #9301) and 5490d04cb6 (2026-08-24, PR #9313) are ancestors of 2.15.17. ny_real_property_tax_credit.py applies 'rent <= rptc.max_rent' to rent itself (max_rent 5,400/yr) and uses the 2025+ flat amount tables. Raw 2.15.17 gives 104 state_refundable_credits = 0, equal to the board."
+  },
+  {
+   "root_cause": "r17_caleitc_agi_comparison",
+   "present_in_2_15_17": true,
+   "evidence": "Commit 7d19aa3556 (2026-09-01, PR #9363) is an ancestor of 2.15.17. ca_eitc.py returns min_(credit_for(earned_income), credit_for(max_(earned_income, agi))). 023 state_refundable_credits is 95.154007 with latest_c_ca_hold_2025, equal to the board. Raw 2.15.17 gives 97.52 only because of the CA projections."
+  }
+ ],
+ "reproduced": [
+  {
+   "scenario_id": "scenario_022",
+   "variable": "federal_income_tax_before_refundable_credits",
+   "board": 11113.5703125,
+   "value": 11113.5703125,
+   "note": "c_ca_hold_2025, exact. Needs the 30 new CA holds as well as r19's set."
+  },
+  {
+   "scenario_id": "scenario_023",
+   "variable": "state_income_tax_before_refundable_credits",
+   "board": 12.776718139648438,
+   "value": 12.776718139648438,
+   "note": "c_ca_hold_2025, exact."
+  },
+  {
+   "scenario_id": "scenario_023",
+   "variable": "state_refundable_credits",
+   "board": 95.15400695800781,
+   "value": 95.15400695800781,
+   "note": "c_ca_hold_2025 together with r17 (already in 2.15.17), exact."
+  },
+  {
+   "scenario_id": "scenario_000",
+   "variable": "federal_income_tax_before_refundable_credits",
+   "board": 2906.45361328125,
+   "value": 2906.45361328125,
+   "note": "c_irs_sales_tax_2025, exact. Raw 2.15.17 already equals the board because the filer takes the standard deduction."
+  },
+  {
+   "scenario_id": "scenario_076",
+   "variable": "state_income_tax_before_refundable_credits",
+   "board": 6818.34423828125,
+   "value": 6818.34423828125,
+   "note": "c_id_hold_2025, exact."
+  },
+  {
+   "scenario_id": "scenario_122",
+   "variable": "state_income_tax_before_refundable_credits",
+   "board": 1025.54150390625,
+   "value": 1025.54150390625,
+   "note": "c_mn_published_2026, exact."
+  },
+  {
+   "scenario_id": "scenario_068",
+   "variable": "state_income_tax_before_refundable_credits",
+   "board": 1255.3427734375,
+   "value": 1255.3427734375,
+   "note": "c_md_2026, exact, but only together with latest_md_local_output_scope. The conventions alone give 2,089.608887 (see residuals)."
+  },
+  {
+   "scenario_id": "scenario_045",
+   "variable": "state_income_tax_before_refundable_credits",
+   "board": 1290.9625244140625,
+   "value": 1290.9625244140625,
+   "note": "c_mi_published_2026, exact."
+  },
+  {
+   "scenario_id": "scenario_093",
+   "variable": "state_income_tax_before_refundable_credits",
+   "board": 3388.24560546875,
+   "value": 3388.24560546875,
+   "note": "c_mo_published_2026, exact."
+  },
+  {
+   "scenario_id": "scenario_042",
+   "variable": "federal_income_tax_before_refundable_credits",
+   "board": 2361.96484375,
+   "value": 2361.96484375,
+   "note": "r04 upstream (#8839) is in 2.15.17, exact with no module."
+  },
+  {
+   "scenario_id": "scenario_051",
+   "variable": "state_income_tax_before_refundable_credits",
+   "board": 820.3499755859375,
+   "value": 820.3499755859375,
+   "note": "r04 upstream, exact with no module."
+  },
+  {
+   "scenario_id": "scenario_104",
+   "variable": "state_refundable_credits",
+   "board": 0,
+   "value": 0,
+   "note": "r09 upstream (#9301/#9313) is in 2.15.17, exact with no module."
+  }
+ ],
+ "residuals": [
+  {
+   "scenario_id": "scenario_078",
+   "variable": "federal_income_tax_before_refundable_credits",
+   "board": 24780.61328125,
+   "value": 24164.45703125,
+   "note": "Two upstream changes, both applying law published before the freeze. Removing both reproduces 24,780.6133 exactly. (1) #8888 (6b0bca0b9f, 2026-07-05) puts county tax into md_withheld_income_tax, so SALT reaches the $40,400 cap (-986.27). This does not depend on the unlisted county: the cap binds at any rate of 2.09% or more, and Worcester 2.25%, Dorchester 3.3%, Anne Arundel and Frederick all give 24,164.457. (2) #9122 (316e7832a1, 2026-09-08) adds the $1,631.91 salt_refund_income to federal gross income (+391.66). The MD convention no longer changes this output, because the SALT cap binds. Proposed: adopt 24,164.46 if the lead adopts #9122 everywhere; it is the same root cause as the 033 SD, 082 NY, 117 AR and 120 CT federal moves (005 CA is excluded). With #8888 only the value is 23,772.80. If the refund's taxability under IRC 111 is ruled ambiguous, this output becomes an exclusion candidate."
+  },
+  {
+   "scenario_id": "scenario_078",
+   "variable": "state_income_tax_before_refundable_credits",
+   "board": 6936.3374,
+   "value": 11295.388672,
+   "note": "#8888 adds Maryland county tax (4,358.51 at the Allegany 3.03% default for the unlisted county) to the state aggregate. The prompt excludes local tax. With latest_md_local_output_scope the value is 6,936.876, within $1 (+0.539). That remainder comes from #9122: AGI of 200,136.91 crosses MD's $200,000 itemized phase-out, adding 10.27 of MD taxable income."
+  },
+  {
+   "scenario_id": "scenario_068",
+   "variable": "state_income_tax_before_refundable_credits",
+   "board": 1255.3427734375,
+   "value": 2089.608887,
+   "note": "Same cause as 078 state: county tax of 834.27 at the 3.03% default. The MD part is exactly 1,255.3428, and latest_md_local_output_scope gives 1,255.342773. The federal output (1,910.02) is county-invariant because the filer takes the standard deduction."
+  },
+  {
+   "scenario_id": "scenario_073",
+   "variable": "snap",
+   "board": 288,
+   "value": 291,
+   "note": "Outside the state conventions (MI SNAP). Unverified hypothesis: 2.15.17's FY2027 minimum allotment, where 9x24 + 3x25 = 291. c_snap_hold_fy2026 is not ported in this task, so the SNAP port agent owns this."
+  },
+  {
+   "scenario_id": "scenario_108",
+   "variable": "snap",
+   "board": 288,
+   "value": 291,
+   "note": "Outside the state conventions (WI SNAP). Same hypothesis and owner as scenario_073."
+  }
+ ],
+ "sweep_csv": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/out/latest_state_conventions.csv",
+ "notes": "On the question \"aren't we using policyengine.py\": only for provenance, not for calculation. I tested this in the triage venv. `import policyengine` (6.1.2) fails against policyengine-us 2.15.17 with \"ValueError: Data release manifest is not certified for the runtime model version 2.15.17 in country 'us'\". The error comes from model.py:552, which builds us_latest at import time, and there is no override. policyengine 6.1.2 pins policyengine-us==2.2.1.\n\nSo `pe.us.calculate_household` cannot run on 2.15.17. It would also have taken only parameter-dict reforms, and it calls `policyengine_us.Simulation` itself anyway. PolicyBench's own reference path never calculates through policyengine.py either:\n- `ground_truth.py` calls `get_us_situation_simulation_class()`, which returns `policyengine_us.Simulation`.\n- `policyengine_runtime.py` reads policyengine.py's metadata without importing it. The provenance it records is: policyengine_version 6.1.2, bundled_model_version 2.2.1, model_version 2.15.17, model_matches_policyengine_bundle False.\n\n`sweep_latest.py` takes the same direct path. The references are therefore policyengine-us 2.15.17 computed directly, with policyengine.py 6.1.2 recorded in provenance. Running calculations through policyengine.py would mean going back to its certified us 2.2.1.\n\nPort results (all runs use `.venv-pepy612-us21517` and the `sweep_latest` harness):\n- Every one of the eight conventions is still needed. 2.15.17 carries none of them in full.\n- Partly carried: the WI brackets, the MI retirement limits, and the 2025 IRS sales tax table.\n- 2.15.17 newly projects 30 CA amounts that 1.755.4 held at their 2025 values. The CA convention now holds them.\n\nSweeps:\n- With the eight conventions combined, 38 outputs are moved against the board. Before any fix there were 41.\n- With the conventions plus `latest_md_local_output_scope`, 36 are moved.\n- In my states, the only non-excluded outputs still moved are 078 MD federal and the MI/WI SNAP rows. The SNAP rows are outside this task.\n\nPer-module sweep CSVs are in `sweep/out/`: `latest_c_ca_hold_2025.csv`, `latest_c_irs_sales_tax_2025.csv`, `latest_c_wi_published_2026.csv`, `latest_c_id_hold_2025.csv`, `latest_c_mn_published_2026.csv`, `latest_c_md_2026.csv`, `latest_c_mi_published_2026.csv`, `latest_c_mo_published_2026.csv`, `latest_state_conventions.csv` and `latest_md_local_output_scope.csv`. The combined run with the MD scope module is `latest/port_state/combo_state_plus_mdlocal.csv`. Logs are in `latest/port_state/logs/`.\n\nExcluded outputs the conventions still change (not scored):\n- Equal to 1.755.4 plus r19: 022 CA state 2,505.87, 099 CA state 4,640.78, 007 ID 761.56, 053 ID 2,441.06, 064 WI 4,598.48.\n- Different from 1.755.4 plus r19, because of upstream #9122 and the r04/r32 changes: 005 CA state 41,267.01 and federal 107,833.16, 042 WI 464.18, 091 WI 895.81.\n\nThe MD output-scope module is my proposal, not a pre-freeze law convention. Adopting it is the lead's decision.\n\nSources I read this session:\n- FTB Tax News, October 2025.\n- FTB 2025 Schedule P (540), Form 540 booklet and Schedule CA (540) instructions.\n- WI 2026 Form 1-ES instructions (R. 1-26).\n- MI Form 446 (Rev. 02-26).\n- MO 2026 Withholding Formula.\n- MN 2026 inflation-adjusted amounts (dated 2025-12-01).\n- MD 2026 Withholding Guide (revised December 2025).\n- ID 2025 Form 40 instructions (rev. 2026-03-02).\n\nScratch files, including parameter dumps, the projected-parameter inventory, attribution modules and county-sensitivity patches, are in `triage/latest/port_state/`.\n\nModule sha256:\n- ca f19a47b9\n- irs 7f7fd235\n- wi 4edf4c71\n- id 39fb9929\n- mn 02a8ccc1\n- md 8111c77f\n- mi 787cf837\n- mo 0474524c\n- state_conventions 56e62e39\n- md_local_output_scope 53a6de3c\n\nNo existing file was modified, nothing was pushed, and the policyengine-us repo was only read."
+}

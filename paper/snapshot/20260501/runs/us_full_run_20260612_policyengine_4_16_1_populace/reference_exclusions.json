@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "rule": "An output is excluded from scoring for every model when its reference depends on an engine input that the certified household data never carried and the prompt therefore never listed, and a careful reader could take the stated facts the other way. Excluded outputs stay in the published payload, marked scored=false, so every prompt and response remains inspectable.",
-  "derivation": "All 1,984 references were recomputed with policyengine-us 1.755.4 (the version that produced them; base recompute matched the frozen CSV on every row) under each alternative reading; every output whose value moved is listed. 2026-09-05.",
+  "derivation": "All 1,984 references were recomputed with policyengine-us 1.755.4 (the version that produced them; base recompute matched the frozen CSV on every row) under each alternative reading; every output whose value moved is listed. 2026-09-05. On 2026-09-28 the references moved to policyengine-us 2.15.17 with the pre-freeze conventions; every excluded output was recomputed there, each one that moved was re-reviewed and stays excluded (the reference sidecar's engine_upgrade revision lists them), records made before that date keep the values they were decided on, and the three records dated 2026-09-29 were computed on 2.15.17.",
   "exclusions": [
     {
       "scenario_id": "scenario_007",
@@ -773,6 +773,45 @@
       "decided_by": "developer",
       "unlisted_input": "who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable",
       "note": "Corrected value applies r24_disability_benefits_taxable with every publication convention and upstream fix."
+    },
+    {
+      "scenario_id": "scenario_033",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "reason_code": "reference_depends_on_unlisted_input",
+      "alternative_reading": "The prompt lists state and local tax refund income without saying whether the refunded tax reduced federal tax when it was deducted in the prior year (it labels already-taxable inputs 'taxable'). policyengine-us 2.15.17 counts the whole refund in gross income (policyengine-us#9422, which fixed issue #9122); under 26 U.S.C. 111(a) none of it is income if the household did not itemize, or took no tax benefit, in the year it paid the tax.",
+      "frozen_value": 3818.148193,
+      "alternative_value": 3788.988037,
+      "engine_version": "policyengine-us 2.15.17",
+      "decided_on": "2026-09-29",
+      "decided_by": "developer",
+      "unlisted_input": "whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)",
+      "note": "Found in the 2026-09-28 engine upgrade (cluster salt_refund_gross_income_9122); investigator and an independent reviewer. Alternative computed on 2.15.17 with the refund left out of gross income (sweep/fixes/latest_alt_salt_refund_no_prior_benefit.py)."
+    },
+    {
+      "scenario_id": "scenario_078",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "reason_code": "reference_depends_on_unlisted_input",
+      "alternative_reading": "The prompt lists state and local tax refund income without saying whether the refunded tax reduced federal tax when it was deducted in the prior year (it labels already-taxable inputs 'taxable'). policyengine-us 2.15.17 counts the whole refund in gross income (policyengine-us#9422, which fixed issue #9122); under 26 U.S.C. 111(a) none of it is income if the household did not itemize, or took no tax benefit, in the year it paid the tax.",
+      "frozen_value": 24164.457031,
+      "alternative_value": 23772.800781,
+      "engine_version": "policyengine-us 2.15.17",
+      "decided_on": "2026-09-29",
+      "decided_by": "developer",
+      "unlisted_input": "whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)",
+      "note": "Found in the 2026-09-28 engine upgrade (cluster salt_refund_gross_income_9122); investigator and an independent reviewer. Alternative computed on 2.15.17 with the refund left out of gross income (sweep/fixes/latest_alt_salt_refund_no_prior_benefit.py). The frozen value also counts Maryland county income tax, at the rate policyengine-us 2.15.17 assigns an unlisted county, in the federal SALT deduction through the Maryland withholding proxy (c_md_2026); the SALT cap binds at every 2026 county rate."
+    },
+    {
+      "scenario_id": "scenario_117",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "reason_code": "reference_depends_on_unlisted_input",
+      "alternative_reading": "The prompt lists state and local tax refund income without saying whether the refunded tax reduced federal tax when it was deducted in the prior year (it labels already-taxable inputs 'taxable'). policyengine-us 2.15.17 counts the whole refund in gross income (policyengine-us#9422, which fixed issue #9122); under 26 U.S.C. 111(a) none of it is income if the household did not itemize, or took no tax benefit, in the year it paid the tax.",
+      "frozen_value": 24961.339844,
+      "alternative_value": 24391.796875,
+      "engine_version": "policyengine-us 2.15.17",
+      "decided_on": "2026-09-29",
+      "decided_by": "developer",
+      "unlisted_input": "whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)",
+      "note": "Found in the 2026-09-28 engine upgrade (cluster salt_refund_gross_income_9122); investigator and an independent reviewer. Alternative computed on 2.15.17 with the refund left out of gross income (sweep/fixes/latest_alt_salt_refund_no_prior_benefit.py)."
     }
   ]
 }
