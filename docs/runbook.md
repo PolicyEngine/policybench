@@ -1,6 +1,10 @@
 # Benchmark Runbook
 
-This is the canonical procedure for paid no-tools benchmark runs. Treat
+This is the canonical procedure for paid no-tools benchmark runs. The
+stability suite (repeated runs, reasoning-stability judging, counterfactual
+twins) has its own spec and runbook in
+[stability_spec.md](stability_spec.md) — note that repeated runs are
+deliberately cache-free, unlike the single-run commands below. Treat
 `results/local/` as scratch space; git history and release snapshots are the
 archive, not superseded local files.
 
