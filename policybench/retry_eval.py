@@ -12,6 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 from policybench.chunked_eval import (
+    PolicyEngineProvenanceHandoff,
     merge_model_outputs,
     model_requires_serial_execution,
     run_model_chunks,
@@ -260,6 +261,9 @@ def run_retry_models(
         model for model in models if not model_requires_serial_execution(model)
     ]
     model_outputs: dict[str, Path] = {}
+    # One PolicyEngine provenance file for the whole round, at its root,
+    # rather than one per model_runs/<model> directory.
+    provenance = PolicyEngineProvenanceHandoff(preparation.output_dir)
 
     def run_one(model: str, *, model_parallel_chunks: int) -> Path:
         return run_model_chunks(
@@ -273,6 +277,7 @@ def run_retry_models(
             chunk_attempts=chunk_attempts,
             include_explanations=include_explanations,
             single_output=False,
+            provenance=provenance,
         )
 
     for model in serial_models:
