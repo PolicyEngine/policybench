@@ -214,6 +214,14 @@ class PaperResults:
         return meta["policyengine_bundles"]["us"]
 
     @cached_property
+    def sample_bundle(self) -> dict:
+        """Runtime metadata of the scenario draw: the certified dataset build
+        the benchmark households were sampled from."""
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        meta = json.loads((run_dir / "scenarios.csv.meta.json").read_text())
+        return meta["policyengine_bundles"]["us"]
+
+    @cached_property
     def model_stats(self) -> list[dict]:
         """No-tools model rows, ranked by the exact-match headline metric.
 
@@ -346,7 +354,8 @@ class PaperResults:
 
     @property
     def policyengine_version(self) -> str:
-        """policyengine.py version that generated the reference outputs."""
+        """policyengine.py version the reference sidecar records for provenance;
+        the references themselves come from policyengine_us.Simulation."""
         return self.manifest["reference_output_refresh"]["policyengine_version"]
 
     @property
@@ -354,20 +363,29 @@ class PaperResults:
         return self.manifest["reference_output_refresh"]["policyengine_us_version"]
 
     @property
+    def reference_rebuilt_date(self) -> str:
+        """UTC date the frozen references were last regenerated."""
+        refresh = self.manifest["reference_output_refresh"]
+        return (refresh.get("regenerated_at_utc") or refresh["generated_at_utc"])[:10]
+
+    # The dataset accessors describe the households' source: the certified
+    # build the scenario draw sampled (and the population weights use). The
+    # manifest's reference_output_refresh records the reference runtime's
+    # default dataset instead, which computing a household's references never
+    # reads and which can be a later build.
+    @property
     def dataset_id(self) -> str:
         """Populace dataset name, e.g. ``populace_us_2024``."""
-        return self.manifest["reference_output_refresh"]["policyengine_us_dataset"]
+        return self.sample_bundle["default_dataset"]
 
     @property
     def dataset_build_id(self) -> str:
         """Certified populace build id, e.g. ``populace-us-2024-5da5a95-20260611``."""
-        return self.manifest["reference_output_refresh"][
-            "policyengine_us_data_build_id"
-        ]
+        return self.sample_bundle["certified_data_build_id"]
 
     @property
     def dataset_uri(self) -> str:
-        return self.manifest["reference_output_refresh"]["policyengine_us_dataset_uri"]
+        return self.sample_bundle["default_dataset_uri"]
 
     @property
     def dataset_label(self) -> str:

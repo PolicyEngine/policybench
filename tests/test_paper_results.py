@@ -409,3 +409,21 @@ def test_disability_section_counts_come_from_the_frozen_scenarios():
     # The paper says no benchmark person carries a program-specific
     # disability determination; only the general flag reaches the prompt.
     assert r.program_disability_input_count == 0
+
+
+def test_dataset_build_is_the_one_the_households_came_from():
+    """The paper names the certified build the scenario draw sampled and the
+    population weights use; the reference runtime's default dataset, which the
+    manifest records under reference_output_refresh, is a later build that no
+    household reference reads."""
+    import json
+
+    weights = json.loads((ROOT / "policybench/population_weights.json").read_text())
+    source = weights["countries"]["us"]["metadata"]["source_dataset_uri"]
+    assert r.dataset_id == "populace_us_2024"
+    assert r.dataset_build_id == "populace-us-2024-5da5a95-20260611"
+    assert r.dataset_uri == source
+    assert (
+        r.manifest["reference_output_refresh"]["policyengine_us_data_build_id"]
+        != r.dataset_build_id
+    )
