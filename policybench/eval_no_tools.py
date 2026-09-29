@@ -258,6 +258,9 @@ class RequestWallTimeoutError(TimeoutError):
     """Raised when a provider request exceeds PolicyBench's local wall timeout."""
 
 
+WALL_TIMEOUT_MESSAGE = "Provider request exceeded {seconds}s wall-clock timeout"
+
+
 class SensitivityKnobError(ValueError):
     """Raised when a serving sensitivity knob is unsupported by a transport."""
 
@@ -366,6 +369,33 @@ def is_infrastructure_error_text(error: str | None) -> bool:
     if any(marker.lower() in error_lower for marker in FATAL_ERROR_TEXT_MARKERS):
         return True
     return is_retryable_provider_error_text(error)
+
+
+# What a provider request timeout leaves in a worker's log (its stdout and
+# stderr). litellm.Timeout's str and repr both begin "litellm.Timeout: ", so
+# it survives the 60-character "Retry" line as well as the ERROR line and
+# the traceback; litellm raises it for a client-side timeout and for a
+# provider's HTTP 408 or 504. The SIGALRM wall timeout usually fires inside a
+# socket read, where httpcore re-raises it as ReadTimeout and litellm then as
+# litellm.Timeout; elsewhere it surfaces under its own class name. Its message
+# is kept in the traceback either way. Deliberately not a bare "Timeout" or
+# "timed out": every worker's `import litellm` logs "Failed to fetch remote
+# model cost map from <url>: timed out" (or "504 Gateway Timeout") when that
+# fetch fails, and no request timed out.
+REQUEST_TIMEOUT_LOG_PATTERN = re.compile(
+    "|".join(
+        (
+            r"\blitellm\.Timeout: ",
+            rf"\b{RequestWallTimeoutError.__name__}\b",
+            re.escape(WALL_TIMEOUT_MESSAGE).replace(re.escape("{seconds}"), r"\S+"),
+        )
+    )
+)
+
+
+def log_shows_request_timeout(text: str) -> bool:
+    """Return whether a worker log records a provider request that timed out."""
+    return REQUEST_TIMEOUT_LOG_PATTERN.search(text) is not None
 
 
 def _is_retryable_provider_error(error: Exception) -> bool:
@@ -953,7 +983,7 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
 
     def _raise_timeout(_signum, _frame):
         raise RequestWallTimeoutError(
-            f"Provider request exceeded {wall_timeout_seconds}s wall-clock timeout"
+            WALL_TIMEOUT_MESSAGE.format(seconds=wall_timeout_seconds)
         )
 
     signal.signal(signal.SIGALRM, _raise_timeout)

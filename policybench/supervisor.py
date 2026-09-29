@@ -50,7 +50,9 @@ HEARTBEAT_FILENAME = "run_state.json"
 SCENARIO_DIR = "scenarios"
 DEFAULT_MAX_WORKERS = 4
 MIN_WORKERS = 1
-# Above this timeout share in the sliding window, concurrency steps down.
+# Above this timeout share in the sliding window, concurrency steps down. A
+# scenario counts as timed out when its worker log shows a provider request
+# timeout (eval_no_tools.log_shows_request_timeout).
 TIMEOUT_RATE_BACKOFF_THRESHOLD = 0.3
 ADAPTIVE_WINDOW = 8
 # Dispatching stops once projected spend for in-flight + queued work would
@@ -632,27 +634,39 @@ class Supervisor:
         )
 
     def _collect(self, index: int, started: float) -> ScenarioResult:
+        from policybench.eval_no_tools import log_shows_request_timeout
+
         scenario_id = self.scenario_ids[index]
         path = self.scenario_csv(index)
+        # Read the log before looking for the CSV: a worker whose request
+        # timed out deletes its scenario CSV before re-raising, so the
+        # timeouts that fail a scenario leave no CSV behind.
+        log = path.with_suffix(".log")
+        timed_out = log.exists() and log_shows_request_timeout(
+            log.read_text(errors="ignore")
+        )
         if not path.exists():
             return ScenarioResult(
-                scenario_id, index, ok=False, seconds=time.time() - started
+                scenario_id,
+                index,
+                ok=False,
+                timed_out=timed_out,
+                seconds=time.time() - started,
             )
         try:
             frame = pd.read_csv(path)
         except Exception:
             return ScenarioResult(
-                scenario_id, index, ok=False, seconds=time.time() - started
+                scenario_id,
+                index,
+                ok=False,
+                timed_out=timed_out,
+                seconds=time.time() - started,
             )
         cost = float(
             frame.get("total_cost_usd", pd.Series(dtype=float)).fillna(0).sum()
         )
         missing = int(frame["prediction"].isna().sum()) if "prediction" in frame else 0
-        log = path.with_suffix(".log")
-        timed_out = False
-        if log.exists():
-            text = log.read_text(errors="ignore")
-            timed_out = "Timeout" in text or "timed out" in text
         return ScenarioResult(
             scenario_id,
             index,
