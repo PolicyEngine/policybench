@@ -236,6 +236,24 @@ def resolve_base(args):
     return base, reference, live
 
 
+def base_commit_blob(path: Path) -> bytes:
+    """A file as committed at BASE_COMMIT, the September 22c release commit.
+
+    The checkout must hold that commit: a shallow clone (CI's default) does
+    not, so the CI test job checks out full history.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{BASE_COMMIT}:{path.as_posix()}"],
+        capture_output=True,
+    )
+    require(
+        result.returncode == 0,
+        f"cannot read {path} at base commit {BASE_COMMIT[:12]}; fetch full "
+        f"history (git fetch --unshallow): {result.stderr.decode().strip()}",
+    )
+    return result.stdout
+
+
 def resolve_live_base(args) -> dict:
     """The September 22c payload an export compares the incumbents against.
 
@@ -253,12 +271,7 @@ def resolve_live_base(args) -> dict:
         pointer["tag"] == RELEASE_TAG,
         "base pointer changed; review the base before staging",
     )
-    path = (SNAPSHOT / "data.json.gz").relative_to(ROOT)
-    blob = subprocess.run(
-        ["git", "-C", str(ROOT), "show", f"{BASE_COMMIT}:{path.as_posix()}"],
-        check=True,
-        capture_output=True,
-    ).stdout
+    blob = base_commit_blob((SNAPSHOT / "data.json.gz").relative_to(ROOT))
     live = {"countries": {"us": json.loads(gzip.decompress(blob))}}
     require(
         hashlib.sha256(json.dumps(live).encode()).hexdigest() == BASE_SHA256,
@@ -635,12 +648,7 @@ def triage(args, bundle) -> None:
 
 def base_reference_bytes(name: str) -> bytes:
     """A September 22c reference file, read from git and checked against its pin."""
-    path = SNAPSHOT.relative_to(ROOT) / name
-    raw = subprocess.run(
-        ["git", "-C", str(ROOT), "show", f"{BASE_COMMIT}:{path.as_posix()}"],
-        check=True,
-        capture_output=True,
-    ).stdout
+    raw = base_commit_blob(SNAPSHOT.relative_to(ROOT) / name)
     require(
         hashlib.sha256(raw).hexdigest() == BASE_REFERENCE_SHA256[name],
         f"base reference {name} does not match its pin",
