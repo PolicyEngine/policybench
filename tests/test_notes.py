@@ -85,8 +85,11 @@ SUPERSEDED_RELEASES = {
     # Superseded by dashboard-data-20260922c, which regenerates that output
     # with r33's fix (policyengine-us#9586, merged 2026-09-24).
     "dashboard-data-20260922b": "2026-09-22",
+    # Superseded by dashboard-data-20260929, which adds three models and moves
+    # the references to policyengine-us 2.15.17.
+    "dashboard-data-20260922c": "2026-09-22",
 }
-CURRENT_RELEASE_SNAPSHOT = "2026-09-22"
+CURRENT_RELEASE_SNAPSHOT = "2026-09-29"
 
 
 @cache
@@ -2109,3 +2112,757 @@ def test_snap_pathways_20260922_regenerates() -> None:
     for record in (regenerated, committed_meta):
         record.pop("generated_at_utc")
     assert regenerated == committed_meta
+
+
+# ----- Release dashboard-data-20260929 --------------------------------------
+
+RELEASE_NOTE = "2026-09-29-claude-sonnet-5-5-debuts-fourth"
+ADDED_MODELS = ("claude-sonnet-5.5", "grok-4.7", "deepseek-v4.1-flash")
+SERVING_CONFIG_PATH = ROOT / "paper/snapshot/20260501/model_serving_config.json"
+UPGRADE_README = ROOT / "reference_audit/2026-09-28/README.md"
+UPGRADE_CLUSTERS = ROOT / "reference_audit/2026-09-28/clusters.json"
+# The commit that froze release dashboard-data-20260922c, and the sha256 of its
+# committed run payload as that release's manifest pinned it.
+PREVIOUS_RELEASE_COMMIT = "cb312fd775b36af644b10803c076a0d0efc79f2e"
+PREVIOUS_RUN_PAYLOAD_SHA256 = (
+    "3c5f5bbf36126ebbfceccae6ff9fa8703b05ceea47ba5eb36c8004666776790f"
+)
+# The engine upgrade's scored changes, keyed by the household's state.
+UPGRADE_CHANGES = {
+    "NJ": ("scenario_008", "state_refundable_credits"),
+    "AZ": ("scenario_013", "snap"),
+    "PA": ("scenario_028", "reduced_price_school_meals_eligible"),
+    "NY": ("scenario_082", "state_refundable_credits"),
+}
+
+
+def _engine_upgrade() -> dict:
+    meta = _load_json(REFERENCE_META_PATH)
+    return next(r for r in meta["revisions"] if r.get("kind") == "engine_upgrade")
+
+
+def _board_rows() -> list[dict]:
+    return [row for row in _dashboard()["modelStats"] if row["condition"] == "no_tools"]
+
+
+@cache
+def _exact_under(previous_release: bool) -> dict[str, float]:
+    """Every board model's exact score, recomputed from this snapshot's
+    predictions and weights on the current references or on the previous
+    release's: the references with the engine upgrade's changes reverted to
+    their previous values, scored without the exclusions it added."""
+    import pandas as pd
+
+    from policybench.scorer_vectors import canonical_filtered_scores
+    from policybench.spec import output_group_id
+
+    payload = _dashboard()
+    reference = pd.read_csv(REFERENCES_PATH)
+    changes = _engine_upgrade()["changed"]
+    added = {(c["scenario_id"], c["variable"]) for c in changes}
+    excluded = {
+        (e["scenario_id"], e["variable"])
+        for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
+    }
+    if previous_release:
+        for change in changes:
+            row = (reference["scenario_id"] == change["scenario_id"]) & (
+                reference["variable"] == change["variable"]
+            )
+            assert row.sum() == 1
+            reference.loc[row, "value"] = change["previous"]
+        excluded -= added
+    keys = zip(reference["scenario_id"], reference["variable"], strict=True)
+    scored = reference[[key not in excluded for key in keys]]
+    predictions = pd.DataFrame(
+        [
+            (model, scenario_id, variable, entry.get("prediction"))
+            for scenario_id, outputs in payload["scenarioPredictions"].items()
+            for variable, by_model in outputs.items()
+            for model, entry in by_model.items()
+        ],
+        columns=["model", "scenario_id", "variable", "prediction"],
+    )
+    weights: dict[str, float] = {}
+    for variable, weight in payload["globalWeights"]["household"].items():
+        group = output_group_id(variable)
+        weights[group] = weights.get(group, 0.0) + weight
+    scores, _ = canonical_filtered_scores(
+        scored, predictions, weights, set(weights), "all", "exact"
+    )
+    return scores
+
+
+@cache
+def _added_model_responses() -> dict[str, dict]:
+    """Per added model: its answer rows in the frozen predictions, and the
+    model names and system fingerprints the provider reported on them."""
+    seen = {
+        model: {"rows": 0, "resolved": set(), "fingerprints": set()}
+        for model in ADDED_MODELS
+    }
+    with gzip.open(PREDICTIONS_PATH, "rt", encoding="utf-8", newline="") as source:
+        for row in csv.DictReader(source):
+            record = seen.get(row["model"])
+            if record is None:
+                continue
+            record["rows"] += 1
+            record["resolved"].add(row["provider_resolved_model"])
+            record["fingerprints"].add(row["provider_system_fingerprint"])
+    return seen
+
+
+def _matches(prediction: float | None, reference: float) -> bool:
+    return prediction is not None and abs(prediction - reference) <= 1
+
+
+def _release_20260929_facts() -> dict:
+    """The release note's facts, computed on the frozen snapshot."""
+    import math
+
+    from policybench.paper_results import MODEL_DISPLAY_NAMES
+
+    rows = _board_rows()
+    by_model = {row["model"]: row for row in rows}
+    sonnet, grok, flash = (by_model[m] for m in ADDED_MODELS)
+    luna, sol = by_model["gpt-6-luna"], by_model["gpt-6-sol"]
+    opus, sol56 = by_model["claude-opus-5.5"], by_model["gpt-5.6-sol"]
+    serving = _load_json(SERVING_CONFIG_PATH)["models"]
+    meta = _load_json(REFERENCE_META_PATH)
+    upgrade = _engine_upgrade()
+    exclusions = _load_json(EXCLUSIONS_PATH)["exclusions"]
+    excluded = {(e["scenario_id"], e["variable"]) for e in exclusions}
+    changes = {(c["scenario_id"], c["variable"]): c for c in upgrade["changed"]}
+    scored_changes = {
+        key: change
+        for key, change in changes.items()
+        if key not in excluded and key in UPGRADE_CHANGES.values()
+    }
+    within_tolerance = [
+        change
+        for key, change in changes.items()
+        if key not in excluded and key not in scored_changes
+    ]
+    new_exclusions = [change for key, change in changes.items() if key in excluded]
+    assert set(scored_changes) == set(UPGRADE_CHANGES.values())
+    assert all(abs(c["regenerated"] - c["previous"]) <= 1 for c in within_tolerance)
+
+    def before_after(state: str) -> tuple[int | str, int | str]:
+        change = scored_changes[UPGRADE_CHANGES[state]]
+        return (
+            _whole_or_cents(change["previous"]),
+            _whole_or_cents(change["regenerated"]),
+        )
+
+    # The incumbents: the previous release's roster, every board model the
+    # release does not add, scored on both releases' references.
+    incumbents = sorted(set(by_model) - set(ADDED_MODELS))
+    before, after = _exact_under(True), _exact_under(False)
+    drift = [after[m] - before[m] for m in incumbents]
+    old_order = sorted(incumbents, key=lambda m: -before[m])
+    new_order = sorted(incumbents, key=lambda m: -after[m])
+    moved = [m for m, n in zip(old_order, new_order, strict=True) if m != n]
+    # Every change in order is two neighbors trading places.
+    swaps = []
+    for index, (old, new) in enumerate(zip(old_order, new_order, strict=True)):
+        if old != new and (not swaps or swaps[-1][1] != index - 1):
+            assert new_order[index + 1] == old
+            swaps.append((new, index))
+    assert len(moved) == 2 * len(swaps)
+    upper = [MODEL_DISPLAY_NAMES[m] for m, _ in swaps]
+    lower = [MODEL_DISPLAY_NAMES[old_order[i]] for _, i in swaps]
+
+    derived = {
+        "nModels": len(rows),
+        "sonnetExact": _display_one_decimal(sonnet["exact"]),
+        "sonnetRank": _rank(sonnet["exact"], rows),
+        "lunaExact": _display_one_decimal(luna["exact"]),
+        "lunaRank": _rank(luna["exact"], rows),
+        # "less than {gap} points": the gap rounded up to hundredths.
+        "sonnetLunaGapBelow": math.ceil((sonnet["exact"] - luna["exact"]) * 100) / 100,
+        "grokExact": _display_one_decimal(grok["exact"]),
+        "grokRank": _rank(grok["exact"], rows),
+        "flashExact": _display_one_decimal(flash["exact"]),
+        "flashRank": _rank(flash["exact"], rows),
+        "solExact": _display_one_decimal(sol["exact"]),
+        "opusExact": _display_one_decimal(opus["exact"]),
+        "sol56Exact": _display_one_decimal(sol56["exact"]),
+        "sonnetCost": _cost_per_household(sonnet),
+        "lunaCost": _cost_per_household(luna),
+        "flashCost": _cost_per_household(flash),
+        "grokCost": _cost_per_household(grok),
+        "grokTimeoutSeconds": serving["grok-4.7"]["request_timeout_seconds"],
+        "flashAnswers": _added_model_responses()["deepseek-v4.1-flash"]["rows"],
+        "previousEngine": upgrade["previous_engine_version"].removeprefix(
+            "policyengine-us "
+        ),
+        "engineVersion": upgrade["engine_version"].removeprefix("policyengine-us "),
+        "upstreamFixed": sum(
+            1 for r in meta["revisions"] if r.get("kind") == "upstream_fix"
+        ),
+        "conventions": sum(
+            1 for r in meta["revisions"] if r.get("kind", "convention") == "convention"
+        ),
+        "scoredChanges": len(scored_changes),
+        "njBefore": before_after("NJ")[0],
+        "njAfter": before_after("NJ")[1],
+        "azBefore": before_after("AZ")[0],
+        "azAfter": before_after("AZ")[1],
+        "nyBefore": before_after("NY")[0],
+        "nyAfter": before_after("NY")[1],
+        "newExclusions": len(new_exclusions),
+        "scoredOutputs": sonnet["n"],
+        "totalOutputs": sum(1 for _ in open(REFERENCES_PATH)) - 1,
+        "excluded": len(exclusions),
+        "withinTolerance": len(within_tolerance),
+        "rechecked": len(upgrade["excluded_outputs_rechecked"]),
+        "incumbents": len(incumbents),
+        "driftMin": round(min(drift), 2),
+        "driftMax": round(max(drift), 2),
+        "swapCount": len(swaps),
+        "swapOneUp": upper[0],
+        "swapOneDown": lower[0],
+        "swapTwoUp": upper[1],
+        "swapTwoDown": lower[1],
+        "swapThreeUp": upper[2],
+        "swapThreeDown": lower[2],
+    }
+    # Grok 4.7's card records the timeout its onboarding probe ran past.
+    from policybench.model_cards import MODEL_CARDS
+
+    onboarding = re.search(
+        r"A first attempt with a (\d+)s timeout", MODEL_CARDS["xai/grok-4.7"].notes
+    )
+    assert onboarding is not None
+    derived["grokOnboardingTimeoutSeconds"] = int(onboarding.group(1))
+    # Arizona's limits, as the reference sidecar records the change.
+    arizona = re.search(
+        r"from (\d+)% to (\d+)% of poverty from benefit month 03/2026",
+        scored_changes[UPGRADE_CHANGES["AZ"]]["basis"],
+    )
+    assert arizona is not None
+    derived["azLimitBefore"] = int(arizona.group(1))
+    derived["azLimitAfter"] = int(arizona.group(2))
+    assert len(swaps) == 3
+    assert {row["n"] for row in rows} == {derived["scoredOutputs"]}
+    return derived
+
+
+def test_release_20260929_note() -> None:
+    """The September 29 release note: its facts recompute from the frozen
+    snapshot, and every sentence is pinned beside the evidence for it."""
+    from policybench.model_cards import MODEL_CARDS
+    from policybench.paper_results import MODEL_DISPLAY_NAMES, MODEL_RELEASE_DATES
+
+    note = _note(RELEASE_NOTE)
+    assert note["release"] == "dashboard-data-20260929"
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    facts = note["facts"]
+    assert facts == _release_20260929_facts()
+    text = " ".join(note["paragraphs"])
+    pinned: list[str] = []
+
+    def pin(*sentences: str) -> None:
+        for sentence in sentences:
+            assert text.count(sentence) == 1, sentence
+            pinned.append(sentence)
+
+    rows = _board_rows()
+    by_model = {row["model"]: row for row in rows}
+    display = {m: MODEL_DISPLAY_NAMES[m] for m in by_model}
+
+    # The three additions are the models the previous release lacked.
+    assert set(by_model) - set(_exact_under(True)) == set()
+    assert len(set(by_model) - set(ADDED_MODELS)) == facts["incumbents"]
+    assert (
+        _frozen_release()
+        == note["release"]
+        == "dashboard-data-" + (note["date"].replace("-", ""))
+    )
+    ranked = sorted(rows, key=lambda row: -row["exact"])
+    assert [row["model"] for row in ranked[:5]] == [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-5.6-sol",
+        "claude-sonnet-5.5",
+        "gpt-6-luna",
+    ]
+    assert 0 < by_model["claude-sonnet-5.5"]["exact"] - by_model["gpt-6-luna"]["exact"]
+    pin(
+        "Claude Sonnet 5.5, Grok 4.7 and DeepSeek V4.1 Flash joined the board on "
+        "2026-09-29, bringing it to {nModels} models.",
+        "Claude Sonnet 5.5 scores {sonnetExact}% of answers within $1, weighted by "
+        "household impact, #{sonnetRank} of {nModels}.",
+        "GPT-6 Luna, #{lunaRank}, also rounds to {lunaExact}%, less than "
+        "{sonnetLunaGapBelow} points behind.",
+        "Grok 4.7 scores {grokExact}% (#{grokRank}) and DeepSeek V4.1 Flash "
+        "{flashExact}% (#{flashRank}).",
+        # The previous release's leader, recomputed on its references.
+        "GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 "
+        "({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%).",
+    )
+    before = _exact_under(True)
+    assert max(before, key=before.get) == "gpt-6-sol"
+
+    pin(
+        "Claude Sonnet 5.5 costs ${sonnetCost} a household, against ${lunaCost} "
+        "for GPT-6 Luna.",
+        "DeepSeek V4.1 Flash costs ${flashCost} and Grok 4.7 ${grokCost}.",
+    )
+
+    # Serving: the frozen configuration and the model cards' onboarding notes.
+    serving = _load_json(SERVING_CONFIG_PATH)["models"]
+    for model in ("claude-sonnet-5.5", "claude-opus-5.5", "claude-fable-5.1"):
+        assert serving[model]["answer_contract"] == "json"
+        assert serving[model]["tool_choice"] is None
+    sonnet_card = MODEL_CARDS["claude-sonnet-5-5"].notes
+    assert "rejects forced tool use" in sonnet_card
+    assert "as on Opus 5.5 and Fable 5.1" in sonnet_card
+    assert "provider default (adaptive thinking" in sonnet_card
+    assert serving["claude-sonnet-5.5"]["evidence"]["treatment_fingerprint"][
+        "thinking"
+    ] == {"mode": "provider_default"}
+    assert serving["grok-4.7"]["answer_contract"] == "tool"
+    assert serving["grok-4.7"]["tool_choice"] == "forced"
+    assert "timed out on the whole-scenario probe" in MODEL_CARDS["xai/grok-4.7"].notes
+    flash = _added_model_responses()["deepseek-v4.1-flash"]
+    assert serving["deepseek-v4.1-flash"]["provider_id"] == "deepseek/deepseek-flash"
+    assert flash["resolved"] == {"deepseek-flash"}
+    assert len(flash["fingerprints"]) == 1 and "" not in flash["fingerprints"]
+    assert MODEL_RELEASE_DATES["deepseek-v4.1-flash"] == "2026-09-10"
+    registry = (ROOT / "policybench/paper_results.py").read_text()
+    assert "api-docs.deepseek.com/news/news260910" in registry
+    assert "live on the API as deepseek-flash" in registry
+    pin(
+        "Claude Sonnet 5.5's API rejects forced tool calls, as Claude Opus 5.5's "
+        "and Claude Fable 5.1's do, so its row answers as a JSON object and "
+        "reasons at the provider default, adaptive thinking.",
+        "Grok 4.7 answers through the forced tool call with a "
+        "{grokTimeoutSeconds}-second request timeout, because its whole-household "
+        "onboarding probe ran past a {grokOnboardingTimeoutSeconds}-second timeout.",
+        "DeepSeek serves V4.1 Flash under the alias deepseek-flash, and all "
+        "{flashAnswers} of the row's answers report that alias and one system "
+        "fingerprint; none reports a version.",
+        "PolicyBench labels the row from DeepSeek's September 10 release note, "
+        "which put V4.1 Flash on that alias.",
+    )
+
+    # The engine move, as the upgrade record states it.
+    readme = UPGRADE_README.read_text()
+    assert "the newest release on PyPI when the references were rebuilt" in readme
+    assert "are all in 2.15.17 and need no module" in readme
+    assert "The nine publication conventions" in readme
+    assert facts["conventions"] == 9
+    manifest = _load_json(ROOT / "paper/snapshot/20260501/manifest.json")
+    assert (
+        manifest["reference_output_refresh"]["policyengine_us_version"]
+        == facts["engineVersion"]
+    )
+    pin(
+        "The release also moves PolicyBench's references to the newest "
+        "policyengine-us release, {engineVersion}, from {previousEngine}.",
+        "The newer version carries the {upstreamFixed:words} upstream fixes the "
+        "September 22 references applied as sandbox fixes, and it encodes law the "
+        "older version lacked.",
+        "A scored reference still follows the stated facts and law published "
+        "before the references were frozen on 2026-07-03, so PolicyBench "
+        "re-expressed its {conventions:words} publication conventions for the new "
+        "version.",
+    )
+
+    # The four scored changes, each with the basis the sidecar records.
+    changes = {
+        state: next(
+            c
+            for c in _engine_upgrade()["changed"]
+            if (c["scenario_id"], c["variable"]) == key
+        )
+        for state, key in UPGRADE_CHANGES.items()
+    }
+    payload = _dashboard()
+    for state, (scenario_id, _) in UPGRADE_CHANGES.items():
+        assert payload["scenarios"][scenario_id]["state"] == state
+    assert (
+        "2026-2028 (P.L.2026, c.26, approved June 30, 2026)" in (changes["NJ"]["basis"])
+    )
+    assert "7 CFR 245.6(a)(5)(ii)" in changes["PA"]["basis"]
+    assert (
+        "Child support received counts as household income" in (changes["PA"]["basis"])
+    )
+    assert (changes["PA"]["previous"], changes["PA"]["regenerated"]) == (1.0, 0.0)
+    assert "rounding" in changes["NY"]["basis"]
+    pin(
+        "The move changes {scoredChanges:words} scored references.",
+        "New Jersey's child tax credit schedule for 2026 to 2028, approved June 30, "
+        "raises one household's state refundable credits from ${njBefore} to "
+        "${njAfter}.",
+        "Arizona raised the income limit for its broad-based categorical "
+        "eligibility from {azLimitBefore}% to {azLimitAfter}% of the poverty "
+        "guideline from March, which gives an Arizona household ${azAfter} of SNAP "
+        "where the reference was ${azBefore}.",
+        "School-meal rules count child support received as income, which ends a "
+        "Pennsylvania household's eligibility for reduced-price meals.",
+        "A rounding fix raises a New York household's state refundable credits "
+        "from ${nyBefore} to ${nyAfter}.",
+    )
+
+    # The new exclusions: federal income tax, the SALT refund reading.
+    new = [
+        e
+        for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
+        if e["decided_on"] == note["date"]
+    ]
+    assert len(new) == facts["newExclusions"]
+    for exclusion in new:
+        assert exclusion["variable"] == "federal_income_tax_before_refundable_credits"
+        assert exclusion["reason_code"] == "reference_depends_on_unlisted_input"
+        assert (
+            "counts the whole refund in gross income"
+            in (exclusion["alternative_reading"])
+        )
+        assert "26 U.S.C. 111(a)" in exclusion["alternative_reading"]
+    pin(
+        "PolicyBench stops scoring {newExclusions:words} federal income tax outputs.",
+        "policyengine-us {engineVersion} counts the whole of a listed state and "
+        "local tax refund as income, but federal law counts it only to the extent "
+        "the refunded tax lowered the household's federal tax in the year it was "
+        "paid, and the prompts do not say whether it did.",
+        "Every model is now scored on {scoredOutputs} of its {totalOutputs} "
+        "requested outputs, and {excluded} are excluded.",
+        "Another {withinTolerance:words} references move by less than $1, and "
+        "PolicyBench re-reviewed the {rechecked} excluded outputs whose values "
+        "moved; all stay excluded.",
+    )
+
+    # The incumbents' drift: every score rises, no one matched the federal
+    # outputs now excluded, and every one matched Arizona's old reference.
+    incumbents = sorted(set(by_model) - set(ADDED_MODELS))
+    after = _exact_under(False)
+    assert all(after[m] > before[m] for m in incumbents)
+    for exclusion in new:
+        key = (exclusion["scenario_id"], exclusion["variable"])
+        previous = next(
+            c["previous"]
+            for c in _engine_upgrade()["changed"]
+            if (c["scenario_id"], c["variable"]) == key
+        )
+        entries = payload["scenarioPredictions"][key[0]][key[1]]
+        assert not any(
+            _matches(entries[m].get("prediction"), previous) for m in incumbents
+        )
+    arizona = payload["scenarioPredictions"]["scenario_013"]["snap"]
+    assert all(
+        _matches(arizona[m].get("prediction"), changes["AZ"]["previous"])
+        for m in incumbents
+    )
+    assert not any(
+        _matches(arizona[m].get("prediction"), changes["AZ"]["regenerated"])
+        for m in by_model
+    )
+    pin(
+        "The new references raise the exact rate of every one of the "
+        "{incumbents} earlier models, by {driftMin} to {driftMax} points.",
+        "None of the {incumbents} matched any of the {newExclusions:words} federal "
+        "outputs now excluded, and all {incumbents} had matched the Arizona "
+        "household's old ${azBefore} SNAP reference, which none matches now.",
+        "Among them, {swapCount:words} pairs of neighbors swap places, and every "
+        "other model keeps its place in the order: {swapOneUp} moves above "
+        "{swapOneDown}, {swapTwoUp} above {swapTwoDown}, and {swapThreeUp} above "
+        "{swapThreeDown}.",
+    )
+
+    # The Arizona household in the BBCE note's terms: it qualifies only through
+    # BBCE (the upgrade's investigation), and every model answers $0.
+    clusters = _load_json(UPGRADE_CLUSTERS)
+    cluster = next(
+        c
+        for c in (clusters["clusters"] if "clusters" in clusters else clusters.values())
+        if isinstance(c, dict) and c.get("id") == "az_snap_bbce_200"
+    )
+    summary = cluster["investigation"]["summary"]
+    assert "fails the net-income test" in summary and "it is ECE from March" in summary
+    assert all(arizona[m].get("prediction") == 0 for m in by_model)
+    bbce = _note(BBCE_NOTE)
+    assert f"/notes/{RELEASE_NOTE}" in {entry["href"] for entry in bbce["data"]}
+    pin(
+        "The Arizona household is a fifth SNAP household that qualifies only "
+        "through broad-based categorical eligibility, and all {nModels} models "
+        "answer $0 for it.",
+        "An update to the note on those households covers how the three new "
+        "models answer the other four.",
+    )
+
+    # The models the prose names, and no sentence left unpinned.
+    assert _named_models(text, display) >= {
+        "claude-sonnet-5.5",
+        "grok-4.7",
+        "deepseek-v4.1-flash",
+        "gpt-6-luna",
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-5.6-sol",
+        "claude-fable-5.1",
+    }
+    unpinned = text
+    for sentence in pinned:
+        unpinned = unpinned.replace(sentence, "", 1)
+    assert not unpinned.strip(), unpinned
+
+    links = {entry["label"]: entry["href"] for entry in note["data"]}
+    assert links["Dashboard data release"].endswith("/tag/" + note["release"])
+    assert links["Claude Sonnet 5.5 model page"] == "/model/claude-sonnet-5.5"
+    assert links["Grok 4.7 model page"] == "/model/grok-4.7"
+    assert links["DeepSeek V4.1 Flash model page"] == "/model/deepseek-v4.1-flash"
+
+
+def test_previous_release_scores_rebuild_from_this_snapshot() -> None:
+    """The drift baseline is the previous release's own board: every model's
+    exact score, rebuilt from this snapshot with the upgrade reverted, equals
+    the score release dashboard-data-20260922c published (its frozen payload,
+    read from git history where the clone has it), and the current scores
+    rebuild to this payload's."""
+    import hashlib
+    import subprocess
+
+    after = _exact_under(False)
+    for row in _board_rows():
+        assert after[row["model"]] == pytest.approx(row["exact"], abs=1e-9)
+    path = RUN_DIR.relative_to(ROOT) / "data.json.gz"
+    try:
+        blob = subprocess.run(
+            ["git", "show", f"{PREVIOUS_RELEASE_COMMIT}:{path.as_posix()}"],
+            cwd=ROOT,
+            capture_output=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("the previous release's payload is not in this clone's history")
+    assert hashlib.sha256(blob).hexdigest() == PREVIOUS_RUN_PAYLOAD_SHA256
+    previous = json.loads(gzip.decompress(blob))
+    previous = previous.get("countries", {}).get("us", previous)
+    before = _exact_under(True)
+    stats = [row for row in previous["modelStats"] if row["condition"] == "no_tools"]
+    assert {row["model"] for row in stats} == set(before) - set(ADDED_MODELS)
+    for row in stats:
+        assert before[row["model"]] == pytest.approx(row["exact"], abs=1e-9)
+
+
+BBCE_UPDATE_RELEASE = "dashboard-data-20260929"
+
+
+def test_bbce_note_update_for_release_20260929() -> None:
+    """The BBCE note keeps its release-20260922b figures and closes with a
+    dated update for release dashboard-data-20260929, whose figures are
+    recomputed here, sentence by sentence, while that release is frozen."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from bbce_households_20260929 import (
+        ASSET_HOUSEHOLDS,
+        ASSET_OUTPUT,
+        INCOME_HOUSEHOLDS,
+        OUTPUT,
+        build,
+        meta_path,
+    )
+
+    note = _note(BBCE_NOTE)
+    assert note["release"] == INTERIM_RELEASE
+    update = note["paragraphs"][-2:]
+    assert update[0].startswith(
+        f"PolicyBench updated this note on September 29 for release "
+        f"{BBCE_UPDATE_RELEASE}, "
+    )
+    assert not any(BBCE_UPDATE_RELEASE in p for p in note["paragraphs"][:-2])
+    links = {entry["label"]: entry["href"] for entry in note["data"]}
+    assert links["Release note for dashboard-data-20260929 (September 29)"] == (
+        f"/notes/{RELEASE_NOTE}"
+    )
+    assert links["Arizona resident"] == "/?country=us&scenario=scenario_013#scenarios"
+    if _frozen_release() != BBCE_UPDATE_RELEASE:
+        return
+
+    facts = note["facts"]
+    text = " ".join(update)
+    pinned: list[str] = []
+
+    def pin(*sentences: str) -> None:
+        for sentence in sentences:
+            assert text.count(sentence) == 1, sentence
+            pinned.append(sentence)
+
+    payload = _dashboard()
+    snap = payload["scenarioPredictions"]
+    board = sorted(row["model"] for row in _board_rows())
+    regexes = {
+        k: re.compile(v, re.IGNORECASE) for k, v in note["mentionRegexes"].items()
+    }
+
+    # The committed rows regenerate from the frozen payload, with the note's
+    # own mention patterns, and their metas pin this release.
+    manifest = _load_json(ROOT / "paper/snapshot/20260501/manifest.json")
+    for output, (rows, households, patterns) in build(payload).items():
+        assert _read_csv(output) == [
+            {key: str(value) for key, value in row.items()} for row in rows
+        ]
+        meta = _load_json(meta_path(output))
+        assert meta["release"] == BBCE_UPDATE_RELEASE
+        assert meta["households"] == households
+        assert meta["mention_patterns"] == patterns
+        assert meta["rows"] == len(rows) == len(board) * len(households)
+        assert meta["run_payload_sha256"] == _sha256_file(run_payload_path(RUN_DIR))
+        assert (
+            meta["release_payload_sha256"]
+            == manifest["published_dashboard_artifact"]["sha256"]
+        )
+    for key, pattern in (
+        ("bbce", "mentions_categorical_eligibility"),
+        ("netLimit", "mentions_net_income_limit"),
+    ):
+        assert (
+            _load_json(meta_path(OUTPUT))["mention_patterns"][pattern]
+            == (note["mentionRegexes"][key])
+        )
+    assert (
+        _load_json(meta_path(ASSET_OUTPUT))["mention_patterns"]["mentions_assets"]
+        == note["mentionRegexes"]["assets"]
+    )
+
+    # The note's four households and its four held back by savings.
+    four = [s for s in INCOME_HOUSEHOLDS if s != "scenario_013"]
+    states = {s: payload["scenarios"][s]["state"] for s in four}
+    assert states == {
+        "scenario_027": "CT",
+        "scenario_030": "TX",
+        "scenario_073": "MI",
+        "scenario_108": "WI",
+    }
+    assert len(four) == facts["householdCount"]
+    assert len(ASSET_HOUSEHOLDS) == facts["assetOnlyCount"]
+    assert {payload["scenarios"][s]["state"] for s in ASSET_HOUSEHOLDS} == {
+        "NJ",
+        "NC",
+        "VA",
+        "PA",
+    }
+    upgrade = _engine_upgrade()
+    assert facts["updateEngineVersion"] == upgrade["engine_version"].removeprefix(
+        "policyengine-us "
+    )
+    assert facts["updateModels"] == len(board)
+    for scenario_id in four:
+        for model in board:
+            assert (
+                snap[scenario_id]["snap"][model]["groundTruth"]
+                == (facts["referenceAmount"])
+            )
+        for model in ADDED_MODELS:
+            assert snap[scenario_id]["snap"][model]["exact"] < 100
+
+    def answer(model: str, scenario_id: str) -> float:
+        return snap[scenario_id]["snap"][model]["prediction"]
+
+    def cites_bbce(model: str, scenario_id: str) -> bool:
+        explanation = snap[scenario_id]["snap"][model].get("explanation") or ""
+        return bool(regexes["bbce"].search(explanation))
+
+    sonnet, grok, flash = ADDED_MODELS
+    others = {
+        model: [
+            s
+            for s in four
+            if s not in {"scenario_027", "scenario_030"} or answer(model, s) == 0
+        ]
+        for model in ADDED_MODELS
+    }
+    assert answer(sonnet, "scenario_027") == facts["updateSonnetOn027"]
+    assert cites_bbce(sonnet, "scenario_027")
+    assert answer(sonnet, "scenario_030") == facts["updateSonnetOn030"]
+    assert others[sonnet] == ["scenario_073", "scenario_108"]
+    assert all(answer(sonnet, s) == 0 for s in others[sonnet])
+    sonnet_texas = snap["scenario_030"]["snap"][sonnet]["explanation"]
+    assert "I counted wages only and treated the assistance amounts as excluded" in (
+        sonnet_texas
+    )
+    # GPT-6 Sol and Claude Opus 5.5 compute from wages alone (the note above).
+    assert answer("gpt-6-sol", "scenario_030") == 1208.4
+    assert answer("claude-opus-5.5", "scenario_030") == facts["updateSonnetOn030"]
+    assert answer(grok, "scenario_027") == facts["updateGrokOn027"]
+    assert cites_bbce(grok, "scenario_027")
+    assert others[grok] == ["scenario_030", "scenario_073", "scenario_108"]
+    assert all(answer(grok, s) == 0 for s in others[grok])
+    assert answer(flash, "scenario_030") == facts["updateFlashOn030"]
+    assert others[flash] == ["scenario_027", "scenario_073", "scenario_108"]
+    assert all(answer(flash, s) == 0 for s in others[flash])
+
+    def above_zero(model: str) -> int:
+        return sum(answer(model, s) > 0 for s in ASSET_HOUSEHOLDS)
+
+    assert above_zero(sonnet) == above_zero(grok) == facts["assetOnlyCount"]
+    assert above_zero(flash) == facts["updateFlashAssetAbove0"]
+    pin(
+        "PolicyBench updated this note on September 29 for release "
+        "dashboard-data-20260929, which adds Claude Sonnet 5.5, Grok 4.7 and "
+        "DeepSeek V4.1 Flash and moves the references to policyengine-us "
+        "{updateEngineVersion}.",
+        "The {householdCount:words} households' references stay at "
+        "${referenceAmount}, and none of the three new models gets any of them "
+        "right.",
+        "Claude Sonnet 5.5 answers ${updateSonnetOn027} for the Connecticut "
+        "couple, citing BBCE, ${updateSonnetOn030} for the Texas resident and $0 "
+        "for the other two.",
+        "For the Texas resident it counts wages only and treats the financial "
+        "assistance as excluded, as GPT-6 Sol and Claude Opus 5.5 do.",
+        "Grok 4.7 answers ${updateGrokOn027} for the Connecticut couple, also "
+        "citing BBCE, and $0 for the other three.",
+        "DeepSeek V4.1 Flash answers ${updateFlashOn030} for the Texas resident "
+        "and $0 for the other three.",
+        "For the {assetOnlyCount:words} households held back by savings, Claude "
+        "Sonnet 5.5 and Grok 4.7 answer above $0 for all {assetOnlyCount:words}, "
+        "and DeepSeek V4.1 Flash for {updateFlashAssetAbove0:words}.",
+    )
+
+    # The Arizona household: the upgrade's scored change, its basis, and the
+    # investigation's monthly arithmetic.
+    arizona = next(
+        c
+        for c in upgrade["changed"]
+        if (c["scenario_id"], c["variable"]) == UPGRADE_CHANGES["AZ"]
+    )
+    limits = re.search(
+        r"from (\d+)% to (\d+)% of poverty from benefit month 03/2026",
+        arizona["basis"],
+    )
+    assert limits is not None
+    assert "encoded upstream after 1.755.4" in arizona["basis"]
+    assert (facts["updateAzLimitBefore"], facts["updateAzLimitAfter"]) == (
+        int(limits.group(1)),
+        int(limits.group(2)),
+    )
+    assert arizona["regenerated"] == facts["updateAzReference"]
+    assert facts["updateAzReference"] == 10 * facts["minimumMonthly"]
+    clusters = _load_json(UPGRADE_CLUSTERS)
+    cluster = next(
+        c
+        for c in (clusters["clusters"] if "clusters" in clusters else clusters.values())
+        if isinstance(c, dict) and c.get("id") == "az_snap_bbce_200"
+    )
+    summary = cluster["investigation"]["summary"]
+    assert "$24 x 10 months = $240" in summary
+    assert "fails the net-income test" in summary
+    assert payload["scenarios"]["scenario_013"]["state"] == "AZ"
+    assert all(answer(model, "scenario_013") == 0 for model in board)
+    pin(
+        "The new references add a fifth household held back by income, an "
+        "Arizona resident.",
+        "Arizona raised its BBCE gross income limit from {updateAzLimitBefore}% to "
+        "{updateAzLimitAfter}% of the poverty guideline from benefit month March "
+        "2026, which policyengine-us {updateEngineVersion} encodes, and the "
+        "reference is ${updateAzReference}: the ${minimumMonthly} minimum for each "
+        "month from March to December.",
+        "All {updateModels} models answer $0 for the Arizona resident.",
+    )
+
+    unpinned = text
+    for sentence in pinned:
+        unpinned = unpinned.replace(sentence, "", 1)
+    assert not unpinned.strip(), unpinned

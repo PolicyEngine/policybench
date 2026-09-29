@@ -1,0 +1,19 @@
+{
+  "release": "dashboard-data-20260929",
+  "source_run": "us_full_run_20260612_policyengine_4_16_1_populace",
+  "run_payload_sha256": "3028225189ae6cf68f350860cb167148e0f7d60fdcab3354fb6f802705deb033",
+  "release_payload_sha256": "e7d5e056b53c0d6d406bb3afb389aeaf80ebb611932ce72c8b3c3ceaef5ddad6",
+  "households": [
+    "scenario_008",
+    "scenario_054",
+    "scenario_066",
+    "scenario_080"
+  ],
+  "mention_patterns": {
+    "mentions_categorical_eligibility": "broad-based|\\bbbce\\b|categorical(?:ly)?[- ]eligib",
+    "mentions_assets": "asset|resource"
+  },
+  "rows": 180,
+  "generated_at_utc": "2026-09-29T12:42:04.533121+00:00",
+  "script": "scripts/bbce_households_20260929.py"
+}
