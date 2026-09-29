@@ -6,7 +6,7 @@
       "artifact": {
         "pointer": "live"
       },
-      "description": "Corrected ground truth (policyengine-us 1.755.4); same household facts and requested outputs for every model; answer transport and request shape per model as recorded in the serving-configuration table - 45 models",
+      "description": "Reference outputs from policyengine-us 2.15.17; same household facts and requested outputs for every model; answer transport and request shape per model as recorded in the serving-configuration table - 45 models",
       "id": "1.1",
       "label": "1.1",
       "snapshotLabel": "Snapshot 2026-09-29"

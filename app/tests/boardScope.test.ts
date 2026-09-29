@@ -64,6 +64,7 @@ describe("ArchivedBoardNotice", () => {
 describe("dataset switching", () => {
   const data = {
     country: "us",
+    policyengineBundles: { us: { model_version: "2.15.17" } },
     modelStats: [],
     programStats: [],
     scenarios: [],
@@ -84,8 +85,8 @@ describe("dataset switching", () => {
   }
 
   test("the current-board roster sentence appears only for the live version", () => {
-    expect(render("1.1")).toContain("Ten of the 42 models");
-    expect(render("1.0")).not.toContain("Ten of the 42 models");
+    expect(render("1.1")).toContain("Ten of the 45 models");
+    expect(render("1.0")).not.toContain("Ten of the 45 models");
     expect(render("1.0")).toContain("archived snapshot");
   });
 
@@ -94,6 +95,10 @@ describe("dataset switching", () => {
     expect(live).toContain("This app shows the current no-tools US benchmark");
     expect(live).toContain("Current benchmark scope");
     expect(live).toContain("Latest United States run in this app evaluates");
+    // The reference engine comes from the board's own payload.
+    expect(live).toContain(
+      "PolicyEngine-US (policyengine-us 2.15.17) computes the PolicyEngine reference output",
+    );
 
     const archived = render("1.0");
     expect(archived).toContain("This app is showing the archived 1.0 board");

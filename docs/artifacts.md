@@ -1,6 +1,6 @@
 # Dashboard data artifacts
 
-The dashboard payload (`data.json`, ~112MB at 40 models) is a generated
+The dashboard payload (`data.json`, ~123MB at 45 models) is a generated
 artifact, not source. The manuscript snapshot keeps the frozen per-country
 copy as a deterministic gzip (`paper/snapshot/<id>/runs/<run>/data.json.gz`,
 read through `policybench.snapshot_payload`) because the plain export passed

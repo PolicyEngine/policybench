@@ -51,9 +51,9 @@ Structured responses are collected through the transport each model card
 records: a forced answer-schema tool call (`submit_outputs`) where the card
 selects the tool transport and the provider accepts a forced call, or the same
 fields returned as a JSON object — because the provider rejects a forced tool
-(Kimi K3, Qwen 3.8 Max, Claude Fable 5.1, Claude Opus 5.5) or because the card
-selects JSON
-for the family (the older Gemini and DeepSeek rows). The per-model transport
+(Kimi K3, Qwen 3.8 Max, Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5.5,
+DeepSeek V4.1 Flash) or because the card selects JSON for the family (the older
+Gemini and DeepSeek rows). The per-model transport
 is in the snapshot's `model_serving_config.json`.
 This is an output format, not a capability — nothing executes, no result is
 returned to the model, and each response is a single round trip. The benchmark
@@ -63,26 +63,58 @@ The headline score uses the numeric answers only. Explanations are retained for
 auditing, scenario exploration, and qualitative error analysis; they should not
 be described as faithful reasoning traces.
 
+## Reference outputs
+
+PolicyBench computes each US reference output with policyengine-us 2.15.17,
+the newest release on PyPI when the references were rebuilt on 2026-09-29,
+through `policyengine_us.Simulation`. The manifest also records policyengine.py
+6.1.2 for provenance; its certified US bundle is policyengine-us 2.2.1, and it
+does not load beside 2.15.17.
+
+A scored reference follows from the stated facts and from law published before
+the references were frozen on 2026-07-03. Where policyengine-us projects a 2026
+amount with a price index, or carries one published after the freeze, the
+reference takes the amount published before the freeze or, where none was, the
+last one published. Nine publication conventions set those amounts, and each
+changes parameter values only: SNAP's October to December months, for example,
+hold the FY2026 figures rather than USDA's FY2027 figures of 2026-08-21.
+policyengine-us 2.15.17 counts Maryland county income tax in its state income
+tax; an adapter takes it out again, because PolicyBench's state income tax
+output leaves local tax out.
+
+The move from policyengine-us 1.755.4 to 2.15.17 changed four scored
+references: New Jersey's child tax credit schedule for 2026 to 2028
+(P.L.2026, c.26, approved June 30, 2026), Arizona's broad-based categorical
+eligibility limit for SNAP (200% of the poverty guideline from March 2026, up
+from 185%), child support received counting as income for school meals (7 CFR
+245.6(a)(5)(ii)), and the rounding of New York's Empire State child credit
+phase-out. Three federal income tax outputs left scoring (below), and two state
+income tax references moved by less than $1. The reference sidecar's
+`engine_upgrade` revision lists every change, and `reference_audit/2026-09-28/`
+records the investigation and the independent review behind each.
+
 ## Audit scope
 
-The frozen US annotations cover 7,545 scored rows selected because their
-legacy threshold score is below 1 (1,793 further annotated rows sit on the 52
+The frozen US annotations cover 7,796 scored rows selected because their
+legacy threshold score is below 1 (2,041 further annotated rows sit on the 55
 excluded outputs and are description, not audit). This audit universe contains
-7,541 of the snapshot's 7,541 exact-match misses and four exact hits. Another
-1,843 scored rows have a bounded score below 100 but fall outside the
+7,792 of the snapshot's 7,792 exact-match misses and four exact hits. Another
+2,027 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
-CLI for 314 cases, Claude Opus 5 through the Claude Code CLI for 183 cases the
-September 5 additions joined, and Claude Opus 5.5 for 171 cases the September
-22 additions joined or a reference revision changed; the manifest's
-audit_annotation_artifacts.judge_provenance block carries the tally. Verdicts
-change no score. A judge verdict outside the final classes, and every
+CLI for 303 cases, Claude Opus 5 through the Claude Code CLI for 132 cases the
+September 5 additions joined, and Claude Opus 5.5 for 239 cases the September
+22 and September 28 additions joined or a reference revision changed; the
+manifest's audit_annotation_artifacts.judge_provenance block carries the tally.
+Verdicts change no score. A judge verdict outside the final classes, and every
 reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's
 verdict (the case's current verdict.json; a flag an earlier judge run raised is
-kept and says so) beside the decision and the reasoning. This snapshot carries 63: one
-for each excluded output, plus the flagged references the adjudication
-affirmed or replaced with a regenerated reference.
+kept and says so) beside the decision and the reasoning. This snapshot carries
+68: one for each excluded output, one for each flagged reference the
+adjudication affirmed or replaced with a regenerated reference, and two for
+cases whose rows the judge labeled later law, which the adjudication records as
+model errors because the law predates the freeze.
 
 The September 22 audit implemented each defect it confirmed in policyengine-us
 1.755.4 as a sandbox fix on that engine version and recomputed every
@@ -92,16 +124,15 @@ after the references were frozen (#8839, #9162, #9301, #9313, #9318, #9363 and
 at adjusted gross income, the engine's SNAP rounding, and the SNAP child
 support option, whose engine values carried the opposite meaning: the engine
 excluded child support paid from gross income in Michigan, which deducts it
-from net income). The scored references they move are regenerated with the
-fix on the same engine version: 15 references. The child support fix merged on
-2026-09-24; release dashboard-data-20260922b excluded the one output it moves
-while the fix was open, and release dashboard-data-20260922c regenerates it.
-An output one of them moves that an unfixed cause also moves stays excluded.
-The capital gain fix as first built also applied Wisconsin's capital gain
-exclusion to the distributions, which the upstream fix does not; that part is
-recorded as its own defect, not fixed upstream.
+from net income). The September 22 references applied those fixes on 1.755.4
+to the 15 scored references they move; policyengine-us 2.15.17 contains all
+eight, so the references now take them from the engine. An output one of them
+moves that an unfixed cause also moves stays excluded. The capital gain fix as
+first built also applied Wisconsin's capital gain exclusion to the
+distributions, which the upstream fix does not; that part is recorded as its
+own defect, not fixed upstream.
 
-Fifty-two outputs in 36 households are excluded from scoring for every model
+Fifty-five outputs in 39 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
 manifest). Every output a defect not fixed upstream moves by more than a dollar
 is excluded: 28 are recorded as engine-defect exclusions across the eleven such
@@ -109,17 +140,21 @@ root causes (among them the IRA deduction's compensation limit and phase-out,
 estate income, and the heat-and-eat SNAP utility allowance that P.L. 119-21
 ended for households without an elderly or disabled member), and an output
 such a defect moves that was already excluded for an unstated input keeps that
-record. Twenty-four depend on an input the
-prompt never states, such as the SSI disability criterion, months of SSDI
-receipt, weekly hours worked, the type of survivor benefits, who paid for the
-coverage behind a disability benefit, or whether an adult tax dependent is the
-filers' child; each was recomputed under the other reading a careful reader
-could take, and it moved. Exclusion is symmetric: rows that matched the frozen
-reference leave the score with rows that did not, so every model is scored on
-1,932 of its 1,984 requested outputs. The rows on those outputs stay annotated
-as description: each carries its exclusion's class, except the 50 answers that
-never parsed, which stay parse_contract_failure; no scored row carries a
-descriptive class. The prompt states disability as one general fact
+record. On policyengine-us 2.15.17 each of these outputs either keeps the value
+its defect produced or was re-reviewed with the defect still present.
+Twenty-seven depend on an input the prompt never states, such as the SSI
+disability criterion, months of SSDI receipt, weekly hours worked, the type of
+survivor benefits, who paid for the coverage behind a disability benefit,
+whether an adult tax dependent is the filers' child, or whether a listed state
+and local tax refund is income, which depends on whether the refunded tax
+reduced federal tax in the year it was paid (26 U.S.C. 111(a)); each was
+recomputed under the other reading a careful reader could take, and it moved.
+Exclusion is symmetric: rows that matched the frozen reference leave the score
+with rows that did not, so every model is scored on 1,929 of its 1,984
+requested outputs. The rows on those outputs stay annotated as description:
+each carries its exclusion's class, except the 53 answers that never parsed,
+which stay parse_contract_failure; no scored row carries a descriptive class.
+The prompt states disability as one general fact
 (any of the six Current Population Survey disability-difficulty items); SSI,
 SNAP, Medicare and the tax code each apply their own determination, which no
 benchmark person carries, so a disabled person's references take the
@@ -127,18 +162,6 @@ non-disabled path unless another listed fact establishes the determination
 (manuscript section "Disability in the household facts"). Do not read a $0 SSI
 reference for a disabled under-65 household member as a finding about that
 person's SSI eligibility.
-
-A scored reference follows from the stated facts and from law published before
-the references were frozen on 2026-07-03. Where policyengine-us projected a
-2026 amount with a price index, the reference takes the amount published
-before the freeze or, where none was, the last one published; a convention
-changes parameter values only. With the upstream fixes, 26 references in 24
-households are regenerated on the same engine version: 13 SNAP outputs, whose
-October to December months hold the FY2026 figures and whose allotments apply
-the SNAP rounding fixes (one of them also the child support fix, which puts it
-at $0), and 13 in federal and state income tax and credits.
-The reference sidecar records each regenerated value with the convention or
-fix that produced it.
 
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be
@@ -215,7 +238,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-09-22 snapshot scores
+- Activation is a snapshot decision: the current 2026-09-29 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should

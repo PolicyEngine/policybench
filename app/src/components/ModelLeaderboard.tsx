@@ -309,9 +309,10 @@ export default function ModelLeaderboard({
             Three Claude rows ran without extended thinking: this board forces
             the answer tool call for every row whose model card selects the
             tool contract, which switches Claude&apos;s thinking off. Claude
-            Fable 5.1 and Claude Opus 5.5 reject forced calls, so their rows
-            select JSON, answer as a JSON object and reason either way; Fable
-            5.1&apos;s marker compares transports. The{" "}
+            Fable 5.1, Claude Opus 5.5 and Claude Sonnet 5.5 reject forced
+            calls, so their rows select JSON, answer as a JSON object and
+            reason either way; Fable 5.1&apos;s marker compares transports.
+            The{" "}
             <code>tool_choice: auto</code> re-runs are marked on the four rows
             (open a marker for the score and why); the board itself is
             unchanged. The{" "}

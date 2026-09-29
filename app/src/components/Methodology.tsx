@@ -94,6 +94,10 @@ export default function Methodology({
     country === "uk" ? "UK transfer households" : "populace households";
   const referenceOutputSource =
     country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
+  // The engine release behind this board's references, as its payload records
+  // it; archived boards name their own.
+  const referenceEngineVersion =
+    benchData.policyengineBundles?.[country]?.model_version ?? null;
   const benchmarkDescription = currentBoard
     ? country === "uk"
       ? "This app shows the current no-tools UK benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for fiscal year 2026-27."
@@ -162,7 +166,7 @@ export default function Methodology({
           selects JSON for the family (the older Gemini and DeepSeek rows).{" "}
           {currentBoard ? (
             <>
-              Ten of the 42 models answer the same facts in subsets of one or
+              Ten of the 45 models answer the same facts in subsets of one or
               three outputs per request, an accommodation that predates the
               whole-scenario rule. The per-model transport and request shape are
               recorded in the paper&apos;s serving-configuration table and the
@@ -194,7 +198,7 @@ export default function Methodology({
         <SectionCard title="Reference outputs">
           {country === "uk"
             ? "PolicyEngine-UK computes the PolicyEngine reference output for every household-variable pair in UK fiscal year 2026-27. The displayed variables define the benchmark scope for this snapshot."
-            : "PolicyEngine-US computes the PolicyEngine reference output for every household-variable pair in tax year 2026. The displayed variables define the benchmark scope for this snapshot."}
+            : `PolicyEngine-US${referenceEngineVersion ? ` (policyengine-us ${referenceEngineVersion})` : ""} computes the PolicyEngine reference output for every household-variable pair in tax year 2026. The displayed variables define the benchmark scope for this snapshot.`}
         </SectionCard>
 
         <SectionCard title="Output selection">
