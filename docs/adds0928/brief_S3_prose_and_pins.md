@@ -51,6 +51,20 @@ Read the repository's `CLAUDE.md`. Also read `docs/adds0928/stage2_design.md` ("
    - Leave pins that belong to earlier releases' notes or records alone.
    - `tests/test_paper_results.py::test_frozen_roster_has_42_display_names_and_release_dates` becomes 45. The new models' display names and release dates are already in `policybench/paper_results.py` and `app/src/modelMeta.ts`: Grok 4.7 released 2026-09-21, DeepSeek V4.1 Flash 2026-09-10, and Sonnet 5.5 as recorded there.
 
+## Voice (public copy: notes, paper, card, methodology copy)
+
+Before writing any prose, read Max's voice guide `~/.claude/projects/-Users-maxghenis/memory/voice_max.md` (its "Current rules") and the working model `~/.claude/projects/-Users-maxghenis/memory/user_max_working_model.md`, and apply them to every string you write or change. In particular:
+- active voice, with the actor in the subject;
+- one thought per sentence, with varied rhythm;
+- no self-referential clauses and no empty "X, not Y" antithesis;
+- no superlatives or intensifiers, and numbers over adjectives;
+- sentence-case headings;
+- finished work introduces itself fresh: the paper and card state what the benchmark does now, with no draft or review lineage;
+- release notes and corrections take the change as their subject and keep the numbers;
+- no policy positions, not even hints.
+
+When a reviewer would flag one sentence, reread the whole document for the pattern. Keep each note's existing structure and register (third person, "PolicyBench …").
+
 ## Rules
 
 - **No fabricated claims.** State only what you read in committed code or data, or computed yourself. When a number comes from the payload, compute it.
