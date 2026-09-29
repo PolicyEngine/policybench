@@ -218,7 +218,21 @@ def resolve_base(args):
         validate_keys(frame, reference, model)
     from policybench.reference_exclusions import load_reference_exclusions
 
-    require(len(load_reference_exclusions(SNAPSHOT)) == 52, "expected 52 exclusions")
+    # 52 on the 22c references, plus the exclusions a reviewed reference
+    # revision adds (each is listed in its changed outputs).
+    revision = reference_revision()
+    added = (
+        0
+        if revision is None
+        else sum(
+            c.get("cause") == "excluded_reference_depends_on_unlisted_input"
+            for c in revision["changed"]
+        )
+    )
+    require(
+        len(load_reference_exclusions(SNAPSHOT)) == 52 + added,
+        f"expected {52 + added} exclusions",
+    )
     return base, reference, live
 
 
