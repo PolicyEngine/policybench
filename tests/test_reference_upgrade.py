@@ -109,6 +109,13 @@ def test_the_sweep_table_is_the_committed_reference():
 
 
 def test_every_changed_reference_is_listed_and_reviewed():
+    """Every changed output is listed, and one that moves beyond the
+    exact-match tolerance ($1 for an amount, any change for a 0/1 flag, as
+    paper_results.moves_beyond_tolerance and the builder count it) is an
+    approved change or a new exclusion; only a move within the tolerance may
+    be recorded as engine_upgrade_within_1."""
+    from policybench.paper_results import moves_beyond_tolerance
+
     references = _references()
     sweep = _sweep()
     actions = _load(AUDIT / "final_actions.json")
@@ -122,8 +129,12 @@ def test_every_changed_reference_is_listed_and_reviewed():
     for key, change in changed.items():
         assert abs(change["regenerated"] - references[key]) < 1e-9, key
         assert abs(change["previous"] - board[key]) < 1e-9, key
-        within_one = abs(change["regenerated"] - change["previous"]) <= 1.0
-        assert key in approved or key in added or within_one, key
+        beyond = moves_beyond_tolerance(
+            key[1], change["previous"], change["regenerated"]
+        )
+        assert key in approved or key in added or not beyond, key
+        if change["cause"] == "engine_upgrade_within_1":
+            assert not beyond, key
     record = _load(AUDIT / "clusters.json")
     reconciled = {
         (r["scenario_id"], r["variable"]): r for r in record["reconciliations"]
@@ -496,8 +507,29 @@ def test_the_sweep_began_while_the_reference_engine_was_the_newest_release():
     assert f"began at {sweep['first_output_at_utc'][11:16]} UTC" in readme
 
 
+def test_the_pin_commit_came_while_the_reference_engine_was_newest():
+    """The timing record's pin commit, checked without git: it follows
+    policyengine-us 2.15.17's upload and the sweep's first output, and precedes
+    2.16.0's upload and the reference build, as recorded."""
+    timing = _load(AUDIT / "verification" / "sweep_timing.json")
+    uploaded = timing["pypi"]["wheel_uploaded_at_utc"]
+    sweep = timing["reference_sweep"]
+    pin = sweep["pin_commit"]
+    assert len(pin["commit"]) == 40 and int(pin["commit"], 16) >= 0
+    assert pin["subject"] == f"Pin policyengine.py 6.1.2 and policyengine-us {ENGINE}"
+    rebuilt = _load(RUN_DIR / "reference_outputs.csv.meta.json")["regenerated_at_utc"]
+    assert (
+        uploaded[ENGINE]
+        < sweep["first_output_at_utc"]
+        < pin["committed_at_utc"]
+        < uploaded["2.16.0"]
+        < rebuilt.replace("+00:00", "Z")
+    )
+
+
 def test_the_pin_commit_time_in_the_timing_record_is_gits():
-    """Differential check of the timing record against git, where available."""
+    """Differential check of the timing record against git, where the commit is
+    in this checkout's history (the release branch)."""
     import datetime
     import subprocess
 
@@ -512,7 +544,12 @@ def test_the_pin_commit_time_in_the_timing_record_is_gits():
     if shown.returncode != 0:
         import pytest
 
-        pytest.skip("git history unavailable")
+        pytest.skip(
+            f"pin commit {pin['commit'][:12]} is not in this checkout's history: "
+            "squash-merging PR #182 left it out of main's history; "
+            "test_the_pin_commit_came_while_the_reference_engine_was_newest "
+            "checks the recorded times without git"
+        )
     when, subject = shown.stdout.strip().split("\n", 1)
     utc = datetime.datetime.fromisoformat(when).astimezone(datetime.timezone.utc)
     assert utc.strftime("%Y-%m-%dT%H:%M:%SZ") == pin["committed_at_utc"]
