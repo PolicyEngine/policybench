@@ -1,8 +1,11 @@
-"""Build PolicyBench's US references on the newest policyengine-us (2026-09-28 wave).
+"""Build PolicyBench's US references on the newest policyengine-us (the 2026-09-29 upgrade).
 
 Rulings:
-- Max, 2026-09-28: "we should be using the latest pe for this always!" References come
-  from the newest policyengine-us release (2.15.17 on PyPI, 2026-09-29 00:23 UTC).
+- Max's ruling, 2026-09-28: "we should be using the latest pe for this always!"
+  References come from the newest policyengine-us release when PolicyBench begins the
+  reference sweep; at publication PolicyBench checks that the newest release gives the
+  same values. The sweep began at 01:42 UTC on 2026-09-29, when the newest release was
+  2.15.17 (uploaded to PyPI at 00:23 UTC; verification/sweep_timing.json).
   policyengine.py 6.1.2 is recorded for provenance only: its certified bundle is
   policyengine-us 2.2.1, and `import policyengine` refuses to load next to 2.15.17.
 - Max, 2026-09-22 (reference sidecar rule): a scored reference follows from the stated
@@ -25,10 +28,30 @@ Method:
 - An excluded output keeps the value its exclusion record names, as on 2026-09-22. It is
   not scored. Its 2.15.17 value and the reviewed reason it stays excluded are recorded.
 
+Dates are UTC days. The wave began on the evening of 2026-09-28, US Eastern time, which
+is this directory's name; the sweep began at 01:42 UTC on 2026-09-29, so the records
+date the upgrade 2026-09-29: the revision's date, the derivation, and each new
+exclusion's basis, which takes the exclusion's decided_on. The first build ran at 11:57
+UTC. The rebuild later that day changed only record text (the upgrade's date and
+wording); its reference CSV is byte-identical, and the sidecar's regenerated_at_utc is
+the rebuild's.
+
+The first build ran in the triage directory, whose layout this script assumes:
+
   cd triage && PYTHONDONTWRITEBYTECODE=1 OPENBLAS_NUM_THREADS=1 \\
     PYTHONPATH=/Users/maxghenis/PolicyEngine/policybench-wt/adds0928-stage2 \\
     .venv-pepy612-us21517/bin/python build_references_latest.py \\
       --actions latest/final_actions.json --out-dir ../reference_v13
+
+The rebuild ran from this directory's committed files, laid out the same way (B is a
+scratch directory), and scripts/install_adds0929_references.py installed its output:
+
+  mkdir -p $B/sweep/fixes && cp scripts/build_references_latest.py $B/ \\
+    && cp scripts/sweep.py $B/sweep/ && cp fixes/*.py $B/sweep/fixes/ \\
+    && cp ../2026-09-22/fixes/r19_irs_sales_tax_2025.json $B/sweep/fixes/
+  (cd $B && PYTHONDONTWRITEBYTECODE=1 OPENBLAS_NUM_THREADS=1 PYTHONPATH=<checkout> \\
+    <triage>/.venv-pepy612-us21517/bin/python build_references_latest.py \\
+      --actions <this directory>/final_actions.json --out-dir $B/out)
 """
 
 from __future__ import annotations
@@ -70,7 +93,7 @@ def _board() -> Path:
         (out / name).write_bytes(raw)
     return out
 YEAR = 2026
-DATE = "2026-09-28"
+DATE = "2026-09-29"
 ENGINE = "2.15.17"
 PARTS = ("latest_conventions", "latest_md_local_output_scope")
 CONVENTION_MODULES = (
@@ -87,6 +110,12 @@ CONVENTION_MODULES = (
 RULE = (
     "A scored reference follows from the stated facts and from law published before "
     "the 2026-07-03 reference freeze."
+)
+# Lead's ruling of 2026-09-29 on the wording: "newest" holds at a stated time.
+ENGINE_RULE = (
+    "References come from the newest policyengine-us release when PolicyBench begins "
+    "the reference sweep; at publication PolicyBench checks that the newest release "
+    "gives the same values."
 )
 
 
@@ -178,7 +207,10 @@ def main() -> None:
                 "scenario_id": key[0], "variable": key[1], "frozen": float(v11[key]),
                 "previous": old, "regenerated": value,
                 "cause": "excluded_reference_depends_on_unlisted_input",
-                "basis": "Newly excluded from scoring on 2026-09-28 (reference_exclusions.json): " + record["unlisted_input"],
+                "basis": (
+                    f"Newly excluded from scoring on {record['decided_on']} "
+                    "(reference_exclusions.json): " + record["unlisted_input"]
+                ),
             })
             continue
         if moved(key[1], value, old):
@@ -216,12 +248,12 @@ def main() -> None:
     exclusion_file["exclusions"] = exclusions + list(added.values())
     exclusion_file["derivation"] = (
         exclusion_file["derivation"]
-        + " On 2026-09-28 the references moved to policyengine-us 2.15.17 with the"
-        " pre-freeze conventions; every excluded output was recomputed there, each one"
-        " that moved was re-reviewed and stays excluded (the reference sidecar's"
-        " engine_upgrade revision lists them), records made before that date keep the"
-        " values they were decided on, and the three records dated 2026-09-29 were"
-        " computed on 2.15.17."
+        + f" On {DATE} the references moved to policyengine-us {ENGINE} with the"
+        " pre-freeze conventions. Every excluded output was recomputed there, and each"
+        " one that moved was re-reviewed and stays excluded (the reference sidecar's"
+        " engine_upgrade revision lists them). Records decided before that date keep"
+        " the values they were decided on; the three records decided that day were"
+        f" computed on {ENGINE}."
     )
     (out / "reference_exclusions.json").write_text(json.dumps(exclusion_file, indent=2) + "\n")
     meta = json.loads(json.dumps(board_meta))
@@ -234,9 +266,9 @@ def main() -> None:
         "root_cause": "engine_upgrade_policyengine_us_2_15_17",
         "outputs": "every scored output",
         "rule": (
-            f"{RULE} References come from the newest policyengine-us release (Max, "
-            "2026-09-28: 'we should be using the latest pe for this always!'), with the "
-            "conventions that hold pre-freeze law re-expressed for it."
+            f"{RULE} {ENGINE_RULE} Max's ruling, 2026-09-28: 'we should be using the "
+            "latest pe for this always!' The conventions that hold pre-freeze law are "
+            "re-expressed for the release the sweep uses."
         ),
         "engine_version": f"policyengine-us {ENGINE}",
         "previous_engine_version": "policyengine-us 1.755.4",

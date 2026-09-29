@@ -55,8 +55,6 @@ from policybench.spec import metric_type_for_output
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 
-# Human-readable model names for the frozen roster. Aliases that do not
-# appear here fall back to a humanized form of the PolicyBench id.
 # The sweep that rechecked every reference on the policyengine-us release
 # current at publication, with the fix module the references were built with.
 PUBLICATION_CHECK_SWEEP = (
@@ -96,6 +94,8 @@ def partition_engine_upgrade_changes(
     return partition
 
 
+# Human-readable model names for the frozen roster. Aliases that do not
+# appear here fall back to a humanized form of the PolicyBench id.
 MODEL_DISPLAY_NAMES = {
     "gpt-6-astra": "GPT-6 Astra",
     "gpt-6-sol": "GPT-6 Sol",
@@ -1266,12 +1266,9 @@ class PaperResults:
 
     @property
     def engine_upgrade_date(self) -> str:
-        """UTC date PolicyBench rebuilt the references on the new engine.
-
-        The revision's own ``date`` is the builder's wave date (2026-09-28, the
-        day of the ruling); the references the release carries were rebuilt on
-        the sidecar's ``regenerated_at_utc`` day.
-        """
+        """UTC date PolicyBench rebuilt the references on the new engine: the
+        sidecar's ``regenerated_at_utc`` day, which is also the revision's own
+        ``date`` (tests/test_paper_results.py checks they agree)."""
         if self.engine_upgrade_revision is None:
             return ""
         return self.reference_rebuilt_date

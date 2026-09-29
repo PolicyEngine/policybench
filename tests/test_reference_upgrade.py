@@ -1,12 +1,16 @@
 """The 2026-09-29 engine upgrade: every reference change is reviewed and reproducible.
 
-Max, 2026-09-28: references come from the newest policyengine-us, with the
-conventions that hold law published before the 2026-07-03 freeze re-expressed
-for it. PolicyBench began sweeping the references on policyengine-us 2.15.17 on
-2026-09-29, rebuilt them at 11:57 UTC, and checked them on 2.17.0, the release
-current at publication. reference_audit/2026-09-28 records the modules, the
-per-output sweeps, and each root-cause cluster's investigation and independent
-review.
+References come from the newest policyengine-us release when PolicyBench begins
+the reference sweep, with the conventions that hold law published before the
+2026-07-03 freeze re-expressed for it (Max's ruling, 2026-09-28); at publication
+PolicyBench checks that the newest release gives the same values. PolicyBench
+began sweeping the references on policyengine-us 2.15.17 at 01:42 UTC on
+2026-09-29, built them at 11:57 UTC and rebuilt them (record text only) later
+that day, and checked them on 2.17.0, the release current at publication.
+reference_audit/2026-09-28 records the modules, the per-output sweeps, and each
+root-cause cluster's investigation and independent review. Its directory name
+is the US Eastern date the wave began; the records date the upgrade by its UTC
+day, 2026-09-29.
 """
 
 from __future__ import annotations
@@ -208,3 +212,130 @@ def test_the_publication_release_agrees_with_the_reference_engine_everywhere():
     assert set(rows) == set(sweep)
     for key, row in rows.items():
         assert abs(float(row["recomputed"]) - float(sweep[key]["final"])) < 1e-9, key
+
+
+UPGRADE_DATE = "2026-09-29"
+
+
+def test_the_records_date_the_upgrade_by_its_utc_day():
+    """The revision, the exclusion record's derivation, each new exclusion's
+    note and decided_on, and each new-exclusion basis in the sidecar name the
+    upgrade's UTC day. The ruling's own date is labeled as Max's."""
+    upgrade = _upgrade()
+    assert upgrade["date"] == UPGRADE_DATE
+    assert (
+        _load(RUN_DIR / "reference_outputs.csv.meta.json")["regenerated_at_utc"][:10]
+        == UPGRADE_DATE
+    )
+    exclusions = _load(RUN_DIR / "reference_exclusions.json")
+    assert (
+        f"On {UPGRADE_DATE} the references moved to policyengine-us {ENGINE}"
+        in (exclusions["derivation"])
+    )
+    decided = {(e["scenario_id"], e["variable"]): e for e in exclusions["exclusions"]}
+    new = [
+        c
+        for c in upgrade["changed"]
+        if c["cause"] == "excluded_reference_depends_on_unlisted_input"
+    ]
+    assert len(new) == 3
+    for change in new:
+        record = decided[(change["scenario_id"], change["variable"])]
+        assert record["decided_on"] == UPGRADE_DATE
+        assert change["basis"].startswith(
+            f"Newly excluded from scoring on {record['decided_on']} "
+        )
+        assert f"Found in the {UPGRADE_DATE} engine upgrade" in record["note"]
+    for path in (
+        RUN_DIR / "reference_exclusions.json",
+        RUN_DIR / "reference_outputs.csv.meta.json",
+        AUDIT / "final_actions.json",
+        ROOT
+        / "annotations/us_full_run_20260612_policyengine_4_16_1_populace"
+        / "us_adjudications.json",
+        ROOT
+        / "annotations/us_full_run_20260612_policyengine_4_16_1_populace"
+        / "us_case_notes.csv",
+    ):
+        text = path.read_text().replace("reference_audit/2026-09-28", "")
+        for index in [i for i in range(len(text)) if text.startswith("2026-09-28", i)]:
+            assert "Max's ruling, 2026-09-28" in text[index - 20 : index + 10], (
+                path.name,
+                text[index - 80 : index + 40],
+            )
+
+
+def test_the_engine_rule_is_anchored_to_the_sweep():
+    """Lead's ruling on the wording: "newest" holds at a stated time."""
+    rule = (
+        "References come from the newest policyengine-us release when PolicyBench "
+        "begins the reference sweep; at publication PolicyBench checks that the "
+        "newest release gives the same values."
+    )
+    assert rule in _upgrade()["rule"]
+    assert "Max's ruling, 2026-09-28" in _upgrade()["rule"]
+    readme = " ".join((AUDIT / "README.md").read_text().split())
+    assert "1. " + rule in readme
+
+
+def test_the_sweep_began_while_the_reference_engine_was_the_newest_release():
+    """verification/sweep_timing.json: the sweep began after policyengine-us
+    2.15.17 was uploaded and before 2.16.0 was, and the publication check ran
+    on 2.17.0 after its upload, while it was still the newest release."""
+    timing = _load(AUDIT / "verification" / "sweep_timing.json")
+    uploaded = timing["pypi"]["wheel_uploaded_at_utc"]
+    sweep = timing["reference_sweep"]
+    assert sweep["engine"] == ENGINE
+    releases = sorted(uploaded, key=lambda v: tuple(int(p) for p in v.split(".")))
+    following = releases[releases.index(ENGINE) + 1]
+    assert following == "2.16.0"
+    assert (
+        uploaded[ENGINE]
+        < sweep["engine_installed_at_utc"]
+        <= sweep["script_written_at_utc"]
+        <= sweep["first_output_at_utc"]
+        < uploaded[following]
+    )
+    assert sweep["pin_commit"]["committed_at_utc"] < uploaded[following]
+    check = timing["publication_check"]
+    assert check["engine"] == VERIFICATION_ENGINE == timing["pypi"]["newest_at_read"]
+    assert (
+        uploaded[VERIFICATION_ENGINE]
+        < check["engine_installed_at_utc"]
+        <= check["output_at_utc"]
+        < timing["pypi"]["read_at_utc"]
+    )
+    # The build followed the sweep, and the stated times are the recorded ones.
+    rebuilt = _load(RUN_DIR / "reference_outputs.csv.meta.json")["regenerated_at_utc"]
+    assert sweep["first_output_at_utc"] < rebuilt.replace("+00:00", "Z")
+    readme = " ".join((AUDIT / "README.md").read_text().split())
+    assert f"rebuilt them at {rebuilt[11:16]} UTC" in readme
+    assert f"(uploaded {uploaded[ENGINE][11:16]} UTC)" in readme
+    assert (
+        f"(uploaded {uploaded[VERIFICATION_ENGINE][:10]} "
+        f"{uploaded[VERIFICATION_ENGINE][11:16]} UTC)"
+    ) in readme
+    assert f"began at {sweep['first_output_at_utc'][11:16]} UTC" in readme
+
+
+def test_the_pin_commit_time_in_the_timing_record_is_gits():
+    """Differential check of the timing record against git, where available."""
+    import datetime
+    import subprocess
+
+    pin = _load(AUDIT / "verification" / "sweep_timing.json")["reference_sweep"][
+        "pin_commit"
+    ]
+    shown = subprocess.run(
+        ["git", "-C", str(ROOT), "log", "-1", "--format=%cI%n%s", pin["commit"]],
+        capture_output=True,
+        text=True,
+    )
+    if shown.returncode != 0:
+        import pytest
+
+        pytest.skip("git history unavailable")
+    when, subject = shown.stdout.strip().split("\n", 1)
+    utc = datetime.datetime.fromisoformat(when).astimezone(datetime.timezone.utc)
+    assert utc.strftime("%Y-%m-%dT%H:%M:%SZ") == pin["committed_at_utc"]
+    assert subject == pin["subject"]

@@ -881,11 +881,11 @@
       ]
     },
     {
-      "date": "2026-09-28",
+      "date": "2026-09-29",
       "kind": "engine_upgrade",
       "root_cause": "engine_upgrade_policyengine_us_2_15_17",
       "outputs": "every scored output",
-      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. References come from the newest policyengine-us release (Max, 2026-09-28: 'we should be using the latest pe for this always!'), with the conventions that hold pre-freeze law re-expressed for it.",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. References come from the newest policyengine-us release when PolicyBench begins the reference sweep; at publication PolicyBench checks that the newest release gives the same values. Max's ruling, 2026-09-28: 'we should be using the latest pe for this always!' The conventions that hold pre-freeze law are re-expressed for the release the sweep uses.",
       "engine_version": "policyengine-us 2.15.17",
       "previous_engine_version": "policyengine-us 1.755.4",
       "policyengine_py": "policyengine 6.1.2, provenance only: its certified US bundle is policyengine-us 2.2.1, and it refuses to import next to a newer model",
@@ -1107,7 +1107,7 @@
           "previous": 3788.988037109375,
           "regenerated": 3818.148193359375,
           "cause": "excluded_reference_depends_on_unlisted_input",
-          "basis": "Newly excluded from scoring on 2026-09-28 (reference_exclusions.json): whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)"
+          "basis": "Newly excluded from scoring on 2026-09-29 (reference_exclusions.json): whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)"
         },
         {
           "scenario_id": "scenario_078",
@@ -1116,7 +1116,7 @@
           "previous": 24780.61328125,
           "regenerated": 24164.45703125,
           "cause": "excluded_reference_depends_on_unlisted_input",
-          "basis": "Newly excluded from scoring on 2026-09-28 (reference_exclusions.json): whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)"
+          "basis": "Newly excluded from scoring on 2026-09-29 (reference_exclusions.json): whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)"
         },
         {
           "scenario_id": "scenario_082",
@@ -1134,7 +1134,7 @@
           "previous": 24391.796875,
           "regenerated": 24961.33984375,
           "cause": "excluded_reference_depends_on_unlisted_input",
-          "basis": "Newly excluded from scoring on 2026-09-28 (reference_exclusions.json): whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)"
+          "basis": "Newly excluded from scoring on 2026-09-29 (reference_exclusions.json): whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)"
         },
         {
           "scenario_id": "scenario_078",
@@ -1157,5 +1157,5 @@
       ]
     }
   ],
-  "regenerated_at_utc": "2026-09-29T11:57:49.828322+00:00"
+  "regenerated_at_utc": "2026-09-29T15:04:45.724738+00:00"
 }

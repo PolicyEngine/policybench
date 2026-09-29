@@ -374,9 +374,13 @@ def test_engine_upgrade_counts_come_from_the_reference_sidecar():
     assert r.policyengine_us_version == "2.15.17"
     assert r.previous_policyengine_us_version == "1.755.4"
     assert r.policyengine_version == "6.1.2"
-    # The rebuild, not the builder's wave date the revision carries.
-    assert r.engine_upgrade_revision["date"] == "2026-09-28"
-    assert r.engine_upgrade_date == r.reference_rebuilt_date == "2026-09-29"
+    # The revision and the rebuild carry the upgrade's UTC day.
+    assert (
+        r.engine_upgrade_revision["date"]
+        == r.engine_upgrade_date
+        == r.reference_rebuilt_date
+        == "2026-09-29"
+    )
     assert r.publication_check_policyengine_us_version == "2.17.0"
     # Every changed output lands in exactly one of the three groups.
     assert (
