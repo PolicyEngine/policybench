@@ -198,15 +198,19 @@ def date_entries(
         else:
             _set(entry, "judged_on_utc", day, case, changes)
         flagged = bool(entry.get("judge_reference_suspect"))
-        if flagged and bool(verdict.get("reference_suspect")):
-            # The current verdict raises the flag itself.
-            if entry.get("judge_reference_suspect_source"):
-                changes.append(f"{case}: judge_reference_suspect_source dropped")
-                del entry["judge_reference_suspect_source"]
-        elif flagged != bool(verdict.get("reference_suspect")) and not (
-            flagged and entry.get("judge_reference_suspect_source")
-        ):
-            raise SystemExit(f"{case}: the recorded flag is not the verdict's")
+        if flagged != bool(verdict.get("reference_suspect")):
+            # A flag the current verdict does not raise stays only with the
+            # source naming the earlier run of the wave that raised it.
+            if not (
+                flagged
+                and entry.get("judge_reference_suspect_source")
+                and key in wave_flags
+            ):
+                raise SystemExit(f"{case}: the recorded flag is not the verdict's")
+        elif "judge_reference_suspect_source" in entry:
+            # The current verdict raises the flag itself, or no flag is kept.
+            changes.append(f"{case}: judge_reference_suspect_source dropped")
+            del entry["judge_reference_suspect_source"]
 
         found = _bound_verdict(previous_cases / case) if previous else None
         for item in previous or []:

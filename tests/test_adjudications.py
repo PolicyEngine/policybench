@@ -774,6 +774,11 @@ def _judged_cases(draw):
             "current_day": draw(_DAYS),
             "rejudged": rejudged,
             "previous": None,
+            # The top-level flag, the current verdict's flag, and whether the
+            # entry names an earlier run as the flag's source.
+            "top_flag": draw(st.booleans()),
+            "verdict_flag": draw(st.booleans()),
+            "top_source": draw(st.booleans()),
         }
         if rejudged:
             case["previous"] = {
@@ -795,9 +800,12 @@ def test_date_entries_properties(tmp_path_factory, cases, in_wave):
     """For any record: every judge_previous item ends with exactly one of
     judged_on and adjudicated_on; it keeps judged_on exactly when a bound
     previous verdict carries its judge and classes, and then takes that
-    verdict's UTC day; a flag mismatch is either explained by
-    judge_reference_suspect_source or stops the script; the change lines
-    count the fields that changed; and a second pass changes nothing."""
+    verdict's UTC day; a flag mismatch, at the top level or on a dated
+    judge_previous item, is either explained (the recorded flag is set, the
+    entry names its source, and an earlier run of the wave flagged the case)
+    or stops the script; a source survives exactly where it explains a
+    mismatch; the change lines count the fields that changed; and a second
+    pass changes nothing."""
     script = _script()
     root = tmp_path_factory.mktemp("cases")
     current, previous = root / "current", root / "previous"
@@ -813,6 +821,7 @@ def test_date_entries_properties(tmp_path_factory, cases, in_wave):
             {
                 "case_failure_source": "llm_error",
                 "case_failure_subtype": case["subtype"],
+                "reference_suspect": case["verdict_flag"],
             },
             {
                 "judge_model_requested": "claude-opus-5-5",
@@ -826,7 +835,10 @@ def test_date_entries_properties(tmp_path_factory, cases, in_wave):
             "judge_model": "claude-opus-5-5",
             "judge_failure_source": "llm_error",
             "judge_failure_subtype": case["subtype"],
+            "judge_reference_suspect": case["top_flag"],
         }
+        if case["top_source"]:
+            entry["judge_reference_suspect_source"] = script.FLAG_SOURCE_EARLIER_RUN
         prior = case["previous"]
         if prior is not None:
             if prior["exists"]:
@@ -858,13 +870,21 @@ def test_date_entries_properties(tmp_path_factory, cases, in_wave):
     def bound(prior) -> bool:
         return prior["exists"] and prior["subtype"] == prior["recorded_subtype"]
 
-    unexplained = any(
+    def top_mismatch(case) -> bool:
+        return case["top_flag"] != case["verdict_flag"]
+
+    unexplained_top = any(
+        top_mismatch(case) and not (case["top_flag"] and case["top_source"] and in_wave)
+        for case in cases
+    )
+    unexplained_previous = any(
         case["previous"] is not None
         and bound(case["previous"])
         and case["previous"]["recorded_flag"] != case["previous"]["flag"]
         and not (case["previous"]["recorded_flag"] and in_wave)
         for case in cases
     )
+    unexplained = unexplained_top or unexplained_previous
     if unexplained:
         with pytest.raises(SystemExit):
             script.date_entries(entries, current, previous, frozenset(wave))
@@ -873,6 +893,10 @@ def test_date_entries_properties(tmp_path_factory, cases, in_wave):
     for case, entry in zip(cases, entries):
         day = case["current_day"]
         prior = case["previous"]
+        # The top-level flag never changes; its source stays exactly where it
+        # explains a flag the current verdict does not raise.
+        assert entry["judge_reference_suspect"] is case["top_flag"]
+        assert ("judge_reference_suspect_source" in entry) == top_mismatch(case)
         if prior is None:
             assert entry["judged_on_utc"] == day
             assert "judge_previous" not in entry
