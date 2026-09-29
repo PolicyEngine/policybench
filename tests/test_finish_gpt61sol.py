@@ -1122,3 +1122,21 @@ def test_the_fold_keeps_incumbent_rows_and_adds_1984_rows_for_the_addition(
         assert (root / "fold/us" / name).read_bytes() == (
             driver.SNAPSHOT / name
         ).read_bytes()
+
+
+# --- One tag constant ----------------------------------------------------------
+
+
+def test_the_release_tag_is_named_in_one_place():
+    """RELEASE_TAG is the only spelling of the new tag in the driver's files."""
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "scripts/finish_gpt61sol.py").read_text().splitlines()
+    assert sum(driver.RELEASE_TAG in line for line in source) == 1
+    for relative in (
+        "scripts/freeze_gpt61sol.py",
+        "scripts/snapshot_gpt61sol.py",
+        "docs/gpt61sol/design.md",
+        "tests/test_freeze_gpt61sol.py",
+        "tests/test_finish_gpt61sol.py",
+    ):
+        assert driver.RELEASE_TAG not in (root / relative).read_text(), relative
