@@ -74,6 +74,19 @@ export function servingSensitivityFor(
   return SERVING_SENSITIVITY[model];
 }
 
+/** How many rows carry an auto re-run, and how many of those board rows ran
+ * without extended thinking; the leaderboard's sensitivity copy states both. */
+export function servingSensitivityCounts(
+  entries: Record<string, ServingSensitivity> = SERVING_SENSITIVITY,
+): { reruns: number; thinkingSuppressed: number } {
+  const values = Object.values(entries);
+  return {
+    reruns: values.length,
+    thinkingSuppressed: values.filter((entry) => entry.thinkingSuppressedOnBoard)
+      .length,
+  };
+}
+
 /** Signed one-decimal delta from unrounded inputs (display rounding only). */
 export function formatDelta(autoExact: number, boardExact: number): string {
   const delta = autoExact - boardExact;

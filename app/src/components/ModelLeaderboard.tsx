@@ -24,13 +24,19 @@ import ServingSensitivityChip from "./ServingSensitivityChip";
 import {
   NEXT_BOARD_HREF,
   SENSITIVITY_DOC_HREF,
+  servingSensitivityCounts,
   servingSensitivityFor,
 } from "../lib/servingSensitivity";
 import {
   rankWithFallbackScore,
   rankWithRecomputedScores,
 } from "../lib/leaderboardRows";
-import { joinWithAnd, jsonContractClaudeModels } from "../lib/servingConfig";
+import {
+  capitalizeFirst,
+  joinWithAnd,
+  jsonContractClaudeModels,
+  numberWord,
+} from "../lib/servingConfig";
 import {
   SENSITIVITY_VIEWS,
   modelScoresForView,
@@ -246,6 +252,9 @@ export default function ModelLeaderboard({
   const forcedToolRejectingClaudeLabels = joinWithAnd(
     jsonContractClaudeModels().map((model) => MODEL_LABELS[model] ?? model),
   );
+  // The auto re-runs, and the board rows among them that ran without
+  // extended thinking (src/lib/servingSensitivity.ts).
+  const sensitivityCounts = servingSensitivityCounts();
   const unfilteredExact = (model: string): number => {
     const row = baseNoTools.find((entry) => entry.model === model);
     return row?.exact ?? row?.score ?? 0;
@@ -312,20 +321,22 @@ export default function ModelLeaderboard({
             Serving sensitivity · August 2026
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-            Three Claude rows ran without extended thinking: this board forces
+            {capitalizeFirst(numberWord(sensitivityCounts.thinkingSuppressed))}{" "}
+            Claude rows ran without extended thinking: this board forces
             the answer tool call for every row whose model card selects the
             tool contract, which switches Claude&apos;s thinking off.{" "}
             {forcedToolRejectingClaudeLabels} reject forced calls, so their
             rows select JSON, answer as a JSON object and reason either way;
             Fable 5.1&apos;s marker compares transports.
             The{" "}
-            <code>tool_choice: auto</code> re-runs are marked on the four rows
+            <code>tool_choice: auto</code> re-runs are marked on the{" "}
+            {numberWord(sensitivityCounts.reruns)} rows
             (open a marker for the score and why); the board itself is
             unchanged. The{" "}
             <a href={SENSITIVITY_DOC_HREF} className="text-primary hover:underline">
               sensitivity note
             </a>{" "}
-            has all four runs, and the{" "}
+            has all {numberWord(sensitivityCounts.reruns)} runs, and the{" "}
             <a href={NEXT_BOARD_HREF} className="text-primary hover:underline">
               next board version
             </a>{" "}

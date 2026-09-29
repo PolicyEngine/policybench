@@ -91,8 +91,11 @@ describe("serving sensitivity", () => {
     );
     expect(source).not.toContain("SENSITIVITY_EXACT");
     expect(source).toContain("<ServingSensitivityChip");
-    expect(source).toContain("re-runs are marked on the four rows");
-    expect(source).toContain("Three Claude rows ran without extended thinking");
+    // The counts in the copy come from SERVING_SENSITIVITY; the rendered
+    // sentences are checked in servingConfig.test.ts.
+    expect(source).toContain("servingSensitivityCounts()");
+    expect(source).not.toContain("Three Claude rows");
+    expect(source).not.toContain("the four rows");
     // The comparison baseline is the unfiltered exact score in both layouts,
     // never the score under the reader's current metric or filters.
     expect(source.match(/boardExact=\{unfilteredExact\(m\.model\)\}/g)?.length).toBe(2);
