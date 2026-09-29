@@ -19,10 +19,10 @@ from policybench.paper_results import (
 )
 
 
-def test_frozen_roster_has_42_display_names_and_release_dates():
+def test_frozen_roster_has_45_display_names_and_release_dates():
     roster = {row["model"] for row in r.model_stats}
 
-    assert len(roster) == 42
+    assert len(roster) == 45
     assert set(MODEL_DISPLAY_NAMES) == roster
     assert roster <= set(MODEL_RELEASE_DATES)
     assert MODEL_DISPLAY_NAMES["claude-fable-5.1"] == "Claude Fable 5.1"
@@ -37,6 +37,12 @@ def test_frozen_roster_has_42_display_names_and_release_dates():
     assert MODEL_RELEASE_DATES["gpt-6-sol"] == "2026-09-22"
     assert MODEL_RELEASE_DATES["gpt-6-luna"] == "2026-09-22"
     assert MODEL_DISPLAY_NAMES["claude-opus-5.5"] == "Claude Opus 5.5"
+    assert MODEL_DISPLAY_NAMES["claude-sonnet-5.5"] == "Claude Sonnet 5.5"
+    assert MODEL_RELEASE_DATES["claude-sonnet-5.5"] == "2026-09-28"
+    assert MODEL_DISPLAY_NAMES["grok-4.7"] == "Grok 4.7"
+    assert MODEL_RELEASE_DATES["grok-4.7"] == "2026-09-21"
+    assert MODEL_DISPLAY_NAMES["deepseek-v4.1-flash"] == "DeepSeek V4.1 Flash"
+    assert MODEL_RELEASE_DATES["deepseek-v4.1-flash"] == "2026-09-10"
 
 
 def test_app_release_dates_mirror_the_paper_registry():
@@ -59,44 +65,44 @@ def test_app_release_dates_mirror_the_paper_registry():
 def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     assert r.parse_contract_failure_counts == Counter(
         {
-            "kimi-k2.6": 394,
+            "kimi-k2.6": 391,
             "glm-5.2": 133,
             "glm-5.3": 71,
             "kimi-k3": 59,
         }
     )
-    assert r.parse_contract_failure_count == 657
-    assert r.parse_contract_failure_count_fmt == "657"
+    assert r.parse_contract_failure_count == 654
+    assert r.parse_contract_failure_count_fmt == "654"
     assert r.parse_contract_failure_pct_fmt == "0.8"
 
 
 def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
-    assert r.audit_annotated_row_count == 7_545
-    assert r.audit_annotated_row_count_fmt == "7,545"
+    assert r.audit_annotated_row_count == 7_796
+    assert r.audit_annotated_row_count_fmt == "7,796"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 7_541
-    assert r.exact_match_miss_count_fmt == "7,541"
-    assert r.annotated_exact_miss_count == 7_541
-    assert r.annotated_exact_miss_count_fmt == "7,541"
+    assert r.exact_match_miss_count == 7_792
+    assert r.exact_match_miss_count_fmt == "7,792"
+    assert r.annotated_exact_miss_count == 7_792
+    assert r.annotated_exact_miss_count_fmt == "7,792"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
-    assert r.unannotated_below_full_bounded_score_count == 1_843
-    assert r.unannotated_below_full_bounded_score_count_fmt == "1,843"
+    assert r.unannotated_below_full_bounded_score_count == 2_027
+    assert r.unannotated_below_full_bounded_score_count_fmt == "2,027"
 
 
 def test_contract_violations_are_counted_both_ways():
-    """657 scored rows never parsed a number (rows on excluded outputs are outside
-    every count); 61 more parsed a number but carry no explanation.
+    """654 scored rows never parsed a number (rows on excluded outputs are outside
+    every count); 60 more parsed a number but carry no explanation.
     The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
-        "grok-4.3": 56,
+        "grok-4.3": 55,
         "kimi-k2.6": 4,
         "claude-haiku-4.5": 1,
     }
-    assert r.explanation_missing_count_fmt == "61"
-    assert r.contract_violation_count_fmt == "718"
+    assert r.explanation_missing_count_fmt == "60"
+    assert r.contract_violation_count_fmt == "714"
     assert r.explanation_missing_breakdown_fmt == (
-        "Grok 4.3 (56), Kimi K2.6 (4), and Claude Haiku 4.5 (1)"
+        "Grok 4.3 (55), Kimi K2.6 (4), and Claude Haiku 4.5 (1)"
     )
 
 
@@ -185,15 +191,16 @@ def test_serving_evidence_caption_comes_from_frozen_configuration():
         ],
     }
     assert r.serving_evidence_pinned_counts == {
-        "answer contract": 13,
-        "request shape": 13,
-        "tool choice": 12,
-        "completion ceiling": 13,
+        "answer contract": 16,
+        "request shape": 16,
+        "tool choice": 15,
+        "completion ceiling": 16,
     }
+    assert summary == {"registry": 29, "run_state": 16}
     assert r.serving_evidence_caption == (
         "Supervised-run fingerprints pin answer contract, request shape, "
-        "and completion ceiling for 13 rows; tool choice for 12 rows; reasoning "
-        "setup and timeouts for three rows. Reasoning setup and timeouts for the "
+        "and completion ceiling for 16 rows; tool choice for 15 rows; reasoning "
+        "setup and timeouts for six rows. Reasoning setup and timeouts for the "
         "other ten fingerprinted rows, and all fields for the other "
         f"{summary['registry']} rows, are the harness registry as frozen in the "
         "snapshot's serving-configuration file."
@@ -205,11 +212,11 @@ def test_serving_evidence_counts_exclude_legacy_or_unrecorded_fields():
     results.serving_config = deepcopy(r.serving_config)
     fable_evidence = results.serving_config["models"]["claude-fable-5.1"]["evidence"]
 
-    assert results.serving_evidence_pinned_counts["tool choice"] == 12
+    assert results.serving_evidence_pinned_counts["tool choice"] == 15
     del fable_evidence["legacy_tool_choice_label"]
-    assert results.serving_evidence_pinned_counts["tool choice"] == 13
+    assert results.serving_evidence_pinned_counts["tool choice"] == 16
     del fable_evidence["treatment_fingerprint"]["answer_contract"]
-    assert results.serving_evidence_pinned_counts["answer contract"] == 12
+    assert results.serving_evidence_pinned_counts["answer contract"] == 15
 
 
 def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
@@ -217,20 +224,22 @@ def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
 
     assert table.loc["Claude Fable 5.1"].tolist() == [100.0, 93.8, 93.8]
     assert table.loc["Claude Opus 5.5"].tolist() == [100.0, 91.8, 91.8]
-    assert table.loc["GPT-6 Astra"].tolist() == [100.0, 89.7, 89.7]
-    assert table.loc["GPT-6 Sol"].tolist() == [99.0, 88.7, 88.7]
-    assert table.loc["GPT-5.6 Sol"].tolist() == [99.0, 87.6, 87.6]
+    assert table.loc["GPT-6 Astra"].tolist() == [100.0, 88.7, 88.7]
+    assert table.loc["GPT-6 Sol"].tolist() == [99.0, 87.6, 87.6]
+    assert table.loc["Grok 4.7"].tolist() == [99.0, 87.6, 87.6]
+    assert table.loc["GPT-5.6 Sol"].tolist() == [99.0, 86.6, 86.6]
     assert r.joint_credit_accuracy_exceptions == [
         "Claude Fable 5.1",
         "Claude Opus 5.5",
         "GPT-6 Astra",
         "GPT-6 Sol",
+        "Grok 4.7",
         "GPT-5.6 Sol",
     ]
     assert r.joint_credit_accuracy_note == (
         "The joint hit rate can be no higher than either marginal and is "
         "strictly lower than both for every model except Claude Fable 5.1, "
-        "Claude Opus 5.5, GPT-6 Astra, GPT-6 Sol, and GPT-5.6 Sol."
+        "Claude Opus 5.5, GPT-6 Astra, GPT-6 Sol, Grok 4.7, and GPT-5.6 Sol."
     )
     other_models = table.drop(index=r.joint_credit_accuracy_exceptions)
     assert (other_models["Joint within 10%"] < other_models["Federal within 10%"]).all()
@@ -251,10 +260,11 @@ def test_joint_credit_accuracy_prose_tracks_changed_table_exceptions():
         "Claude Opus 5.5",
         "GPT-6 Astra",
         "GPT-6 Sol",
+        "Grok 4.7",
         "GPT-5.6 Sol",
     ]
     assert (
-        "except Claude Opus 5.5, GPT-6 Astra, GPT-6 Sol, and GPT-5.6 Sol."
+        "except Claude Opus 5.5, GPT-6 Astra, GPT-6 Sol, Grok 4.7, and GPT-5.6 Sol."
         in results.joint_credit_accuracy_note
     )
     assert "Claude Fable 5.1" not in results.joint_credit_accuracy_note
@@ -271,34 +281,43 @@ def test_judge_provenance_is_frozen_in_the_manifest():
         sum(entry["cases"] for entry in prov["by_judge"].values())
         == (prov["cases_judged"])
     )
-    assert prov["by_judge"]["claude-opus-5"]["cases"] == 183
+    assert prov["by_judge"]["claude-opus-5"]["cases"] == 132
     assert prov["by_judge"]["claude-opus-5"]["judged_on_utc"] == ["2026-09-05"]
-    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 171
-    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 314
-    assert r.audit_case_count_fmt == "668"
-    assert r.audit_opus_judged_case_count_fmt == "183"
-    assert r.audit_opus55_judged_case_count_fmt == "171"
-    assert r.audit_sol_judged_case_count_fmt == "314"
+    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 239
+    assert "2026-09-29" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
+    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 303
+    assert r.audit_case_count_fmt == "674"
+    assert r.audit_opus_judged_case_count_fmt == "132"
+    assert r.audit_opus55_judged_case_count_fmt == "239"
+    assert r.audit_sol_judged_case_count_fmt == "303"
 
 
 def test_joint_credit_table_orders_ties_deterministically():
     table = r.federal_state_joint_accuracy
     joint = table["Joint within 10%"].tolist()
     assert joint == sorted(joint, reverse=True)
+    # Ties break by model id: gpt-6-astra before gpt-6-luna, gpt-6-sol before
+    # grok-4.7.
+    tied = table[table["Joint within 10%"] == 88.7]["Model"].tolist()
+    assert tied == ["GPT-6 Astra", "GPT-6 Luna"]
     tied = table[table["Joint within 10%"] == 87.6]["Model"].tolist()
-    assert tied[:2] == ["GPT-5.6 Sol", "GPT-6 Luna"]
+    assert tied == ["GPT-6 Sol", "Grok 4.7"]
 
 
 def test_excluded_outputs_are_outside_the_scored_audit_universe():
-    assert r.excluded_output_count == 52
-    assert r.excluded_output_phrase == "52 outputs"
-    assert r.excluded_output_households_phrase == "36 households"
-    assert r.unlisted_input_exclusion_count == 24
+    assert r.excluded_output_count == 55
+    assert r.excluded_output_phrase == "55 outputs"
+    assert r.excluded_output_households_phrase == "39 households"
+    assert r.unlisted_input_exclusion_count == 27
     assert r.engine_defect_exclusion_count == 28
     assert r.engine_defect_root_cause_count == 11
     assert r.snap_engine_defect_exclusion_count == 1
     assert r.engine_defect_unflagged_count == 8
+    # The September 22 regenerations, made on policyengine-us 1.755.4; the
+    # engine upgrade's own changes are counted separately below.
     assert r.regenerated_reference_count == 26
+    assert r.regenerated_reference_household_count == 24
+    assert r.regenerated_snap_reference_count == 13
     assert r.regenerated_by_convention_count == 23
     assert r.regenerated_by_upstream_fix_count == 15
     assert r.upstream_fixed_root_cause_count == 8
@@ -309,10 +328,18 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     assert (
         r.excluded_outputs_by_input["months_receiving_social_security_disability"] == 5
     )
-    assert r.scored_outputs_per_model_fmt == "1,932"
+    assert (
+        r.excluded_outputs_by_input[
+            "whether the prior-year deduction of the refunded state and local tax "
+            "reduced federal tax (prior-year itemization, the income-versus-sales-tax "
+            "election, SALT-cap headroom)"
+        ]
+        == 3
+    )
+    assert r.scored_outputs_per_model_fmt == "1,929"
     assert r.total_outputs_per_model_fmt == "1,984"
-    assert r.excluded_output_annotation_row_count == 1793
-    assert r.prompt_ambiguity_row_count == 616
+    assert r.excluded_output_annotation_row_count == 2041
+    assert r.prompt_ambiguity_row_count == 780
     # No scored row carries a descriptive class; every excluded-output row
     # carries its exclusion's class unless it never parsed.
     scored_sources = {
@@ -331,7 +358,49 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
             "parse_contract_failure",
         }
     for stats in r.model_stats:
-        assert stats["n"] == 1932
+        assert stats["n"] == 1929
+
+
+def test_engine_upgrade_counts_come_from_the_reference_sidecar():
+    """The September 28 move to policyengine-us 2.15.17, as the reference
+    sidecar's engine_upgrade revision records it (reference_audit/2026-09-28/
+    README.md tabulates the same changes)."""
+    assert r.policyengine_us_version == "2.15.17"
+    assert r.previous_policyengine_us_version == "1.755.4"
+    assert r.policyengine_version == "6.1.2"
+    assert r.engine_upgrade_date == "2026-09-28"
+    # Four scored references move beyond the exact-match tolerance: 008 NJ
+    # and 082 NY refundable credits, 013 AZ SNAP and 028 PA reduced-price
+    # meals (a 0/1 flag, so any change counts).
+    assert r.engine_upgrade_scored_change_count == 4
+    # 078 and 117 state income tax move by under $1.
+    assert r.engine_upgrade_within_tolerance_count == 2
+    # 033, 078 and 117 federal income tax leave scoring.
+    assert r.engine_upgrade_new_exclusion_count == 3
+    assert r.engine_upgrade_rechecked_count == 19
+    changes = {
+        (change["scenario_id"], change["variable"]): change
+        for change in r.engine_upgrade_revision["changed"]
+    }
+    assert {
+        key: (change["previous"], change["regenerated"])
+        for key, change in changes.items()
+        if key
+        in {
+            ("scenario_008", "state_refundable_credits"),
+            ("scenario_013", "snap"),
+            ("scenario_028", "reduced_price_school_meals_eligible"),
+            ("scenario_082", "state_refundable_credits"),
+        }
+    } == {
+        ("scenario_008", "state_refundable_credits"): (
+            pytest.approx(5342.40, abs=0.005),
+            pytest.approx(5842.40, abs=0.005),
+        ),
+        ("scenario_013", "snap"): (0.0, 240.0),
+        ("scenario_028", "reduced_price_school_meals_eligible"): (1.0, 0.0),
+        ("scenario_082", "state_refundable_credits"): (650.5, 667.0),
+    }
 
 
 def test_disability_section_counts_come_from_the_frozen_scenarios():

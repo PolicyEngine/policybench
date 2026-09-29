@@ -44,17 +44,17 @@ runs also use the canonical whole-scenario request
 (`POLICYBENCH_CHUNK_OVERRIDE=none`); their deltas therefore combine two
 shape changes, while Claude Opus 5's isolates thinking alone.
 
-All ranks are on the 42-model board (2026-09-22). Scores are on the
-1,932 outputs the board scores; the 52 outputs `reference_exclusions.json`
+All ranks are on the 45-model board (2026-09-29). Scores are on the
+1,929 outputs the board scores; the 55 outputs `reference_exclusions.json`
 lists (engine defects, and references that depend on an input the prompt
 never states) are excluded for every model, sensitivity runs included. On
 all 1,984 outputs the thinking runs scored 87.1, 85.8 and 80.3.
 
 | | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5 | 83.5 (#16) | **90.9** | +7.4 | **#6** | $0.541 → $0.323 | 54 | 1,984/1,984 |
-| Claude Opus 5 | 83.4 (#17) | **89.4** | +6.0 | #8 | $0.067 → $0.152 | 51 | 1,984/1,984 |
-| Claude Sonnet 5 | 72.4 (#40) | **84.3** | +11.8 | #16 | $0.086 | 64 | 1,928/1,984 |
+| Claude Fable 5 | 83.9 (#20) | **91.4** | +7.5 | **#7** | $0.541 → $0.323 | 54 | 1,984/1,984 |
+| Claude Opus 5 | 83.9 (#19) | **89.9** | +6.0 | #9 | $0.067 → $0.152 | 51 | 1,984/1,984 |
+| Claude Sonnet 5 | 72.9 (#43) | **84.7** | +11.8 | #19 | $0.086 | 64 | 1,928/1,984 |
 
 In this table and the Claude Fable 5.1 table below, deltas are differences of
 the unrounded scores, so a delta can differ by 0.1 from the difference of the
@@ -62,7 +62,7 @@ rounded scores shown; the per-program tables subtract the rounded rates.
 
 Under `auto`, Fable 5 and Opus 5 chose to call the answer tool on every
 response; Sonnet 5 failed to produce a parseable tool call on 56 of its
-1,984 answers; the 55 on scored outputs count as misses inside its 84.3. Fable 5's
+1,984 answers; the 55 on scored outputs count as misses inside its 84.7. Fable 5's
 sensitivity run also costs less than its leaderboard run: whole-scenario
 requests drop its per-household spend from $0.541 to $0.323 even with
 thinking on.
@@ -84,19 +84,19 @@ versioned re-run, never an edit to existing scores; the plan is
 
 ## Where thinking helps (Claude Fable 5, per program)
 
-Per-variable within-$1 rates, board (forced) vs `auto`, on the 1,932
+Per-variable within-$1 rates, board (forced) vs `auto`, on the 1,929
 scored outputs. These are unweighted leaf rates from the heatmap; the
-headline weights by dollar magnitude, so these do not average to 90.9.
+headline weights by dollar magnitude, so these do not average to 91.4.
 
 | program | board | auto | delta |
 |---|---|---|---|
-| federal_income_tax_before_refundable_credits | 56.5 | 76.5 | +20.0 |
+| federal_income_tax_before_refundable_credits | 58.5 | 79.3 | +20.8 |
 | state_income_tax_before_refundable_credits | 62.8 | 74.4 | +11.6 |
 | federal_refundable_credits | 87.8 | 96.9 | +9.1 |
 | person_medicare_eligible | 91.3 | 99.4 | +8.1 |
 | payroll_tax | 82.8 | 89.9 | +7.1 |
 | state_refundable_credits | 82.7 | 86.7 | +4.0 |
-| snap | 84.9 | 88.2 | +3.3 |
+| snap | 83.9 | 87.1 | +3.2 |
 | ssi | 96.9 | 100.0 | +3.1 |
 | self_employment_tax | 97.0 | 99.0 | +2.0 |
 | person_medicaid_eligible | 94.8 | 96.0 | +1.2 |
@@ -104,14 +104,14 @@ headline weights by dollar magnitude, so these do not average to 90.9.
 | local_income_tax | 100.0 | 100.0 | +0.0 |
 | person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
 | person_head_start_eligible | 100.0 | 100.0 | +0.0 |
+| reduced_price_school_meals_eligible | 99.0 | 99.0 | +0.0 |
 | tanf | 99.0 | 99.0 | +0.0 |
 | free_school_meals_eligible | 99.0 | 98.0 | -1.0 |
 | person_chip_eligible | 98.9 | 97.2 | -1.7 |
-| reduced_price_school_meals_eligible | 100.0 | 98.0 | -2.0 |
 
 Thinking pays off on the hardest arithmetic: the two income-tax lines,
 refundable credits, and payroll tax. Near-ceiling programs stay flat;
-the three small negatives sit at noise scale for n=100-177. Per-variable
+the two small negatives sit at noise scale for n=100-177. Per-variable
 CSVs for all three models are committed under `sensitivity/data/` as
 `sensitivity-claude-*-thinking-by-variable.csv.gz`, regenerated on the
 scored outputs by `scripts/sensitivity_by_variable.py` and pinned in
@@ -134,19 +134,19 @@ The sensitivity run for this model isolates request shape under thinking
 rather than thinking itself: the answer tool declared with `tool_choice:
 "auto"` (`POLICYBENCH_CONTRACT_OVERRIDE=tool` together with
 `POLICYBENCH_TOOL_CHOICE=auto`), against the JSON board row. Both rows
-reason. The ranks are on the 42-model board (2026-09-22).
+reason. The ranks are on the 45-model board (2026-09-29).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5.1 | 90.2 (#6) | **91.1** | +0.9 | #6 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
+| Claude Fable 5.1 | 90.7 (#7) | **91.6** | +0.9 | #7 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
 
 The two rows sit 0.9 points apart, and no program moves more than three
 points between them (table below). Read against Claude Fable 5, the
-picture matches August: Fable 5.1's JSON board row (90.2) is 6.7 points
-above Fable 5's forced-tool board row (83.5) and 0.7 below Fable 5's
-`auto` run (90.9); Fable 5.1's own `auto` run (91.1) is 0.2 above Fable
-5's under the identical request. Scores are on the 1,932 scored outputs;
-on all 1,984 the auto run scored 87.9. The model called the answer tool on every
+picture matches August: Fable 5.1's JSON board row (90.7) is 6.8 points
+above Fable 5's forced-tool board row (83.9) and 0.7 below Fable 5's
+`auto` run (91.4); Fable 5.1's own `auto` run (91.6) is 0.2 above Fable
+5's under the identical request. Scores are on the 1,929 scored outputs;
+on all 1,984 the auto run scored 88.0. The model called the answer tool on every
 one of its 1,984 answers under `auto`.
 
 Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
@@ -156,9 +156,9 @@ Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
 |---|---|---|---|
 | state_income_tax_before_refundable_credits | 73.3 | 75.6 | +2.3 |
 | person_medicare_eligible | 96.5 | 98.3 | +1.8 |
-| federal_income_tax_before_refundable_credits | 76.5 | 77.6 | +1.1 |
+| federal_income_tax_before_refundable_credits | 79.3 | 80.5 | +1.2 |
 | free_school_meals_eligible | 98.0 | 99.0 | +1.0 |
-| reduced_price_school_meals_eligible | 98.0 | 99.0 | +1.0 |
+| reduced_price_school_meals_eligible | 99.0 | 100.0 | +1.0 |
 | ssi | 99.0 | 100.0 | +1.0 |
 | person_medicaid_eligible | 96.6 | 97.1 | +0.5 |
 | local_income_tax | 100.0 | 100.0 | +0.0 |
@@ -167,7 +167,7 @@ Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
 | person_head_start_eligible | 100.0 | 100.0 | +0.0 |
 | person_wic_eligible | 100.0 | 100.0 | +0.0 |
 | self_employment_tax | 100.0 | 100.0 | +0.0 |
-| snap | 89.2 | 89.2 | +0.0 |
+| snap | 88.2 | 88.2 | +0.0 |
 | tanf | 99.0 | 99.0 | +0.0 |
 | federal_refundable_credits | 99.0 | 98.0 | -1.0 |
 | state_refundable_credits | 91.8 | 90.8 | -1.0 |

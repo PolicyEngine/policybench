@@ -49,6 +49,7 @@ from policybench.reference_exclusions import (
 )
 from policybench.reference_exclusions import FILENAME as EXCLUSIONS_FILENAME
 from policybench.snapshot_payload import read_run_payload
+from policybench.spec import metric_type_for_output
 
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
 ROOT = Path(__file__).resolve().parents[1]
@@ -1174,12 +1175,85 @@ class PaperResults:
 
     @property
     def regenerated_reference_keys(self) -> set[tuple[str, str]]:
-        """Scored outputs a convention or an upstream fix regenerated."""
+        """Scored outputs a convention or an upstream fix regenerated.
+
+        These are the September 22 regenerations, made on the engine version
+        before the upgrade; the engine upgrade's own changes are counted by the
+        ``engine_upgrade_*`` properties.
+        """
         return {
             (change["scenario_id"], change.get("variable", "snap"))
             for revision in self.reference_revisions
+            if revision.get("kind", "convention") in {"convention", "upstream_fix"}
             for change in revision["changed"]
         }
+
+    @cached_property
+    def engine_upgrade_revision(self) -> dict | None:
+        """The sidecar revision that moved the references to a newer engine."""
+        upgrades = [
+            revision
+            for revision in self.reference_revisions
+            if revision.get("kind") == "engine_upgrade"
+        ]
+        return upgrades[-1] if upgrades else None
+
+    @property
+    def previous_policyengine_us_version(self) -> str:
+        """policyengine-us version behind the references before the upgrade,
+        the version the September 22 audit ran on."""
+        revision = self.engine_upgrade_revision
+        if revision is None:
+            return self.policyengine_us_version
+        return revision["previous_engine_version"].removeprefix("policyengine-us ")
+
+    @property
+    def engine_upgrade_date(self) -> str:
+        revision = self.engine_upgrade_revision
+        return "" if revision is None else revision["date"]
+
+    def _engine_upgrade_changes(self) -> list[dict]:
+        revision = self.engine_upgrade_revision
+        return [] if revision is None else revision["changed"]
+
+    def _engine_upgrade_scored_changes(self, *, beyond_tolerance: bool) -> int:
+        """Scored references the upgrade moved, split at the exact-match
+        tolerance: $1 for an amount, any change for a 0/1 flag."""
+        count = 0
+        for change in self._engine_upgrade_changes():
+            key = (change["scenario_id"], change["variable"])
+            if key in self._excluded_output_keys:
+                continue
+            moved = abs(change["regenerated"] - change["previous"])
+            amount = metric_type_for_output(change["variable"]) == "amount"
+            count += (moved > 1 if amount else moved > 0) == beyond_tolerance
+        return count
+
+    @property
+    def engine_upgrade_scored_change_count(self) -> int:
+        """Scored references the upgrade moved beyond the exact-match tolerance."""
+        return self._engine_upgrade_scored_changes(beyond_tolerance=True)
+
+    @property
+    def engine_upgrade_within_tolerance_count(self) -> int:
+        """Scored references the upgrade moved within the $1 tolerance."""
+        return self._engine_upgrade_scored_changes(beyond_tolerance=False)
+
+    @property
+    def engine_upgrade_new_exclusion_count(self) -> int:
+        """Outputs scored before the upgrade that it removed from scoring."""
+        return sum(
+            1
+            for change in self._engine_upgrade_changes()
+            if (change["scenario_id"], change["variable"]) in self._excluded_output_keys
+        )
+
+    @property
+    def engine_upgrade_rechecked_count(self) -> int:
+        """Excluded outputs whose value moved on the new engine and were
+        re-reviewed; they stay excluded."""
+        revision = self.engine_upgrade_revision
+        return 0 if revision is None else len(revision["excluded_outputs_rechecked"])
 
     def _regenerated_keys_of_kind(self, kind: str) -> set[tuple[str, str]]:
         return {
