@@ -30,6 +30,7 @@ import {
   rankWithFallbackScore,
   rankWithRecomputedScores,
 } from "../lib/leaderboardRows";
+import { joinWithAnd, jsonContractClaudeModels } from "../lib/servingConfig";
 import {
   SENSITIVITY_VIEWS,
   modelScoresForView,
@@ -240,6 +241,11 @@ export default function ModelLeaderboard({
   // metric, weighting or program filter the reader has selected.
   const showSensitivity =
     selectedView === "us" && isCurrentBoard(versionId, liveVersionId);
+  // The Claude rows the live board serves as JSON, from the frozen serving
+  // configuration: each one's API rejects a forced tool call.
+  const forcedToolRejectingClaudeLabels = joinWithAnd(
+    jsonContractClaudeModels().map((model) => MODEL_LABELS[model] ?? model),
+  );
   const unfilteredExact = (model: string): number => {
     const row = baseNoTools.find((entry) => entry.model === model);
     return row?.exact ?? row?.score ?? 0;
@@ -308,10 +314,10 @@ export default function ModelLeaderboard({
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
             Three Claude rows ran without extended thinking: this board forces
             the answer tool call for every row whose model card selects the
-            tool contract, which switches Claude&apos;s thinking off. Claude
-            Fable 5.1, Claude Opus 5.5 and Claude Sonnet 5.5 reject forced
-            calls, so their rows select JSON, answer as a JSON object and
-            reason either way; Fable 5.1&apos;s marker compares transports.
+            tool contract, which switches Claude&apos;s thinking off.{" "}
+            {forcedToolRejectingClaudeLabels} reject forced calls, so their
+            rows select JSON, answer as a JSON object and reason either way;
+            Fable 5.1&apos;s marker compares transports.
             The{" "}
             <code>tool_choice: auto</code> re-runs are marked on the four rows
             (open a marker for the score and why); the board itself is

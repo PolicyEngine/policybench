@@ -10,6 +10,7 @@ import json
 import re
 import shutil
 import subprocess
+from collections import Counter
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -182,14 +183,35 @@ def _audit_counts_from_frozen_files() -> dict[str, int]:
 
 
 def test_methodology_states_the_chunked_count_from_the_serving_config():
-    rows = _serving_rows()
-    chunked = [row for row in rows if row["request_shape"] != "whole scenario"]
-    text = METHODOLOGY.read_text()
-    phrase = f"{NUMBER_WORDS[len(chunked)].capitalize()} of the {len(rows)}"
-    assert phrase in re.sub(r"\s+", " ", text), phrase
-    assert "JSON object where the provider rejects a forced tool" in re.sub(
-        r"\s+", " ", text
+    """The chunked-row count comes from the app's copy of the frozen serving
+    configuration and the model total from the board payload; the app tests
+    (app/tests/boardScope.test.ts) render the sentence against both."""
+    text = re.sub(r"\s+", " ", METHODOLOGY.read_text())
+    assert "chunkedServingModels().length" in text
+    assert "of the ${noToolsModels.length} models" in text
+    assert re.search(r"\b[A-Z][a-z]+ of the \d+ models", text) is None
+    assert "JSON object where the provider rejects a forced tool" in text
+    leaderboard = re.sub(r"\s+", " ", LEADERBOARD.read_text())
+    assert "jsonContractClaudeModels()" in leaderboard
+    assert "Claude Sonnet 5.5 reject" not in leaderboard
+
+
+def test_methodology_recheck_count_is_the_sidecar_record():
+    """The one engine-upgrade fact the payload does not carry: how many
+    excluded outputs moved on the new engine and were re-reviewed."""
+    sidecar = json.loads(
+        (
+            ROOT
+            / "paper/snapshot/20260501/runs"
+            / "us_full_run_20260612_policyengine_4_16_1_populace"
+            / "reference_outputs.csv.meta.json"
+        ).read_text()
     )
+    upgrade = next(r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade")
+    source = (ROOT / "app/src/lib/referenceEngine.ts").read_text()
+    engine = upgrade["engine_version"].removeprefix("policyengine-us ")
+    assert f'engineVersion: "{engine}"' in source
+    assert f"rechecked: {len(upgrade['excluded_outputs_rechecked'])}," in source
 
 
 def test_serving_config_has_both_transports():
@@ -322,6 +344,7 @@ def test_paper_checklist_names_existing_manifest_keys():
         "live_dashboard_artifact",
         "rendered_paper_artifacts",
         "reference_output_refresh",
+        "household_dataset",
         "population_weight_artifact",
         "audit_annotation_artifacts",
         "reproducibility_notes",
@@ -483,3 +506,110 @@ def test_rendered_pdf_reports_serving_evidence_summary():
     assert _hyphen_insensitive(_serving_evidence_sentence()) in _hyphen_insensitive(
         pdf_text
     )
+
+
+# The cost-and-latency sentence and table print dollar amounts. Quarto once
+# printed an inline string's repr there (a literal "\\$0.002") and the raw
+# DataFrame table kept the Markdown escape ("\$0.034") and its index column.
+COST_SENTENCE = re.compile(
+    r"Per-household cost spans \$\d+\.\d{3} \([^)]+\) to \$\d+\.\d{3} \([^)]+\)"
+)
+
+
+def _cost_latency_table_cells(html: str) -> list[list[str]]:
+    start = html.index('id="tbl-us-cost-latency"')
+    table = html[start : html.index("</table>", start)]
+    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", table, re.S)
+    return [
+        [
+            re.sub(r"<[^>]+>", "", cell).strip()
+            for cell in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", row, re.S)
+        ]
+        for row in rows
+    ]
+
+
+def test_rendered_html_prints_dollar_amounts_without_escapes():
+    html = PAPER_HTML.read_text()
+    parser = _VisibleTextParser()
+    parser.feed(html)
+    text = re.sub(r"\s+", " ", " ".join(parser.parts))
+    assert "\\$" not in text
+    assert COST_SENTENCE.search(text), "cost sentence missing or escaped"
+    header, *rows = _cost_latency_table_cells(html)
+    assert header[:3] == ["Model", "Exact (%)", "Cost / household"] or header[:3] == [
+        "Model",
+        "Exact (%)",
+        "Cost /​ household",
+    ]
+    assert len(rows) == r.n_models
+    for row in rows:
+        assert not row[0].isdigit(), row  # no DataFrame index column
+        assert re.fullmatch(r"\$\d+\.\d{3}|—", row[2]), row
+
+
+def test_rendered_pdf_prints_dollar_amounts_without_escapes():
+    text = re.sub(r"\s+", " ", _pdf_text())
+    assert "\\$" not in text
+    assert COST_SENTENCE.search(text), "cost sentence missing or escaped"
+
+
+def test_live_version_description_states_the_reference_engines():
+    """The dataset selector's one-line description of the live board names the
+    engine behind each scored reference and the engines behind the excluded
+    outputs' values, from the frozen records."""
+    run_dir = (
+        ROOT
+        / "paper/snapshot/20260501/runs"
+        / "us_full_run_20260612_policyengine_4_16_1_populace"
+    )
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    upgrade = next(r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade")
+    engine = upgrade["engine_version"].removeprefix("policyengine-us ")
+    previous = upgrade["previous_engine_version"].removeprefix("policyengine-us ")
+    exclusions = json.loads((run_dir / "reference_exclusions.json").read_text())[
+        "exclusions"
+    ]
+    by_engine = Counter(
+        e["engine_version"].removeprefix("policyengine-us ") for e in exclusions
+    )
+    assert set(by_engine) == {previous, engine}
+    versions = json.loads(VERSIONS.read_text())
+    live = next(v for v in versions["versions"] if v["id"] == versions["default"])
+    assert live["description"].startswith(
+        f"Scored reference outputs from policyengine-us {engine} (the "
+        f"{len(exclusions)} excluded outputs keep the values they were decided "
+        f"on: {by_engine[previous]} from policyengine-us {previous}, "
+        f"{by_engine[engine]} from {engine}, and the "
+        f"{len(upgrade['excluded_outputs_rechecked'])} that move on {engine} were "
+        "re-reviewed and stay excluded); "
+    )
+
+
+def test_newest_engine_claims_are_anchored_to_a_time():
+    """policyengine-us releases often, so "newest" holds only at a stated time:
+    2.15.17 when PolicyBench began sweeping the references (2026-09-29), 2.17.0
+    at publication. The upgrade record also quotes the standing rule."""
+    anchored = (
+        "newest release when PolicyBench began sweeping",
+        "newest release when it began sweeping",
+        "newest release at publication",
+        "References come from the newest policyengine-us release (Max, 2026-09-28",
+    )
+    surfaces = (
+        BENCHMARK_CARD,
+        PAPER,
+        PAPER_GUIDE,
+        METHODOLOGY,
+        VERSIONS,
+        ROOT / "README.md",
+        ROOT / "reference_audit/2026-09-28/README.md",
+        ROOT / "app/src/notes/2026-09-29-claude-sonnet-5-5-debuts-fourth.json",
+        ROOT / "app/src/notes/2026-09-23-five-snap-households-bbce.json",
+        SENSITIVITY_NOTE,
+    )
+    for path in surfaces:
+        text = re.sub(r"\s+", " ", path.read_text())
+        for match in re.finditer(r"newest", text):
+            window = text[max(0, match.start() - 60) : match.end() + 60]
+            assert any(phrase in window for phrase in anchored), (path.name, window)
