@@ -6,29 +6,29 @@
   "output": "results/local/v1_1/us/reference_outputs.csv",
   "policyengine_bundles": {
     "us": {
-      "bundle_id": null,
+      "bundle_id": "us-6.1.2",
       "country_id": "us",
       "policyengine_version": "6.1.2",
-      "bundled_policyengine_version": null,
+      "bundled_policyengine_version": "6.1.2",
       "model_package": "policyengine-us",
       "model_version": "2.15.17",
       "model_direct_url": null,
       "bundled_model_version": "2.2.1",
       "model_version_source": "installed package",
       "model_matches_policyengine_bundle": false,
-      "data_package": "populace-us",
-      "data_version": null,
+      "data_package": "microcosm-data",
+      "data_version": "0.1.0",
       "default_dataset": "populace_us_2024",
-      "default_dataset_uri": "hf://policyengine/populace-us/populace_us_2024.h5@populace-us-2024-5da5a95-20260611",
-      "certified_data_build_id": "populace-us-2024-5da5a95-20260611",
-      "certified_data_artifact_sha256": "f32c2e5e9098bc6540724fdd5debf963af495da4c29b3a7a63fb53c2a4bb5a34",
-      "data_build_model_version": null,
+      "default_dataset_uri": "hf://policyengine/populace-us/populace_us_2024.h5@populace-us-2024-spm-20260915",
+      "certified_data_build_id": "populace-us-2024-spm-20260915",
+      "certified_data_artifact_sha256": "6496cc4393d4d3c6574f76eca231de5898c803b9067645591fd5c4d3e65aee84",
+      "data_build_model_version": "2.2.1",
       "data_build_model_git_sha": null,
       "data_build_fingerprint": null,
       "compatibility_basis": "installed_model_package_not_policyengine_py_bundle",
-      "bundled_compatibility_basis": null,
+      "bundled_compatibility_basis": "built_with_model_package",
       "certified_by": "installed model package; no matching policyengine.py bundle manifest",
-      "bundled_certified_by": null
+      "bundled_certified_by": "policyengine.py bundle certification"
     }
   },
   "private_fraction": 0.0,
@@ -1157,5 +1157,5 @@
       ]
     }
   ],
-  "regenerated_at_utc": "2026-09-29T11:34:07.010973+00:00"
+  "regenerated_at_utc": "2026-09-29T11:57:49.828322+00:00"
 }

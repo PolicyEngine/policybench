@@ -50,10 +50,25 @@ BUNDLE = Path(
     "/Users/maxghenis/PolicyEngine/policybench/results/local/newmodels/publish/"
     "us_full_run_20260612_policyengine_4_16_1_populace/us"
 )  # the frozen v1.1 bundle (policyengine-us 1.755.4), read-only
-BOARD = Path(
-    "/Users/maxghenis/PolicyEngine/policybench-wt/adds0928-stage2/paper/snapshot/20260501/"
-    "runs/us_full_run_20260612_policyengine_4_16_1_populace"
-)  # release dashboard-data-20260922c
+CHECKOUT = Path("/Users/maxghenis/PolicyEngine/policybench-wt/adds0928-stage2")
+RUN = "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
+# Release dashboard-data-20260922c: main at this commit. Read from git, not from the
+# checkout, whose snapshot holds whatever this script last wrote.
+BASE_COMMIT = "3220a7a62b6be83032e9313c9df539c619ad8932"
+
+
+def _board() -> Path:
+    import subprocess
+    import tempfile
+
+    out = Path(tempfile.mkdtemp(prefix="board-20260922c-"))
+    for name in ("reference_outputs.csv", "reference_outputs.csv.meta.json", "reference_exclusions.json"):
+        raw = subprocess.run(
+            ["git", "-C", str(CHECKOUT), "show", f"{BASE_COMMIT}:{RUN}/{name}"],
+            check=True, capture_output=True,
+        ).stdout
+        (out / name).write_bytes(raw)
+    return out
 YEAR = 2026
 DATE = "2026-09-28"
 ENGINE = "2.15.17"
@@ -114,6 +129,7 @@ def main() -> None:
     approved = {(a["scenario_id"], a["variable"]): a for a in actions["approved"]}
     rechecked = {(a["scenario_id"], a["variable"]): a for a in actions["excluded_rechecked"]}
 
+    BOARD = _board()
     modules = {name: load(name) for name in PARTS}
     system = CountryTaxBenefitSystem(reform=tuple(m.reform for m in modules.values()))
     board = pd.read_csv(BOARD / "reference_outputs.csv")
