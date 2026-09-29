@@ -6,6 +6,8 @@ from copy import deepcopy
 
 import pandas as pd
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from policybench.analysis import model_cost_latency
 from policybench.config import MODELS, PRICE_OVERRIDES_PER_1M
@@ -281,6 +283,10 @@ def test_judge_provenance_is_frozen_in_the_manifest():
         sum(entry["cases"] for entry in prov["by_judge"].values())
         == (prov["cases_judged"])
     )
+    # The older judges' counts fall release to release (Opus 5 had 183 cases
+    # and GPT-5.6 Sol 314 on 20260922c) because Claude Opus 5.5 re-judged
+    # their cases after the reference revisions; a re-judged case with an
+    # adjudication keeps the replaced verdict under judge_previous.
     assert prov["by_judge"]["claude-opus-5"]["cases"] == 132
     assert prov["by_judge"]["claude-opus-5"]["judged_on_utc"] == ["2026-09-05"]
     assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 239
@@ -362,13 +368,30 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
 
 
 def test_engine_upgrade_counts_come_from_the_reference_sidecar():
-    """The September 28 move to policyengine-us 2.15.17, as the reference
+    """The September 29 move to policyengine-us 2.15.17, as the reference
     sidecar's engine_upgrade revision records it (reference_audit/2026-09-28/
     README.md tabulates the same changes)."""
     assert r.policyengine_us_version == "2.15.17"
     assert r.previous_policyengine_us_version == "1.755.4"
     assert r.policyengine_version == "6.1.2"
-    assert r.engine_upgrade_date == "2026-09-28"
+    # The rebuild, not the builder's wave date the revision carries.
+    assert r.engine_upgrade_revision["date"] == "2026-09-28"
+    assert r.engine_upgrade_date == r.reference_rebuilt_date == "2026-09-29"
+    assert r.publication_check_policyengine_us_version == "2.17.0"
+    # Every changed output lands in exactly one of the three groups.
+    assert (
+        r.engine_upgrade_scored_change_count
+        + r.engine_upgrade_within_tolerance_count
+        + r.engine_upgrade_new_exclusion_count
+        == len(r.engine_upgrade_revision["changed"])
+        == 9
+    )
+    # Excluded outputs keep the values they were decided on: 52 on 1.755.4,
+    # the three this upgrade added on 2.15.17.
+    assert r.excluded_outputs_by_engine_version == {"1.755.4": 52, "2.15.17": 3}
+    assert r.excluded_outputs_on_previous_engine_count == 52
+    assert r.excluded_outputs_on_reference_engine_count == 3
+    assert r.excluded_output_count == 55
     # Four scored references move beyond the exact-match tolerance: 008 NJ
     # and 082 NY refundable credits, 013 AZ SNAP and 028 PA reduced-price
     # meals (a 0/1 flag, so any change counts).
@@ -427,3 +450,81 @@ def test_dataset_build_is_the_one_the_households_came_from():
         r.manifest["reference_output_refresh"]["policyengine_us_data_build_id"]
         != r.dataset_build_id
     )
+
+
+_AMOUNT_OUTPUTS = (
+    "snap",
+    "state_refundable_credits",
+    "federal_income_tax_before_refundable_credits",
+)
+_FLAG_OUTPUTS = (
+    "reduced_price_school_meals_eligible",
+    "free_school_meals_eligible",
+)
+
+
+@st.composite
+def _upgrade_revisions(draw):
+    """A synthetic engine-upgrade revision and exclusion record: changes to
+    amount and 0/1 outputs, some of them to outputs the record excludes."""
+    keys = draw(
+        st.lists(
+            st.tuples(
+                st.integers(min_value=0, max_value=40).map(
+                    lambda n: f"scenario_{n:03d}"
+                ),
+                st.sampled_from(_AMOUNT_OUTPUTS + _FLAG_OUTPUTS),
+            ),
+            max_size=30,
+        )
+    )
+    changes = []
+    for scenario_id, variable in keys:
+        if variable in _FLAG_OUTPUTS:
+            previous = draw(st.sampled_from((0.0, 1.0)))
+            regenerated = draw(st.sampled_from((0.0, 1.0)))
+        else:
+            previous = draw(st.floats(0, 1e5, allow_nan=False))
+            regenerated = previous + draw(
+                st.one_of(st.floats(-2, 2, allow_nan=False), st.floats(-1e4, 1e4))
+            )
+        changes.append(
+            {
+                "scenario_id": scenario_id,
+                "variable": variable,
+                "previous": previous,
+                "regenerated": regenerated,
+            }
+        )
+    excluded = draw(st.sets(st.sampled_from(keys)) if keys else st.just(set())) | draw(
+        st.sets(
+            st.tuples(st.just("scenario_999"), st.sampled_from(_AMOUNT_OUTPUTS)),
+            max_size=3,
+        )
+    )
+    return changes, excluded
+
+
+@settings(max_examples=300, deadline=None)
+@given(_upgrade_revisions())
+def test_engine_upgrade_partition_is_exact_and_disjoint(revision):
+    """Invariant: every change lands in exactly one group; new exclusions are
+    the changes to excluded outputs; a scored change lies beyond the
+    exact-match tolerance ($1, or any change of a 0/1 flag) and a within-
+    tolerance change inside it."""
+    from policybench.paper_results import partition_engine_upgrade_changes
+
+    changes, excluded = revision
+    partition = partition_engine_upgrade_changes(changes, excluded)
+    assert set(partition) == {"scored_changes", "within_tolerance", "new_exclusions"}
+    placed = [id(change) for group in partition.values() for change in group]
+    assert sorted(placed) == sorted(id(change) for change in changes)
+    assert len(placed) == len(set(placed)) == len(changes)
+    for change in partition["new_exclusions"]:
+        assert (change["scenario_id"], change["variable"]) in excluded
+    for name in ("scored_changes", "within_tolerance"):
+        for change in partition[name]:
+            assert (change["scenario_id"], change["variable"]) not in excluded
+            moved = abs(change["regenerated"] - change["previous"])
+            limit = 1 if change["variable"] in _AMOUNT_OUTPUTS else 0
+            assert (moved > limit) == (name == "scored_changes")

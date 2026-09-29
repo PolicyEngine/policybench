@@ -57,6 +57,45 @@ SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 
 # Human-readable model names for the frozen roster. Aliases that do not
 # appear here fall back to a humanized form of the PolicyBench id.
+# The sweep that rechecked every reference on the policyengine-us release
+# current at publication, with the fix module the references were built with.
+PUBLICATION_CHECK_SWEEP = (
+    ROOT / "reference_audit" / "2026-09-28" / "verification" / "latest_final_2170.csv"
+)
+
+
+def partition_engine_upgrade_changes(
+    changes: list[dict], excluded: frozenset[tuple[str, str]] | set[tuple[str, str]]
+) -> dict[str, list[dict]]:
+    """Split an engine upgrade's changed outputs into three disjoint groups.
+
+    A change to an output the exclusion record now lists is a new exclusion.
+    A scored change moves beyond the exact-match tolerance ($1 for an amount,
+    any change for a 0/1 flag) or within it. Every change lands in exactly one
+    group, so the three counts add up to the revision's changed list.
+    """
+    partition: dict[str, list[dict]] = {
+        "scored_changes": [],
+        "within_tolerance": [],
+        "new_exclusions": [],
+    }
+    for change in changes:
+        if (change["scenario_id"], change["variable"]) in excluded:
+            partition["new_exclusions"].append(change)
+            continue
+        moved = abs(change["regenerated"] - change["previous"])
+        amount = metric_type_for_output(change["variable"]) == "amount"
+        beyond = moved > 1 if amount else moved > 0
+        partition["scored_changes" if beyond else "within_tolerance"].append(change)
+    if sum(len(group) for group in partition.values()) != len(changes):
+        raise AssertionError(
+            "engine upgrade partition lost or duplicated a change: "
+            f"{ {name: len(group) for name, group in partition.items()} } "
+            f"of {len(changes)}"
+        )
+    return partition
+
+
 MODEL_DISPLAY_NAMES = {
     "gpt-6-astra": "GPT-6 Astra",
     "gpt-6-sol": "GPT-6 Sol",
@@ -1227,44 +1266,75 @@ class PaperResults:
 
     @property
     def engine_upgrade_date(self) -> str:
-        revision = self.engine_upgrade_revision
-        return "" if revision is None else revision["date"]
+        """UTC date PolicyBench rebuilt the references on the new engine.
+
+        The revision's own ``date`` is the builder's wave date (2026-09-28, the
+        day of the ruling); the references the release carries were rebuilt on
+        the sidecar's ``regenerated_at_utc`` day.
+        """
+        if self.engine_upgrade_revision is None:
+            return ""
+        return self.reference_rebuilt_date
 
     def _engine_upgrade_changes(self) -> list[dict]:
         revision = self.engine_upgrade_revision
         return [] if revision is None else revision["changed"]
 
-    def _engine_upgrade_scored_changes(self, *, beyond_tolerance: bool) -> int:
-        """Scored references the upgrade moved, split at the exact-match
-        tolerance: $1 for an amount, any change for a 0/1 flag."""
-        count = 0
-        for change in self._engine_upgrade_changes():
-            key = (change["scenario_id"], change["variable"])
-            if key in self._excluded_output_keys:
-                continue
-            moved = abs(change["regenerated"] - change["previous"])
-            amount = metric_type_for_output(change["variable"]) == "amount"
-            count += (moved > 1 if amount else moved > 0) == beyond_tolerance
-        return count
+    @cached_property
+    def engine_upgrade_partition(self) -> dict[str, list[dict]]:
+        """The upgrade's changed outputs, split into scored changes beyond the
+        exact-match tolerance, scored changes within it, and new exclusions."""
+        return partition_engine_upgrade_changes(
+            self._engine_upgrade_changes(), self._excluded_output_keys
+        )
 
     @property
     def engine_upgrade_scored_change_count(self) -> int:
         """Scored references the upgrade moved beyond the exact-match tolerance."""
-        return self._engine_upgrade_scored_changes(beyond_tolerance=True)
+        return len(self.engine_upgrade_partition["scored_changes"])
 
     @property
     def engine_upgrade_within_tolerance_count(self) -> int:
         """Scored references the upgrade moved within the $1 tolerance."""
-        return self._engine_upgrade_scored_changes(beyond_tolerance=False)
+        return len(self.engine_upgrade_partition["within_tolerance"])
 
     @property
     def engine_upgrade_new_exclusion_count(self) -> int:
         """Outputs scored before the upgrade that it removed from scoring."""
-        return sum(
-            1
-            for change in self._engine_upgrade_changes()
-            if (change["scenario_id"], change["variable"]) in self._excluded_output_keys
+        return len(self.engine_upgrade_partition["new_exclusions"])
+
+    @property
+    def excluded_outputs_by_engine_version(self) -> dict[str, int]:
+        """Excluded outputs by the policyengine-us version behind the value
+        each keeps: the version its exclusion was decided on."""
+        return dict(
+            Counter(
+                entry["engine_version"].removeprefix("policyengine-us ")
+                for entry in self.reference_exclusions
+            )
         )
+
+    @property
+    def excluded_outputs_on_previous_engine_count(self) -> int:
+        return self.excluded_outputs_by_engine_version.get(
+            self.previous_policyengine_us_version, 0
+        )
+
+    @property
+    def excluded_outputs_on_reference_engine_count(self) -> int:
+        return self.excluded_outputs_by_engine_version.get(
+            self.policyengine_us_version, 0
+        )
+
+    @cached_property
+    def publication_check_policyengine_us_version(self) -> str:
+        """policyengine-us release of the sweep that rechecked every reference
+        at publication (reference_audit/2026-09-28/verification)."""
+        with PUBLICATION_CHECK_SWEEP.open(newline="") as source:
+            engines = {row["engine"] for row in csv.DictReader(source)}
+        if len(engines) != 1:
+            raise ValueError(f"{PUBLICATION_CHECK_SWEEP} mixes engines: {engines}")
+        return engines.pop()
 
     @property
     def engine_upgrade_rechecked_count(self) -> int:
