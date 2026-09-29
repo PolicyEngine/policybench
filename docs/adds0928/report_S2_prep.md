@@ -20,7 +20,7 @@ The base is the committed September 22c snapshot: 42 models, 1,984 requested
 outputs per model, 52 exclusions, and 1,932 scored outputs. Its country payload
 recombines to live SHA256
 `01e7e72b3a6bdd2d3178ba32625ff769d5b81dc07541af6ea8da2c852774ddcc`.
-The new release is planned as `dashboard-data-20260928`, with 45 models.
+The new release is planned as `dashboard-data-20260929`, with 45 models.
 
 Audit cases use the historical legacy-threshold miss selector, grouping all
 wrong models by household/output. A new answer changes the prompt and invalidates
@@ -212,7 +212,7 @@ such drift. Do not continue past a failed gate.
 "$PB_PY" scripts/freeze_adds0928.py --stage-dir "$PB_STAGE"
 "$PB_PY" scripts/sensitivity_by_variable.py
 "$PB_PY" scripts/rescore_sensitivity_summaries.py \
-  --release dashboard-data-20260928
+  --release dashboard-data-20260929
 ```
 
 At this point, write the September 28 note from the final results and update the

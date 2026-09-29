@@ -1363,9 +1363,11 @@ def read_reference_refresh() -> dict[str, str | int]:
     bundle = meta["policyengine_bundles"]["us"]
     # ``date`` is when the references were generated (the sidecar's own
     # timestamp), not when the snapshot was published: the reference CSV is
-    # byte-identical across the August and September freezes.
-    return {
-        "date": meta["generated_at_utc"][:10],
+    # byte-identical across freezes until it is regenerated, and a
+    # regeneration (the 2026-09-28 engine upgrade) records regenerated_at_utc.
+    regenerated = meta.get("regenerated_at_utc")
+    refresh = {
+        "date": (regenerated or meta["generated_at_utc"])[:10],
         "generated_at_utc": meta["generated_at_utc"],
         "snapshot_date": SNAPSHOT_DATE,
         "reference_csv_sha256": sha256_file(RUN_DEST / "reference_outputs.csv"),
@@ -1379,6 +1381,9 @@ def read_reference_refresh() -> dict[str, str | int]:
             "certified_data_artifact_sha256"
         ],
     }
+    if regenerated:
+        refresh["regenerated_at_utc"] = regenerated
+    return refresh
 
 
 def prompt_payload_sha256() -> str:

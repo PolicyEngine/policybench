@@ -862,7 +862,10 @@ def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
     run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
     sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
     assert refresh["generated_at_utc"] == sidecar["generated_at_utc"]
-    assert refresh["date"] == sidecar["generated_at_utc"][:10]
+    # A regeneration dates the references by when they were regenerated.
+    assert refresh.get("regenerated_at_utc") == sidecar.get("regenerated_at_utc")
+    generated = sidecar.get("regenerated_at_utc", sidecar["generated_at_utc"])
+    assert refresh["date"] == generated[:10]
     assert refresh["snapshot_date"] == manifest["snapshot_date"]
     assert refresh["date"] <= refresh["snapshot_date"]
 

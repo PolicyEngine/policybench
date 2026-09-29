@@ -26,7 +26,7 @@ RUN_NAME = "us_full_run_20260612_policyengine_4_16_1_populace"
 SNAPSHOT = ROOT / "paper/snapshot/20260501/runs" / RUN_NAME
 ANNOTATIONS = ROOT / "annotations" / RUN_NAME
 BASE_TAG = "dashboard-data-20260922c"
-RELEASE_TAG = "dashboard-data-20260928"
+RELEASE_TAG = "dashboard-data-20260929"
 BASE_SHA256 = "01e7e72b3a6bdd2d3178ba32625ff769d5b81dc07541af6ea8da2c852774ddcc"
 MODELS = {
     "sonnet55": "claude-sonnet-5.5",

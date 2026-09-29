@@ -98,7 +98,7 @@ def validate_treatment(freezer, state: dict, state_path: Path, scenarios: Path) 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--stage-dir", type=Path, required=True)
-    parser.add_argument("--tag", default="dashboard-data-20260928")
+    parser.add_argument("--tag", default="dashboard-data-20260929")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     match = re.fullmatch(r"dashboard-data-(\d{4})(\d{2})(\d{2})[a-z]?", args.tag)
@@ -238,6 +238,26 @@ def main(argv: list[str] | None = None) -> None:
     if args.dry_run:
         print(f"Validated local release inputs: {args.tag}, 45 models, {payload_hash}")
         return
+
+    # A reviewed reference revision (the 2026-09-28 engine upgrade) changes the
+    # committed reference files the manifest pins. freeze_snapshot checks the
+    # staged references against those pins before it rewrites the manifest, so
+    # the pins catch up to the committed files first, and only when the driver's
+    # gate accepts them: an engine_upgrade revision listing exactly the changes
+    # against the 22c base. The staged files equal the committed ones (above).
+    from finish_adds0928 import reference_revision
+
+    if reference_revision() is not None:
+        manifest_path = snapshot / "manifest.json"
+        manifest = read_json(manifest_path)
+        pins = manifest["source_run_artifacts"][RUN]["files"]
+        for name in (
+            "reference_outputs.csv",
+            "reference_outputs.csv.meta.json",
+            "reference_exclusions.json",
+        ):
+            pins[name] = digest(frozen_run / name)
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
     # Read-only input paths are all in this checkout. Override defaults that
     # captured the old audit directory when freeze_snapshot was imported.

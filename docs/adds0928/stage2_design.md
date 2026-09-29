@@ -22,7 +22,7 @@ or its mutable `reference_v12` scratch directory.
 from 20260922b was the regenerated Michigan `scenario_045` SNAP reference of
 $0 after the upstream child-support fix; it restored that output to scoring.
 There are 26 regenerated references. The dated 20260922c release name preserves
-the September 22 snapshot; this new addition uses `dashboard-data-20260928` and
+the September 22 snapshot; this new addition uses `dashboard-data-20260929` and
 the September 28 snapshot date.
 
 `scripts/finish_adds0928.py` generalizes `finish_opus55.py` and
@@ -172,7 +172,7 @@ uv run python scripts/freeze_adds0928.py --stage-dir "$PB_STAGE" --dry-run
 uv run python scripts/freeze_adds0928.py --stage-dir "$PB_STAGE"
 uv run python scripts/sensitivity_by_variable.py
 uv run python scripts/rescore_sensitivity_summaries.py \
-  --release dashboard-data-20260928
+  --release dashboard-data-20260929
 ```
 
 `export` writes the strict 45-model payload and a hash-bound `release-ready.json`.
