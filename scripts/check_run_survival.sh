@@ -26,6 +26,9 @@ LABEL="org.policyengine.policybench.$NAME"
 DOMAIN="gui/$(id -u)"
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/pb-survival.XXXXXX")
 RUN_DIR="$WORK/run"
+# Exercise custom directories and keep every test artifact out of user state.
+export POLICYBENCH_LAUNCH_AGENTS_DIR="$WORK/agents"
+export POLICYBENCH_LAUNCH_STATE_DIR="$WORK/state"
 fail=0
 
 command -v launchctl >/dev/null 2>&1 || { echo "SKIP: launchctl not found (macOS only)"; exit 0; }
@@ -98,11 +101,15 @@ check "wrapper recorded the unfinished exit in $RUN_DIR/.launchd_restarts" \
   "$([ "$(cat "$RUN_DIR/.launchd_restarts" 2>/dev/null)" = "1" ] && echo 1 || echo 0)"
 
 say "4. stopping through the launcher"
+stopped_sleep_pid=$(sleep_pid_under "$new_pid")
 "$LAUNCHER" stop "$NAME" >/dev/null 2>&1
 sleep 2
 check "job unloaded" "$(launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1 && echo 0 || echo 1)"
-check "no sleep left from the job" "$([ -z "$(pgrep -f "^/bin/sleep 3600$")" ] && echo 1 || echo 0)"
-check "plist removed" "$([ ! -f "$HOME/Library/LaunchAgents/$LABEL.plist" ] && echo 1 || echo 0)"
+check "no sleep left from the job" "$([ -n "$stopped_sleep_pid" ] && ! kill -0 "$stopped_sleep_pid" 2>/dev/null && echo 1 || echo 0)"
+check "plist removed" "$([ ! -f "$POLICYBENCH_LAUNCH_AGENTS_DIR/$LABEL.plist" ] && echo 1 || echo 0)"
+check "run record retained" "$([ -f "$POLICYBENCH_LAUNCH_STATE_DIR/$LABEL.run-dir" ] && echo 1 || echo 0)"
+check "status works after stop" "$("$LAUNCHER" status "$NAME" > "$WORK/status.log" 2>&1 && grep -q 'heartbeat\|.launchd_restarts' "$WORK/status.log" && echo 1 || echo 0)"
+check "logs work after stop" "$("$LAUNCHER" logs "$NAME" > "$WORK/logs.log" 2>&1 && grep -q 'asking launchd to relaunch' "$WORK/logs.log" && echo 1 || echo 0)"
 
 if [ "$fail" -eq 0 ]; then say "PASS: launchd-launched runs survive the launching process group and are relaunched when killed"; else say "FAIL: see the lines above; logs in $RUN_DIR (kept)"; trap - EXIT; "$LAUNCHER" stop "$NAME" >/dev/null 2>&1; fi
 exit "$fail"

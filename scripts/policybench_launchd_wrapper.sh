@@ -17,11 +17,13 @@
 #
 # Portable to bash 3.2 (macOS). Usage:
 #   policybench_launchd_wrapper.sh --run-dir DIR --label LABEL
-#       [--max-restarts N] [--env-file FILE] [--no-caffeinate] -- COMMAND [ARGS...]
+#       [--agents-dir DIR] [--max-restarts N] [--env-file FILE]
+#       [--no-caffeinate] -- COMMAND [ARGS...]
 set -u
 
 RUN_DIR=""
 LABEL=""
+AGENTS_DIR="${POLICYBENCH_LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
 MAX_RESTARTS=5
 ENV_FILE=""
 USE_CAFFEINATE=1
@@ -29,6 +31,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --run-dir) RUN_DIR="$2"; shift 2 ;;
     --label) LABEL="$2"; shift 2 ;;
+    --agents-dir) AGENTS_DIR="$2"; shift 2 ;;
     --max-restarts) MAX_RESTARTS="$2"; shift 2 ;;
     --env-file) ENV_FILE="$2"; shift 2 ;;
     --no-caffeinate) USE_CAFFEINATE=0; shift ;;
@@ -101,12 +104,14 @@ finish() {  # $1 = marker file, $2 = message
   echo "=== $(stamp) $2" >> "$LOG"
   rm -f "$RESTARTS_FILE"
   date "+%Y-%m-%dT%H:%M:%S" > "$1"
-  if [ -n "$LABEL" ] && command -v launchctl >/dev/null 2>&1; then
+  if [ -n "$LABEL" ]; then
     # Unload the finished job so RunAtLoad does not replay it at the next login.
     # Synchronous on purpose: launchd kills the job's process group as soon as
     # this (the main) process exits, so a backgrounded bootout never runs.
-    rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
-    launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || true
+    rm -f "$AGENTS_DIR/$LABEL.plist"
+    if command -v launchctl >/dev/null 2>&1; then
+      launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || true
+    fi
   fi
   exit 0
 }

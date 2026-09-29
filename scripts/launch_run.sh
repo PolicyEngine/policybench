@@ -41,6 +41,10 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 DEFAULT_REPO=$(cd "$SCRIPT_DIR/.." && pwd)
 LABEL_PREFIX="org.policyengine.policybench"
 AGENTS_DIR="${POLICYBENCH_LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
+STATE_DIR="${POLICYBENCH_LAUNCH_STATE_DIR:-$HOME/Library/Application Support/PolicyBench/launchd}"
+# launchd changes WorkingDirectory; cleanup must use the launcher's absolute path.
+case "$AGENTS_DIR" in /*) ;; *) AGENTS_DIR="$(pwd)/$AGENTS_DIR" ;; esac
+case "$STATE_DIR" in /*) ;; *) STATE_DIR="$(pwd)/$STATE_DIR" ;; esac
 DOMAIN="gui/$(id -u)"
 
 usage() { sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-64}"; }
@@ -53,6 +57,15 @@ sanitize_name() {
 xml_escape() {
   printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
 }
+
+save_run_dir() (  # $1 = label, $2 = absolute run dir; never store credentials
+  umask 077
+  mkdir -p "$STATE_DIR" && chmod 700 "$STATE_DIR" || exit 1
+  record_tmp=$(mktemp "$STATE_DIR/$1.XXXXXX") || exit 1
+  trap 'rm -f "$record_tmp"' EXIT
+  printf '%s\n' "$2" > "$record_tmp" &&
+    mv -f "$record_tmp" "$STATE_DIR/$1.run-dir"
+)
 
 resolve_policybench() {  # $1 = repo
   local repo=$1 common
@@ -152,7 +165,7 @@ cmd_start() {
     [ -n "$rounds" ] && args+=(--max-rounds "$rounds")
   fi
   local wrapper="$SCRIPT_DIR/policybench_launchd_wrapper.sh"
-  local program=("$wrapper" --run-dir "$run_dir" --label "$label" --max-restarts "$max_restarts")
+  local program=("$wrapper" --run-dir "$run_dir" --label "$label" --agents-dir "$AGENTS_DIR" --max-restarts "$max_restarts")
   [ -n "$env_file" ] && program+=(--env-file "$env_file")
   [ "$caffeinate" -eq 0 ] && program+=(--no-caffeinate)
   program+=(-- "${args[@]}")
@@ -240,15 +253,54 @@ launchd: launchctl print $DOMAIN/$label | grep -E 'state|pid'"
     launchctl bootout "$DOMAIN/$label" >/dev/null 2>&1 || true
     sleep 1
   fi
-  mkdir -p "$AGENTS_DIR" "$run_dir" || die "cannot create $AGENTS_DIR or $run_dir"
+  local previous_run_dir=""
+  previous_run_dir=$(run_dir_for "$label") || previous_run_dir=""
   umask 077
+  mkdir -p "$AGENTS_DIR" "$run_dir" || die "cannot create $AGENTS_DIR or $run_dir"
   printf '%s' "$xml" > "$plist" || die "cannot write $plist"
   chmod 600 "$plist"
   if command -v plutil >/dev/null 2>&1; then
     plutil -lint -s "$plist" >/dev/null || die "generated plist does not lint: $plist"
   fi
+  # A reused name commonly resumes in the same directory. Preserve its terminal
+  # markers until bootstrap succeeds, so a failed start cannot erase diagnostics.
+  local marker markers_backup
+  markers_backup=$(mktemp -d "$run_dir/.launchd-markers.XXXXXX") || {
+    rm -f "$plist"
+    die "cannot preserve run markers in $run_dir"
+  }
+  for marker in .launchd_restarts .launchd_done .launchd_gave_up; do
+    if [ -f "$run_dir/$marker" ]; then
+      cp -p "$run_dir/$marker" "$markers_backup/$marker" || {
+        rm -rf "$markers_backup"
+        rm -f "$plist"
+        die "cannot preserve $run_dir/$marker"
+      }
+    fi
+  done
+  # Publish before bootstrap: even an immediately completed command must remain
+  # discoverable after the wrapper removes its autoload plist.
+  if ! save_run_dir "$label" "$run_dir"; then
+    rm -rf "$markers_backup"
+    rm -f "$plist"
+    die "cannot save run directory in $STATE_DIR"
+  fi
   rm -f "$run_dir/.launchd_restarts" "$run_dir/.launchd_done" "$run_dir/.launchd_gave_up"
-  launchctl bootstrap "$DOMAIN" "$plist" || die "launchctl bootstrap failed (see launchctl print $DOMAIN/$label)"
+  if ! launchctl bootstrap "$DOMAIN" "$plist"; then
+    rm -f "$plist"
+    for marker in "$markers_backup"/.launchd_*; do
+      [ -f "$marker" ] || continue
+      mv -f "$marker" "$run_dir/" || die "cannot restore run marker $marker"
+    done
+    rmdir "$markers_backup"
+    if [ -n "$previous_run_dir" ]; then
+      save_run_dir "$label" "$previous_run_dir" || die "cannot restore run directory in $STATE_DIR"
+    else
+      rm -f "$STATE_DIR/$label.run-dir"
+    fi
+    die "launchctl bootstrap failed (see launchctl print $DOMAIN/$label)"
+  fi
+  rm -rf "$markers_backup"
   sleep 1
   local pid
   pid=$(launchctl print "$DOMAIN/$label" 2>/dev/null | sed -n 's/^[[:space:]]*pid = \([0-9]*\).*/\1/p' | head -1)
@@ -258,7 +310,13 @@ launchd: launchctl print $DOMAIN/$label | grep -E 'state|pid'"
 
 label_for() { printf '%s.%s' "$LABEL_PREFIX" "$(sanitize_name "$1")"; }
 
-run_dir_for() {  # $1 = label; read the run dir back from the plist
+run_dir_for() {  # $1 = label; retained diagnostics outlive the autoload plist
+  local record="$STATE_DIR/$1.run-dir"
+  if [ -s "$record" ]; then
+    cat "$record"
+    return
+  fi
+  # Jobs installed by older launchers have only a plist.
   local plist="$AGENTS_DIR/$1.plist"
   [ -f "$plist" ] || return 1
   python3 - "$plist" <<'PY'
@@ -278,7 +336,7 @@ cmd_status() {
   else
     echo "$label: not loaded (finished, stopped, or never started)"
   fi
-  run_dir=$(run_dir_for "$label") || { echo "  no plist at $AGENTS_DIR/$label.plist"; return 0; }
+  run_dir=$(run_dir_for "$label") || { echo "  no run record or plist for $label"; return 0; }
   echo "  run dir: $run_dir"
   for marker in .launchd_done .launchd_gave_up .launchd_restarts; do
     [ -f "$run_dir/$marker" ] && echo "  $marker: $(cat "$run_dir/$marker")"
@@ -295,13 +353,14 @@ print(f"  {s.get('model')}: {completed}/{s.get('total')} complete, ${s.get('spen
 PY
   fi
   [ -f "$run_dir/supervisor.log" ] && { echo "  last supervisor.log lines:"; tail -n 3 "$run_dir/supervisor.log" | sed 's/^/    /'; }
+  return 0
 }
 
 cmd_logs() {
   [ $# -ge 1 ] || die "usage: $0 logs NAME [LINES]"
   local label run_dir n=${2:-40}
   label=$(label_for "$1")
-  run_dir=$(run_dir_for "$label") || die "no plist for $label"
+  run_dir=$(run_dir_for "$label") || die "no run record or plist for $label"
   for f in supervisor.log launchd.log; do
     [ -f "$run_dir/$f" ] || continue
     echo "==> $run_dir/$f <=="
@@ -311,8 +370,12 @@ cmd_logs() {
 
 cmd_stop() {
   [ $# -ge 1 ] || die "usage: $0 stop NAME"
-  local label
+  local label run_dir
   label=$(label_for "$1")
+  # Preserve diagnostics for jobs installed before retained records existed too.
+  if run_dir=$(run_dir_for "$label"); then
+    save_run_dir "$label" "$run_dir" || die "cannot save run directory in $STATE_DIR"
+  fi
   if launchctl print "$DOMAIN/$label" >/dev/null 2>&1; then
     launchctl bootout "$DOMAIN/$label" && echo "stopped $label (launchd sent SIGTERM, then SIGKILL to the job's process group)"
   else

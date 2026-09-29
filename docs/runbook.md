@@ -42,6 +42,33 @@ exports `ANTHROPIC_BASE_URL` for its own proxy. Pass anything else with
 `--env-file`. The plist itself is written mode 600 under
 `~/Library/LaunchAgents/org.policyengine.policybench.<name>.plist`.
 
+The launcher also saves only the absolute run-directory path in a mode-600
+`~/Library/Application Support/PolicyBench/launchd/org.policyengine.policybench.<name>.run-dir`
+record, inside a mode-700 directory. This record contains no environment variables
+or credentials. Completion, exhausted retries, and `stop` remove the autoload
+plist but retain the record, heartbeat, and logs, so `status` and `logs` continue
+to work. Reusing an inactive name points diagnostics to the new run directory;
+the old run's artifacts remain in place. A rejected start of an active name or a
+failed bootstrap preserves the previous record. `list` shows installed plists,
+not the history of retained runs.
+If bootstrap fails when resuming in the same directory, the previous completion,
+failure, and restart markers are restored too.
+
+Set `POLICYBENCH_LAUNCH_AGENTS_DIR` to change the plist directory and
+`POLICYBENCH_LAUNCH_STATE_DIR` to change the record directory. Use the same
+settings for subsequent launcher commands. The wrapper receives the absolute
+agent directory so completion removes the correct plist even when the job runs
+from a different checkout directory. Older jobs without a record remain readable
+through their plist; `stop` saves their record before removing that plist.
+
+Lifecycle invariants covered by the tests: a successfully started name remains
+resolvable after each terminal outcome; cleanup removes only its configured
+autoload plist; retained records contain only the absolute run path and remain
+private; reusing a name changes its mapping without deleting earlier artifacts;
+and a dry run writes nothing. Hypothesis exercises these properties across
+generated names, run paths, and sequences of completion, retry exhaustion, and
+stop.
+
 The supervisor's stdout and stderr append to `<run dir>/supervisor.log`
 across relaunches; launchd's own output goes to `<run dir>/launchd.log`.
 `.launchd_restarts` counts consecutive unfinished exits (the wrapper gives up
