@@ -491,3 +491,401 @@ def test_judge_dates_come_from_bound_verdict_sidecars(tmp_path):
     assert len(changes) == 6
     # Idempotent: a second pass changes nothing.
     assert date_entries(entries, current, previous) == []
+
+
+# --- The verdicts the record's dates and flags name ---------------------------
+
+VERIFICATION = ROOT / "reference_audit" / "2026-09-28" / "verification"
+
+
+def _judge_evidence() -> dict:
+    """The verdicts scripts/date_adds0928_judge_verdicts.py bound the record's
+    dates to, committed beside the upgrade (verification/judge_verdicts.json)."""
+    return json.loads((VERIFICATION / "judge_verdicts.json").read_text())
+
+
+def _case(entry: dict) -> str:
+    return f"{entry['country']}__{entry['scenario_id']}__{entry['variable']}"
+
+
+def test_each_judge_flag_is_the_flag_of_the_verdict_its_date_names():
+    """A recorded verdict carries its bound verdict's judge, classes, UTC day
+    and reference-suspect flag. A flag the dated verdict does not raise is
+    kept only with judge_reference_suspect_source, and only for a case an
+    earlier run of the 2026-09-22 wave flagged (flagged_sept22_wave.json)."""
+    evidence = _judge_evidence()["cases"]
+    wave_flags = set(
+        json.loads((VERIFICATION / "flagged_sept22_wave.json").read_text())
+    )
+    entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
+    explained = 0
+    for entry in entries:
+        case, key = _case(entry), f"{entry['scenario_id']}:{entry['variable']}"
+        current = evidence[case]["current"]
+        assert (
+            current["judge_model"],
+            current["case_failure_source"],
+            current["case_failure_subtype"],
+        ) == (
+            entry["judge_model"],
+            entry["judge_failure_source"],
+            entry["judge_failure_subtype"],
+        ), case
+        day = current["judged_at_utc"][:10]
+        for field in ("judged_on_utc", "judge_rejudged_on"):
+            if field in entry:
+                assert entry[field] == day, case
+        assert "judged_on_utc" in entry or "judge_rejudged_on" in entry, case
+        flag = bool(entry.get("judge_reference_suspect"))
+        if flag != current["reference_suspect"]:
+            assert flag and entry.get("judge_reference_suspect_source"), case
+            assert key in wave_flags, case
+            explained += 1
+        else:
+            assert "judge_reference_suspect_source" not in entry, case
+        for item in entry.get("judge_previous", []):
+            if "adjudicated_on" in item:
+                continue
+            previous = evidence[case]["previous"]
+            assert (
+                previous["judge_model"],
+                previous["case_failure_source"],
+                previous["case_failure_subtype"],
+                previous["judged_at_utc"][:10],
+            ) == (
+                item["judge_model"],
+                item["judge_failure_source"],
+                item["judge_failure_subtype"],
+                item["judged_on"],
+            ), case
+            item_flag = bool(item.get("judge_reference_suspect"))
+            if item_flag != previous["reference_suspect"]:
+                assert item_flag and item.get("judge_reference_suspect_source"), case
+                assert key in wave_flags, case
+                explained += 1
+            else:
+                assert "judge_reference_suspect_source" not in item, case
+    # Flags kept from an earlier judge run: sixteen at the top level, and the
+    # eight judge_previous items whose 2026-09-23 verdict does not flag the
+    # reference (005 state, 028, 030, 042 federal, 051, 064 federal, 109, 112).
+    assert explained == 24
+
+
+def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
+    """adjudicated_on names the audit wave (date_conventions); a wave's
+    decisions were written up to the day its release was committed. So the
+    verdict each decision reviewed -- adjudicated_verdict where a later wave
+    replaced it, otherwise the earliest verdict the entry keeps -- is dated on
+    or before that day, and it is the verdict the wave's release published.
+
+    Intended exceptions to "on or before adjudicated_on": 46 decisions of the
+    2026-09-22 wave reviewed verdicts its own judge runs finished on
+    2026-09-23 UTC, before its release was committed that day."""
+    record = json.loads((ANNOTATIONS / "us_adjudications.json").read_text())
+    assert "adjudicated_on names the audit wave" in record["date_conventions"]
+    evidence = _judge_evidence()
+    released = {
+        wave: release["committed_on"]
+        for wave, release in evidence["wave_releases"].items()
+    }
+    later_than_wave = 0
+    for entry in record["adjudications"]:
+        case, wave = _case(entry), entry["adjudicated_on"]
+        kept = [
+            (
+                entry["judge_model"],
+                entry["judge_failure_source"],
+                entry["judge_failure_subtype"],
+                entry.get("judge_rejudged_on") or entry["judged_on_utc"],
+            )
+        ] + [
+            (
+                item["judge_model"],
+                item["judge_failure_source"],
+                item["judge_failure_subtype"],
+                item["judged_on"],
+            )
+            for item in entry.get("judge_previous", [])
+            if "judged_on" in item
+        ]
+        reviewed = entry.get("adjudicated_verdict")
+        if reviewed is None:
+            day = min(verdict[3] for verdict in kept)
+        else:
+            day = reviewed["judged_on"]
+        assert day <= released[wave], case
+        if day > wave:
+            assert (wave, day) == ("2026-09-22", "2026-09-23"), case
+            later_than_wave += 1
+        published = evidence["cases"][case].get("published")
+        if published is None:
+            # Decided in this release's own wave.
+            assert wave == "2026-09-29" and reviewed is None, case
+            continue
+        published_verdict = (
+            published["judge_model"],
+            published["case_failure_source"],
+            published["case_failure_subtype"],
+        )
+        if published_verdict in {verdict[:3] for verdict in kept}:
+            assert reviewed is None, case
+        else:
+            assert reviewed is not None, case
+            assert (
+                reviewed["judge_model"],
+                reviewed["judge_failure_source"],
+                reviewed["judge_failure_subtype"],
+                reviewed["judged_on"],
+            ) == (*published_verdict, published["judged_on_utc"]), case
+            assert published["release"] in reviewed["recorded_in"], case
+    assert later_than_wave == 46
+
+
+def test_published_verdicts_in_the_evidence_match_each_wave_release():
+    """Differential check of the evidence against git: the judge verdict each
+    earlier wave's release published for each decision."""
+    import subprocess
+
+    evidence = _judge_evidence()
+    record_path = f"annotations/{RUN_LABEL}/us_adjudications.json"
+    published = {}
+    for wave, release in evidence["wave_releases"].items():
+        if release["commit"] is None:
+            continue
+        shown = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{release['commit']}:{record_path}"],
+            capture_output=True,
+        )
+        if shown.returncode != 0:
+            pytest.skip(f"git history unavailable: {release['commit'][:10]}")
+        for entry in json.loads(shown.stdout)["adjudications"]:
+            if entry["adjudicated_on"] == wave:
+                published[_case(entry)] = (release["release"], entry)
+    compared = 0
+    for case, found in evidence["cases"].items():
+        if "published" not in found:
+            continue
+        release, entry = published[case]
+        assert found["published"] == {
+            "release": release,
+            "commit": next(
+                r["commit"]
+                for r in evidence["wave_releases"].values()
+                if r["release"] == release
+            ),
+            "judge_model": entry["judge_model"],
+            "case_failure_source": entry["judge_failure_source"],
+            "case_failure_subtype": entry["judge_failure_subtype"],
+            "judged_on_utc": entry.get("judged_on_utc"),
+        }, case
+        compared += 1
+    assert compared == len(published)
+
+
+def _script():
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import date_adds0928_judge_verdicts
+
+    return date_adds0928_judge_verdicts
+
+
+def test_a_previous_flag_its_dated_verdict_lacks_names_the_run_that_raised_it(
+    tmp_path,
+):
+    """date_entries binds a judge_previous item to its verdict by judge and
+    classes, and then compares the flag: a flag the bound verdict does not
+    raise is kept with judge_reference_suspect_source when an earlier run of
+    the wave flagged the case, and stops the script otherwise."""
+    script = _script()
+    current, previous = tmp_path / "current", tmp_path / "previous"
+    classes = {"case_failure_source": "llm_error", "case_failure_subtype": "x"}
+    opus55 = {"judge_model_requested": "claude-opus-5-5"}
+    case = "us__scenario_001__snap"
+    _write_case(
+        current, case, classes, {**opus55, "judged_at_utc": "2026-09-29T01:49:57Z"}
+    )
+    _write_case(
+        previous,
+        case,
+        {**classes, "reference_suspect": False},
+        {**opus55, "judged_at_utc": "2026-09-23T12:00:01Z"},
+    )
+
+    def entry() -> dict:
+        return {
+            "country": "us",
+            "scenario_id": "scenario_001",
+            "variable": "snap",
+            "judge_model": "claude-opus-5-5",
+            "judge_failure_source": "llm_error",
+            "judge_failure_subtype": "x",
+            "judge_rejudged_on": "2026-09-28",
+            "judge_previous": [
+                {
+                    "judge_model": "claude-opus-5-5",
+                    "judge_failure_source": "llm_error",
+                    "judge_failure_subtype": "x",
+                    "judge_reference_suspect": True,
+                    "judged_on": "2026-09-22",
+                }
+            ],
+        }
+
+    with pytest.raises(SystemExit, match="no earlier run raised it"):
+        script.date_entries([entry()], current, previous)
+    entries = [entry()]
+    evidence: dict = {}
+    script.date_entries(
+        entries, current, previous, frozenset({"scenario_001:snap"}), evidence
+    )
+    (item,) = entries[0]["judge_previous"]
+    assert item["judged_on"] == "2026-09-23"
+    assert item["judge_reference_suspect"] is True
+    assert item["judge_reference_suspect_source"] == script.ITEM_FLAG_SOURCE
+    assert evidence[case]["previous"]["reference_suspect"] is False
+    assert (
+        script.date_entries(
+            entries, current, previous, frozenset({"scenario_001:snap"})
+        )
+        == []
+    )
+
+
+from hypothesis import given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+_CLASSES = st.sampled_from(["x", "y"])
+_DAYS = st.sampled_from(["2026-09-05", "2026-09-22", "2026-09-23", "2026-09-29"])
+
+
+@st.composite
+def _judged_cases(draw):
+    """Entries with a bound current verdict, and for some a previous verdict
+    that may or may not carry the recorded classes and flag."""
+    cases = []
+    for n in range(draw(st.integers(1, 4))):
+        subtype = draw(_CLASSES)
+        rejudged = draw(st.booleans())
+        case = {
+            "n": n,
+            "subtype": subtype,
+            "current_day": draw(_DAYS),
+            "rejudged": rejudged,
+            "previous": None,
+        }
+        if rejudged:
+            case["previous"] = {
+                "exists": draw(st.booleans()),
+                "subtype": draw(_CLASSES),
+                "recorded_subtype": draw(_CLASSES),
+                "day": draw(_DAYS),
+                "flag": draw(st.booleans()),
+                "recorded_flag": draw(st.booleans()),
+                "stale_day": draw(_DAYS),
+            }
+        cases.append(case)
+    return cases
+
+
+@settings(max_examples=60, deadline=None)
+@given(cases=_judged_cases(), in_wave=st.booleans())
+def test_date_entries_properties(tmp_path_factory, cases, in_wave):
+    """For any record: every judge_previous item ends with exactly one of
+    judged_on and adjudicated_on; it keeps judged_on exactly when a bound
+    previous verdict carries its judge and classes, and then takes that
+    verdict's UTC day; a flag mismatch is either explained by
+    judge_reference_suspect_source or stops the script; the change lines
+    count the fields that changed; and a second pass changes nothing."""
+    script = _script()
+    root = tmp_path_factory.mktemp("cases")
+    current, previous = root / "current", root / "previous"
+    entries, wave = [], set()
+    for case in cases:
+        sid = f"scenario_{case['n']:03d}"
+        name = f"us__{sid}__snap"
+        if in_wave:
+            wave.add(f"{sid}:snap")
+        _write_case(
+            current,
+            name,
+            {
+                "case_failure_source": "llm_error",
+                "case_failure_subtype": case["subtype"],
+            },
+            {
+                "judge_model_requested": "claude-opus-5-5",
+                "judged_at_utc": f"{case['current_day']}T12:00:00Z",
+            },
+        )
+        entry = {
+            "country": "us",
+            "scenario_id": sid,
+            "variable": "snap",
+            "judge_model": "claude-opus-5-5",
+            "judge_failure_source": "llm_error",
+            "judge_failure_subtype": case["subtype"],
+        }
+        prior = case["previous"]
+        if prior is not None:
+            if prior["exists"]:
+                _write_case(
+                    previous,
+                    name,
+                    {
+                        "case_failure_source": "llm_error",
+                        "case_failure_subtype": prior["subtype"],
+                        "reference_suspect": prior["flag"],
+                    },
+                    {
+                        "judge_model_requested": "claude-opus-5-5",
+                        "judged_at_utc": f"{prior['day']}T12:00:00Z",
+                    },
+                )
+            entry["judge_rejudged_on"] = "2026-09-28"
+            entry["judge_previous"] = [
+                {
+                    "judge_model": "claude-opus-5-5",
+                    "judge_failure_source": "llm_error",
+                    "judge_failure_subtype": prior["recorded_subtype"],
+                    "judge_reference_suspect": prior["recorded_flag"],
+                    "judged_on": prior["stale_day"],
+                }
+            ]
+        entries.append(entry)
+
+    def bound(prior) -> bool:
+        return prior["exists"] and prior["subtype"] == prior["recorded_subtype"]
+
+    unexplained = any(
+        case["previous"] is not None
+        and bound(case["previous"])
+        and case["previous"]["recorded_flag"] != case["previous"]["flag"]
+        and not (case["previous"]["recorded_flag"] and in_wave)
+        for case in cases
+    )
+    if unexplained:
+        with pytest.raises(SystemExit):
+            script.date_entries(entries, current, previous, frozenset(wave))
+        return
+    changes = script.date_entries(entries, current, previous, frozenset(wave))
+    for case, entry in zip(cases, entries):
+        day = case["current_day"]
+        prior = case["previous"]
+        if prior is None:
+            assert entry["judged_on_utc"] == day
+            assert "judge_previous" not in entry
+            continue
+        assert entry["judge_rejudged_on"] == day
+        (item,) = entry["judge_previous"]
+        assert ("judged_on" in item) != ("adjudicated_on" in item)
+        if bound(prior):
+            assert item["judged_on"] == prior["day"]
+            mismatch = prior["recorded_flag"] != prior["flag"]
+            assert ("judge_reference_suspect_source" in item) == mismatch
+        else:
+            assert item["adjudicated_on"] == prior["stale_day"]
+            assert "judge_reference_suspect_source" not in item
+    assert len(changes) == len(set(changes))
+    assert script.date_entries(entries, current, previous, frozenset(wave)) == []
