@@ -151,7 +151,7 @@ div.csl-indent {
   </ul>
 </nav>
 <h2 class="unnumbered anchored" id="abstract">Abstract</h2>
-<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine populace microdataset and scoring answers against reference outputs from policyengine-us 2.15.17. It evaluates 45 frontier models on 100 households across 18 output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match on a household-impact-weighted leaderboard: 86% of US reference outputs are exact zeros, and the weighting concentrates scores in the high-dollar output groups a hedge-to-zero strategy cannot answer, so the top model leads an always-zero baseline of 69.9% weighted exact by 24.9 points (Section 3.1 details the construction). The manuscript snapshot is a 100-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-09-29), the top-scoring US model on exact match is GPT-6 Sol at 94.8%, while GPT-5.4 nano is lowest at 65.2%. Within model families, newer is not always stronger: Claude Opus 4.8 scores 76.4% exact, below the 81.2% of the earlier Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The frozen audit annotations cover 7,796 rows whose legacy threshold score is below 1. That universe contains 7,792 of the snapshot’s 7,792 exact-match misses and 4 exact hits; 2,027 additional rows with bounded score below 100 were not selected or annotated. Every reference-suspect flag was adjudicated against primary sources and engine traces. PolicyBench rebuilt the references on 2026-09-29 with the newest policyengine-us release, and each reference follows law published before PolicyBench froze the references on 2026-07-03: where the engine projects a 2026 amount or takes one from a later publication, the reference holds the amount published before the freeze. PolicyBench excludes from scoring, for every model, every output whose reference rests on an engine defect not yet fixed upstream (28 outputs) and every output whose reference depends on an input the prompt never lists (27 outputs). The 0.8% of cells with a missing or unparsable answer remain scored as misses rather than dropped. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
+<p>PolicyBench evaluates whether frontier language models can estimate household tax and benefit outputs from household facts without tools. This release covers the United States, drawing sampled households from the certified PolicyEngine populace microdataset and scoring answers against reference outputs from policyengine-us 2.15.17. It evaluates 45 frontier models on 100 households across 18 output groups, and reports three complementary scores: an exact-match rate as the headline deployability bar (a prediction counts only if it matches the PolicyEngine reference to the dollar for amounts or to the eligibility flag for booleans), a within-1% hit rate as a near-miss-tolerant companion, and a continuous bounded score that awards partial credit for close answers. The headline is exact match on a household-impact-weighted leaderboard: 86% of US reference outputs are exact zeros, and the weighting concentrates scores in the high-dollar output groups a hedge-to-zero strategy cannot answer, so the top model leads an always-zero baseline of 69.9% weighted exact by 24.9 points (Section 3.1 details the construction). The manuscript snapshot is a 100-household public preview, not a protected held-out leaderboard: the current public scenario explorer exposes prompts and reference outputs, so open-set leakage is a central limitation of any public ranking. In the frozen snapshot used for this manuscript (2026-09-29), the top-scoring US model on exact match is GPT-6 Sol at 94.8%, while GPT-5.4 nano is lowest at 65.2%. Within model families, newer is not always stronger: Claude Opus 4.8 scores 76.4% exact, below the 81.2% of the earlier Claude Opus 4.7. Multi-step tax quantities and positive-dollar benefit cases are materially harder than zero cases. The frozen audit annotations cover 7,796 rows whose legacy threshold score is below 1. That universe contains 7,792 of the snapshot’s 7,792 exact-match misses and 4 exact hits; 2,027 additional rows with bounded score below 100 were not selected or annotated. Every reference-suspect flag was adjudicated against primary sources and engine traces. PolicyBench rebuilt the references on 2026-09-29 with policyengine-us 2.15.17, the newest release when it began sweeping them that day, and each scored reference follows law published before PolicyBench froze the references on 2026-07-03: where the engine projects a 2026 amount or takes one from a later publication, the reference holds the amount published before the freeze. PolicyBench excludes from scoring, for every model, every output whose reference rests on an engine defect not yet fixed upstream (28 outputs) and every output whose reference depends on an input the prompt never lists (27 outputs). The 0.8% of cells with a missing or unparsable answer remain scored as misses rather than dropped. The live benchmark is available at <a href="https://policybench.org" class="uri">https://policybench.org</a>.</p>
 <h2 id="introduction" class="anchored">Introduction</h2>
 <p>Household tax-and-benefit estimation sits between arithmetic and policy discussion. Each case has numeric labels, but generating those labels requires filing status, household composition, income concepts, program thresholds, and jurisdiction-specific rules. PolicyBench measures whether models can map household records to those outputs.</p>
 <p>Most current language-model evaluations do not test this mapping directly. General math benchmarks emphasize symbolic manipulation and exact final answers <span class="citation" data-cites="cobbe2021training hendrycks2021math">(Cobbe et al. 2021; Hendrycks et al. 2021)</span>, while generic question-answering benchmarks emphasize recall or instruction following. PolicyBench instead asks whether models can transform household facts into policy outputs without access to tools or simulators.</p>
@@ -299,7 +299,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </figure>
 </div>
 </div>
-<div id="6fe5f6f8" class="cell" data-execution_count="3">
+<div id="389c1e6f" class="cell" data-execution_count="3">
 <div class="cell-output cell-output-display cell-output-markdown" data-execution_count="3">
 <div id="tbl-model-runs" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-tbl">
@@ -793,13 +793,13 @@ Table&nbsp;3: Output-selection rationale.
 </div>
 <h3 id="sec-reference-credibility" class="anchored">Reference-output credibility</h3>
 <p>PolicyBench treats PolicyEngine outputs as benchmark reference outputs, not as administrative records. The reference source is nevertheless stronger than an ad hoc answer key: PolicyEngine is open source, used for household calculators and reform analysis, and externally checked in specific domains. No.&nbsp;10 Downing Street’s data science team adapted PolicyEngine’s open-source microsimulation model for experimental policy simulation, with validation against external projections before use <span class="citation" data-cites="woodruff2026no10 policyengine2026downing">(Woodruff 2026; Ghenis 2026)</span>. In the US, <span class="citation" data-cites="policyengine2024statetax">PolicyEngine (2024)</span> reports matching the National Bureau of Economic Research (NBER) TAXSIM-35 model <span class="citation" data-cites="feenberg1993taxsim">(Feenberg and Coutts 1993)</span> to the cent on the vast majority of cases for the 2021 tax year across hundreds of thousands of tax units per state, with state-specific differences documented in the integration tests. We do not restate that comparison as a single percentage because the published source uses qualitative phrasing rather than a headline accuracy number. PolicyEngine has also signed a memorandum of understanding <span class="citation" data-cites="policyengine2025atlantafed">(Ghenis and Makarchuk 2025)</span> with the Federal Reserve Bank of Atlanta for future validation work against its Policy Rules Database <span class="citation" data-cites="atlantafed2026prd">(2026)</span>. The Atlanta Fed sources are a caveat rather than evidence of completed validation for this benchmark: they document planned collaboration and the comparison source, not finished checks of the frozen PolicyBench outputs. Taken together, these sources support using PolicyEngine as a transparent reference implementation with partial external validation, but they do not validate every benchmark output.</p>
-<p>This does not make PolicyEngine infallible, so we treated the reference outputs as claims to be attacked rather than assumptions. Across development and five audit waves, the model-assisted review covered 7,796 rows whose legacy threshold score is below 1. That selected universe contains 7,792 exact-match misses and 4 exact hits; 2,027 additional rows with bounded score below 100 were not annotated. Reviewers adjudicated each reference-suspect flag by hand against primary sources, including statutes, regulations, and published program parameters, and against the engine’s computation traces. Before the September 22 wave, reviewers had raised 35 reference-suspect flags. Thirty-one dissolved under adjudication, with the reviewer’s hypothesis failing against a primary source (stale thresholds, missed program mergers, missed federal-conformity elections, misread eligibility-income definitions) or against the engine trace. Four were genuine: two Head Start eligibility flags and one New Jersey state income tax cell reflected policyengine-us defects (an age-window bound and a filing-threshold floor the benchmarked path bypassed), and one SNAP cell rested on a scenario whose encoded inputs did not match the disability status its prompt implied. The engine defects were fixed upstream (policyengine-us #8845 and #8846, plus #8844, found in the same review but affecting no benchmark cell), and this snapshot’s reference outputs are generated with the fixed engine, policyengine-us 2.15.17. The mis-encoded scenario is disclosed under Limitations pending the next scenario refresh. <a href="#tbl-reference-review" class="quarto-xref">Table&nbsp;4</a> summarizes the reviewed discrepancy classes and outcomes.</p>
+<p>This does not make PolicyEngine infallible, so we treated the reference outputs as claims to be attacked rather than assumptions. Across development and each later audit, the model-assisted review covered 7,796 rows whose legacy threshold score is below 1. That selected universe contains 7,792 exact-match misses and 4 exact hits; 2,027 additional rows with bounded score below 100 were not annotated. Reviewers adjudicated each reference-suspect flag by hand against primary sources, including statutes, regulations, and published program parameters, and against the engine’s computation traces. Before the September 22 wave, reviewers had raised 35 reference-suspect flags. Thirty-one dissolved under adjudication, with the reviewer’s hypothesis failing against a primary source (stale thresholds, missed program mergers, missed federal-conformity elections, misread eligibility-income definitions) or against the engine trace. Four were genuine: two Head Start eligibility flags and one New Jersey state income tax cell reflected policyengine-us defects (an age-window bound and a filing-threshold floor the benchmarked path bypassed), and one SNAP cell rested on a scenario whose encoded inputs did not match the disability status its prompt implied. The engine defects were fixed upstream (policyengine-us #8845 and #8846, plus #8844, found in the same review but affecting no benchmark cell), and this snapshot’s reference outputs are generated with the fixed engine, policyengine-us 2.15.17. The mis-encoded scenario is disclosed under Limitations pending the next scenario refresh. <a href="#tbl-reference-review" class="quarto-xref">Table&nbsp;4</a> summarizes the reviewed discrepancy classes and outcomes.</p>
 <p>The audit wave run with the September 22 additions used a stronger judge, Claude Opus 5.5, and it found what the earlier waves had not. The judge flagged 39 references. Adjudication against primary sources and sandbox runs of the reference engine affirmed 5 of them, traced 8 to inputs the prompt never lists, replaced 6 with a regenerated reference, and confirmed 20 as defects in policyengine-us 1.755.4, the version behind the references then. The judge’s stated hypothesis was not always the defect: a Wisconsin flag blamed a missing retirement exclusion that the engine does apply, on a path the benchmarked output skips, and a Montana flag cited a child tax credit that was never enacted, while the reference was wrong for another reason. The judge also sees only the cases a new model joins, so its flags sample each defect rather than bound it. Each root cause’s rule was therefore implemented as a sandbox fix on the same engine version and every reference recomputed under it. Of those root causes, 8 had been fixed in policyengine-us after the references were frozen (#8839, #9162, #9301, #9313, #9318, #9363 and #9586): capital gain distributions, New York’s renter cap, the CalEITC’s lookup at adjusted gross income, and the SNAP rounding and SNAP child support option described below. For the September 22 references, PolicyBench applied each fix on that engine version to the scored references it moves, 15 in all, and policyengine-us 2.15.17 contains all 8 fixes. An output one of them moves that an unfixed cause also moves stays excluded. The capital gain fix as first built also extended Wisconsin’s 30 percent capital gain exclusion (Wis. Stat. 71.05(6)(b)9) to the distributions. The upstream fix does not, so that part is recorded as its own defect, not fixed upstream, measured on top of the upstream fix and Wisconsin’s published amounts, and the two outputs it moves are excluded (one of them already excluded for another Wisconsin defect). Every output a defect not yet fixed upstream moves by more than a dollar is excluded from scoring for every model: 28 outputs in 20 households are recorded as engine-defect exclusions across 11 root causes, and 8 of them had never been flagged (an output such a defect moves that was already excluded for an unlisted input keeps that record). They stay excluded until references built on a fixed engine replace them. A second model, GPT-6 Astra, then re-derived the sandbox fixes the first pass built from primary sources and reran their sweeps. It narrowed several fixes to the benchmark year and filers they reach, reclassified two root causes as unlisted inputs (the type of a household’s survivor benefits, and whether listed mortgage interest is on the home the household occupies), and found that a California credit move came from a separate defect: the engine never looks the CalEITC up a second time at adjusted gross income, as the credit worksheet requires.</p>
 <p>The same wave tested a failure mode no judge flagged. policyengine-us fills a parameter’s values past its last encoded year by projecting it with a price index, so a 2026 reference can rest on a forecast rather than on the amount a government published. Every reference was recomputed with each projected 2026 value held at its last encoded value, and each projected amount behind a moved output was then sourced. Where the government published the 2026 amount before the freeze, the reference takes it: Minnesota’s, Michigan’s and Missouri’s brackets, deductions and exemptions, and Maryland’s withholding allowance, which reaches federal tax through the state and local tax deduction. Wisconsin had published its 2026 brackets and deductions too, but every Wisconsin output they move is excluded for an engine defect, so they enter only those outputs’ corrected values. Where no 2026 amount published before the freeze was found, the reference takes the last amount published: California’s indexed amounts, whose 2026 factor rests on June 2026 prices; the IRS optional sales tax tables, whose 2026 edition had not been found by September 22; Idaho’s zero-rate threshold; Maryland’s return deduction; and SNAP’s FY2027 figures, published on 2026-08-21. Illinois’s exemption and Minnesota’s child credit projections matched the published amounts. These corrections change parameter values and no rule, so the affected references were regenerated with the same engine version rather than excluded: 23 references, most of them SNAP. With the upstream fixes, the September 22 release regenerated 26 references in 24 households, 13 of them SNAP. The reference sidecar records each regenerated value with the fix that produced it, and the fixes, the recomputation of every reference under each, and the verification reports are committed with the snapshot (<code>reference_audit/2026-09-22</code>).</p>
 <p>The SNAP convention as first built also corrected the engine’s SNAP arithmetic, and an independent review of the snapshot separated those corrections from the parameter holds. They are engine defects, each fixed in policyengine-us after the freeze (#9162 and #9318), so the SNAP references apply the fixes: the engine kept cents in the allotment, where 7 CFR 273.10(e)(2)(ii)(A) requires a whole-dollar allotment; it returned a minimum benefit of $23.84 a month, where 7 CFR 273.10(e)(2)(ii)(C) rounds 8 percent of the one-person maximum to the nearest dollar ($24); it floored net income, which 7 CFR 273.10(e)(1)(ii) requires a state to round to the nearest dollar at each step or to calculate by its TANF procedure, which may keep cents; and it compared income with unrounded income standards. Given the engine’s household size, eligibility and floored net income, the Axiom rules engine’s encoding of 7 U.S.C. 2017(a) reproduces the whole-dollar allotment of all 19 households the first SNAP convention module changed, in each month from January to September (171 of 171 monthly comparisons), and the federal minimum benefit; it did not test New Jersey’s state minimum, and it covers the allotment rounding, not the net income rounding the published references also apply. Recomputing SNAP with net income’s cents kept, rather than rounded to the nearest dollar as the upstream fix does, moves no scored reference by more than the dollar tolerance. One SNAP defect is not fixed upstream: the engine still grants the heat-and-eat standard utility allowance to households without an elderly or disabled member, which P.L. 119-21 section 10103 ended in July 2025, and the scored output it moves is excluded. That household’s prompt calls its head disabled but states none of the routes by which 7 U.S.C. 2012(j) defines a disabled member, such as receiving SSI or Social Security disability benefits; read the other way, the allowance would stand, and so would the reference the publication conventions and upstream SNAP fixes give ($3,576, which the output would carry if scored), so the output is excluded on either reading. One more SNAP defect was found after the September 22 release and fixed upstream on 2026-09-24: the engine’s values for the SNAP child support option carried the opposite meaning from the one its formulas read. A state may exclude legally obligated child support paid from gross income (7 CFR 273.9(c)(17)); a state that does not must deduct it from net income (273.9(d)(5)). For 2026 the engine excluded it in 37 jurisdictions that USDA’s SNAP State Options Report lists as deducting it, Michigan among them, and deducted it in 9 of the 14 it lists as excluding it. Recomputed under the fix (policyengine-us #9586), one reference moves: a one-person Michigan household that pays child support stayed within the 200 percent gross limit of Michigan’s broad-based categorical eligibility only because the engine excluded the payments, so the engine granted it the $24 monthly minimum; counting the payments, as Michigan does, leaves it ineligible, and the regenerated reference is $0.</p>
-<p>PolicyBench rebuilt the references on 2026-09-29 with policyengine-us 2.15.17, the newest release on PyPI, in place of 1.755.4. It computes each reference with <code>policyengine_us.Simulation</code>. The snapshot also records policyengine.py 6.1.2 for provenance; its certified US bundle carries an older policyengine-us, and policyengine.py does not load beside 2.15.17. PolicyBench ported the publication conventions to the new version. The SNAP convention holds each FY2026 figure directly for October to December 2026, because the new version carries USDA’s FY2027 figures as published values. policyengine-us 2.15.17 counts Maryland county income tax in its state income tax. PolicyBench’s state income tax output leaves local tax out, so an adapter restores that scope, and the county tax stays in the federal state and local tax deduction. policyengine-us #9261 changed from 40 hours to 0 the default of the weekly-hours input that SNAP’s work rules read, so the scenario builder also passes each prompt’s stated usual weekly hours under that input’s name. After the port, PolicyBench grouped every output that still moved by root cause. An investigator settled each root cause from the upstream commits, the engine code of both versions and primary legal sources with their publication dates, and an independent reviewer tried to refute each settlement. The move changes 4 scored references (<a href="#tbl-reference-review" class="quarto-xref">Table&nbsp;4</a>). Two take law published before the freeze that policyengine-us 1.755.4 did not encode: New Jersey’s child tax credit schedule for 2026 to 2028 (P.L.2026, c.26, approved June 30, 2026), and Arizona’s broad-based categorical eligibility limit for SNAP, which Arizona raised from 185 to 200 percent of the poverty guideline starting with benefit month March 2026. Two follow engine corrections: policyengine-us added child support received to school-meal income (7 CFR 245.6(a)(5)(ii)), and policyengine-us #9425 corrected the rounding in New York’s Empire State child credit phase-out. Reviewers excluded 3 federal income tax outputs as unlisted inputs: the new version counts a listed state and local tax refund as income (policyengine-us #9422), and whether any of it is income depends on whether the refunded tax reduced federal tax in the year the household paid it (26 U.S.C. 111(a)), which the prompt does not say. Another 2 references move by less than the dollar tolerance, and reviewers rechecked the 19 excluded outputs whose values move; all stay excluded. The reference sidecar lists every change, and <code>reference_audit/2026-09-28</code> holds the recomputation of every output, the investigations and the reviews.</p>
+<p>PolicyBench rebuilt the references on 2026-09-29 with policyengine-us 2.15.17, the newest release when it began sweeping the references that day (uploaded 00:23 UTC), in place of 1.755.4. It computes each scored reference with <code>policyengine_us.Simulation</code>. The snapshot also records policyengine.py 6.1.2 for provenance; its certified US bundle carries an older policyengine-us, and policyengine.py does not load beside 2.15.17. PolicyBench ported the publication conventions to the new version. The SNAP convention holds each FY2026 figure directly for October to December 2026, because the new version carries USDA’s FY2027 figures as published values. policyengine-us 2.15.17 counts Maryland county income tax in its state income tax. PolicyBench’s state income tax output leaves local tax out, so an adapter restores that scope, and the county tax stays in the federal state and local tax deduction. policyengine-us #9261 changed from 40 hours to 0 the default of the weekly-hours input that SNAP’s work rules read, so the scenario builder also passes each prompt’s stated usual weekly hours under that input’s name. After the port, PolicyBench grouped every output that still moved by root cause. An investigator settled each root cause from the upstream commits, the engine code of both versions and primary legal sources with their publication dates, and an independent reviewer tried to refute each settlement. The move changes 4 scored references (<a href="#tbl-reference-review" class="quarto-xref">Table&nbsp;4</a>). Two take law published before the freeze that policyengine-us 1.755.4 did not encode: New Jersey’s child tax credit schedule for 2026 to 2028 (P.L.2026, c.26, approved June 30, 2026), and Arizona’s broad-based categorical eligibility limit for SNAP, which Arizona raised from 185 to 200 percent of the poverty guideline starting with benefit month March 2026. Two follow engine corrections: policyengine-us added child support received to school-meal income (7 CFR 245.6(a)(5)(ii)), and policyengine-us #9425 corrected the rounding in New York’s Empire State child credit phase-out. The investigation found, and PolicyBench excluded, 3 federal income tax outputs that depend on an unlisted input: the new version counts a listed state and local tax refund as income (policyengine-us #9422), and whether any of it is income depends on whether the refunded tax reduced federal tax in the year the household paid it (26 U.S.C. 111(a)), which the prompt does not say. Another 2 references move by less than the dollar tolerance. The 55 excluded outputs keep the values they were decided on (52 computed with policyengine-us 1.755.4, 3 with 2.15.17), and PolicyBench re-reviewed the 19 of them that move on 2.15.17; all stay excluded. policyengine-us 2.17.0, the newest release at publication (uploaded 2026-09-29 12:21 UTC), gives the same value as 2.15.17 for all 1,984 outputs under the same conventions and adapter. The reference sidecar lists every change, and <code>reference_audit/2026-09-28</code> holds the recomputation of every output, the investigations and the reviews.</p>
 <p>The audit tooling itself required hardening, which we report because it changes how much the annotations can be trusted. The derivation narratives displayed alongside reference values are generated from engine computation traces. After earlier model-written narratives were found to misattribute eligibility pathways, mechanical validators now enforce that each narrative states the engine’s actual mechanism — for example, that a child ineligible for CHIP because they qualify for Medicaid is never described as failing a CHIP income test. The failure-audit judge reads these grounded narratives together with engine facts and must return a per-model diagnosis naming the specific rule or computation the model missed. It is barred from re-adjudicating the reference in prose: hedged or reference-adjudicating verdicts are mechanically rejected and re-judged, and genuine reference doubt is routed to a structured flag that triggers the manual adjudication described above.</p>
-<p>After freezing the snapshot and completing response-contract repairs, we annotated the 7,796 rows whose legacy threshold score is below 1 and their scenario-output cases. <a href="#tbl-deviation-audit" class="quarto-xref">Table&nbsp;5</a> reports the final classifications for that legacy-threshold audit universe. It contains 7,792 of the snapshot’s 7,792 exact-match misses and 4 exact hits. The 2,027 other rows with bounded score below 100 fall outside the selection and have no audit annotation. Each annotated row on a scored output resolves to one of two final classes: <code>llm_error</code> (a substantive miscalculation, with a per-model diagnosis naming the rule or computation the model missed) or <code>parse_contract_failure</code> (a missing or unparsable answer, classified deterministically). Two further classes describe outputs the snapshot does not score, and each such output is removed from scoring for every model, so no model gains or loses from it. <code>prompt_ambiguity</code> marks 27 outputs whose reference depends on an input the prompt never lists, so a careful reader could take the stated facts either way; for each, the reference was recomputed under the other reading with the engine version that produced it, and it moved. <code>reference_engine_defect</code> marks the 28 outputs where that engine misapplies the law on stated facts. Together they remove 55 outputs in 39 households, and of the 2,041 annotated rows on those outputs, 1,988 carry one of these classes as description rather than as a scored class and the rest are answers that never parsed. A scored reference also follows from law published before the references were frozen on 2026-07-03. USDA published the FY2027 SNAP cost-of-living figures on 2026-08-21, after the freeze and after most rows were answered, so grading any model on them would score it against law it could not have seen; SNAP’s October to December months therefore hold the FY2026 figures, and the publication conventions described above apply the same rule to every projected amount. Every model is therefore scored on 1,929 of its 1,984 requested outputs. The exclusion record (<code>reference_exclusions.json</code>) travels with the frozen run and the manifest pins it. No scored row remains classified as a prompt ambiguity, unresolved reference issue, or needs-review item, and zero annotated rows carry a standing reference-suspect flag. The audit pipeline is model-assisted, with developer adjudication of each reference-suspect or prompt-ambiguity flag rather than independent external validation; this snapshot records 68 cases of developer adjudication, kept beside the annotations with the judge’s verdict and the reasoning. Three judge models produced the verdicts, and all are board rows: GPT-5.6 Sol, called through the Codex CLI, judged the cases whose verdicts predate the September 2026 additions; Claude Opus 5, called through the Claude Code CLI, judged the cases the September 5 additions joined (132 cases); and Claude Opus 5.5 judged the cases the September 22 and September 28 additions joined or a reference revision changed (239 of 674 cases), its own row’s cases included. Each verdict is recorded in a per-case provenance sidecar in the audit tree. Judge verdicts classify misses after scoring and change no score, and every reference flag a judge raised is settled by the developer adjudication above. The unlisted inputs behind the unlisted-input exclusions are the SSI disability criterion (<code>meets_ssi_disability_criteria</code>), false for every person in the certified June 2026 microdata build; months of SSDI receipt (<code>months_receiving_social_security_disability</code>), never carried by the data and integer-typed, which the prompt builder does not expose; weekly hours worked (<code>weekly_hours_worked_before_lsr</code>), which policyengine-us 1.755.4 defaulted to 40 where the prompt treats unlisted numbers as zero; whether survivor benefits other than Social Security are a pension or annuity, which the prompt does not say and which decides both their taxability and whether they count toward Wisconsin’s homestead credit income; who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable; whether listed home mortgage interest is on the home the household occupies, which decides whether SNAP counts it as a shelter cost; whether an adult tax dependent is the claiming filers’ child, which decides whose income counts in that dependent’s Medicaid household; whether the tax behind a listed state and local tax refund reduced federal tax in the year the household paid it, which decides how much of the refund is income; and whether listed interest comes from a Massachusetts bank deposit, which moves only an output already recorded as an engine-defect exclusion. One definition was also open: the output definition of federal income tax before refundable credits does not say whether it includes the net investment income tax, which the reference adds and Form 1040 reports after its line for tax after nonrefundable credits, so the outputs that tax moves are excluded as well. The prompt lists a general <code>is disabled</code> fact and never a program-specific determination (<a href="#sec-disability" class="quarto-xref">Section&nbsp;4.2</a>). The exclusion set was derived mechanically rather than from which models missed: every reference was recomputed under each alternative reading, and under each engine defect’s sandbox fix, and every output that moved under an alternative reading or a defect not fixed upstream was excluded, which is why it includes three SNAP outputs that move through the elderly-or-disabled SNAP rules (in two of those households SSI itself stays at zero; in the third an aged member already receives SSI and the disabled member would add a second benefit).</p>
+<p>After freezing the snapshot and completing response-contract repairs, we annotated the 7,796 rows whose legacy threshold score is below 1 and their scenario-output cases. <a href="#tbl-deviation-audit" class="quarto-xref">Table&nbsp;5</a> reports the final classifications for that legacy-threshold audit universe. It contains 7,792 of the snapshot’s 7,792 exact-match misses and 4 exact hits. The 2,027 other rows with bounded score below 100 fall outside the selection and have no audit annotation. Each annotated row on a scored output resolves to one of two final classes: <code>llm_error</code> (a substantive miscalculation, with a per-model diagnosis naming the rule or computation the model missed) or <code>parse_contract_failure</code> (a missing or unparsable answer, classified deterministically). Two further classes describe outputs the snapshot does not score, and each such output is removed from scoring for every model, so no model gains or loses from it. <code>prompt_ambiguity</code> marks 27 outputs whose reference depends on an input the prompt never lists, so a careful reader could take the stated facts either way; for each, the reference was recomputed under the other reading with the engine version that produced it, and it moved. <code>reference_engine_defect</code> marks the 28 outputs where that engine misapplies the law on stated facts. Together they remove 55 outputs in 39 households, and of the 2,041 annotated rows on those outputs, 1,988 carry one of these classes as description rather than as a scored class and the rest are answers that never parsed. A scored reference also follows from law published before the references were frozen on 2026-07-03. USDA published the FY2027 SNAP cost-of-living figures on 2026-08-21, after the freeze and after most rows were answered, so grading any model on them would score it against law it could not have seen; SNAP’s October to December months therefore hold the FY2026 figures, and the publication conventions described above apply the same rule to every projected amount. Every model is therefore scored on 1,929 of its 1,984 requested outputs. The exclusion record (<code>reference_exclusions.json</code>) travels with the frozen run and the manifest pins it. No scored row remains classified as a prompt ambiguity, unresolved reference issue, or needs-review item, and zero annotated rows carry a standing reference-suspect flag. The audit pipeline is model-assisted, with developer adjudication of each reference-suspect or prompt-ambiguity flag rather than independent external validation; this snapshot records 68 cases of developer adjudication, kept beside the annotations with the judge’s verdict and the reasoning. Three judge models produced the verdicts, and all are board rows: GPT-5.6 Sol, called through the Codex CLI, judged the cases whose verdicts predate the September 2026 additions; Claude Opus 5, called through the Claude Code CLI, judged the cases the September 5 additions joined (132 cases); and Claude Opus 5.5 judged the cases the September 22 and September 29 additions joined or a reference revision changed (239 of 674 cases), its own row’s cases included. Each verdict is recorded in a per-case provenance sidecar in the audit tree. Judge verdicts classify misses after scoring and change no score, and every reference flag a judge raised is settled by the developer adjudication above. The unlisted inputs behind the unlisted-input exclusions are the SSI disability criterion (<code>meets_ssi_disability_criteria</code>), false for every person in the certified June 2026 microdata build; months of SSDI receipt (<code>months_receiving_social_security_disability</code>), never carried by the data and integer-typed, which the prompt builder does not expose; weekly hours worked (<code>weekly_hours_worked_before_lsr</code>), which policyengine-us 1.755.4 defaulted to 40 where the prompt treats unlisted numbers as zero; whether survivor benefits other than Social Security are a pension or annuity, which the prompt does not say and which decides both their taxability and whether they count toward Wisconsin’s homestead credit income; who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable; whether listed home mortgage interest is on the home the household occupies, which decides whether SNAP counts it as a shelter cost; whether an adult tax dependent is the claiming filers’ child, which decides whose income counts in that dependent’s Medicaid household; whether the tax behind a listed state and local tax refund reduced federal tax in the year the household paid it, which decides how much of the refund is income; and whether listed interest comes from a Massachusetts bank deposit, which moves only an output already recorded as an engine-defect exclusion. One definition was also open: the output definition of federal income tax before refundable credits does not say whether it includes the net investment income tax, which the reference adds and Form 1040 reports after its line for tax after nonrefundable credits, so the outputs that tax moves are excluded as well. The prompt lists a general <code>is disabled</code> fact and never a program-specific determination (<a href="#sec-disability" class="quarto-xref">Section&nbsp;4.2</a>). The exclusion set was derived mechanically rather than from which models missed: every reference was recomputed under each alternative reading, and under each engine defect’s sandbox fix, and every output that moved under an alternative reading or a defect not fixed upstream was excluded, which is why it includes three SNAP outputs that move through the elderly-or-disabled SNAP rules (in two of those households SSI itself stays at zero; in the third an aged member already receives SSI and the disabled member would add a second benefit).</p>
 <div class="cell" data-execution_count="5">
 <div id="tbl-reference-review" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="5">
 <figure class="quarto-float quarto-float-tbl">
@@ -862,7 +862,7 @@ Table&nbsp;4: Discrepancy review across the audit waves.
 </tr>
 <tr class="odd">
 <td>US references on policyengine-us 2.15.17 (September 2026 upgrade)</td>
-<td>Once PolicyBench had ported the conventions, an investigator traced every output that still moved between policyengine-us 1.755.4 and 2.15.17 to its upstream change and settled it against primary sources and their publication dates. An independent reviewer tried to refute each settlement. The upgrade changes 4 scored references, for law published before the freeze that 1.755.4 did not encode or misapplied: New Jersey’s 2026-2028 child tax credit schedule (P.L.2026, c.26), Arizona’s 200 percent SNAP categorical eligibility limit from March 2026, child support received counted as income for school meals (7 CFR 245.6(a)(5)(ii)), and New York’s Empire State child credit phase-out rounding. Reviewers excluded 3 federal income tax outputs as unlisted inputs: 2.15.17 counts a listed state and local tax refund as income, which is right only if the refunded tax reduced federal tax in the prior year (26 U.S.C. 111(a)). The reviewers rechecked the 19 excluded outputs that move; all stay excluded.</td>
+<td>Once PolicyBench had ported the conventions, an investigator traced every output that still moved between policyengine-us 1.755.4 and 2.15.17 to its upstream change and settled it against primary sources and their publication dates. An independent reviewer tried to refute each settlement. The upgrade changes 4 scored references, for law published before the freeze that 1.755.4 did not encode or misapplied: New Jersey’s 2026-2028 child tax credit schedule (P.L.2026, c.26), Arizona’s 200 percent SNAP categorical eligibility limit from March 2026, child support received counted as income for school meals (7 CFR 245.6(a)(5)(ii)), and New York’s Empire State child credit phase-out rounding. The investigation found, and PolicyBench excluded, 3 federal income tax outputs that depend on an unlisted input: 2.15.17 counts a listed state and local tax refund as income, which is right only if the refunded tax reduced federal tax in the prior year (26 U.S.C. 111(a)). PolicyBench re-reviewed the 19 excluded outputs that move; all stay excluded.</td>
 </tr>
 </tbody>
 </table>
@@ -1029,7 +1029,7 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot, ranked 
 <p>Each leaderboard score is a mean over a sample of 100 households, so the rankings carry sampling uncertainty. We quantify it with a household-level bootstrap: the 100 households are resampled with replacement 10,000 times, and each model’s population-weighted exact-match rate is recomputed on every resample. The resampling unit is the household, carried with its full output vector, so within-household correlations across outputs are preserved. The same resampled set is used for every model in each replicate (a paired bootstrap), so the rank ranges in <a href="#tbl-us-top" class="quarto-xref">Table&nbsp;6</a> reflect genuine ordering uncertainty rather than independent per-model noise.</p>
 <p>Sampling uncertainty is substantial at this sample size. In the frozen snapshot, 7 of the other 44 models have an exact-match 95% interval that overlaps the leader’s. Small differences in the leaderboard ordering should therefore be read as ties rather than as a strict ranking, and the rank-range column makes the set of plausible positions explicit. These intervals are a manuscript artifact: the public leaderboard and app report point estimates only, because the benchmark sample, not run-to-run model variation, is the dominant source of uncertainty here.</p>
 <h3 id="cost-and-latency" class="anchored">Cost and latency</h3>
-<p>Accuracy is one axis; the price and speed of a no-tools answer are another. <a href="#tbl-us-cost-latency" class="quarto-xref">Table&nbsp;7</a> reports each model’s estimated cost to compute one household’s full output vector and its median per-household latency, next to the headline exact rate. Per-household cost spans \\\\$0.002 (GPT-5.4 nano) to \\\\$0.541 (Claude Fable 5), and median per-household latency 3 s (Gemini 3.5 Flash-Lite) to 1023 s (Kimi K3). Neither dimension cleanly tracks accuracy: the top-scoring model, GPT-6 Sol at 94.8% exact, sits mid-pack at \\\\$0.027 per household and 23 s.</p>
+<p>Accuracy is one axis; the price and speed of a no-tools answer are another. <a href="#tbl-us-cost-latency" class="quarto-xref">Table&nbsp;7</a> reports each model’s estimated cost to compute one household’s full output vector and its median per-household latency, next to the headline exact rate. Per-household cost spans $0.002 (GPT-5.4 nano) to $0.541 (Claude Fable 5), and median per-household latency 3 s (Gemini 3.5 Flash-Lite) to 1023 s (Kimi K3). Neither dimension cleanly tracks accuracy: the top-scoring model, GPT-6 Sol at 94.8% exact, sits mid-pack at $0.027 per household and 23 s.</p>
 <div class="cell" data-execution_count="8">
 <div id="tbl-us-cost-latency" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="8">
 <figure class="quarto-float quarto-float-tbl">
@@ -1037,352 +1037,289 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot, ranked 
 Table&nbsp;7: Estimated cost and median latency per household for the frozen US snapshot, alongside the headline exact-match rate. Each row uses its recorded per-call cost: reconstructed from token counts at the list price configured at request time, or the provider-reported charge where no reconstruction was available. List-price overrides apply at request time, not retroactively to recorded costs. Models without per-call costs use the frozen release-metadata cost. Latency is the median across households of each household’s summed request time. A dash marks usage or wall-clock latency that was not measured per call.
 </figcaption>
 <div aria-describedby="tbl-us-cost-latency-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display" data-execution_count="8">
-<div>
-<style scoped="">
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-
-<table class="dataframe cell caption-top" data-border="1">
+<div class="cell-output cell-output-display cell-output-markdown" data-execution_count="8">
+<table class="cell caption-top">
 <thead>
-<tr class="header" style="text-align: right;">
-<th data-quarto-table-cell-role="th"></th>
-<th data-quarto-table-cell-role="th">Model</th>
-<th data-quarto-table-cell-role="th">Exact (%)</th>
-<th data-quarto-table-cell-role="th">Cost / household</th>
-<th data-quarto-table-cell-role="th">Latency (median)</th>
+<tr class="header">
+<th>Model</th>
+<th>Exact (%)</th>
+<th>Cost /​ household</th>
+<th>Latency (median)</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">0</th>
 <td>GPT-6 Sol</td>
 <td>94.8</td>
-<td>\$0.027</td>
+<td>$0.027</td>
 <td>23 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">1</th>
 <td>Claude Opus 5.5</td>
 <td>93.5</td>
-<td>\$0.067</td>
+<td>$0.067</td>
 <td>24 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">2</th>
 <td>GPT-5.6 Sol</td>
 <td>93.3</td>
-<td>\$0.090</td>
+<td>$0.090</td>
 <td>36 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">3</th>
 <td>Claude Sonnet 5.5</td>
 <td>92.0</td>
-<td>\$0.034</td>
+<td>$0.034</td>
 <td>20 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">4</th>
 <td>GPT-6 Luna</td>
 <td>92.0</td>
-<td>\$0.002</td>
+<td>$0.002</td>
 <td>29 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">5</th>
 <td>GPT-6 Astra</td>
 <td>91.7</td>
-<td>\$0.126</td>
+<td>$0.126</td>
 <td>32 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">6</th>
 <td>Claude Fable 5.1</td>
 <td>90.7</td>
-<td>\$0.257</td>
+<td>$0.257</td>
 <td>49 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">7</th>
 <td>Kimi K3</td>
 <td>90.4</td>
-<td>\$0.470</td>
+<td>$0.470</td>
 <td>1023 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">8</th>
 <td>GPT-5.6 Luna</td>
 <td>89.0</td>
-<td>\$0.019</td>
+<td>$0.019</td>
 <td>14 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">9</th>
 <td>Inkling</td>
 <td>88.5</td>
-<td>\$0.091</td>
+<td>$0.091</td>
 <td>250 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">10</th>
 <td>GLM-5.3-Flash (preview)</td>
 <td>88.4</td>
 <td>—</td>
 <td>242 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">11</th>
 <td>Grok 4.7</td>
 <td>88.2</td>
-<td>\$0.260</td>
+<td>$0.260</td>
 <td>547 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">12</th>
 <td>GPT-5.5</td>
 <td>88.0</td>
-<td>\$0.262</td>
+<td>$0.262</td>
 <td>—</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">13</th>
 <td>GPT-5.6 Terra</td>
 <td>87.5</td>
-<td>\$0.039</td>
+<td>$0.039</td>
 <td>19 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">14</th>
 <td>DeepSeek V4.1 Flash</td>
 <td>87.3</td>
-<td>\$0.024</td>
+<td>$0.024</td>
 <td>85 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">15</th>
 <td>Grok 4.6</td>
 <td>86.6</td>
-<td>\$0.087</td>
+<td>$0.087</td>
 <td>219 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">16</th>
 <td>Gemini 3.8 Flash</td>
 <td>85.8</td>
-<td>\$0.068</td>
+<td>$0.068</td>
 <td>56 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">17</th>
 <td>Grok 4.5</td>
 <td>85.0</td>
-<td>\$0.073</td>
+<td>$0.073</td>
 <td>112 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">18</th>
 <td>Claude Opus 5</td>
 <td>83.9</td>
-<td>\$0.067</td>
+<td>$0.067</td>
 <td>16 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">19</th>
 <td>Claude Fable 5</td>
 <td>83.9</td>
-<td>\$0.541</td>
+<td>$0.541</td>
 <td>98 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">20</th>
 <td>DeepSeek V4 Flash 0731</td>
 <td>83.5</td>
-<td>\$0.003</td>
+<td>$0.003</td>
 <td>195 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">21</th>
 <td>Gemini 3.7 Flash</td>
 <td>83.4</td>
-<td>\$0.014</td>
+<td>$0.014</td>
 <td>9 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">22</th>
 <td>DeepSeek V4 Pro 0813</td>
 <td>83.3</td>
-<td>\$0.199</td>
+<td>$0.199</td>
 <td>808 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">23</th>
 <td>Gemini 3.6 Flash</td>
 <td>83.0</td>
-<td>\$0.055</td>
+<td>$0.055</td>
 <td>26 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">24</th>
 <td>Gemini 3.5 Flash-Lite</td>
 <td>82.2</td>
-<td>\$0.003</td>
+<td>$0.003</td>
 <td>3 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">25</th>
 <td>Gemini 3.1 Pro Preview</td>
 <td>81.9</td>
-<td>\$0.085</td>
+<td>$0.085</td>
 <td>45 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">26</th>
 <td>GLM-5.3</td>
 <td>81.3</td>
-<td>\$0.169</td>
+<td>$0.169</td>
 <td>134 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">27</th>
 <td>Gemini 3 Flash Preview</td>
 <td>81.2</td>
-<td>\$0.048</td>
+<td>$0.048</td>
 <td>58 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">28</th>
 <td>Claude Opus 4.7</td>
 <td>81.2</td>
-<td>\$0.293</td>
+<td>$0.293</td>
 <td>53 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">29</th>
 <td>Grok 4.3</td>
 <td>80.8</td>
-<td>\$0.015</td>
+<td>$0.015</td>
 <td>22 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">30</th>
 <td>Claude Sonnet 4.6</td>
 <td>80.5</td>
-<td>\$0.186</td>
+<td>$0.186</td>
 <td>114 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">31</th>
 <td>Gemini 3.5 Flash</td>
 <td>80.3</td>
-<td>\$0.056</td>
+<td>$0.056</td>
 <td>24 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">32</th>
 <td>Grok Build 0.1</td>
 <td>80.3</td>
-<td>\$0.045</td>
+<td>$0.045</td>
 <td>135 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">33</th>
 <td>DeepSeek V4 Pro</td>
 <td>80.0</td>
-<td>\$0.011</td>
+<td>$0.011</td>
 <td>170 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">34</th>
 <td>Gemini 3.1 Flash Lite Preview</td>
 <td>80.0</td>
-<td>\$0.002</td>
+<td>$0.002</td>
 <td>3 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">35</th>
 <td>Qwen3.7-max</td>
 <td>77.6</td>
-<td>\$0.139</td>
+<td>$0.139</td>
 <td>—</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">36</th>
 <td>GLM-5.2</td>
 <td>77.0</td>
-<td>\$0.082</td>
+<td>$0.082</td>
 <td>—</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">37</th>
 <td>Claude Opus 4.8</td>
 <td>76.4</td>
-<td>\$0.255</td>
+<td>$0.255</td>
 <td>55 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">38</th>
 <td>MiniMax M3</td>
 <td>75.7</td>
-<td>\$0.007</td>
+<td>$0.007</td>
 <td>—</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">39</th>
 <td>Qwen3.8-Max</td>
 <td>75.1</td>
-<td>\$0.224</td>
+<td>$0.224</td>
 <td>861 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">40</th>
 <td>Claude Haiku 4.5</td>
 <td>74.9</td>
-<td>\$0.055</td>
+<td>$0.055</td>
 <td>48 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">41</th>
 <td>GPT-5.4 mini</td>
 <td>73.6</td>
-<td>\$0.006</td>
+<td>$0.006</td>
 <td>5 s</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">42</th>
 <td>Claude Sonnet 5</td>
 <td>72.9</td>
-<td>\$0.172</td>
+<td>$0.172</td>
 <td>64 s</td>
 </tr>
 <tr class="even">
-<th data-quarto-table-cell-role="th">43</th>
 <td>Kimi K2.6</td>
 <td>67.3</td>
-<td>\$0.391</td>
+<td>$0.391</td>
 <td>—</td>
 </tr>
 <tr class="odd">
-<th data-quarto-table-cell-role="th">44</th>
 <td>GPT-5.4 nano</td>
 <td>65.2</td>
-<td>\$0.002</td>
+<td>$0.002</td>
 <td>6 s</td>
 </tr>
 </tbody>
 </table>
-
-</div>
 </div>
 </div>
 </figure>
