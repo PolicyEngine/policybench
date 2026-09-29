@@ -52,9 +52,9 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
   pinned release URL, byte count, and sha256 for each dashboard payload
 - `rendered_paper_artifacts`, with the rendered PDF and web bundle hashes
 - `reference_output_refresh`, with the policyengine-us version that computes
-  the references (2.15.17 in this snapshot), the policyengine.py version
-  recorded for provenance, and the certified US populace dataset's build id,
-  URI, and sha256
+  the references (2.15.17 in this snapshot), the policyengine.py version the
+  block records for provenance, and the certified US populace dataset's build
+  id, URI, and sha256
 - `population_weight_artifact`, with the committed scoring-weight path and
   sha256
 - `audit_annotation_artifacts`, with the row and case audit file hashes. The

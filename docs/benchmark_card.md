@@ -67,9 +67,10 @@ be described as faithful reasoning traces.
 
 PolicyBench computes each US reference output by running
 `policyengine_us.Simulation` from policyengine-us 2.15.17, the newest release
-on PyPI when the references were rebuilt on 2026-09-29. The manifest also
-records policyengine.py 6.1.2 for provenance; its certified US bundle is
-policyengine-us 2.2.1, and it does not load beside 2.15.17.
+on PyPI on 2026-09-29, when PolicyBench rebuilt the references. The manifest
+also records policyengine.py 6.1.2 for provenance. Its certified US bundle
+carries policyengine-us 2.2.1, and policyengine.py does not load beside
+2.15.17.
 
 A scored reference follows from the stated facts and from law published before
 the references were frozen on 2026-07-03. Where policyengine-us projects a 2026
@@ -82,11 +83,11 @@ policyengine-us 2.15.17 counts Maryland county income tax in its state income
 tax; an adapter takes it out again, because PolicyBench's state income tax
 output leaves local tax out.
 
-The move from policyengine-us 1.755.4 to 2.15.17 changed four scored
-references: New Jersey's child tax credit schedule for 2026 to 2028
-(P.L.2026, c.26, approved June 30, 2026), Arizona's broad-based categorical
-eligibility limit for SNAP (200% of the poverty guideline from March 2026, up
-from 185%), child support received counting as income for school meals (7 CFR
+Four changes between policyengine-us 1.755.4 and 2.15.17 each moved one scored
+reference: New Jersey's child tax credit schedule for 2026 to 2028 (P.L.2026,
+c.26, approved June 30, 2026), Arizona's broad-based categorical eligibility
+limit for SNAP (200% of the poverty guideline from March 2026, up from 185%),
+child support received counting as income for school meals (7 CFR
 245.6(a)(5)(ii)), and the rounding of New York's Empire State child credit
 phase-out. Three federal income tax outputs left scoring (below), and two state
 income tax references moved by less than $1. The reference sidecar's
@@ -113,8 +114,9 @@ verdict (the case's current verdict.json; a flag an earlier judge run raised is
 kept and says so) beside the decision and the reasoning. This snapshot carries
 68: one for each excluded output, one for each flagged reference the
 adjudication affirmed or replaced with a regenerated reference, and two for
-cases whose rows the judge labeled later law, which the adjudication records as
-model errors because the law predates the freeze.
+cases whose misses the judge attributed to the reference applying later law;
+the adjudication records them as model errors because that law predates the
+freeze.
 
 The September 22 audit implemented each defect it confirmed in policyengine-us
 1.755.4 as a sandbox fix on that engine version and recomputed every
@@ -124,11 +126,11 @@ after the references were frozen (#8839, #9162, #9301, #9313, #9318, #9363 and
 at adjusted gross income, the engine's SNAP rounding, and the SNAP child
 support option, whose engine values carried the opposite meaning: the engine
 excluded child support paid from gross income in Michigan, which deducts it
-from net income). The September 22 references applied those fixes on 1.755.4
-to the 15 scored references they move; policyengine-us 2.15.17 contains all
-eight, so the references now take them from the engine. An output one of them
-moves that an unfixed cause also moves stays excluded. The capital gain fix as
-first built also applied Wisconsin's capital gain exclusion to the
+from net income). For the September 22 references, PolicyBench applied those
+fixes on 1.755.4 to the 15 scored references they move; policyengine-us 2.15.17
+contains all eight, so the references now take them from the engine. An output
+one of them moves that an unfixed cause also moves stays excluded. The capital
+gain fix as first built also applied Wisconsin's capital gain exclusion to the
 distributions, which the upstream fix does not; that part is recorded as its
 own defect, not fixed upstream.
 
@@ -140,15 +142,16 @@ root causes (among them the IRA deduction's compensation limit and phase-out,
 estate income, and the heat-and-eat SNAP utility allowance that P.L. 119-21
 ended for households without an elderly or disabled member), and an output
 such a defect moves that was already excluded for an unstated input keeps that
-record. On policyengine-us 2.15.17 each of these outputs either keeps the value
-its defect produced or was re-reviewed with the defect still present.
+record. On policyengine-us 2.15.17 each of these outputs keeps the value its
+defect produced, or it moved and a re-review found the defect still present.
 Twenty-seven depend on an input the prompt never states, such as the SSI
 disability criterion, months of SSDI receipt, weekly hours worked, the type of
 survivor benefits, who paid for the coverage behind a disability benefit,
 whether an adult tax dependent is the filers' child, or whether a listed state
-and local tax refund is income, which depends on whether the refunded tax
-reduced federal tax in the year it was paid (26 U.S.C. 111(a)); each was
-recomputed under the other reading a careful reader could take, and it moved.
+and local tax refund counts as income, which turns on whether the refunded tax
+reduced federal tax in the year the household paid it (26 U.S.C. 111(a));
+each was recomputed under the other reading a careful reader could take, and it
+moved.
 Exclusion is symmetric: rows that matched the frozen reference leave the score
 with rows that did not, so every model is scored on 1,929 of its 1,984
 requested outputs. The rows on those outputs stay annotated as description:

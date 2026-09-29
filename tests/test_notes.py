@@ -2437,7 +2437,7 @@ def test_release_20260929_note() -> None:
     pin(
         "Claude Sonnet 5.5's API rejects forced tool calls, as Claude Opus 5.5's "
         "and Claude Fable 5.1's do, so its row answers as a JSON object and "
-        "reasons at the provider default, adaptive thinking.",
+        "reasons with adaptive thinking, the provider default.",
         "Grok 4.7 answers through the forced tool call with a "
         "{grokTimeoutSeconds}-second request timeout, because its whole-household "
         "onboarding probe ran past a {grokOnboardingTimeoutSeconds}-second timeout.",
@@ -2462,13 +2462,12 @@ def test_release_20260929_note() -> None:
     pin(
         "The release also moves PolicyBench's references to the newest "
         "policyengine-us release, {engineVersion}, from {previousEngine}.",
-        "The newer version carries the {upstreamFixed:words} upstream fixes the "
-        "September 22 references applied as sandbox fixes, and it encodes law the "
-        "older version lacked.",
-        "A scored reference still follows the stated facts and law published "
-        "before the references were frozen on 2026-07-03, so PolicyBench "
-        "re-expressed its {conventions:words} publication conventions for the new "
-        "version.",
+        "The newer version includes the {upstreamFixed:words} upstream fixes that "
+        "PolicyBench applied as sandbox fixes for the September 22 references, and "
+        "it encodes law the older version lacked.",
+        "PolicyBench still builds each scored reference from the stated facts and "
+        "law published before it froze the references on 2026-07-03, so it ported "
+        "its {conventions:words} publication conventions to the new version.",
     )
 
     # The four scored changes, each with the basis the sidecar records.
@@ -2490,21 +2489,27 @@ def test_release_20260929_note() -> None:
     assert (
         "Child support received counts as household income" in (changes["PA"]["basis"])
     )
+    assert (
+        "policyengine-us added it to the school-meal income sources"
+        in (changes["PA"]["basis"])
+    )
     assert (changes["PA"]["previous"], changes["PA"]["regenerated"]) == (1.0, 0.0)
-    assert "rounding" in changes["NY"]["basis"]
+    assert "Empire State child credit phase-out rounding" in changes["NY"]["basis"]
+    assert "policyengine-us#9425" in changes["NY"]["basis"]
     pin(
         "The move changes {scoredChanges:words} scored references.",
-        "New Jersey's child tax credit schedule for 2026 to 2028, approved June 30, "
-        "raises one household's state refundable credits from ${njBefore} to "
-        "${njAfter}.",
+        "New Jersey's child tax credit schedule for 2026 to 2028, which the state "
+        "approved on June 30, raises one household's state refundable credits from "
+        "${njBefore} to ${njAfter}.",
         "Arizona raised the income limit for its broad-based categorical "
         "eligibility from {azLimitBefore}% to {azLimitAfter}% of the poverty "
-        "guideline from March, which gives an Arizona household ${azAfter} of SNAP "
-        "where the reference was ${azBefore}.",
-        "School-meal rules count child support received as income, which ends a "
-        "Pennsylvania household's eligibility for reduced-price meals.",
-        "A rounding fix raises a New York household's state refundable credits "
-        "from ${nyBefore} to ${nyAfter}.",
+        "guideline effective March, and the new limit gives an Arizona household "
+        "${azAfter} of SNAP where the reference was ${azBefore}.",
+        "policyengine-us now counts child support received as school-meal income, "
+        "which ends a Pennsylvania household's eligibility for reduced-price meals.",
+        "A fix to the rounding in New York's Empire State child credit phase-out "
+        "(policyengine-us #9425) raises a New York household's state refundable "
+        "credits from ${nyBefore} to ${nyAfter}.",
     )
 
     # The new exclusions: federal income tax, the SALT refund reading.
@@ -2525,11 +2530,12 @@ def test_release_20260929_note() -> None:
     pin(
         "PolicyBench stops scoring {newExclusions:words} federal income tax outputs.",
         "policyengine-us {engineVersion} counts the whole of a listed state and "
-        "local tax refund as income, but federal law counts it only to the extent "
-        "the refunded tax lowered the household's federal tax in the year it was "
-        "paid, and the prompts do not say whether it did.",
-        "Every model is now scored on {scoredOutputs} of its {totalOutputs} "
-        "requested outputs, and {excluded} are excluded.",
+        "local tax refund as income.",
+        "Federal law counts the refund only to the extent the refunded tax lowered "
+        "the household's federal tax in the year the household paid it, and the "
+        "prompts do not say whether it did.",
+        "PolicyBench now scores every model on {scoredOutputs} of its "
+        "{totalOutputs} requested outputs and excludes {excluded}.",
         "Another {withinTolerance:words} references move by less than $1, and "
         "PolicyBench re-reviewed the {rechecked} excluded outputs whose values "
         "moved; all stay excluded.",
@@ -2566,10 +2572,10 @@ def test_release_20260929_note() -> None:
         "None of the {incumbents} matched any of the {newExclusions:words} federal "
         "outputs now excluded, and all {incumbents} had matched the Arizona "
         "household's old ${azBefore} SNAP reference, which none matches now.",
-        "Among them, {swapCount:words} pairs of neighbors swap places, and every "
-        "other model keeps its place in the order: {swapOneUp} moves above "
-        "{swapOneDown}, {swapTwoUp} above {swapTwoDown}, and {swapThreeUp} above "
-        "{swapThreeDown}.",
+        "Among them, {swapCount:words} pairs of neighbors swap places: {swapOneUp} "
+        "moves above {swapOneDown}, {swapTwoUp} above {swapTwoDown}, and "
+        "{swapThreeUp} above {swapThreeDown}.",
+        "Every other model keeps its place in the order.",
     )
 
     # The Arizona household in the BBCE note's terms: it qualifies only through
@@ -2586,11 +2592,11 @@ def test_release_20260929_note() -> None:
     bbce = _note(BBCE_NOTE)
     assert f"/notes/{RELEASE_NOTE}" in {entry["href"] for entry in bbce["data"]}
     pin(
-        "The Arizona household is a fifth SNAP household that qualifies only "
-        "through broad-based categorical eligibility, and all {nModels} models "
-        "answer $0 for it.",
-        "An update to the note on those households covers how the three new "
-        "models answer the other four.",
+        "The Arizona household qualifies for SNAP only through broad-based "
+        "categorical eligibility, a fifth household to do so, and all {nModels} "
+        "models answer $0 for it.",
+        "PolicyBench's September 29 update to the note on those households gives "
+        "the three new models' answers for the other four.",
     )
 
     # The models the prose names, and no sentence left unpinned.
@@ -2808,7 +2814,7 @@ def test_bbce_note_update_for_release_20260929() -> None:
         "${referenceAmount}, and none of the three new models gets any of them "
         "right.",
         "Claude Sonnet 5.5 answers ${updateSonnetOn027} for the Connecticut "
-        "couple, citing BBCE, ${updateSonnetOn030} for the Texas resident and $0 "
+        "couple, citing BBCE; ${updateSonnetOn030} for the Texas resident; and $0 "
         "for the other two.",
         "For the Texas resident it counts wages only and treats the financial "
         "assistance as excluded, as GPT-6 Sol and Claude Opus 5.5 do.",
@@ -2855,10 +2861,11 @@ def test_bbce_note_update_for_release_20260929() -> None:
         "The new references add a fifth household held back by income, an "
         "Arizona resident.",
         "Arizona raised its BBCE gross income limit from {updateAzLimitBefore}% to "
-        "{updateAzLimitAfter}% of the poverty guideline from benefit month March "
-        "2026, which policyengine-us {updateEngineVersion} encodes, and the "
-        "reference is ${updateAzReference}: the ${minimumMonthly} minimum for each "
-        "month from March to December.",
+        "{updateAzLimitAfter}% of the poverty guideline starting with benefit month "
+        "March 2026.",
+        "policyengine-us {updateEngineVersion} encodes the change, and the "
+        "reference comes to ${updateAzReference}: the ${minimumMonthly} minimum for "
+        "each month from March to December.",
         "All {updateModels} models answer $0 for the Arizona resident.",
     )
 
