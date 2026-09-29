@@ -61,6 +61,10 @@ BASE_REFERENCE_SHA256 = {
     ),
 }
 KEY = ["scenario_id", "variable"]
+# The wave's reviewed actions. Its audit_exclusions are outputs the audit
+# excluded on review, apart from any engine change (their values do not move).
+AUDIT_ACTIONS = ROOT / "reference_audit/2026-09-28/final_actions.json"
+NEW_EXCLUSION_CAUSE = "excluded_reference_depends_on_unlisted_input"
 
 
 def require(condition: bool, message: str) -> None:
@@ -167,6 +171,9 @@ def resolve_base(args):
         pointer["tag"] == BASE_TAG and pointer["sha256"] == BASE_SHA256,
         "base pointer changed; review the base before staging",
     )
+    # The 22c exclusions, plus the reviewed revision's new ones and the audit's
+    # listed ones, and nothing else.
+    check_exclusions(reference_revision(), SNAPSHOT)
     opener = gzip.open if args.base_payload.suffix == ".gz" else open
     with opener(args.base_payload, "rb") as stream:
         raw = stream.read()
@@ -216,23 +223,6 @@ def resolve_base(args):
     require(base.model.nunique() == 42, "base predictions must have 42 models")
     for model, frame in base.groupby("model"):
         validate_keys(frame, reference, model)
-    from policybench.reference_exclusions import load_reference_exclusions
-
-    # 52 on the 22c references, plus the exclusions a reviewed reference
-    # revision adds (each is listed in its changed outputs).
-    revision = reference_revision()
-    added = (
-        0
-        if revision is None
-        else sum(
-            c.get("cause") == "excluded_reference_depends_on_unlisted_input"
-            for c in revision["changed"]
-        )
-    )
-    require(
-        len(load_reference_exclusions(SNAPSHOT)) == 52 + added,
-        f"expected {52 + added} exclusions",
-    )
     return base, reference, live
 
 
@@ -280,6 +270,7 @@ def resolve_live_base(args) -> dict:
     require(
         len(live["countries"]["us"]["modelStats"]) == 42, "base must have 42 models"
     )
+    check_exclusions(reference_revision(), SNAPSHOT)
     return live
 
 
@@ -661,7 +652,9 @@ def reference_revision() -> dict | None:
 
     The snapshot may differ from the September 22c references only by one
     committed engine_upgrade revision whose `changed` list is exactly the set of
-    outputs whose value differs, with those values. Anything else is refused.
+    outputs whose value differs, with those values. Every other column
+    (impact_weight among them) must equal the base's on every row. Anything
+    else is refused. The exclusion record is gated by check_exclusions.
     """
     import io
 
@@ -683,10 +676,27 @@ def reference_revision() -> dict | None:
     )
     base = pd.read_csv(
         io.BytesIO(base_reference_bytes("reference_outputs.csv"))
-    ).set_index(KEY)["value"]
-    new = pd.read_csv(SNAPSHOT / "reference_outputs.csv").set_index(KEY)["value"]
+    ).set_index(KEY)
+    new = pd.read_csv(SNAPSHOT / "reference_outputs.csv").set_index(KEY)
     require(base.index.equals(new.index), "reference output keys changed")
-    diff = {key: float(new[key]) for key in base.index if abs(new[key] - base[key]) > 0}
+    require(
+        list(base.columns) == list(new.columns),
+        f"reference columns changed: {list(base.columns)} -> {list(new.columns)}",
+    )
+
+    def differs(column: str) -> list:
+        before, after = base[column], new[column]
+        same = (before == after) | (before.isna() & after.isna())
+        return list(base.index[~same])
+
+    for column in base.columns:
+        if column != "value":
+            unlisted = differs(column)
+            require(
+                not unlisted,
+                f"reference {column} changed outside the revision: {unlisted[:5]}",
+            )
+    diff = {key: float(new.at[key, "value"]) for key in differs("value")}
     listed = {
         (c["scenario_id"], c["variable"]): float(c["regenerated"])
         for c in revision["changed"]
@@ -699,12 +709,66 @@ def reference_revision() -> dict | None:
     return revision
 
 
+def audit_exclusion_keys() -> set[tuple[str, str]]:
+    """The outputs final_actions.json lists under audit_exclusions."""
+    if not AUDIT_ACTIONS.exists():
+        return set()
+    actions = json.loads(AUDIT_ACTIONS.read_text())
+    return {
+        (item["scenario_id"], item["variable"])
+        for item in actions.get("audit_exclusions", [])
+    }
+
+
+def check_exclusions(revision: dict | None, directory: Path) -> set[tuple[str, str]]:
+    """Require the exclusion record in `directory` to be exactly the expected set.
+
+    Expected: the September 22c exclusions (read from BASE_COMMIT), each entry
+    unchanged; with a reviewed revision, also the outputs it newly excludes and
+    the audit exclusions final_actions.json lists, and nothing else. An audit
+    exclusion is not an engine change, so the revision must not list it.
+    Returns the outputs excluded beyond 22c's.
+    """
+    from policybench.reference_exclusions import load_reference_exclusions
+
+    def by_key(entries):
+        return {(e["scenario_id"], e["variable"]): e for e in entries}
+
+    base = by_key(
+        json.loads(base_reference_bytes("reference_exclusions.json"))["exclusions"]
+    )
+    current = by_key(load_reference_exclusions(directory))
+    added: set[tuple[str, str]] = set()
+    if revision is not None:
+        changed = {(c["scenario_id"], c["variable"]): c for c in revision["changed"]}
+        new = {k for k, c in changed.items() if c.get("cause") == NEW_EXCLUSION_CAUSE}
+        audit = audit_exclusion_keys()
+        require(
+            not audit & (set(changed) | set(base)),
+            f"an audit exclusion is an engine change or a 22c exclusion: "
+            f"{sorted(audit & (set(changed) | set(base)))}",
+        )
+        added = new | audit
+    expected = set(base) | added
+    require(
+        set(current) == expected,
+        "exclusions differ from the 22c record plus the revision's and the audit's: "
+        f"missing {sorted(expected - set(current))}, "
+        f"unexpected {sorted(set(current) - expected)}",
+    )
+    changed_base = sorted(k for k in base if current[k] != base[k])
+    require(not changed_base, f"22c exclusions changed: {changed_base}")
+    return added
+
+
 def replay_base_references(args, bundle, previous) -> None:
     """Export again on the September 22c references; incumbents must not move.
 
-    With the references as the only input put back, every incumbent's
-    modelStats must reproduce the live payload exactly, so any drift in the
-    real export comes from the reviewed reference revision alone.
+    With the three reference files as the only inputs put back, every
+    incumbent's modelStats must reproduce the live payload exactly. So any
+    drift in the real export comes from the reference files, which differ from
+    22c only by the reviewed revision (reference_revision) and the listed
+    audit exclusions (check_exclusions).
     """
     from policybench.full_run_export import export_full_run
 
@@ -747,10 +811,12 @@ def export(args, bundle, live) -> dict:
             if s["model"] in previous and s != previous[s["model"]]
         ]
         revision = reference_revision()
+        beyond_22c = check_exclusions(revision, bundle / "us")
         if revision is None:
             require(not changed, f"incumbent modelStats drift: {changed}")
         else:
             replay_base_references(args, bundle, previous)
+            audit = sorted(beyond_22c & audit_exclusion_keys())
             report = [
                 {
                     "model": s["model"],
@@ -765,8 +831,20 @@ def export(args, bundle, live) -> dict:
             write_json(
                 args.stage_dir / "incumbent-drift.json",
                 {
+                    "causes": (
+                        "Re-exported on the September 22c references, every "
+                        "incumbent reproduces its 22c modelStats. The references "
+                        "differ from 22c by the reviewed reference revision "
+                        f"({revision['root_cause']}, {len(revision['changed'])} "
+                        f"changed outputs) and {len(audit)} audit exclusion(s) "
+                        "listed in reference_audit/2026-09-28/final_actions.json, "
+                        "and by nothing else; those are the causes of the drift."
+                    ),
                     "reference_revision": revision["root_cause"],
                     "reference_changes": len(revision["changed"]),
+                    "audit_exclusions": [
+                        {"scenario_id": s, "variable": v} for s, v in audit
+                    ],
                     "models": report,
                 },
             )
