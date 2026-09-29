@@ -724,10 +724,10 @@ def merge_attempt_rows(
     stored value came from.
 
     ``error`` keeps the rule of the old row-level merge: it comes from the
-    latest attempt that returned a result entry, and a missing entry
-    (``result_missing``) records its error only on a cell no earlier attempt
-    reached. A cell is only re-requested while it is still broken, so a
-    complete cell keeps the error of the attempt that completed it (none).
+    latest attempt that returned a result entry while the cell was still
+    broken, and a missing entry (``result_missing``) records its error only on
+    a cell no earlier attempt reached. A complete cell keeps the error of the
+    attempt that completed it (none).
     """
     for row in rows:
         key = (row["scenario_id"], row["variable"])
@@ -745,10 +745,17 @@ def merge_attempt_rows(
         if existing is None:
             merged = dict(row)
         else:
+            existing_complete = existing["prediction"] is not None and bool(
+                str(existing["explanation"] or "").strip()
+            )
             merged = {
                 **existing,
                 **_aggregate_request_results(attempts),
-                "error": existing["error"] if result_missing else row["error"],
+                "error": (
+                    existing["error"]
+                    if result_missing or existing_complete
+                    else row["error"]
+                ),
             }
         merged["prediction"] = predictions[variable]
         merged["explanation"] = explanations[variable]
@@ -1022,6 +1029,8 @@ def run_batch_eval(
             unit = unit_index.get(result.custom_id)
             # A provider returns one entry per request; if it repeats one,
             # keep the first so the request is not merged or counted twice.
+            # (If the first were an error and a repeat a success, the cell
+            # stays broken and is simply re-requested next round.)
             if unit is None or result.custom_id in seen:
                 continue
             seen.add(result.custom_id)

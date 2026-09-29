@@ -1193,7 +1193,12 @@ def test_merge_attempt_rows_exhaustive_over_three_attempts():
                     first_prediction = attempt[0]
                 if first_explanation is None and _present(attempt[1]):
                     first_explanation = attempt[1]
-            if attempt == ERROR:
+            before_complete = before.get("prediction") is not None and _present(
+                before.get("explanation")
+            )
+            if before_complete:
+                pass  # a complete cell keeps its error (none)
+            elif attempt == ERROR:
                 expected_error = f"batch_errored: attempt {index}"
             elif attempt != MISSING:
                 expected_error = None
@@ -1307,6 +1312,14 @@ def test_repeated_result_entries_are_merged_once(tmp_path, scenario, repair_roun
     (row,) = frame.to_dict("records")
     assert pd.isna(row["error"])
     assert row["prompt_tokens"] == 10.0
+    # The ledger keeps the first entry too, so the cell's cost is not lost to
+    # a trailing errored repeat.
+    ledger = read_spend_ledger(
+        tmp_path / "batches" / f"{WHOLE_SCENARIO_MODEL}.spend.jsonl"
+    )
+    assert [record["status"] for record in ledger] == ["ok"]
+    assert ledger[0]["prompt_tokens"] == 10
+    assert row["total_cost_usd"] == pytest.approx(ledger[0]["total_cost_usd"])
 
 
 def test_repair_fills_only_missing_cells_like_sync(tmp_path, scenario, repair_rounds):
@@ -1435,6 +1448,13 @@ def test_batch_repair_matches_first_value_oracle(
         assert [sorted(set(r)) for r in adapter.requested_rounds()] == (
             expected_rounds
         ), (case, script)
+        # Row usage sums every attempt at each cell, so it adds back up to the
+        # per-request usage in the spend ledger.
+        ledger = read_spend_ledger(run_dir / "batches" / f"{model_id}.spend.jsonl")
+        for column in ("prompt_tokens", "completion_tokens"):
+            assert frame[column].fillna(0).sum() == pytest.approx(
+                sum(record[column] or 0 for record in ledger)
+            ), (case, column)
 
         submissions = len(adapter.submissions)
         rerun = run_batch_eval(
