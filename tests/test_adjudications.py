@@ -411,3 +411,83 @@ def test_judge_dates_follow_each_judge_release_and_each_other():
                 assert item["judged_on"] >= released(item["judge_model"]), key
                 assert item["judged_on"] <= entry["judge_rejudged_on"], key
     assert rejudged == 54
+
+
+def _write_case(root: Path, case: str, verdict: dict, meta: dict) -> None:
+    import hashlib
+
+    directory = root / case
+    directory.mkdir(parents=True)
+    blob = json.dumps(verdict).encode()
+    (directory / "verdict.json").write_bytes(blob)
+    meta = {**meta, "verdict_sha256": hashlib.sha256(blob).hexdigest()}
+    (directory / "verdict.meta.json").write_text(json.dumps(meta))
+
+
+def test_judge_dates_come_from_bound_verdict_sidecars(tmp_path):
+    """scripts/date_adds0928_judge_verdicts.py dates the current verdict and a
+    matching previous verdict from their sidecars, and renames a previous date
+    it cannot bind to a verdict adjudicated_on."""
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from date_adds0928_judge_verdicts import date_entries
+
+    current, previous = tmp_path / "current", tmp_path / "previous"
+    classes = {"case_failure_source": "llm_error", "case_failure_subtype": "x"}
+    opus55 = {"judge_model_requested": "claude-opus-5-5"}
+    for n in ("1", "2"):
+        _write_case(
+            current,
+            f"us__scenario_00{n}__snap",
+            classes,
+            {**opus55, "judged_at_utc": "2026-09-29T01:49:57+00:00"},
+        )
+    _write_case(
+        previous,
+        "us__scenario_001__snap",
+        classes,
+        {**opus55, "judged_at_utc": "2026-09-23T00:27:09+00:00"},
+    )
+    # The second case's previous verdict has another class than the record.
+    _write_case(
+        previous,
+        "us__scenario_002__snap",
+        {**classes, "case_failure_subtype": "y"},
+        {**opus55, "judged_at_utc": "2026-09-23T00:27:09+00:00"},
+    )
+
+    def entry(n: str) -> dict:
+        return {
+            "country": "us",
+            "scenario_id": f"scenario_00{n}",
+            "variable": "snap",
+            "judge_model": "claude-opus-5-5",
+            "judge_failure_source": "llm_error",
+            "judge_failure_subtype": "x",
+            "judged_on_utc": "2026-09-23",
+            "judge_rejudged_on": "2026-09-28",
+            "judge_previous": [
+                {
+                    "judge_model": "claude-opus-5-5",
+                    "judge_failure_source": "llm_error",
+                    "judge_failure_subtype": "x",
+                    "judged_on": "2026-09-05",
+                }
+            ],
+        }
+
+    entries = [entry("1"), entry("2")]
+    changes = date_entries(entries, current, previous)
+    for record in entries:
+        assert record["judge_rejudged_on"] == record["judged_on_utc"] == "2026-09-29"
+    assert entries[0]["judge_previous"][0]["judged_on"] == "2026-09-23"
+    assert entries[1]["judge_previous"][0] == {
+        "judge_model": "claude-opus-5-5",
+        "judge_failure_source": "llm_error",
+        "judge_failure_subtype": "x",
+        "adjudicated_on": "2026-09-05",
+    }
+    assert len(changes) == 6
+    # Idempotent: a second pass changes nothing.
+    assert date_entries(entries, current, previous) == []
