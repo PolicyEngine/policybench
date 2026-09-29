@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import subprocess
 from pathlib import Path
 
@@ -29,9 +30,15 @@ from policybench.supervisor import (
     ADAPTIVE_WINDOW,
     BUDGET_STOP_FRACTION,
     DEFAULT_MAX_WORKERS,
+    MIN_WORKERS,
     TREATMENT_FINGERPRINT_VERSION,
     ScenarioResult,
     Supervisor,
+)
+from tests.test_request_timeout_signature import (
+    COMPLETED_WORKER_LOG_AFTER_COST_MAP_TIMEOUT,
+    COST_MAP_FETCH_GATEWAY_TIMEOUT,
+    REQUEST_TIMEOUT_LINES,
 )
 
 N_SCENARIOS = 6
@@ -121,11 +128,13 @@ def stub_worker(
     fail_indices: set[int] | None = None,
     timeout_indices: set[int] | None = None,
     budget_escalation_counts: dict[int, int] | None = None,
+    log_texts: dict[int, str] | None = None,
 ):
     """Replace _spawn with a no-op process and synthesize the scenario CSV."""
     fail_indices = fail_indices or set()
     timeout_indices = timeout_indices or set()
     budget_escalation_counts = budget_escalation_counts or {}
+    log_texts = log_texts or {}
 
     def fake_spawn(index: int):
         if index not in fail_indices:
@@ -147,10 +156,13 @@ def stub_worker(
                         for escalation_index in range(escalation_count)
                     ],
                 )
+        log_text = log_texts.get(index)
         if index in timeout_indices:
+            log_text = "litellm.Timeout: Connection timed out"
+        if log_text is not None:
             log = supervisor.scenario_csv(index).with_suffix(".log")
             log.parent.mkdir(parents=True, exist_ok=True)
-            log.write_text("litellm.Timeout: Connection timed out")
+            log.write_text(log_text)
         return subprocess.Popen(["true"])
 
     monkeypatch.setattr(supervisor, "_spawn", fake_spawn)
@@ -818,6 +830,116 @@ def test_adaptive_backoff_and_recovery(manifest, tmp_path):
     for _ in range(ADAPTIVE_WINDOW):
         supervisor._record(ScenarioResult("s", 0, ok=True))
     assert supervisor.state.workers == 5
+
+
+# A worker whose request timed out: eval_no_tools deletes the scenario CSV
+# before re-raising, so only the log records the timeout.
+TIMED_OUT_WORKER_LOG = "\n".join(
+    [
+        COST_MAP_FETCH_GATEWAY_TIMEOUT,
+        REQUEST_TIMEOUT_LINES["retry after a stalled Responses request"],
+        REQUEST_TIMEOUT_LINES["worker ERROR line after retries"],
+        REQUEST_TIMEOUT_LINES["traceback of a stalled request"],
+    ]
+)
+
+
+def write_worker_log(supervisor: Supervisor, index: int, text: str) -> None:
+    log = supervisor.scenario_csv(index).with_suffix(".log")
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(text)
+
+
+def test_collect_counts_a_timeout_whose_worker_left_no_csv(manifest, tmp_path):
+    supervisor = make_supervisor(manifest, tmp_path)
+    write_worker_log(supervisor, 0, TIMED_OUT_WORKER_LOG)
+    assert not supervisor.scenario_csv(0).exists()
+    result = supervisor._collect(0, started=0.0)
+    assert result.ok is False
+    assert result.timed_out is True
+
+
+def test_collect_counts_a_timeout_beside_an_unreadable_csv(manifest, tmp_path):
+    supervisor = make_supervisor(manifest, tmp_path)
+    write_worker_log(supervisor, 0, TIMED_OUT_WORKER_LOG)
+    supervisor.scenario_csv(0).write_text("")
+    result = supervisor._collect(0, started=0.0)
+    assert result.ok is False
+    assert result.timed_out is True
+
+
+def test_collect_ignores_a_failed_cost_map_fetch(manifest, tmp_path):
+    supervisor = make_supervisor(manifest, tmp_path)
+    write_current_worker_output(supervisor, 0)
+    write_worker_log(supervisor, 0, COMPLETED_WORKER_LOG_AFTER_COST_MAP_TIMEOUT)
+    result = supervisor._collect(0, started=0.0)
+    assert result.ok is True
+    assert result.timed_out is False
+
+
+def test_collect_counts_a_retried_timeout_in_a_completed_worker(manifest, tmp_path):
+    supervisor = make_supervisor(manifest, tmp_path)
+    write_current_worker_output(supervisor, 0)
+    write_worker_log(
+        supervisor,
+        0,
+        REQUEST_TIMEOUT_LINES["retry after a stalled chat request"],
+    )
+    result = supervisor._collect(0, started=0.0)
+    assert result.ok is True
+    assert result.timed_out is True
+
+
+def test_cost_map_fetch_failures_do_not_throttle_a_run(manifest, tmp_path, monkeypatch):
+    supervisor = make_supervisor(manifest, tmp_path, max_workers=6)
+    stub_worker(
+        supervisor,
+        monkeypatch,
+        log_texts={
+            index: COMPLETED_WORKER_LOG_AFTER_COST_MAP_TIMEOUT
+            for index in range(N_SCENARIOS)
+        },
+    )
+    state = supervisor.run(poll_seconds=0.01)
+    assert len(state.completed) == N_SCENARIOS
+    assert state.workers == DEFAULT_MAX_WORKERS
+
+
+def test_timeouts_that_fail_scenarios_throttle_a_run(manifest, tmp_path, monkeypatch):
+    supervisor = make_supervisor(manifest, tmp_path, max_workers=6)
+    stub_worker(
+        supervisor,
+        monkeypatch,
+        fail_indices=set(range(N_SCENARIOS)),
+        log_texts={index: TIMED_OUT_WORKER_LOG for index in range(N_SCENARIOS)},
+    )
+    state = supervisor.run(poll_seconds=0.01)
+    assert not state.completed
+    assert state.workers == MIN_WORKERS
+
+
+def test_concurrency_stays_in_bounds_and_only_timeouts_lower_it(manifest, tmp_path):
+    """For random result streams: MIN_WORKERS <= workers <= max_workers, and
+    a step down always follows a timed-out result."""
+    rng = random.Random(20260928)
+    for _ in range(200):
+        max_workers = rng.randint(MIN_WORKERS, 8)
+        supervisor = make_supervisor(manifest, tmp_path, max_workers=max_workers)
+        timeout_share = rng.random()
+        for _ in range(rng.randint(1, 40)):
+            before = supervisor.state.workers
+            timed_out = rng.random() < timeout_share
+            supervisor._record(
+                ScenarioResult("s", 0, ok=not timed_out, timed_out=timed_out)
+            )
+            after = supervisor.state.workers
+            assert MIN_WORKERS <= after <= max(max_workers, before)
+            if after < before:
+                assert timed_out or any(
+                    result.timed_out for result in supervisor._recent[-ADAPTIVE_WINDOW:]
+                )
+            if not any(result.timed_out for result in supervisor._recent):
+                assert after >= before
 
 
 def test_default_worker_cap(manifest, tmp_path):
