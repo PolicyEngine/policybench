@@ -178,10 +178,10 @@ export default function Methodology({
           Each model sees the same household facts and requested outputs and
           must return every scored output plus a short explanation for each,
           with no external tools — no calculator, search, or PolicyEngine
-          access. The answer instructions follow the provider&apos;s transport:
-          a forced answer-schema tool call where the provider accepts one, and a
-          JSON object where the provider rejects a forced tool or the model card
-          selects JSON for the family (the older Gemini and DeepSeek rows).{" "}
+          access. The answer instructions follow the transport the model card
+          records: a forced answer-schema tool call, or a JSON object where the
+          card selects JSON, for most such rows because the provider rejects a
+          forced tool call.{" "}
           {currentBoard ? (
             <>
               {chunkedRowsPhrase} answer the same facts in subsets of one or

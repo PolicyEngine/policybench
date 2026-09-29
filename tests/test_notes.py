@@ -2134,9 +2134,15 @@ PREVIOUS_ASSET_SHA256 = (
 PUBLICATION_CHECK_PATH = (
     ROOT / "reference_audit/2026-09-28/verification/latest_final_2170.csv"
 )
-# policyengine-us upload times on PyPI (pypi.org/pypi/policyengine-us/json,
-# read 2026-09-29); the upgrade record states the same times.
-ENGINE_UPLOADED_UTC = {"2.15.17": "00:23", "2.17.0": "12:21"}
+# policyengine-us upload times on PyPI, as the upgrade's timing record read
+# them (reference_audit/2026-09-28/verification/sweep_timing.json, which
+# tests/test_reference_upgrade.py checks against the sweep and the build).
+ENGINE_UPLOADED_UTC = {
+    version: uploaded[11:16]
+    for version, uploaded in json.loads(
+        (ROOT / "reference_audit/2026-09-28/verification/sweep_timing.json").read_text()
+    )["pypi"]["wheel_uploaded_at_utc"].items()
+}
 ORDINALS = {
     1: "first",
     2: "second",
@@ -2515,7 +2521,7 @@ def test_release_20260929_note() -> None:
     pin(
         "Claude Sonnet 5.5 costs ${sonnetCost} a household, against ${lunaCost} "
         "for GPT-6 Luna.",
-        "DeepSeek V4.1 Flash costs ${flashCost} at DeepSeek's standard list "
+        "DeepSeek V4.1 Flash costs ${flashCost} at DeepSeek's peak list "
         "price, and Grok 4.7 costs ${grokCost}.",
     )
 
@@ -2585,6 +2591,18 @@ def test_release_20260929_note() -> None:
         "law published before the 2026-07-03 reference freeze"
         in (_engine_upgrade()["rule"])
     )
+    # The check ran the conventions plus the Maryland output-scope adapter.
+    with PUBLICATION_CHECK_PATH.open(encoding="utf-8", newline="") as source:
+        assert {row["fix"] for row in csv.DictReader(source)} == {"latest_final"}
+    final_module = (
+        ROOT / "reference_audit/2026-09-28/fixes/latest_final.py"
+    ).read_text()
+    assert (
+        'PARTS = ("latest_conventions", "latest_md_local_output_scope")' in final_module
+    )
+    assert "keeps Maryland county\nincome tax out of the state income tax output" in (
+        final_module
+    )
     pin(
         "The release also moves PolicyBench's scored references from "
         "policyengine-us {previousEngine} to {engineVersion}, the newest release "
@@ -2596,7 +2614,8 @@ def test_release_20260929_note() -> None:
         "PolicyBench still builds each scored reference from the stated facts and "
         "law published before it froze the references on 2026-07-03, so it ported "
         "its {conventions:words} publication conventions to the new version.",
-        "With those conventions, policyengine-us {checkEngine}, the newest release "
+        "With those conventions and an adapter that keeps Maryland county tax out "
+        "of state income tax, policyengine-us {checkEngine}, the newest release "
         "at publication (uploaded at {checkEngineUploadedUtc} UTC the same day), "
         "gives the same value as {engineVersion} for all {totalOutputs} outputs.",
     )

@@ -49,12 +49,14 @@ PolicyBench has one canonical evaluation mode.
 
 Structured responses are collected through the transport each model card
 records: a forced answer-schema tool call (`submit_outputs`) where the card
-selects the tool transport and the provider accepts a forced call, or the same
-fields returned as a JSON object — because the provider rejects a forced tool
-(Kimi K3, Qwen 3.8 Max, Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5.5,
-DeepSeek V4.1 Flash) or because the card selects JSON for the family (the older
-Gemini and DeepSeek rows). The per-model transport
-is in the snapshot's `model_serving_config.json`.
+selects the tool transport, or the same fields returned as a JSON object where
+it selects JSON. For most JSON rows the card records that the provider rejects
+a forced tool call: Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5.5,
+DeepSeek V4.1 Flash (whose card says the same of the V4 rows), Kimi K2.6, Kimi
+K3, Qwen 3.7 Max and Qwen 3.8 Max. The cards of DeepSeek V4 Pro and GLM-5.2
+select JSON without recording a rejection, and the older Gemini rows answer as
+JSON by the Gemini family default. The per-model transport is in the
+snapshot's `model_serving_config.json`.
 This is an output format, not a capability — nothing executes, no result is
 returned to the model, and each response is a single round trip. The benchmark
 remains no-tool in every response transport.
@@ -75,10 +77,10 @@ records policyengine.py 6.1.2 for provenance. Its certified US bundle carries
 policyengine-us 2.2.1, and policyengine.py does not load beside 2.15.17.
 
 A scored reference follows from the stated facts and from law published before
-the references were frozen on 2026-07-03. Where policyengine-us projects a 2026
-amount with a price index, or carries one published after the freeze, the
-reference takes the amount published before the freeze or, where none was, the
-last one published. Nine publication conventions set those amounts, and each
+PolicyBench froze the references on 2026-07-03. Where policyengine-us projects
+a 2026 amount with a price index, or carries one published after the freeze,
+the reference takes the amount published before the freeze or, where none was,
+the last one published. Nine publication conventions set those amounts, and each
 changes parameter values only: SNAP's October to December months, for example,
 hold the FY2026 figures rather than USDA's FY2027 figures of 2026-08-21.
 policyengine-us 2.15.17 counts Maryland county income tax in its state income
@@ -107,9 +109,10 @@ excluded outputs and are description, not audit). This audit universe contains
 2,027 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
-CLI for 303 cases, Claude Opus 5 through the Claude Code CLI for 132 cases the
-September 5 additions joined, and Claude Opus 5.5 for 239 cases the September
-22 and September 29 additions joined or a reference revision changed; the
+CLI for 303 cases, Claude Opus 5 through the Claude Code CLI for the 132 cases
+the September 5 additions joined that no later judge re-judged, and Claude Opus
+5.5 for 239 cases the September 22 and September 29 additions joined or a
+reference revision changed; the
 manifest's audit_annotation_artifacts.judge_provenance block carries the tally.
 Verdicts change no score. A judge verdict outside the final classes, and every
 reference-suspect flag, is resolved by a recorded developer adjudication
@@ -140,22 +143,24 @@ own defect, not fixed upstream.
 
 Fifty-five outputs in 39 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
-manifest). Every output a defect not fixed upstream moves by more than a dollar
-is excluded: 28 are recorded as engine-defect exclusions across the eleven such
-root causes (among them the IRA deduction's compensation limit and phase-out,
-estate income, and the heat-and-eat SNAP utility allowance that P.L. 119-21
-ended for households without an elderly or disabled member), and an output
-such a defect moves that was already excluded for an unstated input keeps that
-record. On policyengine-us 2.15.17 each of these outputs keeps the value its
-defect produced, or it moved and a re-review found the defect still present.
+manifest). The September 22 audit recomputed every reference on
+policyengine-us 1.755.4 under each defect's sandbox fix and excluded every
+output a defect not fixed upstream moved by more than a dollar: 28 are recorded
+as engine-defect exclusions across the eleven such root causes (among them the
+IRA deduction's compensation limit and phase-out, estate income, and the
+heat-and-eat SNAP utility allowance that P.L. 119-21 ended for households
+without an elderly or disabled member), and an output such a defect moves that
+was already excluded for an unstated input keeps that record. On
+policyengine-us 2.15.17 each of these outputs keeps the value its defect
+produced, or it moved and a re-review found the defect still present.
 Twenty-seven depend on an input the prompt never states, such as the SSI
 disability criterion, months of SSDI receipt, weekly hours worked, the type of
 survivor benefits, who paid for the coverage behind a disability benefit,
 whether an adult tax dependent is the filers' child, or whether a listed state
 and local tax refund counts as income, which turns on whether the refunded tax
 reduced federal tax in the year the household paid it (26 U.S.C. 111(a));
-each was recomputed under the other reading a careful reader could take, and it
-moved.
+each was recomputed under the other reading a careful reader could take, on the
+engine version that produced its reference, and it moved.
 Exclusion is symmetric: rows that matched the frozen reference leave the score
 with rows that did not, so every model is scored on 1,929 of its 1,984
 requested outputs. The rows on those outputs stay annotated as description:
@@ -169,6 +174,17 @@ non-disabled path unless another listed fact establishes the determination
 (manuscript section "Disability in the household facts"). Do not read a $0 SSI
 reference for a disabled under-65 household member as a finding about that
 person's SSI eligibility.
+
+On policyengine-us 2.15.17, PolicyBench re-ran five of the sweeps behind these
+exclusions over every output: the IRA deduction limit fix, the net investment
+income tax definition, and the readings for a state and local tax refund,
+mortgage residence and 40 unlisted weekly hours. They move no scored output except one SNAP output whose prompt
+states 40 hours. The other ten defect fixes and the other readings (the SSI
+disability criterion, months of SSDI receipt, survivor benefits, disability
+coverage, adult dependents and Massachusetts bank interest) ran on 1.755.4
+only. The engine-upgrade review covered only the outputs the upgrade moved, so
+an output that one of those fixes or readings would move on 2.15.17, but did
+not move on 1.755.4, could still be scored.
 
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be

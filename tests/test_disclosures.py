@@ -190,7 +190,7 @@ def test_methodology_states_the_chunked_count_from_the_serving_config():
     assert "chunkedServingModels().length" in text
     assert "of the ${noToolsModels.length} models" in text
     assert re.search(r"\b[A-Z][a-z]+ of the \d+ models", text) is None
-    assert "JSON object where the provider rejects a forced tool" in text
+    assert "because the provider rejects a forced tool call" in text
     leaderboard = re.sub(r"\s+", " ", LEADERBOARD.read_text())
     assert "jsonContractClaudeModels()" in leaderboard
     assert "Claude Sonnet 5.5 reject" not in leaderboard
@@ -591,12 +591,15 @@ def test_live_version_description_states_the_reference_engines():
 def test_newest_engine_claims_are_anchored_to_a_time():
     """policyengine-us releases often, so "newest" holds only at a stated time:
     2.15.17 when PolicyBench began sweeping the references (2026-09-29), 2.17.0
-    at publication. The upgrade record also quotes the standing rule."""
+    at publication. The upgrade record states the standing rule the same way:
+    the newest release when PolicyBench begins the reference sweep, checked
+    against the newest release at publication."""
     anchored = (
         "newest release when PolicyBench began sweeping",
         "newest release when it began sweeping",
         "newest release at publication",
-        "References come from the newest policyengine-us release (Max, 2026-09-28",
+        "newest policyengine-us release when PolicyBench begins the",
+        "PolicyBench checks that the newest release gives the same values",
     )
     surfaces = (
         BENCHMARK_CARD,
@@ -657,3 +660,68 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
         f"2026-09-29 12:21 UTC), gives the same value as {engine} for all "
         f"{len(rows):,} outputs under the same conventions and adapter."
     ) in card
+
+
+def _app_model_labels() -> dict[str, str]:
+    source = (ROOT / "app" / "src" / "modelMeta.ts").read_text()
+    block = source[source.index("export const MODEL_LABELS") :]
+    block = block[: block.index("};")]
+    return dict(re.findall(r'"([^"]+)":\s*"([^"]+)"', block))
+
+
+def test_json_transport_rows_are_attributed_as_their_cards_record():
+    """The card names each JSON-contract row with the reason its model card
+    records: the provider rejects a forced tool call, or the card (or, for the
+    older Gemini rows, the family default) selects JSON. The app copy's
+    assumption holds too: every Claude row on the JSON contract is one whose
+    API rejects forced tool use, and such rows are most JSON rows."""
+    from policybench.model_cards import card_for
+
+    serving = json.loads(SERVING_CONFIG.read_text())["models"]
+    labels = _app_model_labels()
+    rejecting, card_choice, family_default = [], [], []
+    for model, treatment in serving.items():
+        if treatment["answer_contract"] != "json":
+            continue
+        card = card_for(treatment["provider_id"])
+        notes = card.notes if card is not None else ""
+        if re.search(r"reject|returns 400", notes, re.IGNORECASE):
+            rejecting.append(model)
+        elif card is not None and card.answer_contract == "json":
+            card_choice.append(model)
+        else:
+            assert treatment["provider_id"].startswith("gemini/"), model
+            family_default.append(model)
+        if model.startswith("claude-"):
+            assert model in rejecting, model
+            assert "The API rejects forced tool use" in notes, model
+    assert len(rejecting) > len(card_choice) + len(family_default)
+    assert "as for the V4 rows" in card_for("deepseek/deepseek-flash").notes
+
+    card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    start = card.index("For most JSON rows the card records that the provider")
+    rejection_sentence = card[start : card.index(". The cards of", start)]
+    choice_sentence = card[card.index("The cards of", start) :]
+    choice_sentence = choice_sentence[: choice_sentence.index("family default.")]
+
+    def names(model: str, sentence: str) -> bool:
+        label = labels.get(model)
+        return bool(label) and re.search(re.escape(label) + r"(?![\w.])", sentence)
+
+    for model in rejecting:
+        assert names(model, rejection_sentence), model
+    for model in card_choice:
+        assert names(model, choice_sentence), model
+    assert family_default and "older Gemini rows" in choice_sentence
+    # Exactly these rows: the sentences name no other board row.
+    assert sorted(m for m in serving if names(m, rejection_sentence)) == sorted(
+        rejecting
+    )
+    assert sorted(m for m in serving if names(m, choice_sentence)) == sorted(
+        card_choice
+    )
+    methodology = re.sub(r"\s+", " ", METHODOLOGY.read_text())
+    assert (
+        "a JSON object where the card selects JSON, for most such rows because "
+        "the provider rejects a forced tool call."
+    ) in methodology
