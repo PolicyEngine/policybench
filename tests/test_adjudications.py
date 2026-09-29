@@ -191,7 +191,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # Every excluded output has its adjudication. Eleven llm_error entries are
     # the references a flag questioned and the adjudication affirmed (five) or
     # replaced with a regenerated reference (six); the other two resolve rows
-    # the September 28 judge called later law (scenario_007 federal income tax
+    # the September 29 judge called later law (scenario_007 federal income tax
     # and scenario_008 New Jersey refundable credits), whose law predates the
     # reference freeze.
     assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 55
@@ -200,6 +200,15 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
         for e in entries
         if e["adjudicated_failure_source"] == "llm_error"
     ) == Counter({"affirmed": 5, "regenerated": 6, None: 2})
+    assert {
+        (e["scenario_id"], e["variable"])
+        for e in entries
+        if e["adjudicated_failure_source"] == "llm_error"
+        and e.get("reference_verdict") is None
+    } == {
+        ("scenario_007", "federal_income_tax_before_refundable_credits"),
+        ("scenario_008", "state_refundable_credits"),
+    }
     keys = {(e["scenario_id"], e["variable"]) for e in entries}
     assert ("scenario_064", "ssi") in keys and (
         "scenario_074",
@@ -363,3 +372,42 @@ def test_verification_fails_while_a_verdict_leaves_the_flag_set():
     out_rows.loc[0, "reference_suspect"] = True
     with pytest.raises(AdjudicationError, match="still carry reference_suspect"):
         verify_adjudications_applied(out_rows, out_cases, [entry])
+
+
+def test_judge_dates_follow_each_judge_release_and_each_other():
+    """A recorded judge date falls on or after its judge model's release, and a
+    re-judged entry's current verdict is dated on or after the verdict it
+    replaced (its judge_previous). Every current date is a day the manifest's
+    judge provenance records for that judge. A judge_previous item without a
+    matching earlier verdict would carry adjudicated_on instead of a judge
+    date."""
+    from policybench.config import MODELS
+    from policybench.paper_results import MODEL_RELEASE_DATES
+
+    board_key = {provider: board for board, provider in MODELS.items()}
+
+    def released(judge: str) -> str:
+        return MODEL_RELEASE_DATES[board_key[judge]]
+
+    entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
+    manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
+    provenance = manifest["audit_annotation_artifacts"]["judge_provenance"]["by_judge"]
+    rejudged = 0
+    for entry in entries:
+        key = (entry["scenario_id"], entry["variable"])
+        if "judged_on_utc" in entry and "judge_rejudged_on" in entry:
+            assert entry["judged_on_utc"] == entry["judge_rejudged_on"], key
+        current = entry.get("judge_rejudged_on") or entry.get("judged_on_utc")
+        if current is not None:
+            assert current >= released(entry["judge_model"]), key
+            assert current in provenance[entry["judge_model"]]["judged_on_utc"], key
+        previous = entry.get("judge_previous", [])
+        if previous:
+            rejudged += 1
+            assert entry.get("judge_rejudged_on"), key
+        for item in previous:
+            assert ("judged_on" in item) != ("adjudicated_on" in item), key
+            if "judged_on" in item:
+                assert item["judged_on"] >= released(item["judge_model"]), key
+                assert item["judged_on"] <= entry["judge_rejudged_on"], key
+    assert rejudged == 54
