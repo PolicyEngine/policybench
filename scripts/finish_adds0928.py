@@ -1,4 +1,4 @@
-"""Stage the September 28 additions; never publish or change tracked data.
+"""Stage the September 29 additions; never publish or change tracked data.
 
 Adapted from the September 22 finish_opus55.py and judge_stages.py. All
 outputs, including audit verdicts and adjudications, stay in --stage-dir.

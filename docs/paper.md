@@ -52,9 +52,15 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
   pinned release URL, byte count, and sha256 for each dashboard payload
 - `rendered_paper_artifacts`, with the rendered PDF and web bundle hashes
 - `reference_output_refresh`, with the policyengine-us version that computes
-  the references (2.15.17 in this snapshot), the policyengine.py version the
-  block records for provenance, and the certified US populace dataset's build
-  id, URI, and sha256
+  each scored reference (2.15.17 in this snapshot) and the policyengine.py
+  version it records for provenance. Its dataset fields name the reference
+  runtime's default dataset (build populace-us-2024-spm-20260915, from the
+  policyengine.py 6.1.2 bundle), which reference computation does not read:
+  PolicyBench computes each scored reference with `policyengine_us.Simulation`
+  from the household's own listed inputs
+- `household_dataset`, with the build the households were drawn from
+  (populace-us-2024-5da5a95-20260611), its URI and sha256, as the run's
+  `scenarios.csv.meta.json` records them
 - `population_weight_artifact`, with the committed scoring-weight path and
   sha256
 - `audit_annotation_artifacts`, with the row and case audit file hashes. The

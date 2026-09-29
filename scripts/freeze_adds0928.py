@@ -1,4 +1,4 @@
-"""Build the September 28 release locally from a strictly gated stage.
+"""Build the September 29 release locally from a strictly gated stage.
 
 This adapts the existing freezer in process; it never calls a release upload.
 Run only after finish_adds0928.py --step export has written release-ready.json.
@@ -239,7 +239,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Validated local release inputs: {args.tag}, 45 models, {payload_hash}")
         return
 
-    # A reviewed reference revision (the 2026-09-28 engine upgrade) changes the
+    # A reviewed reference revision (the 2026-09-29 engine upgrade) changes the
     # committed reference files the manifest pins. freeze_snapshot checks the
     # staged references against those pins before it rewrites the manifest, so
     # the pins catch up to the committed files first, and only when the driver's

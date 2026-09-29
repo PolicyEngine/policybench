@@ -8,8 +8,8 @@ for any provider. Ten models answer in one- or three-output subsets per
 request, and rows on the JSON contract answer as a JSON object, either
 because the provider rejects a forced tool or because the model card selects
 JSON for that family (older Gemini and DeepSeek rows); the per-model
-treatment is the manuscript's serving-configuration table, and Claude Fable
-5.1 is the newest JSON-transport row (see its section below). A
+treatment is the manuscript's serving-configuration table. Claude Fable
+5.1, a JSON-transport row, has its own re-run (see its section below). A
 reader reviewing the run artifacts noticed that every Claude row logged zero reasoning tokens while
 the other reasoning-by-default providers spent most of their tokens on
 reasoning.

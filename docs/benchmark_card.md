@@ -65,12 +65,17 @@ be described as faithful reasoning traces.
 
 ## Reference outputs
 
-PolicyBench computes each US reference output by running
+PolicyBench computes each scored US reference by running
 `policyengine_us.Simulation` from policyengine-us 2.15.17, the newest release
-on PyPI on 2026-09-29, when PolicyBench rebuilt the references. The manifest
-also records policyengine.py 6.1.2 for provenance. Its certified US bundle
-carries policyengine-us 2.2.1, and policyengine.py does not load beside
-2.15.17.
+when PolicyBench began sweeping the references on 2026-09-29 (uploaded 00:23
+UTC). policyengine-us 2.17.0, the newest release at publication (uploaded
+2026-09-29 12:21 UTC), gives the same value for all 1,984 outputs under the same
+conventions and adapter. The 55 excluded outputs keep the values they were
+decided on (52 computed with policyengine-us 1.755.4, 3 with 2.15.17), and
+PolicyBench re-reviewed the 19 of them that move on 2.15.17; all 19 stay
+excluded. The manifest also records policyengine.py 6.1.2 for provenance. Its
+certified US bundle carries policyengine-us 2.2.1, and policyengine.py does not
+load beside 2.15.17.
 
 A scored reference follows from the stated facts and from law published before
 the references were frozen on 2026-07-03. Where policyengine-us projects a 2026
@@ -105,7 +110,7 @@ legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
 CLI for 303 cases, Claude Opus 5 through the Claude Code CLI for 132 cases the
 September 5 additions joined, and Claude Opus 5.5 for 239 cases the September
-22 and September 28 additions joined or a reference revision changed; the
+22 and September 29 additions joined or a reference revision changed; the
 manifest's audit_annotation_artifacts.judge_provenance block carries the tally.
 Verdicts change no score. A judge verdict outside the final classes, and every
 reference-suspect flag, is resolved by a recorded developer adjudication

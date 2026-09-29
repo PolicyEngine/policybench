@@ -6,7 +6,7 @@
       "artifact": {
         "pointer": "live"
       },
-      "description": "Reference outputs from policyengine-us 2.15.17; same household facts and requested outputs for every model; answer transport and request shape per model as recorded in the serving-configuration table - 45 models",
+      "description": "Scored reference outputs from policyengine-us 2.15.17 (the 55 excluded outputs keep the values they were decided on: 52 from policyengine-us 1.755.4, 3 from 2.15.17, and the 19 that move on 2.15.17 were re-reviewed and stay excluded); same household facts and requested outputs for every model; answer transport and request shape per model as recorded in the serving-configuration table - 45 models",
       "id": "1.1",
       "label": "1.1",
       "snapshotLabel": "Snapshot 2026-09-29"

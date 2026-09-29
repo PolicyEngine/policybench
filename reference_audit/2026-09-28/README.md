@@ -1,6 +1,6 @@
-# Reference upgrade, September 28, 2026
+# Reference upgrade, September 29, 2026
 
-This directory records how PolicyBench's US references moved from policyengine-us 1.755.4 to policyengine-us 2.15.17, the newest release on PyPI when the references were rebuilt (uploaded 2026-09-29 00:23 UTC). The reference sidecar's `engine_upgrade` revision lists every change.
+This directory records how PolicyBench's US references moved from policyengine-us 1.755.4 to policyengine-us 2.15.17, the newest release when PolicyBench began sweeping the references on 2026-09-29 (uploaded 00:23 UTC). PolicyBench rebuilt the references at 11:57 UTC that day. policyengine-us 2.17.0, the newest release at publication (uploaded 2026-09-29 12:21 UTC), gives the same value for all 1,984 outputs under the same conventions and adapter. The reference sidecar's `engine_upgrade` revision lists every change.
 
 Of the 1,984 outputs:
 - 4 scored references change value;
@@ -48,5 +48,6 @@ Also:
    - the published reference (`reference`).
 
    Each moved output also carries its cluster and action.
+6. **Verify.** `verification/latest_final_2170.csv` and `verification/latest_final_2170.log` hold `scripts/sweep_latest.py --fix fixes/latest_final.py` run on policyengine-us 2.17.0 with policyengine.py 6.1.2. It reproduces every scored reference, and it gives each of the 19 rechecked excluded outputs the 2.15.17 value the sidecar records.
 
 `tests/test_reference_upgrade.py` checks that every module the revision names is committed unchanged, that the table is the committed reference, and that every change is listed and backed by its cluster's review. The scripts use the paths of the machine that ran them, as the September 22 scripts do.

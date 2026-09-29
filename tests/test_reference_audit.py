@@ -47,13 +47,13 @@ def _all_revisions() -> list[dict]:
 
 
 def _revisions() -> list[dict]:
-    """The September 22 wave's revisions (the 2026-09-28 engine upgrade has its
+    """The September 22 wave's revisions (the 2026-09-29 engine upgrade has its
     own record, reference_audit/2026-09-28, tested in test_reference_upgrade)."""
     return [r for r in _all_revisions() if r["kind"] in ("convention", "upstream_fix")]
 
 
 def _superseded() -> dict[tuple[str, str], dict]:
-    """Outputs the 2026-09-28 engine upgrade changed after this wave."""
+    """Outputs the 2026-09-29 engine upgrade changed after this wave."""
     return {
         (c["scenario_id"], c["variable"]): c
         for r in _all_revisions()
@@ -284,7 +284,7 @@ def test_records_after_the_wave_carry_their_root_cause_date():
     adjudicated_on = {
         (e["scenario_id"], e["variable"]): e["adjudicated_on"] for e in adjudications
     }
-    # Records dated 2026-09-29 belong to the 2026-09-28 engine upgrade.
+    # Records dated 2026-09-29 belong to the 2026-09-29 engine upgrade.
     audit = [
         e for e in _exclusions() if e["decided_on"] not in ("2026-09-05", "2026-09-29")
     ]
