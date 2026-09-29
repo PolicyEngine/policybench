@@ -74,7 +74,10 @@ ITEM_FLAG_SOURCE = (
 )
 
 # Each earlier wave's decisions as first published: the adjudication record
-# merged with the wave's release.
+# merged with the wave's release, and the day that release was committed.
+# This release's own wave has no commit yet: its entry gives the day its
+# adjudications were written, and the lead fills commit and pull_request after
+# the merge.
 WAVE_RELEASES = {
     "2026-09-05": {
         "commit": "7db59dab0014ba5b92b84bd6077d21e06875e1a9",
@@ -92,27 +95,31 @@ WAVE_RELEASES = {
         "commit": None,
         "release": "dashboard-data-20260929",
         "pull_request": None,
-        "committed_on": "2026-09-29",
+        "adjudications_written_on": "2026-09-29",
     },
 }
 
 DATE_CONVENTIONS = (
-    "adjudicated_on names the audit wave that made the decision (2026-09-05, "
-    "2026-09-22 or 2026-09-29). It carries no time of day or time zone, and a "
-    "wave's decisions were written up to the day its release was committed "
-    "(2026-09-05, 2026-09-23 and 2026-09-29). judged_on_utc, judge_rejudged_on "
-    "and each judge_previous item's judged_on are UTC days, read from the "
-    "verdict's sidecar (verdict.meta.json judged_at_utc). The top-level judge "
-    "fields name the case's verdict in this release's audit tree, dated by "
-    "judge_rejudged_on when a later wave judged the case again and by "
-    "judged_on_utc otherwise, and judge_previous keeps the verdict that re-judge "
-    "replaced. A wave's own judge runs could finish after one of its decisions "
-    "was first written, so a recorded verdict can postdate adjudicated_on up to "
-    "its wave's release. A flag an earlier judge run raised stays recorded and "
-    "names that run in judge_reference_suspect_source, at the top level or on "
-    "the judge_previous item it belongs to. Where a later wave replaced the "
-    "verdict a decision reviewed without keeping it, adjudicated_verdict gives "
-    "that verdict as the decision's own release recorded it."
+    "adjudicated_on names the audit wave that made the decision "
+    "(2026-09-05, 2026-09-22 or 2026-09-29). It carries no time of day or "
+    "time zone. The 2026-09-05 and 2026-09-22 waves' decisions were written "
+    "up to the day each wave's release was committed (2026-09-05 and "
+    "2026-09-23), and the 2026-09-29 wave's decisions were written on "
+    "2026-09-29 UTC, after its reference sweep began. judged_on_utc, "
+    "judge_rejudged_on and each judge_previous item's judged_on are UTC "
+    "days, read from the verdict's sidecar (verdict.meta.json "
+    "judged_at_utc). The top-level judge fields name the case's verdict in "
+    "this release's audit tree, dated by judge_rejudged_on when a later "
+    "wave judged the case again and by judged_on_utc otherwise, and "
+    "judge_previous keeps the verdict that re-judge replaced. A wave's own "
+    "judge runs could finish after one of its decisions was first written, "
+    "so a recorded verdict can postdate adjudicated_on up to the last day "
+    "its wave's decisions were written. A flag an earlier judge run raised "
+    "stays recorded and names that run in judge_reference_suspect_source, "
+    "at the top level or on the judge_previous item it belongs to. Where a "
+    "later wave replaced the verdict a decision reviewed without keeping "
+    "it, adjudicated_verdict gives that verdict as the decision's own "
+    "release recorded it."
 )
 
 

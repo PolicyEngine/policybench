@@ -572,11 +572,13 @@ def test_each_judge_flag_is_the_flag_of_the_verdict_its_date_names():
 
 
 def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
-    """adjudicated_on names the audit wave (date_conventions); a wave's
-    decisions were written up to the day its release was committed. So the
-    verdict each decision reviewed -- adjudicated_verdict where a later wave
-    replaced it, otherwise the earliest verdict the entry keeps -- is dated on
-    or before that day, and it is the verdict the wave's release published.
+    """adjudicated_on names the audit wave (date_conventions). An earlier
+    wave's decisions were written up to the day its release was committed;
+    this release's wave, whose release has no commit yet, records the day its
+    adjudications were written. So the verdict each decision reviewed --
+    adjudicated_verdict where a later wave replaced it, otherwise the earliest
+    verdict the entry keeps -- is dated on or before that day, and it is the
+    verdict the wave's release published.
 
     Intended exceptions to "on or before adjudicated_on": 46 decisions of the
     2026-09-22 wave reviewed verdicts its own judge runs finished on
@@ -584,10 +586,30 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     record = json.loads((ANNOTATIONS / "us_adjudications.json").read_text())
     assert "adjudicated_on names the audit wave" in record["date_conventions"]
     evidence = _judge_evidence()
-    released = {
-        wave: release["committed_on"]
-        for wave, release in evidence["wave_releases"].items()
-    }
+    released = {}
+    for wave, release in evidence["wave_releases"].items():
+        if release["commit"] is None:
+            # Not committed yet: the day the adjudications were written, and
+            # no commit or pull request until the lead fills them after merge.
+            assert "committed_on" not in release and release["pull_request"] is None
+            released[wave] = release["adjudications_written_on"]
+        else:
+            assert "adjudications_written_on" not in release
+            released[wave] = release["committed_on"]
+    # The record's date conventions state the same days.
+    assert (
+        "The 2026-09-05 and 2026-09-22 waves' decisions were written up to the "
+        "day each wave's release was committed "
+        f"({released['2026-09-05']} and {released['2026-09-22']}), and the "
+        "2026-09-29 wave's decisions were written on "
+        f"{released['2026-09-29']} UTC, after its reference sweep began."
+    ) in record["date_conventions"]
+    # That sweep began on the same UTC day.
+    timing = json.loads((VERIFICATION / "sweep_timing.json").read_text())
+    assert (
+        timing["reference_sweep"]["first_output_at_utc"][:10]
+        == (released["2026-09-29"])
+    )
     later_than_wave = 0
     for entry in record["adjudications"]:
         case, wave = _case(entry), entry["adjudicated_on"]
