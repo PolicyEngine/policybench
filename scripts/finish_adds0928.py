@@ -47,6 +47,19 @@ ANNOTATION_FILES = (
     "us_adjudications.json",
 )
 JUDGE_MODEL = "claude-opus-5-5"
+# main at release dashboard-data-20260922c, whose committed references are the base.
+BASE_COMMIT = "3220a7a62b6be83032e9313c9df539c619ad8932"
+BASE_REFERENCE_SHA256 = {
+    "reference_outputs.csv": (
+        "800a19bc1c225656b93c4507933d98907e8d1a939248c8b021a9f26d33e9e0c5"
+    ),
+    "reference_outputs.csv.meta.json": (
+        "df94cc52e2146de8b9b167772e1d6b747ce21e90b1f64e96f94bb2ac4f237d93"
+    ),
+    "reference_exclusions.json": (
+        "25c4a9fd5fee59d07666254bdc1eae409b4a7c9f4ea0381dc8878a6ac0213035"
+    ),
+}
 KEY = ["scenario_id", "variable"]
 
 
@@ -572,6 +585,93 @@ def triage(args, bundle) -> None:
     print(f"Triage complete: {len(rows)} rows / {len(cases)} cases")
 
 
+def base_reference_bytes(name: str) -> bytes:
+    """A September 22c reference file, read from git and checked against its pin."""
+    path = SNAPSHOT.relative_to(ROOT) / name
+    raw = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{BASE_COMMIT}:{path.as_posix()}"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    require(
+        hashlib.sha256(raw).hexdigest() == BASE_REFERENCE_SHA256[name],
+        f"base reference {name} does not match its pin",
+    )
+    return raw
+
+
+def reference_revision() -> dict | None:
+    """The reviewed reference revision the snapshot carries, or None if unchanged.
+
+    The snapshot may differ from the September 22c references only by one
+    committed engine_upgrade revision whose `changed` list is exactly the set of
+    outputs whose value differs, with those values. Anything else is refused.
+    """
+    import io
+
+    import pandas as pd
+
+    if all(
+        digest(SNAPSHOT / name) == sha for name, sha in BASE_REFERENCE_SHA256.items()
+    ):
+        return None
+    meta = json.loads((SNAPSHOT / "reference_outputs.csv.meta.json").read_text())
+    require(
+        meta.get("reference_csv_sha256") == digest(SNAPSHOT / "reference_outputs.csv"),
+        "reference sidecar does not pin the committed reference CSV",
+    )
+    revision = meta["revisions"][-1]
+    require(
+        revision.get("kind") == "engine_upgrade",
+        "changed references need a committed engine_upgrade revision",
+    )
+    base = pd.read_csv(
+        io.BytesIO(base_reference_bytes("reference_outputs.csv"))
+    ).set_index(KEY)["value"]
+    new = pd.read_csv(SNAPSHOT / "reference_outputs.csv").set_index(KEY)["value"]
+    require(base.index.equals(new.index), "reference output keys changed")
+    diff = {key: float(new[key]) for key in base.index if abs(new[key] - base[key]) > 0}
+    listed = {
+        (c["scenario_id"], c["variable"]): float(c["regenerated"])
+        for c in revision["changed"]
+    }
+    require(
+        set(diff) == set(listed)
+        and all(abs(diff[key] - listed[key]) < 1e-9 for key in diff),
+        "reference changes differ from the engine_upgrade revision's list",
+    )
+    return revision
+
+
+def replay_base_references(args, bundle, previous) -> None:
+    """Export again on the September 22c references; incumbents must not move.
+
+    With the references as the only input put back, every incumbent's
+    modelStats must reproduce the live payload exactly, so any drift in the
+    real export comes from the reviewed reference revision alone.
+    """
+    from policybench.full_run_export import export_full_run
+
+    replay = args.stage_dir / "replay-20260922c" / bundle.name
+    if replay.parent.exists():
+        shutil.rmtree(replay.parent)
+    shutil.copytree(bundle, replay)
+    for name in BASE_REFERENCE_SHA256:
+        (replay / "us" / name).write_bytes(base_reference_bytes(name))
+    stats = export_full_run(replay, countries=["us"], skip_app_data=True)["countries"][
+        "us"
+    ]["modelStats"]
+    fable = next(s for s in stats if s["model"] == "claude-fable-5")
+    for key in ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds"):
+        fable[key] = previous["claude-fable-5"][key]
+    drift = [
+        s["model"]
+        for s in stats
+        if s["model"] in previous and s != previous[s["model"]]
+    ]
+    require(not drift, f"incumbents drift even on the 22c references: {drift}")
+
+
 def export(args, bundle, live) -> dict:
     """Export into scratch, preserve incumbent statistics, and gate release."""
     from policybench.dashboard_schema import validate_dashboard_payload
@@ -590,7 +690,30 @@ def export(args, bundle, live) -> dict:
             for s in stats
             if s["model"] in previous and s != previous[s["model"]]
         ]
-        require(not changed, f"incumbent modelStats drift: {changed}")
+        revision = reference_revision()
+        if revision is None:
+            require(not changed, f"incumbent modelStats drift: {changed}")
+        else:
+            replay_base_references(args, bundle, previous)
+            report = [
+                {
+                    "model": s["model"],
+                    "exact_20260922c": previous[s["model"]]["exact"],
+                    "exact": s["exact"],
+                    "score_20260922c": previous[s["model"]]["score"],
+                    "score": s["score"],
+                }
+                for s in stats
+                if s["model"] in previous
+            ]
+            write_json(
+                args.stage_dir / "incumbent-drift.json",
+                {
+                    "reference_revision": revision["root_cause"],
+                    "reference_changes": len(revision["changed"]),
+                    "models": report,
+                },
+            )
     errors = validate_dashboard_payload(
         payload, require_failure_annotations=not args.early
     )

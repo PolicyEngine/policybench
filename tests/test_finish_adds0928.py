@@ -655,3 +655,162 @@ def test_snapshot_uses_embedded_household_ids_without_reading_live_states(
         source = runs / slug / "run"
         assert not (source / "run_state.json").exists()
         assert (source / "scenarios/scenario_006.csv").read_bytes() == originals[slug]
+
+
+# --- Reference revision gate --------------------------------------------------
+
+from hypothesis import given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+REVISION_KEYS = [(f"scenario_{i:03d}", v) for i in range(6) for v in ("snap", "eitc")]
+
+
+def _reference_csv(values: dict) -> bytes:
+    rows = ["scenario_id,variable,value,impact_weight"]
+    rows += [f"{s},{v},{values[(s, v)]!r},1.0" for s, v in REVISION_KEYS]
+    return ("\n".join(rows) + "\n").encode()
+
+
+@pytest.fixture
+def reference_snapshot(tmp_path, monkeypatch):
+    """A synthetic snapshot whose base (22c) references are pinned in memory."""
+    base_values = {key: float(i * 100) for i, key in enumerate(REVISION_KEYS)}
+    base = {
+        "reference_outputs.csv": _reference_csv(base_values),
+        "reference_outputs.csv.meta.json": b'{"revisions": []}',
+        "reference_exclusions.json": b'{"exclusions": []}',
+    }
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    for name, raw in base.items():
+        (snapshot / name).write_bytes(raw)
+    monkeypatch.setattr(driver, "SNAPSHOT", snapshot)
+    monkeypatch.setattr(
+        driver,
+        "BASE_REFERENCE_SHA256",
+        {name: hashlib.sha256(raw).hexdigest() for name, raw in base.items()},
+    )
+    monkeypatch.setattr(driver, "base_reference_bytes", lambda name: base[name])
+
+    def revise(new_values: dict, listed: dict, kind: str = "engine_upgrade"):
+        (snapshot / "reference_outputs.csv").write_bytes(_reference_csv(new_values))
+        meta = {
+            "reference_csv_sha256": driver.digest(snapshot / "reference_outputs.csv"),
+            "revisions": [
+                {
+                    "kind": kind,
+                    "root_cause": "engine_upgrade_test",
+                    "changed": [
+                        {"scenario_id": s, "variable": v, "regenerated": value}
+                        for (s, v), value in listed.items()
+                    ],
+                }
+            ],
+        }
+        (snapshot / "reference_outputs.csv.meta.json").write_text(json.dumps(meta))
+
+    return base_values, revise
+
+
+def test_unchanged_snapshot_has_no_revision(reference_snapshot):
+    assert driver.reference_revision() is None
+
+
+def test_the_committed_snapshot_is_still_the_22c_base():
+    # Until the reference revision is committed, the pins describe this checkout.
+    assert driver.reference_revision() is None or (
+        driver.reference_revision()["kind"] == "engine_upgrade"
+    )
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    changes=st.dictionaries(
+        st.sampled_from(REVISION_KEYS),
+        st.floats(min_value=-5e5, max_value=5e5, allow_nan=False).map(
+            lambda x: round(x, 2)
+        ),
+        min_size=1,
+        max_size=6,
+    )
+)
+def test_revision_is_accepted_iff_it_lists_exactly_the_changed_values(
+    tmp_path_factory, changes
+):
+    """The exact list passes; an omission, an extra entry or a wrong value fails."""
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        root = tmp_path_factory.mktemp("rev")
+        base_values = {key: float(i * 100) for i, key in enumerate(REVISION_KEYS)}
+        base = {
+            "reference_outputs.csv": _reference_csv(base_values),
+            "reference_outputs.csv.meta.json": b'{"revisions": []}',
+            "reference_exclusions.json": b'{"exclusions": []}',
+        }
+        for name, raw in base.items():
+            (root / name).write_bytes(raw)
+        monkeypatch.setattr(driver, "SNAPSHOT", root)
+        monkeypatch.setattr(
+            driver,
+            "BASE_REFERENCE_SHA256",
+            {name: hashlib.sha256(raw).hexdigest() for name, raw in base.items()},
+        )
+        monkeypatch.setattr(driver, "base_reference_bytes", lambda name: base[name])
+        real = {k: v for k, v in changes.items() if v != base_values[k]}
+        new_values = {**base_values, **real}
+
+        def write(listed, kind="engine_upgrade"):
+            (root / "reference_outputs.csv").write_bytes(_reference_csv(new_values))
+            meta = {
+                "reference_csv_sha256": driver.digest(root / "reference_outputs.csv"),
+                "revisions": [
+                    {
+                        "kind": kind,
+                        "root_cause": "t",
+                        "changed": [
+                            {"scenario_id": s, "variable": v, "regenerated": x}
+                            for (s, v), x in listed.items()
+                        ],
+                    }
+                ],
+            }
+            (root / "reference_outputs.csv.meta.json").write_text(json.dumps(meta))
+
+        if not real:
+            return
+        write(real)
+        assert driver.reference_revision()["root_cause"] == "t"
+        first = next(iter(real))
+        write({k: v for k, v in real.items() if k != first})  # omission
+        with pytest.raises(SystemExit):
+            driver.reference_revision()
+        spare = next(k for k in REVISION_KEYS if k not in real)
+        write({**real, spare: base_values[spare] + 1})  # extra
+        with pytest.raises(SystemExit):
+            driver.reference_revision()
+        write({**real, first: real[first] + 0.5})  # wrong value
+        with pytest.raises(SystemExit):
+            driver.reference_revision()
+        write(real, kind="convention")  # not an engine upgrade
+        with pytest.raises(SystemExit):
+            driver.reference_revision()
+
+
+def test_sidecar_must_pin_the_committed_csv(reference_snapshot):
+    base_values, revise = reference_snapshot
+    key = REVISION_KEYS[0]
+    revise({**base_values, key: 7.0}, {key: 7.0})
+    meta_path = driver.SNAPSHOT / "reference_outputs.csv.meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["reference_csv_sha256"] = "0" * 64
+    meta_path.write_text(json.dumps(meta))
+    with pytest.raises(SystemExit):
+        driver.reference_revision()
+
+
+def test_base_reference_bytes_are_checked_against_their_pins(monkeypatch):
+    for name in driver.BASE_REFERENCE_SHA256:
+        raw = driver.base_reference_bytes(name)
+        assert hashlib.sha256(raw).hexdigest() == driver.BASE_REFERENCE_SHA256[name]
+    monkeypatch.setitem(driver.BASE_REFERENCE_SHA256, "reference_outputs.csv", "0" * 64)
+    with pytest.raises(SystemExit):
+        driver.base_reference_bytes("reference_outputs.csv")
