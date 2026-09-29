@@ -1100,5 +1100,11 @@ def test_retry_round_keeps_policyengine_out_of_chunk_workers(tmp_path):
     assert not list(
         (retry_dir / "model_runs").glob(f"*/{POLICYENGINE_PROVENANCE_FILENAME}")
     )
-    accepted = pd.read_csv(retry_dir / "accepted_retry_units.csv")
-    assert len(accepted) == 4
+    # Every model-household response was retried. (The probe's explanations
+    # carry no `value = X` trailer, so the merge rejects them; acceptance is
+    # not what this test is about.)
+    retried = pd.read_csv(retry_dir / "retry_predictions.csv")
+    assert set(zip(retried["model"], retried["scenario_id"])) == {
+        (model, scenario.id) for model in PROBE_MODELS for scenario in scenarios
+    }
+    assert retried["prediction"].notna().all()
