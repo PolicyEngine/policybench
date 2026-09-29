@@ -49,7 +49,12 @@ line-length = 88
 target-version = "py311"
 # reference_audit/ holds byte-exact records of the audit's sandbox modules: the
 # reference sidecar pins their sha256, so they are never reformatted.
-extend-exclude = ["app/public/paper/web/index.out.ipynb", "reference_audit"]
+# docs/adds0928/review_evidence/ keeps a review's probe scripts as they ran.
+extend-exclude = [
+    "app/public/paper/web/index.out.ipynb",
+    "reference_audit",
+    "docs/adds0928/review_evidence",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
