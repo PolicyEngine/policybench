@@ -9,12 +9,13 @@ description = "Benchmark: can AI models calculate tax/benefit outcomes without t
 readme = "README.md"
 license = "MIT"
 authors = [{name = "PolicyEngine", email = "hello@policyengine.org"}]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "litellm[caching]>=1.30",
     "pandas>=2.0",
     "numpy>=1.24",
-    "policyengine[us]==4.16.1",
+    "policyengine==6.1.2",
+    "policyengine-us==2.15.17",
     "policyengine-uk==2.89.0",
     "anthropic>=0.115.1",
     "google-genai>=2.10.0",
