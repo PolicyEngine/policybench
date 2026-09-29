@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 from importlib import metadata as importlib_metadata
 from pathlib import Path
@@ -382,7 +383,7 @@ def run_counterfactual_report(
     perturbed = pd.read_csv(perturbed_predictions)
     truth = pd.read_csv(truth_deltas)
     matched = matched_delta_frame(base, perturbed, truth)
-    tables = delta_metrics_by_model(matched)
+    tables = delta_metrics_by_model(matched, n_boot=n_boot, seed=seed)
     tables = {f"delta_{name}": frame for name, frame in tables.items()}
     metadata: dict = {
         "layer": "counterfactual",
@@ -392,6 +393,7 @@ def run_counterfactual_report(
         "base_runs_dirs": [str(d) for d in (base_runs_dirs or [])],
         "cache_guard": cache_report,
         "n_matched_rows": int(len(matched)),
+        "bootstrap": {"n_boot": n_boot, "seed": seed, "unit": "scenario_id"},
         "provider_fingerprints": {
             "base": _fingerprint_summary(base),
             "perturbed": _fingerprint_summary(perturbed),
@@ -422,7 +424,7 @@ def run_counterfactual_report(
         )
     if "run_id" in base.columns and base["run_id"].nunique() >= 2:
         floor = noise_floor_frame(base, truth)
-        floor_tables = delta_metrics_by_model(floor)
+        floor_tables = delta_metrics_by_model(floor, n_boot=n_boot, seed=seed)
         tables["noise_floor_summary"] = floor_tables["summary"]
         tables["signal_vs_noise"] = signal_vs_noise_test(
             matched, floor, n_boot=n_boot, seed=seed
@@ -436,7 +438,7 @@ def run_counterfactual_report(
 def _gate(
     point: float, ci_low: float, threshold: float, ci_floor: float | None = None
 ) -> dict:
-    if point != point:  # NaN
+    if not math.isfinite(point) or not math.isfinite(ci_low):
         return {"status": "not_evaluated", "point": None, "threshold": threshold}
     if point < threshold or (ci_floor is not None and ci_low < ci_floor):
         status = "fail"
@@ -492,6 +494,14 @@ def run_reasoning_stability(
     validation: dict = {}
 
     if not deterministic_only:
+        # Both mandatory gates must succeed. Missing inputs or an empty/error-only
+        # validation sample remain explicitly unevaluated, never implicitly pass.
+        validation = {
+            "gold_gate": _gate(float("nan"), float("nan"), GOLD_ACCURACY_GATE),
+            "cross_judge_gate": _gate(
+                float("nan"), float("nan"), CROSS_JUDGE_AGREEMENT_GATE
+            ),
+        }
         explanation_items = []
         seen = set()
         if "explanation" in repeated.columns:
@@ -611,7 +621,7 @@ def run_reasoning_stability(
         failed = [
             name
             for name in ("gold_gate", "cross_judge_gate")
-            if validation.get(name, {}).get("status") == "fail"
+            if validation[name]["status"] not in {"pass", "pass_marginal"}
         ]
         validation["judge_below_reliability_bar"] = bool(failed)
         validation["failed_gates"] = failed
@@ -663,6 +673,9 @@ def run_reasoning_stability(
     if not result["summary"].empty and validation.get("judge_below_reliability_bar"):
         result["summary"]["judge_below_reliability_bar"] = True
         result["summary"]["right_answer_unstable_reasoning_rate"] = float("nan")
+        result["summary"]["right_answer_unstable_reasoning_rate_adjusted"] = float(
+            "nan"
+        )
     written = _write_tables(output_path, tables)
     for name, value in list(validation.items()):
         if isinstance(value, dict) and isinstance(value.get("per_label"), pd.DataFrame):

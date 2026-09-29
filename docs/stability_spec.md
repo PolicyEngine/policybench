@@ -393,9 +393,20 @@ wage base maps to `{payroll_tax_base, thresholds_rates}`).
    headline restricted to non-identical-text pairs is the like-for-like
    companion.
 
-If the gate fails, layer-2 outputs still export, flagged
-`judge_below_reliability_bar`, and the headline is not reported; the
-pre-registered fallbacks above are the next step, not ad hoc re-prompting.
+Both gold-set and cross-judge gates must complete successfully before a
+judged headline is reported. `pass` and `pass_marginal` satisfy the
+acceptance policy above; a missing gate, unavailable finite estimate or
+confidence bound, or `fail` does not. Layer-2 diagnostics still export,
+flagged `judge_below_reliability_bar`, with the unsuccessful gates listed
+in `failed_gates`; both raw and adjusted judged headlines are withheld.
+The pre-registered fallbacks above are the next step, not ad hoc re-prompting.
+
+The attenuation correction is defined only for a finite noise floor in
+`[0, 1)`. Complete disagreement (`floor = 1`), missing or nonfinite floors,
+and out-of-range floors produce an undefined adjusted metric while raw
+diagnostics remain available. For valid floors the adjusted rate is in
+`[0, observed]`, equals the observed rate at zero floor, and is zero when
+the floor reaches the observed rate. These invariants have Hypothesis tests.
 
 ### Metrics (deterministic, from extractions)
 
@@ -519,9 +530,16 @@ reported):
 - **Large-response detection** (renamed from "cliff" — the $1,000 shock
   crosses no observed program boundary): true cut `|Δ| ≥ $200` (n=40,
   spanning 6 groups, with a margin from the nearest mass point), predicted
-  cut ≥ $100 in the true direction; exact binomial CI; suppressed below
-  n=20 qualifying rows; the qualifying-row list is committed in the
-  artifact so membership is auditable.
+  cut ≥ $100 in the true direction; scenario-cluster bootstrap 95% CI;
+  suppressed below 20 distinct parsed `(scenario_id, variable)` rows.
+  The qualifying-row list is committed in the artifact so membership is
+  auditable. Reports distinguish qualifying rows, comparisons, and
+  scenarios. Each bootstrap draw retains all variables and repeated
+  comparisons from a sampled scenario; fewer than two contributing
+  scenarios gives an undefined interval. Uniformly repeating comparisons
+  cannot increase row support or narrow the interval, and reordering rows
+  cannot change the result for a fixed seed; Hypothesis tests enforce these
+  invariants. The report records the bootstrap seed and number of draws.
 - Binary rows: the reference produces **zero flips**, so flip
   recall/precision are undefined and are **not published as rates**; the
   export carries raw counts instead — `n_reference_flips = 0` and each

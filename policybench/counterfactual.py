@@ -276,18 +276,44 @@ def _with_zero_baseline(matched: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([matched, baseline], ignore_index=True)
 
 
+def _scenario_cluster_detection_ci(
+    comparisons: pd.DataFrame, n_boot: int, seed: int
+) -> tuple[float, float]:
+    """Bootstrap the detection rate, keeping each household's rows together.
+
+    Scenario totals retain every variable and repeat in each draw. Uniformly
+    replicating comparisons scales numerator and denominator equally, leaving
+    the interval unchanged; repetitions cannot increase independent support.
+    """
+    clusters = comparisons.groupby("scenario_id")["detected"].agg(["sum", "count"])
+    if len(clusters) < 2 or n_boot <= 0:
+        return float("nan"), float("nan")
+    rng = np.random.default_rng(seed)
+    draws = rng.integers(0, len(clusters), size=(n_boot, len(clusters)))
+    successes = clusters["sum"].to_numpy()[draws].sum(axis=1)
+    totals = clusters["count"].to_numpy()[draws].sum(axis=1)
+    low, high = np.percentile(successes / totals, [2.5, 97.5])
+    return float(low), float(high)
+
+
 def delta_metrics_by_model(
     matched: pd.DataFrame,
     large_response_min_rows: int = LARGE_RESPONSE_MIN_ROWS,
     group_min_rows: int = 10,
+    n_boot: int = 1000,
+    seed: int = 20260818,
 ) -> dict[str, pd.DataFrame]:
     """Delta metrics per docs/stability_spec.md layer 3.
 
     Returns ``summary`` (per model), ``per_group`` (pre-registered groups
     only), ``binary_counts`` (counts, never rates: the +$1k reference
     produces zero flips), ``large_response`` (with suppression flag and
-    exact binomial CI), and ``large_response_rows`` (the auditable
+    scenario-cluster bootstrap CI), and ``large_response_rows`` (the auditable
     qualifying-row list).
+
+    Large-response support counts distinct parsed (scenario, variable) rows;
+    repeated comparisons never clear the support threshold. Detection rates
+    still use all comparisons, with scenarios as the independent CI units.
     """
     if matched.empty:
         return {
@@ -408,24 +434,30 @@ def delta_metrics_by_model(
             qualifying[["scenario_id", "variable"]],
             on=["scenario_id", "variable"],
         )
-        detected = model_large[
-            (model_large["pred_sign"] == model_large["true_sign"])
-            & (model_large["pred_delta"].abs() >= LARGE_RESPONSE_PREDICTED_CUT)
-        ]
-        n_qualifying = int(len(model_large))
-        ci_low, ci_high = binomial_ci_exact(len(detected), n_qualifying)
+        model_large["detected"] = (
+            model_large["pred_sign"] == model_large["true_sign"]
+        ) & (model_large["pred_delta"].abs() >= LARGE_RESPONSE_PREDICTED_CUT)
+        n_qualifying = int(
+            len(model_large.drop_duplicates(subset=["scenario_id", "variable"]))
+        )
+        n_comparisons = int(len(model_large))
+        n_detected = int(model_large["detected"].sum())
+        ci_low, ci_high = _scenario_cluster_detection_ci(model_large, n_boot, seed)
         large_rows.append(
             {
                 "model": model,
                 "true_cut_usd": LARGE_RESPONSE_TRUE_CUT,
                 "predicted_cut_usd": LARGE_RESPONSE_PREDICTED_CUT,
                 "n_qualifying_rows": n_qualifying,
-                "n_detected": int(len(detected)),
+                "n_qualifying_scenarios": int(model_large["scenario_id"].nunique()),
+                "n_comparisons": n_comparisons,
+                "n_detected": n_detected,
                 "detection_rate": (
-                    len(detected) / n_qualifying if n_qualifying else float("nan")
+                    n_detected / n_comparisons if n_comparisons else float("nan")
                 ),
                 "detection_rate_ci_low": ci_low,
                 "detection_rate_ci_high": ci_high,
+                "detection_rate_ci_method": "scenario_cluster_bootstrap",
                 "suppressed": n_qualifying < large_response_min_rows,
             }
         )

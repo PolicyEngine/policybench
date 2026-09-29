@@ -1,0 +1,1 @@
+Require successful gold and cross-judge validation before exporting judged stability headlines, keep undefined noise corrections from interrupting diagnostics, and use distinct row support with scenario-cluster uncertainty for counterfactual large-response detection.

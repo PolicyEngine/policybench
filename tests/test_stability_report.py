@@ -1,14 +1,18 @@
 """End-to-end tests for the stability suite commands (all external calls mocked)."""
 
 import json
+import math
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from policybench.reasoning_stability import text_key
 from policybench.stability import CacheContaminationError
 from policybench.stability_report import (
+    _gate,
     read_runs_metadata,
     run_counterfactual_manifest,
     run_counterfactual_report,
@@ -310,6 +314,11 @@ class TestCounterfactualReportCommand:
         assert (out / "delta_summary.csv").exists()
         metadata = json.loads((out / "stability_metadata.json").read_text())
         assert metadata["cache_guard"]["cache_hits"] == 0
+        assert metadata["bootstrap"] == {
+            "n_boot": 20,
+            "seed": 20260818,
+            "unit": "scenario_id",
+        }
 
     def test_single_base_file(self, tmp_path):
         base = _run_frame("m", "run_000").drop(columns=["run_id"])
@@ -355,7 +364,22 @@ class TestReasoningStabilityCommand:
         assert metadata["judge"]["deterministic_only"] is True
         assert metadata["validation"] == {}
 
-    def test_judged_path_with_mocked_extraction(self, tmp_path):
+    @pytest.mark.parametrize(
+        "validation_mode",
+        [
+            "complete",
+            "gold_marginal",
+            "both_missing",
+            "no_gold",
+            "missing_gold_file",
+            "no_cross",
+            "no_sample",
+            "cross_errors",
+            "gold_ungraded",
+            "cross_disagreement",
+        ],
+    )
+    def test_judged_path_with_mocked_extraction(self, tmp_path, validation_mode):
         runs = _write_runs(tmp_path / "runs", "m", k=2, jitter=0.0)
         # Make explanations differ across runs so the judge is needed.
         for i in range(2):
@@ -402,6 +426,11 @@ class TestReasoningStabilityCommand:
                         labels = ["categorical_eligibility"]
                 else:
                     labels = ["age_disability"]
+                if judge_model == "cross":
+                    if validation_mode == "cross_errors":
+                        labels = None
+                    elif validation_mode == "cross_disagreement":
+                        labels = ["other"]
                 out[key] = {
                     "key": key,
                     "text_key": text_key(item["variable"], item["text"]),
@@ -429,6 +458,14 @@ class TestReasoningStabilityCommand:
         def run(gold_result, output_dir):
             # evaluate_against_gold keys by judge_cache_key; the fake extraction
             # keys differ, so the gold evaluation is stubbed at the gate level.
+            gold_path = gold
+            if validation_mode in {"no_gold", "both_missing"}:
+                gold_path = None
+            elif validation_mode == "missing_gold_file":
+                gold_path = tmp_path / "missing_gold.csv"
+            if validation_mode == "gold_ungraded":
+                gold_result = gold_eval(float("nan"), float("nan"))
+                gold_result["n_graded"] = 0
             with (
                 patch(
                     "policybench.stability_report.run_label_extraction",
@@ -444,21 +481,76 @@ class TestReasoningStabilityCommand:
                     reference_outputs=_reference(tmp_path),
                     output_dir=output_dir,
                     reference_explanations=ref_expl,
-                    gold_set=gold,
+                    gold_set=gold_path,
                     judge_model="judge",
-                    cross_judge_model="cross",
-                    validation_modulus=1,
+                    cross_judge_model=(
+                        None
+                        if validation_mode in {"no_cross", "both_missing"}
+                        else "cross"
+                    ),
+                    # No SHA-256 text hash in this fixture is zero.
+                    validation_modulus=(
+                        2**256 if validation_mode == "no_sample" else 1
+                    ),
                     min_stable_exact_pairs=1,
                 )
 
-        result = run(gold_eval(0.95, 0.89), tmp_path / "reasoning")
+        gold_result = (
+            gold_eval(0.85, 0.75)
+            if validation_mode == "gold_marginal"
+            else gold_eval(0.95, 0.89)
+        )
+        result = run(gold_result, tmp_path / "reasoning")
         summary = result["tables"]["reasoning_stability_by_model"].set_index("model")
+        if validation_mode not in {"complete", "gold_marginal"}:
+            validation = result["validation"]
+            unavailable = (
+                "gold_gate"
+                if validation_mode
+                in {"no_gold", "missing_gold_file", "gold_ungraded", "both_missing"}
+                else "cross_judge_gate"
+            )
+            expected_status = (
+                "fail" if validation_mode == "cross_disagreement" else "not_evaluated"
+            )
+            assert validation[unavailable]["status"] == expected_status
+            assert unavailable in validation["failed_gates"]
+            if validation_mode == "both_missing":
+                assert set(validation["failed_gates"]) == {
+                    "gold_gate",
+                    "cross_judge_gate",
+                }
+            assert validation["judge_below_reliability_bar"] is True
+            assert pd.isna(summary.loc["m", "right_answer_unstable_reasoning_rate"])
+            assert summary.loc[
+                "m", "joint_unstable_reasoning_rate_all_pairs"
+            ] == pytest.approx(2 / 6)
+            assert pd.isna(
+                summary.loc["m", "right_answer_unstable_reasoning_rate_adjusted"]
+            )
+            # Withholding must survive serialization, with diagnostics still available.
+            exported = pd.read_csv(
+                tmp_path / "reasoning" / "reasoning_stability_by_model.csv"
+            )
+            assert exported["right_answer_unstable_reasoning_rate"].isna().all()
+            assert (
+                exported["right_answer_unstable_reasoning_rate_adjusted"].isna().all()
+            )
+            metadata = json.loads(
+                (tmp_path / "reasoning" / "stability_metadata.json").read_text()
+            )
+            assert metadata["validation"][unavailable]["status"] == expected_status
+            if validation_mode == "cross_disagreement":
+                assert metadata["validation"]["cross_judge"]["pair_noise_floor"] == 1.0
+            return
         # snap pairs disagree (2 scenarios), payroll agree (2), wic agree (2).
         assert summary.loc[
             "m", "right_answer_unstable_reasoning_rate"
         ] == pytest.approx(2 / 6)
         validation = result["validation"]
-        assert validation["gold_gate"]["status"] == "pass"
+        assert validation["gold_gate"]["status"] == (
+            "pass_marginal" if validation_mode == "gold_marginal" else "pass"
+        )
         assert validation["cross_judge"]["n"] > 0
         assert validation["cross_judge_gate"]["status"] in {"pass", "pass_marginal"}
         assert "determinism_floor" in validation
@@ -481,6 +573,24 @@ class TestReasoningStabilityCommand:
         assert failed_summary.loc[
             "m", "joint_unstable_reasoning_rate_all_pairs"
         ] == pytest.approx(2 / 6)
+
+
+@given(
+    point=st.floats(),
+    ci_low=st.floats(),
+    threshold=st.sampled_from([0.8, 0.9]),
+    ci_floor=st.sampled_from([None, 0.7]),
+)
+def test_validation_gate_requires_finite_successful_estimates(
+    point, ci_low, threshold, ci_floor
+):
+    """Acceptance requires finite estimates and every documented lower bound."""
+    gate = _gate(point, ci_low, threshold, ci_floor)
+    if not math.isfinite(point) or not math.isfinite(ci_low):
+        assert gate["status"] == "not_evaluated"
+    else:
+        accepted = point >= threshold and (ci_floor is None or ci_low >= ci_floor)
+        assert (gate["status"] in {"pass", "pass_marginal"}) == accepted
 
 
 class TestCostPlan:

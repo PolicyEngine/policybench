@@ -485,6 +485,10 @@ def reasoning_stability_by_model(
     model that repeats canned text incurs zero judge noise. Pairs lacking a
     label on either side (judge error, unjudged) are excluded from label
     rates and counted in ``n_unjudged_stable_pairs``.
+
+    Attenuation adjustment is defined only for a finite noise floor in
+    [0, 1). Missing or invalid floors, including complete disagreement,
+    leave the adjusted rate undefined while preserving all raw metrics.
     """
     if pairs.empty:
         return {"summary": pd.DataFrame(), "composition": pd.DataFrame()}
@@ -557,7 +561,12 @@ def reasoning_stability_by_model(
         headline = 1.0 - agreement_se if not math.isnan(agreement_se) else float("nan")
         nonidentical = _rate(stable_exact & judged & ~verbatim, ~group["same_labels"])
         adjusted = float("nan")
-        if pair_noise_floor is not None and not math.isnan(headline):
+        if (
+            pair_noise_floor is not None
+            and math.isfinite(pair_noise_floor)
+            and 0.0 <= pair_noise_floor < 1.0
+            and math.isfinite(headline)
+        ):
             adjusted = max(
                 0.0, (headline - pair_noise_floor) / (1.0 - pair_noise_floor)
             )

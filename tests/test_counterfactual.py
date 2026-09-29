@@ -4,6 +4,8 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from policybench.counterfactual import (
     CF_ID_SUFFIX,
@@ -186,6 +188,49 @@ def _predictions(model="m", run_id=None, perturbed=False):
     return pd.DataFrame(rows)
 
 
+def _large_response_matched(detected_by_scenario, repeats=1, n_variables=1):
+    """Use one perturbed arm and repeated bases on known qualifying rows."""
+    truth_rows = []
+    base_rows = []
+    perturbed_rows = []
+    for i, detected in enumerate(detected_by_scenario):
+        for variable in ("snap", "tanf")[:n_variables]:
+            scenario_id = f"s{i}"
+            truth_rows.append(
+                {
+                    "scenario_id": scenario_id,
+                    "variable": variable,
+                    "true_delta": 250.0,
+                    "is_binary": False,
+                    "output_group": variable,
+                    "first_dollar": False,
+                }
+            )
+            for run in range(repeats):
+                base_rows.append(
+                    {
+                        "model": "m",
+                        "scenario_id": scenario_id,
+                        "variable": variable,
+                        "run_id": f"run_{run:03d}",
+                        "prediction": 0.0,
+                    }
+                )
+            perturbed_rows.append(
+                {
+                    "model": "m",
+                    "scenario_id": f"{scenario_id}{CF_ID_SUFFIX}",
+                    "variable": variable,
+                    "prediction": 250.0 if detected else 0.0,
+                }
+            )
+    return matched_delta_frame(
+        pd.DataFrame(base_rows),
+        pd.DataFrame(perturbed_rows),
+        pd.DataFrame(truth_rows),
+    )
+
+
 class TestMatchedDeltaFrame:
     def test_matches_rows_and_computes_pred_delta(self):
         matched = matched_delta_frame(
@@ -286,6 +331,144 @@ class TestDeltaMetrics:
         assert bool(large.iloc[0]["suppressed"]) is True
         rows = result["large_response_rows"]
         assert set(rows["variable"]) == {"tanf", "snap"}
+
+    def test_repeated_comparisons_do_not_clear_unique_row_threshold(self):
+        matched = _large_response_matched([True, False] * 5, repeats=3)
+        result = delta_metrics_by_model(matched)
+        large = result["large_response"].set_index("model").loc["m"]
+        assert len(result["large_response_rows"]) == 10
+        assert large["n_qualifying_rows"] == 10
+        assert large["n_qualifying_scenarios"] == 10
+        assert large["n_comparisons"] == 30
+        assert large["n_detected"] == 15
+        assert large["detection_rate"] == pytest.approx(0.5)
+        assert bool(large["suppressed"]) is True
+
+    def test_large_response_interval_clusters_variables_and_repeats(self):
+        matched = _large_response_matched([True, False], repeats=3, n_variables=2)
+        large = (
+            delta_metrics_by_model(matched, n_boot=1000, seed=7)["large_response"]
+            .set_index("model")
+            .loc["m"]
+        )
+        # All observations within each household move together. Resampling the
+        # two households therefore gives rates 0, 1/2, or 1, irrespective of K.
+        assert large["n_qualifying_rows"] == 4
+        assert large["n_qualifying_scenarios"] == 2
+        assert large["n_comparisons"] == 12
+        assert large["detection_rate_ci_low"] == pytest.approx(0.0)
+        assert large["detection_rate_ci_high"] == pytest.approx(1.0)
+        assert large["detection_rate_ci_method"] == "scenario_cluster_bootstrap"
+
+    def test_large_response_interval_weights_unequal_household_sizes(self):
+        matched = _large_response_matched([False, True], repeats=2, n_variables=2)
+        # One failed comparison in s0; two successes and one failure in s1.
+        # The repeated snap comparisons remain in the same household draw.
+        matched = matched[
+            ((matched["variable"] == "snap") & (matched["base_run_id"] == "run_000"))
+            | (
+                (matched["scenario_id"] == "s1")
+                & (
+                    (matched["variable"] == "snap")
+                    | (matched["base_run_id"] == "run_000")
+                )
+            )
+        ].copy()
+        matched.loc[matched["variable"] == "tanf", "pred_delta"] = 0.0
+        large = (
+            delta_metrics_by_model(matched, n_boot=1000, seed=7)["large_response"]
+            .set_index("model")
+            .loc["m"]
+        )
+        assert large["n_qualifying_rows"] == 3
+        assert large["n_qualifying_scenarios"] == 2
+        assert large["n_comparisons"] == 4
+        assert large["n_detected"] == 2
+        # Pool the comparisons: 2/4, rather than the household mean (0+2/3)/2.
+        assert large["detection_rate"] == pytest.approx(0.5)
+        # The four equally likely household draws are (s0,s0), (s0,s1),
+        # (s1,s0), (s1,s1), with rates 0, 1/2, 1/2, 2/3 respectively.
+        assert large["detection_rate_ci_low"] == pytest.approx(0.0)
+        assert large["detection_rate_ci_high"] == pytest.approx(2 / 3)
+        # Seed 7's first four draws are (s1,s1) three times, then (s1,s0).
+        # Their pooled rates are 2/3, 2/3, 2/3, 1/2; the interpolated 2.5th
+        # percentile is 0.5 + 0.075 * (2/3 - 0.5) = 0.5125. Averaging
+        # household rates within each draw would incorrectly give 0.35833.
+        four_draws = (
+            delta_metrics_by_model(matched, n_boot=4, seed=7)["large_response"]
+            .set_index("model")
+            .loc["m"]
+        )
+        assert four_draws["detection_rate_ci_low"] == pytest.approx(0.5125)
+        assert four_draws["detection_rate_ci_high"] == pytest.approx(2 / 3)
+
+    @pytest.mark.parametrize("detected", [False, True])
+    def test_single_scenario_cannot_estimate_cluster_uncertainty(self, detected):
+        matched = _large_response_matched([detected], repeats=3, n_variables=2)
+        large = (
+            delta_metrics_by_model(matched)["large_response"]
+            .set_index("model")
+            .loc["m"]
+        )
+        assert large["n_qualifying_rows"] == 2
+        assert pd.isna(large["detection_rate_ci_low"])
+        assert pd.isna(large["detection_rate_ci_high"])
+
+    def test_unparsed_repeats_do_not_supply_qualifying_support(self):
+        matched = _large_response_matched([True, False] * 10, repeats=3)
+        missing = matched["scenario_id"] == "s0"
+        matched.loc[missing, "both_parsed"] = False
+        matched.loc[missing, "pred_delta"] = float("nan")
+        large = (
+            delta_metrics_by_model(matched)["large_response"]
+            .set_index("model")
+            .loc["m"]
+        )
+        assert large["n_qualifying_rows"] == 19
+        assert large["n_comparisons"] == 57
+        assert bool(large["suppressed"]) is True
+
+    @settings(max_examples=30, deadline=None)
+    @given(
+        detected=st.lists(st.booleans(), min_size=2, max_size=25),
+        repeats=st.integers(min_value=2, max_value=5),
+        n_variables=st.integers(min_value=1, max_value=2),
+    )
+    def test_uniform_repetition_preserves_support_rate_and_uncertainty(
+        self, detected, repeats, n_variables
+    ):
+        """Replicating observations must not create new independent evidence."""
+        once = _large_response_matched(detected, n_variables=n_variables)
+        repeated = _large_response_matched(
+            detected, repeats=repeats, n_variables=n_variables
+        ).iloc[::-1]
+        first = (
+            delta_metrics_by_model(once, n_boot=100, seed=13)["large_response"]
+            .set_index("model")
+            .loc["m"]
+        )
+        second = (
+            delta_metrics_by_model(repeated, n_boot=100, seed=13)["large_response"]
+            .set_index("model")
+            .loc["m"]
+        )
+        n_rows = len(detected) * n_variables
+        assert first["n_qualifying_rows"] == second["n_qualifying_rows"] == n_rows
+        assert (
+            first["n_qualifying_scenarios"]
+            == second["n_qualifying_scenarios"]
+            == len(detected)
+        )
+        assert bool(first["suppressed"]) == bool(second["suppressed"]) == (n_rows < 20)
+        assert second["n_comparisons"] == first["n_comparisons"] * repeats
+        assert second["n_detected"] == first["n_detected"] * repeats
+        for field in (
+            "detection_rate",
+            "detection_rate_ci_low",
+            "detection_rate_ci_high",
+        ):
+            assert second[field] == pytest.approx(first[field])
+            assert 0.0 <= second[field] <= 1.0
 
     def test_reportable_groups_from_truth(self):
         groups = reportable_groups(_truth_deltas(), min_rows=10)

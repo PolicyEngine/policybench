@@ -12,6 +12,8 @@ from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from policybench.annotation_taxonomy import FAILURE_SUBTYPE_VALUES
 from policybench.reasoning_stability import (
@@ -366,6 +368,71 @@ class TestReasoningMetrics:
         assert row["right_answer_unstable_reasoning_rate_adjusted"] == pytest.approx(
             max(0.0, (observed - 0.2) / 0.8)
         )
+
+    @pytest.mark.parametrize(
+        "pair_noise_floor",
+        [None, float("nan"), float("inf"), -float("inf"), -0.1, 1.0, 1.1],
+    )
+    def test_invalid_noise_floor_preserves_raw_metrics(self, pair_noise_floor):
+        pairs = explanation_pair_frame(_repeated_predictions(), _ground_truth())
+        labels = _labels_for(
+            pairs,
+            {
+                "Net income test applied.": {"thresholds_rates"},
+                "Gross income under 130% FPL.": {"categorical_eligibility"},
+            },
+        )
+        baseline = reasoning_stability_by_model(pairs, labels, min_stable_exact_pairs=1)
+        result = reasoning_stability_by_model(
+            pairs,
+            labels,
+            pair_noise_floor=pair_noise_floor,
+            min_stable_exact_pairs=1,
+        )
+        adjusted = result["summary"]["right_answer_unstable_reasoning_rate_adjusted"]
+        assert adjusted.isna().all()
+        # A missing or invalid floor changes no other metrics or diagnostics.
+        for name, table in baseline.items():
+            pd.testing.assert_frame_equal(result[name], table)
+
+    @settings(deadline=None)
+    @given(
+        disagreements=st.lists(st.booleans(), min_size=1, max_size=20),
+        pair_noise_floor=st.floats(min_value=0.0, max_value=1.0, exclude_max=True),
+    )
+    def test_noise_correction_cannot_increase_observed_instability(
+        self, disagreements, pair_noise_floor
+    ):
+        pairs = explanation_pair_frame(_repeated_predictions(), _ground_truth())
+        pairs = pairs.iloc[[0] * len(disagreements)].copy()
+        pairs["scenario_id"] = [f"scenario-{i}" for i in range(len(disagreements))]
+        pairs["text_key_a"] = "left"
+        pairs["text_key_b"] = [f"right-{i}" for i in range(len(disagreements))]
+        labels = {"left": frozenset({"thresholds_rates"})}
+        labels.update(
+            {
+                f"right-{i}": frozenset(
+                    {"categorical_eligibility" if disagrees else "thresholds_rates"}
+                )
+                for i, disagrees in enumerate(disagreements)
+            }
+        )
+        result = reasoning_stability_by_model(
+            pairs,
+            labels,
+            pair_noise_floor=pair_noise_floor,
+            min_stable_exact_pairs=1,
+        )
+        row = result["summary"].iloc[0]
+        observed = row["right_answer_unstable_reasoning_rate"]
+        adjusted = row["right_answer_unstable_reasoning_rate_adjusted"]
+        assert observed == pytest.approx(sum(disagreements) / len(disagreements))
+        assert math.isfinite(adjusted)
+        assert 0.0 <= adjusted <= observed
+        if pair_noise_floor == 0.0:
+            assert adjusted == observed
+        if pair_noise_floor >= observed:
+            assert adjusted == 0.0
 
     def test_numeric_claim_channel(self):
         preds = _repeated_predictions()
