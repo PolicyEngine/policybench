@@ -852,6 +852,64 @@ def test_frozen_payload_provenance_matches_the_reference_sidecar():
         assert payload["policyengineBundles"][country]["model_version"] == expected
 
 
+def test_manifest_names_the_build_the_households_came_from():
+    """PolicyBench computes each scored reference with policyengine_us.Simulation
+    from the household's own listed inputs, so no dataset enters a reference.
+    The households came from the build the scenario draw recorded; the
+    reference runtime's default dataset, which reference_output_refresh names,
+    is a different build that reference computation never reads."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    run_label = manifest["source_run_labels"]["us"]
+    run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+    drawn = json.loads((run_dir / "scenarios.csv.meta.json").read_text())[
+        "policyengine_bundles"
+    ]["us"]
+    households = manifest["household_dataset"]
+    assert households == {
+        "source": f"runs/{run_label}/scenarios.csv.meta.json",
+        "policyengine_us_data_build_id": drawn["certified_data_build_id"],
+        "policyengine_us_dataset": drawn["default_dataset"],
+        "policyengine_us_dataset_uri": drawn["default_dataset_uri"],
+        "policyengine_us_data_artifact_sha256": drawn["certified_data_artifact_sha256"],
+    }
+    assert households["policyengine_us_data_build_id"] == (
+        "populace-us-2024-5da5a95-20260611"
+    )
+    refresh = manifest["reference_output_refresh"]
+    # The existing keys stay; they describe the reference runtime's bundle.
+    assert set(refresh) >= {
+        "policyengine_version",
+        "policyengine_us_version",
+        "policyengine_us_data_build_id",
+        "policyengine_us_dataset",
+        "policyengine_us_dataset_uri",
+        "policyengine_us_data_artifact_sha256",
+    }
+    assert (
+        refresh["policyengine_us_data_build_id"]
+        != (households["policyengine_us_data_build_id"])
+    )
+    note = " ".join(manifest["reproducibility_notes"])
+    assert (
+        "PolicyBench computes each scored reference output with "
+        "policyengine_us.Simulation from policyengine-us "
+        f"{refresh['policyengine_us_version']}, using the household's own "
+        f"listed inputs; policyengine.py {refresh['policyengine_version']} is "
+        "recorded for provenance only."
+    ) in note
+    assert (
+        "The households were drawn from the certified PolicyEngine US populace "
+        f"dataset ({households['policyengine_us_data_build_id']}, "
+        f"{households['policyengine_us_dataset']})"
+    ) in note
+    assert "outputs were generated with policyengine.py" not in note
+    # The paper guide states both builds from the same records.
+    guide = re.sub(r"\s+", " ", (ROOT / "docs" / "paper.md").read_text())
+    assert f"build {refresh['policyengine_us_data_build_id']}, from the" in guide
+    assert f"policyengine.py {refresh['policyengine_version']} bundle" in guide
+    assert f"({households['policyengine_us_data_build_id']})" in guide
+
+
 def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
     """The references were generated once (the sidecar's timestamp) and are
     byte-identical across freezes; the manifest must not advance their date

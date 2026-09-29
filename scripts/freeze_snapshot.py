@@ -1364,7 +1364,7 @@ def read_reference_refresh() -> dict[str, str | int]:
     # ``date`` is when the references were generated (the sidecar's own
     # timestamp), not when the snapshot was published: the reference CSV is
     # byte-identical across freezes until it is regenerated, and a
-    # regeneration (the 2026-09-28 engine upgrade) records regenerated_at_utc.
+    # regeneration (the 2026-09-29 engine upgrade) records regenerated_at_utc.
     regenerated = meta.get("regenerated_at_utc")
     refresh = {
         "date": (regenerated or meta["generated_at_utc"])[:10],
@@ -1386,6 +1386,27 @@ def read_reference_refresh() -> dict[str, str | int]:
     return refresh
 
 
+def read_household_dataset() -> dict[str, str]:
+    """The certified dataset build the benchmark households were drawn from.
+
+    The scenario draw records it in scenarios.csv.meta.json. The reference
+    sidecar's bundle names the reference runtime's default dataset instead,
+    which computing a household's references never reads: each reference comes
+    from ``policyengine_us.Simulation`` on the household's own listed inputs.
+    """
+    meta = json.loads((RUN_DEST / "scenarios.csv.meta.json").read_text())
+    bundle = meta["policyengine_bundles"]["us"]
+    return {
+        "source": f"runs/{RUN_LABEL}/scenarios.csv.meta.json",
+        "policyengine_us_data_build_id": bundle["certified_data_build_id"],
+        "policyengine_us_dataset": bundle["default_dataset"],
+        "policyengine_us_dataset_uri": bundle["default_dataset_uri"],
+        "policyengine_us_data_artifact_sha256": bundle[
+            "certified_data_artifact_sha256"
+        ],
+    }
+
+
 def prompt_payload_sha256() -> str:
     """Hash the snapshot prompts exactly as the snapshot test recomputes them."""
     data = read_run_payload(RUN_DEST)
@@ -1403,6 +1424,7 @@ def build_manifest(
     annotation_files: dict[str, str],
 ) -> dict:
     reference_refresh = read_reference_refresh()
+    household_dataset = read_household_dataset()
     data_json_sha = run_files[PAYLOAD_NAME]
     country_payload = read_run_payload(RUN_DEST)
     model_count = sum(
@@ -1456,13 +1478,19 @@ def build_manifest(
             "Model responses were collected in waves between "
             f"{_response_window_phrase(MODEL_RESPONSE_DATE)}, as models were "
             "added to the board; each model's full 100-household run is a "
-            "single consistent wave. Reference "
-            "outputs were generated with policyengine.py "
-            f"{reference_refresh['policyengine_version']} and policyengine-us "
-            f"{reference_refresh['policyengine_us_version']} against the "
-            "certified PolicyEngine US populace dataset "
-            f"({reference_refresh['policyengine_us_data_build_id']}, "
-            f"{reference_refresh['policyengine_us_dataset']}).",
+            "single consistent wave. PolicyBench computes each scored "
+            "reference output with policyengine_us.Simulation from "
+            f"policyengine-us {reference_refresh['policyengine_us_version']}, "
+            "using the household's own listed inputs; policyengine.py "
+            f"{reference_refresh['policyengine_version']} is recorded for "
+            "provenance only. The households were drawn from the certified "
+            "PolicyEngine US populace dataset "
+            f"({household_dataset['policyengine_us_data_build_id']}, "
+            f"{household_dataset['policyengine_us_dataset']}), as "
+            "scenarios.csv.meta.json records (household_dataset); the "
+            "reference_output_refresh dataset fields name the reference "
+            "runtime's default dataset, which reference computation does not "
+            "read.",
             "Canonical prediction files include parser recovery. Later "
             "waves ran under the resumable supervised runner, which retries "
             "failed or timed-out scenarios in bounded rounds; every model's "
@@ -1497,6 +1525,7 @@ def build_manifest(
         },
         "model_response_date": MODEL_RESPONSE_DATE,
         "reference_output_refresh": reference_refresh,
+        "household_dataset": household_dataset,
         "files": [
             {
                 "path": f"runs/{RUN_LABEL}/{PAYLOAD_NAME}",
