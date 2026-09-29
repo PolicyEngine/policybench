@@ -2568,7 +2568,7 @@ def test_release_20260929_note() -> None:
     assert (
         f"policyengine-us {check}, the newest release at publication (uploaded "
         f"2026-09-29 {facts['checkEngineUploadedUtc']} UTC), gives the same value "
-        f"for all {facts['totalOutputs']:,} outputs"
+        f"as {engine} for all {facts['totalOutputs']:,} outputs"
     ) in readme
     assert "are all in 2.15.17 and need no module" in readme
     assert "The nine publication conventions" in readme
@@ -2598,7 +2598,7 @@ def test_release_20260929_note() -> None:
         "its {conventions:words} publication conventions to the new version.",
         "With those conventions, policyengine-us {checkEngine}, the newest release "
         "at publication (uploaded at {checkEngineUploadedUtc} UTC the same day), "
-        "gives the same value for all {totalOutputs} outputs.",
+        "gives the same value as {engineVersion} for all {totalOutputs} outputs.",
     )
 
     # The four scored changes, each with the basis the sidecar records.
@@ -2742,10 +2742,10 @@ def test_release_20260929_note() -> None:
         "The Arizona household's income keeps it from qualifying for SNAP under "
         "the program's ordinary tests, so it qualifies only through broad-based "
         "categorical eligibility, and all {nModels} models answer $0 for it.",
-        "That makes it the fifth household held back by income in PolicyBench's "
-        "September 23 note on such households.",
-        "The note's September 29 update gives the three new models' answers for "
-        "the {bbceIncomeHeldCount:words} other households held back by income, in "
+        "The September 29 update to PolicyBench's September 23 note on such "
+        "households adds it as a fifth household held back by income.",
+        "The update also gives the three new models' answers for the "
+        "{bbceIncomeHeldCount:words} other households held back by income, in "
         "{bbceIncomeHeldStates}, and for the {bbceAssetHeldCount:words} held back "
         "by savings.",
     )

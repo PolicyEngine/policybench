@@ -1,6 +1,6 @@
 # Reference upgrade, September 29, 2026
 
-This directory records how PolicyBench's US references moved from policyengine-us 1.755.4 to policyengine-us 2.15.17, the newest release when PolicyBench began sweeping the references on 2026-09-29 (uploaded 00:23 UTC). PolicyBench rebuilt the references at 11:57 UTC that day. policyengine-us 2.17.0, the newest release at publication (uploaded 2026-09-29 12:21 UTC), gives the same value for all 1,984 outputs under the same conventions and adapter. The reference sidecar's `engine_upgrade` revision lists every change.
+This directory records how PolicyBench's US references moved from policyengine-us 1.755.4 to policyengine-us 2.15.17, the newest release when PolicyBench began sweeping the references on 2026-09-29 (uploaded 00:23 UTC). PolicyBench rebuilt the references at 11:57 UTC that day. policyengine-us 2.17.0, the newest release at publication (uploaded 2026-09-29 12:21 UTC), gives the same value as 2.15.17 for all 1,984 outputs under the same conventions and adapter. The reference sidecar's `engine_upgrade` revision lists every change.
 
 Of the 1,984 outputs:
 - 4 scored references change value;

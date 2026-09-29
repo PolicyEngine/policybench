@@ -537,10 +537,12 @@ def test_rendered_html_prints_dollar_amounts_without_escapes():
     assert "\\$" not in text
     assert COST_SENTENCE.search(text), "cost sentence missing or escaped"
     header, *rows = _cost_latency_table_cells(html)
-    assert header[:3] == ["Model", "Exact (%)", "Cost / household"] or header[:3] == [
+    # md_table puts a zero-width space after each slash as a line break point.
+    assert [cell.replace("\u200b", "") for cell in header] == [
         "Model",
         "Exact (%)",
-        "Cost /​ household",
+        "Cost / household",
+        "Latency (median)",
     ]
     assert len(rows) == r.n_models
     for row in rows:
@@ -613,3 +615,45 @@ def test_newest_engine_claims_are_anchored_to_a_time():
         for match in re.finditer(r"newest", text):
             window = text[max(0, match.start() - 60) : match.end() + 60]
             assert any(phrase in window for phrase in anchored), (path.name, window)
+
+
+def test_card_states_the_engines_behind_scored_and_excluded_references():
+    """The card's engine sentences, rebuilt from the sidecar, the exclusion
+    record and the publication-check sweep."""
+    run_dir = (
+        ROOT
+        / "paper/snapshot/20260501/runs"
+        / "us_full_run_20260612_policyengine_4_16_1_populace"
+    )
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    upgrade = next(r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade")
+    engine = upgrade["engine_version"].removeprefix("policyengine-us ")
+    previous = upgrade["previous_engine_version"].removeprefix("policyengine-us ")
+    exclusions = json.loads((run_dir / "reference_exclusions.json").read_text())[
+        "exclusions"
+    ]
+    by_engine = Counter(
+        e["engine_version"].removeprefix("policyengine-us ") for e in exclusions
+    )
+    with (ROOT / "reference_audit/2026-09-28/verification/latest_final_2170.csv").open(
+        newline=""
+    ) as source:
+        rows = list(csv.DictReader(source))
+    (check,) = {row["engine"] for row in rows}
+    card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    assert (
+        "PolicyBench computes each scored US reference by running "
+        f"`policyengine_us.Simulation` from policyengine-us {engine}, the newest "
+        "release when PolicyBench began sweeping the references on 2026-09-29"
+    ) in card
+    assert (
+        f"The {len(exclusions)} excluded outputs keep the values they were decided "
+        f"on ({by_engine[previous]} computed with policyengine-us {previous}, "
+        f"{by_engine[engine]} with {engine}), and PolicyBench re-reviewed the "
+        f"{len(upgrade['excluded_outputs_rechecked'])} of them that move on {engine}"
+    ) in card
+    assert (
+        f"policyengine-us {check}, the newest release at publication (uploaded "
+        f"2026-09-29 12:21 UTC), gives the same value as {engine} for all "
+        f"{len(rows):,} outputs under the same conventions and adapter."
+    ) in card

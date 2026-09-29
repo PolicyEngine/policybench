@@ -68,14 +68,11 @@ be described as faithful reasoning traces.
 PolicyBench computes each scored US reference by running
 `policyengine_us.Simulation` from policyengine-us 2.15.17, the newest release
 when PolicyBench began sweeping the references on 2026-09-29 (uploaded 00:23
-UTC). policyengine-us 2.17.0, the newest release at publication (uploaded
-2026-09-29 12:21 UTC), gives the same value for all 1,984 outputs under the same
-conventions and adapter. The 55 excluded outputs keep the values they were
-decided on (52 computed with policyengine-us 1.755.4, 3 with 2.15.17), and
-PolicyBench re-reviewed the 19 of them that move on 2.15.17; all 19 stay
-excluded. The manifest also records policyengine.py 6.1.2 for provenance. Its
-certified US bundle carries policyengine-us 2.2.1, and policyengine.py does not
-load beside 2.15.17.
+UTC). The 55 excluded outputs keep the values they were decided on (52 computed
+with policyengine-us 1.755.4, 3 with 2.15.17), and PolicyBench re-reviewed the
+19 of them that move on 2.15.17; all 19 stay excluded. The manifest also
+records policyengine.py 6.1.2 for provenance. Its certified US bundle carries
+policyengine-us 2.2.1, and policyengine.py does not load beside 2.15.17.
 
 A scored reference follows from the stated facts and from law published before
 the references were frozen on 2026-07-03. Where policyengine-us projects a 2026
@@ -86,7 +83,9 @@ changes parameter values only: SNAP's October to December months, for example,
 hold the FY2026 figures rather than USDA's FY2027 figures of 2026-08-21.
 policyengine-us 2.15.17 counts Maryland county income tax in its state income
 tax; an adapter takes it out again, because PolicyBench's state income tax
-output leaves local tax out.
+output leaves local tax out. policyengine-us 2.17.0, the newest release at
+publication (uploaded 2026-09-29 12:21 UTC), gives the same value as 2.15.17
+for all 1,984 outputs under the same conventions and adapter.
 
 Four changes between policyengine-us 1.755.4 and 2.15.17 each moved one scored
 reference: New Jersey's child tax credit schedule for 2026 to 2028 (P.L.2026,
