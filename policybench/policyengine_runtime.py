@@ -444,8 +444,9 @@ def policyengine_provenance_inputs() -> dict[str, Any]:
     Reads package metadata, files and environment flags only; importing
     policyengine is the cost this exists to avoid. The PolicyEngine packages,
     their bundled release manifests, this module and the import flags are
-    recorded directly; everything else installed (pydantic, requests, ...) is
-    pinned through the interpreter's ``sys.prefix``. A provenance file is
+    recorded directly; the environment holding everything else (pydantic,
+    requests, ...) is identified by ``sys.prefix``, though an in-place upgrade
+    of those packages is not detected. A provenance file is
     reused only when its recorded fingerprint equals the reader's, so a
     worker whose environment differs from the writer's recomputes instead.
     """

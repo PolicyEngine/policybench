@@ -16,17 +16,21 @@ combined into ``<run_dir>/predictions.csv`` at the end; rerunning the same
 command skips completed scenarios and replays partially-complete ones from
 the response cache.
 
-PolicyEngine provenance (the ``policyengine_bundles`` block of every scenario
-sidecar) is computed once per run, in a fresh interpreter, into
+For a single-country run (every supervised run in practice), PolicyEngine
+provenance (the ``policyengine_bundles`` block of every scenario sidecar) is
+computed once, in a fresh interpreter, into
 ``<run_dir>/policyengine_provenance.json`` and handed to workers through
 ``POLICYBENCH_POLICYENGINE_PROVENANCE``. Computing it imports policyengine,
 which builds the US and UK tax-benefit systems: about 1 GB of peak RSS and
 11-14 CPU-seconds per process when measured on 2026-09-28. A worker that only
-calls an LLM no longer pays that, and neither does the supervisor.
+calls an LLM no longer pays that, and neither does the supervisor. Without the
+file (a mixed-country run, or a failed write), workers and the supervisor
+compute provenance themselves, as before.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import math
@@ -70,11 +74,11 @@ ADAPTIVE_WINDOW = 8
 # cross this share of the budget.
 BUDGET_STOP_FRACTION = 0.9
 TREATMENT_FINGERPRINT_VERSION = 3
+PROVENANCE_WRITER_TIMEOUT_SECONDS = 3600
 # Writes the run's PolicyEngine provenance file. It runs in a fresh
 # interpreter, as each worker did, so a single-country run records what a
-# worker computing the bundles itself would, and the supervisor never imports
-# policyengine.
-PROVENANCE_WRITER_TIMEOUT_SECONDS = 3600
+# worker computing the bundles itself would, and the supervisor needs no
+# policyengine import of its own when the handoff succeeds.
 PROVENANCE_WRITER = (
     "import sys\n"
     "from policybench.policyengine_runtime import write_policyengine_provenance\n"
@@ -733,10 +737,11 @@ class Supervisor:
         self.env.pop(POLICYENGINE_PROVENANCE_ENV, None)
         self._policyengine_bundles = None
         # A file left by an earlier supervisor must not outlive a failed write.
-        path.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):
+            path.unlink(missing_ok=True)
         countries = sorted(_scenario_countries(self.scenarios))
         # Each worker computed its one scenario's country in a fresh process.
-        # Whether ``import policyengine`` is attempted, and so which branch
+        # Whether ``import policyengine`` succeeds, and so which branch
         # records the US bundle, can depend on what the same process looked
         # up first, so the handoff covers single-country runs only.
         if len(countries) != 1:

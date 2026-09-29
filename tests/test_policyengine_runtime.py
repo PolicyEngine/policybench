@@ -299,6 +299,20 @@ def test_provenance_inputs_track_policyengine_import_flags(
     assert "different PolicyEngine packages or code" in capsys.readouterr().err
 
 
+def test_provenance_inputs_identify_the_python_environment(
+    fake_release_bundles, tmp_path, monkeypatch, capsys
+):
+    path = tmp_path / runtime.POLICYENGINE_PROVENANCE_FILENAME
+    runtime.write_policyengine_provenance(path, {"us"})
+
+    monkeypatch.setattr(runtime.sys, "prefix", "/some/other/venv")
+
+    runtime.resolve_policyengine_bundles(
+        {"us"}, env={runtime.POLICYENGINE_PROVENANCE_ENV: str(path)}
+    )
+    assert "different PolicyEngine packages or code" in capsys.readouterr().err
+
+
 def test_provenance_file_never_records_the_token(
     fake_release_bundles, tmp_path, monkeypatch
 ):

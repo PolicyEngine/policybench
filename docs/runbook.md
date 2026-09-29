@@ -231,16 +231,18 @@ those errors remain incomplete and should be retried or rerun.
 Each evaluation CSV also has a `.spend.jsonl` call ledger. It records initial,
 failed, and repair calls separately; the supervisor uses this sidecar for its
 disk spend total and falls back to the legacy CSV total when no ledger exists.
-A supervised run (`policybench run`) writes `policyengine_provenance.json` to
-its run directory at start, from a one-off Python process. The file holds the
-PolicyEngine bundle provenance that every scenario sidecar records, plus a
-fingerprint of the installed PolicyEngine packages. Workers read it through
-`POLICYBENCH_POLICYENGINE_PROVENANCE` instead of importing policyengine, and
-the supervisor checks each worker's sidecar against the copy it read back.
-A worker whose environment no longer matches the fingerprint computes the
-provenance itself, as every worker did before. `run_state.json` counts those
-workers in `policyengine_provenance_recomputed`, so a run that has lost the
-speedup shows it.
+A single-country supervised run (`policybench run`) writes
+`policyengine_provenance.json` to its run directory at start, from a one-off
+Python process. The file holds the PolicyEngine bundle provenance that every
+scenario sidecar records, plus a fingerprint of the installed PolicyEngine
+packages. Workers read it through `POLICYBENCH_POLICYENGINE_PROVENANCE`
+instead of importing policyengine, and the supervisor checks each worker's
+sidecar against the copy it read back. A worker whose environment no longer
+matches the fingerprint computes the provenance itself, as every worker did
+before; `run_state.json` counts those workers in
+`policyengine_provenance_recomputed`. When no file was written (a
+mixed-country manifest, or a failed write), `run_state.json` shows
+`policyengine_provenance: null` and every worker computes it.
 
 ## 4b. Batch Mode (Anthropic, OpenAI, Gemini)
 
