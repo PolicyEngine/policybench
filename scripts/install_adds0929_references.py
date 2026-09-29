@@ -4,8 +4,11 @@ The references are built by
 reference_audit/2026-09-28/scripts/build_references_latest.py (its docstring
 gives the rebuild command). A rebuild may change record text only:
 this script refuses a build whose reference CSV differs by a byte from the
-installed one, or whose sidecar or exclusion record differs outside the fields
-a rebuild rewrites (see TEXT_FIELDS). It then copies the three files to the
+installed one, or whose sidecar or exclusion record differs outside the text a
+rebuild rewrites (see ``rewritable``): the engine_upgrade revision's date, rule
+and each change's basis, the sidecar's regenerated_at_utc, the exclusion
+record's derivation, and the notes of the exclusions the upgrade added. Every
+older revision and exclusion must be unchanged. It then copies the three files to the
 committed snapshot and to the stage's two copies (the freeze requires them to
 be identical), and records each staged file's prepared and new sha256 in the
 stage receipt (stage.json ``restaged``) before updating the receipt's pin, so
@@ -20,6 +23,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -29,11 +33,9 @@ RUN = "us_full_run_20260612_policyengine_4_16_1_populace"
 SNAPSHOT = ROOT / "paper/snapshot/20260501/runs" / RUN
 BUILDER = "reference_audit/2026-09-28/scripts/build_references_latest.py"
 CSV = "reference_outputs.csv"
-# The fields a rebuild of the same references may rewrite.
-TEXT_FIELDS = {
-    "reference_exclusions.json": {"derivation", "note"},
-    "reference_outputs.csv.meta.json": {"date", "rule", "basis", "regenerated_at_utc"},
-}
+EXCLUSIONS = "reference_exclusions.json"
+SIDECAR = "reference_outputs.csv.meta.json"
+RECORDS = (EXCLUSIONS, SIDECAR)
 CHANGE = (
     "rebuilt by build_references_latest.py from the committed files: the engine "
     "upgrade dated 2026-09-29 and its rule anchored to the reference sweep; the "
@@ -45,25 +47,64 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def masked(value, fields: set[str]):
-    """The record with the fields a rebuild may rewrite blanked out."""
-    if isinstance(value, dict):
-        return {k: None if k in fields else masked(v, fields) for k, v in value.items()}
-    if isinstance(value, list):
-        return [masked(v, fields) for v in value]
-    return value
+def _upgrade(sidecar: dict) -> dict | None:
+    """The sidecar's last revision when it is the engine upgrade."""
+    revisions = sidecar.get("revisions") or []
+    if revisions and revisions[-1].get("kind") == "engine_upgrade":
+        return revisions[-1]
+    return None
+
+
+def _added_exclusions(sidecar: dict, exclusions: dict) -> set[tuple[str, str]]:
+    """Outputs the engine upgrade changed that the exclusion record lists."""
+    upgrade = _upgrade(sidecar)
+    if upgrade is None:
+        return set()
+    listed = {(e["scenario_id"], e["variable"]) for e in exclusions["exclusions"]}
+    return {
+        (c["scenario_id"], c["variable"]) for c in upgrade.get("changed", [])
+    } & listed
+
+
+def rewritable(
+    sidecar: dict, exclusions: dict, added: set[tuple[str, str]]
+) -> tuple[dict, dict]:
+    """Both records with the text a rebuild may rewrite blanked out.
+
+    ``added`` names the exclusions the installed upgrade added; only their
+    notes are blanked, so a rebuild cannot touch an older exclusion. In the
+    sidecar only the engine_upgrade revision's date, rule and change bases,
+    and regenerated_at_utc, are blanked, so every older revision must match.
+    """
+    sidecar, exclusions = copy.deepcopy(sidecar), copy.deepcopy(exclusions)
+    sidecar["regenerated_at_utc"] = None
+    upgrade = _upgrade(sidecar)
+    if upgrade is not None:
+        upgrade["date"] = upgrade["rule"] = None
+        for change in upgrade.get("changed", []):
+            change["basis"] = None
+    exclusions["derivation"] = None
+    for entry in exclusions["exclusions"]:
+        if (entry.get("scenario_id"), entry.get("variable")) in added:
+            entry["note"] = None
+    return sidecar, exclusions
 
 
 def check_build(built: Path, installed: Path) -> None:
     """Refuse a build that changes anything but record text."""
     if (built / CSV).read_bytes() != (installed / CSV).read_bytes():
         raise SystemExit(f"{built / CSV} differs from the installed references")
-    for name, fields in TEXT_FIELDS.items():
-        new = json.loads((built / name).read_text())
-        old = json.loads((installed / name).read_text())
-        if masked(new, fields) != masked(old, fields):
+    old = {name: json.loads((installed / name).read_text()) for name in RECORDS}
+    new = {name: json.loads((built / name).read_text()) for name in RECORDS}
+    added = _added_exclusions(old[SIDECAR], old[EXCLUSIONS])
+    old_masked = rewritable(old[SIDECAR], old[EXCLUSIONS], added)
+    new_masked = rewritable(new[SIDECAR], new[EXCLUSIONS], added)
+    for name, before, after in zip(
+        (SIDECAR, EXCLUSIONS), old_masked, new_masked, strict=True
+    ):
+        if before != after:
             raise SystemExit(
-                f"{built / name}: a field outside {sorted(fields)} changed"
+                f"{built / name}: a field outside the rewritable record text changed"
             )
 
 
@@ -73,7 +114,7 @@ def install(built: Path, stage: Path) -> list[tuple[Path, str, str]]:
     receipt = json.loads(receipt_path.read_text())
     copies = {
         name: [SNAPSHOT / name, staged / name, stage / "scoring" / name]
-        for name in (CSV, *TEXT_FIELDS)
+        for name in (CSV, *RECORDS)
     }
     for name, group in copies.items():
         if len({digest(p) for p in group}) != 1:
