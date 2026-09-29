@@ -26,7 +26,13 @@ Method:
   listed value the engine does not produce stops the build. Moves of $1 or less are
   applied and recorded.
 - An excluded output keeps the value its exclusion record names, as on 2026-09-22. It is
-  not scored. Its 2.15.17 value and the reviewed reason it stays excluded are recorded.
+  not scored. Its 2.15.17 value and the reviewed reason it stays excluded are recorded:
+  the reason is the full text of its cluster review's corrected_per_output entry in
+  clusters.json (beside --actions), and final_actions.json must carry the same text.
+- An output the audit excluded on review, apart from any engine change, is listed in
+  --actions' audit_exclusions with its exclusion record. Its engine value must equal
+  both the board's and the record's frozen_value, so the revision's changed list does
+  not name it; the record is appended to the exclusions after the upgrade's own.
 
 Dates are UTC days. The wave began on the evening of 2026-09-28, US Eastern time, which
 is this directory's name; the sweep began at 01:42 UTC on 2026-09-29, so the records
@@ -42,6 +48,12 @@ The first build ran in the triage directory, whose layout this script assumes:
     PYTHONPATH=/Users/maxghenis/PolicyEngine/policybench-wt/adds0928-stage2 \\
     .venv-pepy612-us21517/bin/python build_references_latest.py \\
       --actions latest/final_actions.json --out-dir ../reference_v13
+
+Later on 2026-09-29, rewrite_reference_records.py applied this script's record functions
+(reviewed_reason, audit_exclusions, exclusion_derivation, dump_record) to the installed
+records without recomputing any output: the rechecked outputs' full reviewed reasons,
+and the one audit exclusion (scenario_023 head_medicaid_eligible). A rebuild writes the
+same records.
 
 The rebuild ran from this directory's committed files, laid out the same way (B is a
 scratch directory), and scripts/install_adds0929_references.py installed its output:
@@ -123,6 +135,69 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+NUMBER_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+
+
+def dump_record(value: dict) -> str:
+    """The serialization of the sidecar and the exclusion record."""
+    return json.dumps(value, indent=2) + "\n"
+
+
+def reviewed_reason(clusters: dict, entry: dict) -> str:
+    """The full reason a rechecked excluded output stays excluded: its cluster
+    review's corrected_per_output entry in clusters.json, verbatim."""
+    key = (entry["scenario_id"], entry["variable"])
+    reasons = [
+        item["reason"]
+        for item in clusters[entry["cluster"]]["review"]["corrected_per_output"]
+        if (item["scenario_id"], item["variable"]) == key
+    ]
+    if len(reasons) != 1:
+        raise SystemExit(f"{key}: {len(reasons)} reviewed reasons in {entry['cluster']}")
+    return reasons[0]
+
+
+def audit_exclusions(actions: dict) -> dict:
+    """The exclusion records of the outputs the audit excluded on review, apart from
+    any engine change (final_actions.json audit_exclusions), by output."""
+    records = {}
+    for item in actions.get("audit_exclusions", []):
+        key = (item["scenario_id"], item["variable"])
+        record = item["exclusion"]
+        if (record["scenario_id"], record["variable"]) != key or key in records:
+            raise SystemExit(f"malformed audit exclusion {key}")
+        records[key] = record
+    return records
+
+
+def exclusion_derivation(base: str, decided: int, on_review: int) -> str:
+    """The exclusion record's derivation: the 20260922c text, then the upgrade's.
+    `decided` counts the records decided on DATE, `on_review` those among them the
+    audit excluded on review."""
+    text = (
+        base
+        + f" On {DATE} the references moved to policyengine-us {ENGINE} with the"
+        " pre-freeze conventions. Every excluded output was recomputed there, and each"
+        " one that moved was re-reviewed and stays excluded (the reference sidecar's"
+        " engine_upgrade revision lists them). Records decided before that date keep"
+        f" the values they were decided on; the {NUMBER_WORDS[decided]} records"
+        f" decided that day were computed on {ENGINE}."
+    )
+    if on_review == 1:
+        text += (
+            " The audit excluded one of them on review of the release. Its reference"
+            " did not move, so the engine_upgrade revision does not list it"
+            " (final_actions.json audit_exclusions)."
+        )
+    elif on_review:
+        text += (
+            f" The audit excluded {NUMBER_WORDS[on_review]} of them on review of the"
+            " release. Their references did not move, so the engine_upgrade revision"
+            " does not list them (final_actions.json audit_exclusions)."
+        )
+    return text
+
+
 def load(name: str):
     spec = importlib.util.spec_from_file_location(f"build_{name}", FIXES / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
@@ -157,6 +232,11 @@ def main() -> None:
     actions = json.loads(Path(args.actions).read_text())
     approved = {(a["scenario_id"], a["variable"]): a for a in actions["approved"]}
     rechecked = {(a["scenario_id"], a["variable"]): a for a in actions["excluded_rechecked"]}
+    clusters = {
+        c["id"]: c
+        for c in json.loads(Path(args.actions).with_name("clusters.json").read_text())["clusters"]
+    }
+    audit = audit_exclusions(actions)
 
     BOARD = _board()
     modules = {name: load(name) for name in PARTS}
@@ -170,6 +250,8 @@ def main() -> None:
     added = {(e["scenario_id"], e["variable"]): e for e in actions["new_exclusions"]}
     if set(added) & excluded:
         raise SystemExit("a new exclusion is already excluded")
+    if set(audit) & (excluded | set(added) | set(approved)):
+        raise SystemExit("an audit exclusion is already excluded, added or approved")
     scenarios = pd.read_csv(BUNDLE / "scenarios.csv")
 
     computed = {}
@@ -196,6 +278,16 @@ def main() -> None:
         value, old = computed[key], float(row["value"])
         if key in excluded:
             excluded_values.append((key, value, old))
+            continue
+        if key in audit:
+            # Excluded on review, not for an engine change: the value must not move.
+            if abs(value - old) > 1e-6 or abs(value - float(audit[key]["frozen_value"])) > 1e-6:
+                problems.append(
+                    f"audit exclusion {key}: engine {value}, board {old}, "
+                    f"record {audit[key]['frozen_value']}"
+                )
+                continue
+            new.loc[idx, "value"] = value
             continue
         if key in added:
             record = added[key]
@@ -236,26 +328,25 @@ def main() -> None:
         if key in excluded or not moved(key[1], computed[key], float(board.set_index(["scenario_id", "variable"]).loc[key, "value"])):
             problems.append(f"approved change did not happen or is excluded: {key}")
     moved_excluded = [(k, v, o) for k, v, o in excluded_values if moved(k[1], v, o)]
+    reasons = {}
     for key, value, old in moved_excluded:
         if key not in rechecked:
             problems.append(f"excluded output moved without a recheck: {key}: {old} -> {value}")
+            continue
+        reasons[key] = reviewed_reason(clusters, rechecked[key])
+        if rechecked[key].get("reason", reasons[key]) != reasons[key]:
+            problems.append(f"final_actions reason for {key} is not the reviewer's text")
     if problems:
         raise SystemExit("refusing to write references:\n  " + "\n  ".join(problems))
 
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     new.to_csv(out / "reference_outputs.csv", index=False)
-    exclusion_file["exclusions"] = exclusions + list(added.values())
-    exclusion_file["derivation"] = (
-        exclusion_file["derivation"]
-        + f" On {DATE} the references moved to policyengine-us {ENGINE} with the"
-        " pre-freeze conventions. Every excluded output was recomputed there, and each"
-        " one that moved was re-reviewed and stays excluded (the reference sidecar's"
-        " engine_upgrade revision lists them). Records decided before that date keep"
-        " the values they were decided on; the three records decided that day were"
-        f" computed on {ENGINE}."
+    exclusion_file["exclusions"] = exclusions + list(added.values()) + list(audit.values())
+    exclusion_file["derivation"] = exclusion_derivation(
+        exclusion_file["derivation"], len(added) + len(audit), len(audit)
     )
-    (out / "reference_exclusions.json").write_text(json.dumps(exclusion_file, indent=2) + "\n")
+    (out / "reference_exclusions.json").write_text(dump_record(exclusion_file))
     meta = json.loads(json.dumps(board_meta))
     meta["policyengine_bundles"]["us"] = policyengine_release_bundle("us")
     meta["reference_csv_sha256"] = sha256(out / "reference_outputs.csv")
@@ -289,13 +380,13 @@ def main() -> None:
         "excluded_outputs_rechecked": [
             {
                 "scenario_id": k[0], "variable": k[1], "kept_value": o,
-                "value_on_2_15_17": v, "reason": rechecked[k]["reason"],
+                "value_on_2_15_17": v, "reason": reasons[k],
             }
             for k, v, o in moved_excluded
         ],
         "changed": changed + small,
     })
-    (out / "reference_outputs.csv.meta.json").write_text(json.dumps(meta, indent=2) + "\n")
+    (out / "reference_outputs.csv.meta.json").write_text(dump_record(meta))
 
     # Engine traces of every changed output, for the derivation narratives
     # (regen_references.py narratives reads reference_traces.json the same way).

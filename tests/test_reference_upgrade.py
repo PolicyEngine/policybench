@@ -155,6 +155,72 @@ def test_every_output_that_moves_has_a_reviewed_cluster():
         assert cluster["review"]["corrected_per_output"], row["cluster"]
 
 
+def _builder():
+    """build_references_latest.py, for its record functions (no engine import)."""
+    import importlib.util
+    import sys
+
+    path = AUDIT / "scripts" / "build_references_latest.py"
+    spec = importlib.util.spec_from_file_location("build_references_latest", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_each_rechecked_reason_is_the_reviewers_full_text():
+    """The sidecar and final_actions.json record, for each excluded output the
+    upgrade rechecked, its cluster review's corrected_per_output reason in
+    full, as clusters.json holds it."""
+    clusters = {c["id"]: c for c in _load(AUDIT / "clusters.json")["clusters"]}
+    actions = {
+        (a["scenario_id"], a["variable"]): a
+        for a in _load(AUDIT / "final_actions.json")["excluded_rechecked"]
+    }
+    rechecked = _upgrade()["excluded_outputs_rechecked"]
+    assert len(rechecked) == len(actions) == 19
+    for record in rechecked:
+        key = (record["scenario_id"], record["variable"])
+        action = actions[key]
+        (reason,) = [
+            item["reason"]
+            for item in clusters[action["cluster"]]["review"]["corrected_per_output"]
+            if (item["scenario_id"], item["variable"]) == key
+        ]
+        assert record["reason"] == reason, key
+        assert action["reason"] == reason, key
+
+
+def test_the_builder_writes_the_committed_records():
+    """Differential check: build_references_latest.py's record functions, which
+    rewrite_reference_records.py also applies, give the committed records: each
+    rechecked reason, the audit exclusions (appended last, as final_actions.json
+    records them), the derivation and the serialization."""
+    build = _builder()
+    actions = _load(AUDIT / "final_actions.json")
+    clusters = {c["id"]: c for c in _load(AUDIT / "clusters.json")["clusters"]}
+    by_key = {
+        (a["scenario_id"], a["variable"]): a for a in actions["excluded_rechecked"]
+    }
+    for record in _upgrade()["excluded_outputs_rechecked"]:
+        entry = by_key[(record["scenario_id"], record["variable"])]
+        assert record["reason"] == build.reviewed_reason(clusters, entry)
+    path = RUN_DIR / "reference_exclusions.json"
+    exclusions = _load(path)
+    audit = build.audit_exclusions(actions)
+    tail = exclusions["exclusions"][len(exclusions["exclusions"]) - len(audit) :]
+    assert tail == list(audit.values())
+    marker = f" On {UPGRADE_DATE} the references moved to policyengine-us {ENGINE}"
+    base, _ = exclusions["derivation"].split(marker)
+    decided = len(actions["new_exclusions"]) + len(audit)
+    assert exclusions["derivation"] == build.exclusion_derivation(
+        base, decided, len(audit)
+    )
+    for name in ("reference_exclusions.json", "reference_outputs.csv.meta.json"):
+        raw = (RUN_DIR / name).read_text()
+        assert build.dump_record(json.loads(raw)) == raw, name
+
+
 def test_new_exclusions_are_computed_on_the_reference_engine():
     added = [e for e in _exclusions().values() if e["decided_on"] == "2026-09-29"]
     references = _references()
