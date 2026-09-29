@@ -833,3 +833,8 @@ def test_a_re_export_after_the_freeze_gates_on_the_22c_asset(monkeypatch):
     monkeypatch.setattr(driver, "RELEASE_TAG", "dashboard-data-20991231")
     with pytest.raises(SystemExit, match="base pointer changed"):
         driver.resolve_live_base(SimpleNamespace())
+
+
+def test_base_commit_blob_names_the_missing_history():
+    with pytest.raises(SystemExit, match="cannot read .* at base commit 3220a7a62b6b"):
+        driver.base_commit_blob(Path("no/such/file.csv"))
