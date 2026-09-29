@@ -890,12 +890,29 @@ def test_manifest_names_the_build_the_households_came_from():
         != (households["policyengine_us_data_build_id"])
     )
     note = " ".join(manifest["reproducibility_notes"])
+    # Each scored reference also depends on the modules and the builder alias
+    # the sidecar's engine_upgrade revision pins: the publication conventions
+    # (latest_c_*.py), the Maryland output-scope adapter, and the stated-hours
+    # alias its builder note records.
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    (upgrade,) = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"]
+    modules = {entry["module"] for entry in upgrade["fix_modules"]}
+    conventions = {m for m in modules if m.startswith("latest_c_")}
+    assert modules - conventions == {
+        "latest_conventions.py",
+        "latest_md_local_output_scope.py",
+    }
+    assert len(conventions) == 9
+    assert "weekly_hours_worked_before_lsr" in upgrade["builder"]
     assert (
         "PolicyBench computes each scored reference output with "
         "policyengine_us.Simulation from policyengine-us "
         f"{refresh['policyengine_us_version']}, using the household's own "
-        f"listed inputs; policyengine.py {refresh['policyengine_version']} is "
-        "recorded for provenance only."
+        "listed inputs, the nine publication conventions, the Maryland "
+        "output-scope adapter and the scenario builder's stated-hours alias, as "
+        "the reference sidecar's engine_upgrade revision pins them "
+        f"(fix_modules, builder); policyengine.py {refresh['policyengine_version']} "
+        "is recorded for provenance only."
     ) in note
     assert (
         "The households were drawn from the certified PolicyEngine US populace "
@@ -903,8 +920,16 @@ def test_manifest_names_the_build_the_households_came_from():
         f"{households['policyengine_us_dataset']})"
     ) in note
     assert "outputs were generated with policyengine.py" not in note
-    # The paper guide states both builds from the same records.
+    # The paper guide states both builds from the same records, and what each
+    # scored reference depends on.
     guide = re.sub(r"\s+", " ", (ROOT / "docs" / "paper.md").read_text())
+    assert (
+        "PolicyBench computes each scored reference with "
+        "`policyengine_us.Simulation` from the household's own listed inputs, "
+        "the nine publication conventions, the Maryland output-scope adapter and "
+        "the scenario builder's stated-hours alias, as the reference sidecar's "
+        "`engine_upgrade` revision pins them (`fix_modules`, `builder`)"
+    ) in guide
     assert f"build {refresh['policyengine_us_data_build_id']}, from the" in guide
     assert f"policyengine.py {refresh['policyengine_version']} bundle" in guide
     assert f"({households['policyengine_us_data_build_id']})" in guide

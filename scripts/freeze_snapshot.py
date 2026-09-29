@@ -1386,6 +1386,61 @@ def read_reference_refresh() -> dict[str, str | int]:
     return refresh
 
 
+NUMBER_WORDS = {
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten",
+    11: "eleven",
+    12: "twelve",
+}
+# The engine upgrade's modules: the publication conventions re-expressed for
+# the new engine (latest_c_*.py), the module composing them, and the adapter
+# that keeps Maryland county income tax out of the state income tax output.
+CONVENTION_MODULE_PREFIX = "latest_c_"
+CONVENTIONS_COMPOSER = "latest_conventions.py"
+OUTPUT_SCOPE_ADAPTERS = ("latest_md_local_output_scope.py",)
+# The scenario builder's alias the upgrade records: stated usual weekly hours
+# also reach the input SNAP's work rules read.
+STATED_HOURS_INPUT = "weekly_hours_worked_before_lsr"
+
+
+def read_reference_engine_setup() -> dict[str, int]:
+    """What each scored reference depends on beyond the engine and the
+    household's inputs, as the sidecar's engine_upgrade revision pins it.
+
+    Raises when the revision's modules or builder note are not the ones the
+    manifest's reproducibility note describes, so the note cannot drift from
+    the record.
+    """
+    meta = json.loads(REFERENCE_META_SOURCE.read_text())
+    upgrades = [
+        r for r in meta.get("revisions", []) if r.get("kind") == "engine_upgrade"
+    ]
+    if len(upgrades) != 1 or meta["revisions"][-1] is not upgrades[0]:
+        raise SystemExit(
+            "the reference sidecar needs one final engine_upgrade revision"
+        )
+    upgrade = upgrades[0]
+    modules = [entry["module"] for entry in upgrade["fix_modules"]]
+    conventions = [m for m in modules if m.startswith(CONVENTION_MODULE_PREFIX)]
+    others = sorted(set(modules) - set(conventions))
+    if others != sorted({CONVENTIONS_COMPOSER, *OUTPUT_SCOPE_ADAPTERS}):
+        raise SystemExit(f"unexpected engine_upgrade fix_modules: {others}")
+    if STATED_HOURS_INPUT not in upgrade.get("builder", ""):
+        raise SystemExit("the engine_upgrade builder note names no stated-hours alias")
+    return {
+        "convention_count": len(conventions),
+        "output_scope_adapter_count": len(OUTPUT_SCOPE_ADAPTERS),
+    }
+
+
 def read_household_dataset() -> dict[str, str]:
     """The certified dataset build the benchmark households were drawn from.
 
@@ -1424,6 +1479,7 @@ def build_manifest(
     annotation_files: dict[str, str],
 ) -> dict:
     reference_refresh = read_reference_refresh()
+    engine_setup = read_reference_engine_setup()
     household_dataset = read_household_dataset()
     data_json_sha = run_files[PAYLOAD_NAME]
     country_payload = read_run_payload(RUN_DEST)
@@ -1481,10 +1537,14 @@ def build_manifest(
             "single consistent wave. PolicyBench computes each scored "
             "reference output with policyengine_us.Simulation from "
             f"policyengine-us {reference_refresh['policyengine_us_version']}, "
-            "using the household's own listed inputs; policyengine.py "
-            f"{reference_refresh['policyengine_version']} is recorded for "
-            "provenance only. The households were drawn from the certified "
-            "PolicyEngine US populace dataset "
+            "using the household's own listed inputs, the "
+            f"{NUMBER_WORDS[engine_setup['convention_count']]} publication "
+            "conventions, the Maryland output-scope adapter and the scenario "
+            "builder's stated-hours alias, as the reference sidecar's "
+            "engine_upgrade revision pins them (fix_modules, builder); "
+            f"policyengine.py {reference_refresh['policyengine_version']} is "
+            "recorded for provenance only. The households were drawn from the "
+            "certified PolicyEngine US populace dataset "
             f"({household_dataset['policyengine_us_data_build_id']}, "
             f"{household_dataset['policyengine_us_dataset']}), as "
             "scenarios.csv.meta.json records (household_dataset); the "

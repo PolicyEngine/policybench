@@ -57,7 +57,10 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
   runtime's default dataset (build populace-us-2024-spm-20260915, from the
   policyengine.py 6.1.2 bundle), which reference computation does not read:
   PolicyBench computes each scored reference with `policyengine_us.Simulation`
-  from the household's own listed inputs
+  from the household's own listed inputs, the nine publication conventions,
+  the Maryland output-scope adapter and the scenario builder's stated-hours
+  alias, as the reference sidecar's `engine_upgrade` revision pins them
+  (`fix_modules`, `builder`)
 - `household_dataset`, with the build the households were drawn from
   (populace-us-2024-5da5a95-20260611), its URI and sha256, as the run's
   `scenarios.csv.meta.json` records them
