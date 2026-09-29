@@ -2121,6 +2121,7 @@ ADDED_MODELS = ("claude-sonnet-5.5", "grok-4.7", "deepseek-v4.1-flash")
 SERVING_CONFIG_PATH = ROOT / "paper/snapshot/20260501/model_serving_config.json"
 UPGRADE_README = ROOT / "reference_audit/2026-09-28/README.md"
 UPGRADE_CLUSTERS = ROOT / "reference_audit/2026-09-28/clusters.json"
+UPGRADE_ACTIONS = ROOT / "reference_audit/2026-09-28/final_actions.json"
 # The no-tools exact scores release dashboard-data-20260922c published, copied
 # from its release asset by scripts/release_20260922c_scores.py. The asset's
 # sha256 is the one app/src/data.artifact.json pinned at commit 3220a7a6.
@@ -2221,7 +2222,8 @@ def _exact_under(previous_release: bool) -> dict[str, float]:
     """Every board model's exact score, recomputed from this snapshot's
     predictions and weights on the current references or on the previous
     release's: the references with the engine upgrade's changes reverted to
-    their previous values, scored without the exclusions it added."""
+    their previous values, scored without the exclusions it added or the
+    audit's (final_actions.json audit_exclusions)."""
     import pandas as pd
 
     from policybench.scorer_vectors import canonical_filtered_scores
@@ -2235,6 +2237,10 @@ def _exact_under(previous_release: bool) -> dict[str, float]:
         (e["scenario_id"], e["variable"])
         for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
     }
+    audit = {
+        (a["scenario_id"], a["variable"])
+        for a in _load_json(UPGRADE_ACTIONS).get("audit_exclusions", [])
+    }
     if previous_release:
         for change in changes:
             row = (reference["scenario_id"] == change["scenario_id"]) & (
@@ -2242,7 +2248,7 @@ def _exact_under(previous_release: bool) -> dict[str, float]:
             )
             assert row.sum() == 1
             reference.loc[row, "value"] = change["previous"]
-        excluded -= added
+        excluded -= added | audit
     keys = zip(reference["scenario_id"], reference["variable"], strict=True)
     scored = reference[[key not in excluded for key in keys]]
     predictions = pd.DataFrame(
@@ -2803,10 +2809,11 @@ def test_release_20260929_note() -> None:
 
 def test_previous_release_scores_rebuild_from_this_snapshot() -> None:
     """The drift baseline is the previous release's own board. Every model's
-    exact score, rebuilt from this snapshot's predictions with the upgrade
-    reverted, equals the score release dashboard-data-20260922c published (the
-    committed fixture of its asset's scores); the current scores rebuild to this
-    payload's. So the note's drift is the reference change alone."""
+    exact score, rebuilt from this snapshot's predictions with the upgrade and
+    the audit exclusion reverted, equals the score release
+    dashboard-data-20260922c published (the committed fixture of its asset's
+    scores); the current scores rebuild to this payload's. So the note's drift
+    comes from the reference revision and the audit exclusion alone."""
     after = _exact_under(False)
     for row in _board_rows():
         assert after[row["model"]] == pytest.approx(row["exact"], abs=1e-9)
