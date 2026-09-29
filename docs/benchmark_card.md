@@ -65,11 +65,11 @@ be described as faithful reasoning traces.
 
 ## Reference outputs
 
-PolicyBench computes each US reference output with policyengine-us 2.15.17,
-the newest release on PyPI when the references were rebuilt on 2026-09-29,
-through `policyengine_us.Simulation`. The manifest also records policyengine.py
-6.1.2 for provenance; its certified US bundle is policyengine-us 2.2.1, and it
-does not load beside 2.15.17.
+PolicyBench computes each US reference output by running
+`policyengine_us.Simulation` from policyengine-us 2.15.17, the newest release
+on PyPI when the references were rebuilt on 2026-09-29. The manifest also
+records policyengine.py 6.1.2 for provenance; its certified US bundle is
+policyengine-us 2.2.1, and it does not load beside 2.15.17.
 
 A scored reference follows from the stated facts and from law published before
 the references were frozen on 2026-07-03. Where policyengine-us projects a 2026
