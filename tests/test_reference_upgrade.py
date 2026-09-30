@@ -682,6 +682,36 @@ def test_paper_results_count_the_rerun_sweeps_the_same_way():
     assert r.rerun_sweep_new_count == 1
     assert r.rerun_sweep_scored_beyond_tolerance_count == 0
     assert r.rerun_sweep_scored_within_tolerance_count == 3
+    # The paper derives the upgrade's new exclusions from the new sweep:
+    # beyond the tolerance, the state and local tax refund reading moves
+    # exactly the three federal income tax outputs the upgrade excluded, and
+    # otherwise only outputs excluded on 1.755.4.
+    new_exclusions = {
+        (c["scenario_id"], c["variable"])
+        for c in r.engine_upgrade_partition["new_exclusions"]
+    }
+    assert set(r.rerun_sweep_new_excluded_outputs) == new_exclusions
+    assert len(new_exclusions) == r.engine_upgrade_new_exclusion_count == 3
+    assert {variable for _, variable in new_exclusions} == {
+        "federal_income_tax_before_refundable_credits"
+    }
+    assert r.rerun_sweep_new_excluded_count_word == "three"
+    (new,) = [
+        s for s in _load(RERUN_SWEEPS)["sweeps"] if not s["september_22_root_cause"]
+    ]
+    exclusions = _exclusions()
+    beyond = {
+        (move["scenario_id"], move["variable"])
+        for move in new["moves"]
+        if _moves_beyond_tolerance(
+            move["variable"], move["baseline"], move["recomputed"]
+        )
+    }
+    assert new_exclusions <= beyond
+    assert all(
+        exclusions[key]["engine_version"] == "policyengine-us 1.755.4"
+        for key in beyond - new_exclusions
+    )
     # The paper's two clock times come from the timing record.
     timing = _load(AUDIT / "verification" / "sweep_timing.json")["pypi"]
     uploaded = timing["wheel_uploaded_at_utc"][ENGINE]
