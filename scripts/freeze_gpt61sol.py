@@ -83,12 +83,20 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
         raise SystemExit("Strict export receipt is missing staged evidence hashes")
     for name, expected in receipt["files"].items():
         source = (stage / name).resolve()
-        if not source.is_relative_to(stage) or digest(source) != expected:
+        if (
+            not source.is_relative_to(stage)
+            or not source.is_file()
+            or digest(source) != expected
+        ):
             raise SystemExit(f"Staged evidence changed since strict export: {name}")
     bundle = Path("publish") / RUN
     required = [bundle / "us" / name for name in driver.REFERENCE_FILES]
     required += [bundle / "us/predictions.csv", bundle / "annotations" / ADJUDICATIONS]
     required += [Path("inputs") / slug / "run_state.json" for slug in NEW_MODELS]
+    # What the adjudication and verdict gates allow rests on these.
+    required += [Path(driver.PROMPT_CHANGES), Path("stage.json")]
+    if (stage / driver.AMENDMENTS).exists():
+        required.append(Path(driver.AMENDMENTS))
     unbound = [str(p) for p in required if str(p) not in receipt["files"]]
     if unbound:
         raise SystemExit(f"Strict export receipt does not bind: {unbound}")
@@ -107,12 +115,22 @@ def verify_references(source_us: Path, frozen_run: Path, manifest: dict) -> None
             raise SystemExit(f"Manifest pin for {name} is not release 20260929's")
 
 
-def verify_adjudication_record(staged: Path, committed: Path, source_us: Path) -> int:
-    """Adjudications may only grow through triage; exclusions may not move.
+def verify_adjudication_record(
+    staged: Path,
+    source_us: Path,
+    rejudged: frozenset[str],
+    amendments: list[dict],
+) -> int:
+    """The staged record may change only where GPT-6.1 Sol re-opened a case.
 
-    Returns how many staged decisions the committed record lacks. The staged
-    record is bound by the receipt, which export writes only after triage has
-    applied it; the scoring exclusions stay release 20260929's.
+    The baseline is release 20260929's record in git (BASE_COMMIT), never the
+    working-tree copy this freeze overwrites. A re-opened case may rewrite its
+    judge fields, and its reasoning exactly as the listed wording amendments
+    say; nothing else in any committed entry may change, and the scoring
+    exclusions stay release 20260929's. Returns how many staged decisions the
+    committed record lacks. The staged record, prompt-changes.json and the
+    amendments are bound by the receipt, which export writes only after
+    triage applied them.
     """
     from policybench.adjudications import excluded_case_keys, load_adjudications
     from policybench.reference_exclusions import (
@@ -120,17 +138,10 @@ def verify_adjudication_record(staged: Path, committed: Path, source_us: Path) -
         load_reference_exclusions,
     )
 
-    if staged.read_bytes() == committed.read_bytes():
-        return 0
-
-    def keys(entries):
-        return {(e["country"], e["scenario_id"], e["variable"]) for e in entries}
-
-    before = load_adjudications(committed)
     after = load_adjudications(staged)
-    dropped = keys(before) - keys(after)
-    if dropped:
-        raise SystemExit(f"Staged adjudications drop recorded decisions: {dropped}")
+    added = driver.verify_adjudication_changes(
+        driver.base_adjudications(), after, rejudged, amendments
+    )
     if excluded_case_keys(after) != exclusion_keys(
         load_reference_exclusions(source_us)
     ):
@@ -138,7 +149,46 @@ def verify_adjudication_record(staged: Path, committed: Path, source_us: Path) -
             "Staged adjudications change the scoring exclusions; this release "
             "has no reference revision"
         )
-    return len(keys(after) - keys(before))
+    return added
+
+
+def verify_annotation_amendments(annotations: Path, amendments: list[dict]) -> None:
+    """Every listed case-note and row-annotation amendment is in the staged CSVs."""
+    import pandas as pd
+
+    frames = {
+        "case_annotation": pd.read_csv(annotations / "us_case_notes.csv"),
+        "annotation": pd.read_csv(annotations / "us_audit_row_annotations.csv"),
+    }
+    for item in amendments:
+        if item["field"] not in frames:
+            continue
+        frame = frames[item["field"]]
+        country, scenario, variable = item["case_id"].split("__", 2)
+        mask = (
+            (frame["country"].astype(str) == country)
+            & (frame["scenario_id"].astype(str) == scenario)
+            & (frame["variable"].astype(str) == variable)
+        )
+        if "model" in item:
+            mask &= frame["model"].astype(str) == item["model"]
+        texts = frame.loc[mask, item["field"]].astype(str).tolist()
+        if len(texts) != 1 or item["new"] not in texts[0]:
+            raise SystemExit(
+                f"Staged {item['field']} of {item['case_id']} does not carry its "
+                "listed wording amendment; run triage and export again"
+            )
+
+
+def freeze_amendments(stage: Path, destination: Path) -> None:
+    """Commit the stage's wording amendments beside the adjudication record.
+
+    The amended case notes, row annotations and reasoning are published; the
+    list says what changed, from what, and why.
+    """
+    source = stage / driver.AMENDMENTS
+    if source.exists() and json.loads(source.read_text())["amendments"]:
+        shutil.copyfile(source, destination / f"us_{driver.AMENDMENTS}")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -197,11 +247,12 @@ def main(argv: list[str] | None = None) -> None:
     source_us = source_run / "us"
     verify_references(source_us, frozen_run, read_json(snapshot / "manifest.json"))
     staged_annotations = source_run / "annotations"
+    rejudged = driver.rejudged_cases(stage)
+    amendments = driver.load_amendments(stage, rejudged)
     added = verify_adjudication_record(
-        staged_annotations / ADJUDICATIONS,
-        freezer.ANNOTATIONS_DEST / ADJUDICATIONS,
-        source_us,
+        staged_annotations / ADJUDICATIONS, source_us, rejudged, amendments
     )
+    verify_annotation_amendments(staged_annotations, amendments)
     previous_rows = pd.read_csv(frozen_run / "predictions.csv.gz", low_memory=False)
     staged_rows = pd.read_csv(source_us / "predictions.csv", low_memory=False)
     for model in sorted(incumbents):
@@ -272,7 +323,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.dry_run:
         print(
             f"Validated local release inputs: {args.tag}, {BOARD_MODELS} models, "
-            f"{payload_hash}; references unchanged; {added} adjudications added"
+            f"{payload_hash}; references unchanged; {added} adjudications added; "
+            f"{len(amendments)} wording amendments"
         )
         return
 
@@ -327,6 +379,7 @@ def main(argv: list[str] | None = None) -> None:
         freezer.ANNOTATIONS_DEST / ADJUDICATIONS,
     )
     freezer.main()
+    freeze_amendments(stage, freezer.ANNOTATIONS_DEST)
     # The freezer copies the staged references byte for byte; confirm it.
     driver.verify_reference_pins(frozen_run, "frozen reference")
     cache = ROOT / "app/.cache" / f"dashboard-data-{payload_hash[:16]}.json"

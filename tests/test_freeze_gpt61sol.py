@@ -49,9 +49,13 @@ def freeze_preflight(tmp_path, monkeypatch):
     ]
     evidence += [BUNDLE / "annotations/us_adjudications.json"]
     evidence += [Path("inputs/gpt61sol/run_state.json"), Path("audit/verdict.json")]
+    evidence += [Path(driver.PROMPT_CHANGES), Path("stage.json")]
     for name in evidence:
         (stage / name).parent.mkdir(parents=True, exist_ok=True)
         (stage / name).write_text(f"Evidence: {name.name}\n")
+    (stage / driver.PROMPT_CHANGES).write_text(
+        json.dumps({"added": [], "changed": [], "kept": []})
+    )
     receipt = {
         "release_tag": driver.RELEASE_TAG,
         "base_tag": driver.BASE_TAG,
@@ -150,6 +154,8 @@ def test_freeze_refuses_changed_or_unbound_evidence(freeze_preflight, defect):
         str(BUNDLE / "us/reference_exclusions.json"),
         str(BUNDLE / "annotations/us_adjudications.json"),
         "inputs/gpt61sol/run_state.json",
+        driver.PROMPT_CHANGES,
+        "stage.json",
     ],
 )
 def test_the_receipt_must_bind_references_adjudications_and_run_state(
@@ -159,6 +165,13 @@ def test_the_receipt_must_bind_references_adjudications_and_run_state(
     del receipt["files"][unbound]
     (stage / "release-ready.json").write_text(json.dumps(receipt))
     with pytest.raises(SystemExit, match="does not bind"):
+        release.main(["--stage-dir", str(stage), "--dry-run"])
+
+
+def test_wording_amendments_present_in_the_stage_must_be_bound(freeze_preflight):
+    stage, _, _ = freeze_preflight
+    (stage / driver.AMENDMENTS).write_text(json.dumps({"amendments": []}))
+    with pytest.raises(SystemExit, match=f"does not bind.*{driver.AMENDMENTS}"):
         release.main(["--stage-dir", str(stage), "--dry-run"])
 
 
@@ -217,6 +230,30 @@ def test_the_freeze_refuses_a_dropped_adjudication_before_mutation(staged_board)
     assert workspace_files() == before
 
 
+def test_the_freeze_baseline_is_release_20260929_in_git_not_the_working_tree(
+    staged_board, monkeypatch
+):
+    """A freeze that stopped after copying the staged record over the committed
+    one leaves them equal; the next freeze must still compare with git."""
+    import freeze_snapshot as freezer
+
+    stage, rebind = staged_board
+    monkeypatch.setattr(freezer, "ANNOTATIONS_DEST", release.ROOT / "annotations" / RUN)
+    for name in driver.REFERENCE_FILES:
+        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    record = json.loads(COMMITTED_ADJUDICATIONS.read_text())
+    record["adjudications"].pop(0)
+    staged = stage / BUNDLE / "annotations/us_adjudications.json"
+    staged.write_text(json.dumps(record))
+    rebind()
+    # What a partial freeze leaves behind: the working-tree record is the
+    # staged one, byte for byte.
+    freezer.ANNOTATIONS_DEST.mkdir(parents=True)
+    shutil.copyfile(staged, freezer.ANNOTATIONS_DEST / "us_adjudications.json")
+    with pytest.raises(SystemExit, match="drop recorded decisions"):
+        release.main(["--stage-dir", str(stage), "--dry-run"])
+
+
 # --- References ----------------------------------------------------------------
 
 
@@ -268,14 +305,27 @@ def _write(path, record):
     path.write_text(json.dumps(record, indent=2) + "\n")
 
 
+def _case(entry):
+    return f"{entry['country']}__{entry['scenario_id']}__{entry['variable']}"
+
+
+def _verify(staged, rejudged=frozenset(), amendments=()):
+    return release.verify_adjudication_record(
+        staged, driver.SNAPSHOT, frozenset(rejudged), list(amendments)
+    )
+
+
+def test_the_committed_record_is_release_20260929s():
+    """The working-tree record the tests edit is the one at BASE_COMMIT."""
+    assert (
+        json.loads(COMMITTED_ADJUDICATIONS.read_text())["adjudications"]
+        == driver.base_adjudications()
+    )
+
+
 def test_an_unchanged_adjudication_record_passes(adjudications):
     staged, _ = adjudications
-    assert (
-        release.verify_adjudication_record(
-            staged, COMMITTED_ADJUDICATIONS, driver.SNAPSHOT
-        )
-        == 0
-    )
+    assert _verify(staged) == 0
 
 
 def test_triage_may_add_a_decision_that_keeps_the_output_scored(adjudications):
@@ -286,24 +336,51 @@ def test_triage_may_add_a_decision_that_keeps_the_output_scored(adjudications):
     added = {**copy.deepcopy(scored), "scenario_id": "scenario_999"}
     record["adjudications"].append(added)
     _write(staged, record)
-    assert (
-        release.verify_adjudication_record(
-            staged, COMMITTED_ADJUDICATIONS, driver.SNAPSHOT
-        )
-        == 1
-    )
+    assert _verify(staged, rejudged={_case(added)}) == 1
+    # A decision on a case GPT-6.1 Sol did not re-open has no reason to appear.
+    with pytest.raises(SystemExit, match="did not re-open"):
+        _verify(staged)
 
 
-def test_triage_may_restate_a_rejudged_class(adjudications):
+def test_a_rejudged_case_may_be_restated(adjudications):
     staged, record = adjudications
-    record["adjudications"][0]["judge_failure_subtype"] = "thresholds_rates"
-    _write(staged, record)
-    assert (
-        release.verify_adjudication_record(
-            staged, COMMITTED_ADJUDICATIONS, driver.SNAPSHOT
-        )
-        == 0
+    entry = record["adjudications"][0]
+    entry["judge_failure_subtype"] = "thresholds_rates"
+    entry["judge_rejudged_on"] = "2026-09-30"
+    entry.setdefault("judge_previous", []).append(
+        {"judge_model": "claude-opus-5-5", "judged_on": "2026-09-29"}
     )
+    _write(staged, record)
+    assert _verify(staged, rejudged={_case(entry)}) == 0
+
+
+@pytest.mark.parametrize(
+    "edit",
+    ["judge_class", "decision_class", "reasoning", "decision_order", "entry_order"],
+)
+def test_a_rewrite_of_an_incumbent_only_case_is_refused(adjudications, edit):
+    """No field of a case GPT-6.1 Sol did not re-open may change, key order and
+    entry order included; a re-opened case may change its judge fields only."""
+    staged, record = adjudications
+    entries = record["adjudications"]
+    entry = entries[0]
+    rejudged = set()
+    if edit == "judge_class":
+        entry["judge_failure_subtype"] = "thresholds_rates"
+    elif edit == "decision_class":
+        entry["adjudicated_failure_subtype"] = "other"
+        rejudged = {_case(entry)}
+    elif edit == "reasoning":
+        entry["reasoning"] += " Restated."
+        rejudged = {_case(entry)}
+    elif edit == "decision_order":
+        entries[0] = dict(reversed(list(entry.items())))
+        rejudged = {_case(entry)}
+    else:
+        entries[0], entries[1] = entries[1], entries[0]
+    _write(staged, record)
+    with pytest.raises(SystemExit, match="change recorded decisions|entry order"):
+        _verify(staged, rejudged=rejudged)
 
 
 def test_a_dropped_decision_is_refused(adjudications):
@@ -311,9 +388,7 @@ def test_a_dropped_decision_is_refused(adjudications):
     record["adjudications"].pop()
     _write(staged, record)
     with pytest.raises(SystemExit, match="drop recorded decisions"):
-        release.verify_adjudication_record(
-            staged, COMMITTED_ADJUDICATIONS, driver.SNAPSHOT
-        )
+        _verify(staged)
 
 
 def test_a_new_exclusion_is_refused(adjudications):
@@ -321,14 +396,105 @@ def test_a_new_exclusion_is_refused(adjudications):
     excluded = next(
         e for e in record["adjudications"] if e.get("excluded_from_scoring")
     )
-    record["adjudications"].append(
-        {**copy.deepcopy(excluded), "scenario_id": "scenario_999"}
-    )
+    added = {**copy.deepcopy(excluded), "scenario_id": "scenario_999"}
+    record["adjudications"].append(added)
     _write(staged, record)
     with pytest.raises(SystemExit, match="change the scoring exclusions"):
-        release.verify_adjudication_record(
-            staged, COMMITTED_ADJUDICATIONS, driver.SNAPSHOT
-        )
+        _verify(staged, rejudged={_case(added)})
+
+
+# --- Wording amendments --------------------------------------------------------
+
+
+def _amendment(entry, old, new, field="reasoning", **extra):
+    return {
+        "case_id": _case(entry),
+        "field": field,
+        "old": old,
+        "new": new,
+        "reason": "The re-judge replaced the verdict this sentence describes.",
+        **extra,
+    }
+
+
+def test_a_listed_wording_amendment_is_allowed_and_nothing_else(adjudications):
+    staged, record = adjudications
+    entry = record["adjudications"][0]
+    old = entry["reasoning"].split(". ")[0]
+    amendment = _amendment(entry, old, old + ", as restated")
+    entry["reasoning"] = entry["reasoning"].replace(old, old + ", as restated")
+    _write(staged, record)
+    assert _verify(staged, {_case(entry)}, [amendment]) == 0
+    # Unlisted, the same change is refused.
+    with pytest.raises(SystemExit, match="change recorded decisions"):
+        _verify(staged, {_case(entry)})
+    # Listed but not applied, it is refused too: the list is exact.
+    shutil.copyfile(COMMITTED_ADJUDICATIONS, staged)
+    with pytest.raises(SystemExit, match="change recorded decisions"):
+        _verify(staged, {_case(entry)}, [amendment])
+    # Any other change beside it is still refused.
+    entry["adjudicated_on"] = "2026-09-30"
+    _write(staged, record)
+    with pytest.raises(SystemExit, match="change recorded decisions"):
+        _verify(staged, {_case(entry)}, [amendment])
+
+
+@pytest.fixture
+def amendment_stage(tmp_path, adjudications):
+    _, record = adjudications
+    entry = record["adjudications"][0]
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    (stage / driver.PROMPT_CHANGES).write_text(
+        json.dumps({"added": [], "changed": [_case(entry)], "kept": []})
+    )
+
+    def write(*items):
+        (stage / driver.AMENDMENTS).write_text(json.dumps({"amendments": items}))
+        return driver.load_amendments(stage, driver.rejudged_cases(stage))
+
+    return entry, write
+
+
+def test_load_amendments_accepts_wording_of_rejudged_cases(amendment_stage):
+    entry, write = amendment_stage
+    items = [
+        _amendment(entry, "a", "b"),
+        _amendment(entry, "a", "b", field="case_annotation"),
+        _amendment(entry, "a", "b", field="annotation", model="gpt-6.1-sol"),
+    ]
+    assert write(*items) == items
+
+
+@pytest.mark.parametrize(
+    "defect, message",
+    [
+        ({"field": "adjudicated_failure_source"}, "not wording"),
+        ({"field": "excluded_from_scoring"}, "not wording"),
+        ({"field": "judge_failure_source"}, "not wording"),
+        ({"case_id": "us__scenario_999__snap"}, "not re-judged"),
+        ({"reason": " "}, "reason"),
+        ({"new": None}, "new"),
+        ({"old": ""}, "old"),
+        ({"new": "same", "old": "same"}, "changes nothing"),
+        ({"model": "gpt-6.1-sol"}, "keys"),
+        ({"field": "annotation"}, "keys"),
+    ],
+)
+def test_load_amendments_refuses_anything_but_wording_of_rejudged_cases(
+    amendment_stage, defect, message
+):
+    entry, write = amendment_stage
+    with pytest.raises(SystemExit, match=message):
+        write({**_amendment(entry, "a", "b"), **defect})
+
+
+def test_an_amendment_must_find_its_old_text_exactly_once(adjudications):
+    staged, record = adjudications
+    entry = record["adjudications"][0]
+    for old in ("no such wording", " "):
+        with pytest.raises(SystemExit, match="occurs"):
+            _verify(staged, {_case(entry)}, [_amendment(entry, old, "x")])
 
 
 # --- Treatment -----------------------------------------------------------------

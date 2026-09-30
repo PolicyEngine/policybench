@@ -52,6 +52,11 @@ ANNOTATION_FILES = (
     "us_adjudications.json",
 )
 JUDGE_MODEL = "claude-opus-5-5"
+ADJUDICATIONS = "us_adjudications.json"
+# Stage files export binds: the cases GPT-6.1 Sol re-opened, and the
+# wording-only amendments a developer lists for them.
+PROMPT_CHANGES = "prompt-changes.json"
+AMENDMENTS = "wording-amendments.json"
 # The merge of PR #182 on main, whose tree holds release 20260929.
 BASE_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
 # Release 20260929's references. There is no reference revision in this
@@ -309,6 +314,241 @@ def base_payload_from_commit() -> dict:
         f"base must have {BASE_MODELS} models",
     )
     return live
+
+
+def base_adjudications() -> list[dict]:
+    """Release 20260929's adjudication record, read from BASE_COMMIT.
+
+    The working-tree copy is not a baseline: the freeze overwrites it, and a
+    freeze that stops partway would leave the staged record in its place.
+    """
+    from policybench.adjudications import parse_adjudications
+
+    path = Path("annotations") / RUN_NAME / ADJUDICATIONS
+    return parse_adjudications(
+        json.loads(base_commit_blob(path)), f"{BASE_COMMIT[:12]}:{path}"
+    )
+
+
+def rejudged_cases(stage: Path) -> frozenset[str]:
+    """The cases GPT-6.1 Sol re-opened: prompt-changes.json's changed and added."""
+    changes = json.loads((stage / PROMPT_CHANGES).read_text())
+    return frozenset(changes["changed"]) | frozenset(changes["added"])
+
+
+def case_id(entry: dict) -> str:
+    """An adjudication entry's audit case id."""
+    return f"{entry['country']}__{entry['scenario_id']}__{entry['variable']}"
+
+
+# The only published wording an amendment may change, and where it lives: the
+# decision's reasoning in the adjudication record, the case note, and one
+# model's row annotation. None of them carries a class, an exclusion or a score.
+AMENDABLE_FIELDS = {
+    "reasoning": "adjudication record",
+    "case_annotation": "case note",
+    "annotation": "row annotation",
+}
+
+
+def load_amendments(stage: Path, rejudged: frozenset[str]) -> list[dict]:
+    """The stage's wording-only amendments, each checked for shape and scope.
+
+    Each names a case GPT-6.1 Sol re-opened, a wording field, the exact old
+    text, the new text and the reason; a row annotation also names its model.
+    An absent file lists none.
+    """
+    path = stage / AMENDMENTS
+    if not path.exists():
+        return []
+    amendments = json.loads(path.read_text()).get("amendments")
+    require(isinstance(amendments, list), f"{AMENDMENTS}: 'amendments' is not a list")
+    for item in amendments:
+        require(isinstance(item, dict), f"{AMENDMENTS}: {item!r} is not an object")
+        field = item.get("field")
+        require(
+            field in AMENDABLE_FIELDS,
+            f"{AMENDMENTS}: field {field!r} is not wording; only "
+            f"{sorted(AMENDABLE_FIELDS)} may be amended",
+        )
+        keys = {"case_id", "field", "old", "new", "reason"}
+        if field == "annotation":
+            keys.add("model")
+        require(
+            set(item) == keys,
+            f"{AMENDMENTS}: an amendment of {field} has keys {sorted(keys)}, "
+            f"not {sorted(item)}",
+        )
+        require(
+            item["case_id"] in rejudged,
+            f"{AMENDMENTS}: {item['case_id']} was not re-judged in this stage",
+        )
+        for key in ("old", "new", "reason", *(("model",) if "model" in keys else ())):
+            require(
+                isinstance(item[key], str) and item[key].strip(),
+                f"{AMENDMENTS}: {key} must be non-empty text: {item!r}",
+            )
+        require(
+            item["old"] != item["new"],
+            f"{AMENDMENTS}: an amendment changes nothing: {item!r}",
+        )
+    return amendments
+
+
+def amend_text(text: str, amendments: list[dict], label: str) -> str:
+    """``text`` with each amendment's old wording, found exactly once, replaced."""
+    for item in amendments:
+        count = text.count(item["old"])
+        require(
+            count == 1,
+            f"{label}: the old text of a wording amendment occurs {count} times, "
+            f"not once: {item['old'][:80]!r}",
+        )
+        text = text.replace(item["old"], item["new"])
+    return text
+
+
+def _record_amendments(amendments: list[dict]) -> dict[str, list[dict]]:
+    """The amendments of the adjudication record, by case."""
+    grouped: dict[str, list[dict]] = {}
+    for item in amendments:
+        if item["field"] == "reasoning":
+            grouped.setdefault(item["case_id"], []).append(item)
+    return grouped
+
+
+def verify_adjudication_changes(
+    base: list[dict],
+    staged: list[dict],
+    rejudged: frozenset[str],
+    amendments: list[dict],
+) -> int:
+    """A staged record differs from 20260929's only where it has a reason to.
+
+    Only a case GPT-6.1 Sol re-opened (``rejudged``) may change, and only in
+    its judge fields (the restate script's JUDGE_FIELDS) and in the reasoning
+    wording the listed amendments change, exactly as they say. Every other
+    field of every committed entry keeps its value and its place, key order
+    included, and the committed entries keep their order. A new entry may only
+    decide a re-opened case, and none may be dropped. Returns how many staged
+    entries are new.
+    """
+    from restate_gpt61sol_adjudications import JUDGE_FIELDS
+
+    def serialized(entry: dict, rejudged_case: bool) -> str:
+        # A re-opened case may rewrite its judge fields; nothing else may move.
+        items = [
+            [key, value]
+            for key, value in entry.items()
+            if not (rejudged_case and key in JUDGE_FIELDS)
+        ]
+        return json.dumps(items, ensure_ascii=False, allow_nan=False)
+
+    before = {case_id(entry): entry for entry in base}
+    after = {case_id(entry): entry for entry in staged}
+    dropped = sorted(set(before) - set(after))
+    require(not dropped, f"Staged adjudications drop recorded decisions: {dropped}")
+    new = sorted(set(after) - set(before))
+    require(
+        set(new) <= rejudged,
+        "Staged adjudications add decisions on cases GPT-6.1 Sol did not "
+        f"re-open: {sorted(set(new) - rejudged)[:8]}",
+    )
+    require(
+        [case for case in after if case in before] == list(before),
+        "Staged adjudications change the committed entry order",
+    )
+    grouped = _record_amendments(amendments)
+    require(
+        set(grouped) <= set(before),
+        f"Wording amendments name cases with no recorded decision: "
+        f"{sorted(set(grouped) - set(before))}",
+    )
+    changed = []
+    for case, entry in before.items():
+        if case in grouped:
+            entry = {
+                **entry,
+                "reasoning": amend_text(
+                    entry["reasoning"], grouped[case], f"{case} reasoning"
+                ),
+            }
+        reopened = case in rejudged
+        if serialized(after[case], reopened) != serialized(entry, reopened):
+            changed.append(case)
+    require(
+        not changed,
+        "Staged adjudications change recorded decisions beyond the re-judged "
+        f"cases' judge fields and the listed wording amendments: {changed[:8]}",
+    )
+    return len(new)
+
+
+def stage_adjudications(
+    path: Path, rejudged: frozenset[str], amendments: list[dict], cases_dir: Path
+) -> list[dict]:
+    """The staged record, with its listed reasoning amendments applied.
+
+    Checked in memory against release 20260929's record (from git) and the
+    stage's verdicts; written back only when an amendment was not applied yet.
+    """
+    from freeze_snapshot import verify_adjudications_keep_judge_verdicts
+
+    from policybench.adjudications import parse_adjudications
+
+    base = base_adjudications()
+    record = json.loads(path.read_text())
+    grouped = _record_amendments(amendments)
+    original = {case_id(entry): entry for entry in base}
+    applied = False
+    for entry in record["adjudications"]:
+        case = case_id(entry)
+        if case in grouped and case in original:
+            wording = original[case]["reasoning"]
+            if entry["reasoning"] == wording:
+                entry["reasoning"] = amend_text(
+                    wording, grouped[case], f"{case} reasoning"
+                )
+                applied = True
+    text = json.dumps(record, indent=2, ensure_ascii=False) + "\n"
+    entries = parse_adjudications(json.loads(text), path)
+    verify_adjudication_changes(base, entries, rejudged, amendments)
+    verify_adjudications_keep_judge_verdicts(entries, cases_dir)
+    if applied:
+        pending = path.with_name(path.name + ".amending")
+        pending.write_text(text)
+        os.replace(pending, path)
+    return entries
+
+
+def amend_annotations(rows, cases, amendments: list[dict]) -> None:
+    """Apply the listed case-note and row-annotation amendments in place.
+
+    Each must find exactly one row, and its old text exactly once in it.
+    """
+    for item in amendments:
+        if item["field"] == "reasoning":
+            continue
+        country, scenario, variable = item["case_id"].split("__", 2)
+        frame = cases if item["field"] == "case_annotation" else rows
+        mask = (
+            (frame["country"].astype(str) == country)
+            & (frame["scenario_id"].astype(str) == scenario)
+            & (frame["variable"].astype(str) == variable)
+        )
+        if item["field"] == "annotation":
+            mask &= frame["model"].astype(str) == item["model"]
+        require(
+            int(mask.sum()) == 1,
+            f"a wording amendment of {item['case_id']} {item['field']} "
+            f"matches {int(mask.sum())} rows, not one",
+        )
+        index = frame.index[mask][0]
+        frame.loc[index, item["field"]] = amend_text(
+            str(frame.loc[index, item["field"]]),
+            [item],
+            f"{item['case_id']} {item['field']}",
+        )
 
 
 def resolve_live_base(args) -> dict:
@@ -690,7 +930,6 @@ def triage(args, bundle) -> None:
     from policybench.adjudications import (
         apply_adjudications,
         excluded_case_keys,
-        load_adjudications,
         verify_adjudications_applied,
     )
     from policybench.audit import collect_audit
@@ -721,11 +960,14 @@ def triage(args, bundle) -> None:
         "case wrong_model_count disagrees with collected rows",
     )
     annotations = bundle / "annotations"
-    decisions = load_adjudications(annotations / "us_adjudications.json")
-    from freeze_snapshot import verify_adjudications_keep_judge_verdicts
-
-    verify_adjudications_keep_judge_verdicts(decisions, audit / "cases")
+    rejudged = rejudged_cases(args.stage_dir)
+    amendments = load_amendments(args.stage_dir, rejudged)
+    decisions = stage_adjudications(
+        annotations / ADJUDICATIONS, rejudged, amendments, audit / "cases"
+    )
     rows, cases, _ = apply_adjudications(rows, cases, decisions)
+    amend_annotations(rows, cases, amendments)
+    # An amendment may not touch the adjudication sentence a case note carries.
     verify_adjudications_applied(rows, cases, decisions)
     excluded = exclusion_keys(load_reference_exclusions(bundle / "us"))
     require(
@@ -834,6 +1076,17 @@ def export(args, bundle, live) -> dict:
             bundle / "us" / name for name in (*REFERENCE_FILES, "predictions.csv")
         ]
         pinned += [p for p in (args.stage_dir / "inputs").rglob("*") if p.is_file()]
+        # The cases GPT-6.1 Sol re-opened, the listed wording amendments and the
+        # seed binding decide what the adjudication and verdict gates allow.
+        pinned += [
+            path
+            for path in (
+                args.stage_dir / PROMPT_CHANGES,
+                args.stage_dir / AMENDMENTS,
+                args.stage_dir / "stage.json",
+            )
+            if path.is_file()
+        ]
         pinned += [
             p
             for p in (args.stage_dir / "audit").rglob("*")

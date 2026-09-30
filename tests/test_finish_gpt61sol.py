@@ -867,6 +867,13 @@ def test_triage_stops_and_records_flags_for_evidence_review(
         ]
     )
     monkeypatch.setattr(driver, "validate_verdicts", lambda *a, **kw: [])
+    monkeypatch.setattr(driver, "base_adjudications", lambda: [])
+    (stage / driver.PROMPT_CHANGES).write_text(
+        json.dumps({"added": [], "changed": [], "kept": []})
+    )
+    (bundle / "annotations" / driver.ADJUDICATIONS).write_text(
+        json.dumps({"adjudications": []})
+    )
     monkeypatch.setattr(
         policybench.audit,
         "collect_audit",
@@ -881,6 +888,190 @@ def test_triage_stops_and_records_flags_for_evidence_review(
         driver.triage(SimpleNamespace(stage_dir=stage), bundle)
     assert len(pd.read_csv(stage / report)) == 1
     assert not (stage / "release-ready.json").exists()
+
+
+CASE = "us__scenario_000__snap"
+DECISION = {
+    "country": "us",
+    "scenario_id": "scenario_000",
+    "variable": "snap",
+    "judge_model": "claude-opus-5-5",
+    "judge_failure_source": "llm_error",
+    "judge_failure_subtype": "thresholds_rates",
+    "adjudicated_failure_source": "llm_error",
+    "adjudicated_failure_subtype": "thresholds_rates",
+    "adjudicated_on": "2026-09-22",
+    "adjudicator": "developer",
+    "judge_reference_suspect": True,
+    "reference_verdict": "affirmed",
+    "reference_basis": "7 CFR 273.10",
+    "reasoning": "The judge counted one model's row. The allotment follows the rule.",
+}
+
+
+@pytest.fixture
+def triage_stage(tmp_path, monkeypatch):
+    """A one-case stage GPT-6.1 Sol re-opened, with a recorded decision."""
+    import policybench.audit
+
+    stage = tmp_path / "stage"
+    bundle = stage / "publish" / driver.RUN_NAME
+    (bundle / "annotations").mkdir(parents=True)
+    (stage / driver.PROMPT_CHANGES).write_text(
+        json.dumps({"added": [], "changed": [CASE], "kept": []})
+    )
+    case = stage / "audit/cases" / CASE
+    case.mkdir(parents=True)
+    (case / "verdict.json").write_text(
+        json.dumps({**_verdict([NEW]), "reference_suspect": True})
+    )
+    record = bundle / "annotations" / driver.ADJUDICATIONS
+    record.write_text(
+        json.dumps({"adjudications": [DECISION]}, indent=2, ensure_ascii=False) + "\n"
+    )
+    monkeypatch.setattr(driver, "validate_verdicts", lambda *a, **kw: [])
+    monkeypatch.setattr(driver, "base_adjudications", lambda: [dict(DECISION)])
+    row = {
+        "country": "us",
+        "scenario_id": "scenario_000",
+        "variable": "snap",
+        "failure_source": "llm_error",
+        "failure_subtype": "thresholds_rates",
+        "reference_suspect": True,
+    }
+    rows = pd.DataFrame(
+        [
+            {**row, "model": NEW, "annotation": "It used the 2025 threshold."},
+            {**row, "model": "m1", "annotation": "It used the 2025 threshold."},
+        ]
+    )
+    cases = pd.DataFrame(
+        [
+            {
+                **{k: v for k, v in row.items() if not k.startswith("failure")},
+                "wrong_model_count": 2,
+                "case_failure_source": "llm_error",
+                "case_failure_subtype": "thresholds_rates",
+                "reference_bug_hypothesis": "",
+                "case_annotation": "Both models used the 2025 threshold.",
+            }
+        ]
+    )
+    monkeypatch.setattr(
+        policybench.audit,
+        "collect_audit",
+        lambda *a, **kw: {
+            "missing": pd.DataFrame(),
+            "hedged": pd.DataFrame(),
+            "row": rows.copy(),
+            "case": cases.copy(),
+        },
+    )
+
+    def run():
+        driver.triage(SimpleNamespace(stage_dir=stage), bundle)
+        annotations = bundle / "annotations"
+        return (
+            json.loads(record.read_text())["adjudications"][0],
+            pd.read_csv(annotations / "us_case_notes.csv").iloc[0],
+            pd.read_csv(annotations / "us_audit_row_annotations.csv"),
+        )
+
+    return stage, record, run
+
+
+def test_triage_lets_a_rejudged_case_restate_its_judge_fields(triage_stage):
+    stage, record, run = triage_stage
+    restated = {**DECISION, "judge_rejudged_on": "2026-09-30"}
+    record.write_text(json.dumps({"adjudications": [restated]}))
+    entry, _, _ = run()
+    assert entry == restated
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [("adjudicated_failure_subtype", "other"), ("reasoning", "Rewritten.")],
+)
+def test_triage_refuses_any_other_change_to_a_recorded_decision(
+    triage_stage, field, value
+):
+    stage, record, run = triage_stage
+    record.write_text(json.dumps({"adjudications": [{**DECISION, field: value}]}))
+    with pytest.raises(SystemExit, match="change recorded decisions"):
+        run()
+
+
+def test_triage_refuses_a_judge_rewrite_of_an_incumbent_only_case(triage_stage):
+    stage, record, run = triage_stage
+    (stage / driver.PROMPT_CHANGES).write_text(
+        json.dumps({"added": [], "changed": [], "kept": [CASE]})
+    )
+    record.write_text(
+        json.dumps({"adjudications": [{**DECISION, "judge_rejudged_on": "2026-09-30"}]})
+    )
+    with pytest.raises(SystemExit, match="change recorded decisions"):
+        run()
+
+
+def _amendments(stage, *items):
+    (stage / driver.AMENDMENTS).write_text(json.dumps({"amendments": list(items)}))
+
+
+def _item(field, old, new, **extra):
+    return {
+        "case_id": CASE,
+        "field": field,
+        "old": old,
+        "new": new,
+        "reason": "The re-judge's verdict no longer says this.",
+        **extra,
+    }
+
+
+def test_triage_applies_exactly_the_listed_wording_amendments(triage_stage):
+    stage, record, run = triage_stage
+    _amendments(
+        stage,
+        _item("reasoning", "one model's row", "two models' rows"),
+        _item("case_annotation", "the 2025 threshold", "the 2025 threshold, held"),
+        _item("annotation", "2025 threshold", "held 2025 threshold", model=NEW),
+    )
+    entry, note, rows = run()
+    assert entry["reasoning"] == DECISION["reasoning"].replace(
+        "one model's row", "two models' rows"
+    )
+    assert list(entry) == list(DECISION)
+    assert note.case_annotation.startswith("Both models used the 2025 threshold, held.")
+    assert "two models' rows" in note.case_annotation
+    annotations = dict(zip(rows.model, rows.annotation))
+    assert annotations == {
+        NEW: "It used the held 2025 threshold.",
+        "m1": "It used the 2025 threshold.",
+    }
+    # Idempotent: a second triage applies nothing twice.
+    text = record.read_text()
+    assert run()[0] == entry and record.read_text() == text
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        _item("case_annotation", "no such text", "x"),
+        _item("annotation", "2025 threshold", "x", model="not-a-model"),
+        # The adjudication sentence comes from the record; only a reasoning
+        # amendment may change it.
+        _item("case_annotation", "The allotment follows the rule.", "It does."),
+    ],
+)
+def test_triage_refuses_an_amendment_it_cannot_apply_exactly(triage_stage, item):
+    from policybench.adjudications import AdjudicationError
+
+    stage, _, run = triage_stage
+    _amendments(stage, item)
+    with pytest.raises(
+        (SystemExit, AdjudicationError), match="occurs|matches|adjudication sentence"
+    ):
+        run()
 
 
 # --- Export and the no-drift gate ---------------------------------------------
@@ -964,6 +1155,8 @@ def _evidence(stage, bundle):
     ]
     paths += [stage / f"inputs/{SLUG}/run_state.json", stage / "audit/cases.jsonl"]
     paths += [stage / "audit/schema.json"]
+    paths += [stage / driver.PROMPT_CHANGES, stage / driver.AMENDMENTS]
+    paths += [stage / "stage.json"]
     paths += [
         stage / "audit/cases/example" / name
         for name in ("verdict.json", "verdict.meta.json", "prompt.md")
