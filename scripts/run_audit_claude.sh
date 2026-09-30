@@ -266,15 +266,35 @@ selected() {
   return 1
 }
 
+# The cases whose verdict already satisfies the schema, found in one pass
+# rather than one interpreter per case.
+valid_cases() {
+  "$PYTHON" - "$SCRIPT_DIR" "$SCHEMA" "$CASES_DIR" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+from validate_verdict import verdict_errors
+
+schema, cases = Path(sys.argv[2]), Path(sys.argv[3])
+for case in sorted(cases.iterdir()):
+    verdict = case / "verdict.json"
+    if verdict.is_file() and verdict.stat().st_size and not verdict_errors(schema, verdict):
+        print(case.name)
+PY
+}
+
 total=$(ls -d "$CASES_DIR"/*/ 2>/dev/null | wc -l | tr -d ' ')
 echo "audit: $total cases | parallel=$PARALLEL model=$MODEL runner=claude ($CLI_VERSION)"
 echo "login: $AUTH in $CONFIG_DIR${AUDIT_ACCOUNT:+ (declared: $AUDIT_ACCOUNT)}"
+VALID=$(valid_cases)
 
 i=0
 pids=""
 for case_dir in "$CASES_DIR"/*/; do
   case_dir="${case_dir%/}"
   selected "$(basename "$case_dir")" || continue
+  printf '%s\n' "$VALID" | grep -Fxq "$(basename "$case_dir")" && continue
   classify_one "$case_dir" &
   pids="$pids $!"
   i=$((i + 1))
@@ -285,8 +305,5 @@ for case_dir in "$CASES_DIR"/*/; do
 done
 [ -n "$pids" ] && wait $pids 2>/dev/null
 
-done_count=0
-for case_dir in "$CASES_DIR"/*/; do
-  verdict_ok "${case_dir%/}/verdict.json" && done_count=$((done_count + 1))
-done
+done_count=$(valid_cases | wc -l | tr -d ' ')
 echo "audit complete: $done_count/$total verdicts present"
