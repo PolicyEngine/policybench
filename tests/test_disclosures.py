@@ -722,7 +722,7 @@ def test_newest_engine_claims_are_anchored_to_a_time():
         VERSIONS,
         ROOT / "README.md",
         ROOT / "reference_audit/2026-09-28/README.md",
-        ROOT / "app/src/notes/2026-09-29-claude-sonnet-5-5-debuts-fourth.json",
+        ROOT / "app/src/notes/2026-09-29-claude-sonnet-5-5-debuts-fifth.json",
         ROOT / "app/src/notes/2026-09-23-five-snap-households-bbce.json",
         SENSITIVITY_NOTE,
     )
