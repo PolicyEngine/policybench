@@ -22,16 +22,17 @@ computed once, in a fresh interpreter, into
 ``<run_dir>/policyengine_provenance.json`` and handed to workers through
 ``POLICYBENCH_POLICYENGINE_PROVENANCE``. What computing it costs depends on
 the environment. It imports policyengine only when a country's installed
-model package is the exact version policyengine.py pins for it. That import
-built the US and UK tax-benefit systems under policyengine.py 4.16.1: about
-1 GB of peak RSS and 11-14 CPU-seconds per process when measured on
-2026-09-28. Otherwise it reads only package metadata and policyengine.py's
-bundled release manifest, and imports no PolicyEngine module; that was the
-case on 2026-09-30 for policyengine-us 2.15.17, which differs from the 2.2.1
-that policyengine.py 6.1.2 pins. Either way, computing it once per run bounds
-the cost: a worker that only calls an LLM does not pay it, and neither does
-the supervisor. Without the file (a mixed-country run, or a failed write),
-workers and the supervisor compute provenance themselves, as before.
+model package is the exact version policyengine.py pins for it. Under
+policyengine.py 4.16.1, with ``POLICYENGINE_SKIP_COUNTRY_IMPORTS`` unset,
+that import built the US and UK tax-benefit systems: about 1 GB of peak RSS
+and 11-14 CPU-seconds per process when measured on 2026-09-28. Otherwise it
+reads only package metadata and policyengine.py's bundled release manifest,
+and imports no PolicyEngine module; that was the case on 2026-09-30 for
+policyengine-us 2.15.17, which differs from the 2.2.1 that policyengine.py
+6.1.2 pins. Either way, computing it once per run bounds the cost: a worker
+that only calls an LLM does not pay it, and neither does the supervisor.
+Without the file (a mixed-country run, or a failed write), workers and the
+supervisor compute provenance themselves, as before.
 """
 
 from __future__ import annotations

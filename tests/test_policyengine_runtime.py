@@ -294,6 +294,7 @@ def test_provenance_inputs_track_package_versions(monkeypatch):
 
 # Where each policyengine.py layout keeps its release manifests: 4.16.1 ships
 # one per country, 6.1.2 one bundle manifest with each under data_releases.
+# Spelled out rather than taken from the module, so a wrong path there fails.
 RELEASE_MANIFEST = "policyengine/data/release_manifests/{country}.json"
 BUNDLE_MANIFEST = "policyengine/data/bundle/manifest.json"
 LAYOUTS = ["per-country", "bundle"]
@@ -476,7 +477,7 @@ def _fingerprint_and_raw_manifests(files):
 @settings(max_examples=60, deadline=None)
 @given(first=_MANIFEST_FILES, second=_MANIFEST_FILES)
 def test_equal_fingerprints_mean_equal_raw_manifests(first, second):
-    """Every file the raw manifest reader reads is in the fingerprint.
+    """Both layouts' manifest files, all the raw reader opens, are fingerprinted.
 
     For two environments that differ only in these files, the fingerprints
     are equal exactly when the files are byte for byte the same, wherever
