@@ -184,9 +184,9 @@ def test_load_validates_the_record(tmp_path: Path):
 
 def test_committed_record_is_applied_to_the_frozen_annotations():
     entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
-    assert len(entries) == 68
+    assert len(entries) == 69
     assert Counter(e["adjudicated_failure_source"] for e in entries) == Counter(
-        {"reference_engine_defect": 28, "prompt_ambiguity": 27, "llm_error": 13}
+        {"reference_engine_defect": 28, "prompt_ambiguity": 28, "llm_error": 13}
     )
     # Every excluded output has its adjudication. Eleven llm_error entries are
     # the references a flag questioned and the adjudication affirmed (five) or
@@ -194,7 +194,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # the September 29 judge called later law (scenario_007 federal income tax
     # and scenario_008 New Jersey refundable credits), whose law predates the
     # reference freeze.
-    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 55
+    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 56
     assert Counter(
         e.get("reference_verdict")
         for e in entries
@@ -234,11 +234,11 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert set(zip(ambiguous["scenario_id"], ambiguous["variable"])) <= keys
     manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
     block = manifest["audit_annotation_artifacts"]["developer_adjudications"]
-    assert block["cases"] == 68
+    assert block["cases"] == 69
     # The judge's own class for each case (its verdict.json), not the
     # adjudicated one; the freezer refuses a record that differs from it.
     assert block["by_judge_verdict"] == {
-        "llm_error": 49,
+        "llm_error": 50,
         "prompt_ambiguity": 2,
         "reference_data_issue_fixed": 1,
         "reference_model_issue_fixed": 16,
@@ -253,7 +253,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
         "unlisted_input": 8,
     }
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
-    assert manifest["reference_exclusions"]["outputs"] == 55
+    assert manifest["reference_exclusions"]["outputs"] == 56
 
 
 def test_verify_requires_agreement_with_the_complete_record():

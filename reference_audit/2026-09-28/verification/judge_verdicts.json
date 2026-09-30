@@ -277,6 +277,17 @@
         "judged_on_utc": null
       }
     },
+    "us__scenario_023__head_medicaid_eligible": {
+      "current": {
+        "tree": "stage",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "categorical_eligibility",
+        "reference_suspect": false,
+        "judged_at_utc": "2026-09-29T01:49:44.868932+00:00",
+        "verdict_sha256": "5094b4eda857c36ce42cf847b76eee7ea7f082c61eb623fabbd7c2e324b28fce"
+      }
+    },
     "us__scenario_023__snap": {
       "current": {
         "tree": "stage",

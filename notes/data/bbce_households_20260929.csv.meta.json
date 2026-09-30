@@ -1,8 +1,8 @@
 {
   "release": "dashboard-data-20260929",
   "source_run": "us_full_run_20260612_policyengine_4_16_1_populace",
-  "run_payload_sha256": "2a6463c9ff9f5fefc301a6548e2dab4d50943052849f1a7468e37809a2842f59",
-  "release_payload_sha256": "d146473d9bd7776638c59a0a20774dbe9026d8bcee0f2201e114146609ddf246",
+  "run_payload_sha256": "86f35f51e654561e47000bc0f1e2059326deb24037a0cd0de0017679cff20244",
+  "release_payload_sha256": "fdaaa7382b05d930af7adb33f7c52b59b27e4c1b18b0dbd2846de4e439c1aec5",
   "households": [
     "scenario_013",
     "scenario_027",
@@ -15,6 +15,6 @@
     "mentions_net_income_limit": "\\bnet[- ](?:income[- ])?(?:limit|test|screen|threshold|ceiling|rule)|(?<![\\d.])100(?:\\.0+)?\\s*%[^.;]{0,20}?(?:fpl|fpg|poverty)"
   },
   "rows": 225,
-  "generated_at_utc": "2026-09-29T15:10:38.174937+00:00",
+  "generated_at_utc": "2026-09-29T22:15:31.057610+00:00",
   "script": "scripts/bbce_households_20260929.py"
 }

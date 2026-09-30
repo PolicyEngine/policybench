@@ -67,25 +67,25 @@ def test_app_release_dates_mirror_the_paper_registry():
 def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     assert r.parse_contract_failure_counts == Counter(
         {
-            "kimi-k2.6": 391,
+            "kimi-k2.6": 390,
             "glm-5.2": 133,
             "glm-5.3": 71,
-            "kimi-k3": 59,
+            "kimi-k3": 58,
         }
     )
-    assert r.parse_contract_failure_count == 654
-    assert r.parse_contract_failure_count_fmt == "654"
+    assert r.parse_contract_failure_count == 652
+    assert r.parse_contract_failure_count_fmt == "652"
     assert r.parse_contract_failure_pct_fmt == "0.8"
 
 
 def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
-    assert r.audit_annotated_row_count == 7_796
-    assert r.audit_annotated_row_count_fmt == "7,796"
+    assert r.audit_annotated_row_count == 7_772
+    assert r.audit_annotated_row_count_fmt == "7,772"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 7_792
-    assert r.exact_match_miss_count_fmt == "7,792"
-    assert r.annotated_exact_miss_count == 7_792
-    assert r.annotated_exact_miss_count_fmt == "7,792"
+    assert r.exact_match_miss_count == 7_768
+    assert r.exact_match_miss_count_fmt == "7,768"
+    assert r.annotated_exact_miss_count == 7_768
+    assert r.annotated_exact_miss_count_fmt == "7,768"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
     assert r.unannotated_below_full_bounded_score_count == 2_027
@@ -93,7 +93,7 @@ def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
 
 
 def test_contract_violations_are_counted_both_ways():
-    """654 scored rows never parsed a number (rows on excluded outputs are outside
+    """652 scored rows never parsed a number (rows on excluded outputs are outside
     every count); 60 more parsed a number but carry no explanation.
     The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
@@ -102,7 +102,7 @@ def test_contract_violations_are_counted_both_ways():
         "claude-haiku-4.5": 1,
     }
     assert r.explanation_missing_count_fmt == "60"
-    assert r.contract_violation_count_fmt == "714"
+    assert r.contract_violation_count_fmt == "712"
     assert r.explanation_missing_breakdown_fmt == (
         "Grok 4.3 (55), Kimi K2.6 (4), and Claude Haiku 4.5 (1)"
     )
@@ -311,10 +311,10 @@ def test_joint_credit_table_orders_ties_deterministically():
 
 
 def test_excluded_outputs_are_outside_the_scored_audit_universe():
-    assert r.excluded_output_count == 55
-    assert r.excluded_output_phrase == "55 outputs"
+    assert r.excluded_output_count == 56
+    assert r.excluded_output_phrase == "56 outputs"
     assert r.excluded_output_households_phrase == "39 households"
-    assert r.unlisted_input_exclusion_count == 27
+    assert r.unlisted_input_exclusion_count == 28
     assert r.engine_defect_exclusion_count == 28
     assert r.engine_defect_root_cause_count == 11
     assert r.snap_engine_defect_exclusion_count == 1
@@ -330,7 +330,7 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     assert (
         r.upstream_fix_prs_fmt == "#8839, #9162, #9301, #9313, #9318, #9363 and #9586"
     )
-    assert r.excluded_outputs_by_input["meets_ssi_disability_criteria"] == 6
+    assert r.excluded_outputs_by_input["meets_ssi_disability_criteria"] == 7
     assert (
         r.excluded_outputs_by_input["months_receiving_social_security_disability"] == 5
     )
@@ -342,10 +342,10 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
         ]
         == 3
     )
-    assert r.scored_outputs_per_model_fmt == "1,929"
+    assert r.scored_outputs_per_model_fmt == "1,928"
     assert r.total_outputs_per_model_fmt == "1,984"
-    assert r.excluded_output_annotation_row_count == 2041
-    assert r.prompt_ambiguity_row_count == 780
+    assert r.excluded_output_annotation_row_count == 2065
+    assert r.prompt_ambiguity_row_count == 802
     # No scored row carries a descriptive class; every excluded-output row
     # carries its exclusion's class unless it never parsed.
     scored_sources = {
@@ -364,7 +364,7 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
             "parse_contract_failure",
         }
     for stats in r.model_stats:
-        assert stats["n"] == 1929
+        assert stats["n"] == 1928
 
 
 def test_engine_upgrade_counts_come_from_the_reference_sidecar():
@@ -391,11 +391,12 @@ def test_engine_upgrade_counts_come_from_the_reference_sidecar():
         == 9
     )
     # Excluded outputs keep the values they were decided on: 52 on 1.755.4,
-    # the three this upgrade added on 2.15.17.
-    assert r.excluded_outputs_by_engine_version == {"1.755.4": 52, "2.15.17": 3}
+    # and on 2.15.17 the three this upgrade added plus the audit's
+    # (final_actions.json audit_exclusions: scenario_023 head Medicaid).
+    assert r.excluded_outputs_by_engine_version == {"1.755.4": 52, "2.15.17": 4}
     assert r.excluded_outputs_on_previous_engine_count == 52
-    assert r.excluded_outputs_on_reference_engine_count == 3
-    assert r.excluded_output_count == 55
+    assert r.excluded_outputs_on_reference_engine_count == 4
+    assert r.excluded_output_count == 56
     # Four scored references move beyond the exact-match tolerance: 008 NJ
     # and 082 NY refundable credits, 013 AZ SNAP and 028 PA reduced-price
     # meals (a 0/1 flag, so any change counts).
