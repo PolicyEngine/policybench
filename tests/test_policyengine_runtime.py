@@ -8,7 +8,7 @@ from importlib import metadata
 from pathlib import Path
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 import policybench.policyengine_runtime as runtime
@@ -168,7 +168,10 @@ def _sidecar_bytes(bundles: dict) -> str:
     return json.dumps({"policyengine_bundles": bundles}, indent=2, sort_keys=True)
 
 
-@pytest.mark.parametrize("countries", COUNTRY_SUBSETS, ids=str)
+# Sorted, so the ids do not depend on set iteration order (PYTHONHASHSEED).
+@pytest.mark.parametrize(
+    "countries", COUNTRY_SUBSETS, ids=lambda countries: ",".join(sorted(countries))
+)
 def test_provenance_file_reproduces_direct_computation(
     fake_release_bundles, tmp_path, monkeypatch, countries
 ):
@@ -374,9 +377,9 @@ def _sha256(path):
 def relocated_policyengine(monkeypatch, tmp_path):
     """policyengine's package files under a temporary root, read unimported.
 
-    ``_load_policyengine_manifest`` returns None, as it does when no installed
-    model package is the version policyengine.py pins, so every bundle comes
-    from ``_load_raw_policyengine_manifest``.
+    ``_load_policyengine_manifest`` is made to return None, so every bundle
+    comes from ``_load_raw_policyengine_manifest``, as it does when no
+    installed model package is the version policyengine.py pins.
     """
     root = tmp_path / "site-packages"
     _relocate_policyengine(monkeypatch, root)
@@ -411,8 +414,8 @@ def test_manifest_edited_in_place_makes_the_provenance_file_stale(
 ):
     """An in-place edit of the release a bundle came from is never reused.
 
-    For the bundle layout this is the review of PR #182: editing
-    data_releases.us.bundle_id left the fingerprint unchanged.
+    For the bundle layout this is the edit the pre-merge delta review of #182
+    showed went undetected: data_releases.us.bundle_id.
     """
     root = relocated_policyengine
     _write_files(root, _layout_files(layout, "us-fixture-1"))
@@ -449,16 +452,37 @@ def test_installed_policyengine_manifest_is_fingerprinted():
 
 _RELEASES = st.sampled_from([{"bundle_id": "one"}, {"bundle_id": "two"}])
 # Any mix of the two layouts' files, each present with some content or absent.
+# A bundle manifest may also carry dataset_overlays beside data_releases, which
+# policyengine.py 6.1.2's own loader applies.
 _MANIFEST_FILES = st.fixed_dictionaries(
     {
         RELEASE_MANIFEST.format(country="us"): st.none() | _RELEASES,
         RELEASE_MANIFEST.format(country="uk"): st.none() | _RELEASES,
         BUNDLE_MANIFEST: st.none()
         | st.fixed_dictionaries(
-            {"data_releases": st.fixed_dictionaries({"us": _RELEASES, "uk": _RELEASES})}
+            {
+                "data_releases": st.fixed_dictionaries(
+                    {"us": _RELEASES, "uk": _RELEASES}
+                )
+            },
+            optional={"dataset_overlays": st.sampled_from([{}, {"us": {}}])},
         ),
     }
 )
+_PER_COUNTRY_FILES = {
+    RELEASE_MANIFEST.format(country=country): {"bundle_id": "one"}
+    for country in ("us", "uk")
+}
+
+
+def _bundle(us_bundle_id, **extra):
+    return {
+        "data_releases": {
+            "us": {"bundle_id": us_bundle_id},
+            "uk": {"bundle_id": "one"},
+        },
+        **extra,
+    }
 
 
 def _fingerprint_and_raw_manifests(files):
@@ -476,6 +500,17 @@ def _fingerprint_and_raw_manifests(files):
 
 @settings(max_examples=60, deadline=None)
 @given(first=_MANIFEST_FILES, second=_MANIFEST_FILES)
+# Both layouts at once: policyengine.py 6.1.2's loader reads the bundle
+# manifest even where a per-country file exists, so it is hashed regardless.
+@example(
+    first={**_PER_COUNTRY_FILES, BUNDLE_MANIFEST: _bundle("one")},
+    second={**_PER_COUNTRY_FILES, BUNDLE_MANIFEST: _bundle("two")},
+)
+# The whole bundle manifest counts, not only data_releases.
+@example(
+    first={BUNDLE_MANIFEST: _bundle("one")},
+    second={BUNDLE_MANIFEST: _bundle("one", dataset_overlays={"us": {}})},
+)
 def test_equal_fingerprints_mean_equal_raw_manifests(first, second):
     """Both layouts' manifest files, all the raw reader opens, are fingerprinted.
 
