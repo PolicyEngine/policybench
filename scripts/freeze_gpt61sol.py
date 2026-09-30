@@ -157,6 +157,25 @@ def verify_adjudication_record(
     return added
 
 
+def verify_incumbent_stats(stats: list[dict]) -> None:
+    """Every incumbent's modelStats row is release 20260929's, byte for byte.
+
+    Export refuses any drift before it writes the receipt, but the receipt
+    binds only the payload's hash: a payload edited after export, with its
+    receipt rehashed, would otherwise publish incumbent statistics export
+    refuses. The base is release 20260929's payload from git (BASE_COMMIT),
+    checked against BASE_SHA256, as a re-export reads it; the comparison is
+    export's own incumbent_drift.
+    """
+    live = driver.base_payload_from_commit()
+    previous = {row["model"]: row for row in live["countries"]["us"]["modelStats"]}
+    if set(previous) & set(NEW_MODELS.values()):
+        raise SystemExit("Release 20260929's modelStats already hold the addition")
+    drift = driver.incumbent_drift(stats, previous)
+    if drift:
+        raise SystemExit(f"Incumbent modelStats drift from release 20260929: {drift}")
+
+
 def base_prediction_rows():
     """Release 20260929's predictions, read from git at BASE_COMMIT.
 
@@ -285,6 +304,7 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(
             f"Frozen incumbent roster and staged {BOARD_MODELS}-model roster disagree"
         )
+    verify_incumbent_stats(stats)
     source_run = stage / "publish" / RUN
     source_us = source_run / "us"
     verify_references(source_us, frozen_run, read_json(snapshot / "manifest.json"))

@@ -194,21 +194,44 @@ def staged_board(freeze_preflight, monkeypatch):
         shutil.copyfile(source / name, snapshot / name)
     for name in driver.REFERENCE_FILES:
         shutil.copyfile(driver.SNAPSHOT / name, frozen / name)
-    serving = json.loads((snapshot / "model_serving_config.json").read_text())
-    models = sorted(serving["models"]) + ["gpt-6.1-sol"]
-    stats = [{"model": model, "condition": "no_tools"} for model in models]
+    # The incumbents' rows are release 20260929's, as export leaves them.
+    stats = driver.base_payload_from_commit()["countries"]["us"]["modelStats"]
+    stats += [{"model": "gpt-6.1-sol", "condition": "no_tools"}]
     payload.write_text(json.dumps({"countries": {"us": {"modelStats": stats}}}))
-    receipt["payload_sha256"] = sha(payload)
     monkeypatch.setattr(
         policybench.dashboard_schema, "validate_dashboard_payload", lambda *a, **k: []
     )
 
     def rebind():
+        receipt["payload_sha256"] = sha(payload)
         receipt["files"] = {name: sha(stage / name) for name in receipt["files"]}
         (stage / "release-ready.json").write_text(json.dumps(receipt))
 
     rebind()
     return stage, rebind
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_the_freeze_refuses_incumbent_stats_edited_after_export(staged_board, dry_run):
+    """Export refuses incumbent drift before it writes the receipt; an
+    incumbent's cost edited afterwards, with the receipt's payload hash
+    updated to match, must still be refused before any workspace mutation."""
+    stage, rebind = staged_board
+    payload = stage / "data-board46.json"
+    board = json.loads(payload.read_text())
+    row = next(
+        row
+        for row in board["countries"]["us"]["modelStats"]
+        if row["model"] != "gpt-6.1-sol"
+    )
+    row["costUsd"] *= 2
+    row["costPerHousehold"] *= 2
+    payload.write_text(json.dumps(board))
+    rebind()
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=f"modelStats drift.*{row['model']}"):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
 
 
 def test_the_freeze_refuses_a_revised_staged_reference_before_mutation(staged_board):
