@@ -522,6 +522,52 @@ def test_a_restated_record_whose_top_is_not_a_later_opus55_verdict_stops(
     assert again == restated
 
 
+def test_an_earlier_item_that_reads_like_the_seed_verdict_still_gains_it(trees):
+    """The 09-29 wave re-judged the case on the day it first judged it and got
+    the same class, so the last judge_previous item reads exactly like the seed
+    verdict. The top still names the seed verdict, so it is appended once."""
+    stage, seed = trees
+    _write_case(
+        seed, CASE, _verdict("reference_model_issue_fixed", flag=True), "2026-09-29"
+    )
+    _write_case(stage, CASE, _verdict("llm_error", flag=True), "2026-09-30")
+    earlier = {
+        "judge_model": OPUS55,
+        "judge_failure_source": "reference_model_issue_fixed",
+        "judge_failure_subtype": "state_local_rule",
+        "judge_reference_suspect": True,
+        "judged_on": "2026-09-29",
+    }
+    entry = _entry(judge_previous=[earlier])
+    (out,), changes = _run([entry], trees)
+    assert out["judge_previous"] == [earlier, earlier]
+    assert out["judge_failure_source"] == "llm_error"
+    assert out["judge_rejudged_on"] == "2026-09-30"
+    assert len(changes) == 1
+    (again,), none = _run([out], trees)
+    assert again == out and none == []
+
+
+def test_a_same_day_rejudge_that_repeats_the_seed_verdict_stops(trees):
+    """A restated entry would still name the seed verdict, so a rerun could not
+    tell it from an entry never restated."""
+    stage, seed = trees
+    _write_case(
+        seed, CASE, _verdict("reference_model_issue_fixed", flag=True), "2026-09-29"
+    )
+    repeat = {
+        **_verdict("reference_model_issue_fixed", flag=True),
+        "rationale": "A second run.",
+    }
+    _write_case(stage, CASE, repeat, "2026-09-29")
+    with pytest.raises(SystemExit, match="repeats the seed verdict"):
+        _run([_entry()], trees)
+    # The same class a day later is an ordinary same-class re-judge.
+    _write_case(stage, CASE, repeat, "2026-09-30")
+    (out,), _ = _run([_entry()], trees)
+    assert out["judge_rejudged_on"] == "2026-09-30"
+
+
 WORDED = "claude-opus-5-5 judge run adjudicated 2026-09-22"
 SOURCES = [
     "llm_error",
@@ -560,6 +606,8 @@ def _histories(draw):
         "wording": draw(st.sampled_from([restate.FLAG_SOURCE_EARLIER_RUN, WORDED])),
         # A re-judge may fall on the seed verdict's own UTC day.
         "same_day": draw(st.booleans()),
+        # The earlier wave's re-judge reads exactly like the seed verdict.
+        "echo": draw(st.booleans()),
     }
 
 
@@ -567,7 +615,8 @@ def _histories(draw):
 @given(history=_histories())
 def test_restatement_properties(tmp_path_factory, history):
     """For any adjudicated case and any sequence of stage re-judges: a flag no
-    reference verdict answers stops the script; otherwise the decisions and
+    reference verdict answers stops the script, and so does a re-judge that
+    repeats the seed verdict on the seed's own day; otherwise the decisions and
     their order survive byte for byte, the top level names the latest stage
     verdict under the wave-flag rule, judge_previous gains exactly the seed
     verdict, dated from its sidecar, the dates follow the latest sidecar,
@@ -609,15 +658,24 @@ def test_restatement_properties(tmp_path_factory, history):
         entry["judge_reference_suspect_source"] = history["wording"]
     if history["rejudged_before"]:
         entry["judge_rejudged_on"] = "2026-09-29"
-        entry["judge_previous"] = [
-            {
+        earlier = {
+            "judge_model": OPUS55,
+            "judge_failure_source": "llm_error",
+            "judge_failure_subtype": subtype,
+            "judge_reference_suspect": waved,
+            "judged_on": "2026-09-23",
+        }
+        if history["echo"]:
+            earlier = {
                 "judge_model": OPUS55,
-                "judge_failure_source": "llm_error",
+                "judge_failure_source": source,
                 "judge_failure_subtype": subtype,
-                "judge_reference_suspect": waved,
-                "judged_on": "2026-09-23",
+                "judge_reference_suspect": seed_flag or waved,
+                "judged_on": "2026-09-29",
             }
-        ]
+            if waved and not seed_flag:
+                earlier["judge_reference_suspect_source"] = restate.ITEM_FLAG_SOURCE
+        entry["judge_previous"] = [earlier]
     if history["adjudicated_verdict"]:
         entry["adjudicated_verdict"] = {"judge_model": "claude-opus-5"}
     original = copy.deepcopy(entry)
@@ -632,6 +690,14 @@ def test_restatement_properties(tmp_path_factory, history):
         _write_case(stage, CASE, rejudge, day)
         if new_flag and not history["decided"]:
             with pytest.raises(SystemExit, match="needs a developer decision"):
+                _run([restated], (stage, seed), wave)
+            return
+        if day == "2026-09-29" and (new_source, new_subtype, new_flag) == (
+            source,
+            subtype,
+            seed_flag,
+        ):
+            with pytest.raises(SystemExit, match="repeats the seed verdict"):
                 _run([restated], (stage, seed), wave)
             return
         (restated,), changes = _run([restated], (stage, seed), wave)

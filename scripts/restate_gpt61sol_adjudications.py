@@ -38,7 +38,13 @@ stops the script, because it needs a developer decision, not a restatement.
 
 It is idempotent. If the stage is re-judged after a restatement, a rerun
 replaces only the top-level verdict; a source that an intermediate verdict's
-own flag removed then comes back in the canonical wording. It writes the
+own flag removed then comes back in the canonical wording. The script never
+writes an entry whose top level names the seed verdict, so an entry that does
+is restated for the first time, even when its last judge_previous item reads
+the same as the seed verdict. A re-judge that repeats the seed verdict on the
+seed's own UTC day therefore stops the script: its restated entry would still
+name the seed verdict, and a rerun could not tell it from one never restated.
+Re-judge such a case on a later day. It writes the
 record only after the restated record loads, keeps every judge verdict
 verbatim against the stage and keeps the scoring exclusions. It writes the
 verdicts it read, replaced and current, to --evidence-out (default
@@ -88,6 +94,13 @@ JUDGE_FIELDS = frozenset(
 )
 # The judge fields that trail an entry's decision fields, in record order.
 TRAIL = ("judged_on_utc", "judge_rejudged_on", "judge_previous", "adjudicated_verdict")
+# The top-level fields that name a verdict, beside its flag source and date.
+TOP = (
+    "judge_model",
+    "judge_failure_source",
+    "judge_failure_subtype",
+    "judge_reference_suspect",
+)
 
 
 def _put(entry: dict, key: str, value, before: tuple[str, ...] = ()) -> dict:
@@ -119,6 +132,30 @@ def _utc_day(timestamp: str) -> str:
 
 def _case(entry: dict) -> str:
     return f"{entry['country']}__{entry['scenario_id']}__{entry['variable']}"
+
+
+def _named(entry: dict) -> tuple[dict, str | None]:
+    """The verdict an entry's top level names, and its date: date_conventions
+    dates it by judge_rejudged_on, else judged_on_utc. Where the entry has
+    both, they must name the same day, or the date is None."""
+    named = {name: entry.get(name) for name in TOP}
+    named["judge_reference_suspect"] = bool(named["judge_reference_suspect"])
+    dated = entry.get("judge_rejudged_on") or entry.get("judged_on_utc")
+    if entry.get("judged_on_utc", dated) != dated:
+        dated = None
+    return named, dated
+
+
+def _names(entry: dict, item: dict) -> bool:
+    """Whether the entry's top level names ``item``: its judge, classes, flag,
+    flag source and day."""
+    named, dated = _named(entry)
+    return (
+        named == {name: item[name] for name in TOP}
+        and ("judge_reference_suspect_source" in entry)
+        == ("judge_reference_suspect_source" in item)
+        and dated == item["judged_on"]
+    )
 
 
 def _restated(
@@ -246,7 +283,13 @@ def restate_entries(
                 "verdict answers it; that needs a developer decision"
             )
         previous = entry.get("judge_previous", [])
-        if previous and previous[-1] == item:
+        if _names(entry, item):
+            # The entry names the verdict the re-judge replaced. This script
+            # never writes such an entry (it refuses below), so it is restated
+            # for the first time: the seed verdict is appended even when an
+            # earlier judge_previous item reads the same.
+            base = previous
+        elif previous and previous[-1] == item:
             # Restated already: the seed verdict is the last judge_previous
             # item, so it is never appended again. The top must name an Opus
             # 5.5 re-judge dated on or after it; a later re-judge replaces
@@ -260,30 +303,21 @@ def restate_entries(
             ):
                 raise SystemExit(
                     f"{case}: the record names neither the seed verdict nor "
-                    "an Opus 5.5 re-judge dated after it"
+                    "an Opus 5.5 re-judge dated on or after it"
                 )
         else:
-            # The entry names the verdict the re-judge replaced: judge,
-            # classes, flag, flag source and date (date_conventions dates the
-            # top-level verdict by judge_rejudged_on, else judged_on_utc).
-            base = previous
-            named = {name: entry.get(name) for name in top}
-            named["judge_reference_suspect"] = bool(named["judge_reference_suspect"])
-            dated = entry.get("judge_rejudged_on") or entry.get("judged_on_utc")
-            # Both dates, where the entry has both, name the same verdict.
-            if entry.get("judged_on_utc", dated) != dated:
-                dated = None
-            if not (
-                named == {name: item[name] for name in top}
-                and ("judge_reference_suspect_source" in entry)
-                == ("judge_reference_suspect_source" in item)
-                and dated == item["judged_on"]
-            ):
-                raise SystemExit(
-                    f"{case}: the record does not name the seed verdict it "
-                    f"replaces ({named}, dated {dated}, vs {item})"
-                )
+            named, dated = _named(entry)
+            raise SystemExit(
+                f"{case}: the record does not name the seed verdict it "
+                f"replaces ({named}, dated {dated}, vs {item})"
+            )
         restated = _restated(entry, top, item, day, base, waved, flag)
+        if _names(restated, item):
+            raise SystemExit(
+                f"{case}: the re-judge repeats the seed verdict on the seed's own "
+                f"UTC day ({day}), so a rerun could not tell the restated entry "
+                "from one never restated; re-judge the case on a later day"
+            )
         if restated == entry and list(restated) == list(entry):
             restated = entry
         kept = {k: v for k, v in entry.items() if k not in JUDGE_FIELDS}
