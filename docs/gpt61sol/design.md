@@ -33,8 +33,10 @@ you change `RELEASE_TAG`, run `--step export` again before you freeze.
 ## What the gates enforce
 
 Each gate refuses with `SystemExit` before anything is written outside the
-stage. Test names are in `tests/test_finish_gpt61sol.py` (F) and
-`tests/test_freeze_gpt61sol.py` (Z).
+stage. Test names are in `tests/test_finish_gpt61sol.py` (F),
+`tests/test_freeze_gpt61sol.py` (Z) and `tests/test_run_audit_claude.py` (R).
+Tests marked (local) need release 20260929's audit or its grounding on this
+machine and skip anywhere else; see the note under the table.
 
 | Gate | Where | Pinned by |
 |---|---|---|
@@ -46,13 +48,27 @@ stage. Test names are in `tests/test_finish_gpt61sol.py` (F) and
 | After the freeze, a re-export reads the 20260929 payload from `BASE_COMMIT` and checks it against the base sha256. Any other pointer is refused. A missing commit is named, and the error says to fetch full history. | `resolve_live_base`, `base_commit_blob` | F `test_a_re_export_after_the_freeze_reads_20260929_from_git`, `test_base_commit_blob_names_*`, `test_any_other_pointer_is_refused` |
 | The fold keeps every incumbent row. It adds exactly 1,984 rows for the new model, with the reference key set. | `fold_board`, via `prepare_inputs` | F `test_the_fold_keeps_incumbent_rows_and_adds_1984_rows_for_the_addition` (Hypothesis; see its note on column types) |
 | The addition's treatment fingerprint matches the registry. | `validate_treatment` (reused from `freeze_adds0928.py`) | Z `test_the_registered_treatment_matches_the_run_and_a_drift_is_refused` |
-| Verdicts carried over from the seed stay bound to their prompt. When a prompt changes, `prepare_audit` drops its verdict. A sidecar that records a `prompt_sha256` must match the current `prompt.md`. The receipt pins every prompt alongside its verdict. | `prepare_audit`, `validate_verdicts`, `export` | F `test_a_verdict_stays_bound_to_its_prompt_sha256`, `test_a_case_the_new_model_joins_is_rejudged_and_the_rest_carry_over` |
+| Every judged verdict is bound to its own bytes: its sidecar carries the verdict's sha256. A case whose prompt is the seed's carries its seed verdict over and must keep the seed's verdict bytes; any failure there is refused, not re-judged. Every other verdict must record the sha256 of the prompt it judged; the runner records it, and `scripts/stamp_gpt61sol_prompt_bindings.py` stamped the stage's first 134 re-judges only where each judge's own transcript shows `prompt.md`'s exact text. `prepare` binds the seed in `stage.json`, and `--step bind-seed` binds it for a stage prepared before that; the seed must match `docs/gpt61sol/seed_digest.csv` (each judged case's prompt and verdict sha256), whose bytes `SEED_DIGEST_SHA256` pins. When a prompt changes, `prepare_audit` drops its verdict. Invalid verdicts are set aside in `rejected-verdicts/`, never deleted. | `prepare_cases`, `bind_seed`, `load_seed`, `validate_verdicts`, `set_aside` | F `test_every_verdict_is_bound_to_its_own_bytes`, `test_a_carried_over_verdict_must_keep_the_seeds_bytes`, `test_an_edited_carried_over_verdict_is_refused_after_prepare`, `test_unchanged_incumbent_case_keeps_its_existing_judge`, `test_a_verdict_stays_bound_to_its_prompt_sha256`, `test_prepare_refuses_a_seed_the_committed_digest_does_not_record`, `test_load_seed_refuses_a_stage_without_a_binding_or_with_another`, `test_bind_seed_*`, `test_a_case_the_new_model_joins_is_rejudged_and_the_rest_carry_over`, `test_the_committed_seed_digest_is_the_pinned_one`, `test_the_committed_seed_digest_matches_the_real_seed` (local); `tests/test_stamp_gpt61sol_prompt_bindings.py` |
 | Only a case that GPT-6.1 Sol joins may change or appear. An incumbent-only prompt that differs from the seed's is refused, and so is a seed case that disappears. `prompt-changes.json` lists the kept, changed and added cases. | `check_prompt_changes` | F `test_an_incumbent_prompt_that_changes_is_refused`, `test_a_household_only_the_new_model_misses_becomes_a_new_case`, `test_check_prompt_changes_names_new_incumbent_only_cases`, `test_every_seed_prompt_rerenders_from_the_committed_snapshot` (slow) |
-| The judge covers every wrong model in a case, up to all 46. A verdict that names GPT-6.1 Sol needs hash-bound Opus 5.5 provenance. | `validate_verdicts` | F `test_the_judge_must_cover_all_46_models_in_a_case`, `test_new_model_verdict_requires_bound_opus55_provenance` |
-| The grounding is the one the 20260929 audit used. | `prepare_cases` (`GROUNDING_SHA256`) | F `test_prepare_refuses_a_grounding_other_than_the_pinned_one`, `test_the_pinned_grounding_is_the_one_the_20260929_stage_used` |
-| The freeze refuses a receipt that does not bind the payload, the tag, 46 models, the references, the adjudications and the run state. It refuses evidence that changed after export. | `verify_receipt` | Z `test_freeze_refuses_changed_or_unbound_evidence`, `test_the_receipt_must_bind_*`, `test_the_default_tag_is_the_driver_release_tag` |
-| Adjudications change only through a staged record. Triage must apply it and export must bind it. A record may add decisions or restate a re-judged class. It may not drop a decision or move the scoring exclusions. The committed record excludes exactly the 56 scoring exclusions and keeps every seed verdict's class. | `triage`, `verify_adjudication_record` | F `test_the_committed_adjudications_exclude_exactly_the_scoring_exclusions`, `test_the_committed_adjudications_keep_the_seed_judge_verdicts`; Z `test_triage_may_*`, `test_a_dropped_decision_is_refused`, `test_a_new_exclusion_is_refused`, `test_the_freeze_refuses_a_dropped_adjudication_before_mutation` |
+| The judge covers every wrong model in a case, up to all 46. A verdict that names GPT-6.1 Sol needs hash-bound Opus 5.5 provenance and its prompt's sha256. | `validate_verdicts` | F `test_the_judge_must_cover_all_46_models_in_a_case`, `test_new_model_verdict_requires_bound_opus55_provenance` |
+| Each judge sees only its prompt and bills only the lane. It runs from a fresh empty directory outside any git repository, with every built-in tool removed (`--tools ""`) and the file, search, web and shell tools also denied by name, no MCP servers, skills or CLAUDE.md files. Its transcript is kept beside the verdict, and a verdict whose transcript shows any tool call but the structured answer is rejected. The runner refuses to start unless `CLAUDE_CONFIG_DIR` names a directory other than the desktop login's `~/.claude` and `claude auth status` reports a login there; it unsets API keys, and records the login, the declared account and the isolation in each sidecar. | `scripts/run_audit_claude.sh` | R `test_each_judge_runs_isolated_on_the_lanes_login`, `test_the_sidecar_binds_the_prompt_and_records_the_login`, `test_the_runner_refuses_anything_but_the_lanes_own_login`, `test_a_verdict_from_a_judge_that_called_a_tool_is_rejected`, `test_a_verdict_without_its_transcript_is_rejected`, `test_a_scratch_directory_inside_a_git_repository_is_refused` |
+| The grounding is the one the 20260929 audit used. | `prepare_cases` (`GROUNDING_SHA256`) | F `test_prepare_refuses_a_grounding_other_than_the_pinned_one`, `test_the_pinned_grounding_is_the_one_the_20260929_stage_used` (local) |
+| The freeze refuses a receipt that does not name release 20260929 as its base (tag and payload sha256), or does not bind the payload, the tag, 46 models, the references, the adjudications, the run state, `prompt-changes.json`, `stage.json` and, when the stage has them, the wording amendments. It refuses evidence that changed after export. | `verify_receipt` | Z `test_freeze_refuses_changed_or_unbound_evidence`, `test_the_receipt_must_bind_*`, `test_wording_amendments_present_in_the_stage_must_be_bound`, `test_the_default_tag_is_the_driver_release_tag` |
+| Adjudications change only where GPT-6.1 Sol re-opened a case. The baseline is release 20260929's record read from git at `BASE_COMMIT`, never the working-tree copy the freeze overwrites. Every committed entry keeps every field byte for byte, key order and entry order included, except that a case in `prompt-changes.json`'s changed or added lists may rewrite its judge fields (`JUDGE_FIELDS` in `scripts/restate_gpt61sol_adjudications.py`, the one definition) and its reasoning exactly as a listed wording amendment says. A new entry may decide only a re-opened case; none may be dropped; the scoring exclusions stay the 56. Triage checks this in memory before it writes, and the freeze checks it again. The committed record excludes exactly the 56 and keeps every seed verdict's class. | `verify_adjudication_changes`, `stage_adjudications`, `triage`, `verify_adjudication_record` | F `test_triage_lets_a_rejudged_case_restate_its_judge_fields`, `test_triage_refuses_any_other_change_to_a_recorded_decision`, `test_triage_refuses_a_judge_rewrite_of_an_incumbent_only_case`, `test_the_committed_adjudications_exclude_exactly_the_scoring_exclusions`, `test_every_committed_adjudication_decides_a_case_the_seed_judged`, `test_the_committed_adjudications_keep_the_seed_judge_verdicts` (local); Z `test_a_rejudged_case_may_be_restated`, `test_a_rewrite_of_an_incumbent_only_case_is_refused`, `test_triage_may_add_a_decision_that_keeps_the_output_scored`, `test_a_dropped_decision_is_refused`, `test_a_new_exclusion_is_refused`, `test_the_freeze_refuses_a_dropped_adjudication_before_mutation`, `test_the_freeze_baseline_is_release_20260929_in_git_not_the_working_tree` |
+| Published wording changes only as `<stage>/wording-amendments.json` lists: case id, field, old text, new text and reason. The case must be re-opened. The field must be an entry's `reasoning`, the case note (`case_annotation`) or one model's row annotation (`annotation`, which names the `model`), so no amendment can touch a class, an exclusion or a score. The old text must occur exactly once. Triage applies the list; every case note must still carry its exact adjudication sentence. The freeze checks each case-note and row amendment is in the staged CSVs and commits the list beside the record. | `load_amendments`, `stage_adjudications`, `amend_annotations`, `verify_annotation_amendments`, `freeze_amendments` | Z `test_a_listed_wording_amendment_is_allowed_and_nothing_else`, `test_load_amendments_*`, `test_an_amendment_must_find_its_old_text_exactly_once`; F `test_triage_applies_exactly_the_listed_wording_amendments`, `test_triage_refuses_an_amendment_it_cannot_apply_exactly` |
 | `RELEASE_TAG` is the only place the new tag is spelled out, in the driver's scripts, tests and this note. | `finish_gpt61sol.py` | F `test_the_release_tag_is_named_in_one_place` |
+
+Checks that run only on this machine, because they read release 20260929's
+audit (`adds0928-stage2/.../adds0928-v3/audit`) or the main clone's grounding:
+`test_the_pinned_grounding_is_the_one_the_20260929_stage_used`,
+`test_the_committed_adjudications_keep_the_seed_judge_verdicts`,
+`test_the_committed_seed_digest_matches_the_real_seed` and the slow
+`test_every_seed_prompt_rerenders_from_the_committed_snapshot`. They skip
+elsewhere, so CI cannot fail them. What stands in for the seed everywhere
+else is the committed digest: `test_the_committed_seed_digest_is_the_pinned_one`
+and `test_every_committed_adjudication_decides_a_case_the_seed_judged` run
+anywhere, and `prepare`, `bind-seed` and every later step check the seed and
+the stage's binding against it.
 
 The exporter still needs the Fable 5 usage carry-over. Fable 5 ran through the
 Anthropic batch adapter, and its committed rows carry no cost, token or latency
@@ -76,7 +92,9 @@ commands passed `$PB_AUDIT/grounding.csv`, which is the main clone's
 `results/local/unified_audit/grounding.csv` (sha256 `b1e4a9bc…b55c`).
 
 I checked this read-only. Every grounded seed prompt carries that file's text:
-184 of 184. `grounding.pre-r33b.csv` differs on `scenario_045` SNAP. After the
+184 of 184. `grounding.pre-r33b.csv` differs on `scenario_045` SNAP.
+`docs/gpt61sol/seed_digest.csv` records the seed: the case id and the sha256
+of the prompt and of the verdict for each of its 674 judged cases. After the
 merge of #182 (`d616e67c`), I rendered the prompts again from the committed
 snapshot with that grounding. All 674 seed prompts came out byte-identical, all
 986 case ids matched, and `cases.jsonl` was byte-identical. The slow test
@@ -121,18 +139,34 @@ PB_TAG=$("$PB_PY" -c 'import sys; sys.path.insert(0, "scripts"); import finish_g
   --runs-root "$PB_RUNS" --stage-dir "$PB_STAGE" \
   --audit-seed "$PB_SEED" --grounding "$PB_GROUNDING"
 
-# Run inside a Claude subscription lane (see scripts/run_audit_claude.sh).
+# A stage prepared before prepare bound the seed (this one) binds it once:
+"$PB_PY" scripts/finish_gpt61sol.py --stage-dir "$PB_STAGE" --step bind-seed \
+  --audit-seed "$PB_SEED"
+
+# The judges bill the lane's own login only (see scripts/run_audit_claude.sh).
+# A keychain-token lane points CLAUDE_CONFIG_DIR at an empty directory kept for
+# the lane and passes its token; a home lane points it at its home.
+export CLAUDE_CONFIG_DIR=<lane config dir> CLAUDE_CODE_OAUTH_TOKEN=<lane token> \
+  AUDIT_ACCOUNT=<lane account>
 "$PB_PY" scripts/finish_gpt61sol.py --stage-dir "$PB_STAGE" --step judge
+
+# Restate the adjudications of re-judged cases (writes only after checking).
+"$PB_PY" scripts/restate_gpt61sol_adjudications.py --stage-dir "$PB_STAGE" \
+  --audit-seed "$PB_SEED"
 
 "$PB_PY" scripts/finish_gpt61sol.py --stage-dir "$PB_STAGE" --step triage
 ```
 
 If triage stops, investigate `$PB_STAGE/reference-flags.csv` and
-`unresolved-rows.csv`. Record reviewed decisions in
+`unresolved-rows.csv`. A new decision may only decide a case GPT-6.1 Sol
+re-opened: record it in
 `$PB_STAGE/publish/$PB_RUN/annotations/us_adjudications.json`, keeping the
-judge's exact class, then run `triage` again. If an adjudicated case is
-re-judged because GPT-6.1 Sol joins it, restate the new judge class in its
-record. An exclusion that moves has no path in this release: stop instead.
+judge's exact class, then run `triage` again. A re-judged case's record is
+restated by the restate script, never by hand. Published wording a re-judge
+made wrong (a case note, a row annotation or a decision's reasoning that the
+record contradicts) is corrected only through `$PB_STAGE/wording-amendments.json`,
+which triage applies. An exclusion that moves has no path in this release:
+stop instead.
 
 ```bash
 "$PB_PY" scripts/finish_gpt61sol.py --stage-dir "$PB_STAGE" --step export
