@@ -24,9 +24,9 @@
       "note": "Judge verdicts outside the final classes (llm_error, parse_contract_failure) are resolved by a recorded developer adjudication that keeps the judge's verdict and reasoning beside the adjudicated class; applied to the bundle before export so the published payload and the frozen annotations agree. Every case the judge flagged reference-suspect carries a reference verdict (affirmed, regenerated, engine_defect, unlisted_input, later_law) that clears the flag; judge_reference_suspect records which entries the judge flagged."
     },
     "files": {
-      "us_adjudications.json": "7f190b622de71a9f467d4786f0ee18f12229c7931d843f8844fb5c2b541c89ee",
+      "us_adjudications.json": "fd60b9c1cb3594cd0e9e92a23c61a420e337f65f467f3660ecfd30daaf0d4133",
       "us_audit_row_annotations.csv": "1931ed41e0e36427ceb1bd97de52830850fa64be6d58c359af6dc225c1258670",
-      "us_case_notes.csv": "8d1c2b8779b47526a9d95690adadcda57814c127c49fed02f1d25750934beb0c",
+      "us_case_notes.csv": "6a945f483d30694d65519d432de38834d39347d12cb832faaec452103a317adf",
       "us_case_reference_explanations.csv": "6cccc5586815f2ecc4f1b527e79e141f858d0e75cc30b3a867d107909cbb38c4"
     },
     "judge_provenance": {
@@ -74,7 +74,7 @@
   "files": [
     {
       "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json.gz",
-      "sha256": "86f35f51e654561e47000bc0f1e2059326deb24037a0cd0de0017679cff20244"
+      "sha256": "9b807f4ab9a95d4019047a5a0ab2a6da8de472b9ba4a6626898d33e0dc381a1f"
     }
   ],
   "household_dataset": {
@@ -86,9 +86,9 @@
   },
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 123359634,
+    "bytes": 123362946,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "fdaaa7382b05d930af7adb33f7c52b59b27e4c1b18b0dbd2846de4e439c1aec5",
+    "sha256": "a5cb9989d78cb18d040fec2f1f5d0775df15b9b917ae99d883d8701b7fa480a7",
     "tag": "dashboard-data-20260929",
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260929/dashboard-data.json"
   },
@@ -104,8 +104,8 @@
   },
   "published_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 123359634,
-    "sha256": "fdaaa7382b05d930af7adb33f7c52b59b27e4c1b18b0dbd2846de4e439c1aec5",
+    "bytes": 123362946,
+    "sha256": "a5cb9989d78cb18d040fec2f1f5d0775df15b9b917ae99d883d8701b7fa480a7",
     "tag": "dashboard-data-20260929",
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260929/dashboard-data.json"
   },
@@ -224,7 +224,7 @@
         "analysis/summary_by_model.csv": "f32609a7602c90c85edd65dca8bb37776d79f2c537f3a75b54567de5d65b176d",
         "analysis/summary_by_variable.csv": "d9bee70607a86f589e69f6ffb5a8bd1ff6380973a95354453da9cf52b09bf446",
         "analysis/usage_summary.csv": "94e12d22a97a99f3d5de2a4fa30c76595e969091388e09d89db7f5cb538fe350",
-        "data.json.gz": "86f35f51e654561e47000bc0f1e2059326deb24037a0cd0de0017679cff20244",
+        "data.json.gz": "9b807f4ab9a95d4019047a5a0ab2a6da8de472b9ba4a6626898d33e0dc381a1f",
         "predictions.csv.gz": "ef2c003aee00a40fc92f93de066beaa430e03d5fb3085d42d0613608e3a40cf3",
         "reference_exclusions.json": "bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2",
         "reference_outputs.csv": "e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466",

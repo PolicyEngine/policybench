@@ -1,8 +1,8 @@
 {
   "asset": "dashboard-data.json",
-  "bytes": 123359634,
+  "bytes": 123362946,
   "repo": "PolicyEngine/policybench",
-  "sha256": "fdaaa7382b05d930af7adb33f7c52b59b27e4c1b18b0dbd2846de4e439c1aec5",
+  "sha256": "a5cb9989d78cb18d040fec2f1f5d0775df15b9b917ae99d883d8701b7fa480a7",
   "tag": "dashboard-data-20260929",
   "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260929/dashboard-data.json",
   "version": 1
