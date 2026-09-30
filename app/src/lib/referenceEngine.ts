@@ -43,8 +43,8 @@ export function excludedOutputsByEngine(
 }
 
 /**
- * "The 55 excluded outputs keep the values they were decided on (52 computed
- * with policyengine-us 1.755.4, 3 with 2.15.17), and PolicyBench re-reviewed
+ * "The 56 excluded outputs keep the values they were decided on (52 computed
+ * with policyengine-us 1.755.4, 4 with 2.15.17), and PolicyBench re-reviewed
  * the 19 of them that move on 2.15.17; all 19 stay excluded."
  */
 export function excludedOutputEngineSentence(

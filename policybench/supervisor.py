@@ -15,10 +15,22 @@ Results land as one CSV per scenario under ``<run_dir>/scenarios/`` and are
 combined into ``<run_dir>/predictions.csv`` at the end; rerunning the same
 command skips completed scenarios and replays partially-complete ones from
 the response cache.
+
+For a single-country run (every supervised run in practice), PolicyEngine
+provenance (the ``policyengine_bundles`` block of every scenario sidecar) is
+computed once, in a fresh interpreter, into
+``<run_dir>/policyengine_provenance.json`` and handed to workers through
+``POLICYBENCH_POLICYENGINE_PROVENANCE``. Computing it imports policyengine,
+which builds the US and UK tax-benefit systems: about 1 GB of peak RSS and
+11-14 CPU-seconds per process when measured on 2026-09-28. A worker that only
+calls an LLM no longer pays that, and neither does the supervisor. Without the
+file (a mixed-country run, or a failed write), workers and the supervisor
+compute provenance themselves, as before.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import math
@@ -40,6 +52,11 @@ from policybench.model_cards import (
     completion_budget_ceiling_for,
     explanation_chunk_size_for,
 )
+from policybench.policyengine_runtime import (
+    POLICYENGINE_PROVENANCE_ENV,
+    POLICYENGINE_PROVENANCE_FILENAME,
+    POLICYENGINE_PROVENANCE_NOT_REUSED,
+)
 from policybench.spend_ledger import (
     SPEND_LEDGER_SUFFIX,
     count_budget_escalations,
@@ -57,6 +74,16 @@ ADAPTIVE_WINDOW = 8
 # cross this share of the budget.
 BUDGET_STOP_FRACTION = 0.9
 TREATMENT_FINGERPRINT_VERSION = 3
+PROVENANCE_WRITER_TIMEOUT_SECONDS = 3600
+# Writes the run's PolicyEngine provenance file. It runs in a fresh
+# interpreter, as each worker did, so a single-country run records what a
+# worker computing the bundles itself would, and the supervisor needs no
+# policyengine import of its own when the handoff succeeds.
+PROVENANCE_WRITER = (
+    "import sys\n"
+    "from policybench.policyengine_runtime import write_policyengine_provenance\n"
+    "sys.exit(0 if write_policyengine_provenance(sys.argv[1], sys.argv[2:]) else 3)\n"
+)
 
 
 @dataclass
@@ -69,6 +96,7 @@ class ScenarioResult:
     missing_predictions: int = 0
     timed_out: bool = False
     seconds: float = 0.0
+    policyengine_provenance_recomputed: bool = False
 
 
 @dataclass
@@ -84,6 +112,7 @@ class RunState:
     started_at: float = 0.0
     updated_at: float = 0.0
     budget_escalation_count: int = 0
+    policyengine_provenance_recomputed: int = 0
 
     def projected_total_usd(self) -> float | None:
         if not self.completed:
@@ -118,6 +147,8 @@ class Supervisor:
         self.max_rounds = max_rounds
         self.python = python or sys.executable
         self.env = {**os.environ, **(env or {})}
+        # Only a provenance file this supervisor wrote may reach its workers.
+        self.env.pop(POLICYENGINE_PROVENANCE_ENV, None)
         self.scenarios = self._load_scenarios()
         self.scenario_ids = [scenario.id for scenario in self.scenarios]
         self.initial_request_variables = self._load_initial_request_variables()
@@ -135,6 +166,9 @@ class Supervisor:
         self._credits_checked_at = float("-inf")
         self._credits_spent = 0.0
         self._credits_spent_offset = 0.0
+        # Bundles read back from this run's provenance file; set together with
+        # self.env[POLICYENGINE_PROVENANCE_ENV] by _write_policyengine_provenance.
+        self._policyengine_bundles: dict | None = None
 
     # -- setup -------------------------------------------------------------
 
@@ -262,6 +296,9 @@ class Supervisor:
 
         # Match the eval-no-tools CLI defaults used by _spawn, including
         # its sliced scenario list and the environment of the subprocess.
+        # PolicyEngine provenance comes from the copy read back when the run's
+        # provenance file was written, so a worker sidecar that departs from
+        # it (or a file changed afterwards) is caught here.
         return _build_resume_metadata(
             task="eval_no_tools_batch",
             scenarios=[self.scenarios[index]],
@@ -270,6 +307,7 @@ class Supervisor:
             run_id=None,
             include_explanations=True,
             env=self.env,
+            policyengine_bundles=self._policyengine_bundles,
         )
 
     def _raise_stale_scenario_output(
@@ -591,6 +629,10 @@ class Supervisor:
             "stopped_reason": self.state.stopped_reason,
             "projection_warning": self.projection_warning,
             "budget_escalation_count": self.state.budget_escalation_count,
+            "policyengine_provenance": self.env.get(POLICYENGINE_PROVENANCE_ENV),
+            "policyengine_provenance_recomputed": (
+                self.state.policyengine_provenance_recomputed
+            ),
             "workload": self.workload,
             "treatment_fingerprint": self.treatment_fingerprint,
             "started_at": self.state.started_at,
@@ -650,9 +692,11 @@ class Supervisor:
         missing = int(frame["prediction"].isna().sum()) if "prediction" in frame else 0
         log = path.with_suffix(".log")
         timed_out = False
+        provenance_recomputed = False
         if log.exists():
             text = log.read_text(errors="ignore")
             timed_out = "Timeout" in text or "timed out" in text
+            provenance_recomputed = POLICYENGINE_PROVENANCE_NOT_REUSED in text
         return ScenarioResult(
             scenario_id,
             index,
@@ -662,12 +706,62 @@ class Supervisor:
             missing_predictions=missing,
             timed_out=timed_out,
             seconds=time.time() - started,
+            policyengine_provenance_recomputed=provenance_recomputed,
         )
 
     # -- main loop -----------------------------------------------------------
 
+    def _compute_policyengine_provenance(
+        self, path: Path, countries: list[str], env: dict
+    ) -> bool:
+        """Write the provenance file from a fresh worker interpreter."""
+        try:
+            result = subprocess.run(
+                [self.python, "-c", PROVENANCE_WRITER, str(path), *countries],
+                env=env,
+                timeout=PROVENANCE_WRITER_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            return False
+        return result.returncode == 0
+
+    def _write_policyengine_provenance(self) -> None:
+        """Compute PolicyEngine provenance once and point workers at it.
+
+        On any failure, workers compute provenance themselves and the
+        supervisor's expectation does too, as before the file existed.
+        """
+        from policybench.eval_no_tools import _scenario_countries
+
+        path = (self.run_dir / POLICYENGINE_PROVENANCE_FILENAME).resolve()
+        self.env.pop(POLICYENGINE_PROVENANCE_ENV, None)
+        self._policyengine_bundles = None
+        # A file left by an earlier supervisor must not outlive a failed write.
+        with contextlib.suppress(OSError):
+            path.unlink(missing_ok=True)
+        countries = sorted(_scenario_countries(self.scenarios))
+        # Each worker computed its one scenario's country in a fresh process.
+        # Whether ``import policyengine`` succeeds, and so which branch
+        # records the US bundle, can depend on what the same process looked
+        # up first, so the handoff covers single-country runs only.
+        if len(countries) != 1:
+            return
+        if not self._compute_policyengine_provenance(path, countries, dict(self.env)):
+            return
+        try:
+            bundles = json.loads(path.read_text(encoding="utf-8"))[
+                "policyengine_bundles"
+            ]
+        except (OSError, ValueError, KeyError, TypeError):
+            return
+        if not isinstance(bundles, dict) or not set(countries) <= set(bundles):
+            return
+        self._policyengine_bundles = bundles
+        self.env[POLICYENGINE_PROVENANCE_ENV] = str(path)
+
     def run(self, poll_seconds: float = 2.0) -> RunState:
         existing_state = self._validate_resume()
+        self._write_policyengine_provenance()
         if self._credits_baseline is not None and existing_state is not None:
             prior_spend = existing_state.get("spent_usd")
             if isinstance(prior_spend, (int, float)) and prior_spend > 0:
@@ -714,6 +808,8 @@ class Supervisor:
                     del in_flight[index]
                     result = self._collect(index, started)
                     self._record(result)
+                    if result.policyengine_provenance_recomputed:
+                        self.state.policyengine_provenance_recomputed += 1
                     if result.ok:
                         self.state.completed.append(result.scenario_id)
                     else:

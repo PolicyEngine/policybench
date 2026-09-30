@@ -47,16 +47,16 @@ runs also use the canonical whole-scenario request
 shape changes, while Claude Opus 5's isolates thinking alone.
 
 All ranks are on the 45-model board (2026-09-29). Scores are on the
-1,929 outputs the board scores; the 55 outputs `reference_exclusions.json`
+1,928 outputs the board scores; the 56 outputs `reference_exclusions.json`
 lists (engine defects, and references that depend on an input the prompt
 never states) are excluded for every model, sensitivity runs included. On
 all 1,984 outputs the thinking runs scored 87.1, 85.8 and 80.3.
 
 | | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5 | 83.9 (#20) | **91.4** | +7.5 | **#7** | $0.541 → $0.323 | 54 | 1,984/1,984 |
-| Claude Opus 5 | 83.9 (#19) | **89.9** | +6.0 | #9 | $0.067 → $0.152 | 51 | 1,984/1,984 |
-| Claude Sonnet 5 | 72.9 (#43) | **84.7** | +11.8 | #19 | $0.086 | 64 | 1,928/1,984 |
+| Claude Fable 5 | 83.6 (#20) | **91.5** | +7.9 | **#7** | $0.541 → $0.323 | 54 | 1,984/1,984 |
+| Claude Opus 5 | 84.0 (#19) | **90.0** | +6.0 | #9 | $0.067 → $0.152 | 51 | 1,984/1,984 |
+| Claude Sonnet 5 | 72.6 (#43) | **84.8** | +12.2 | #19 | $0.086 | 64 | 1,928/1,984 |
 
 In this table and the Claude Fable 5.1 table below, deltas are differences of
 the unrounded scores, so a delta can differ by 0.1 from the difference of the
@@ -64,7 +64,7 @@ rounded scores shown; the per-program tables subtract the rounded rates.
 
 Under `auto`, Fable 5 and Opus 5 chose to call the answer tool on every
 response; Sonnet 5 failed to produce a parseable tool call on 56 of its
-1,984 answers; the 55 on scored outputs count as misses inside its 84.7. Fable 5's
+1,984 answers; the 55 on scored outputs count as misses inside its 84.8. Fable 5's
 sensitivity run also costs less than its leaderboard run: whole-scenario
 requests drop its per-household spend from $0.541 to $0.323 even with
 thinking on.
@@ -86,9 +86,9 @@ versioned re-run, never an edit to existing scores; the plan is
 
 ## Where thinking helps (Claude Fable 5, per program)
 
-Per-variable within-$1 rates, board (forced) vs `auto`, on the 1,929
+Per-variable within-$1 rates, board (forced) vs `auto`, on the 1,928
 scored outputs. These are unweighted leaf rates from the heatmap; the
-headline weights by dollar magnitude, so these do not average to 91.4.
+headline weights by dollar magnitude, so these do not average to 91.5.
 
 | program | board | auto | delta |
 |---|---|---|---|
@@ -101,7 +101,7 @@ headline weights by dollar magnitude, so these do not average to 91.4.
 | snap | 83.9 | 87.1 | +3.2 |
 | ssi | 96.9 | 100.0 | +3.1 |
 | self_employment_tax | 97.0 | 99.0 | +2.0 |
-| person_medicaid_eligible | 94.8 | 96.0 | +1.2 |
+| person_medicaid_eligible | 94.8 | 96.5 | +1.7 |
 | person_wic_eligible | 99.4 | 100.0 | +0.6 |
 | local_income_tax | 100.0 | 100.0 | +0.0 |
 | person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
@@ -140,14 +140,14 @@ reason. The ranks are on the 45-model board (2026-09-29).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5.1 | 90.7 (#7) | **91.6** | +0.9 | #7 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
+| Claude Fable 5.1 | 90.8 (#7) | **91.7** | +0.9 | #6 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
 
 The two rows sit 0.9 points apart, and no program moves more than three
 points between them (table below). Read against Claude Fable 5, the
-picture matches August: Fable 5.1's JSON board row (90.7) is 6.8 points
-above Fable 5's forced-tool board row (83.9) and 0.7 below Fable 5's
-`auto` run (91.4); Fable 5.1's own `auto` run (91.6) is 0.2 above Fable
-5's under the identical request. Scores are on the 1,929 scored outputs;
+picture matches August: Fable 5.1's JSON board row (90.8) is 7.2 points
+above Fable 5's forced-tool board row (83.6) and 0.7 below Fable 5's
+`auto` run (91.5); Fable 5.1's own `auto` run (91.7) is 0.2 above Fable
+5's under the identical request. Scores are on the 1,928 scored outputs;
 on all 1,984 the auto run scored 88.0. The model called the answer tool on every
 one of its 1,984 answers under `auto`.
 
@@ -162,7 +162,7 @@ Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
 | free_school_meals_eligible | 98.0 | 99.0 | +1.0 |
 | reduced_price_school_meals_eligible | 99.0 | 100.0 | +1.0 |
 | ssi | 99.0 | 100.0 | +1.0 |
-| person_medicaid_eligible | 96.6 | 97.1 | +0.5 |
+| person_medicaid_eligible | 97.1 | 97.7 | +0.6 |
 | local_income_tax | 100.0 | 100.0 | +0.0 |
 | payroll_tax | 88.9 | 88.9 | +0.0 |
 | person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |

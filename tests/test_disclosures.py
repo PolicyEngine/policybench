@@ -265,9 +265,9 @@ def test_current_board_copy_makes_no_identical_request_claim():
 def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     counts = _audit_counts_from_frozen_files()
     assert counts == {
-        "annotated": 7_796,
-        "exact_misses": 7_792,
-        "annotated_exact_misses": 7_792,
+        "annotated": 7_772,
+        "exact_misses": 7_768,
+        "annotated_exact_misses": 7_768,
         "annotated_exact_hits": 4,
         "unannotated_below_full_bounded_score": 2_027,
     }
@@ -602,22 +602,35 @@ def _paper_engine_times() -> tuple[str, str]:
     )
 
 
-def test_paper_abstract_scopes_the_exclusions_to_what_the_audits_found():
+# The HTML and PDF halves of each paper claim are separate tests: the HTML is
+# checked everywhere, and only the PDF half skips where neither pdftotext nor
+# pypdf is available (as in CI).
+
+
+def _html_text() -> str:
+    parser = _VisibleTextParser()
+    parser.feed(PAPER_HTML.read_text())
+    return _straight_quotes(re.sub(r"\s+", " ", " ".join(parser.parts)))
+
+
+def _abstract_exclusion_sentence() -> str:
     counts = (r.engine_defect_exclusion_count, r.unlisted_input_exclusion_count)
     assert sum(counts) == r.excluded_output_count
-    sentence = (
+    return (
         "PolicyBench excludes from scoring, for every model, the "
         f"{counts[0]} outputs whose references rest on engine defects the audits "
         f"found and upstream has not fixed, and the {counts[1]} whose references "
         "depend on an input the prompt does not state."
     )
-    parser = _VisibleTextParser()
-    parser.feed(PAPER_HTML.read_text())
-    for text in (
-        _straight_quotes(re.sub(r"\s+", " ", " ".join(parser.parts))),
-        _straight_quotes(re.sub(r"\s+", " ", _pdf_running_text())),
-    ):
-        assert sentence in text
+
+
+def test_paper_abstract_scopes_the_exclusions_to_what_the_audits_found():
+    assert _abstract_exclusion_sentence() in _html_text()
+
+
+def test_rendered_pdf_abstract_scopes_the_exclusions_to_what_the_audits_found():
+    text = _straight_quotes(re.sub(r"\s+", " ", _pdf_running_text()))
+    assert _abstract_exclusion_sentence() in text
 
 
 def test_pdf_running_text_joins_a_sentence_across_a_page_break(monkeypatch):
@@ -640,14 +653,15 @@ def test_paper_takes_its_engine_times_from_the_timing_record():
     assert re.search(r"\d\d:\d\d UTC", source) is None
     assert "r.reference_engine_uploaded_utc" in source
     assert "r.publication_check_pypi_read_utc" in source
-    parser = _VisibleTextParser()
-    parser.feed(PAPER_HTML.read_text())
-    for text in (
-        _straight_quotes(re.sub(r"\s+", " ", " ".join(parser.parts))),
-        _straight_quotes(re.sub(r"\s+", " ", _pdf_text())),
-    ):
-        for sentence in _paper_engine_times():
-            assert sentence in text, sentence
+    text = _html_text()
+    for sentence in _paper_engine_times():
+        assert sentence in text, sentence
+
+
+def test_rendered_pdf_takes_its_engine_times_from_the_timing_record():
+    text = _straight_quotes(re.sub(r"\s+", " ", _pdf_text()))
+    for sentence in _paper_engine_times():
+        assert sentence in text, sentence
 
 
 def test_live_version_description_states_the_reference_engines():
@@ -708,7 +722,7 @@ def test_newest_engine_claims_are_anchored_to_a_time():
         VERSIONS,
         ROOT / "README.md",
         ROOT / "reference_audit/2026-09-28/README.md",
-        ROOT / "app/src/notes/2026-09-29-claude-sonnet-5-5-debuts-fourth.json",
+        ROOT / "app/src/notes/2026-09-29-claude-sonnet-5-5-debuts-fifth.json",
         ROOT / "app/src/notes/2026-09-23-five-snap-households-bbce.json",
         SENSITIVITY_NOTE,
     )

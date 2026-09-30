@@ -1,5 +1,6 @@
 """scripts/install_adds0929_references.py installs a rebuild of the references
-only when it changes record text, and keeps the stage receipt's pins true."""
+only when it changes record text or adds the audit exclusions final_actions.json
+lists, and keeps the stage receipt's pins true."""
 
 from __future__ import annotations
 
@@ -24,6 +25,15 @@ def _sha(path: Path) -> str:
 
 OLDER = {"scenario_id": "s", "variable": "a"}
 ADDED = {"scenario_id": "s", "variable": "b"}
+AUDITED = {"scenario_id": "s", "variable": "c_eligible"}
+AUDIT_RECORD = {
+    **AUDITED,
+    "reason_code": "reference_depends_on_unlisted_input",
+    "frozen_value": 1.0,
+    "alternative_value": 0.0,
+    "decided_on": "2026-09-29",
+    "note": "excluded on review",
+}
 
 
 def _record_dicts(note: str, date: str) -> tuple[dict, dict]:
@@ -53,6 +63,9 @@ def _record_dicts(note: str, date: str) -> tuple[dict, dict]:
                 "changed": [
                     {**ADDED, "basis": date, "regenerated": 2.0},
                     {"scenario_id": "s", "variable": "v", "basis": date},
+                ],
+                "excluded_outputs_rechecked": [
+                    {**OLDER, "kept_value": 1.0, "reason": f"reviewed {note}"}
                 ],
             },
         ],
@@ -91,7 +104,24 @@ def layout(tmp_path, monkeypatch):
     }
     (stage / "stage.json").write_text(json.dumps(receipt))
     monkeypatch.setattr(install, "SNAPSHOT", snapshot)
+    actions = tmp_path / "final_actions.json"
+    actions.write_text(json.dumps({"audit_exclusions": []}))
+    monkeypatch.setattr(install, "ACTIONS", actions)
     return tmp_path, snapshot, stage, old
+
+
+def _list_audit_exclusion(root: Path, record: dict = AUDIT_RECORD) -> None:
+    (root / "final_actions.json").write_text(
+        json.dumps({"audit_exclusions": [{**AUDITED, "exclusion": record}]})
+    )
+
+
+def _with_audit_exclusion(
+    csv: bytes, note: str, date: str, record: dict = AUDIT_RECORD
+) -> dict[str, bytes]:
+    exclusions, meta = _record_dicts(note, date)
+    exclusions["exclusions"].append(record)
+    return _encode(csv, exclusions, meta)
 
 
 def _built(root: Path, records: dict[str, bytes]) -> Path:
@@ -122,9 +152,70 @@ def test_a_text_only_rebuild_is_installed_everywhere_and_pinned(layout):
     for name, item in changed.items():
         assert item["sha256_prepared"] == prepared[name]
         assert item["sha256_after"] == receipt["files"][name]
+    for item in changed.values():
+        assert item["installs"] == [
+            {"by": install.BUILDER, "change": install.CHANGES[install.BUILDER]}
+        ]
     # Idempotent: a second install changes nothing, and keeps the prepared pin.
     install.install(built, stage)
     assert json.loads((stage / "stage.json").read_text()) == receipt
+
+
+def test_a_rewritten_reason_is_record_text(layout):
+    """A rechecked excluded output's reason is record text a rebuild may
+    rewrite; its values are not."""
+    root, snapshot, stage, old = layout
+    exclusions, meta = _record_dicts("old", "2026-09-28")
+    meta["revisions"][-1]["excluded_outputs_rechecked"][0]["reason"] = "full text"
+    new = _encode(old["reference_outputs.csv"], exclusions, meta)
+    install.install(_built(root, new), stage, by=install.REWRITER)
+    assert (snapshot / install.SIDECAR).read_bytes() == new[install.SIDECAR]
+    meta["revisions"][-1]["excluded_outputs_rechecked"][0]["kept_value"] = 9.0
+    changed = _encode(old["reference_outputs.csv"], exclusions, meta)
+    with pytest.raises(SystemExit, match="a field outside"):
+        install.install(_built(root, changed), stage, by=install.REWRITER)
+
+
+def test_a_listed_audit_exclusion_is_installed_and_every_install_recorded(layout):
+    root, snapshot, stage, old = layout
+    csv = old["reference_outputs.csv"]
+    text_only = _records(csv, "new", "2026-09-29")
+    install.install(_built(root, text_only), stage)
+    _list_audit_exclusion(root)
+    new = _with_audit_exclusion(csv, "new", "2026-09-29")
+    install.install(_built(root, new), stage, by=install.REWRITER)
+    for directory in (snapshot, stage / "publish" / RUN / "us", stage / "scoring"):
+        assert (directory / install.EXCLUSIONS).read_bytes() == new[install.EXCLUSIONS]
+    receipt = json.loads((stage / "stage.json").read_text())
+    for name, pin in receipt["files"].items():
+        assert _sha(stage / name) == pin
+    changed = {item["file"]: item for item in receipt["restaged"]}
+    exclusions = f"publish/{RUN}/us/{install.EXCLUSIONS}"
+    sidecar = f"publish/{RUN}/us/{install.SIDECAR}"
+    assert [i["by"] for i in changed[exclusions]["installs"]] == [
+        install.BUILDER,
+        install.REWRITER,
+    ]
+    # The rewrite left the sidecar as the rebuild wrote it.
+    assert [i["by"] for i in changed[sidecar]["installs"]] == [install.BUILDER]
+    install.install(_built(root, new), stage, by=install.REWRITER)
+    assert json.loads((stage / "stage.json").read_text()) == receipt
+    # Once installed, a build that drops the listed exclusion is refused.
+    with pytest.raises(SystemExit, match="lacks audit exclusions"):
+        install.install(_built(root, text_only), stage)
+
+
+def test_an_unlisted_or_altered_audit_exclusion_is_refused(layout):
+    root, snapshot, stage, old = layout
+    before = {name: (snapshot / name).read_bytes() for name in old}
+    csv = old["reference_outputs.csv"]
+    new = _with_audit_exclusion(csv, "new", "2026-09-29")
+    with pytest.raises(SystemExit, match="a field outside"):
+        install.install(_built(root, new), stage, by=install.REWRITER)
+    _list_audit_exclusion(root, {**AUDIT_RECORD, "alternative_value": 5.0})
+    with pytest.raises(SystemExit, match="differs from its audit_exclusions record"):
+        install.install(_built(root, new), stage, by=install.REWRITER)
+    assert {name: (snapshot / name).read_bytes() for name in old} == before
 
 
 def test_a_rebuild_that_changes_a_value_is_refused(layout):
@@ -187,8 +278,8 @@ def test_a_rebuild_that_changes_older_record_text_is_refused(layout, edit):
 
 def test_the_committed_records_pass_their_own_guard():
     """The installed snapshot records compare equal to themselves under the
-    guard, and the guard blanks exactly the upgrade's three new exclusions'
-    notes."""
+    guard, which checks each listed audit exclusion against final_actions.json,
+    and the guard blanks exactly the upgrade's three new exclusions' notes."""
     sidecar = json.loads((install.SNAPSHOT / install.SIDECAR).read_text())
     exclusions = json.loads((install.SNAPSHOT / install.EXCLUSIONS).read_text())
     added = install._added_exclusions(sidecar, exclusions)

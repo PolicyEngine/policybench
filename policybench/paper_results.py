@@ -1464,6 +1464,35 @@ class PaperResults:
     def rerun_sweep_scored_within_tolerance_count_word(self) -> str:
         return NUMBER_WORDS[self.rerun_sweep_scored_within_tolerance_count]
 
+    @cached_property
+    def rerun_sweep_new_excluded_outputs(self) -> list[tuple[str, str]]:
+        """Outputs that a sweep first run on the reference engine moves
+        beyond the exact-match tolerance, against its own baseline, and that
+        the exclusion record did not hold before the upgrade (no exclusion
+        decided on the previous engine)."""
+        previous = f"policyengine-us {self.previous_policyengine_us_version}"
+        held_before = {
+            (entry["scenario_id"], entry["variable"])
+            for entry in self.reference_exclusions
+            if entry["engine_version"] == previous
+        }
+        return sorted(
+            {
+                (move["scenario_id"], move["variable"])
+                for sweep in self.rerun_sweeps["sweeps"]
+                if sweep["september_22_root_cause"] is None
+                for move in sweep["moves"]
+                if (move["scenario_id"], move["variable"]) not in held_before
+                and moves_beyond_tolerance(
+                    move["variable"], move["baseline"], move["recomputed"]
+                )
+            }
+        )
+
+    @property
+    def rerun_sweep_new_excluded_count_word(self) -> str:
+        return NUMBER_WORDS[len(self.rerun_sweep_new_excluded_outputs)]
+
     @property
     def engine_upgrade_rechecked_count(self) -> int:
         """Excluded outputs whose value moved on the new engine and were

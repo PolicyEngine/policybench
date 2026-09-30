@@ -239,15 +239,20 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Validated local release inputs: {args.tag}, 45 models, {payload_hash}")
         return
 
-    # A reviewed reference revision (the 2026-09-29 engine upgrade) changes the
-    # committed reference files the manifest pins. freeze_snapshot checks the
-    # staged references against those pins before it rewrites the manifest, so
-    # the pins catch up to the committed files first, and only when the driver's
-    # gate accepts them: an engine_upgrade revision listing exactly the changes
-    # against the 22c base. The staged files equal the committed ones (above).
-    from finish_adds0928 import reference_revision
+    # A reviewed reference revision (the 2026-09-29 engine upgrade) and the
+    # audit exclusions final_actions.json lists change the committed reference
+    # files the manifest pins. freeze_snapshot checks the staged references
+    # against those pins before it rewrites the manifest, so the pins catch up
+    # to the committed files first, and only when the driver's gates accept
+    # them: an engine_upgrade revision listing exactly the value changes
+    # against the 22c base, every other column unchanged, and exactly the 22c
+    # exclusions plus the revision's and the audit's. The staged files equal
+    # the committed ones (above).
+    from finish_adds0928 import check_exclusions, reference_revision
 
-    if reference_revision() is not None:
+    revision = reference_revision()
+    if revision is not None:
+        check_exclusions(revision, frozen_run)
         manifest_path = snapshot / "manifest.json"
         manifest = read_json(manifest_path)
         pins = manifest["source_run_artifacts"][RUN]["files"]

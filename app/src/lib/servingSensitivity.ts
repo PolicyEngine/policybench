@@ -35,7 +35,7 @@ const FORCED_TOOL =
 
 export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
   "claude-fable-5": {
-    autoExact: 91.414,
+    autoExact: 91.521,
     boardTreatment: `${FORCED_TOOL}, one output per request`,
     autoTreatment:
       "re-run with tool_choice: auto and the whole household in one request",
@@ -43,14 +43,14 @@ export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-opus-5": {
-    autoExact: 89.905,
+    autoExact: 90.013,
     boardTreatment: FORCED_TOOL,
     autoTreatment: "re-run with tool_choice: auto",
     thinkingSuppressedOnBoard: true,
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-sonnet-5": {
-    autoExact: 84.695,
+    autoExact: 84.803,
     boardTreatment: `${FORCED_TOOL}, one output per request`,
     autoTreatment:
       "re-run with tool_choice: auto and the whole household in one request",
@@ -58,7 +58,7 @@ export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-fable-5.1": {
-    autoExact: 91.646,
+    autoExact: 91.728,
     boardTreatment:
       "rejects forced tool calls, so its row answers as a JSON object and reasons at the provider default",
     autoTreatment:

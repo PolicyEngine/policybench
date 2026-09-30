@@ -19,10 +19,10 @@ describe("audit universe", () => {
       "rows whose legacy threshold score is below 1",
     );
     expect(summarizeAuditUniverse(us)).toEqual({
-      annotatedRowCount: 7_796,
-      legacyThresholdRowCount: 7_796,
-      exactMissCount: 7_792,
-      annotatedExactMissCount: 7_792,
+      annotatedRowCount: 7_772,
+      legacyThresholdRowCount: 7_772,
+      exactMissCount: 7_768,
+      annotatedExactMissCount: 7_768,
       annotatedExactHitCount: 4,
       unannotatedBelowFullBoundedScoreCount: 2_027,
     });

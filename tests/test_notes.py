@@ -2116,11 +2116,18 @@ def test_snap_pathways_20260922_regenerates() -> None:
 
 # ----- Release dashboard-data-20260929 --------------------------------------
 
-RELEASE_NOTE = "2026-09-29-claude-sonnet-5-5-debuts-fourth"
+RELEASE_NOTE = "2026-09-29-claude-sonnet-5-5-debuts-fifth"
 ADDED_MODELS = ("claude-sonnet-5.5", "grok-4.7", "deepseek-v4.1-flash")
 SERVING_CONFIG_PATH = ROOT / "paper/snapshot/20260501/model_serving_config.json"
 UPGRADE_README = ROOT / "reference_audit/2026-09-28/README.md"
 UPGRADE_CLUSTERS = ROOT / "reference_audit/2026-09-28/clusters.json"
+UPGRADE_ACTIONS = ROOT / "reference_audit/2026-09-28/final_actions.json"
+# The one output the audit excluded outside the engine revision, and the probe
+# that computed both readings of it on policyengine-us 2.15.17.
+MEDICAID_EXCLUSION = ("scenario_023", "head_medicaid_eligible")
+MEDICAID_PROBE_PATH = (
+    ROOT / "reference_audit/2026-09-28/verification/probe_023_medicaid.json"
+)
 # The no-tools exact scores release dashboard-data-20260922c published, copied
 # from its release asset by scripts/release_20260922c_scores.py. The asset's
 # sha256 is the one app/src/data.artifact.json pinned at commit 3220a7a6.
@@ -2199,29 +2206,43 @@ def _previous_release_scores() -> dict[str, float]:
     return scores
 
 
-def _neighbor_swaps(
+def _models_moving_up(
     before: dict[str, float], after: dict[str, float]
-) -> tuple[list[str], list[str], int]:
-    """The models that move up and the neighbors they pass, when every change
-    in order is two neighbors trading places; and how many models move."""
-    old_order = sorted(before, key=lambda m: -before[m])
-    new_order = sorted(before, key=lambda m: -after[m])
-    moved = [m for m, n in zip(old_order, new_order, strict=True) if m != n]
-    swaps = []
-    for index, (old, new) in enumerate(zip(old_order, new_order, strict=True)):
-        if old != new and (not swaps or swaps[-1][1] != index - 1):
-            assert new_order[index + 1] == old
-            swaps.append((new, index))
-    assert len(moved) == 2 * len(swaps)
-    return [m for m, _ in swaps], [old_order[i] for _, i in swaps], len(moved)
+) -> list[tuple[str, list[str]]]:
+    """Each model that moves above others, in its new order, with the models it
+    passes, in their old order. Every pair of models whose order changes is one
+    riser and one model it passes, so every other pair keeps its order."""
+    old = {m: i for i, m in enumerate(sorted(before, key=lambda m: -before[m]))}
+    new = {m: i for i, m in enumerate(sorted(before, key=lambda m: -after[m]))}
+    passes: dict[str, list[str]] = {}
+    for riser in before:
+        for passed in before:
+            if old[riser] > old[passed] and new[riser] < new[passed]:
+                passes.setdefault(riser, []).append(passed)
+    # A model that passes one model is not itself passed by a third: each
+    # change reads as risers moving up past the models just above them.
+    assert not set(passes) & {m for passed in passes.values() for m in passed}
+    return [
+        (riser, sorted(passes[riser], key=old.__getitem__))
+        for riser in sorted(passes, key=new.__getitem__)
+    ]
+
+
+def _and(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
 
 
 @cache
-def _exact_under(previous_release: bool) -> dict[str, float]:
+def _exact_under(
+    previous_release: bool, *, score_audit_exclusions: bool = False
+) -> dict[str, float]:
     """Every board model's exact score, recomputed from this snapshot's
     predictions and weights on the current references or on the previous
     release's: the references with the engine upgrade's changes reverted to
-    their previous values, scored without the exclusions it added."""
+    their previous values, scored without the exclusions it added or the
+    audit's (final_actions.json audit_exclusions). With
+    ``score_audit_exclusions``, the current references are scored with the
+    audit's exclusions put back, which isolates the audit's effect."""
     import pandas as pd
 
     from policybench.scorer_vectors import canonical_filtered_scores
@@ -2235,6 +2256,10 @@ def _exact_under(previous_release: bool) -> dict[str, float]:
         (e["scenario_id"], e["variable"])
         for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
     }
+    audit = {
+        (a["scenario_id"], a["variable"])
+        for a in _load_json(UPGRADE_ACTIONS).get("audit_exclusions", [])
+    }
     if previous_release:
         for change in changes:
             row = (reference["scenario_id"] == change["scenario_id"]) & (
@@ -2242,7 +2267,9 @@ def _exact_under(previous_release: bool) -> dict[str, float]:
             )
             assert row.sum() == 1
             reference.loc[row, "value"] = change["previous"]
-        excluded -= added
+        excluded -= added | audit
+    elif score_audit_exclusions:
+        excluded -= audit
     keys = zip(reference["scenario_id"], reference["variable"], strict=True)
     scored = reference[[key not in excluded for key in keys]]
     predictions = pd.DataFrame(
@@ -2334,6 +2361,7 @@ def _release_20260929_facts() -> dict:
         for s in income_held
         if s != UPGRADE_CHANGES["AZ"][0]
     ]
+    # The revision's own new exclusions: outputs it changed that left scoring.
     new_exclusions = [change for key, change in changes.items() if key in excluded]
     assert set(scored_changes) == set(UPGRADE_CHANGES.values())
     assert all(abs(c["regenerated"] - c["previous"]) <= 1 for c in within_tolerance)
@@ -2352,10 +2380,33 @@ def _release_20260929_facts() -> dict:
     assert set(by_model) - set(incumbents) == set(ADDED_MODELS)
     after = {m: by_model[m]["exact"] for m in incumbents}
     drift = [after[m] - before[m] for m in incumbents]
-    up, passed, _ = _neighbor_swaps(before, after)
-    swaps = list(zip(up, passed, strict=True))
-    upper = [MODEL_DISPLAY_NAMES[m] for m in up]
-    lower = [MODEL_DISPLAY_NAMES[m] for m in passed]
+    risers = _models_moving_up(before, after)
+    # The audit's exclusion (final_actions.json audit_exclusions): the
+    # California household head's Medicaid eligibility, with the head's MAGI
+    # as a share of the poverty guideline from the probe behind it, and how
+    # the incumbents had answered it.
+    (audit,) = _load_json(UPGRADE_ACTIONS)["audit_exclusions"]
+    medicaid = (audit["scenario_id"], audit["variable"])
+    assert medicaid == MEDICAID_EXCLUSION and medicaid in excluded
+    probe = _load_json(MEDICAID_PROBE_PATH)
+    stated = probe["results"]["latest_final/stated_facts"]
+    expansion = re.search(
+        r"above the (\d+)% limit for the adult expansion group",
+        audit["exclusion"]["alternative_reading"],
+    )
+    assert expansion is not None
+    medicaid_answers = payload["scenarioPredictions"][medicaid[0]][medicaid[1]]
+    medicaid_reference = next(
+        e["frozen_value"]
+        for e in exclusions
+        if (e["scenario_id"], e["variable"]) == medicaid
+    )
+    # A 0/1 flag matches only when equal; the $1 tolerance is for amounts.
+    matched = [
+        m
+        for m in incumbents
+        if medicaid_answers[m].get("prediction") == medicaid_reference
+    ]
 
     derived = {
         "nModels": len(rows),
@@ -2363,8 +2414,8 @@ def _release_20260929_facts() -> dict:
         "sonnetRank": _rank(sonnet["exact"], rows),
         "lunaExact": _display_one_decimal(luna["exact"]),
         "lunaRank": _rank(luna["exact"], rows),
-        # "less than {gap} points": the gap rounded up to hundredths.
-        "sonnetLunaGapBelow": math.ceil((sonnet["exact"] - luna["exact"]) * 100) / 100,
+        # "less than {gap} points ahead": the gap rounded up to hundredths.
+        "lunaSonnetGapBelow": math.ceil((luna["exact"] - sonnet["exact"]) * 100) / 100,
         "grokExact": _display_one_decimal(grok["exact"]),
         "grokRank": _rank(grok["exact"], rows),
         "flashExact": _display_one_decimal(flash["exact"]),
@@ -2412,14 +2463,19 @@ def _release_20260929_facts() -> dict:
         "incumbents": len(incumbents),
         "driftMin": round(min(drift), 2),
         "driftMax": round(max(drift), 2),
-        "swapCount": len(swaps),
-        "swapOneUp": upper[0],
-        "swapOneDown": lower[0],
-        "swapTwoUp": upper[1],
-        "swapTwoDown": lower[1],
-        "swapThreeUp": upper[2],
-        "swapThreeDown": lower[2],
+        "medicaidMatched": len(matched),
+        "medicaidMissed": len(incumbents) - len(matched),
+        "riserCount": len(risers),
+        "medicaidIncomePercent": round(100 * stated["medicaid_income_level"]),
+        "expansionLimitPercent": int(expansion.group(1)),
     }
+    for ordinal, (riser, passed) in zip(
+        ("One", "Two", "Three", "Four", "Five"), risers, strict=True
+    ):
+        derived[f"riser{ordinal}"] = MODEL_DISPLAY_NAMES[riser]
+        derived[f"riser{ordinal}Passed"] = _and(
+            [MODEL_DISPLAY_NAMES[m] for m in passed]
+        )
     # Grok 4.7's card records the timeout its onboarding probe ran past.
     from policybench.model_cards import MODEL_CARDS
 
@@ -2436,7 +2492,7 @@ def _release_20260929_facts() -> dict:
     assert arizona is not None
     derived["azLimitBefore"] = int(arizona.group(1))
     derived["azLimitAfter"] = int(arizona.group(2))
-    assert len(swaps) == 3
+    assert len(risers) == 5
     assert {row["n"] for row in rows} == {derived["scoredOutputs"]}
     return derived
 
@@ -2490,17 +2546,21 @@ def test_release_20260929_note() -> None:
         "gpt-6-sol",
         "claude-opus-5.5",
         "gpt-5.6-sol",
-        "claude-sonnet-5.5",
         "gpt-6-luna",
+        "claude-sonnet-5.5",
     ]
-    assert 0 < by_model["claude-sonnet-5.5"]["exact"] - by_model["gpt-6-luna"]["exact"]
+    # "About level": GPT-6 Luna leads Claude Sonnet 5.5 by under 0.1 points.
+    assert 0 < by_model["gpt-6-luna"]["exact"] - by_model["claude-sonnet-5.5"]["exact"]
+    assert (
+        by_model["gpt-6-luna"]["exact"] - by_model["claude-sonnet-5.5"]["exact"] < 0.1
+    )
     pin(
         "Claude Sonnet 5.5, Grok 4.7 and DeepSeek V4.1 Flash joined the board on "
         "2026-09-29, bringing it to {nModels} models.",
         "Claude Sonnet 5.5 scores {sonnetExact}% of answers within $1, weighted by "
         "household impact, #{sonnetRank} of {nModels}.",
-        "GPT-6 Luna, #{lunaRank}, also rounds to {lunaExact}%, less than "
-        "{sonnetLunaGapBelow} points behind.",
+        "GPT-6 Luna, #{lunaRank}, also rounds to {lunaExact}% and sits about level "
+        "with it, less than {lunaSonnetGapBelow} points ahead.",
         "Grok 4.7 scores {grokExact}% (#{grokRank}) and DeepSeek V4.1 Flash "
         "{flashExact}% (#{flashRank}).",
         # The previous release's leader, recomputed on its references.
@@ -2671,11 +2731,18 @@ def test_release_20260929_note() -> None:
         "credits from ${nyBefore} to ${nyAfter}.",
     )
 
-    # The new exclusions: federal income tax, the SALT refund reading.
-    new = [
+    # The new exclusions: federal income tax, the SALT refund reading. The
+    # engine revision lists them; the one other exclusion decided that day is
+    # the audit's (final_actions.json audit_exclusions), which it does not.
+    revised = {(c["scenario_id"], c["variable"]) for c in _engine_upgrade()["changed"]}
+    decided = [
         e
         for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
         if e["decided_on"] == note["date"]
+    ]
+    new = [e for e in decided if (e["scenario_id"], e["variable"]) in revised]
+    (medicaid,) = [
+        e for e in decided if (e["scenario_id"], e["variable"]) not in revised
     ]
     assert len(new) == facts["newExclusions"]
     # Every rechecked output is excluded, and its value moved on the new engine.
@@ -2694,6 +2761,45 @@ def test_release_20260929_note() -> None:
             in (exclusion["alternative_reading"])
         )
         assert "26 U.S.C. 111(a)" in exclusion["alternative_reading"]
+    # The audit's exclusion: the California household head's Medicaid
+    # eligibility turns on the same unlisted input as the household's SNAP,
+    # which the upgrade re-reviewed; the probe computed both readings.
+    assert (medicaid["scenario_id"], medicaid["variable"]) == MEDICAID_EXCLUSION
+    assert payload["scenarios"][MEDICAID_EXCLUSION[0]]["state"] == "CA"
+    assert medicaid["reason_code"] == "reference_depends_on_unlisted_input"
+    snap_exclusion = next(
+        e
+        for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
+        if (e["scenario_id"], e["variable"]) == (MEDICAID_EXCLUSION[0], "snap")
+    )
+    assert (
+        medicaid["unlisted_input"]
+        == snap_exclusion["unlisted_input"]
+        == "meets_ssi_disability_criteria"
+    )
+    assert any(
+        (r["scenario_id"], r["variable"]) == (MEDICAID_EXCLUSION[0], "snap")
+        for r in _engine_upgrade()["excluded_outputs_rechecked"]
+    )
+    (audit,) = _load_json(UPGRADE_ACTIONS)["audit_exclusions"]
+    assert audit["flagged_by"] == "excl_snap_ssi_disability"
+    assert audit["exclusion"] == medicaid
+    assert "42 CFR 435.540(a)" in medicaid["alternative_reading"]
+    assert "Working Disabled Program" in medicaid["alternative_reading"]
+    assert "tests the broad is_disabled flag instead" in medicaid["alternative_reading"]
+    probe = _load_json(MEDICAID_PROBE_PATH)["results"]
+    assert (medicaid["frozen_value"], medicaid["alternative_value"]) == (1.0, 0.0)
+    assert probe["latest_final/stated_facts"]["head_medicaid_eligible"] == 1.0
+    assert probe["latest_final_wdp_ssa_definition/reading_a"][
+        "head_medicaid_eligible"
+    ] == (0.0)
+    assert probe["latest_final_wdp_ssa_definition/reading_b"][
+        "head_medicaid_eligible"
+    ] == (1.0)
+    # The head's only disability fact is the general flag.
+    head = _person(_scenario_inputs()[MEDICAID_EXCLUSION[0]], "head")
+    assert head["is_disabled"] is True
+    assert not {k for k in head if "disab" in k or "ssi" in k} - {"is_disabled"}
     pin(
         "PolicyBench stops scoring {newExclusions:words} federal income tax outputs.",
         "policyengine-us {engineVersion} counts the whole of a listed state and "
@@ -2701,6 +2807,17 @@ def test_release_20260929_note() -> None:
         "Federal law counts the refund only to the extent the refunded tax lowered "
         "the household's federal tax in the year the household paid it, and the "
         "prompts do not say whether it did.",
+        "PolicyBench also stops scoring one California household head's Medicaid "
+        "eligibility, which its re-review of the household's excluded SNAP output "
+        "flagged.",
+        "On disability, the prompt says only that the head is disabled.",
+        "The head's income, {medicaidIncomePercent}% of the poverty guideline, is "
+        "above the {expansionLimitPercent}% limit for the adult expansion group, so "
+        "only a disability pathway leads to Medi-Cal, California's Medicaid program.",
+        "Medi-Cal's Working Disabled Program requires SSI's definition of "
+        "disability, which the prompt does not state, and "
+        "policyengine-us {engineVersion} tests the general disability flag instead.",
+        "The same unstated fact already keeps the household's SNAP out of scoring.",
         "PolicyBench now scores every model on {scoredOutputs} of its "
         "{totalOutputs} requested outputs and excludes {excluded}.",
         "Another {withinTolerance:words} references move by less than $1, and "
@@ -2713,6 +2830,20 @@ def test_release_20260929_note() -> None:
     incumbents = sorted(previous)
     after = {m: by_model[m]["exact"] for m in incumbents}
     assert all(after[m] > previous[m] for m in incumbents)
+    # The rise is the two causes' joint effect: the Medicaid exclusion by
+    # itself lowers the rate of every incumbent that had matched that output,
+    # so the note says "Together".
+    medicaid_answers = payload["scenarioPredictions"][MEDICAID_EXCLUSION[0]][
+        MEDICAID_EXCLUSION[1]
+    ]
+    medicaid_matched = [
+        m
+        for m in incumbents
+        if medicaid_answers[m].get("prediction") == medicaid["frozen_value"]
+    ]
+    assert len(medicaid_matched) == facts["medicaidMatched"]
+    medicaid_scored = _exact_under(False, score_audit_exclusions=True)
+    assert all(after[m] < medicaid_scored[m] for m in medicaid_matched)
     for exclusion in new:
         key = (exclusion["scenario_id"], exclusion["variable"])
         previous = next(
@@ -2733,16 +2864,22 @@ def test_release_20260929_note() -> None:
         _matches(arizona[m].get("prediction"), changes["AZ"]["regenerated"])
         for m in by_model
     )
+    # The drift's two causes, as the drift baseline test rebuilds them.
+    test_previous_release_scores_rebuild_from_this_snapshot()
     pin(
-        "The new references raise the exact rate of every one of the "
-        "{incumbents} earlier models, by {driftMin} to {driftMax} points.",
+        "Together, the new references and the Medicaid exclusion raise the exact "
+        "rate of every one of the {incumbents} earlier models, by {driftMin} to "
+        "{driftMax} points.",
         "None of the {incumbents} matched any of the {newExclusions:words} federal "
         "outputs now excluded, and all {incumbents} had matched the Arizona "
         "household's old ${azBefore} SNAP reference, which none matches now.",
-        "Among them, {swapCount:words} pairs of neighbors swap places: {swapOneUp} "
-        "moves above {swapOneDown}, {swapTwoUp} above {swapTwoDown}, and "
-        "{swapThreeUp} above {swapThreeDown}.",
-        "Every other model keeps its place in the order.",
+        "On the Medicaid output, {medicaidMatched} of the {incumbents} had matched "
+        "the reference and {medicaidMissed} had not.",
+        "Among the {incumbents}, {riserCount:words} models move up in the order: "
+        "{riserOne} moves above {riserOnePassed}, {riserTwo} above "
+        "{riserTwoPassed}, {riserThree} above {riserThreePassed}, {riserFour} "
+        "above {riserFourPassed}, and {riserFive} above {riserFivePassed}.",
+        "Every other pair keeps its order.",
     )
 
     # The Arizona household in the BBCE note's terms: it qualifies only through
@@ -2803,10 +2940,11 @@ def test_release_20260929_note() -> None:
 
 def test_previous_release_scores_rebuild_from_this_snapshot() -> None:
     """The drift baseline is the previous release's own board. Every model's
-    exact score, rebuilt from this snapshot's predictions with the upgrade
-    reverted, equals the score release dashboard-data-20260922c published (the
-    committed fixture of its asset's scores); the current scores rebuild to this
-    payload's. So the note's drift is the reference change alone."""
+    exact score, rebuilt from this snapshot's predictions with the upgrade and
+    the audit exclusion reverted, equals the score release
+    dashboard-data-20260922c published (the committed fixture of its asset's
+    scores); the current scores rebuild to this payload's. So the note's drift
+    comes from the reference revision and the audit exclusion alone."""
     after = _exact_under(False)
     for row in _board_rows():
         assert after[row["model"]] == pytest.approx(row["exact"], abs=1e-9)
