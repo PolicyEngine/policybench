@@ -2814,8 +2814,8 @@ def test_release_20260929_note() -> None:
         "The head's income, {medicaidIncomePercent}% of the poverty guideline, is "
         "above the {expansionLimitPercent}% limit for the adult expansion group, so "
         "only a disability pathway leads to Medi-Cal, California's Medicaid program.",
-        "Medi-Cal's Working Disabled Program requires the Social Security "
-        "definition of disability, which the prompt does not state, and "
+        "Medi-Cal's Working Disabled Program requires SSI's definition of "
+        "disability, which the prompt does not state, and "
         "policyengine-us {engineVersion} tests the general disability flag instead.",
         "The same unstated fact already keeps the household's SNAP out of scoring.",
         "PolicyBench now scores every model on {scoredOutputs} of its "
