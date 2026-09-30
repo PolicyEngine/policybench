@@ -138,6 +138,16 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     case_dir = cases / "us__scenario_001__snap"
     case_dir.mkdir(parents=True)
     (audit_dir / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA))
+    (audit_dir / "cases.jsonl").write_text(
+        json.dumps(
+            {
+                "case_id": case_dir.name,
+                "wrong_models": [m["model"] for m in VERDICT["models"]],
+                "parse_failure_only": False,
+            }
+        )
+        + "\n"
+    )
     (case_dir / "prompt.md").write_text("Classify this miss.\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()

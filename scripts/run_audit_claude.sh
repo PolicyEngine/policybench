@@ -67,6 +67,12 @@
 # AUDIT_EFFORT, by flag and by environment. AUDIT_ONLY, a space-separated list
 # of case directory names, limits the run to those cases. Portable to bash 3.2.
 #
+# A verdict counts only if it satisfies the audit schema and names exactly the
+# models its case lists in audit-prepare's cases.jsonl, each once and no other
+# (the finish driver's coverage rule, scripts/validate_verdict.py). A judge
+# whose verdict does not is logged "[invalid]"; nothing is published for the
+# case, which stays pending for the next run, and the run goes on.
+#
 # Judge provenance: beside each verdict.json the runner writes
 # verdict.meta.json with the judge model requested, the model the CLI reports,
 # the CLI version, the effort level, the session id, the UTC timestamp, the
@@ -133,6 +139,9 @@ esac
 AUDIT_DIR="$(cd "$AUDIT_DIR" && pwd)"
 SCHEMA="$AUDIT_DIR/schema.json"
 CASES_DIR="$AUDIT_DIR/cases"
+# The models each case lists, which its verdict must name exactly.
+MANIFEST="$AUDIT_DIR/cases.jsonl"
+[ -f "$MANIFEST" ] || { echo "missing $MANIFEST — run audit-prepare first" >&2; exit 1; }
 SCHEMA_JSON=$(cat "$SCHEMA")
 
 # The desktop login only by Max's explicit opt-in (see the header).
@@ -306,6 +315,12 @@ verdict_ok() {
   [ -s "$1" ] || return 1
   "$PYTHON" "$SCRIPT_DIR/validate_verdict.py" "$SCHEMA" "$1" >/dev/null 2>&1
 }
+# A verdict counts for its case only if it also names exactly the models the
+# case lists (see the header). Says why not on stderr.
+case_ok() {
+  [ -s "$1" ] || { echo "no verdict" >&2; return 1; }
+  "$PYTHON" "$SCRIPT_DIR/validate_verdict.py" "$SCHEMA" "$1" "$MANIFEST" "$2" >/dev/null
+}
 
 # Pull the structured verdict out of the CLI's JSON envelope. Claude Code
 # returns `structured_output` when --json-schema is set; fall back to parsing
@@ -444,13 +459,14 @@ PY
 
 classify_one() {
   case_dir="$1"
+  name=$(basename "$case_dir")
   prompt="$case_dir/prompt.md"
   out="$case_dir/verdict.json"
   tmp="$case_dir/verdict.json.tmp"
   meta_tmp="$case_dir/verdict.meta.json.tmp"
   envelope="$case_dir/claude.json"
   [ -f "$prompt" ] || return 0
-  verdict_ok "$out" && return 0
+  case_ok "$out" "$name" 2>/dev/null && return 0
   # No valid verdict: any sidecar left behind describes a verdict that no
   # longer exists (re-prepared case) and must not outlive it.
   rm -f "$tmp" "$meta_tmp" "$envelope" "$case_dir/verdict.meta.json" \
@@ -480,9 +496,17 @@ classify_one() {
   rmdir "$work" 2>/dev/null || echo "[warn] $(basename "$case_dir"): the judge left files in $work"
   if extract_verdict "$case_dir" "$tmp" "$meta_tmp" 2>> "$case_dir/claude.log" \
     && verdict_ok "$tmp"; then
-    mv -f "$tmp" "$out"
-    mv -f "$meta_tmp" "$case_dir/verdict.meta.json"
-    echo "[ok] $(basename "$case_dir")"
+    if problem=$(case_ok "$tmp" "$name" 2>&1); then
+      mv -f "$tmp" "$out"
+      mv -f "$meta_tmp" "$case_dir/verdict.meta.json"
+      echo "[ok] $name"
+    else
+      # Answered, but not for this case's models: pending, and the run goes on.
+      rm -f "$tmp" "$meta_tmp"
+      problem=$(printf '%s' "$problem" | tr '\n' ' ')
+      echo "invalid verdict: $problem" >> "$case_dir/claude.log"
+      echo "[invalid] $name ($problem)"
+    fi
   else
     rm -f "$tmp" "$meta_tmp"
     echo "[FAIL] $(basename "$case_dir") (see claude.log / claude.json)"
@@ -504,20 +528,25 @@ selected() {
   printf '%s\n' "$ONLY_NAMES" | grep -Fxq "$1"
 }
 
-# The cases whose verdict already satisfies the schema, found in one pass
-# rather than one interpreter per case.
+# The cases whose verdict already counts (schema and model coverage), found in
+# one pass rather than one interpreter per case.
 valid_cases() {
-  "$PYTHON" - "$SCRIPT_DIR" "$SCHEMA" "$CASES_DIR" <<'PY'
+  "$PYTHON" - "$SCRIPT_DIR" "$SCHEMA" "$CASES_DIR" "$MANIFEST" <<'PY'
 import sys
 from pathlib import Path
 
 sys.path.insert(0, sys.argv[1])
-from validate_verdict import verdict_errors
+from validate_verdict import case_verdict_errors, manifest_wrong_models
 
 schema, cases = Path(sys.argv[2]), Path(sys.argv[3])
+listed = manifest_wrong_models(Path(sys.argv[4]))
 for case in sorted(cases.iterdir()):
     verdict = case / "verdict.json"
-    if verdict.is_file() and verdict.stat().st_size and not verdict_errors(schema, verdict):
+    if (
+        verdict.is_file()
+        and verdict.stat().st_size
+        and not case_verdict_errors(schema, verdict, listed.get(case.name))
+    ):
         print(case.name)
 PY
 }
@@ -525,7 +554,10 @@ PY
 total=$(ls -d "$CASES_DIR"/*/ 2>/dev/null | wc -l | tr -d ' ')
 echo "audit: $total cases | parallel=$PARALLEL model=$MODEL effort=$EFFORT runner=claude ($CLI_VERSION)"
 echo "login: $AUTH in $CONFIG_DIR${DECLARED:+ (declared: $DECLARED)}"
-VALID=$(valid_cases)
+VALID=$(valid_cases) || {
+  echo "cannot read the verdicts against $MANIFEST; refusing to start" >&2
+  exit 1
+}
 # Set by a judge whose login cannot judge now; no further judge starts.
 RUN_STATE=$(mktemp -d "${TMPDIR:-/tmp}/pb-judge-run.XXXXXX") || exit 1
 STOP_FLAG="$RUN_STATE/stop"

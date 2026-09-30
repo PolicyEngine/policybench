@@ -9,6 +9,7 @@ allowlisted environment, so the fake reads its settings from a file beside it.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import os
 import subprocess
@@ -20,6 +21,11 @@ import pytest
 from policybench.audit import AUDIT_OUTPUT_SCHEMA
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import finish_gpt61sol as driver  # noqa: E402
+from validate_verdict import case_verdict_errors, manifest_wrong_models  # noqa: E402
+
 RUNNER = ROOT / "scripts/run_audit_claude.sh"
 CASES = ("us__scenario_000__snap", "us__scenario_001__ssi")
 VERDICT = {
@@ -150,6 +156,19 @@ def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def write_manifest(audit: Path, wrong_models: dict[str, list[str]]) -> None:
+    """audit-prepare's cases.jsonl: the models each case lists."""
+    (audit / "cases.jsonl").write_text(
+        "".join(
+            json.dumps(
+                {"case_id": name, "wrong_models": models, "parse_failure_only": False}
+            )
+            + "\n"
+            for name, models in wrong_models.items()
+        )
+    )
+
+
 @pytest.fixture
 def lane(tmp_path):
     """An audit with two unjudged cases, a fake CLI and a lane config dir."""
@@ -158,6 +177,8 @@ def lane(tmp_path):
         (audit / "cases" / name).mkdir(parents=True)
         (audit / "cases" / name / "prompt.md").write_text(f"Classify {name}.\n")
     (audit / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA))
+    # Each case lists the one model the canned verdict names.
+    write_manifest(audit, {name: ["gpt-6.1-sol"] for name in CASES})
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     claude = bin_dir / "claude"
@@ -657,3 +678,124 @@ def test_a_login_that_puts_account_context_in_the_judge_stops_the_run(lane, fake
     log = (audit / "cases" / CASES[0] / "claude.log").read_text()
     assert "it puts account context in every judge's context" in log
     assert not list(audit.rglob("verdict.json"))
+
+
+@pytest.mark.parametrize(
+    "listed, problem",
+    [
+        # 005 state income tax (2026-09-30): the verdict left out a listed model.
+        (["gpt-6.1-sol", "claude-opus-5.5"], "wrong model coverage"),
+        # The verdict names a model the case does not list.
+        (["inkling"], "wrong model coverage"),
+        # The manifest does not list the case at all.
+        (None, "cases.jsonl lists no such case"),
+    ],
+)
+def test_a_verdict_not_naming_exactly_the_cases_models_is_invalid(
+    lane, listed, problem
+):
+    """The judge answers with a schema-valid verdict naming gpt-6.1-sol alone.
+    Where the case lists other models, the runner logs the case invalid,
+    publishes nothing for it, goes on to the next case and leaves it pending,
+    so the next run judges it again."""
+    audit, _, _, run = lane
+    write_manifest(
+        audit,
+        {CASES[1]: ["gpt-6.1-sol"], **({CASES[0]: listed} if listed else {})},
+    )
+    result, calls = run()
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert len(calls) == 2  # the run went on to the next case
+    bad, good = (audit / "cases" / name for name in CASES)
+    assert f"[ok] {CASES[0]}" not in result.stdout
+    assert f"[invalid] {CASES[0]} ({problem}" in result.stdout
+    assert problem in (bad / "claude.log").read_text()
+    assert not (bad / "verdict.json").exists()
+    assert not (bad / "verdict.meta.json").exists()
+    assert not list(bad.glob("*.tmp"))
+    assert f"[ok] {CASES[1]}" in result.stdout
+    assert (good / "verdict.json").exists()
+    assert "audit complete: 1/2 verdicts present" in result.stdout
+    # Pending: the next run judges that case again, and only that case.
+    result, calls = run()
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert len(calls) == 3
+    assert f"[invalid] {CASES[0]} ({problem}" in result.stdout
+
+
+def test_a_published_verdict_missing_a_listed_model_is_not_done(lane):
+    """037 payroll tax (2026-09-30): a case whose published verdict omits a
+    model the case lists counts as pending and is judged again."""
+    audit, _, _, run = lane
+    run()
+    write_manifest(
+        audit, {CASES[0]: ["gpt-6.1-sol", "inkling"], CASES[1]: ["gpt-6.1-sol"]}
+    )
+    result, calls = run()
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert len(calls) == 3  # CASES[0] alone is judged again
+    assert f"[invalid] {CASES[0]} (wrong model coverage" in result.stdout
+    assert "audit complete: 1/2 verdicts present" in result.stdout
+
+
+def test_the_runner_refuses_to_start_without_the_case_manifest(lane):
+    audit, _, _, run = lane
+    (audit / "cases.jsonl").unlink()
+    result, calls = run()
+    assert result.returncode == 1
+    assert calls == []
+    assert f"missing {audit / 'cases.jsonl'}" in result.stderr
+
+
+def test_the_runner_judges_model_coverage_exactly_as_the_driver_does(tmp_path):
+    """Differential and exhaustive over three models: every verdict naming up to
+    three of them, repeats included, against every case listing a non-empty set
+    of them. The runner's rule (validate_verdict.py, as the runner applies it)
+    and the finish driver's validate_verdicts accept exactly the same pairs:
+    the verdicts naming each listed model once and no other."""
+    audit = tmp_path / "audit"
+    case = audit / "cases" / CASES[0]
+    case.mkdir(parents=True)
+    (case / "prompt.md").write_text("Classify these wrong answers.\n")
+    schema = audit / "schema.json"
+    schema.write_text(json.dumps(AUDIT_OUTPUT_SCHEMA))
+    path = case / "verdict.json"
+    models = ("gpt-6.1-sol", "claude-opus-5.5", "inkling")
+    named_lists = [
+        list(named) for n in range(4) for named in itertools.product(models, repeat=n)
+    ]
+    listed_sets = [
+        list(listed)
+        for n in range(1, 4)
+        for listed in itertools.combinations(models, n)
+    ]
+    accepted, disagreements = 0, []
+    for listed in listed_sets:
+        write_manifest(audit, {case.name: listed})
+        for named in named_lists:
+            verdict = {
+                **VERDICT,
+                "models": [{**VERDICT["models"][0], "model": m} for m in named],
+            }
+            path.write_text(json.dumps(verdict))
+            (case / "verdict.meta.json").write_text(
+                json.dumps(
+                    {
+                        "verdict_sha256": sha(path.read_bytes()),
+                        "prompt_sha256": sha((case / "prompt.md").read_bytes()),
+                        "judge_runner": "scripts/run_audit_claude.sh",
+                        "judge_model_requested": driver.JUDGE_MODEL,
+                        "judge_model_reported": [driver.JUDGE_MODEL],
+                        "judged_at_utc": "2026-09-30T01:00:00+00:00",
+                    }
+                )
+            )
+            wrong = manifest_wrong_models(audit / "cases.jsonl").get(case.name)
+            runner_ok = not case_verdict_errors(schema, path, wrong)
+            driver_ok = driver.validate_verdicts(audit) == []
+            accepted += runner_ok
+            if runner_ok != driver_ok:
+                disagreements.append((named, listed, runner_ok, driver_ok))
+    assert disagreements == []
+    # Each listed set of k models is covered by its k! orderings alone.
+    assert accepted == 3 * 1 + 3 * 2 + 1 * 6
