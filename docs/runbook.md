@@ -243,7 +243,7 @@ A single-country supervised run (`policybench run`) writes
 Python process. The file holds the PolicyEngine bundle provenance that every
 scenario sidecar records, plus a fingerprint of the installed PolicyEngine
 packages. Workers read it through `POLICYBENCH_POLICYENGINE_PROVENANCE`
-instead of importing policyengine, and the supervisor checks each worker's
+instead of computing it, and the supervisor checks each worker's
 sidecar against the copy it read back. A worker whose environment no longer
 matches the fingerprint computes the provenance itself, as every worker did
 before; `run_state.json` counts those workers in
