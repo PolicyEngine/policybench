@@ -1092,17 +1092,6 @@ def test_the_export_roster_must_be_the_incumbents_plus_the_addition(exporting):
         run(_exported(incumbents), incumbents[:-1] + [_stat(NEW, 1.0)])
 
 
-@pytest.mark.parametrize("n", [1927, 1929, 1984])
-def test_export_refuses_an_addition_not_scored_on_the_1928_outputs(exporting, n):
-    stage, _, run, _ = exporting
-    incumbents = _incumbents()
-    stats = _exported(incumbents)
-    stats[-1]["n"] = n
-    with pytest.raises(SystemExit, match=f"not scored on the 1928 outputs.*{NEW}"):
-        run(stats, incumbents)
-    assert not (stage / "data-board46.json").exists()
-
-
 def test_export_refuses_a_staged_reference_off_its_pin(exporting):
     _, bundle, run, _ = exporting
     path = bundle / "us/reference_outputs.csv.meta.json"

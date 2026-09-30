@@ -1,5 +1,10 @@
 # Brief: the GPT-6.1 Sol additions driver
 
+> Superseded base (2026-09-29): the values below are PR #182's head. #182 changed
+> after review and merged as `d616e67c`; the driver now pins that release (56
+> exclusions, 1,928 scored, payload `a5cb9989…`). See `design.md` and
+> `brief_repin_prepare.md`.
+
 Work in this worktree (branch `add-gpt-6.1-sol`, from the head of PolicyEngine/policybench#182). Read the repository's `CLAUDE.md` first. Then read `scripts/finish_adds0928.py`, `scripts/freeze_adds0928.py`, `tests/test_finish_adds0928.py`, the freeze script's tests, and `docs/adds0928/stage2_design.md`.
 
 ## What the release is

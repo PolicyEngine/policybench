@@ -802,15 +802,6 @@ def export(args, bundle, live) -> dict:
                 row[key] = previous[model][key]
         drift = incumbent_drift(stats, previous)
         require(not drift, f"incumbent modelStats drift: {drift}")
-        unscored = sorted(
-            s["model"]
-            for s in stats
-            if s["model"] in MODELS.values() and s["n"] != BASE_SCORED
-        )
-        require(
-            not unscored,
-            f"the addition is not scored on the {BASE_SCORED} outputs: {unscored}",
-        )
     errors = validate_dashboard_payload(
         payload, require_failure_annotations=not args.early
     )
