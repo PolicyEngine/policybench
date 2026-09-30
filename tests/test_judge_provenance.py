@@ -155,12 +155,18 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     )
     verdict_path = tmp_path / "canned_verdict.json"
     verdict_path.write_text(json.dumps(VERDICT))
-    # Fake claude: prints the CLI JSON envelope with the structured verdict.
+    # Fake claude: reports a lane login, keeps the session transcript where
+    # Claude Code does, and prints the CLI JSON envelope with the verdict.
     _fake_cli(
         bin_dir / "claude",
         'if [ "$1" = --version ]; then echo "9.9.9 (fake)"; exit 0; fi\n'
+        'if [ "$1" = auth ]; then echo \'{"loggedIn": true}\'; exit 0; fi\n'
+        'mkdir -p "$CLAUDE_CONFIG_DIR/projects/p"\n'
+        'echo \'{"type": "user"}\' > "$CLAUDE_CONFIG_DIR/projects/p/s.jsonl"\n'
         f'cat >/dev/null; cat "{envelope_path}"\n',
     )
+    lane_config = tmp_path / "lane-config"
+    lane_config.mkdir()
     # Fake codex: writes the -o file and logs its model header to stdout.
     _fake_cli(
         bin_dir / "codex",
@@ -175,6 +181,7 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "AUDIT_PYTHON": sys.executable,
         "AUDIT_PARALLEL": "1",
+        "CLAUDE_CONFIG_DIR": str(lane_config),
     }
 
     claude = subprocess.run(
