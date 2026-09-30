@@ -160,7 +160,8 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     _fake_cli(
         bin_dir / "claude",
         'if [ "$1" = --version ]; then echo "9.9.9 (fake)"; exit 0; fi\n'
-        'if [ "$1" = auth ]; then echo \'{"loggedIn": true}\'; exit 0; fi\n'
+        'if [ "$1" = auth ]; then echo \'{"loggedIn": true, "authMethod":'
+        ' "oauth_token", "apiProvider": "firstParty"}\'; exit 0; fi\n'
         'mkdir -p "$CLAUDE_CONFIG_DIR/projects/p"\n'
         'echo \'{"type": "user"}\' > "$CLAUDE_CONFIG_DIR/projects/p/s.jsonl"\n'
         f'cat >/dev/null; cat "{envelope_path}"\n',
@@ -182,6 +183,7 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
         "AUDIT_PYTHON": sys.executable,
         "AUDIT_PARALLEL": "1",
         "CLAUDE_CONFIG_DIR": str(lane_config),
+        "AUDIT_ACCOUNT": "claude:lane@example.org",
     }
 
     claude = subprocess.run(
