@@ -12,10 +12,15 @@ into release ``dashboard-data-20260930`` cannot be presented as independent:
 
 This driver re-judges exactly those five with the isolated runner
 (``scripts/run_audit_claude.sh``) and stages release ``dashboard-data-20260930b``.
-Nothing else may change: every other verdict carries over byte for byte, the
-adjudication record and the scoring exclusions are release 20260930's, every
-model's ``modelStats`` entry and the heatmap are byte-identical, and the payload
-may differ from the base only in the five cases' annotation fields.
+Nothing else may change:
+
+- every other verdict carries over byte for byte;
+- the adjudication record, the scoring exclusions, the references and the
+  predictions are release 20260930's;
+- the annotation files are release 20260930's committed bytes with only the
+  five cases' records replaced, so every wording amendment stays as published;
+- every model's ``modelStats`` entry is byte-identical;
+- the payload differs from the base only in the five cases' annotation fields.
 
   finish_rejudge_20260930b.py --stage-dir S --step prepare --base-stage B
   CLAUDE_CONFIG_DIR=... CLAUDE_CODE_OAUTH_TOKEN=... AUDIT_ACCOUNT=... \\
@@ -25,16 +30,19 @@ may differ from the base only in the five cases' annotation fields.
   freeze_rejudge_20260930b.py --stage-dir S [--dry-run]
 
 Each step refuses with SystemExit before it writes anything outside the stage.
-A re-judge that flags the reference, or leaves ``llm_error`` for a scored row,
-stops triage: that is a new reference question for Max, not something this
-driver decides.
+A re-judge that flags the reference, or leaves a scored row outside the
+llm_error family, stops triage: that is a new reference question for Max, not
+something this driver decides.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
+import datetime
 import gzip
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -50,12 +58,12 @@ import finish_gpt61sol as base_driver  # noqa: E402
 
 RUN_NAME = base_driver.RUN_NAME
 SNAPSHOT = base_driver.SNAPSHOT
-ANNOTATIONS = base_driver.ANNOTATIONS
 ADJUDICATIONS = base_driver.ADJUDICATIONS
 BOARD_MODELS = base_driver.BOARD_MODELS
 CARRIED_USAGE = base_driver.CARRIED_USAGE
 KEY = base_driver.KEY
 JUDGE_MODEL = "claude-opus-5-5"
+JUDGE_ROUNDS = 3
 
 BASE_TAG = base_driver.RELEASE_TAG
 RELEASE_TAG = "dashboard-data-20260930b"
@@ -99,6 +107,28 @@ REJUDGE: dict[str, tuple[str, str, str]] = {
     ),
 }
 
+# The two annotation files a re-judge rewrites: their key columns, and the
+# columns the judge's verdict decides. Every other column keeps its bytes.
+ANNOTATION_CSVS: dict[str, tuple[list[str], frozenset[str]]] = {
+    "us_audit_row_annotations.csv": (
+        KEY + ["model"],
+        frozenset(
+            {"failure_source", "failure_subtype", "reference_suspect", "annotation"}
+        ),
+    ),
+    "us_case_notes.csv": (
+        KEY,
+        frozenset(
+            {
+                "case_failure_sources",
+                "case_failure_subtypes",
+                "reference_suspect",
+                "reference_bug_hypothesis",
+                "case_annotation",
+            }
+        ),
+    ),
+}
 # The payload fields a re-judge writes, per (scenario, variable, model) row.
 ANNOTATION_FIELDS = frozenset(
     {
@@ -123,6 +153,14 @@ TRANSCRIPT_ATTACHMENTS = frozenset(
         "ultra_effort_enter",
         "silent_turn_reminder",
     }
+)
+# Text that would mean a system prompt carried a checkout's git status or an
+# instruction file.
+SYSTEM_PROMPT_LEAKS = (
+    "gitStatus",
+    "Current branch:",
+    "Recent commits:",
+    "Contents of /",
 )
 STAGE = "stage.json"
 AUDIT_FILES = ("verdict.json", "verdict.meta.json", "prompt.md")
@@ -163,6 +201,26 @@ def base_blob(path: str) -> bytes:
     return result.stdout
 
 
+def base_annotation_names() -> list[str]:
+    """The annotation files release 20260930 commits."""
+    require_pins()
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "ls-tree",
+            "--name-only",
+            BASE_COMMIT,
+            f"annotations/{RUN_NAME}/",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    require(result.returncode == 0, "cannot list release 20260930's annotations")
+    return sorted(Path(line).name for line in result.stdout.split())
+
+
 def base_payload() -> dict:
     """Release 20260930's payload, from BASE_COMMIT, checked against its pin."""
     snapshot = (SNAPSHOT / "data.json.gz").relative_to(ROOT).as_posix()
@@ -182,6 +240,14 @@ def bundle_dir(stage: Path) -> Path:
     return stage / "publish" / RUN_NAME
 
 
+def tree_digests(root: Path, relative_to: Path) -> dict[str, str]:
+    return {
+        str(p.relative_to(relative_to)): digest(p)
+        for p in sorted(root.rglob("*"))
+        if p.is_file()
+    }
+
+
 def load_stage(stage: Path) -> dict:
     path = stage / STAGE
     require(path.is_file(), f"{path} missing: run prepare")
@@ -193,7 +259,19 @@ def load_stage(stage: Path) -> dict:
         and sorted(record.get("rejudge", [])) == sorted(REJUDGE),
         "stage.json does not bind this driver's base and re-judge set",
     )
+    # Every verdict set aside stays where it was put.
+    for rel, pin in record.get("replaced_files", {}).items():
+        path = stage / rel
+        require(
+            path.is_file() and digest(path) == pin, f"replaced record changed: {rel}"
+        )
     return record
+
+
+def add_replaced(stage: Path, record: dict) -> None:
+    """Pin everything set aside so far in stage.json."""
+    record["replaced_files"] = tree_digests(stage / "replaced-verdicts", stage)
+    write_json(stage / STAGE, record)
 
 
 # ---------------------------------------------------------------- prepare
@@ -204,6 +282,7 @@ def prepare(args) -> None:
     require_pins()
     stage, source = args.stage_dir, args.base_stage
     require(source is not None, "--base-stage is required for prepare")
+    base_driver.validate_stage_path(stage, [source])
     require(not stage.exists(), f"{stage} exists; prepare writes a fresh stage")
     pointer = json.loads(base_blob("app/src/data.artifact.json"))
     require(
@@ -224,22 +303,32 @@ def prepare(args) -> None:
         require(
             digest(source / rel) == pin, f"base stage file changed since export: {rel}"
         )
+    # Every verdict, sidecar and prompt it carries is one the receipt binds.
+    carried_names = {
+        str(p.relative_to(source))
+        for p in (source / "audit" / "cases").glob("*/*")
+        if p.name in AUDIT_FILES
+    }
+    unbound = sorted(carried_names - set(receipt["files"]))
+    require(
+        not unbound, f"base stage audit files the receipt does not bind: {unbound[:5]}"
+    )
     # Its annotations are the committed ones.
-    source_bundle = bundle_dir(source)
-    for path in sorted((source_bundle / "annotations").iterdir()):
-        committed = f"annotations/{RUN_NAME}/{path.name}"
+    committed = base_annotation_names()
+    for path in sorted((bundle_dir(source) / "annotations").iterdir()):
+        require(path.name in committed, f"base stage has an uncommitted {path.name}")
         require(
-            path.read_bytes() == base_blob(committed),
-            f"base stage {path.name} differs from the committed {committed}",
+            path.read_bytes() == base_blob(f"annotations/{RUN_NAME}/{path.name}"),
+            f"base stage {path.name} differs from the committed one",
         )
     cases = source / "audit" / "cases"
-    for case, pins in REJUDGE.items():
+    for case, (verdict_sha, prompt_sha, _) in REJUDGE.items():
         require(
-            digest(cases / case / "verdict.json") == pins[0],
+            digest(cases / case / "verdict.json") == verdict_sha,
             f"{case}: the base verdict is not the audited one",
         )
         require(
-            digest(cases / case / "prompt.md") == pins[1],
+            digest(cases / case / "prompt.md") == prompt_sha,
             f"{case}: the base prompt is not the audited one",
         )
 
@@ -247,38 +336,33 @@ def prepare(args) -> None:
     shutil.copytree(source / "publish", stage / "publish")
     shutil.copytree(source / "audit", stage / "audit")
     audit = stage / "audit" / "cases"
-    carried = {}
-    for case_dir in sorted(audit.iterdir()):
-        for name in AUDIT_FILES:
-            path = case_dir / name
-            if path.is_file():
-                carried[f"{case_dir.name}/{name}"] = digest(path)
-    for case, pins in REJUDGE.items():
-        set_aside(audit / case, stage / "replaced-verdicts" / case, pins[2])
-    bundle = bundle_dir(stage)
-    write_json(
-        stage / STAGE,
-        {
-            "base_tag": BASE_TAG,
-            "base_sha256": BASE_SHA256,
-            "base_commit": BASE_COMMIT,
-            "base_stage": str(source),
-            "release_tag": RELEASE_TAG,
-            "rejudge": sorted(REJUDGE),
-            "audit_files": carried,
-            "bundle_files": {
-                str(p.relative_to(stage)): digest(p)
-                for p in sorted(bundle.rglob("*"))
-                if p.is_file()
-            },
-        },
-    )
+    carried = {
+        f"{p.parent.name}/{p.name}": digest(p)
+        for p in sorted(audit.glob("*/*"))
+        if p.name in AUDIT_FILES
+    }
+    for case, (_, _, reason) in REJUDGE.items():
+        set_aside(
+            audit / case, stage / "replaced-verdicts" / case / "published", reason
+        )
+    record = {
+        "base_tag": BASE_TAG,
+        "base_sha256": BASE_SHA256,
+        "base_commit": BASE_COMMIT,
+        "base_stage": str(source),
+        "release_tag": RELEASE_TAG,
+        "rejudge": sorted(REJUDGE),
+        "audit_files": carried,
+        "bundle_files": tree_digests(bundle_dir(stage), stage),
+    }
+    add_replaced(stage, record)
     print(f"Prepared {stage}: {len(REJUDGE)} verdicts set aside for re-judging")
 
 
 def set_aside(case_dir: Path, destination: Path, reason: str) -> None:
     """Move a case's verdict and its judge's records aside; never delete them."""
-    destination.mkdir(parents=True, exist_ok=True)
+    require(not destination.exists(), f"{destination} already exists")
+    destination.mkdir(parents=True)
     moved = []
     for path in sorted(case_dir.iterdir()):
         if path.name == "prompt.md":
@@ -293,24 +377,43 @@ def set_aside(case_dir: Path, destination: Path, reason: str) -> None:
 
 
 def judge(args) -> None:
-    """Run the isolated runner on the five cases only, then validate."""
-    record = load_stage(args.stage_dir)
+    """Run the isolated runner on the five cases, retrying a rejected verdict.
+
+    The runner skips a case whose verdict already satisfies the schema, so a
+    verdict that fails this driver's checks is set aside, with the reasons,
+    and the case is judged again, up to JUDGE_ROUNDS times.
+    """
+    stage = args.stage_dir
+    record = load_stage(stage)
     env = dict(os.environ)
     env["AUDIT_ONLY"] = " ".join(record["rejudge"])
     env["AUDIT_MODEL"] = JUDGE_MODEL
     env.setdefault("AUDIT_PARALLEL", str(len(REJUDGE)))
     env.setdefault("AUDIT_PYTHON", sys.executable)
-    subprocess.run(
-        [
-            "bash",
-            str(ROOT / "scripts/run_audit_claude.sh"),
-            str(args.stage_dir / "audit"),
-        ],
-        env=env,
-        cwd=ROOT,
-        check=False,
-    )
-    problems = validate(args.stage_dir, record)
+    for round_number in range(1, JUDGE_ROUNDS + 1):
+        subprocess.run(
+            ["bash", str(ROOT / "scripts/run_audit_claude.sh"), str(stage / "audit")],
+            env=env,
+            cwd=ROOT,
+            check=False,
+        )
+        failing = {}
+        for case in REJUDGE:
+            problems = case_problems(stage, case)
+            if problems and (stage / "audit/cases" / case / "verdict.json").is_file():
+                failing[case] = problems
+        if not failing:
+            break
+        stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        for case, problems in failing.items():
+            set_aside(
+                stage / "audit/cases" / case,
+                stage / "replaced-verdicts" / case / f"round{round_number}-{stamp}",
+                "Rejected by finish_rejudge_20260930b.py:\n" + "\n".join(problems),
+            )
+        add_replaced(stage, record)
+        print(f"round {round_number}: set aside {sorted(failing)}; judging again")
+    problems = validate(stage, record)
     require(not problems, "judge step left problems:\n" + "\n".join(problems))
     print(f"Judged {len(REJUDGE)} cases; every verdict validates")
 
@@ -326,23 +429,35 @@ def prompt_model_ids(prompt: str) -> list[str]:
     return [m.strip() for m in last.split(marker, 1)[1].split(",") if m.strip()]
 
 
-def transcript_problems(path: Path) -> list[str]:
+def transcript_problems(
+    path: Path,
+    session_id: str | None = None,
+    prompt: str | None = None,
+    verdict: dict | None = None,
+) -> list[str]:
     """Anything in a judge transcript beyond its prompt and its answer.
 
-    Checked here independently of the runner: a tool call other than the
-    structured answer, a delegate, an attachment of an unlisted kind, a
-    working directory inside a git repository, or a skill loaded into the
-    conversation.
+    Checked here independently of the runner. The transcript must belong to
+    the sidecar's session, open with exactly the case's prompt, end with
+    exactly the verdict as its structured answer, and come from JUDGE_MODEL.
+    It fails on any tool call but the structured answer, an attachment of an
+    unlisted kind, a working directory inside a git repository, a git status,
+    a system prompt carrying a git status or an instruction file, or a skill
+    loaded into the conversation.
     """
-    problems = []
     if not path.is_file():
         return [f"no transcript at {path}"]
+    problems, first_user, answers = [], None, []
     for number, line in enumerate(path.read_text().splitlines(), 1):
         try:
             event = json.loads(line)
         except ValueError:
             problems.append(f"line {number} is not JSON")
             continue
+        if session_id is not None and event.get("sessionId") not in (None, session_id):
+            problems.append(
+                f"line {number} belongs to session {event.get('sessionId')}"
+            )
         if event.get("type") == "attachment":
             attachment = event.get("attachment") or {}
             kind = attachment.get("type")
@@ -356,8 +471,27 @@ def transcript_problems(path: Path) -> list[str]:
                 "gitStatus"
             ):
                 problems.append("the judge was shown a git status")
+            if kind == "prompt_snapshot":
+                text = json.dumps(attachment.get("systemPrompt"))
+                if any(leak in text for leak in SYSTEM_PROMPT_LEAKS):
+                    problems.append(
+                        f"the system prompt on line {number} carries context"
+                    )
+            if kind == "structured_output":
+                answers.append(attachment.get("data"))
         message = event.get("message") or {}
         content = message.get("content")
+        if event.get("type") == "assistant" and message.get("model") not in (
+            None,
+            JUDGE_MODEL,
+        ):
+            problems.append(f"line {number} was answered by {message.get('model')}")
+        if (
+            event.get("type") == "user"
+            and isinstance(content, str)
+            and first_user is None
+        ):
+            first_user = content
         if isinstance(content, str) and "Base directory for this skill:" in content:
             problems.append(f"a skill was loaded on line {number}")
         if not isinstance(content, list):
@@ -376,29 +510,81 @@ def transcript_problems(path: Path) -> list[str]:
                 part.get("text")
             ):
                 problems.append(f"a skill was loaded on line {number}")
+    if prompt is not None and first_user != prompt:
+        problems.append("the transcript does not open with the case's prompt")
+    if verdict is not None and (not answers or answers[-1] != verdict):
+        problems.append("the transcript's structured answer is not the verdict")
+    return problems
+
+
+def case_problems(stage: Path, case: str) -> list[str]:
+    """Why a re-judged case's verdict is not yet publishable, if it is not."""
+    from validate_verdict import verdict_errors
+
+    from policybench.audit import is_hedged
+
+    _, prompt_sha, _ = REJUDGE[case]
+    case_dir = stage / "audit" / "cases" / case
+    verdict_path = case_dir / "verdict.json"
+    meta_path = case_dir / "verdict.meta.json"
+    if not verdict_path.is_file() or not meta_path.is_file():
+        return ["no verdict yet"]
+    try:
+        verdict = json.loads(verdict_path.read_text())
+        meta = json.loads(meta_path.read_text())
+    except ValueError as error:
+        return [f"unreadable verdict or sidecar: {error}"]
+    problems = list(verdict_errors(stage / "audit" / "schema.json", verdict_path))
+    prompt_path = case_dir / "prompt.md"
+    prompt = prompt_path.read_text()
+    checks = {
+        "the sidecar does not bind the verdict": meta.get("verdict_sha256")
+        == digest(verdict_path),
+        "the prompt is not the audited one": digest(prompt_path) == prompt_sha,
+        "the sidecar does not bind the prompt": meta.get("prompt_sha256") == prompt_sha,
+        "the verdict is the replaced one": digest(verdict_path) != REJUDGE[case][0],
+        f"the judge was not {JUDGE_MODEL}": meta.get("judge_model_reported")
+        == [JUDGE_MODEL]
+        and meta.get("judge_model_requested") == JUDGE_MODEL,
+        "the sidecar records no judging time": bool(meta.get("judged_at_utc")),
+        "the runner did not record an isolated judge": (
+            meta.get("judge_runner") == "scripts/run_audit_claude.sh"
+            and (meta.get("judge_isolation") or {}).get("transcript_tool_calls") == 0
+        ),
+        "the judge did not bill a subscription login": (
+            (meta.get("judge_auth") or {}).get("method") in ("oauth_token", "claude.ai")
+        ),
+    }
+    problems += [message for message, ok in checks.items() if not ok]
+    problems += transcript_problems(
+        case_dir / "claude.transcript.jsonl", meta.get("session_id"), prompt, verdict
+    )
+    models = verdict.get("models") if isinstance(verdict.get("models"), list) else []
+    judged = [m.get("model") for m in models if isinstance(m, dict)]
+    expected = prompt_model_ids(prompt)
+    if sorted(judged) != sorted(expected) or len(set(judged)) != len(judged):
+        problems.append(f"models {judged} are not exactly {expected}")
+    texts = [verdict.get("rationale")] + [
+        m.get("diagnosis") for m in models if isinstance(m, dict)
+    ]
+    if any(is_hedged(text) for text in texts):
+        problems.append("hedged text")
     return problems
 
 
 def validate(stage: Path, record: dict) -> list[str]:
     """Every carried-over verdict unchanged; every re-judge isolated and complete."""
-    from validate_verdict import verdict_errors
-
-    from policybench.audit import is_hedged
-
     problems = []
-    audit = stage / "audit"
-    schema = audit / "schema.json"
+    cases = stage / "audit" / "cases"
     for rel, pin in record["audit_files"].items():
         case = rel.split("/", 1)[0]
-        path = audit / "cases" / rel
         if case in REJUDGE and not rel.endswith("prompt.md"):
             continue
+        path = cases / rel
         if not path.is_file() or digest(path) != pin:
             problems.append(f"carried-over {rel} changed or is missing")
     present = {
-        f"{p.parent.name}/{p.name}"
-        for p in (audit / "cases").glob("*/*")
-        if p.name in AUDIT_FILES
+        f"{p.parent.name}/{p.name}" for p in cases.glob("*/*") if p.name in AUDIT_FILES
     }
     extra = sorted(
         rel
@@ -406,60 +592,143 @@ def validate(stage: Path, record: dict) -> list[str]:
         if rel.split("/", 1)[0] not in REJUDGE
     )
     problems += [f"unexpected audit file {rel}" for rel in extra]
-
-    for case, pins in REJUDGE.items():
-        case_dir = audit / "cases" / case
-        verdict_path = case_dir / "verdict.json"
-        meta_path = case_dir / "verdict.meta.json"
-        if not verdict_path.is_file() or not meta_path.is_file():
-            problems.append(f"{case}: no verdict yet")
-            continue
-        problems += [f"{case}: {e}" for e in verdict_errors(schema, verdict_path)]
-        verdict = json.loads(verdict_path.read_text())
-        meta = json.loads(meta_path.read_text())
-        prompt = (case_dir / "prompt.md").read_text()
-        checks = {
-            "the sidecar does not bind the verdict": meta.get("verdict_sha256")
-            == digest(verdict_path),
-            "the prompt is not the audited one": digest(case_dir / "prompt.md")
-            == pins[1],
-            "the sidecar does not bind the prompt": meta.get("prompt_sha256")
-            == pins[1],
-            "the verdict is the replaced one": digest(verdict_path) != pins[0],
-            f"the judge was not {JUDGE_MODEL}": meta.get("judge_model_reported")
-            == [JUDGE_MODEL],
-            "the runner did not record an isolated judge": (
-                meta.get("judge_runner") == "scripts/run_audit_claude.sh"
-                and (meta.get("judge_isolation") or {}).get("transcript_tool_calls")
-                == 0
-            ),
-            "the judge did not bill a subscription login": (
-                (meta.get("judge_auth") or {}).get("method")
-                in ("oauth_token", "claude.ai")
-            ),
-        }
-        problems += [f"{case}: {message}" for message, ok in checks.items() if not ok]
-        problems += [
-            f"{case}: {p}"
-            for p in transcript_problems(case_dir / "claude.transcript.jsonl")
-        ]
-        judged = [m.get("model") for m in verdict.get("models", [])]
-        expected = prompt_model_ids(prompt)
-        if sorted(judged) != sorted(expected) or len(set(judged)) != len(judged):
-            problems.append(f"{case}: models {judged} are not exactly {expected}")
-        texts = [verdict.get("rationale")] + [
-            m.get("diagnosis") for m in verdict.get("models", [])
-        ]
-        if any(is_hedged(text) for text in texts):
-            problems.append(f"{case}: hedged text")
+    for case in REJUDGE:
+        problems += [f"{case}: {p}" for p in case_problems(stage, case)]
     return problems
+
+
+# ---------------------------------------------------------------- annotations
+
+
+def csv_records(text: str) -> tuple[str, list[str]]:
+    """Split CSV text into its header and whole records, each with its newline.
+
+    A record ends at a newline outside quotes. Quotes inside a field are
+    doubled, so a record is complete when its quote count is even.
+    """
+    lines = text.splitlines(keepends=True)
+    require(lines, "empty CSV")
+    records, buffer = [], ""
+    for line in lines[1:]:
+        buffer += line
+        if buffer.count('"') % 2 == 0:
+            records.append(buffer)
+            buffer = ""
+    require(buffer == "", "CSV ends inside a quoted field")
+    return lines[0], records
+
+
+def record_fields(header: str, record: str) -> dict[str, str]:
+    names = next(csv.reader(io.StringIO(header)))
+    values = next(csv.reader(io.StringIO(record)))
+    require(
+        len(names) == len(values), f"record has {len(values)} fields, not {len(names)}"
+    )
+    return dict(zip(names, values))
+
+
+def record_key(fields: dict[str, str], key: list[str]) -> tuple[str, ...]:
+    return tuple(fields[k] for k in key)
+
+
+def splice_annotations(base_text: str, new_rows, key: list[str]) -> str:
+    """Release 20260930's CSV with only the five cases' records replaced.
+
+    ``new_rows`` holds every record of the five cases, as collected from the
+    new verdicts. Each case's records go where its old ones were, in the old
+    order; every other record keeps its exact bytes.
+    """
+    header, records = csv_records(base_text)
+    columns = next(csv.reader(io.StringIO(header)))
+    require(
+        sorted(new_rows.columns) == sorted(columns),
+        "collected columns differ from the base CSV",
+    )
+    newline = "\r\n" if header.endswith("\r\n") else "\n"
+    serialized = new_rows[columns].to_csv(
+        index=False, header=False, lineterminator=newline
+    )
+    _, fresh = csv_records(header + serialized)
+    replacement = {record_key(record_fields(header, r), key): r for r in fresh}
+    require(len(replacement) == len(fresh), "collected rows repeat a key")
+    out, used = [header], set()
+    for record in records:
+        fields = record_fields(header, record)
+        if (fields["scenario_id"], fields["variable"]) in REJUDGE_KEYS:
+            k = record_key(fields, key)
+            require(k in replacement, f"collected rows drop {k}")
+            out.append(replacement[k])
+            used.add(k)
+        else:
+            out.append(record)
+    require(
+        used == set(replacement),
+        f"collected rows add {sorted(set(replacement) - used)}",
+    )
+    return "".join(out)
+
+
+def annotation_changes(base_text: str, text: str, name: str) -> list[dict]:
+    """Every changed record of one annotation CSV; refuses any change beyond the five.
+
+    Records compare as text, field by field, so a blank field is blank on both
+    sides. Records outside the five must keep their bytes and their order, the
+    five cases' key sets must not change, and within them only the columns the
+    verdict decides may change.
+    """
+    key, decided = ANNOTATION_CSVS[name]
+    header, old = csv_records(base_text)
+    new_header, new = csv_records(text)
+    require(header == new_header, f"{name}: header changed")
+    require(len(old) == len(new), f"{name}: records added or dropped")
+    changes = []
+    for before, after in zip(old, new):
+        a, b = record_fields(header, before), record_fields(header, after)
+        require(
+            record_key(a, key) == record_key(b, key),
+            f"{name}: records reordered or rekeyed",
+        )
+        if before == after:
+            continue
+        require(
+            (a["scenario_id"], a["variable"]) in REJUDGE_KEYS,
+            f"{name}: a record outside the five changed: {record_key(a, key)}",
+        )
+        diffs = {c: {"before": a[c], "after": b[c]} for c in a if a[c] != b[c]}
+        undecided = sorted(set(diffs) - decided)
+        require(not undecided, f"{name}: {record_key(a, key)} changed {undecided}")
+        changes.append({**dict(zip(key, record_key(a, key))), "changes": diffs})
+    return changes
+
+
+def verify_annotations(annotations: Path, expected_changes: dict | None = None) -> dict:
+    """Every annotation file is release 20260930's, but for the five cases' records."""
+    committed = base_annotation_names()
+    staged = sorted(p.name for p in annotations.iterdir() if p.is_file())
+    require(
+        set(staged) <= set(committed), f"annotation files not in the release: {staged}"
+    )
+    changes = {}
+    for name in staged:
+        current = (annotations / name).read_bytes()
+        base = base_blob(f"annotations/{RUN_NAME}/{name}")
+        if name in ANNOTATION_CSVS:
+            changes[name] = annotation_changes(base.decode(), current.decode(), name)
+        else:
+            require(current == base, f"{name} differs from release 20260930's")
+    if expected_changes is not None:
+        require(
+            changes == expected_changes,
+            "annotation changes differ from annotation-changes.json",
+        )
+    return changes
 
 
 # ---------------------------------------------------------------- triage
 
 
 def triage(args) -> None:
-    """Collect every verdict and write annotations that differ only for the five."""
+    """Collect the five cases' new annotations and splice them into the base files."""
     import pandas as pd
 
     from policybench.adjudications import (
@@ -482,18 +751,10 @@ def triage(args) -> None:
     require(not problems, "verdicts do not validate:\n" + "\n".join(problems))
     bundle = bundle_dir(stage)
     annotations = bundle / "annotations"
-    for name in ("us_audit_row_annotations.csv", "us_case_notes.csv", ADJUDICATIONS):
-        rel = f"publish/{RUN_NAME}/annotations/{name}"
-        require(
-            digest(annotations / name) == record["bundle_files"][rel],
-            f"staged {name} changed before triage; re-run prepare",
-        )
+    # Staged files may differ from the base only in the five cases' records, so
+    # a triage that stopped before writing, or a finished one, can run again.
+    verify_annotations(annotations)
     record_path = annotations / ADJUDICATIONS
-    require(
-        record_path.read_bytes()
-        == base_blob(f"annotations/{RUN_NAME}/{ADJUDICATIONS}"),
-        "the adjudication record is not release 20260930's",
-    )
     decisions = load_adjudications(record_path)
     decided = {(d["scenario_id"], d["variable"]) for d in decisions}
     require(
@@ -534,80 +795,27 @@ def triage(args) -> None:
         "decide it here.",
     )
 
-    base_rows = pd.read_csv(annotations / "us_audit_row_annotations.csv")
-    base_cases = pd.read_csv(annotations / "us_case_notes.csv")
-    changes = {
-        "rows": annotation_changes(base_rows, rows, KEY + ["model"]),
-        "cases": annotation_changes(base_cases, cases, KEY),
-    }
+    def five(frame):
+        return frame[frame[KEY].apply(tuple, axis=1).isin(REJUDGE_KEYS)]
+
+    spliced = {}
+    for name, frame in (
+        ("us_audit_row_annotations.csv", rows),
+        ("us_case_notes.csv", cases),
+    ):
+        key, _ = ANNOTATION_CSVS[name]
+        base_text = base_blob(f"annotations/{RUN_NAME}/{name}").decode()
+        spliced[name] = splice_annotations(base_text, five(frame), key)
+        annotation_changes(base_text, spliced[name], name)
+    # Check everything before writing anything; then replace atomically.
+    for name, text in spliced.items():
+        temporary = annotations / f".{name}.tmp"
+        temporary.write_text(text)
+        os.replace(temporary, annotations / name)
+    changes = verify_annotations(annotations)
     write_json(stage / "annotation-changes.json", changes)
-    rows.to_csv(annotations / "us_audit_row_annotations.csv", index=False)
-    cases.to_csv(annotations / "us_case_notes.csv", index=False)
-    # Written back through pandas, every row outside the five must keep its bytes.
-    for name in ("us_audit_row_annotations.csv", "us_case_notes.csv"):
-        require_lines_outside_rejudge_unchanged(
-            base_blob(f"annotations/{RUN_NAME}/{name}").decode(),
-            (annotations / name).read_text(),
-            name,
-        )
-    print(
-        f"Triage complete: {len(rows)} rows / {len(cases)} cases; "
-        f"{len(changes['rows'])} row and {len(changes['cases'])} case "
-        "annotations changed"
-    )
-
-
-def annotation_changes(before, after, key: list[str]) -> list[dict]:
-    """Every row whose values differ; only the five cases may appear.
-
-    The key sets must match exactly: a re-judge changes text and labels, never
-    which rows exist.
-    """
-    import pandas as pd
-
-    require(list(before.columns) == list(after.columns), "annotation columns changed")
-    left = before.set_index(key).sort_index()
-    right = after.set_index(key).sort_index()
-    require(left.index.equals(right.index), "annotation rows added or dropped")
-    changed = []
-    for index in left.index:
-        a, b = left.loc[index], right.loc[index]
-        diffs = {
-            column: {"before": _plain(a[column]), "after": _plain(b[column])}
-            for column in left.columns
-            if not (pd.isna(a[column]) and pd.isna(b[column]))
-            and a[column] != b[column]
-        }
-        if diffs:
-            names = dict(zip(key, index if isinstance(index, tuple) else (index,)))
-            require(
-                (names["scenario_id"], names["variable"]) in REJUDGE_KEYS,
-                f"an annotation outside the re-judged cases changed: {names}",
-            )
-            changed.append({**names, "changes": diffs})
-    return changed
-
-
-def _plain(value):
-    return (
-        None if value != value else (value.item() if hasattr(value, "item") else value)
-    )
-
-
-def require_lines_outside_rejudge_unchanged(before: str, after: str, name: str) -> None:
-    """Byte-level check: only lines of the five cases may differ."""
-    old, new = before.splitlines(), after.splitlines()
-    require(old[0] == new[0], f"{name}: header changed")
-
-    prefixes = tuple(f"us,{s},{v}," for s, v in REJUDGE_KEYS)
-
-    def outside(lines):
-        return [line for line in lines[1:] if not line.startswith(prefixes)]
-
-    require(
-        outside(old) == outside(new),
-        f"{name}: a row outside the re-judged cases changed",
-    )
+    counts = {name: len(v) for name, v in changes.items()}
+    print(f"Triage complete: changed records {counts}")
 
 
 # ---------------------------------------------------------------- export
@@ -653,9 +861,18 @@ def export(args) -> None:
     record = load_stage(stage)
     problems = validate(stage, record)
     require(not problems, "verdicts do not validate:\n" + "\n".join(problems))
-    require((stage / "annotation-changes.json").is_file(), "run triage first")
+    changes_path = stage / "annotation-changes.json"
+    require(changes_path.is_file(), "run triage first")
     bundle = bundle_dir(stage)
+    verify_annotations(bundle / "annotations", json.loads(changes_path.read_text()))
     base_driver.verify_reference_pins(bundle / "us", "staged reference")
+    # The export inputs are the ones prepare copied; export itself rewrites
+    # data.json and the analysis outputs, so those are not compared.
+    for name in (*base_driver.REFERENCE_FILES, "predictions.csv"):
+        rel = str((bundle / "us" / name).relative_to(stage))
+        require(
+            digest(stage / rel) == record["bundle_files"][rel], f"staged {rel} changed"
+        )
     live = base_payload()
     payload = export_full_run(bundle, countries=["us"], skip_app_data=True)
     stats = payload["countries"]["us"]["modelStats"]
@@ -687,11 +904,7 @@ def export(args) -> None:
         bundle / "us" / name
         for name in (*base_driver.REFERENCE_FILES, "predictions.csv")
     ]
-    pinned += [
-        stage / STAGE,
-        stage / "annotation-changes.json",
-        stage / "payload-diff.json",
-    ]
+    pinned += [stage / STAGE, changes_path, stage / "payload-diff.json"]
     pinned += [
         p
         for p in (stage / "audit").rglob("*")
@@ -708,6 +921,7 @@ def export(args) -> None:
     pinned += [
         stage / "audit/cases" / case / "claude.transcript.jsonl" for case in REJUDGE
     ]
+    pinned += [p for p in (stage / "replaced-verdicts").rglob("*") if p.is_file()]
     write_json(
         stage / "release-ready.json",
         {
