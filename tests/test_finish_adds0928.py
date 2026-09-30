@@ -1063,6 +1063,193 @@ def test_a_re_export_after_the_freeze_gates_the_committed_exclusions(monkeypatch
         driver.resolve_live_base(SimpleNamespace())
 
 
+# The attributes freeze_adds0928.main assigns on freeze_snapshot once its gates
+# pass. Registering each with monkeypatch restores it after the test.
+FREEZER_ASSIGNED = (
+    "SNAPSHOT_DATE",
+    "MODEL_RESPONSE_DATE",
+    "SOURCE_RUN",
+    "SOURCE_US",
+    "SOURCE_ANNOTATIONS",
+    "REFERENCE_META_SOURCE",
+    "PUBLISHED_DASHBOARD_SOURCE",
+    "PUBLISHED_DASHBOARD_ARTIFACT",
+    "RUN_STATE_EVIDENCE",
+    "AUDIT_CASES_DIR",
+    "audit_judge_provenance",
+    "developer_adjudications_block",
+    "freeze_serving_configuration",
+)
+
+
+def _tree(root: Path) -> dict[Path, bytes]:
+    return {
+        path.relative_to(root): path.read_bytes()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+
+@pytest.fixture
+def freeze_at_exclusion_gate(freeze_preflight, exclusion_gate, monkeypatch):
+    """A stage and frozen run that pass every check freeze_adds0928.main makes
+    before its exclusion gate. The receipt, recombination, 45-model roster,
+    staged-versus-frozen reference files and incumbent prediction checks run
+    as written; the schema, treatment, run-state evidence and adjudication
+    validators, which need a full release, are stubbed. The revision and
+    exclusion base are the exclusion_gate fixture's. freeze_snapshot.main is a
+    sentinel, so nothing past the gate reaches the freezer."""
+    import gzip
+
+    import freeze_snapshot as freezer
+
+    import policybench.dashboard_schema as schema
+
+    release, stage, payload, receipt = freeze_preflight
+    root = release.ROOT
+    models = [f"incumbent-{i:02d}" for i in range(42)]
+    models += list(release.NEW_MODELS.values())
+    payload.write_text(
+        json.dumps(
+            {
+                "countries": {
+                    "us": {
+                        "modelStats": [
+                            {"model": model, "condition": "no_tools"}
+                            for model in models
+                        ]
+                    }
+                }
+            }
+        )
+    )
+    receipt["payload_sha256"] = hashlib.sha256(payload.read_bytes()).hexdigest()
+    (stage / "release-ready.json").write_text(json.dumps(receipt))
+
+    snapshot = root / "paper/snapshot/20260501"
+    frozen = snapshot / "runs" / release.RUN
+    source = stage / "publish" / release.RUN
+    frozen.mkdir(parents=True)
+    (source / "us").mkdir(parents=True)
+    (snapshot / "model_serving_config.json").write_text(
+        json.dumps({"models": {model: {} for model in models}})
+    )
+    _write_exclusions(frozen, [BASE_EXCLUDED, NEW_EXCLUDED, AUDIT_EXCLUDED])
+    for name in (
+        "reference_outputs.csv",
+        "reference_outputs.csv.meta.json",
+        "scenarios.csv",
+        "scenarios.csv.meta.json",
+    ):
+        (frozen / name).write_text(f"{name}\n")
+    for path in frozen.iterdir():
+        (source / "us" / path.name).write_bytes(path.read_bytes())
+    header = ",".join(["model", *freezer.PREDICTION_EVIDENCE_COLUMNS]) + "\n"
+    (source / "us/predictions.csv").write_text(header)
+    with gzip.open(frozen / "predictions.csv.gz", "wt") as stream:
+        stream.write(header)
+    for slug, model in release.NEW_MODELS.items():
+        state = stage / "inputs" / slug / "run_state.json"
+        state.parent.mkdir(parents=True)
+        state.write_text(
+            json.dumps(
+                {
+                    "model": model,
+                    "completed": 100,
+                    "total": 100,
+                    "stopped_reason": None,
+                    "treatment_fingerprint": {},
+                }
+            )
+        )
+    annotations = source / "annotations"
+    annotations.mkdir()
+    (annotations / "us_adjudications.json").write_text("{}\n")
+    for name in ("us_audit_row_annotations.csv", "us_case_notes.csv"):
+        (annotations / name).write_text("scenario_id,variable\n")
+    (root / "app/src/data.versions.json").write_text(
+        json.dumps(
+            {
+                "default": "live",
+                "versions": [{"id": "live", "description": "Live - 42 models"}],
+            }
+        )
+    )
+    manifest = snapshot / "manifest.json"
+    manifest.write_text(
+        json.dumps({"source_run_artifacts": {release.RUN: {"files": {}}}}) + "\n"
+    )
+
+    monkeypatch.setattr(schema, "validate_dashboard_payload", lambda *_, **__: [])
+    monkeypatch.setattr(release, "validate_treatment", lambda *_: None)
+    monkeypatch.setattr(
+        freezer, "_run_state_prediction_evidence", lambda *_: {"kind": "run_state"}
+    )
+    monkeypatch.setattr(freezer, "load_adjudications", lambda _: [])
+    monkeypatch.setattr(
+        freezer, "verify_adjudications_keep_judge_verdicts", lambda *_: None
+    )
+    monkeypatch.setattr(
+        driver, "reference_revision", lambda: copy.deepcopy(GATE_REVISION)
+    )
+    for name in FREEZER_ASSIGNED:
+        monkeypatch.setattr(freezer, name, getattr(freezer, name))
+    monkeypatch.setattr(freezer, "ANNOTATIONS_DEST", root / "annotations-dest")
+
+    def reached_the_freezer() -> None:
+        raise RuntimeError("reached freeze_snapshot.main")
+
+    monkeypatch.setattr(freezer, "main", reached_the_freezer)
+    return release, stage, frozen, source / "us", manifest
+
+
+def test_the_freeze_passes_the_expected_exclusions_then_pins_them(
+    freeze_at_exclusion_gate,
+):
+    """Control: with exactly the 22c, revision and audit exclusions, the gate
+    passes and the manifest pins the frozen reference files."""
+    release, stage, frozen, _, manifest = freeze_at_exclusion_gate
+    with pytest.raises(RuntimeError, match="reached freeze_snapshot.main"):
+        release.main(["--stage-dir", str(stage)])
+    pins = json.loads(manifest.read_text())["source_run_artifacts"][release.RUN]
+    assert pins["files"]["reference_exclusions.json"] == (
+        hashlib.sha256((frozen / "reference_exclusions.json").read_bytes()).hexdigest()
+    )
+
+
+@pytest.mark.parametrize(
+    "keys, message",
+    [
+        (
+            [BASE_EXCLUDED, NEW_EXCLUDED, AUDIT_EXCLUDED, ("scenario_004", "snap")],
+            r"exclusions differ .* unexpected \[\('scenario_004', 'snap'\)\]",
+        ),
+        # Swapped: the count is right, which a count check would accept.
+        (
+            [("scenario_004", "snap"), NEW_EXCLUDED, AUDIT_EXCLUDED],
+            r"exclusions differ .* missing \[\('scenario_000', 'snap'\)\]",
+        ),
+    ],
+    ids=["extra", "swapped"],
+)
+def test_the_freeze_refuses_an_extra_or_swapped_exclusion_before_any_write(
+    freeze_at_exclusion_gate, keys, message
+):
+    """freeze_adds0928.main calls check_exclusions on the frozen run before it
+    re-pins the manifest. The staged record equals the frozen one, so the
+    preflight (the dry run) passes; the gate then refuses, and no file in the
+    workspace changes. Without the call, the freeze would pin the record and
+    reach the freezer."""
+    release, stage, frozen, source, _ = freeze_at_exclusion_gate
+    for directory in (frozen, source):
+        _write_exclusions(directory, keys)
+    release.main(["--stage-dir", str(stage), "--dry-run"])
+    before = _tree(release.ROOT)
+    with pytest.raises(SystemExit, match=message):
+        release.main(["--stage-dir", str(stage)])
+    assert _tree(release.ROOT) == before
+
+
 # --- Incumbent replay gate ---------------------------------------------------------
 
 
