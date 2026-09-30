@@ -29,6 +29,7 @@ from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
 
 NEW = "gpt-6.1-sol"
 SLUG = "gpt61sol"
+COMMITTED_SEED_DIGEST_SHA256 = driver.SEED_DIGEST_SHA256
 # Release 20260929's audit (the seed) and the grounding it was rendered with.
 SEED = Path(
     "/Users/maxghenis/PolicyEngine/policybench-wt/adds0928-stage2/results/local/"
@@ -439,19 +440,26 @@ def _verdict(models, source="llm_error"):
 
 
 def write_verdict(case, verdict, **meta):
+    """A verdict and its sidecar, bound to the verdict and the case's prompt;
+    a meta value of None leaves that key out."""
     path = case / "verdict.json"
     path.write_text(json.dumps(verdict))
+    prompt = case / "prompt.md"
+    sidecar = {
+        "verdict_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "prompt_sha256": (
+            hashlib.sha256(prompt.read_bytes()).hexdigest()
+            if prompt.is_file()
+            else None
+        ),
+        "judge_runner": "scripts/run_audit_claude.sh",
+        "judge_model_requested": driver.JUDGE_MODEL,
+        "judge_model_reported": [driver.JUDGE_MODEL],
+        "judged_at_utc": "2026-09-30T01:00:00+00:00",
+        **meta,
+    }
     (case / "verdict.meta.json").write_text(
-        json.dumps(
-            {
-                "verdict_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                "judge_runner": "scripts/run_audit_claude.sh",
-                "judge_model_requested": driver.JUDGE_MODEL,
-                "judge_model_reported": [driver.JUDGE_MODEL],
-                "judged_at_utc": "2026-09-30T01:00:00+00:00",
-                **meta,
-            }
-        )
+        json.dumps({k: v for k, v in sidecar.items() if v is not None})
     )
 
 
@@ -510,7 +518,16 @@ def test_invalid_verdict_is_pending_and_removal_clears_provenance(audit, defect)
 
 
 @pytest.mark.parametrize(
-    "defect", ["missing", "stale", "wrong_judge", "not_an_object", "no_timestamp"]
+    "defect",
+    [
+        "missing",
+        "stale",
+        "wrong_judge",
+        "not_an_object",
+        "no_timestamp",
+        "no_prompt_sha256",
+        "other_prompt",
+    ],
 )
 def test_new_model_verdict_requires_bound_opus55_provenance(audit, defect):
     root, case, _ = audit
@@ -525,9 +542,31 @@ def test_new_model_verdict_requires_bound_opus55_provenance(audit, defect):
             meta["judge_model_reported"] = ["claude-opus-4-6"]
         elif defect == "no_timestamp":
             del meta["judged_at_utc"]
+        elif defect == "no_prompt_sha256":
+            del meta["prompt_sha256"]
+        elif defect == "other_prompt":
+            meta["prompt_sha256"] = hashlib.sha256(b"another prompt").hexdigest()
         else:
             meta = [meta]
         path.write_text(json.dumps(meta))
+    assert driver.validate_verdicts(root) == [case.name]
+
+
+def test_every_verdict_is_bound_to_its_own_bytes(tmp_path):
+    """An incumbent verdict's sidecar must match its bytes too, not only a
+    verdict that names GPT-6.1 Sol."""
+    root = tmp_path / "audit"
+    case = _audit(root, ["incumbent"])
+    write_verdict(
+        case,
+        _verdict(["incumbent"]),
+        judge_model_requested="default",
+        judge_model_reported=["gpt-5.6-sol"],
+    )
+    assert driver.validate_verdicts(root) == []
+    edited = _verdict(["incumbent"])
+    edited["case_failure_subtype"] = "other"
+    (case / "verdict.json").write_text(json.dumps(edited))
     assert driver.validate_verdicts(root) == [case.name]
 
 
@@ -546,6 +585,13 @@ def test_a_verdict_stays_bound_to_its_prompt_sha256(tmp_path):
     (case / "prompt.md").write_text("Classify these wrong answers, and one more.\n")
     assert driver.validate_verdicts(root, remove_invalid=True) == [case.name]
     assert not (case / "verdict.json").exists()
+    # Set aside, not destroyed.
+    (kept,) = (tmp_path / "rejected-verdicts" / case.name).iterdir()
+    assert sorted(p.name for p in kept.iterdir()) == [
+        "reason.txt",
+        "verdict.json",
+        "verdict.meta.json",
+    ]
 
 
 def test_the_judge_must_cover_all_46_models_in_a_case(tmp_path):
@@ -577,7 +623,13 @@ def test_parse_only_cases_do_not_require_paid_judging(audit):
     assert driver.validate_verdicts(root) == []
 
 
+def _seed_of(root):
+    return driver.seed_digest(root)
+
+
 def test_unchanged_incumbent_case_keeps_its_existing_judge(tmp_path):
+    """A seed verdict whose sidecar never recorded its prompt (453 of the
+    20260929 audit's 674) carries over through the seed binding."""
     root = tmp_path / "audit"
     case = _audit(root, ["incumbent"])
     write_verdict(
@@ -586,8 +638,45 @@ def test_unchanged_incumbent_case_keeps_its_existing_judge(tmp_path):
         judge_model_requested="default",
         judge_model_reported=["gpt-5.6-sol"],
         judge_runner="scripts/run_audit_codex.sh",
+        prompt_sha256=None,
     )
-    assert driver.validate_verdicts(root) == []
+    seed = _seed_of(root)
+    assert driver.validate_verdicts(root, seed=seed) == []
+    # Without the binding nothing ties the verdict to its prompt.
+    assert driver.validate_verdicts(root) == [case.name]
+
+
+@pytest.mark.parametrize("mutation", ["edited", "rebound", "missing"])
+def test_a_carried_over_verdict_must_keep_the_seeds_bytes(tmp_path, mutation):
+    """Editing a carried-over verdict, even with its sidecar re-hashed to
+    match, or removing it, is refused: a re-judge cannot restore it."""
+    root = tmp_path / "audit"
+    case = _audit(root, ["incumbent"])
+    write_verdict(
+        case,
+        _verdict(["incumbent"]),
+        judge_model_requested="default",
+        judge_model_reported=["gpt-5.6-sol"],
+        prompt_sha256=None,
+    )
+    seed = _seed_of(root)
+    edited = _verdict(["incumbent"])
+    edited["case_failure_subtype"] = "other"
+    if mutation == "edited":
+        (case / "verdict.json").write_text(json.dumps(edited))
+    elif mutation == "rebound":
+        write_verdict(
+            case,
+            edited,
+            judge_model_requested="default",
+            judge_model_reported=["gpt-5.6-sol"],
+        )
+    else:
+        (case / "verdict.json").unlink()
+    before = sorted(p.name for p in case.iterdir())
+    with pytest.raises(SystemExit, match="carried-over verdicts differ"):
+        driver.validate_verdicts(root, remove_invalid=True, seed=seed)
+    assert sorted(p.name for p in case.iterdir()) == before
 
 
 # A two-household board whose audit prompts render for real (policybench.audit).
@@ -648,7 +737,12 @@ def seeded_stage(tmp_path, monkeypatch):
             _verdict(item["wrong_models"]),
             judge_model_requested="default",
             judge_model_reported=["gpt-5.6-sol"],
+            prompt_sha256=None,
         )
+    digest_text = driver.seed_digest_text(driver.seed_digest(seed))
+    monkeypatch.setattr(
+        driver, "SEED_DIGEST_SHA256", hashlib.sha256(digest_text.encode()).hexdigest()
+    )
     stage = tmp_path / "stage"
 
     def prepare(new_rows, *, grounding_path=grounding):
@@ -656,7 +750,11 @@ def seeded_stage(tmp_path, monkeypatch):
         args = SimpleNamespace(
             stage_dir=stage, audit_seed=seed, grounding=grounding_path
         )
-        driver.prepare_cases(args, bundle)
+        binding = driver.prepare_cases(args, bundle)
+        # main binds the seed in stage.json beside the input hashes.
+        (stage / "stage.json").write_text(
+            json.dumps({"partial": False, "early": False, "files": {}, "seed": binding})
+        )
         return stage / "audit"
 
     return seed, stage, prepare
@@ -688,7 +786,100 @@ def test_a_case_the_new_model_joins_is_rejudged_and_the_rest_carry_over(
     }
     wrong = ["m1", "m2", NEW]
     write_verdict(audit / "cases" / joined, _verdict(wrong))
-    assert driver.validate_verdicts(audit) == []
+    seed_binding = driver.load_seed(stage)
+    assert seed_binding == driver.seed_digest(seed)
+    assert driver.validate_verdicts(audit, seed=seed_binding) == []
+
+
+# GPT-6.1 Sol misses s0 alone: s0 is re-opened, s1 carries over.
+JOINS_S0 = [
+    (NEW, "s0", 99.0, "Guessed."),
+    (NEW, "s1", 300.0, "Right."),
+    (NEW, "s2", 100.0, "Right."),
+]
+
+
+def test_an_edited_carried_over_verdict_is_refused_after_prepare(seeded_stage):
+    """The mutation the review asked for: edit a kept incumbent verdict in a
+    prepared stage (sidecar re-hashed to match) and validation refuses it."""
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    write_verdict(audit / "cases/us__s0__snap", _verdict(["m1", "m2", NEW]))
+    seed = driver.load_seed(stage)
+    assert driver.validate_verdicts(audit, seed=seed) == []
+    kept = audit / "cases/us__s1__snap"
+    verdict = json.loads((kept / "verdict.json").read_text())
+    verdict["case_failure_source"] = "prompt_ambiguity"
+    write_verdict(
+        kept,
+        verdict,
+        judge_model_requested="default",
+        judge_model_reported=["gpt-5.6-sol"],
+    )
+    with pytest.raises(SystemExit, match="carried-over verdicts differ.*us__s1__snap"):
+        driver.validate_verdicts(audit, seed=seed)
+
+
+def test_prepare_refuses_a_seed_the_committed_digest_does_not_record(
+    seeded_stage, monkeypatch
+):
+    _, stage, prepare = seeded_stage
+    monkeypatch.setattr(driver, "SEED_DIGEST_SHA256", COMMITTED_SEED_DIGEST_SHA256)
+    with pytest.raises(SystemExit, match="not release 20260929's"):
+        prepare(JOINS_S0)
+    assert not (stage / "audit").exists()
+
+
+def test_load_seed_refuses_a_stage_without_a_binding_or_with_another(seeded_stage):
+    _, stage, prepare = seeded_stage
+    prepare(JOINS_S0)
+    receipt = json.loads((stage / "stage.json").read_text())
+    edited = copy.deepcopy(receipt)
+    edited["seed"]["us__s1__snap"]["verdict_sha256"] = "0" * 64
+    (stage / "stage.json").write_text(json.dumps(edited))
+    with pytest.raises(SystemExit, match="not release 20260929's"):
+        driver.load_seed(stage)
+    del receipt["seed"]
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    with pytest.raises(SystemExit, match="bind-seed"):
+        driver.load_seed(stage)
+
+
+def test_bind_seed_binds_a_stage_prepared_before_prepare_did(seeded_stage):
+    seed, stage, prepare = seeded_stage
+    prepare(JOINS_S0)
+    assert json.loads((stage / driver.PROMPT_CHANGES).read_text())["kept"] == [
+        "us__s1__snap"
+    ]
+    receipt = json.loads((stage / "stage.json").read_text())
+    binding = receipt.pop("seed")
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    args = SimpleNamespace(stage_dir=stage, audit_seed=seed)
+    driver.bind_seed(args)
+    assert driver.load_seed(stage) == binding
+    with pytest.raises(SystemExit, match="already binds"):
+        driver.bind_seed(args)
+
+
+@pytest.mark.parametrize("defect", ["kept_verdict", "kept_prompt", "changed_prompt"])
+def test_bind_seed_refuses_a_stage_that_disagrees_with_the_seed(seeded_stage, defect):
+    seed, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    receipt = json.loads((stage / "stage.json").read_text())
+    del receipt["seed"]
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    if defect == "kept_verdict":
+        (audit / "cases/us__s1__snap/verdict.json").write_text("{}")
+    elif defect == "kept_prompt":
+        (audit / "cases/us__s1__snap/prompt.md").write_text("Another prompt.\n")
+    else:
+        shutil.copyfile(
+            seed / "cases/us__s0__snap/prompt.md",
+            audit / "cases/us__s0__snap/prompt.md",
+        )
+    with pytest.raises(SystemExit, match="disagrees with the seed"):
+        driver.bind_seed(SimpleNamespace(stage_dir=stage, audit_seed=seed))
+    assert "seed" not in json.loads((stage / "stage.json").read_text())
 
 
 def test_a_household_only_the_new_model_misses_becomes_a_new_case(seeded_stage):
@@ -742,6 +933,50 @@ def test_the_pinned_grounding_is_the_one_the_20260929_stage_used():
     if not GROUNDING.is_file():
         pytest.skip("the main clone's audit grounding is not on this machine")
     assert driver.digest(GROUNDING) == driver.GROUNDING_SHA256
+
+
+def _committed_seed_digest() -> dict[str, dict[str, str]]:
+    lines = driver.SEED_DIGEST.read_text().splitlines()
+    assert lines[0] == "case_id,prompt_sha256,verdict_sha256"
+    rows = [line.split(",") for line in lines[1:]]
+    return {
+        case: {"prompt_sha256": prompt, "verdict_sha256": verdict}
+        for case, prompt, verdict in rows
+    }
+
+
+def test_the_committed_seed_digest_is_the_pinned_one():
+    """Runs anywhere: the committed digest hashes to the pin, spells each of
+    the 20260929 audit's 674 judged cases once, and records the prompt the
+    design note gives for scenario_023 Medicaid."""
+    raw = driver.SEED_DIGEST.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == driver.SEED_DIGEST_SHA256
+    seed = _committed_seed_digest()
+    assert driver.seed_digest_text(seed).encode() == raw
+    assert len(seed) == 674
+    hexes = [value for item in seed.values() for value in item.values()]
+    assert all(len(h) == 64 and set(h) <= set("0123456789abcdef") for h in hexes)
+    medicaid = seed["us__scenario_023__head_medicaid_eligible"]
+    assert medicaid["prompt_sha256"].startswith("339d113a")
+
+
+def test_every_committed_adjudication_decides_a_case_the_seed_judged():
+    """Runs anywhere: a recorded decision rules on a judge verdict, so its case
+    is one of the seed's judged cases."""
+    from policybench.adjudications import load_adjudications
+
+    seed = _committed_seed_digest()
+    decisions = load_adjudications(driver.ANNOTATIONS / "us_adjudications.json")
+    assert {driver.case_id(entry) for entry in decisions} <= set(seed)
+
+
+def test_the_committed_seed_digest_matches_the_real_seed():
+    """Local only: the digest equals the 20260929 audit on this machine."""
+    if not SEED.is_dir():
+        pytest.skip("release 20260929's audit is not on this machine")
+    assert driver.seed_digest_text(driver.seed_digest(SEED)) == (
+        driver.SEED_DIGEST.read_text()
+    )
 
 
 def test_the_committed_adjudications_keep_the_seed_judge_verdicts():
@@ -867,6 +1102,7 @@ def test_triage_stops_and_records_flags_for_evidence_review(
         ]
     )
     monkeypatch.setattr(driver, "validate_verdicts", lambda *a, **kw: [])
+    monkeypatch.setattr(driver, "load_seed", lambda stage: {})
     monkeypatch.setattr(driver, "base_adjudications", lambda: [])
     (stage / driver.PROMPT_CHANGES).write_text(
         json.dumps({"added": [], "changed": [], "kept": []})
@@ -930,6 +1166,7 @@ def triage_stage(tmp_path, monkeypatch):
         json.dumps({"adjudications": [DECISION]}, indent=2, ensure_ascii=False) + "\n"
     )
     monkeypatch.setattr(driver, "validate_verdicts", lambda *a, **kw: [])
+    monkeypatch.setattr(driver, "load_seed", lambda stage: {})
     monkeypatch.setattr(driver, "base_adjudications", lambda: [dict(DECISION)])
     row = {
         "country": "us",

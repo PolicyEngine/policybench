@@ -83,6 +83,12 @@ BASE_REFERENCE_SHA256 = {
 # prompt re-renders byte-identically from it and the committed snapshot, so a
 # different grounding would silently invalidate carried-over verdicts.
 GROUNDING_SHA256 = "b1e4a9bc74d762f410524a147efcda7d705c3afcfa3dc27f720fa60c54a7b55c"
+# The seed: every judged case of the 20260929 audit, with the sha256 of its
+# prompt and of its verdict, committed at docs/gpt61sol/seed_digest.csv. This
+# pins that file's bytes; prepare refuses any other seed and binds this one in
+# stage.json, and a carried-over verdict must keep the seed's bytes.
+SEED_DIGEST = ROOT / "docs/gpt61sol/seed_digest.csv"
+SEED_DIGEST_SHA256 = "a94e96970113c4fb38dad9ec5a00fb430f026370a6b63ccffeefaae44436fe3d"
 # Incumbent usage the exporter cannot recompute from committed predictions:
 # Fable 5 ran through the Anthropic batch adapter, and its rows carry no cost,
 # token or latency fields, so export_full_run reports $0 and omits the rest.
@@ -769,6 +775,91 @@ def seed_prompt_digests(audit: Path) -> dict[str, str]:
     }
 
 
+def seed_digest(audit: Path) -> dict[str, dict[str, str]]:
+    """Each judged case's prompt and verdict sha256, keyed by case id."""
+    seed = {}
+    for case in sorted((audit / "cases").glob("*")):
+        if not (case / "prompt.md").is_file():
+            continue
+        require((case / "verdict.json").is_file(), f"seed case unjudged: {case.name}")
+        seed[case.name] = {
+            "prompt_sha256": digest(case / "prompt.md"),
+            "verdict_sha256": digest(case / "verdict.json"),
+        }
+    return seed
+
+
+def seed_digest_text(seed: dict[str, dict[str, str]]) -> str:
+    """The seed digest as docs/gpt61sol/seed_digest.csv spells it."""
+    rows = [
+        f"{case},{item['prompt_sha256']},{item['verdict_sha256']}\n"
+        for case, item in sorted(seed.items())
+    ]
+    return "case_id,prompt_sha256,verdict_sha256\n" + "".join(rows)
+
+
+def verify_seed(seed: dict[str, dict[str, str]]) -> None:
+    """The seed must be the 20260929 audit the committed digest records."""
+    require(
+        hashlib.sha256(seed_digest_text(seed).encode()).hexdigest()
+        == SEED_DIGEST_SHA256,
+        "the audit seed is not release 20260929's (see docs/gpt61sol/"
+        "seed_digest.csv): its cases, prompts or verdicts differ",
+    )
+
+
+def load_seed(stage: Path) -> dict[str, dict[str, str]]:
+    """The seed stage.json binds, checked against the committed digest."""
+    receipt = json.loads((stage / "stage.json").read_text())
+    require(
+        "seed" in receipt,
+        "stage.json does not bind the audit seed; run --step bind-seed "
+        "--audit-seed <the 20260929 audit>",
+    )
+    verify_seed(receipt["seed"])
+    return receipt["seed"]
+
+
+def bind_seed(args) -> None:
+    """Bind the seed in the stage.json of a stage prepared before prepare did.
+
+    The seed must match the committed digest, and the stage must agree with it
+    case by case: every kept case keeps the seed's prompt and verdict bytes,
+    every changed case's prompt differs, and no added case is a seed case.
+    """
+    receipt_path = args.stage_dir / "stage.json"
+    receipt = json.loads(receipt_path.read_text())
+    require("seed" not in receipt, "stage.json already binds its audit seed")
+    require(args.audit_seed is not None, "bind-seed needs --audit-seed")
+    seed = seed_digest(args.audit_seed)
+    verify_seed(seed)
+    changes = json.loads((args.stage_dir / PROMPT_CHANGES).read_text())
+    cases = args.stage_dir / "audit" / "cases"
+    differ = [
+        case
+        for case in changes["kept"]
+        if case not in seed
+        or not (cases / case / "verdict.json").is_file()
+        or digest(cases / case / "prompt.md") != seed[case]["prompt_sha256"]
+        or digest(cases / case / "verdict.json") != seed[case]["verdict_sha256"]
+    ]
+    differ += [
+        case
+        for case in changes["changed"]
+        if case not in seed
+        or digest(cases / case / "prompt.md") == seed[case]["prompt_sha256"]
+    ]
+    differ += [case for case in changes["added"] if case in seed]
+    differ += sorted(set(seed) - {*changes["kept"], *changes["changed"]})
+    require(
+        not differ,
+        f"the stage disagrees with the seed on {len(differ)} cases: {differ[:8]}",
+    )
+    receipt["seed"] = seed
+    write_json(receipt_path, receipt)
+    print(f"Bound the audit seed: {len(seed)} judged cases")
+
+
 def check_prompt_changes(audit: Path, seeded: dict[str, str]) -> dict[str, list]:
     """Only a case GPT-6.1 Sol joins may change or appear.
 
@@ -804,8 +895,11 @@ def check_prompt_changes(audit: Path, seeded: dict[str, str]) -> dict[str, list]
     return {"kept": kept, "changed": changed, "added": added}
 
 
-def prepare_cases(args, bundle) -> None:
-    """Seed a private audit; changed prompts invalidate copied verdicts."""
+def prepare_cases(args, bundle) -> dict[str, dict[str, str]]:
+    """Seed a private audit; changed prompts invalidate copied verdicts.
+
+    Returns the seed digest, which main binds in stage.json.
+    """
     import pandas as pd
 
     from policybench.audit import prepare_audit
@@ -821,7 +915,9 @@ def prepare_cases(args, bundle) -> None:
     audit = args.stage_dir / "audit"
     # Compare against the read-only seed, not the stage copy, so a retried
     # prepare cannot mistake its own earlier rendering for the seed.
-    seeded = seed_prompt_digests(args.audit_seed)
+    seed = seed_digest(args.audit_seed)
+    verify_seed(seed)
+    seeded = {case: item["prompt_sha256"] for case, item in seed.items()}
     if not audit.exists():
         for source in sorted((args.audit_seed / "cases").glob("*")):
             if not (source / "prompt.md").is_file():
@@ -842,17 +938,53 @@ def prepare_cases(args, bundle) -> None:
         args.stage_dir / "prompt-changes.json",
         {key: sorted(value) for key, value in changes.items()},
     )
-    pending = validate_verdicts(audit, remove_invalid=True)
+    pending = validate_verdicts(audit, remove_invalid=True, seed=seed)
     write_json(args.stage_dir / "pending.json", pending)
     print(
         f"Prepared audit: {len(changes['kept'])} prompts unchanged, "
         f"{len(changes['changed'])} changed and {len(changes['added'])} new; "
         f"{len(pending)} cases need Opus 5.5"
     )
+    return seed
 
 
-def validate_verdicts(audit: Path, remove_invalid: bool = False) -> list[str]:
-    """Validate full schema, exact model coverage and the prompt binding."""
+def set_aside(audit: Path, case_id: str, reason: str) -> None:
+    """Move a case's verdict and sidecar out of the audit, keeping them.
+
+    They go to <stage>/rejected-verdicts/<case>/<UTC time>/, so a re-judge
+    never destroys the verdict it replaces.
+    """
+    from datetime import datetime, timezone
+
+    case = audit / "cases" / case_id
+    files = [case / name for name in ("verdict.json", "verdict.meta.json")]
+    if not any(path.exists() for path in files):
+        return
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    target = audit.parent / "rejected-verdicts" / case_id / stamp
+    target.mkdir(parents=True)
+    (target / "reason.txt").write_text(reason + "\n")
+    for path in files:
+        if path.exists():
+            os.replace(path, target / path.name)
+
+
+def validate_verdicts(
+    audit: Path,
+    remove_invalid: bool = False,
+    seed: dict[str, dict[str, str]] | None = None,
+) -> list[str]:
+    """Validate schema, model coverage and each verdict's binding to its bytes.
+
+    Every judged verdict's sidecar must carry the verdict's own sha256. A case
+    whose prompt is the seed's (``seed``, as stage.json binds it) carries its
+    seed verdict over: the verdict must be the seed's, byte for byte, and any
+    prompt_sha256 its sidecar records must match. Every other verdict is new
+    and must record the sha256 of the prompt it judged. A verdict naming
+    GPT-6.1 Sol also needs bound Opus 5.5 provenance. Returns the pending
+    cases; ``remove_invalid`` sets their verdicts aside. A carried-over verdict
+    that fails is refused outright: a re-judge cannot restore it.
+    """
     import jsonschema
 
     schema = json.loads((audit / "schema.json").read_text())
@@ -860,14 +992,22 @@ def validate_verdicts(audit: Path, remove_invalid: bool = False) -> list[str]:
         item["case_id"]: item
         for item in map(json.loads, (audit / "cases.jsonl").read_text().splitlines())
     }
-    pending = []
+    seed = seed or {}
+    pending, refused = [], []
     for case_id, item in manifest.items():
         if item["parse_failure_only"]:
             continue
         path = audit / "cases" / case_id / "verdict.json"
         meta_path = path.with_name("verdict.meta.json")
+        prompt = path.with_name("prompt.md")
+        carried = (
+            case_id in seed
+            and prompt.is_file()
+            and digest(prompt) == seed[case_id]["prompt_sha256"]
+        )
         try:
-            verdict = json.loads(path.read_text())
+            blob = path.read_bytes()
+            verdict = json.loads(blob)
             jsonschema.validate(verdict, schema)
             names = [m["model"] for m in verdict["models"]]
             if len(names) != len(set(names)) or set(names) != set(item["wrong_models"]):
@@ -875,23 +1015,36 @@ def validate_verdicts(audit: Path, remove_invalid: bool = False) -> list[str]:
             meta = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
             if not isinstance(meta, dict):
                 raise ValueError("verdict provenance is not an object")
+            if meta.get("verdict_sha256") != hashlib.sha256(blob).hexdigest():
+                raise ValueError("the sidecar is not bound to this verdict")
             bound = meta.get("prompt_sha256")
-            if bound is not None and bound != digest(path.with_name("prompt.md")):
-                raise ValueError("verdict is bound to a different prompt")
+            if carried:
+                if hashlib.sha256(blob).hexdigest() != seed[case_id]["verdict_sha256"]:
+                    raise ValueError("a carried-over verdict is not the seed's")
+                if bound is not None and bound != digest(prompt):
+                    raise ValueError("verdict is bound to a different prompt")
+            elif bound != digest(prompt):
+                raise ValueError("a new verdict is not bound to this prompt")
             if set(names) & set(MODELS.values()):
                 if (
-                    meta.get("verdict_sha256") != digest(path)
-                    or meta.get("judge_model_requested") != JUDGE_MODEL
+                    meta.get("judge_model_requested") != JUDGE_MODEL
                     or meta.get("judge_model_reported") != [JUDGE_MODEL]
                     or not meta.get("judge_runner")
                     or not meta.get("judged_at_utc")
                 ):
                     raise ValueError("missing or mismatched Opus 5.5 provenance")
-        except (OSError, ValueError, jsonschema.ValidationError):
+        except (OSError, ValueError, jsonschema.ValidationError) as error:
+            if carried:
+                refused.append(f"{case_id} ({error})")
+                continue
             pending.append(case_id)
             if remove_invalid:
-                path.unlink(missing_ok=True)
-                meta_path.unlink(missing_ok=True)
+                set_aside(audit, case_id, f"invalid: {error}")
+    require(
+        not refused,
+        f"{len(refused)} carried-over verdicts differ from the seed's; a stage "
+        f"input changed after prepare: {refused[:4]}",
+    )
     return sorted(pending)
 
 
@@ -900,8 +1053,9 @@ def judge(args, bundle) -> None:
     from policybench.audit import collect_audit
 
     audit = args.stage_dir / "audit"
+    seed = load_seed(args.stage_dir)
     for _ in range(3):
-        validate_verdicts(audit, remove_invalid=True)
+        validate_verdicts(audit, remove_invalid=True, seed=seed)
         subprocess.run(
             ["bash", str(ROOT / "scripts/run_audit_claude.sh"), str(audit)],
             cwd=ROOT,
@@ -913,11 +1067,10 @@ def judge(args, bundle) -> None:
             },
             check=True,
         )
-        pending = validate_verdicts(audit, remove_invalid=True)
+        pending = validate_verdicts(audit, remove_invalid=True, seed=seed)
         out = collect_audit(bundle / "us", audit)
         for case_id in out["hedged"].case_id:
-            for name in ("verdict.json", "verdict.meta.json"):
-                (audit / "cases" / case_id / name).unlink(missing_ok=True)
+            set_aside(audit, case_id, "hedged")
         if not pending and out["missing"].empty and out["hedged"].empty:
             return
     raise SystemExit(
@@ -939,7 +1092,10 @@ def triage(args, bundle) -> None:
     )
 
     audit = args.stage_dir / "audit"
-    require(not validate_verdicts(audit), "missing or invalid verdicts; run judge")
+    require(
+        not validate_verdicts(audit, seed=load_seed(args.stage_dir)),
+        "missing or invalid verdicts; run judge",
+    )
     out = collect_audit(bundle / "us", audit)
     require(
         out["missing"].empty and out["hedged"].empty, "missing/hedged audit; run judge"
@@ -1136,7 +1292,11 @@ def parse_args(argv=None):
         help="scratch-only cohort rehearsal; requires --early",
     )
     parser.add_argument(
-        "--step", choices=("prepare", "judge", "triage", "export"), default="prepare"
+        "--step",
+        choices=("prepare", "bind-seed", "judge", "triage", "export"),
+        default="prepare",
+        help="bind-seed binds the audit seed in the stage.json of a stage "
+        "prepared before prepare bound it",
     )
     args = parser.parse_args(argv)
     if args.partial and not args.early:
@@ -1173,24 +1333,25 @@ def main(argv=None) -> None:
         bundle, frames = prepare_inputs(args, runs, base, reference)
         if args.partial:
             partial_scores(args, base, reference, frames)
+        seed = None
         if args.early:
             export(args, bundle, live)
         else:
-            prepare_cases(args, bundle)
+            seed = prepare_cases(args, bundle)
         inputs = [p for p in (stage / "inputs").rglob("*") if p.is_file()]
         inputs += [
             bundle / "us" / name for name in (*REFERENCE_FILES, "predictions.csv")
         ]
-        write_json(
-            receipt_path,
-            {
-                "partial": args.partial,
-                "early": args.early,
-                "base_tag": BASE_TAG,
-                "base_commit": BASE_COMMIT,
-                "files": {str(p.relative_to(stage)): digest(p) for p in inputs},
-            },
-        )
+        receipt = {
+            "partial": args.partial,
+            "early": args.early,
+            "base_tag": BASE_TAG,
+            "base_commit": BASE_COMMIT,
+            "files": {str(p.relative_to(stage)): digest(p) for p in inputs},
+        }
+        if seed is not None:
+            receipt["seed"] = seed
+        write_json(receipt_path, receipt)
     else:
         receipt = json.loads(receipt_path.read_text())
         require(
@@ -1203,7 +1364,9 @@ def main(argv=None) -> None:
                 f"staged input changed: {name}; prepare a new stage",
             )
         (stage / "release-ready.json").unlink(missing_ok=True)
-        if args.step == "judge":
+        if args.step == "bind-seed":
+            bind_seed(args)
+        elif args.step == "judge":
             judge(args, bundle)
         elif args.step == "triage":
             triage(args, bundle)
