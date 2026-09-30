@@ -49,11 +49,15 @@
 # empty directory, no tools, the allowlisted environment and no API key.
 # JUDGE_ALLOW_DESKTOP_LOGIN takes 1 or nothing; any other value is refused.
 #
-# A judge the API refuses is logged with the CLI's error. When the refusal
-# says the login cannot judge now (HTTP 401, 403 or 429: a revoked login, an
-# organization that bars Claude Code, a usage limit), the runner starts no
-# further judge, lets the running ones finish and exits 1; the run resumes
-# where it stopped once the login can judge again.
+# A judge the API refuses is logged with the CLI's error. When the login
+# cannot judge now, the runner starts no further judge, lets the running ones
+# finish and exits 1; the run resumes where it stopped once the login can
+# judge. That is so when the API refuses the login (HTTP 401, 403 or 429: a
+# revoked login, an organization that bars Claude Code, a usage limit), and
+# when a judge's transcript shows the login putting account context in the
+# judge's context (a session context, such as the account e-mail Claude Code
+# 2.1.284 adds for a claude.ai login, or a credential_org record), which it
+# would do for every judge.
 #
 # Concurrency, model and effort are tunable via env (AUDIT_PARALLEL, a
 # positive integer; AUDIT_MODEL, default opus; AUDIT_EFFORT, default xhigh,
@@ -357,7 +361,7 @@ if not session or len(found) != 1:
     sys.exit(3)
 shutil.copyfile(found[0], case / "claude.transcript.jsonl")
 allowed = set(attachments.split(","))
-calls, unexpected, turns = [], [], []
+calls, unexpected, turns, account = [], [], [], []
 for number, line in enumerate(open(found[0]), 1):
     try:
         event = json.loads(line)
@@ -374,6 +378,9 @@ for number, line in enumerate(open(found[0]), 1):
         if kind == "session_context" and attachment.get("context") != {}:
             carried = sorted(attachment.get("context") or {}) or [repr(attachment.get("context"))]
             unexpected.append(f"session context carrying {carried}")
+            account.append(f"session context carrying {carried}")
+        if kind == "credential_org":
+            account.append("credential_org")
     if event.get("type") == "assistant":
         if event.get("effort") != effort:
             turns.append(f"effort {event.get('effort')!r}, not {effort!r}")
@@ -388,6 +395,12 @@ for number, line in enumerate(open(found[0]), 1):
             and str(part.get("type", "")).endswith("tool_use")
             and not (part.get("type") == "tool_use" and part.get("name") == "StructuredOutput")
         ]
+if account:
+    print(
+        "the CLI's login cannot judge now: it puts account context in every "
+        f"judge's context: {account}",
+        file=sys.stderr,
+    )
 if calls:
     print(f"the judge called tools: {calls}", file=sys.stderr)
     sys.exit(2)

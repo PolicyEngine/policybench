@@ -397,6 +397,7 @@ def test_a_verdict_from_a_judge_that_called_a_tool_is_rejected(lane, tool):
         ({"transcripts": 2}, "no single transcript"),
         ({"attachments": ["skill_listing"]}, "unexpected attachments"),
         ({"attachments": ["ultra_effort_enter"]}, "['ultra_effort_enter']"),
+        ({"attachments": ["credential_org"]}, "account context"),
         (
             {"session_context": {"userEmail": "desktop@example.org"}},
             "session context carrying ['userEmail']",
@@ -635,4 +636,24 @@ def test_any_other_api_error_is_logged_and_the_run_goes_on(lane):
     for name in CASES:
         log = (audit / "cases" / name / "claude.log").read_text()
         assert "the CLI reported an error: status 500 overloaded: x" in log
+    assert not list(audit.rglob("verdict.json"))
+
+
+@pytest.mark.parametrize(
+    "fake",
+    [
+        # What Claude Code 2.1.284 adds for a claude.ai login, such as the
+        # desktop's (seen in the 2026-09-30 trial's transcript).
+        {"session_context": {"userEmail": "The user's email address is x."}},
+        {"attachments": ["credential_org"]},
+    ],
+)
+def test_a_login_that_puts_account_context_in_the_judge_stops_the_run(lane, fake):
+    audit, _, _, run = lane
+    result, calls = run(DESKTOP_OPT_IN, **fake)
+    assert result.returncode == 1
+    assert len(calls) == 1  # AUDIT_PARALLEL=1: the second judge never starts
+    assert "the login cannot judge now" in result.stderr
+    log = (audit / "cases" / CASES[0] / "claude.log").read_text()
+    assert "it puts account context in every judge's context" in log
     assert not list(audit.rglob("verdict.json"))
