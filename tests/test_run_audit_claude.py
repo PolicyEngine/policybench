@@ -68,6 +68,8 @@ fake = json.loads(Path(__file__).with_name("fake.json").read_text())
 log = Path(fake["log"])
 args = sys.argv[1:]
 config = os.environ.get("CLAUDE_CONFIG_DIR")
+# Claude Code's default config directory, where the desktop login lives.
+home_config = config or os.path.join(os.environ["HOME"], ".claude")
 if args[:1] == ["--version"]:
     print("9.9.9 (Claude Code)")
     sys.exit(0)
@@ -75,7 +77,13 @@ if args[:2] == ["auth", "status"]:
     number = len(list(log.glob("auth-*.json")))
     (log / f"auth-{{number}}.json").write_text(json.dumps(
         {{"env": sorted(os.environ), "config_dir": config}}))
-    print(json.dumps(fake["auth"] if config else fake["desktop_auth"]))
+    status = fake["auth"] if config else fake["desktop_auth"]
+    # The judges' own probe (safe mode) may see another desktop login.
+    if not config and os.environ.get("CLAUDE_CODE_SAFE_MODE"):
+        status = fake["judge_desktop_auth"] or status
+    status = dict(status)
+    status.setdefault("configDirectory", home_config)
+    print(json.dumps(status))
     sys.exit(0)
 prompt = sys.stdin.read()
 number = len(list(log.glob("call-*.json")))
@@ -92,6 +100,11 @@ session = f"session-{{number}}"
     "no_claude_mds": os.environ.get("CLAUDE_CODE_DISABLE_CLAUDE_MDS"),
     "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
 }}))
+if fake["error"]:
+    # The API refused the judge: Claude Code's error envelope, no answer.
+    print(json.dumps({{"type": "result", "is_error": True, "session_id": session,
+                      **fake["error"]}}))
+    sys.exit(1)
 verdict = json.loads(Path(fake["verdict"]).read_text())
 environment = {{"workingDirectory": os.getcwd(), "isGitRepo": fake["git_repo"]}}
 events = [
@@ -99,17 +112,27 @@ events = [
     {{"type": "attachment", "attachment": {{"type": "environment",
                                            "snapshot": environment}}}},
 ]
+events.append({{"type": "attachment", "attachment": {{
+    "type": "session_context", "context": fake["session_context"]}}}})
 events += [{{"type": "attachment", "attachment": {{"type": kind}}}}
            for kind in fake["attachments"]]
+# Claude Code records each assistant turn's effort level.
+effort = args[args.index("--effort") + 1] if "--effort" in args else None
 for name in fake["tools"] + ["StructuredOutput"]:
     part = {{"type": fake["part_type"] if name != "StructuredOutput" else "tool_use",
              "name": name, "input": {{}}}}
-    events.append({{"type": "assistant", "message": {{"content": [part]}}}})
+    turn = {{"type": "assistant", "message": {{"content": [part]}},
+             "effort": fake["turn_effort"] or effort}}
+    if fake["turn_effort"] == "absent":
+        del turn["effort"]
+    if fake["advisor"]:
+        turn["advisorModel"] = fake["advisor"]
+    events.append(turn)
 lines = "".join(json.dumps(e) + "\\n" for e in events)
 if fake["bad_line"]:
     lines += "{{not json\\n"
 for copy in range(fake["transcripts"]):
-    project = Path(config) / "projects" / f"-tmp-pb-judge-{{copy}}"
+    project = Path(home_config) / "projects" / f"-tmp-pb-judge-{{copy}}"
     transcript = project / f"{{session}}.jsonl"
     transcript.parent.mkdir(parents=True, exist_ok=True)
     transcript.write_text(lines)
@@ -173,9 +196,14 @@ def lane(tmp_path):
         "verdict": str(verdict),
         "auth": LANE,
         "desktop_auth": DESKTOP,
+        "judge_desktop_auth": None,
         "tools": [],
         "part_type": "tool_use",
         "attachments": [],
+        "session_context": {},
+        "turn_effort": None,
+        "advisor": None,
+        "error": None,
         "git_repo": False,
         "bad_line": False,
         "transcripts": 1,
@@ -222,6 +250,9 @@ def test_each_judge_runs_isolated_on_the_lanes_login(lane):
         tools = {"Read", "Grep", "Glob", "Bash", "WebFetch", "WebSearch", "Edit"}
         assert tools | {"Write", "NotebookEdit", "Agent"} <= denied
         assert "--strict-mcp-config" in argv and "--disable-slash-commands" in argv
+        # No user settings (their env block, hooks or plugins), one effort.
+        assert _flag(argv, "--setting-sources") == "project,local"
+        assert _flag(argv, "--effort") == "xhigh"
         assert call["safe_mode"] == "1" and call["no_claude_mds"] == "1"
         # A fresh empty directory, outside the repository and the audit.
         cwd = Path(call["cwd"]).resolve()
@@ -308,6 +339,18 @@ def test_a_home_lanes_own_account_is_recorded(lane):
         ),
         ({"AUDIT_PARALLEL": "0"}, {}, "positive integer"),
         ({"AUDIT_PARALLEL": "four"}, {}, "positive integer"),
+        ({"AUDIT_EFFORT": "ultra"}, {}, "AUDIT_EFFORT must be"),
+        # Without the opt-in (unset or empty) the desktop login stays refused.
+        (
+            {"CLAUDE_CONFIG_DIR": "DESKTOP", "JUDGE_ALLOW_DESKTOP_LOGIN": ""},
+            {},
+            "desktop login",
+        ),
+        (
+            {"CLAUDE_CONFIG_DIR": None, "JUDGE_ALLOW_DESKTOP_LOGIN": ""},
+            {},
+            "CLAUDE_CONFIG_DIR is not set",
+        ),
     ],
 )
 def test_the_runner_refuses_anything_but_the_lanes_own_login(
@@ -352,6 +395,20 @@ def test_a_verdict_from_a_judge_that_called_a_tool_is_rejected(lane, tool):
         ({"bad_line": True}, "is not JSON"),
         ({"transcripts": 0}, "no single transcript"),
         ({"transcripts": 2}, "no single transcript"),
+        ({"attachments": ["skill_listing"]}, "unexpected attachments"),
+        ({"attachments": ["ultra_effort_enter"]}, "['ultra_effort_enter']"),
+        (
+            {"session_context": {"userEmail": "desktop@example.org"}},
+            "session context carrying ['userEmail']",
+        ),
+        (
+            {"session_context": {"credential_org": "x", "gitStatus": "M a.py"}},
+            "session context carrying ['credential_org', 'gitStatus']",
+        ),
+        ({"session_context": None}, "session context carrying ['None']"),
+        ({"turn_effort": "max"}, "effort 'max', not 'xhigh'"),
+        ({"turn_effort": "absent"}, "effort None, not 'xhigh'"),
+        ({"advisor": "claude-fable-5"}, "advisor model 'claude-fable-5'"),
     ],
 )
 def test_a_transcript_showing_more_than_the_prompt_is_rejected(lane, fake, message):
@@ -405,3 +462,177 @@ def test_an_invalid_verdict_is_judged_again_and_its_stale_evidence_replaced(lane
     meta = json.loads((case / "verdict.meta.json").read_text())
     assert meta["verdict_sha256"] == sha((case / "verdict.json").read_bytes())
     assert "stale transcript" not in (case / "claude.transcript.jsonl").read_text()
+
+
+@pytest.mark.parametrize(
+    "caller, requested, expected",
+    [("max", None, "xhigh"), (None, None, "xhigh"), ("low", "high", "high")],
+)
+def test_every_judge_runs_at_one_explicit_effort(lane, caller, requested, expected):
+    """The caller's CLAUDE_CODE_EFFORT_LEVEL never reaches a judge: each runs
+    at AUDIT_EFFORT (default xhigh), by flag and by environment, and its
+    sidecar records it."""
+    audit, _, _, run = lane
+    result, calls = run({"CLAUDE_CODE_EFFORT_LEVEL": caller, "AUDIT_EFFORT": requested})
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert len(calls) == 2
+    for call in calls:
+        assert _flag(call["argv"], "--effort") == expected
+        assert call["effort"] == expected
+    for name in CASES:
+        meta = json.loads((audit / "cases" / name / "verdict.meta.json").read_text())
+        assert meta["judge_effort"] == expected
+    assert f"effort={expected}" in result.stdout
+
+
+DESKTOP_OPT_IN = {
+    "JUDGE_ALLOW_DESKTOP_LOGIN": "1",
+    "CLAUDE_CONFIG_DIR": None,
+    "CLAUDE_CODE_OAUTH_TOKEN": None,
+    "AUDIT_ACCOUNT": None,
+}
+DESKTOP_DECLARED = "desktop login (JUDGE_ALLOW_DESKTOP_LOGIN, Max 2026-09-30)"
+
+
+@pytest.mark.parametrize("config", [None, "DESKTOP", "DESKTOP_LINK"])
+def test_the_desktop_opt_in_runs_on_the_desktop_login_and_records_it(lane, config):
+    """JUDGE_ALLOW_DESKTOP_LOGIN=1 runs the judges on the desktop login, which
+    the CLI finds only under its default config directory, so no claude call
+    gets CLAUDE_CONFIG_DIR (the caller may name the desktop's ~/.claude, by
+    file identity, and nothing else). All the other isolation stays."""
+    audit, _, scratch, run = lane
+    home = audit.parent / "home"
+    (audit.parent / "link-to-desktop").symlink_to(home / ".claude")
+    places = {
+        None: None,
+        "DESKTOP": str(home / ".claude"),
+        "DESKTOP_LINK": str(audit.parent / "link-to-desktop"),
+    }
+    result, calls = run({**DESKTOP_OPT_IN, "CLAUDE_CONFIG_DIR": places[config]})
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert len(calls) == 2
+    checks = [json.loads(p.read_text()) for p in sorted(run.calls.glob("auth-*.json"))]
+    for seen in [*calls, *checks]:
+        assert seen["config_dir"] is None
+        extra = {k for k in seen["env"] if not k.startswith("__CF")} - ALLOWED_ENV
+        assert extra == set(), extra
+        assert "CLAUDE_CODE_OAUTH_TOKEN" not in seen["env"]
+    for call in calls:
+        argv = call["argv"]
+        assert _flag(argv, "--tools") == ""
+        assert _flag(argv, "--setting-sources") == "project,local"
+        assert _flag(argv, "--effort") == "xhigh" and call["effort"] == "xhigh"
+        assert "--strict-mcp-config" in argv and "--disable-slash-commands" in argv
+        assert call["safe_mode"] == "1" and call["no_claude_mds"] == "1"
+        assert call["cwd_entries"] == []
+        assert Path(call["cwd"]).resolve().parent == scratch.resolve()
+    for name in CASES:
+        case = audit / "cases" / name
+        meta = json.loads((case / "verdict.meta.json").read_text())
+        assert meta["judge_account_declared"] == DESKTOP_DECLARED
+        assert meta["judge_auth"] == {
+            "method": "claude.ai",
+            "account": "desktop@example.org",
+            "org": None,
+        }
+        assert meta["judge_effort"] == "xhigh"
+        assert meta["judge_isolation"]["transcript_tool_calls"] == 0
+        assert meta["prompt_sha256"] == sha((case / "prompt.md").read_bytes())
+        assert f"Classify {name}." in (case / "claude.transcript.jsonl").read_text()
+    assert f"(declared: {DESKTOP_DECLARED})" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "env_changes, fake, message",
+    [
+        ({"JUDGE_ALLOW_DESKTOP_LOGIN": "yes"}, {}, "must be 1 or unset"),
+        ({"JUDGE_ALLOW_DESKTOP_LOGIN": "0"}, {}, "must be 1 or unset"),
+        ({"CLAUDE_CODE_OAUTH_TOKEN": "lane-token"}, {}, "takes no lane token"),
+        ({"AUDIT_ACCOUNT": "claude:lane@example.org"}, {}, "unset AUDIT_ACCOUNT"),
+        ({"CLAUDE_CONFIG_DIR": "LANE"}, {}, "is not the desktop login's"),
+        ({"CLAUDE_CONFIG_DIR": "MISSING"}, {}, "is not the desktop login's"),
+        ({"HOME": "NO_DESKTOP"}, {}, "no desktop login directory"),
+        ({}, {"desktop_auth": {"loggedIn": False}}, "no login"),
+        (
+            {},
+            {"desktop_auth": {**DESKTOP, "authMethod": "oauth_token"}},
+            "not the desktop's claude.ai login",
+        ),
+        (
+            {},
+            {"judge_desktop_auth": {**DESKTOP, "email": "other@example.org"}},
+            "is not the desktop login's account",
+        ),
+        (
+            {},
+            {"desktop_auth": {**DESKTOP, "configDirectory": "/no/such/dir"}},
+            "reports config directory",
+        ),
+        (
+            {},
+            {"desktop_auth": {**DESKTOP, "apiProvider": "bedrock"}},
+            "not a first-party",
+        ),
+    ],
+)
+def test_the_desktop_opt_in_allows_the_desktops_own_login_only(
+    lane, env_changes, fake, message
+):
+    audit, config, _, run = lane
+    (audit.parent / "no-desktop-home").mkdir()
+    places = {
+        "LANE": str(config),
+        "MISSING": str(audit.parent / "no-such-dir"),
+        "NO_DESKTOP": str(audit.parent / "no-desktop-home"),
+    }
+    changes = {k: places.get(v, v) for k, v in env_changes.items()}
+    result, calls = run({**DESKTOP_OPT_IN, **changes}, **fake)
+    assert result.returncode == 1
+    assert message in result.stderr
+    assert calls == []
+    assert not list(audit.rglob("verdict.json"))
+
+
+ORG_BARRED = {
+    "api_error_code": "oauth_not_allowed_for_organization",
+    "result": "Your organization has disabled Claude subscription access for "
+    "Claude Code",
+}
+
+
+@pytest.mark.parametrize("status", [401, 403, 429])
+def test_a_login_that_cannot_judge_stops_the_run(lane, status):
+    """The API refusing the login (as the desktop login's organization did on
+    2026-09-30) is logged, and no further judge starts; the run exits 1 and
+    resumes where it stopped."""
+    audit, _, scratch, run = lane
+    result, calls = run(error={**ORG_BARRED, "api_error_status": status})
+    assert result.returncode == 1
+    assert len(calls) == 1  # AUDIT_PARALLEL=1: the second judge never starts
+    assert "the login cannot judge now" in result.stderr
+    log = (audit / "cases" / CASES[0] / "claude.log").read_text()
+    assert (
+        f"the CLI's login cannot judge now: status {status} "
+        "oauth_not_allowed_for_organization: Your organization has disabled"
+    ) in log
+    assert not list(audit.rglob("verdict.json"))
+    assert not list(audit.rglob("verdict.meta.json"))
+    assert list(scratch.iterdir()) == []
+    # Resumable: once the login can judge, the next run judges both cases.
+    result, calls = run()
+    assert result.returncode == 0, result.stderr
+    assert len(calls) == 3
+    assert len(list(audit.rglob("verdict.json"))) == 2
+
+
+def test_any_other_api_error_is_logged_and_the_run_goes_on(lane):
+    audit, _, _, run = lane
+    error = {"api_error_status": 500, "api_error_code": "overloaded", "result": "x"}
+    result, calls = run(error=error)
+    assert result.returncode == 0, result.stderr
+    assert len(calls) == 2
+    assert "[FAIL]" in result.stdout and "[ok]" not in result.stdout
+    for name in CASES:
+        log = (audit / "cases" / name / "claude.log").read_text()
+        assert "the CLI reported an error: status 500 overloaded: x" in log
+    assert not list(audit.rglob("verdict.json"))

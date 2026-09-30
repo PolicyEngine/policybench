@@ -13,11 +13,15 @@
 #     every built-in tool removed (--tools "") and the file, search, web and
 #     shell tools also denied by name, no MCP servers and no skills, in safe
 #     mode (no CLAUDE.md files, plugins, user hooks, output styles or
-#     auto-memory; admin-managed settings still apply);
+#     auto-memory; admin-managed settings still apply), without the config
+#     directory's user settings (--setting-sources project,local: the empty
+#     directory has neither), and at one explicit effort level;
 #   - its session transcript is copied beside the verdict as
 #     claude.transcript.jsonl. A verdict is rejected if the transcript shows
 #     any tool call but the structured answer, a context attachment of a kind
-#     not listed below, or a working directory inside a git repository.
+#     not listed below, a session context that is not empty (an account
+#     e-mail or git status), a working directory inside a git repository, an
+#     assistant turn at any effort but the requested one, or an advisor model.
 #
 # Credentials: the lane's own subscription login, never the desktop login and
 # never an API key. CLAUDE_CONFIG_DIR must name the lane's config directory,
@@ -34,9 +38,30 @@
 # that is not the desktop's account. A token login reports no account, so
 # AUDIT_ACCOUNT must then name it; it is recorded as declared.
 #
-# Concurrency and model are tunable via env (AUDIT_PARALLEL, a positive
-# integer; AUDIT_MODEL, default opus). AUDIT_ONLY, a space-separated list of
-# case directory names, limits the run to those cases. Portable to bash 3.2.
+# The desktop login, by explicit opt-in only (Max, 2026-09-30): with
+# JUDGE_ALLOW_DESKTOP_LOGIN=1 the judges run on the desktop login instead.
+# The CLI finds that login only under its default config directory, so the
+# judges then run with CLAUDE_CONFIG_DIR unset (it may name the desktop's
+# ~/.claude, by file identity, and nothing else). No lane token and no
+# AUDIT_ACCOUNT may be set, `claude auth status` must report the desktop
+# account's own claude.ai login in that directory, and every sidecar records
+# the opt-in as the declared account. Everything else stays as above: the
+# empty directory, no tools, the allowlisted environment and no API key.
+# JUDGE_ALLOW_DESKTOP_LOGIN takes 1 or nothing; any other value is refused.
+#
+# A judge the API refuses is logged with the CLI's error. When the refusal
+# says the login cannot judge now (HTTP 401, 403 or 429: a revoked login, an
+# organization that bars Claude Code, a usage limit), the runner starts no
+# further judge, lets the running ones finish and exits 1; the run resumes
+# where it stopped once the login can judge again.
+#
+# Concurrency, model and effort are tunable via env (AUDIT_PARALLEL, a
+# positive integer; AUDIT_MODEL, default opus; AUDIT_EFFORT, default xhigh,
+# the effort every turn of the GPT-6.1 Sol stage's first 17 hardened re-judges
+# recorded, although their sidecars left judge_effort null).
+# The caller's CLAUDE_CODE_EFFORT_LEVEL never reaches a judge: each runs at
+# AUDIT_EFFORT, by flag and by environment. AUDIT_ONLY, a space-separated list
+# of case directory names, limits the run to those cases. Portable to bash 3.2.
 #
 # Judge provenance: beside each verdict.json the runner writes
 # verdict.meta.json with the judge model requested, the model the CLI reports,
@@ -50,12 +75,14 @@ AUDIT_DIR="${1:?usage: run_audit_claude.sh <audit_dir>}"
 SCHEMA="$AUDIT_DIR/schema.json"
 PARALLEL="${AUDIT_PARALLEL:-4}"
 MODEL="${AUDIT_MODEL:-opus}"
+EFFORT="${AUDIT_EFFORT:-xhigh}"
 ONLY="${AUDIT_ONLY:-}"
 # The tools each judge is denied by name, on top of --tools "" removing every
 # built-in tool: file reading and editing, search, web and shell.
 DISALLOWED="Bash,BashOutput,KillShell,Read,Write,Edit,MultiEdit,NotebookEdit,Glob,Grep,LS,WebFetch,WebSearch,Agent,Task"
 # The context attachments a tool-less judge's transcript may carry.
-ATTACHMENTS="environment,model,date,session_context,total_tokens_reminder,prompt_snapshot,structured_output,ultra_effort_enter,silent_turn_reminder"
+# (No ultra_effort_enter: a judge runs at its one explicit effort level.)
+ATTACHMENTS="environment,model,date,session_context,total_tokens_reminder,prompt_snapshot,structured_output,silent_turn_reminder"
 # Verdict validation needs jsonschema: prefer the project virtual environment's
 # interpreter (uv sync installs it), then an explicit AUDIT_PYTHON, then python3.
 if [ -n "${AUDIT_PYTHON:-}" ]; then
@@ -89,6 +116,13 @@ case "$PARALLEL" in
     exit 1
     ;;
 esac
+case "$EFFORT" in
+  low | medium | high | xhigh | max) ;;
+  *)
+    echo "AUDIT_EFFORT must be low, medium, high, xhigh or max, not '$EFFORT'; refusing to start" >&2
+    exit 1
+    ;;
+esac
 
 [ -f "$SCHEMA" ] || { echo "missing $SCHEMA — run audit-prepare first" >&2; exit 1; }
 # Absolute paths: each judge runs from its own empty directory.
@@ -97,31 +131,74 @@ SCHEMA="$AUDIT_DIR/schema.json"
 CASES_DIR="$AUDIT_DIR/cases"
 SCHEMA_JSON=$(cat "$SCHEMA")
 
-# The lane's own credentials, never the desktop login's.
-[ -n "${CLAUDE_CONFIG_DIR:-}" ] || {
-  echo "CLAUDE_CONFIG_DIR is not set: the judges would bill the desktop login." >&2
-  echo "Set it to this lane's config directory (see the header). Refusing to start." >&2
-  exit 1
-}
-[ -d "$CLAUDE_CONFIG_DIR" ] || {
-  echo "CLAUDE_CONFIG_DIR ($CLAUDE_CONFIG_DIR) is not a directory; refusing to start" >&2
-  exit 1
-}
-CONFIG_DIR="$(cd "$CLAUDE_CONFIG_DIR" && pwd -P)"
-# The desktop login's directory under $HOME and under the account's own home,
-# compared by file identity (symlinks, case variants and HOME overrides).
-"$PYTHON" - "$CONFIG_DIR" "$HOME" <<'PY' || {
+# The desktop login only by Max's explicit opt-in (see the header).
+DESKTOP_OPT_IN=0
+DESKTOP_DECLARED="desktop login (JUDGE_ALLOW_DESKTOP_LOGIN, Max 2026-09-30)"
+case "${JUDGE_ALLOW_DESKTOP_LOGIN:-}" in
+  '') ;;
+  1) DESKTOP_OPT_IN=1 ;;
+  *)
+    echo "JUDGE_ALLOW_DESKTOP_LOGIN must be 1 or unset, not '$JUDGE_ALLOW_DESKTOP_LOGIN'; refusing to start" >&2
+    exit 1
+    ;;
+esac
+# Prints "desktop" when a directory is the desktop login's, under $HOME or
+# under the account's own home, compared by file identity (symlinks, case
+# variants and HOME overrides), and "other" when it is not. Anything else
+# (a failed check) is neither, so both callers refuse on it.
+desktop_dir_state() {
+  "$PYTHON" - "$1" "$HOME" <<'PY'
 import os, pwd, sys
 
 config, home = sys.argv[1:3]
 for base in {home, pwd.getpwuid(os.getuid()).pw_dir}:
     desktop = os.path.join(base, ".claude")
     if os.path.isdir(desktop) and os.path.samefile(config, desktop):
-        sys.exit(1)
+        print("desktop")
+        sys.exit(0)
+print("other")
 PY
-  echo "CLAUDE_CONFIG_DIR is the desktop login's ~/.claude; refusing to start" >&2
-  exit 1
 }
+
+if [ "$DESKTOP_OPT_IN" = 1 ]; then
+  [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || {
+    echo "JUDGE_ALLOW_DESKTOP_LOGIN=1 takes no lane token: unset CLAUDE_CODE_OAUTH_TOKEN; refusing to start" >&2
+    exit 1
+  }
+  [ -z "${AUDIT_ACCOUNT:-}" ] || {
+    echo "JUDGE_ALLOW_DESKTOP_LOGIN=1 declares the desktop login itself: unset AUDIT_ACCOUNT; refusing to start" >&2
+    exit 1
+  }
+  [ -d "$HOME/.claude" ] || {
+    echo "JUDGE_ALLOW_DESKTOP_LOGIN=1 but there is no desktop login directory $HOME/.claude; refusing to start" >&2
+    exit 1
+  }
+  if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+    { [ -d "$CLAUDE_CONFIG_DIR" ] \
+      && [ "$(desktop_dir_state "$CLAUDE_CONFIG_DIR")" = desktop ]; } || {
+      echo "JUDGE_ALLOW_DESKTOP_LOGIN=1 but CLAUDE_CONFIG_DIR ($CLAUDE_CONFIG_DIR) is not the desktop login's ~/.claude; refusing to start" >&2
+      exit 1
+    }
+  fi
+  # The CLI's default config directory: the judges run with it unset.
+  CONFIG_DIR="$(cd "$HOME/.claude" && pwd -P)"
+else
+  # The lane's own credentials, never the desktop login's.
+  [ -n "${CLAUDE_CONFIG_DIR:-}" ] || {
+    echo "CLAUDE_CONFIG_DIR is not set: the judges would bill the desktop login." >&2
+    echo "Set it to this lane's config directory (see the header). Refusing to start." >&2
+    exit 1
+  }
+  [ -d "$CLAUDE_CONFIG_DIR" ] || {
+    echo "CLAUDE_CONFIG_DIR ($CLAUDE_CONFIG_DIR) is not a directory; refusing to start" >&2
+    exit 1
+  }
+  CONFIG_DIR="$(cd "$CLAUDE_CONFIG_DIR" && pwd -P)"
+  [ "$(desktop_dir_state "$CONFIG_DIR")" = other ] || {
+    echo "CLAUDE_CONFIG_DIR is the desktop login's ~/.claude; refusing to start" >&2
+    exit 1
+  }
+fi
 
 # Every claude call gets this environment and nothing else.
 allowlist() {
@@ -135,9 +212,13 @@ allowlist() {
 }
 CHILD_ENV=()
 while IFS= read -r line; do [ -n "$line" ] && CHILD_ENV+=("$line"); done <<EOF
-$(allowlist PATH HOME USER LOGNAME TMPDIR LANG LC_ALL LC_CTYPE CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_EFFORT_LEVEL)
+$(allowlist PATH HOME USER LOGNAME TMPDIR LANG LC_ALL LC_CTYPE CLAUDE_CODE_OAUTH_TOKEN)
 EOF
-CHILD_ENV+=("CLAUDE_CONFIG_DIR=$CONFIG_DIR" "CLAUDE_CODE_SAFE_MODE=1" "CLAUDE_CODE_DISABLE_CLAUDE_MDS=1")
+CHILD_ENV+=("CLAUDE_CODE_EFFORT_LEVEL=$EFFORT")
+# The desktop login is found only under the CLI's default config directory,
+# so under the opt-in the judges run with CLAUDE_CONFIG_DIR unset.
+[ "$DESKTOP_OPT_IN" = 1 ] || CHILD_ENV+=("CLAUDE_CONFIG_DIR=$CONFIG_DIR")
+CHILD_ENV+=("CLAUDE_CODE_SAFE_MODE=1" "CLAUDE_CODE_DISABLE_CLAUDE_MDS=1")
 DESKTOP_ENV=()
 while IFS= read -r line; do [ -n "$line" ] && DESKTOP_ENV+=("$line"); done <<EOF
 $(allowlist PATH HOME USER LOGNAME TMPDIR LANG LC_ALL LC_CTYPE)
@@ -151,10 +232,11 @@ DESKTOP_JSON=$(cd "$probe" && env -i "${DESKTOP_ENV[@]}" "$CLAUDE_BIN" auth stat
 rmdir "$probe" 2>/dev/null
 TOKEN_SET=0
 [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && TOKEN_SET=1
-# Prints the login as the sidecar records it, or says why it is not the lane's.
+# Prints the login as the sidecar records it, or says why it is not the lane's
+# (or, under the opt-in, not the desktop login in its own directory).
 check_login() {
   "$PYTHON" - "$@" <<'PY'
-import json, sys
+import json, os, sys
 
 def parse(text):
     try:
@@ -165,13 +247,26 @@ def parse(text):
 
 status, desktop = parse(sys.argv[1]), parse(sys.argv[2])
 token, declared, config = sys.argv[3] == "1", sys.argv[4], sys.argv[5]
+opt_in = sys.argv[6] == "1"
 method, email = status.get("authMethod"), status.get("email")
+reported = status.get("configDirectory")
 if status.get("loggedIn") is not True:
     problem = f"claude auth status reports no login in {config}"
 elif status.get("apiProvider") != "firstParty":
     problem = f"the login is through {status.get('apiProvider')!r}, not a first-party subscription"
 elif method not in ("oauth_token", "claude.ai"):
     problem = f"the login method {method!r} is not a subscription login"
+elif opt_in and method != "claude.ai":
+    problem = f"JUDGE_ALLOW_DESKTOP_LOGIN=1 but the CLI logs in by {method!r}, not the desktop's claude.ai login"
+elif opt_in and not (email and desktop.get("loggedIn") is True and email == desktop.get("email")):
+    problem = f"JUDGE_ALLOW_DESKTOP_LOGIN=1 but the login ({email}) is not the desktop login's account"
+elif opt_in and not (
+    isinstance(reported, str) and os.path.isdir(reported) and os.path.samefile(reported, config)
+):
+    problem = f"JUDGE_ALLOW_DESKTOP_LOGIN=1 but the CLI reports config directory {reported!r}, not {config}"
+elif opt_in:
+    print(json.dumps({"method": method, "account": email, "org": status.get("orgId")}, sort_keys=True))
+    sys.exit(0)
 elif token and method != "oauth_token":
     problem = f"a lane token is set but the CLI logs in by {method!r}"
 elif method == "oauth_token" and not declared:
@@ -185,12 +280,19 @@ print(problem, file=sys.stderr)
 sys.exit(1)
 PY
 }
-AUTH=$(check_login "$AUTH_JSON" "$DESKTOP_JSON" "$TOKEN_SET" "${AUDIT_ACCOUNT:-}" "$CONFIG_DIR") || {
-  echo "refusing to start: the judges must bill the lane's own subscription login" >&2
+AUTH=$(check_login "$AUTH_JSON" "$DESKTOP_JSON" "$TOKEN_SET" "${AUDIT_ACCOUNT:-}" \
+  "$CONFIG_DIR" "$DESKTOP_OPT_IN") || {
+  if [ "$DESKTOP_OPT_IN" = 1 ]; then
+    echo "refusing to start: JUDGE_ALLOW_DESKTOP_LOGIN=1 allows the desktop's own login only" >&2
+  else
+    echo "refusing to start: the judges must bill the lane's own subscription login" >&2
+  fi
   exit 1
 }
+# The account each sidecar declares: the lane's, or the opt-in itself.
+DECLARED="${AUDIT_ACCOUNT:-}"
+[ "$DESKTOP_OPT_IN" = 1 ] && DECLARED="$DESKTOP_DECLARED"
 CLI_VERSION=$(cd / && claude_child --version </dev/null 2>/dev/null | head -n 1)
-EFFORT="${CLAUDE_CODE_EFFORT_LEVEL:-}"
 
 # A verdict is "done" only if it is parseable JSON carrying the required keys.
 verdict_ok() {
@@ -209,7 +311,7 @@ verdict_ok() {
 extract_verdict() {
   case_dir="$1"; out_tmp="$2"; meta_tmp="$3"
   "$PYTHON" - "$case_dir" "$out_tmp" "$meta_tmp" "$MODEL" "$CLI_VERSION" \
-    "$CONFIG_DIR" "$AUTH" "${AUDIT_ACCOUNT:-}" "$DISALLOWED" "$ATTACHMENTS" \
+    "$CONFIG_DIR" "$AUTH" "$DECLARED" "$DISALLOWED" "$ATTACHMENTS" \
     "$EFFORT" <<'PY'
 import datetime, glob, hashlib, json, shutil, sys
 from pathlib import Path
@@ -221,6 +323,19 @@ try:
     envelope = json.load(open(case / "claude.json"))
 except Exception:
     sys.exit(1)
+if envelope.get("is_error"):
+    status = envelope.get("api_error_status")
+    what = (
+        "the CLI's login cannot judge now"
+        if status in (401, 403, 429)
+        else "the CLI reported an error"
+    )
+    print(
+        f"{what}: status {status} {envelope.get('api_error_code')}: "
+        f"{envelope.get('result')}",
+        file=sys.stderr,
+    )
+    sys.exit(7)
 verdict = envelope.get("structured_output")
 if verdict is None:
     text = envelope.get("result")
@@ -242,7 +357,7 @@ if not session or len(found) != 1:
     sys.exit(3)
 shutil.copyfile(found[0], case / "claude.transcript.jsonl")
 allowed = set(attachments.split(","))
-calls, unexpected = [], []
+calls, unexpected, turns = [], [], []
 for number, line in enumerate(open(found[0]), 1):
     try:
         event = json.loads(line)
@@ -256,6 +371,14 @@ for number, line in enumerate(open(found[0]), 1):
             unexpected.append(kind)
         if kind == "environment" and (attachment.get("snapshot") or {}).get("isGitRepo"):
             unexpected.append("environment inside a git repository")
+        if kind == "session_context" and attachment.get("context") != {}:
+            carried = sorted(attachment.get("context") or {}) or [repr(attachment.get("context"))]
+            unexpected.append(f"session context carrying {carried}")
+    if event.get("type") == "assistant":
+        if event.get("effort") != effort:
+            turns.append(f"effort {event.get('effort')!r}, not {effort!r}")
+        if event.get("advisorModel"):
+            turns.append(f"advisor model {event.get('advisorModel')!r}")
     content = (event.get("message") or {}).get("content")
     if isinstance(content, list):
         calls += [
@@ -271,6 +394,9 @@ if calls:
 if unexpected:
     print(f"the judge's context carried unexpected attachments: {unexpected}", file=sys.stderr)
     sys.exit(5)
+if turns:
+    print(f"the judge did not run as requested: {sorted(set(turns))}", file=sys.stderr)
+    sys.exit(6)
 verdict_bytes = json.dumps(verdict, indent=2, sort_keys=True).encode("utf-8")
 open(out_path, "wb").write(verdict_bytes)
 meta = {
@@ -283,7 +409,7 @@ meta = {
     "judge_model_requested": requested_model,
     "judge_model_reported": sorted((envelope.get("modelUsage") or {}).keys()),
     "judge_cli_version": cli_version,
-    "judge_effort": effort or None,
+    "judge_effort": effort,
     "judge_auth": json.loads(auth),
     "judge_account_declared": declared or None,
     "judge_isolation": {
@@ -291,6 +417,7 @@ meta = {
         "tools": "none (--tools '')",
         "disallowed_tools": disallowed.split(","),
         "environment": "allowlisted",
+        "settings": "no user settings (--setting-sources project,local)",
         "transcript_tool_calls": 0,
     },
     "session_id": session,
@@ -334,6 +461,8 @@ classify_one() {
       --disallowedTools "$DISALLOWED" \
       --strict-mcp-config \
       --disable-slash-commands \
+      --setting-sources project,local \
+      --effort "$EFFORT" \
       < "$prompt" > "$envelope" 2> "$case_dir/claude.log" )
   rmdir "$work" 2>/dev/null || echo "[warn] $(basename "$case_dir"): the judge left files in $work"
   if extract_verdict "$case_dir" "$tmp" "$meta_tmp" 2>> "$case_dir/claude.log" \
@@ -344,6 +473,9 @@ classify_one() {
   else
     rm -f "$tmp" "$meta_tmp"
     echo "[FAIL] $(basename "$case_dir") (see claude.log / claude.json)"
+    if grep -q "^the CLI's login cannot judge now" "$case_dir/claude.log" 2>/dev/null; then
+      : > "$STOP_FLAG"
+    fi
   fi
 }
 
@@ -378,9 +510,12 @@ PY
 }
 
 total=$(ls -d "$CASES_DIR"/*/ 2>/dev/null | wc -l | tr -d ' ')
-echo "audit: $total cases | parallel=$PARALLEL model=$MODEL runner=claude ($CLI_VERSION)"
-echo "login: $AUTH in $CONFIG_DIR${AUDIT_ACCOUNT:+ (declared: $AUDIT_ACCOUNT)}"
+echo "audit: $total cases | parallel=$PARALLEL model=$MODEL effort=$EFFORT runner=claude ($CLI_VERSION)"
+echo "login: $AUTH in $CONFIG_DIR${DECLARED:+ (declared: $DECLARED)}"
 VALID=$(valid_cases)
+# Set by a judge whose login cannot judge now; no further judge starts.
+RUN_STATE=$(mktemp -d "${TMPDIR:-/tmp}/pb-judge-run.XXXXXX") || exit 1
+STOP_FLAG="$RUN_STATE/stop"
 
 i=0
 pids=""
@@ -388,6 +523,7 @@ for case_dir in "$CASES_DIR"/*/; do
   case_dir="${case_dir%/}"
   selected "$(basename "$case_dir")" || continue
   printf '%s\n' "$VALID" | grep -Fxq "$(basename "$case_dir")" && continue
+  [ -e "$STOP_FLAG" ] && break
   classify_one "$case_dir" &
   pids="$pids $!"
   i=$((i + 1))
@@ -398,5 +534,13 @@ for case_dir in "$CASES_DIR"/*/; do
 done
 [ -n "$pids" ] && wait $pids 2>/dev/null
 
+stopped=0
+[ -e "$STOP_FLAG" ] && stopped=1
+rm -f "$STOP_FLAG"
+rmdir "$RUN_STATE" 2>/dev/null
 done_count=$(valid_cases | wc -l | tr -d ' ')
 echo "audit complete: $done_count/$total verdicts present"
+if [ "$stopped" = 1 ]; then
+  echo "stopped: the login cannot judge now (see the failed case's claude.log); no further judge was started" >&2
+  exit 1
+fi
