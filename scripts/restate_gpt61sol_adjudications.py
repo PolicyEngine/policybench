@@ -44,11 +44,11 @@ is restated for the first time, even when its last judge_previous item reads
 the same as the seed verdict. A re-judge that repeats the seed verdict on the
 seed's own UTC day therefore stops the script: its restated entry would still
 name the seed verdict, and a rerun could not tell it from one never restated.
-Re-judge such a case on a later day. It writes the
-record only after the restated record loads, keeps every judge verdict
-verbatim against the stage and keeps the scoring exclusions. It writes the
-verdicts it read, replaced and current, to --evidence-out (default
-``<stage>/restated-adjudications.json``).
+Re-judge such a case on a later day. It checks the
+restated record in memory, before it writes anything: the exact text it will
+write must load, keep every judge verdict verbatim against the stage and keep
+the scoring exclusions. It writes the verdicts it read, replaced and current,
+to --evidence-out (default ``<stage>/restated-adjudications.json``).
 
 Usage::
 
@@ -349,7 +349,11 @@ def restate_entries(
 def main(argv: list[str] | None = None) -> None:
     from freeze_snapshot import verify_adjudications_keep_judge_verdicts
 
-    from policybench.adjudications import excluded_case_keys, load_adjudications
+    from policybench.adjudications import (
+        excluded_case_keys,
+        load_adjudications,
+        parse_adjudications,
+    )
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--stage-dir", type=Path, required=True)
@@ -373,17 +377,15 @@ def main(argv: list[str] | None = None) -> None:
         frozenset(json.loads(args.wave_flags.read_text())),
         evidence,
     )
-    # Check the restated record before it replaces the staged one.
+    # Check the exact text that will replace the staged record, in memory,
+    # before anything is written.
+    text = json.dumps(record, indent=2, ensure_ascii=False) + "\n"
+    after = parse_adjudications(json.loads(text), path)
+    verify_adjudications_keep_judge_verdicts(after, stage / "audit" / "cases")
+    if excluded_case_keys(after) != excluded_case_keys(before):
+        raise SystemExit("a restatement moved a scoring exclusion")
     pending = path.with_name(path.name + ".restating")
-    pending.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n")
-    try:
-        after = load_adjudications(pending)
-        verify_adjudications_keep_judge_verdicts(after, stage / "audit" / "cases")
-        if excluded_case_keys(after) != excluded_case_keys(before):
-            raise SystemExit("a restatement moved a scoring exclusion")
-    except BaseException:
-        pending.unlink(missing_ok=True)
-        raise
+    pending.write_text(text)
     os.replace(pending, path)
     out = args.evidence_out or stage / "restated-adjudications.json"
     out.write_text(

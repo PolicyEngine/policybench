@@ -67,7 +67,15 @@ def load_adjudications(path: Path) -> list[dict]:
     """Read and validate an adjudication file; an absent file means none."""
     if not path.exists():
         return []
-    payload = json.loads(path.read_text())
+    return parse_adjudications(json.loads(path.read_text()), path)
+
+
+def parse_adjudications(payload: dict, path: Path | str) -> list[dict]:
+    """Validate an adjudication record already in memory.
+
+    ``path`` only names the record in error messages, so a record can be
+    checked before it is written anywhere.
+    """
     entries = payload.get("adjudications")
     if not isinstance(entries, list):
         raise AdjudicationError(f"{path}: 'adjudications' must be a list")

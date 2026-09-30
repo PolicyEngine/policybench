@@ -388,6 +388,39 @@ def test_main_leaves_the_record_alone_when_the_restated_record_fails_triage(
     assert not (stage / "restated-adjudications.json").exists()
 
 
+def test_main_writes_nothing_before_the_restated_record_verifies(tmp_path, monkeypatch):
+    """The restated record is checked in memory: while triage's verbatim check
+    runs, no file in the stage has been written, not even a temporary one."""
+    import freeze_snapshot
+
+    stage, record_path, _, args = _staged(
+        tmp_path, _verdict("reference_model_issue_fixed", flag=True)
+    )
+
+    def files():
+        return {
+            str(p.relative_to(stage)): p.read_bytes()
+            for p in stage.rglob("*")
+            if p.is_file()
+        }
+
+    before = files()
+    seen = {}
+    real = freeze_snapshot.verify_adjudications_keep_judge_verdicts
+
+    def spy(entries, cases_dir):
+        seen["files"] = files()
+        return real(entries, cases_dir)
+
+    monkeypatch.setattr(
+        freeze_snapshot, "verify_adjudications_keep_judge_verdicts", spy
+    )
+    restate.main(args)
+    assert seen["files"] == before
+    restated = json.loads(record_path.read_text())["adjudications"][0]
+    assert restated["judge_failure_source"] == "llm_error"
+
+
 def test_main_refuses_a_seed_that_is_not_the_stages(tmp_path):
     """A seed whose carried-over verdicts differ from the stage's (an older
     audit, say) would name the wrong replaced verdict: stop before writing."""
