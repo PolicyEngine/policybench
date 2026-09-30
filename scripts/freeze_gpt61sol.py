@@ -180,30 +180,45 @@ def base_serving_config() -> dict:
 
 
 def verify_annotation_amendments(annotations: Path, amendments: list[dict]) -> None:
-    """Every listed case-note and row-annotation amendment is in the staged CSVs."""
+    """Every listed case-note and row-annotation amendment is in the staged CSVs.
+
+    Amendments of one text apply in order, and a later one may rewrite words
+    an earlier one wrote, so the expected fragments are chained the same way
+    before each is looked for in the staged text.
+    """
     import pandas as pd
 
     frames = {
         "case_annotation": pd.read_csv(annotations / "us_case_notes.csv"),
         "annotation": pd.read_csv(annotations / "us_audit_row_annotations.csv"),
     }
+    expected: dict[tuple, list[str]] = {}
     for item in amendments:
         if item["field"] not in frames:
             continue
-        frame = frames[item["field"]]
-        country, scenario, variable = item["case_id"].split("__", 2)
+        target = (item["case_id"], item["field"], item.get("model"))
+        fragments = expected.setdefault(target, [])
+        for index, fragment in enumerate(fragments):
+            if item["old"] in fragment:
+                fragments[index] = fragment.replace(item["old"], item["new"], 1)
+                break
+        else:
+            fragments.append(item["new"])
+    for (case, field, model), fragments in expected.items():
+        frame = frames[field]
+        country, scenario, variable = case.split("__", 2)
         mask = (
             (frame["country"].astype(str) == country)
             & (frame["scenario_id"].astype(str) == scenario)
             & (frame["variable"].astype(str) == variable)
         )
-        if "model" in item:
-            mask &= frame["model"].astype(str) == item["model"]
-        texts = frame.loc[mask, item["field"]].astype(str).tolist()
-        if len(texts) != 1 or item["new"] not in texts[0]:
+        if model is not None:
+            mask &= frame["model"].astype(str) == model
+        texts = frame.loc[mask, field].astype(str).tolist()
+        if len(texts) != 1 or any(fragment not in texts[0] for fragment in fragments):
             raise SystemExit(
-                f"Staged {item['field']} of {item['case_id']} does not carry its "
-                "listed wording amendment; run triage and export again"
+                f"Staged {field} of {case} does not carry its listed wording "
+                "amendment; run triage and export again"
             )
 
 

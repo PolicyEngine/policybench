@@ -697,6 +697,47 @@ def test_load_amendments_refuses_anything_but_wording_of_rejudged_cases(
         write({**_amendment(entry, "a", "b"), **defect})
 
 
+def _annotations(tmp_path, row_text, note_text="The case note."):
+    import pandas as pd
+
+    keys = {"country": "us", "scenario_id": "scenario_001", "variable": "snap"}
+    pd.DataFrame([{**keys, "model": "m1", "annotation": row_text}]).to_csv(
+        tmp_path / "us_audit_row_annotations.csv", index=False
+    )
+    pd.DataFrame([{**keys, "case_annotation": note_text}]).to_csv(
+        tmp_path / "us_case_notes.csv", index=False
+    )
+    return tmp_path
+
+
+def _row_amendment(old, new):
+    return {
+        "case_id": "us__scenario_001__snap",
+        "field": "annotation",
+        "model": "m1",
+        "old": old,
+        "new": new,
+        "reason": "r",
+    }
+
+
+def test_the_freeze_finds_chained_amendments_in_the_staged_text(tmp_path):
+    """A later amendment may rewrite words an earlier one wrote; the freeze
+    chains them before looking, and refuses a text that lacks the result."""
+    chained = [
+        _row_amendment("It left out A.", "It left out A, as B does."),
+        _row_amendment("as B does", "as the corrected B does"),
+    ]
+    applied = _annotations(tmp_path, "It left out A, as the corrected B does. More.")
+    release.verify_annotation_amendments(applied, chained)
+    stale = _annotations(tmp_path, "It left out A, as B does. More.")
+    with pytest.raises(SystemExit, match="does not carry its listed wording"):
+        release.verify_annotation_amendments(stale, chained)
+    missing = _annotations(tmp_path, "It left out A. More.")
+    with pytest.raises(SystemExit, match="does not carry its listed wording"):
+        release.verify_annotation_amendments(missing, chained[:1])
+
+
 def test_an_amendment_must_find_its_old_text_exactly_once(adjudications):
     staged, record = adjudications
     entry = record["adjudications"][0]
