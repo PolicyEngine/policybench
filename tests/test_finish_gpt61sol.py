@@ -6,6 +6,7 @@ audits and payloads; the committed snapshot is read only where a test pins it.
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import gzip
 import hashlib
@@ -28,14 +29,24 @@ from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
 
 NEW = "gpt-6.1-sol"
 SLUG = "gpt61sol"
+# Release 20260929's audit (the seed) and the grounding it was rendered with.
+SEED = Path(
+    "/Users/maxghenis/PolicyEngine/policybench-wt/adds0928-stage2/results/local/"
+    "adds0928-v3/audit"
+)
+GROUNDING = Path(
+    "/Users/maxghenis/PolicyEngine/policybench/results/local/unified_audit/"
+    "grounding.csv"
+)
 
 
 def test_the_addition_is_gpt61sol_alone_on_a_46_model_board():
     assert driver.MODELS == {SLUG: NEW}
     assert driver.BASE_MODELS == 45 and driver.BOARD_MODELS == 46
-    assert driver.BASE_EXCLUSIONS == 55
+    assert driver.BASE_OUTPUTS == 1984
+    assert driver.BASE_EXCLUSIONS == 56 and driver.BASE_SCORED == 1928
     assert driver.BASE_TAG == "dashboard-data-20260929"
-    assert driver.BASE_COMMIT == "f7ced3b37643ecfdb90ec383339d0244b7017bbb"
+    assert driver.BASE_COMMIT == "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
     assert set(driver.BASE_REFERENCE_SHA256) == set(driver.REFERENCE_FILES)
     assert not hasattr(driver, "reference_revision")
     assert not hasattr(driver, "replay_base_references")
@@ -262,11 +273,36 @@ def test_the_committed_references_match_their_pins():
     for name, pin in driver.BASE_REFERENCE_SHA256.items():
         raw = (driver.SNAPSHOT / name).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == pin
-    from policybench.reference_exclusions import load_reference_exclusions
+    from policybench.reference_exclusions import (
+        load_reference_exclusions,
+        split_reference,
+    )
 
-    assert len(load_reference_exclusions(driver.SNAPSHOT)) == driver.BASE_EXCLUSIONS
+    exclusions = load_reference_exclusions(driver.SNAPSHOT)
+    assert len(exclusions) == driver.BASE_EXCLUSIONS
+    reasons = [e["reason_code"] for e in exclusions]
+    assert reasons.count("reference_engine_defect") == 28
+    assert reasons.count("reference_depends_on_unlisted_input") == 28
     reference = pd.read_csv(driver.SNAPSHOT / "reference_outputs.csv")
-    assert len(reference) == 1984 and reference.scenario_id.nunique() == 100
+    assert len(reference) == driver.BASE_OUTPUTS
+    assert reference.scenario_id.nunique() == 100
+    assert len(split_reference(reference, exclusions)[0]) == driver.BASE_SCORED
+
+
+def test_the_committed_adjudications_exclude_exactly_the_scoring_exclusions():
+    """Triage requires this of the staged copy, which prepare takes from here."""
+    from policybench.adjudications import excluded_case_keys, load_adjudications
+    from policybench.reference_exclusions import (
+        exclusion_keys,
+        load_reference_exclusions,
+    )
+
+    decisions = load_adjudications(driver.ANNOTATIONS / "us_adjudications.json")
+    assert excluded_case_keys(decisions) == exclusion_keys(
+        load_reference_exclusions(driver.SNAPSHOT)
+    )
+    # Excluded on review of release 20260929, apart from any engine change.
+    assert ("scenario_023", "head_medicaid_eligible") in excluded_case_keys(decisions)
 
 
 @pytest.fixture
@@ -321,7 +357,7 @@ def test_the_base_commit_holds_release_20260929():
 
 
 def test_base_commit_blob_names_the_missing_history():
-    with pytest.raises(SystemExit, match="cannot read .* at base commit f7ced3b37643"):
+    with pytest.raises(SystemExit, match="cannot read .* at base commit d616e67c33b6"):
         driver.base_commit_blob(Path("no/such/file.csv"))
 
 
@@ -703,13 +739,70 @@ def test_prepare_refuses_a_grounding_other_than_the_pinned_one(seeded_stage, tmp
 
 
 def test_the_pinned_grounding_is_the_one_the_20260929_stage_used():
-    source = Path(
-        "/Users/maxghenis/PolicyEngine/policybench/results/local/unified_audit/"
-        "grounding.csv"
-    )
-    if not source.is_file():
+    if not GROUNDING.is_file():
         pytest.skip("the main clone's audit grounding is not on this machine")
-    assert driver.digest(source) == driver.GROUNDING_SHA256
+    assert driver.digest(GROUNDING) == driver.GROUNDING_SHA256
+
+
+def test_the_committed_adjudications_keep_the_seed_judge_verdicts():
+    """Every recorded decision keeps its seed verdict's class, 023 Medicaid too.
+
+    Triage and the freeze re-check this against the staged audit, where a
+    carried-over verdict is the seed's.
+    """
+    if not SEED.is_dir():
+        pytest.skip("release 20260929's audit is not on this machine")
+    from freeze_snapshot import verify_adjudications_keep_judge_verdicts
+
+    from policybench.adjudications import load_adjudications
+
+    decisions = load_adjudications(driver.ANNOTATIONS / "us_adjudications.json")
+    verify_adjudications_keep_judge_verdicts(decisions, SEED / "cases")
+    case = SEED / "cases/us__scenario_023__head_medicaid_eligible"
+    meta = json.loads((case / "verdict.meta.json").read_text())
+    assert meta["prompt_sha256"] == driver.digest(case / "prompt.md")
+
+
+@pytest.mark.slow
+def test_every_seed_prompt_rerenders_from_the_committed_snapshot(tmp_path):
+    """The committed 45-model board renders exactly the seed's cases and prompts.
+
+    So check_prompt_changes may attribute every changed or new prompt in a
+    stage to GPT-6.1 Sol joining its case. #182's review excluded
+    scenario_023 head_medicaid_eligible and rewrote its adjudication and case
+    note; neither enters a prompt, and its prompt is unchanged.
+    """
+    if not (SEED.is_dir() and GROUNDING.is_file()):
+        pytest.skip("release 20260929's audit or grounding is not on this machine")
+    from policybench.audit import prepare_audit
+
+    bundle = tmp_path / "publish" / driver.RUN_NAME
+    (bundle / "us").mkdir(parents=True)
+    for name in (*driver.REFERENCE_FILES, "predictions.csv.gz"):
+        shutil.copyfile(driver.SNAPSHOT / name, bundle / "us" / name)
+    (bundle / "annotations").mkdir()
+    for name in driver.ANNOTATION_FILES:
+        shutil.copyfile(driver.ANNOTATIONS / name, bundle / "annotations" / name)
+    grounding = pd.read_csv(GROUNDING)
+    lookup = {
+        (str(r.scenario_id), str(r.variable)): str(r.grounding)
+        for r in grounding.itertuples()
+    }
+    audit = tmp_path / "audit"
+    # prepare renders with object strings, as resolve_base sets them.
+    arrow = hasattr(pd.options, "future") and hasattr(pd.options.future, "infer_string")
+    with (
+        pd.option_context("future.infer_string", False)
+        if arrow
+        else contextlib.nullcontext()
+    ):
+        prepare_audit(bundle / "us", audit, grounding_lookup=lookup)
+    assert (audit / "cases.jsonl").read_bytes() == (SEED / "cases.jsonl").read_bytes()
+    rendered = driver.seed_prompt_digests(audit)
+    assert rendered == driver.seed_prompt_digests(SEED) and len(rendered) == 674
+    case = "us__scenario_023__head_medicaid_eligible"
+    meta = json.loads((SEED / "cases" / case / "verdict.meta.json").read_text())
+    assert rendered[case] == meta["prompt_sha256"]
 
 
 def test_check_prompt_changes_names_new_incumbent_only_cases(tmp_path):
@@ -806,7 +899,7 @@ def _stat(model, exact, **usage):
         "condition": "no_tools",
         "score": exact / 100,
         "exact": exact,
-        "n": 1929,
+        "n": 1928,
         **usage,
     }
 
@@ -997,6 +1090,17 @@ def test_the_export_roster_must_be_the_incumbents_plus_the_addition(exporting):
         run(stats, incumbents)
     with pytest.raises(SystemExit, match="45 incumbents"):
         run(_exported(incumbents), incumbents[:-1] + [_stat(NEW, 1.0)])
+
+
+@pytest.mark.parametrize("n", [1927, 1929, 1984])
+def test_export_refuses_an_addition_not_scored_on_the_1928_outputs(exporting, n):
+    stage, _, run, _ = exporting
+    incumbents = _incumbents()
+    stats = _exported(incumbents)
+    stats[-1]["n"] = n
+    with pytest.raises(SystemExit, match=f"not scored on the 1928 outputs.*{NEW}"):
+        run(stats, incumbents)
+    assert not (stage / "data-board46.json").exists()
 
 
 def test_export_refuses_a_staged_reference_off_its_pin(exporting):

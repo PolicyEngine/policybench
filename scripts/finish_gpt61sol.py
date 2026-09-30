@@ -31,9 +31,11 @@ BASE_TAG = "dashboard-data-20260929"
 # The one place the new release's tag is named. The lead may change it at
 # freeze time; freeze_gpt61sol.py and the design note read it from here.
 RELEASE_TAG = "dashboard-data-20260930"
-BASE_SHA256 = "d146473d9bd7776638c59a0a20774dbe9026d8bcee0f2201e114146609ddf246"
+BASE_SHA256 = "a5cb9989d78cb18d040fec2f1f5d0775df15b9b917ae99d883d8701b7fa480a7"
 BASE_MODELS = 45
-BASE_EXCLUSIONS = 55
+BASE_OUTPUTS = 1984
+BASE_EXCLUSIONS = 56
+BASE_SCORED = BASE_OUTPUTS - BASE_EXCLUSIONS
 MODELS = {"gpt61sol": "gpt-6.1-sol"}
 BOARD_MODELS = BASE_MODELS + len(MODELS)
 REFERENCE_FILES = (
@@ -50,8 +52,8 @@ ANNOTATION_FILES = (
     "us_adjudications.json",
 )
 JUDGE_MODEL = "claude-opus-5-5"
-# PR #182 head; the lead repoints this to its merge commit on main
-BASE_COMMIT = "f7ced3b37643ecfdb90ec383339d0244b7017bbb"
+# The merge of PR #182 on main, whose tree holds release 20260929.
+BASE_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
 # Release 20260929's references. There is no reference revision in this
 # release: the committed and staged copies must equal these bytes throughout.
 BASE_REFERENCE_SHA256 = {
@@ -59,10 +61,10 @@ BASE_REFERENCE_SHA256 = {
         "e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466"
     ),
     "reference_outputs.csv.meta.json": (
-        "5469664726adef3675f4cb4504021bd5c24c8acbfa00b21d943854cd84f14bda"
+        "816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b"
     ),
     "reference_exclusions.json": (
-        "ae28ade59705e6314f4d1b5fbd906ec58af0d503e39a59a7e13b597679676f67"
+        "bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2"
     ),
     "scenarios.csv": (
         "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"
@@ -251,7 +253,7 @@ def resolve_base(args):
     base = pd.read_csv(args.base_predictions, low_memory=True, usecols=usecols)
     reference = pd.read_csv(SNAPSHOT / "reference_outputs.csv")
     require(
-        len(reference) == 1984 and reference.scenario_id.nunique() == 100,
+        len(reference) == BASE_OUTPUTS and reference.scenario_id.nunique() == 100,
         "unexpected reference universe",
     )
     require(
@@ -260,11 +262,18 @@ def resolve_base(args):
     )
     for model, frame in base.groupby("model"):
         validate_keys(frame, reference, model)
-    from policybench.reference_exclusions import load_reference_exclusions
+    from policybench.reference_exclusions import (
+        load_reference_exclusions,
+        split_reference,
+    )
 
+    exclusions = load_reference_exclusions(SNAPSHOT)
     require(
-        len(load_reference_exclusions(SNAPSHOT)) == BASE_EXCLUSIONS,
-        f"expected {BASE_EXCLUSIONS} exclusions",
+        len(exclusions) == BASE_EXCLUSIONS, f"expected {BASE_EXCLUSIONS} exclusions"
+    )
+    require(
+        len(split_reference(reference, exclusions)[0]) == BASE_SCORED,
+        f"expected {BASE_SCORED} scored outputs",
     )
     return base, reference, live
 
@@ -793,6 +802,15 @@ def export(args, bundle, live) -> dict:
                 row[key] = previous[model][key]
         drift = incumbent_drift(stats, previous)
         require(not drift, f"incumbent modelStats drift: {drift}")
+        unscored = sorted(
+            s["model"]
+            for s in stats
+            if s["model"] in MODELS.values() and s["n"] != BASE_SCORED
+        )
+        require(
+            not unscored,
+            f"the addition is not scored on the {BASE_SCORED} outputs: {unscored}",
+        )
     errors = validate_dashboard_payload(
         payload, require_failure_annotations=not args.early
     )
