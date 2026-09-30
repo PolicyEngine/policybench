@@ -35,3 +35,12 @@ Python: `/Users/maxghenis/PolicyEngine/policybench-wt/adds0928-stage2/.venv/bin/
 - Never delete anything you did not create. Never `rm -rf` a shared directory or a glob.
 - Do not push, open PRs or upload.
 - Write the final report to the `-o` path as you go. The previous job was cancelled before it wrote one.
+
+## Running on the desktop login (Max, 2026-09-30)
+
+Max asked for this job to run on the active desktop account, because no other Opus lane is free. The hardened `scripts/run_audit_claude.sh` refuses the desktop login's config directory on purpose. That guard came after 22 verdicts billed the desktop account by accident.
+
+- Add an explicit, narrow opt-in. `JUDGE_ALLOW_DESKTOP_LOGIN=1` lets the runner use the desktop login's config directory. All the other isolation stays as it is: empty cwd, tools off, allowlisted environment, and no API key.
+- Record the opt-in in each verdict's sidecar, for example `judge_account_declared: "desktop login (JUDGE_ALLOW_DESKTOP_LOGIN, Max 2026-09-30)"`, so the published provenance says exactly where each verdict ran.
+- Test both paths. Without the variable, the runner still refuses the desktop directory. With it, the runner accepts it and records it.
+- Use the opt-in only if this job's lane is the desktop login. Otherwise keep the lane-only path.
