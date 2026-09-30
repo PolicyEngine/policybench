@@ -71,6 +71,14 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
             f"Strict export receipt does not match {payload_path.name} "
             f"(release tag {tag!r}; re-export after changing RELEASE_TAG)"
         )
+    if (
+        receipt.get("base_tag") != driver.BASE_TAG
+        or receipt.get("base_sha256") != driver.BASE_SHA256
+    ):
+        raise SystemExit(
+            "Strict export receipt does not name release 20260929 as its base "
+            f"({receipt.get('base_tag')!r}, {receipt.get('base_sha256')!r})"
+        )
     if not receipt.get("files"):
         raise SystemExit("Strict export receipt is missing staged evidence hashes")
     for name, expected in receipt["files"].items():

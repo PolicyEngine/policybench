@@ -54,6 +54,8 @@ def freeze_preflight(tmp_path, monkeypatch):
         (stage / name).write_text(f"Evidence: {name.name}\n")
     receipt = {
         "release_tag": driver.RELEASE_TAG,
+        "base_tag": driver.BASE_TAG,
+        "base_sha256": driver.BASE_SHA256,
         "payload_sha256": sha(payload),
         "models": 46,
         "partial": False,
@@ -99,7 +101,16 @@ def test_the_default_tag_is_the_driver_release_tag(freeze_preflight, monkeypatch
 
 @pytest.mark.parametrize(
     "defect",
-    ["changed", "outside_stage", "missing_hashes", "board45", "partial", "tag"],
+    [
+        "changed",
+        "outside_stage",
+        "missing_hashes",
+        "board45",
+        "partial",
+        "tag",
+        "base_tag",
+        "base_sha256",
+    ],
 )
 def test_freeze_refuses_changed_or_unbound_evidence(freeze_preflight, defect):
     stage, _, receipt = freeze_preflight
@@ -118,6 +129,12 @@ def test_freeze_refuses_changed_or_unbound_evidence(freeze_preflight, defect):
         receipt["models"] = 45
     elif defect == "partial":
         receipt["partial"] = True
+    elif defect == "base_tag":
+        receipt["base_tag"] = "dashboard-data-20260922c"
+        message = "does not name release 20260929 as its base"
+    elif defect == "base_sha256":
+        receipt["base_sha256"] = "0" * 64
+        message = "does not name release 20260929 as its base"
     else:
         receipt["release_tag"] = driver.BASE_TAG
     (stage / "release-ready.json").write_text(json.dumps(receipt))
