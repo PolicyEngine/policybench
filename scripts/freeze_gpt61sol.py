@@ -37,6 +37,8 @@ BOARD_MODELS = driver.BOARD_MODELS
 # Frozen serving evidence names the supervised run by its runs root and slug.
 EVIDENCE_RUN_ROOT = "adds202609"
 ADJUDICATIONS = "us_adjudications.json"
+# The published annotations the adjudications and amendments are applied to.
+ANNOTATION_CSVS = ("us_audit_row_annotations.csv", "us_case_notes.csv")
 
 
 def read_json(path: Path) -> dict:
@@ -56,6 +58,36 @@ def digest(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             value.update(block)
     return value.hexdigest()
+
+
+def judged_cases(audit: Path) -> list[str]:
+    """The cases validate_verdicts requires a verdict for, from the manifest.
+
+    A stage without a manifest has none; the receipt then fails to bind
+    audit/cases.jsonl.
+    """
+    manifest = audit / "cases.jsonl"
+    if not manifest.is_file():
+        return []
+    items = map(json.loads, manifest.read_text().splitlines())
+    return [item["case_id"] for item in items if not item["parse_failure_only"]]
+
+
+def verify_verdicts(stage: Path) -> None:
+    """Every judged verdict passes the driver's own gate against the bound seed.
+
+    Export validates verdicts before it writes the receipt, but the receipt
+    only binds hashes: a kept verdict edited afterwards, its sidecar and
+    receipt entry re-hashed, must still be the seed's byte for byte, and every
+    new one bound to its prompt and its Opus 5.5 judge. Without
+    ``remove_invalid`` validate_verdicts changes nothing.
+    """
+    pending = driver.validate_verdicts(stage / "audit", seed=driver.load_seed(stage))
+    if pending:
+        raise SystemExit(
+            f"{len(pending)} staged verdicts fail validation: {pending[:8]}; "
+            "run judge and export again"
+        )
 
 
 def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
@@ -92,11 +124,20 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
     bundle = Path("publish") / RUN
     required = [bundle / "us" / name for name in driver.REFERENCE_FILES]
     required += [bundle / "us/predictions.csv", bundle / "annotations" / ADJUDICATIONS]
+    required += [bundle / "annotations" / name for name in ANNOTATION_CSVS]
     required += [Path("inputs") / slug / "run_state.json" for slug in NEW_MODELS]
     # What the adjudication and verdict gates allow rests on these.
     required += [Path(driver.PROMPT_CHANGES), Path("stage.json")]
     if (stage / driver.AMENDMENTS).exists():
         required.append(Path(driver.AMENDMENTS))
+    # Every judged case's audit evidence, as validate_verdicts reads it: an
+    # unbound verdict or sidecar could be edited and re-hashed after export.
+    required += [Path("audit/cases.jsonl"), Path("audit/schema.json")]
+    required += [
+        Path("audit/cases") / case / name
+        for case in judged_cases(stage / "audit")
+        for name in ("verdict.json", "verdict.meta.json", "prompt.md")
+    ]
     unbound = [str(p) for p in required if str(p) not in receipt["files"]]
     if unbound:
         raise SystemExit(f"Strict export receipt does not bind: {unbound}")
@@ -309,6 +350,7 @@ def main(argv: list[str] | None = None) -> None:
     source_us = source_run / "us"
     verify_references(source_us, frozen_run, read_json(snapshot / "manifest.json"))
     staged_annotations = source_run / "annotations"
+    verify_verdicts(stage)
     rejudged = driver.rejudged_cases(stage)
     amendments = driver.load_amendments(stage, rejudged)
     added = verify_adjudication_record(

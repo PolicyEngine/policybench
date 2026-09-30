@@ -10,6 +10,7 @@ import copy
 import csv
 import hashlib
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -23,13 +24,70 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import finish_gpt61sol as driver  # noqa: E402
 import freeze_gpt61sol as release  # noqa: E402
 
+from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
+
 RUN = driver.RUN_NAME
 BUNDLE = Path("publish") / RUN
 COMMITTED_ADJUDICATIONS = driver.ANNOTATIONS / "us_adjudications.json"
+# The synthetic stage's one judged case, an incumbent-only case kept from the
+# seed, and the audit evidence the receipt must bind for it.
+KEPT = "us__scenario_000__snap"
+AUDIT_EVIDENCE = [Path("audit/cases.jsonl"), Path("audit/schema.json")] + [
+    Path("audit/cases") / KEPT / name
+    for name in ("prompt.md", "verdict.json", "verdict.meta.json")
+]
+ANNOTATION_CSVS = [
+    BUNDLE / "annotations" / name
+    for name in ("us_audit_row_annotations.csv", "us_case_notes.csv")
+]
 
 
 def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_audit(audit: Path) -> None:
+    """One judged, kept case with a bound seed verdict; one parse-only case,
+    which is never judged and so needs no verdict."""
+    case = audit / "cases" / KEPT
+    case.mkdir(parents=True)
+    (audit / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA))
+    manifest = [
+        {"case_id": KEPT, "wrong_models": ["incumbent"], "parse_failure_only": False},
+        {
+            "case_id": "us__scenario_001__snap",
+            "wrong_models": ["incumbent"],
+            "parse_failure_only": True,
+        },
+    ]
+    (audit / "cases.jsonl").write_text(
+        "".join(json.dumps(item) + "\n" for item in manifest)
+    )
+    (case / "prompt.md").write_text("Classify these wrong answers.\n")
+    verdict = {
+        "reference_suspect": False,
+        "reference_bug_hypothesis": "",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "rationale": "The model applied an outdated threshold.",
+        "models": [
+            {
+                "model": "incumbent",
+                "failure_source": "llm_error",
+                "failure_subtype": "thresholds_rates",
+                "diagnosis": "The model used the prior year's threshold.",
+            }
+        ],
+    }
+    (case / "verdict.json").write_text(json.dumps(verdict))
+    (case / "verdict.meta.json").write_text(
+        json.dumps(
+            {
+                "verdict_sha256": sha(case / "verdict.json"),
+                "judge_model_requested": "default",
+            }
+        )
+    )
 
 
 def test_the_freeze_adds_gpt61sol_alone_under_the_driver_tag():
@@ -49,12 +107,14 @@ def freeze_preflight(tmp_path, monkeypatch):
     evidence = [
         BUNDLE / "us" / name for name in (*driver.REFERENCE_FILES, "predictions.csv")
     ]
-    evidence += [BUNDLE / "annotations/us_adjudications.json"]
-    evidence += [Path("inputs/gpt61sol/run_state.json"), Path("audit/verdict.json")]
+    evidence += [BUNDLE / "annotations/us_adjudications.json", *ANNOTATION_CSVS]
+    evidence += [Path("inputs/gpt61sol/run_state.json")]
     evidence += [Path(driver.PROMPT_CHANGES), Path("stage.json")]
     for name in evidence:
         (stage / name).parent.mkdir(parents=True, exist_ok=True)
         (stage / name).write_text(f"Evidence: {name.name}\n")
+    write_audit(stage / "audit")
+    evidence += AUDIT_EVIDENCE
     (stage / driver.PROMPT_CHANGES).write_text(
         json.dumps({"added": [], "changed": [], "kept": []})
     )
@@ -122,7 +182,7 @@ def test_freeze_refuses_changed_or_unbound_evidence(freeze_preflight, defect):
     stage, _, receipt = freeze_preflight
     message = "Strict export receipt does not match"
     if defect == "changed":
-        (stage / "audit/verdict.json").write_text("Altered judge evidence\n")
+        (stage / "audit/cases" / KEPT / "verdict.json").write_text("Altered\n")
         message = "Staged evidence changed"
     elif defect == "outside_stage":
         path = release.ROOT / "app/src/data.artifact.json"
@@ -170,6 +230,23 @@ def test_the_receipt_must_bind_references_adjudications_and_run_state(
         release.main(["--stage-dir", str(stage), "--dry-run"])
 
 
+@pytest.mark.parametrize(
+    "unbound", [str(path) for path in (*AUDIT_EVIDENCE, *ANNOTATION_CSVS)]
+)
+def test_the_receipt_must_bind_every_judged_case_and_both_annotation_csvs(
+    freeze_preflight, unbound
+):
+    """Without its receipt entry, a kept verdict or sidecar could be edited
+    and re-hashed after export; the freeze refuses the missing entry."""
+    stage, _, receipt = freeze_preflight
+    del receipt["files"][unbound]
+    (stage / "release-ready.json").write_text(json.dumps(receipt))
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=f"does not bind.*{re.escape(unbound)}"):
+        release.main(["--stage-dir", str(stage), "--dry-run"])
+    assert workspace_files() == before
+
+
 def test_wording_amendments_present_in_the_stage_must_be_bound(freeze_preflight):
     stage, _, _ = freeze_preflight
     (stage / driver.AMENDMENTS).write_text(json.dumps({"amendments": []}))
@@ -186,6 +263,10 @@ def staged_board(freeze_preflight, monkeypatch):
     # A synthetic stage binds no seed; the re-derived case list is tested in
     # test_finish_gpt61sol.py.
     monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset())
+    # The seed stage.json binds is the synthetic audit as written: its one
+    # judged case is kept, so its verdict must stay the seed's.
+    seed = driver.seed_digest(stage / "audit")
+    monkeypatch.setattr(driver, "load_seed", lambda stage: seed)
     snapshot = release.ROOT / "paper/snapshot/20260501"
     frozen = snapshot / "runs" / RUN
     frozen.mkdir(parents=True)
@@ -230,6 +311,38 @@ def test_the_freeze_refuses_incumbent_stats_edited_after_export(staged_board, dr
     rebind()
     before = workspace_files()
     with pytest.raises(SystemExit, match=f"modelStats drift.*{row['model']}"):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("defect", ["edited_kept", "unbound_new"])
+def test_the_freeze_refuses_a_verdict_edited_after_export(
+    staged_board, monkeypatch, defect, dry_run
+):
+    """Export validates the verdicts before it writes the receipt. A kept
+    verdict edited afterwards, its classes kept, its sidecar and its receipt
+    entry re-hashed, must still be refused before any workspace mutation; so
+    must a verdict the seed does not carry that is bound to no prompt."""
+    stage, rebind = staged_board
+    for name in driver.REFERENCE_FILES:
+        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    case = stage / "audit/cases" / KEPT
+    if defect == "edited_kept":
+        verdict = json.loads((case / "verdict.json").read_text())
+        verdict["rationale"] = "A rationale the judge never wrote."
+        verdict["models"][0]["diagnosis"] = "A diagnosis the judge never wrote."
+        (case / "verdict.json").write_text(json.dumps(verdict))
+        meta = json.loads((case / "verdict.meta.json").read_text())
+        meta["verdict_sha256"] = sha(case / "verdict.json")
+        (case / "verdict.meta.json").write_text(json.dumps(meta))
+        message = f"carried-over verdicts differ.*{KEPT}"
+    else:
+        monkeypatch.setattr(driver, "load_seed", lambda stage: {})
+        message = f"fail validation.*{KEPT}"
+    rebind()
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=message):
         release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
     assert workspace_files() == before
 
