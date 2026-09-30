@@ -226,6 +226,44 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "is $0.057 per scenario at $4/$20 per 1M with $0.20 cache reads."
         ),
     ),
+    # Every field below comes from the 2026-09-28 onboarding record in
+    # results/local/adds202609/sonnet55/ (sonnet55_onboard.json, the
+    # thinking-default probe, and the Models API entry):
+    # - answer_contract "json": forced tool use returns a 400, so the
+    #   forced-tool board request cannot be sent; the JSON contract passed.
+    # - explanation_chunk_size None: 16/16 on the canonical whole-scenario
+    #   request (chunking is closed to new models anyway).
+    # - thinking_budget True: a request with no thinking parameter returns a
+    #   thinking block, so the row reasons at the API default (adaptive
+    #   thinking, effort high) and thinking bills against the answer budget.
+    # - request_timeout_seconds 600: the value the other JSON-contract
+    #   thinking rows (Fable 5.1, Opus 5.5) carry; the slowest probe took 17s,
+    #   under the gauntlet's own 150s trigger for a longer timeout.
+    # - provider_max_completion_tokens 128_000: the Models API max_tokens.
+    # - expected_cost_per_scenario_usd 0.027: the gauntlet's full-scenario
+    #   probe at $2/$10 per 1M.
+    "claude-sonnet-5-5": ModelCard(
+        litellm_id="claude-sonnet-5-5",
+        answer_contract="json",
+        request_timeout_seconds=600,
+        thinking_budget=True,
+        provider_max_completion_tokens=128_000,
+        expected_cost_per_scenario_usd=0.027,
+        notes=(
+            "Onboarded 2026-09-28, release day (the Models API lists the id "
+            "with created_at 2026-09-28). The API rejects forced tool use on "
+            "this model with a 400 (tool_choice type tool/any 'not supported "
+            "for this model'), as on Opus 5.5 and Fable 5.1, and a request "
+            "with no thinking parameter returns a thinking block (108 of 115 "
+            "output tokens on a one-question probe), so the row reasons at "
+            "the provider default (adaptive thinking, effort high) and runs "
+            "the JSON contract whole-scenario on the sync path (the batch "
+            "adapter supports the forced tool contract only). Gauntlet: 3/3 "
+            "and 16/16 parsed (1,523 and 2,389 completion tokens, 11s and "
+            "17s); the gauntlet's cost estimate is $0.027 per scenario at "
+            "$2/$10 per 1M with $0.20 cache reads."
+        ),
+    ),
     "xai/grok-4.5": ModelCard(
         litellm_id="xai/grok-4.5",
         answer_contract="tool",
@@ -253,6 +291,22 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "per 1M (litellm map). The 100-scenario run cost $8.70."
         ),
     ),
+    "xai/grok-4.7": ModelCard(
+        litellm_id="xai/grok-4.7",
+        answer_contract="tool",
+        request_timeout_seconds=1800,
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.2,
+        notes=(
+            "Onboarded 2026-09-28: forced tool contract passed 3/3 (247s, "
+            "19,125 tokens) and 16/16 whole-scenario (472s, 32,960 tokens). "
+            "A first attempt with a 600s timeout passed 3/3 in 454s (39,192 "
+            "tokens) and then timed out on the whole-scenario probe, so "
+            "latency sits near 600s and the timeout is 1800s. Heavier than "
+            "Grok 4.6 (26,260 tokens on the 3-variable probe); at $2/$6 per "
+            "1M the gauntlet estimates $0.20 per scenario."
+        ),
+    ),
     "deepseek/deepseek-v4-pro": ModelCard(
         litellm_id="deepseek/deepseek-v4-pro",
         answer_contract="json",
@@ -264,6 +318,20 @@ MODEL_CARDS: dict[str, ModelCard] = {
         litellm_id="deepseek/deepseek-v4-flash",
         answer_contract="json",
         thinking_budget=True,
+    ),
+    "deepseek/deepseek-flash": ModelCard(
+        litellm_id="deepseek/deepseek-flash",
+        answer_contract="json",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.017,
+        notes=(
+            "Onboarded 2026-09-28 as DeepSeek V4.1 Flash (the deepseek-flash "
+            "name). The forced tool contract is rejected in thinking mode "
+            "('Thinking mode does not support this tool_choice'), as for the "
+            "V4 rows; the JSON contract passed 3/3 (80s, 19,313 tokens) and "
+            "16/16 whole-scenario (56s, 13,789 tokens). Thinking stays at "
+            "the provider default (on). Priced at the peak list rate."
+        ),
     ),
     "openrouter/moonshotai/kimi-k2.6": ModelCard(
         litellm_id="openrouter/moonshotai/kimi-k2.6",

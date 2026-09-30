@@ -49,10 +49,108 @@ from policybench.reference_exclusions import (
 )
 from policybench.reference_exclusions import FILENAME as EXCLUSIONS_FILENAME
 from policybench.snapshot_payload import read_run_payload
+from policybench.spec import metric_type_for_output
 
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
+
+UPGRADE_VERIFICATION = ROOT / "reference_audit" / "2026-09-28" / "verification"
+# The sweep that rechecked every reference on the newest policyengine-us
+# release when PolicyBench checked PyPI before publishing, with the fix module
+# the references were built with.
+PUBLICATION_CHECK_SWEEP = UPGRADE_VERIFICATION / "latest_final_2170.csv"
+# When the reference sweep began, each release's PyPI upload time, and when
+# PolicyBench read PyPI for the publication check.
+SWEEP_TIMING = UPGRADE_VERIFICATION / "sweep_timing.json"
+# What each exclusion sweep re-run on the reference engine moves.
+RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
+
+NUMBER_WORDS = {
+    0: "no",
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten",
+}
+
+
+def moves_beyond_tolerance(variable: str, before: float, after: float) -> bool:
+    """Whether a value change leaves the exact-match tolerance: more than $1
+    for an amount output, any change for a 0/1 flag."""
+    if metric_type_for_output(variable) == "amount":
+        return abs(after - before) > 1
+    return after != before
+
+
+def partition_rerun_sweep_moves(
+    summary: dict, excluded: frozenset[tuple[str, str]] | set[tuple[str, str]]
+) -> dict[str, list[tuple[str, str, str]]]:
+    """Split what the re-run sweeps move (verification/rerun_sweeps.json).
+
+    Each listed move is (sweep, scenario_id, variable), compared with the
+    sweep's own baseline (the same calculation without its fix or reading):
+    scored outputs beyond the exact-match tolerance, scored outputs moved
+    within it, and excluded outputs.
+    """
+    groups: dict[str, list[tuple[str, str, str]]] = {
+        "scored_beyond_tolerance": [],
+        "scored_within_tolerance": [],
+        "excluded": [],
+    }
+    for sweep in summary["sweeps"]:
+        for move in sweep["moves"]:
+            if move["recomputed"] == move["baseline"]:
+                continue
+            key = (sweep["sweep"], move["scenario_id"], move["variable"])
+            if (move["scenario_id"], move["variable"]) in excluded:
+                groups["excluded"].append(key)
+            elif moves_beyond_tolerance(
+                move["variable"], move["baseline"], move["recomputed"]
+            ):
+                groups["scored_beyond_tolerance"].append(key)
+            else:
+                groups["scored_within_tolerance"].append(key)
+    return groups
+
+
+def partition_engine_upgrade_changes(
+    changes: list[dict], excluded: frozenset[tuple[str, str]] | set[tuple[str, str]]
+) -> dict[str, list[dict]]:
+    """Split an engine upgrade's changed outputs into three disjoint groups.
+
+    A change to an output the exclusion record now lists is a new exclusion.
+    A scored change moves beyond the exact-match tolerance ($1 for an amount,
+    any change for a 0/1 flag) or within it. Every change lands in exactly one
+    group, so the three counts add up to the revision's changed list.
+    """
+    partition: dict[str, list[dict]] = {
+        "scored_changes": [],
+        "within_tolerance": [],
+        "new_exclusions": [],
+    }
+    for change in changes:
+        if (change["scenario_id"], change["variable"]) in excluded:
+            partition["new_exclusions"].append(change)
+            continue
+        moved = abs(change["regenerated"] - change["previous"])
+        amount = metric_type_for_output(change["variable"]) == "amount"
+        beyond = moved > 1 if amount else moved > 0
+        partition["scored_changes" if beyond else "within_tolerance"].append(change)
+    if sum(len(group) for group in partition.values()) != len(changes):
+        raise AssertionError(
+            "engine upgrade partition lost or duplicated a change: "
+            f"{ {name: len(group) for name, group in partition.items()} } "
+            f"of {len(changes)}"
+        )
+    return partition
+
 
 # Human-readable model names for the frozen roster. Aliases that do not
 # appear here fall back to a humanized form of the PolicyBench id.
@@ -65,14 +163,17 @@ MODEL_DISPLAY_NAMES = {
     "gpt-5.6-luna": "GPT-5.6 Luna",
     "claude-fable-5.1": "Claude Fable 5.1",
     "claude-opus-5.5": "Claude Opus 5.5",
+    "claude-sonnet-5.5": "Claude Sonnet 5.5",
     "claude-fable-5": "Claude Fable 5",
     "claude-sonnet-5": "Claude Sonnet 5",
     "ox-alpha": "GLM-5.3-Flash (preview)",
     "grok-4.5": "Grok 4.5",
     "grok-4.6": "Grok 4.6",
+    "grok-4.7": "Grok 4.7",
     "deepseek-v4-pro": "DeepSeek V4 Pro",
     "deepseek-v4-pro-0813": "DeepSeek V4 Pro 0813",
     "deepseek-v4-flash-0731": "DeepSeek V4 Flash 0731",
+    "deepseek-v4.1-flash": "DeepSeek V4.1 Flash",
     "claude-opus-5": "Claude Opus 5",
     "gemini-3.8-flash": "Gemini 3.8 Flash",
     "gemini-3.7-flash": "Gemini 3.7 Flash",
@@ -210,6 +311,14 @@ class PaperResults:
         return meta["policyengine_bundles"]["us"]
 
     @cached_property
+    def sample_bundle(self) -> dict:
+        """Runtime metadata of the scenario draw: the certified dataset build
+        the benchmark households were sampled from."""
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        meta = json.loads((run_dir / "scenarios.csv.meta.json").read_text())
+        return meta["policyengine_bundles"]["us"]
+
+    @cached_property
     def model_stats(self) -> list[dict]:
         """No-tools model rows, ranked by the exact-match headline metric.
 
@@ -342,7 +451,8 @@ class PaperResults:
 
     @property
     def policyengine_version(self) -> str:
-        """policyengine.py version that generated the reference outputs."""
+        """policyengine.py version the reference sidecar records for provenance;
+        the references themselves come from policyengine_us.Simulation."""
         return self.manifest["reference_output_refresh"]["policyengine_version"]
 
     @property
@@ -350,20 +460,29 @@ class PaperResults:
         return self.manifest["reference_output_refresh"]["policyengine_us_version"]
 
     @property
+    def reference_rebuilt_date(self) -> str:
+        """UTC date the frozen references were last regenerated."""
+        refresh = self.manifest["reference_output_refresh"]
+        return (refresh.get("regenerated_at_utc") or refresh["generated_at_utc"])[:10]
+
+    # The dataset accessors describe the households' source: the certified
+    # build the scenario draw sampled (and the population weights use). The
+    # manifest's reference_output_refresh records the reference runtime's
+    # default dataset instead, which computing a household's references never
+    # reads and which can be a later build.
+    @property
     def dataset_id(self) -> str:
         """Populace dataset name, e.g. ``populace_us_2024``."""
-        return self.manifest["reference_output_refresh"]["policyengine_us_dataset"]
+        return self.sample_bundle["default_dataset"]
 
     @property
     def dataset_build_id(self) -> str:
         """Certified populace build id, e.g. ``populace-us-2024-5da5a95-20260611``."""
-        return self.manifest["reference_output_refresh"][
-            "policyengine_us_data_build_id"
-        ]
+        return self.sample_bundle["certified_data_build_id"]
 
     @property
     def dataset_uri(self) -> str:
-        return self.manifest["reference_output_refresh"]["policyengine_us_dataset_uri"]
+        return self.sample_bundle["default_dataset_uri"]
 
     @property
     def dataset_label(self) -> str:
@@ -1171,12 +1290,214 @@ class PaperResults:
 
     @property
     def regenerated_reference_keys(self) -> set[tuple[str, str]]:
-        """Scored outputs a convention or an upstream fix regenerated."""
+        """Scored outputs a convention or an upstream fix regenerated.
+
+        These are the September 22 regenerations, made on the engine version
+        before the upgrade; the engine upgrade's own changes are counted by the
+        ``engine_upgrade_*`` properties.
+        """
         return {
             (change["scenario_id"], change.get("variable", "snap"))
             for revision in self.reference_revisions
+            if revision.get("kind", "convention") in {"convention", "upstream_fix"}
             for change in revision["changed"]
         }
+
+    @cached_property
+    def engine_upgrade_revision(self) -> dict | None:
+        """The sidecar revision that moved the references to a newer engine."""
+        upgrades = [
+            revision
+            for revision in self.reference_revisions
+            if revision.get("kind") == "engine_upgrade"
+        ]
+        return upgrades[-1] if upgrades else None
+
+    @property
+    def previous_policyengine_us_version(self) -> str:
+        """policyengine-us version behind the references before the upgrade,
+        the version the September 22 audit ran on."""
+        revision = self.engine_upgrade_revision
+        if revision is None:
+            return self.policyengine_us_version
+        return revision["previous_engine_version"].removeprefix("policyengine-us ")
+
+    @property
+    def engine_upgrade_date(self) -> str:
+        """UTC date PolicyBench rebuilt the references on the new engine: the
+        sidecar's ``regenerated_at_utc`` day, which is also the revision's own
+        ``date`` (tests/test_paper_results.py checks they agree)."""
+        if self.engine_upgrade_revision is None:
+            return ""
+        return self.reference_rebuilt_date
+
+    def _engine_upgrade_changes(self) -> list[dict]:
+        revision = self.engine_upgrade_revision
+        return [] if revision is None else revision["changed"]
+
+    @cached_property
+    def engine_upgrade_partition(self) -> dict[str, list[dict]]:
+        """The upgrade's changed outputs, split into scored changes beyond the
+        exact-match tolerance, scored changes within it, and new exclusions."""
+        return partition_engine_upgrade_changes(
+            self._engine_upgrade_changes(), self._excluded_output_keys
+        )
+
+    @property
+    def engine_upgrade_scored_change_count(self) -> int:
+        """Scored references the upgrade moved beyond the exact-match tolerance."""
+        return len(self.engine_upgrade_partition["scored_changes"])
+
+    @property
+    def engine_upgrade_within_tolerance_count(self) -> int:
+        """Scored references the upgrade moved within the $1 tolerance."""
+        return len(self.engine_upgrade_partition["within_tolerance"])
+
+    @property
+    def engine_upgrade_new_exclusion_count(self) -> int:
+        """Outputs scored before the upgrade that it removed from scoring."""
+        return len(self.engine_upgrade_partition["new_exclusions"])
+
+    @property
+    def excluded_outputs_by_engine_version(self) -> dict[str, int]:
+        """Excluded outputs by the policyengine-us version behind the value
+        each keeps: the version its exclusion was decided on."""
+        return dict(
+            Counter(
+                entry["engine_version"].removeprefix("policyengine-us ")
+                for entry in self.reference_exclusions
+            )
+        )
+
+    @property
+    def excluded_outputs_on_previous_engine_count(self) -> int:
+        return self.excluded_outputs_by_engine_version.get(
+            self.previous_policyengine_us_version, 0
+        )
+
+    @property
+    def excluded_outputs_on_reference_engine_count(self) -> int:
+        return self.excluded_outputs_by_engine_version.get(
+            self.policyengine_us_version, 0
+        )
+
+    @cached_property
+    def publication_check_policyengine_us_version(self) -> str:
+        """policyengine-us release of the sweep that rechecked every reference
+        before publication (reference_audit/2026-09-28/verification)."""
+        with PUBLICATION_CHECK_SWEEP.open(newline="") as source:
+            engines = {row["engine"] for row in csv.DictReader(source)}
+        if len(engines) != 1:
+            raise ValueError(f"{PUBLICATION_CHECK_SWEEP} mixes engines: {engines}")
+        return engines.pop()
+
+    @cached_property
+    def sweep_timing(self) -> dict:
+        """reference_audit/2026-09-28/verification/sweep_timing.json."""
+        return json.loads(SWEEP_TIMING.read_text())
+
+    @property
+    def reference_engine_uploaded_utc(self) -> str:
+        """PyPI upload time (UTC, HH:MM) of the reference engine's wheel."""
+        uploaded = self.sweep_timing["pypi"]["wheel_uploaded_at_utc"]
+        return uploaded[self.policyengine_us_version][11:16]
+
+    @property
+    def publication_check_pypi_read_date(self) -> str:
+        """UTC day PolicyBench read PyPI for the publication check."""
+        pypi = self.sweep_timing["pypi"]
+        if pypi["newest_at_read"] != self.publication_check_policyengine_us_version:
+            raise ValueError(
+                f"{SWEEP_TIMING} names {pypi['newest_at_read']} as newest, but the "
+                f"check ran {self.publication_check_policyengine_us_version}"
+            )
+        return pypi["read_at_utc"][:10]
+
+    @property
+    def publication_check_pypi_read_utc(self) -> str:
+        """Time (UTC, HH:MM) PolicyBench read PyPI for the publication check."""
+        return self.sweep_timing["pypi"]["read_at_utc"][11:16]
+
+    @cached_property
+    def rerun_sweeps(self) -> dict:
+        """reference_audit/2026-09-28/verification/rerun_sweeps.json."""
+        return json.loads(RERUN_SWEEPS.read_text())
+
+    @cached_property
+    def rerun_sweep_partition(self) -> dict[str, list[tuple[str, str, str]]]:
+        return partition_rerun_sweep_moves(
+            self.rerun_sweeps, self._excluded_output_keys
+        )
+
+    @property
+    def rerun_sweep_september_22_count(self) -> int:
+        """Sweeps of the September 22 audit re-run on the reference engine."""
+        return sum(
+            1
+            for sweep in self.rerun_sweeps["sweeps"]
+            if sweep["september_22_root_cause"] is not None
+        )
+
+    @property
+    def rerun_sweep_september_22_count_word(self) -> str:
+        return NUMBER_WORDS[self.rerun_sweep_september_22_count]
+
+    @property
+    def rerun_sweep_new_count(self) -> int:
+        """Sweeps first run on the reference engine."""
+        return sum(
+            1
+            for sweep in self.rerun_sweeps["sweeps"]
+            if sweep["september_22_root_cause"] is None
+        )
+
+    @property
+    def rerun_sweep_scored_beyond_tolerance_count(self) -> int:
+        return len(self.rerun_sweep_partition["scored_beyond_tolerance"])
+
+    @property
+    def rerun_sweep_scored_within_tolerance_count(self) -> int:
+        return len(self.rerun_sweep_partition["scored_within_tolerance"])
+
+    @property
+    def rerun_sweep_scored_within_tolerance_count_word(self) -> str:
+        return NUMBER_WORDS[self.rerun_sweep_scored_within_tolerance_count]
+
+    @cached_property
+    def rerun_sweep_new_excluded_outputs(self) -> list[tuple[str, str]]:
+        """Outputs that a sweep first run on the reference engine moves
+        beyond the exact-match tolerance, against its own baseline, and that
+        the exclusion record did not hold before the upgrade (no exclusion
+        decided on the previous engine)."""
+        previous = f"policyengine-us {self.previous_policyengine_us_version}"
+        held_before = {
+            (entry["scenario_id"], entry["variable"])
+            for entry in self.reference_exclusions
+            if entry["engine_version"] == previous
+        }
+        return sorted(
+            {
+                (move["scenario_id"], move["variable"])
+                for sweep in self.rerun_sweeps["sweeps"]
+                if sweep["september_22_root_cause"] is None
+                for move in sweep["moves"]
+                if (move["scenario_id"], move["variable"]) not in held_before
+                and moves_beyond_tolerance(
+                    move["variable"], move["baseline"], move["recomputed"]
+                )
+            }
+        )
+
+    @property
+    def rerun_sweep_new_excluded_count_word(self) -> str:
+        return NUMBER_WORDS[len(self.rerun_sweep_new_excluded_outputs)]
+
+    @property
+    def engine_upgrade_rechecked_count(self) -> int:
+        """Excluded outputs whose value moved on the new engine and were
+        re-reviewed; they stay excluded."""
+        revision = self.engine_upgrade_revision
+        return 0 if revision is None else len(revision["excluded_outputs_rechecked"])
 
     def _regenerated_keys_of_kind(self, kind: str) -> set[tuple[str, str]]:
         return {
@@ -1421,6 +1742,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # Models API created_at 2026-09-21 (api.anthropic.com/v1/models, read
     # 2026-09-22)
     "claude-opus-5.5": "2026-09-21",
+    # platform.claude.com/docs/en/models/sonnet-5-5/overview ("Released
+    # September 28, 2026"); Models API created_at 2026-09-28
+    # (api.anthropic.com/v1/models, read 2026-09-28)
+    "claude-sonnet-5.5": "2026-09-28",
     # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
     "claude-fable-5": "2026-06-09",
     # announced and available 2026-07-24 (fortune.com, bloomberg.com,
@@ -1481,6 +1806,11 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "grok-4.5": "2026-07-08",
     # x.ai/news/grok-4-6 (2026-08-12)
     "grok-4.6": "2026-08-12",
+    # x.ai/news/grok-4-7 (2026-09-21; the post puts the model in Cursor, Grok
+    # Build and the Grok API that day). The API's language-models record
+    # carries created 2026-09-02; like grok-4.6's (created 2026-08-06), that
+    # predates the public launch and is not a release date.
+    "grok-4.7": "2026-09-21",
     # API public beta per secondary trackers (bighatgroup.com xai-weekly
     # 2026-06-03); no vendor-dated announcement exists
     "grok-build-0.1": "2026-05-29",
@@ -1493,6 +1823,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # unsloth.ai/docs/models/deepseek-v4 (2026-07-31, 2026-08-13)
     "deepseek-v4-flash-0731": "2026-07-31",
     "deepseek-v4-pro-0813": "2026-08-13",
+    # api-docs.deepseek.com/news/news260910 ("DeepSeek-V4.1-Flash Release
+    # 2026/09/10", live on the API as deepseek-flash; MIT weights at
+    # huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash, created 2026-09-10)
+    "deepseek-v4.1-flash": "2026-09-10",
     # verdent.ai kimi-k2.6 guide; huggingface.co/moonshotai/Kimi-K2.6
     "kimi-k2.6": "2026-04-20",
     # simonwillison.net/2026/Jul/16/kimi-k3 (API launch; weights announced
@@ -1526,9 +1860,11 @@ MODEL_RELEASE_DATES: dict[str, str] = {
 # Models whose weights are publicly downloadable. GLM-5.3's weights shipped
 # 2026-08-28 under the GLM-5.3 License (MIT-style with a security-review
 # condition for the largest Model-as-a-Service providers), two weeks after
-# its API launch; the dated DeepSeek V4 checkpoints are MIT. Ox Alpha is not
-# marked: the preview checkpoint itself was never published, and Z.ai's later
-# identification of it as GLM-5.3-Flash is not a weights release of that row.
+# its API launch; the dated DeepSeek V4 checkpoints and DeepSeek V4.1 Flash
+# (huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash, 2026-09-10) are MIT.
+# Ox Alpha is not marked: the preview checkpoint itself was never
+# published, and Z.ai's later identification of it as GLM-5.3-Flash is
+# not a weights release of that row.
 # Qwen 3.7 Max and 3.8 Max
 # are API-only as of 2026-08-03 (3.8's weights are promised but unpublished);
 # Kimi K3's weights shipped on Hugging Face 2026-07-26/27 under a custom
@@ -1539,6 +1875,7 @@ OPEN_WEIGHT_MODELS: frozenset[str] = frozenset(
         "deepseek-v4-flash",
         "deepseek-v4-flash-0731",
         "deepseek-v4-pro-0813",
+        "deepseek-v4.1-flash",
         "kimi-k2.6",
         "kimi-k3",
         "glm-5.2",

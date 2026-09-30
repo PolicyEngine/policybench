@@ -1363,15 +1363,96 @@ def read_reference_refresh() -> dict[str, str | int]:
     bundle = meta["policyengine_bundles"]["us"]
     # ``date`` is when the references were generated (the sidecar's own
     # timestamp), not when the snapshot was published: the reference CSV is
-    # byte-identical across the August and September freezes.
-    return {
-        "date": meta["generated_at_utc"][:10],
+    # byte-identical across freezes until it is regenerated, and a
+    # regeneration (the 2026-09-29 engine upgrade) records regenerated_at_utc.
+    regenerated = meta.get("regenerated_at_utc")
+    refresh = {
+        "date": (regenerated or meta["generated_at_utc"])[:10],
         "generated_at_utc": meta["generated_at_utc"],
         "snapshot_date": SNAPSHOT_DATE,
         "reference_csv_sha256": sha256_file(RUN_DEST / "reference_outputs.csv"),
         "row_count": len(pd.read_csv(RUN_DEST / "reference_outputs.csv")),
         "policyengine_version": bundle["policyengine_version"],
         "policyengine_us_version": bundle["model_version"],
+        "policyengine_us_data_build_id": bundle["certified_data_build_id"],
+        "policyengine_us_dataset": bundle["default_dataset"],
+        "policyengine_us_dataset_uri": bundle["default_dataset_uri"],
+        "policyengine_us_data_artifact_sha256": bundle[
+            "certified_data_artifact_sha256"
+        ],
+    }
+    if regenerated:
+        refresh["regenerated_at_utc"] = regenerated
+    return refresh
+
+
+NUMBER_WORDS = {
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten",
+    11: "eleven",
+    12: "twelve",
+}
+# The engine upgrade's modules: the publication conventions re-expressed for
+# the new engine (latest_c_*.py), the module composing them, and the adapter
+# that keeps Maryland county income tax out of the state income tax output.
+CONVENTION_MODULE_PREFIX = "latest_c_"
+CONVENTIONS_COMPOSER = "latest_conventions.py"
+OUTPUT_SCOPE_ADAPTERS = ("latest_md_local_output_scope.py",)
+# The scenario builder's alias the upgrade records: stated usual weekly hours
+# also reach the input SNAP's work rules read.
+STATED_HOURS_INPUT = "weekly_hours_worked_before_lsr"
+
+
+def read_reference_engine_setup() -> dict[str, int]:
+    """What each scored reference depends on beyond the engine and the
+    household's inputs, as the sidecar's engine_upgrade revision pins it.
+
+    Raises when the revision's modules or builder note are not the ones the
+    manifest's reproducibility note describes, so the note cannot drift from
+    the record.
+    """
+    meta = json.loads(REFERENCE_META_SOURCE.read_text())
+    upgrades = [
+        r for r in meta.get("revisions", []) if r.get("kind") == "engine_upgrade"
+    ]
+    if len(upgrades) != 1 or meta["revisions"][-1] is not upgrades[0]:
+        raise SystemExit(
+            "the reference sidecar needs one final engine_upgrade revision"
+        )
+    upgrade = upgrades[0]
+    modules = [entry["module"] for entry in upgrade["fix_modules"]]
+    conventions = [m for m in modules if m.startswith(CONVENTION_MODULE_PREFIX)]
+    others = sorted(set(modules) - set(conventions))
+    if others != sorted({CONVENTIONS_COMPOSER, *OUTPUT_SCOPE_ADAPTERS}):
+        raise SystemExit(f"unexpected engine_upgrade fix_modules: {others}")
+    if STATED_HOURS_INPUT not in upgrade.get("builder", ""):
+        raise SystemExit("the engine_upgrade builder note names no stated-hours alias")
+    return {
+        "convention_count": len(conventions),
+        "output_scope_adapter_count": len(OUTPUT_SCOPE_ADAPTERS),
+    }
+
+
+def read_household_dataset() -> dict[str, str]:
+    """The certified dataset build the benchmark households were drawn from.
+
+    The scenario draw records it in scenarios.csv.meta.json. The reference
+    sidecar's bundle names the reference runtime's default dataset instead,
+    which computing a household's references never reads: each reference comes
+    from ``policyengine_us.Simulation`` on the household's own listed inputs.
+    """
+    meta = json.loads((RUN_DEST / "scenarios.csv.meta.json").read_text())
+    bundle = meta["policyengine_bundles"]["us"]
+    return {
+        "source": f"runs/{RUN_LABEL}/scenarios.csv.meta.json",
         "policyengine_us_data_build_id": bundle["certified_data_build_id"],
         "policyengine_us_dataset": bundle["default_dataset"],
         "policyengine_us_dataset_uri": bundle["default_dataset_uri"],
@@ -1398,6 +1479,8 @@ def build_manifest(
     annotation_files: dict[str, str],
 ) -> dict:
     reference_refresh = read_reference_refresh()
+    engine_setup = read_reference_engine_setup()
+    household_dataset = read_household_dataset()
     data_json_sha = run_files[PAYLOAD_NAME]
     country_payload = read_run_payload(RUN_DEST)
     model_count = sum(
@@ -1451,13 +1534,23 @@ def build_manifest(
             "Model responses were collected in waves between "
             f"{_response_window_phrase(MODEL_RESPONSE_DATE)}, as models were "
             "added to the board; each model's full 100-household run is a "
-            "single consistent wave. Reference "
-            "outputs were generated with policyengine.py "
-            f"{reference_refresh['policyengine_version']} and policyengine-us "
-            f"{reference_refresh['policyengine_us_version']} against the "
+            "single consistent wave. PolicyBench computes each scored "
+            "reference output with policyengine_us.Simulation from "
+            f"policyengine-us {reference_refresh['policyengine_us_version']}, "
+            "using the household's own listed inputs, the "
+            f"{NUMBER_WORDS[engine_setup['convention_count']]} publication "
+            "conventions, the Maryland output-scope adapter and the scenario "
+            "builder's stated-hours alias, as the reference sidecar's "
+            "engine_upgrade revision pins them (fix_modules, builder); "
+            f"policyengine.py {reference_refresh['policyengine_version']} is "
+            "recorded for provenance only. The households were drawn from the "
             "certified PolicyEngine US populace dataset "
-            f"({reference_refresh['policyengine_us_data_build_id']}, "
-            f"{reference_refresh['policyengine_us_dataset']}).",
+            f"({household_dataset['policyengine_us_data_build_id']}, "
+            f"{household_dataset['policyengine_us_dataset']}), as "
+            "scenarios.csv.meta.json records (household_dataset); the "
+            "reference_output_refresh dataset fields name the reference "
+            "runtime's default dataset, which reference computation does not "
+            "read.",
             "Canonical prediction files include parser recovery. Later "
             "waves ran under the resumable supervised runner, which retries "
             "failed or timed-out scenarios in bounded rounds; every model's "
@@ -1492,6 +1585,7 @@ def build_manifest(
         },
         "model_response_date": MODEL_RESPONSE_DATE,
         "reference_output_refresh": reference_refresh,
+        "household_dataset": household_dataset,
         "files": [
             {
                 "path": f"runs/{RUN_LABEL}/{PAYLOAD_NAME}",

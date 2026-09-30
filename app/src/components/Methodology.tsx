@@ -13,6 +13,12 @@ import {
   AUDIT_SELECTION_RULE,
   summarizeAuditUniverse,
 } from "../lib/auditUniverse";
+import { excludedOutputEngineSentence } from "../lib/referenceEngine";
+import {
+  capitalizeFirst,
+  chunkedServingModels,
+  numberWord,
+} from "../lib/servingConfig";
 
 const versionRegistry = parseDataVersionRegistry(versionRegistryJson);
 
@@ -94,6 +100,22 @@ export default function Methodology({
     country === "uk" ? "UK transfer households" : "populace households";
   const referenceOutputSource =
     country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
+  // The engine release behind this board's references, as its payload records
+  // it; archived boards name their own.
+  const referenceEngineVersion =
+    benchData.policyengineBundles?.[country]?.model_version ?? null;
+  // The current board's chunked rows, from the frozen serving configuration,
+  // against the board's own model count.
+  const chunkedRowsPhrase = `${capitalizeFirst(
+    numberWord(chunkedServingModels().length),
+  )} of the ${noToolsModels.length} models`;
+  const excludedOutputsSentence =
+    currentBoard && country === "us"
+      ? excludedOutputEngineSentence(
+          benchData.referenceExclusions,
+          referenceEngineVersion,
+        )
+      : null;
   const benchmarkDescription = currentBoard
     ? country === "uk"
       ? "This app shows the current no-tools UK benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for fiscal year 2026-27."
@@ -156,13 +178,13 @@ export default function Methodology({
           Each model sees the same household facts and requested outputs and
           must return every scored output plus a short explanation for each,
           with no external tools — no calculator, search, or PolicyEngine
-          access. The answer instructions follow the provider&apos;s transport:
-          a forced answer-schema tool call where the provider accepts one, and a
-          JSON object where the provider rejects a forced tool or the model card
-          selects JSON for the family (the older Gemini and DeepSeek rows).{" "}
+          access. The answer instructions follow each row&apos;s transport: a
+          forced answer-schema tool call, or a JSON object where the model card
+          or its family default selects JSON, for most such rows because the
+          provider rejects a forced tool call.{" "}
           {currentBoard ? (
             <>
-              Ten of the 42 models answer the same facts in subsets of one or
+              {chunkedRowsPhrase} answer the same facts in subsets of one or
               three outputs per request, an accommodation that predates the
               whole-scenario rule. The per-model transport and request shape are
               recorded in the paper&apos;s serving-configuration table and the
@@ -194,7 +216,7 @@ export default function Methodology({
         <SectionCard title="Reference outputs">
           {country === "uk"
             ? "PolicyEngine-UK computes the PolicyEngine reference output for every household-variable pair in UK fiscal year 2026-27. The displayed variables define the benchmark scope for this snapshot."
-            : "PolicyEngine-US computes the PolicyEngine reference output for every household-variable pair in tax year 2026. The displayed variables define the benchmark scope for this snapshot."}
+            : `PolicyEngine-US${referenceEngineVersion ? ` (policyengine-us ${referenceEngineVersion})` : ""} computes each scored PolicyEngine reference output in tax year 2026.${excludedOutputsSentence ? ` ${excludedOutputsSentence}` : ""} The displayed variables define the benchmark scope for this snapshot.`}
         </SectionCard>
 
         <SectionCard title="Output selection">

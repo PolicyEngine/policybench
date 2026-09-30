@@ -84,6 +84,48 @@ def test_unbundled_runtime_metadata_does_not_import_policyengine(monkeypatch):
     runtime.policyengine_release_bundle.cache_clear()
 
 
+class _Distribution:
+    def __init__(self, root):
+        self.root = root
+
+    def locate_file(self, path):
+        return self.root / path
+
+
+def test_raw_manifest_reads_the_policyengine_6_bundle_layout(monkeypatch, tmp_path):
+    """policyengine.py 6.x moved per-country manifests into one bundle manifest."""
+    import json
+
+    bundle = tmp_path / "policyengine" / "data" / "bundle"
+    bundle.mkdir(parents=True)
+    release = {
+        "bundle_id": "us-6.1.2",
+        "data_package": {"name": "microcosm-data", "version": "0.1.0"},
+        "default_dataset": "populace_us_2024",
+    }
+    (bundle / "manifest.json").write_text(
+        json.dumps({"bundle_version": "6.1.2", "data_releases": {"us": release}})
+    )
+    monkeypatch.setattr(metadata, "distribution", lambda name: _Distribution(tmp_path))
+    assert runtime._load_raw_policyengine_manifest("us") == release
+    assert runtime._load_raw_policyengine_manifest("uk") is None
+
+
+def test_installed_policyengine_yields_a_complete_reference_bundle():
+    """The pinned policyengine.py gives every field the reference sidecar needs."""
+    from policybench.full_run_export import _REQUIRED_REFERENCE_BUNDLE_FIELDS
+
+    runtime.policyengine_release_bundle.cache_clear()
+    bundle = runtime.policyengine_release_bundle("us")
+    runtime.policyengine_release_bundle.cache_clear()
+    missing = [
+        field
+        for field in _REQUIRED_REFERENCE_BUNDLE_FIELDS
+        if not isinstance(bundle.get(field), str) or not bundle[field].strip()
+    ]
+    assert not missing, missing
+
+
 # -- provenance computed once per supervised run ------------------------------
 
 FAKE_BUNDLES = {

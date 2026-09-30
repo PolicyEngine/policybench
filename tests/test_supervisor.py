@@ -1398,16 +1398,25 @@ DIRECT_PROVENANCE = (
     "from policybench.policyengine_runtime import policyengine_bundles_for_countries\n"
     "bundles = policyengine_bundles_for_countries({'us'})\n"
     "open(sys.argv[1], 'w').write(json.dumps(bundles))\n"
+    "heavy = {'policyengine', 'policyengine_core', 'policyengine_uk',\n"
+    "         'policyengine_us', 'h5py'}\n"
+    "loaded = sorted(m for m in sys.modules if m.split('.')[0] in heavy)\n"
+    "open(sys.argv[2], 'w').write(json.dumps(loaded))\n"
 )
+# A hooked process that imports PolicyEngine on purpose, so the probe is shown
+# to detect it whether or not computing provenance needs PolicyEngine: with
+# policyengine.py 6.x's bundle manifest it reads package metadata only.
+PROBE_CONTROL = "import policyengine_core\n"
 
 
 def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
     """End to end through `policybench run` with real worker subprocesses.
 
-    Only the one-shot provenance writer imports PolicyEngine (which also shows
-    the probe detects it); the supervisor and every worker never do. Each
-    sidecar records exactly the bundles a fresh worker computing them itself
-    would have recorded.
+    Only the one-shot provenance writer may import PolicyEngine, and it loads
+    exactly what a fresh interpreter computing provenance directly loads; the
+    supervisor and every worker never do. A control process shows the probe
+    detects a PolicyEngine import. Each sidecar records exactly the bundles a
+    fresh worker computing them itself would have recorded.
     """
     repo_root = Path(__file__).resolve().parents[1]
     scenarios = [
@@ -1442,8 +1451,15 @@ def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
         [str(repo_root), *filter(None, [os.environ.get("PYTHONPATH")])]
     )
     direct_path = tmp_path / "direct_bundles.json"
+    direct_loaded_path = tmp_path / "direct_loaded.json"
     direct = subprocess.Popen(
-        [sys.executable, "-c", DIRECT_PROVENANCE, str(direct_path)],
+        [
+            sys.executable,
+            "-c",
+            DIRECT_PROVENANCE,
+            str(direct_path),
+            str(direct_loaded_path),
+        ],
         env=base_env,
         cwd=tmp_path,
     )
@@ -1477,15 +1493,35 @@ def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
         text=True,
         timeout=900,
     )
+    control = subprocess.run(
+        [sys.executable, "-c", PROBE_CONTROL, "probe-control"],
+        env={
+            **base_env,
+            "PYTHONPATH": os.pathsep.join([str(hook_dir), base_env["PYTHONPATH"]]),
+            "POLICYBENCH_TEST_PROBE_DIR": str(probe_dir),
+        },
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
     assert direct.wait(timeout=900) == 0
     assert run.returncode == 0, run.stdout + run.stderr
+    assert control.returncode == 0, control.stdout + control.stderr
 
     records = [json.loads(path.read_text()) for path in probe_dir.glob("*.json")]
     supervisors = [r for r in records if r["argv"][1:2] == ["run"]]
-    writers = [r for r in records if r["argv"][0] == "-c"]
+    writers = [
+        r
+        for r in records
+        if r["argv"][0] == "-c" and r["argv"][1:2] != ["probe-control"]
+    ]
+    controls = [r for r in records if r["argv"][1:2] == ["probe-control"]]
     workers = [r for r in records if "eval-no-tools" in r["argv"]]
+    assert len(controls) == 1 and "policyengine_core" in controls[0]["at_exit"]
     assert len(supervisors) == 1 and supervisors[0]["at_exit"] == []
-    assert len(writers) == 1 and "policyengine_us" in writers[0]["at_exit"]
+    direct_loaded = json.loads(direct_loaded_path.read_text())
+    assert len(writers) == 1 and writers[0]["at_exit"] == direct_loaded
     assert len(workers) == 2
     for worker in workers:
         assert worker["requests"], "the worker never reached its LLM request"

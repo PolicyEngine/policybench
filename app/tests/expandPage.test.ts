@@ -71,23 +71,23 @@ test("expand page derives its exact-score headline from the live summary", async
   ).text();
 
   expect(leader.model).toBe("gpt-6-sol");
-  expect(leader.exact).toBeCloseTo(94.278, 3);
+  expect(leader.exact).toBeCloseTo(95.003, 3);
   expect(pageSource).toContain("const leader = headlineExactLeader(dashboard);");
   expect(pageSource).toContain(
     "const leaderLabel = MODEL_LABELS[leader.model] ?? leader.model;",
   );
   expect(pageSource).toContain("The best model, {leaderLabel}, computes");
   expect(pageSource).toContain("{leader.exact.toFixed(1)}% of");
-  expect(pageSource).not.toContain("94.3%");
+  expect(pageSource).not.toContain("95.0%");
   expect(expectedCopy).toBe(
-    "GPT-6 Sol computes 94.3% of requested outputs exactly",
+    "GPT-6 Sol computes 95.0% of requested outputs exactly",
   );
 });
 
 test("expand page derives Medicaid error frequencies from the bundled rows", async () => {
   const accuracy = medicaidEligibilityAccuracy(rawData as DashboardBundle);
-  expect(accuracy.median).toBeCloseTo(94.82758620689656);
-  expect(misclassificationFrequency(accuracy.median)).toBe("about 1 in 19 people");
+  expect(accuracy.median).toBeCloseTo(95.3757225433526);
+  expect(misclassificationFrequency(accuracy.median)).toBe("about 1 in 22 people");
   expect(misclassificationFrequency(accuracy.weakest)).toBe("about 1 in 4 people");
   const pageSource = await Bun.file(
     new URL("../src/app/expand/page.tsx", import.meta.url),

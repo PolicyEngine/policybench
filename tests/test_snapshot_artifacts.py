@@ -645,16 +645,16 @@ def test_snapshot_copied_artifacts_match_source_runs():
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     expected_audit_counts = {
         "us": {
-            "annotated": 7_545,
-            "exact_misses": 7_541,
-            "annotated_exact_misses": 7_541,
+            "annotated": 7_772,
+            "exact_misses": 7_768,
+            "annotated_exact_misses": 7_768,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 9_388,
-            "unannotated_below_full_bounded_score": 1_843,
+            "below_full_bounded_score": 9_799,
+            "unannotated_below_full_bounded_score": 2_027,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 6_888, "parse_contract_failure": 657},
+        "us": {"llm_error": 7_120, "parse_contract_failure": 652},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -852,6 +852,89 @@ def test_frozen_payload_provenance_matches_the_reference_sidecar():
         assert payload["policyengineBundles"][country]["model_version"] == expected
 
 
+def test_manifest_names_the_build_the_households_came_from():
+    """PolicyBench computes each scored reference with policyengine_us.Simulation
+    from the household's own listed inputs, so no dataset enters a reference.
+    The households came from the build the scenario draw recorded; the
+    reference runtime's default dataset, which reference_output_refresh names,
+    is a different build that reference computation never reads."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    run_label = manifest["source_run_labels"]["us"]
+    run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+    drawn = json.loads((run_dir / "scenarios.csv.meta.json").read_text())[
+        "policyengine_bundles"
+    ]["us"]
+    households = manifest["household_dataset"]
+    assert households == {
+        "source": f"runs/{run_label}/scenarios.csv.meta.json",
+        "policyengine_us_data_build_id": drawn["certified_data_build_id"],
+        "policyengine_us_dataset": drawn["default_dataset"],
+        "policyengine_us_dataset_uri": drawn["default_dataset_uri"],
+        "policyengine_us_data_artifact_sha256": drawn["certified_data_artifact_sha256"],
+    }
+    assert households["policyengine_us_data_build_id"] == (
+        "populace-us-2024-5da5a95-20260611"
+    )
+    refresh = manifest["reference_output_refresh"]
+    # The existing keys stay; they describe the reference runtime's bundle.
+    assert set(refresh) >= {
+        "policyengine_version",
+        "policyengine_us_version",
+        "policyengine_us_data_build_id",
+        "policyengine_us_dataset",
+        "policyengine_us_dataset_uri",
+        "policyengine_us_data_artifact_sha256",
+    }
+    assert (
+        refresh["policyengine_us_data_build_id"]
+        != (households["policyengine_us_data_build_id"])
+    )
+    note = " ".join(manifest["reproducibility_notes"])
+    # Each scored reference also depends on the modules and the builder alias
+    # the sidecar's engine_upgrade revision pins: the publication conventions
+    # (latest_c_*.py), the Maryland output-scope adapter, and the stated-hours
+    # alias its builder note records.
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    (upgrade,) = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"]
+    modules = {entry["module"] for entry in upgrade["fix_modules"]}
+    conventions = {m for m in modules if m.startswith("latest_c_")}
+    assert modules - conventions == {
+        "latest_conventions.py",
+        "latest_md_local_output_scope.py",
+    }
+    assert len(conventions) == 9
+    assert "weekly_hours_worked_before_lsr" in upgrade["builder"]
+    assert (
+        "PolicyBench computes each scored reference output with "
+        "policyengine_us.Simulation from policyengine-us "
+        f"{refresh['policyengine_us_version']}, using the household's own "
+        "listed inputs, the nine publication conventions, the Maryland "
+        "output-scope adapter and the scenario builder's stated-hours alias, as "
+        "the reference sidecar's engine_upgrade revision pins them "
+        f"(fix_modules, builder); policyengine.py {refresh['policyengine_version']} "
+        "is recorded for provenance only."
+    ) in note
+    assert (
+        "The households were drawn from the certified PolicyEngine US populace "
+        f"dataset ({households['policyengine_us_data_build_id']}, "
+        f"{households['policyengine_us_dataset']})"
+    ) in note
+    assert "outputs were generated with policyengine.py" not in note
+    # The paper guide states both builds from the same records, and what each
+    # scored reference depends on.
+    guide = re.sub(r"\s+", " ", (ROOT / "docs" / "paper.md").read_text())
+    assert (
+        "PolicyBench computes each scored reference with "
+        "`policyengine_us.Simulation` from the household's own listed inputs, "
+        "the nine publication conventions, the Maryland output-scope adapter and "
+        "the scenario builder's stated-hours alias, as the reference sidecar's "
+        "`engine_upgrade` revision pins them (`fix_modules`, `builder`)"
+    ) in guide
+    assert f"build {refresh['policyengine_us_data_build_id']}, from the" in guide
+    assert f"policyengine.py {refresh['policyengine_version']} bundle" in guide
+    assert f"({households['policyengine_us_data_build_id']})" in guide
+
+
 def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
     """The references were generated once (the sidecar's timestamp) and are
     byte-identical across freezes; the manifest must not advance their date
@@ -862,7 +945,10 @@ def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
     run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
     sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
     assert refresh["generated_at_utc"] == sidecar["generated_at_utc"]
-    assert refresh["date"] == sidecar["generated_at_utc"][:10]
+    # A regeneration dates the references by when they were regenerated.
+    assert refresh.get("regenerated_at_utc") == sidecar.get("regenerated_at_utc")
+    generated = sidecar.get("regenerated_at_utc", sidecar["generated_at_utc"])
+    assert refresh["date"] == generated[:10]
     assert refresh["snapshot_date"] == manifest["snapshot_date"]
     assert refresh["date"] <= refresh["snapshot_date"]
 

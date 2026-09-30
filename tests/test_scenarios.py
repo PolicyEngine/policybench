@@ -1213,3 +1213,46 @@ def test_reference_calculation_is_invariant_to_a_child_named_couple():
         _couple_scenario("head", "spouse", children=("couple",)), "ssi"
     )
     assert renamed == pytest.approx(baseline)
+
+
+def _hours_scenario(hours):
+    row = {
+        "person_id": 1,
+        "household_id": 1,
+        "tax_unit_id": 1,
+        "spm_unit_id": 1,
+        "family_id": 1,
+        "marital_unit_id": 1,
+        "household_weight": 1.0,
+        "state_code": "VA",
+        "filing_status": "SINGLE",
+        "age": 31,
+        "employment_income": 520.0,
+        "is_tax_unit_head": True,
+    }
+    if hours is not None:
+        row["hours_worked_last_week"] = hours
+    return scenarios_from_cps_frame(pd.DataFrame([row]), n=1, seed=0)[0]
+
+
+@pytest.mark.parametrize("hours", [12.0, 40.0, 60.0])
+def test_stated_usual_hours_reach_the_snap_work_tests(hours):
+    """The prompt's "usual weekly hours worked" is what SNAP's work rules read."""
+    scenario = _hours_scenario(hours)
+    head = scenario.to_pe_household()["people"]["head"]
+    assert head["hours_worked_last_week"] == {"2026": hours}
+    assert head["weekly_hours_worked_before_lsr"] == {"2026": hours}
+    # The engine name stays out of the prompt; only the stated input is shown.
+    assert scenarios_module.is_excluded_prompt_input_name(
+        "weekly_hours_worked_before_lsr"
+    )
+    assert not scenarios_module.is_excluded_prompt_input_name("hours_worked_last_week")
+
+
+@pytest.mark.parametrize("hours", [None, 0.0])
+def test_unstated_or_zero_hours_keep_the_engine_default(hours):
+    # Zero-valued inputs are not carried, so the engine default (0) applies,
+    # which is also the prompt's rule for unlisted numbers.
+    head = _hours_scenario(hours).to_pe_household()["people"]["head"]
+    assert "hours_worked_last_week" not in head
+    assert "weekly_hours_worked_before_lsr" not in head

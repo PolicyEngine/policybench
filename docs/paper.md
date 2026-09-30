@@ -51,21 +51,32 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
 - `published_dashboard_artifact` and `live_dashboard_artifact`, with the
   pinned release URL, byte count, and sha256 for each dashboard payload
 - `rendered_paper_artifacts`, with the rendered PDF and web bundle hashes
-- `reference_output_refresh`, with the PolicyEngine and PolicyEngine US
-  versions plus the certified US populace dataset's build id, URI, and sha256
+- `reference_output_refresh`, with the policyengine-us version that computes
+  each scored reference (2.15.17 in this snapshot) and the policyengine.py
+  version it records for provenance. Its dataset fields name the reference
+  runtime's default dataset (build populace-us-2024-spm-20260915, from the
+  policyengine.py 6.1.2 bundle), which reference computation does not read:
+  PolicyBench computes each scored reference with `policyengine_us.Simulation`
+  from the household's own listed inputs, the nine publication conventions,
+  the Maryland output-scope adapter and the scenario builder's stated-hours
+  alias, as the reference sidecar's `engine_upgrade` revision pins them
+  (`fix_modules`, `builder`)
+- `household_dataset`, with the build the households were drawn from
+  (populace-us-2024-5da5a95-20260611), its URI and sha256, as the run's
+  `scenarios.csv.meta.json` records them
 - `population_weight_artifact`, with the committed scoring-weight path and
   sha256
 - `audit_annotation_artifacts`, with the row and case audit file hashes. The
-  frozen annotations cover 7,545 scored rows whose legacy threshold score is
-  below 1: 7,541 of 7,541 exact-match misses and four exact hits. Another 1,843
-  scored rows have bounded score below 100 but were outside that selection and are not
-  annotated. A judge_provenance block tallies which judge model produced each
-  case verdict.
+  frozen annotations cover 7,772 scored rows whose legacy threshold score is
+  below 1: 7,768 of 7,768 exact-match misses and 4 exact hits. Another 2,027
+  scored rows have bounded score below 100 but were outside that selection and
+  are not annotated. A judge_provenance block tallies which judge model produced
+  each case verdict.
 - `reference_exclusions`, with the outputs removed from scoring for every model
   because their reference rests on a reference-engine defect not fixed upstream
-  or depends on an input the prompt never states (52 in this snapshot; 1,932 of 1,984
-  outputs per model are scored), the file's hash, and the tallies by unlisted
-  input and by engine-defect root cause.
+  or depends on an input the prompt never states (56 in this snapshot; 1,928 of
+  1,984 outputs per model are scored), the file's hash, and the tallies by
+  unlisted input and by engine-defect root cause.
 - `reproducibility_notes`, covering model-alias instability and what is not
   retained locally (LiteLLM cache, since it is a generated request cache)
 

@@ -2537,8 +2537,14 @@ def test_explanation_repair_rejects_knobs_on_the_responses_transport(
     mock_responses.assert_not_called()
 
 
-@pytest.mark.parametrize("model_id", ["claude-fable-5", "claude-fable-5-1"])
-def test_claude_fable_line_resolves_without_remote_cost_map(model_id):
+@pytest.mark.parametrize(
+    "model_id",
+    ["claude-fable-5", "claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5"],
+)
+def test_local_claude_models_resolve_without_remote_cost_map(model_id):
+    """Every Claude model eval_no_tools registers locally routes to Anthropic
+    and carries the configured list prices, whether the entry came from the
+    remote cost map or from the local registration."""
     from litellm import get_llm_provider
 
     display_id = next(
@@ -2675,9 +2681,92 @@ def test_price_override_is_canonical_and_resolves_display_alias(mock_cost_per_to
 
 
 def test_deepseek_models_are_public_defaults():
-    """DeepSeek V4 models are public default models in MODELS."""
+    """DeepSeek V4 and V4.1 models are public default models in MODELS. V4.1
+    Flash runs on the native API under DeepSeek's current name for it,
+    deepseek-flash, not under the retired deepseek-v4-flash name."""
     assert MODELS["deepseek-v4-pro"] == "deepseek/deepseek-v4-pro"
     assert MODELS["deepseek-v4-flash"] == "deepseek/deepseek-v4-flash"
+    assert MODELS["deepseek-v4.1-flash"] == "deepseek/deepseek-flash"
+
+
+def test_deepseek_v4_1_flash_is_priced_at_the_peak_list_rate():
+    """V4.1 Flash is priced at the peak list rate: $0.30 cache-miss input,
+    $0.006 cache-hit input and $1.20 output per 1M (pricing page, read
+    2026-09-28); off-peak rates are half and are not used."""
+    assert PRICE_OVERRIDES_PER_1M["deepseek-v4.1-flash"] == {
+        "input": 0.30,
+        "output": 1.20,
+        "cache_read": 0.006,
+    }
+
+
+@pytest.mark.parametrize(
+    ("completion_tokens", "cached_prompt_tokens", "expected"),
+    [
+        (0, 0, 0.30),
+        (1_000_000, 0, 1.50),
+        (0, 1_000_000, 0.006),
+        (1_000_000, 250_000, 0.75 * 0.30 + 0.25 * 0.006 + 1.20),
+    ],
+)
+@patch("policybench.eval_no_tools.litellm.cost_per_token")
+def test_deepseek_v4_1_flash_override_reconstructs_token_costs(
+    mock_cost_per_token, completion_tokens, cached_prompt_tokens, expected
+):
+    """Cache hits bill at the hit rate, misses at the input rate, and the
+    litellm map (whose deepseek-flash entry carries off-peak windows) is
+    never consulted."""
+    reconstructed = _reconstruct_token_cost(
+        model_name="deepseek-v4.1-flash",
+        model_id="deepseek/deepseek-flash",
+        prompt_tokens=1_000_000,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+    mock_cost_per_token.assert_not_called()
+
+
+def test_grok_4_7_is_a_public_default():
+    """Grok 4.7 is a default model priced at $2 / $6 per 1M with $0.50 cached
+    input (docs.x.ai model page and the live language-models record, read
+    2026-09-28)."""
+    assert MODELS["grok-4.7"] == "xai/grok-4.7"
+    assert PRICE_OVERRIDES_PER_1M["grok-4.7"] == {
+        "input": 2.0,
+        "output": 6.0,
+        "cache_read": 0.50,
+    }
+
+
+@patch("policybench.eval_no_tools.litellm.cost_per_token")
+def test_grok_4_7_override_reproduces_xais_reported_charge(mock_cost_per_token):
+    """Differential check against the provider's own bill. The 2026-09-28
+    reasoning probe (results/local/adds202609/grok47/) used 1,276 prompt
+    tokens, 1,152 of them cached, and 1 answer plus 8,187 reasoning tokens,
+    which litellm folds into completion_tokens for xAI. xAI reported
+    cost_in_usd_ticks 499,520,000 at 10^10 ticks per USD."""
+    from policybench.eval_no_tools import _extract_usage_metadata
+
+    response = SimpleNamespace(
+        usage=SimpleNamespace(
+            prompt_tokens=1_276,
+            completion_tokens=8_188,
+            total_tokens=9_464,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=1_152),
+            completion_tokens_details=SimpleNamespace(reasoning_tokens=8_187),
+        )
+    )
+
+    usage = _extract_usage_metadata(
+        response, "xai/grok-4.7", [{"role": "user", "content": "x"}], "Unknown"
+    )
+
+    assert usage["total_cost_usd"] == pytest.approx(499_520_000 / 10**10)
+    assert usage["cost_is_estimated"] is False
+    mock_cost_per_token.assert_not_called()
 
 
 def test_claude_fable_5_is_a_public_default():
@@ -2850,6 +2939,52 @@ def test_claude_sonnet_5_is_a_public_default():
         "input": 3.0,
         "output": 15.0,
     }
+
+
+def test_claude_sonnet_5_5_is_a_public_default():
+    """Sonnet 5.5 is a default model priced at the standard $2 / $10 rate with
+    $0.20 cache reads and $2.50 five-minute cache writes (pricing page, read
+    2026-09-28)."""
+    assert MODELS["claude-sonnet-5.5"] == "claude-sonnet-5-5"
+    assert PRICE_OVERRIDES_PER_1M["claude-sonnet-5.5"] == {
+        "input": 2.0,
+        "output": 10.0,
+        "cache_read": 0.20,
+        "cache_write": 2.50,
+    }
+
+
+@pytest.mark.parametrize(
+    (
+        "completion_tokens",
+        "cached_prompt_tokens",
+        "cache_write_prompt_tokens",
+        "expected",
+    ),
+    [
+        (0, 0, 0, 2.0),
+        (1_000_000, 0, 0, 12.0),
+        (0, 1_000_000, 0, 0.20),
+        (0, 0, 1_000_000, 2.50),
+    ],
+)
+def test_claude_sonnet_5_5_override_reconstructs_token_costs(
+    completion_tokens,
+    cached_prompt_tokens,
+    cache_write_prompt_tokens,
+    expected,
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="claude-sonnet-5.5",
+        model_id="claude-sonnet-5-5",
+        prompt_tokens=1_000_000,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+        cache_write_prompt_tokens=cache_write_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
 
 
 def test_gpt_55_uses_longer_full_output_timeout():

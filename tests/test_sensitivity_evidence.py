@@ -70,11 +70,11 @@ def test_doc_table_row_matches_the_summary():
     )
 
 
-def test_doc_table_ranks_match_the_frozen_42_model_board():
+def test_doc_table_ranks_match_the_frozen_45_model_board():
     text = DOC.read_text()
-    assert "on the 42-model board (2026-09-22)" in text
+    assert "on the 45-model board (2026-09-29)" in text
     rows = read_run_payload(RUN_DIR)["modelStats"]
-    assert len(rows) == 42
+    assert len(rows) == 45
     board_by_model = {row["model"]: row for row in rows}
 
     for label, model in SENSITIVITY_ROWS.items():

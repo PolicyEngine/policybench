@@ -260,9 +260,19 @@ def _load_raw_policyengine_manifest(country: str) -> dict[str, Any] | None:
     manifest_path = Path(
         distribution.locate_file(f"policyengine/data/release_manifests/{country}.json")
     )
-    if not manifest_path.exists():
-        return None
-    return json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest_path.exists():
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+    # policyengine.py 6.x ships one bundle manifest; each country's data release
+    # keeps the per-country manifest's shape under data_releases.
+    bundle_path = Path(
+        distribution.locate_file("policyengine/data/bundle/manifest.json")
+    )
+    if bundle_path.exists():
+        bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+        release = (bundle.get("data_releases") or {}).get(country)
+        if isinstance(release, dict):
+            return release
+    return None
 
 
 def _default_dataset_uri_from_raw_manifest(raw_manifest: dict[str, Any]) -> str | None:

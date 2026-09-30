@@ -1,0 +1,22 @@
+policyengine-us 2.17.0
+ scenario_id state                                     variable        frozen    recomputed        delta
+scenario_005    CA federal_income_tax_before_refundable_credits 106505.898438 107833.156250  1327.257812
+scenario_005    CA   state_income_tax_before_refundable_credits  41051.511719  41267.011719   215.500000
+scenario_007    ID   state_income_tax_before_refundable_credits    755.778320    761.557007     5.778687
+scenario_020    TX federal_income_tax_before_refundable_credits  68056.710938  68334.734375   278.023438
+scenario_022    CA   state_income_tax_before_refundable_credits   2439.650146   2505.870117    66.219971
+scenario_023    CA                                         snap    461.339722    408.000000   -53.339722
+scenario_042    WI   state_income_tax_before_refundable_credits    284.740906    464.182800   179.441895
+scenario_053    ID   state_income_tax_before_refundable_credits   2435.278320   2441.057129     5.778809
+scenario_056    NJ                                         snap   1140.000000     95.000000 -1045.000000
+scenario_057    LA                                         snap   2669.217041   2628.000000   -41.217041
+scenario_064    WI   state_income_tax_before_refundable_credits   4605.997070   4598.476074    -7.520996
+scenario_080    PA                                         snap   3596.039795   3576.000000   -20.039795
+scenario_082    NY federal_income_tax_before_refundable_credits   9563.052734   9577.902344    14.849609
+scenario_091    WI   state_income_tax_before_refundable_credits    843.661499    895.813110    52.151611
+scenario_099    CA   state_income_tax_before_refundable_credits   4493.743164   4640.777344   147.034180
+scenario_100    MT                                         snap   8625.889648   8556.000000   -69.889648
+scenario_112    TX                                         snap    287.683167      0.000000  -287.683167
+scenario_118    NY                                         snap   2903.940430   2868.000000   -35.940430
+scenario_120    CT federal_income_tax_before_refundable_credits  40021.816406  40416.667969   394.851562
+SUMMARY fix=latest_final outputs=1984 moved=19 small_nonzero_deltas=0

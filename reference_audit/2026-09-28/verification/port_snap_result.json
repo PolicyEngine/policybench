@@ -1,0 +1,202 @@
+{
+ "modules": [
+  {
+   "convention": "c_snap_hold_fy2026",
+   "module_path": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_c_snap_hold_fy2026.py",
+   "needed": true,
+   "reason": "2.15.17 carries USDA's FY2027 schedule from 2026-10-01. It uses the published values from USDA's memo dated 2026-08-21 (policyengine-us#9623, d27d6c3cc3; the FNA fy27 page shows 'updated August 28, 2026'), which came after the freeze. For October-December 2026 the module puts back the FY2026 schedule USDA published before the freeze. The FNS fy26 memo (dated August 13, 2025; page updated August 19, 2025; Wayback capture 20250902215244) gives: 4-person maximum $994, minimum benefit $24, shelter cap $744, homeless deduction $198.99, standard deduction $209, asset limits $3,000 and $4,500. For 2026-10-01 to 2026-12-31 only, each held leaf takes its own 2.15.17 value from 2026-09-30. The held leaves are: max_allotment.main and .additional; min_allotment.published_adjustment (FY2027 +$1 in the 48 states and DC, which turns $24 into $25); standard deduction; excess shelter cap; homeless deduction; utility.single.* and utility.limited.main (uprated by the SNAP index, whose 2026-10-01 entry is June 2026 CPI-U, #9090); Arizona's limited utility allowance by household size (FY2027 $154/$208, added 9164f90305); asset_test.limit (FY2027 elderly/disabled limit $4,750); and the uprating index itself. The module also removes the max_allotment cap for October-December 2026 (formula_2026_10_01; the amounts were first published in the FY2027 memo, and FY2026 had no cap). The 1.755.4 module r13_hold_fy2026_v3 cannot be reused. On 2.15.17 it changes only the index leaf, which no formula reads, because 2.15.17 applies reforms after uprate_parameters (system.py, issue #9075 comment) and encodes FY2027 as literal values. Checks: a diff of the full parameter tree (102,807 leaves) shows 359 leaves changed, on dates 2026-10-01 to 2026-12-31 only. For 51 jurisdictions x household sizes 1-20, max allotment, min allotment and standard deduction in October-December equal raw September values, and January-September is identical to raw 2.15.17. The module gives the same parameters when applied 3 times, and the same result when applied after init (Simulation(reform=)). Not held: the poverty guideline (2.15.17 already uses the 2026 HHS guideline, $15,960 + $5,680, from 2026-10-01), ABAWD waiver timelines, and everything else."
+  }
+ ],
+ "upstream_fixes": [
+  {
+   "root_cause": "r26_snap_contribution_rounding (30% of net income rounded up to the next dollar, 7 CFR 273.10(e)(2)(ii)(A))",
+   "present_in_2_15_17": true,
+   "evidence": "2.15.17 variables/gov/usda/snap/snap_expected_contribution.py returns np.ceil(np.round(net_income * rate, 2)) on net income that is already whole-dollar. Commit 8df8c5043a (2026-08-19), in PolicyEngine/policyengine-us#9318, merge 5d88007d90 (2026-08-25), which is an ancestor of 79be99f671. Not re-applied."
+  },
+  {
+   "root_cause": "r27_snap_net_income_rounding (net income rounded to the nearest dollar, 7 CFR 273.10(e)(1)(ii))",
+   "present_in_2_15_17": true,
+   "evidence": "2.15.17 variables/gov/usda/snap/income/snap_net_income.py returns np.floor(np.round(net_income, 2) + 0.5). Commit 949546af53 in #9318 (merge 5d88007d90, 2026-08-25); rounding to cents first was added in #9587 (fa27adbffc, 2026-09-28). The r27 module (floor(net + 0.5)) can differ only on a fraction in [0.495, 0.5). Not re-applied."
+  },
+  {
+   "root_cause": "r28_snap_min_allotment_rounding (minimum = 8% of the one-person maximum, rounded, 7 CFR 273.10(e)(2)(ii)(C))",
+   "present_in_2_15_17": true,
+   "evidence": "2.15.17 variables/gov/usda/snap/snap_min_allotment.py computes np.round(rate * relevant_max_allotment) + published_adjustment[region], then applies the DC/MD/NJ overrides. Commit cf165464a6 in PolicyEngine/policyengine-us#9162, merge 3c41c31457 (2026-07-28); d27d6c3cc3 (#9623) added published_adjustment, which the hold sets to 0 for October-December 2026. np.round and floor(x + 0.5) agree for every integer maximum, because 0.08*m is never exactly x.5. Not re-applied."
+  },
+  {
+   "root_cause": "r31_snap_income_limit_rounding (gross and net standards rounded up to the next dollar, 7 CFR 273.9(a)(3))",
+   "present_in_2_15_17": true,
+   "evidence": "2.15.17 meets_snap_gross_income_test.py and meets_snap_net_income_test.py call snap_monthly_income_standard (income/snap_income_standard_helpers.py), which computes np.ceil(np.round(rate * fpg, 2)), with the increment rounded separately for households over 8. Commit cf165464a6 in #9162 (merge 3c41c31457, 2026-07-28), refined by #9587 (fa27adbffc). Not re-applied."
+  },
+  {
+   "root_cause": "r33_snap_child_support_treatment (flag = states excluding child support paid from gross income, per the State Options Reports)",
+   "present_in_2_15_17": true,
+   "evidence": "PolicyEngine/policyengine-us#9586, d9e801df41 (2026-09-24), is an ancestor of 79be99f671. latest/port_snap/check_r33_values.py compared 636 state-months (every jurisdiction, each month of 2026) of 2.15.17's gov.usda.snap.income.deductions.child_support with the r33 module's VALUES: 0 mismatches. The later commit 3102d3db05 (#9622) adds only 2010-2017 citations and tests. The formulas read the flag the same way (true = exclude from gross; snap_child_support_deduction deducts the rest from net). Differential test: re-applying r26+r27+r28+r31+r33 (the 1.755.4 modules) on top of 2.15.17 plus this module moves 0 of 1,984 outputs (latest/port_snap/probe_hold_plus_1755_snap_fixes.csv)."
+  },
+  {
+   "root_cause": "r30_snap_heat_and_eat_sua (the root cause of excluded 080 and noted on 100; not one of the board's regenerated fixes, checked because the task named 080 and 100)",
+   "present_in_2_15_17": false,
+   "evidence": "2.15.17 snap_state_using_standard_utility_allowance.py still returns p.always_standard[state] with no elderly/disabled condition. Its only change since 1.755.4 is metadata (d7fc17abfe). Hold + r30 on 2.15.17 gives 080 = 3,240 and 100 = 6,924, the values the exclusion records give. The defect is still real in 2.15.17, so 080 stays excluded."
+  }
+ ],
+ "reproduced": [
+  {
+   "scenario_id": "scenario_008",
+   "variable": "snap",
+   "board": 15108,
+   "value": 15108,
+   "note": "Convention plus r26 and r27. Raw 2.15.17 gives 15,273; the held max allotment and standard deduction give 15,108."
+  },
+  {
+   "scenario_id": "scenario_012",
+   "variable": "snap",
+   "board": 4884,
+   "value": 4884,
+   "note": "Convention plus r26 and r27. Raw 2.15.17 gives 4,962."
+  },
+  {
+   "scenario_id": "scenario_027",
+   "variable": "snap",
+   "board": 288,
+   "value": 288,
+   "note": "Convention plus r28. Raw 2.15.17 gives 291 (FY2027 +$1 published_adjustment makes the Oct-Dec minimum $25). Holding the adjustment at 0 gives the FY2026 minimum of $24."
+  },
+  {
+   "scenario_id": "scenario_030",
+   "variable": "snap",
+   "board": 288,
+   "value": 288,
+   "note": "Convention plus r28. Raw 2.15.17 gives 291 (same published_adjustment)."
+  },
+  {
+   "scenario_id": "scenario_038",
+   "variable": "snap",
+   "board": 7212,
+   "value": 7212,
+   "note": "Convention plus r26 and r27. Raw 2.15.17 gives 7,302."
+  },
+  {
+   "scenario_id": "scenario_043",
+   "variable": "snap",
+   "board": 3576,
+   "value": 3576,
+   "note": "Convention. Raw 2.15.17 gives 3,600 (FY2027 one-person maximum $306)."
+  },
+  {
+   "scenario_id": "scenario_045",
+   "variable": "snap",
+   "board": 0,
+   "value": 0,
+   "note": "r33 (and r28). 2.15.17 already gives 0 because #9586 is in it; the hold does not change it."
+  },
+  {
+   "scenario_id": "scenario_054",
+   "variable": "snap",
+   "board": 6060,
+   "value": 6060,
+   "note": "Convention plus r26. Raw 2.15.17 gives 6,138."
+  },
+  {
+   "scenario_id": "scenario_066",
+   "variable": "snap",
+   "board": 3576,
+   "value": 0,
+   "note": "NOT reproduced; see residuals. The convention is not the cause. The ABAWD work test in 2.15.17 fails for all 12 months, so the hold has nothing to act on. Hold plus the stated 40 hours gives 3,576."
+  },
+  {
+   "scenario_id": "scenario_073",
+   "variable": "snap",
+   "board": 288,
+   "value": 288,
+   "note": "Convention plus r28. Raw 2.15.17 gives 291."
+  },
+  {
+   "scenario_id": "scenario_079",
+   "variable": "snap",
+   "board": 2376,
+   "value": 2376,
+   "note": "Convention plus r26. Raw 2.15.17 gives 2,433. Holding Arizona's FY2027 limited utility allowance does not move it."
+  },
+  {
+   "scenario_id": "scenario_108",
+   "variable": "snap",
+   "board": 288,
+   "value": 288,
+   "note": "Convention plus r28. Raw 2.15.17 gives 291."
+  },
+  {
+   "scenario_id": "scenario_109",
+   "variable": "snap",
+   "board": 7932,
+   "value": 7932,
+   "note": "Convention plus r26. Raw 2.15.17 gives 8,040."
+  }
+ ],
+ "residuals": [
+  {
+   "scenario_id": "scenario_066",
+   "variable": "snap",
+   "board": 3576,
+   "value": 0,
+   "note": "Scored, VA. Cause: an input mapping, not the convention. The prompt states 40 'usual weekly hours worked' (policybench/prompts.py labels hours_worked_last_week that way). The SNAP work rules in 2.15.17 (meets_snap_abawd_work_requirements.py:39, meets_snap_general_work_requirements.py:37, is_snap_work_registration_exempt_non_age.py:62) read weekly_hours_worked_before_lsr, whose default changed from 40 to 0 in policyengine-us#9261 (82745ca239, merged a112cc5a0a on 2026-08-12, closes #9254). With 0 hours this childless 40-year-old in VA fails the ABAWD test every month (no waived area), so SNAP is $0. 1.755.4 matched only because its default was 40. Probe latest/port_snap/probe_hold_plus_stated_hours.py copies stated hours into weekly_hours_worked_before_lsr. It gives 3,576, equal to the board, and moves no other output of the 1,984. Suggested remedy: add that mapping to the situation builder or a patch. An exclusion does not fit, because the hours are listed."
+  },
+  {
+   "scenario_id": "scenario_013",
+   "variable": "snap",
+   "board": 0,
+   "value": 240,
+   "note": "Scored, AZ. Cause: an upstream correction under pre-freeze state law, not the convention. BBCE (is_tanf_non_cash_eligible) holds from March to December 2026, which waives the net income and asset tests, so the household gets the $24 minimum x 10 months = $240. Raw 2.15.17 gives 243 because the October-December minimum is $25 until the hold removes the FY2027 +$1. Source: 0881eff4b8 (2026-08-06). It sets AZ gross.yaml and gross_hheod.yaml to 200% FPL from 2026-03-01, quoting the CNAP manual: 'Starting the benefit month of 03/2026 ... changed from 185% of the FPL to 200%'. In 1.755.4 both were 185% all year. Gross income of $2,539.33 fails 185% x 2025 FPL ($2,412.71) but passes 200% ($2,608.33). The rule took effect before the freeze, so 240 should be the new reference. Caveat: the quote covers the general standard; applying it to the elderly/disabled standard, which this household uses, is upstream's reading. I could not retrieve the manual because azdes.gov serves a Cloudflare challenge."
+  },
+  {
+   "scenario_id": "scenario_023",
+   "variable": "snap",
+   "board": 461.339722,
+   "value": 408,
+   "note": "Excluded (meets_ssi_disability_criteria not listed). The board keeps the untouched v1.1 value. 408 equals the stated-facts value the board's 1.755.4 regeneration computed (convention + r26-r33, out/c13v3_upstream_plus_r33.csv). Raw 2.15.17 gives 462; the hold lowers it through the standard deduction, shelter cap and max allotment. No scoring impact."
+  },
+  {
+   "scenario_id": "scenario_057",
+   "variable": "snap",
+   "board": 2669.217041,
+   "value": 2628,
+   "note": "Excluded (meets_ssi_disability_criteria not listed). 2628 equals the 1.755.4 regeneration's stated-facts value; the board keeps v1.1 for excluded outputs. Raw 2.15.17 gives 2,682. No scoring impact."
+  },
+  {
+   "scenario_id": "scenario_080",
+   "variable": "snap",
+   "board": 3596.039795,
+   "value": 3576,
+   "note": "Excluded (r30_snap_heat_and_eat_sua, still unfixed in 2.15.17). 3,576 is the value the exclusion note says the conventions and upstream fixes give. Hold + r30 on 2.15.17 gives 3,240, the exclusion's alternative value. The exclusion stays valid."
+  },
+  {
+   "scenario_id": "scenario_100",
+   "variable": "snap",
+   "board": 8625.889648,
+   "value": 8556,
+   "note": "Excluded (meets_ssi_disability_criteria not listed). 8,556 matches the exclusion note ('from 8,556.00 to 6,924.00' under r30), and hold + r30 on 2.15.17 gives 6,924. The board keeps v1.1. No scoring impact."
+  },
+  {
+   "scenario_id": "scenario_112",
+   "variable": "snap",
+   "board": 287.683167,
+   "value": 0,
+   "note": "Excluded (weekly_hours_worked_before_lsr not listed). The 2.15.17 default of 0 hours (#9261) is the exclusion's alternative reading, so the ABAWD test fails all year (TX, no waived area). With 1.755.4's default of 40 hours (probe_hold_plus_40h_default) it gives 288, the 1.755.4 regeneration value. No scoring impact."
+  },
+  {
+   "scenario_id": "scenario_056",
+   "variable": "snap",
+   "board": 1140,
+   "value": 95,
+   "note": "Excluded (weekly hours not listed; mortgage-residence reading). Zero hours per the #9261 default. 2.15.17 puts NJ in an ABAWD waived area for January 2026 only, so January pays NJ's $95 state minimum and February-December pay $0. That makes 95, where the exclusion record's alternative (computed on 1.755.4, without waiver data) is 0.0. With 40 hours it gives 1,140, equal to the board. The exclusion record's alternative_value is stale for 2.15.17, but there is no scoring impact."
+  },
+  {
+   "scenario_id": "scenario_118",
+   "variable": "snap",
+   "board": 2903.94043,
+   "value": 2868,
+   "note": "Excluded (mortgage-residence reading). 2,868 equals the 1.755.4 regeneration's stated-facts value; the board keeps v1.1. Raw 2.15.17 gives 2,904. No scoring impact."
+  }
+ ],
+ "sweep_csv": "/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/out/latest_c_snap_hold_fy2026.csv",
+ "notes": "Module: /Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/sweep/fixes/latest_c_snap_hold_fy2026.py (sha256 3a8709ef36582af2248e460136db618fd319d490b7aeed94adbd6143ad9c07dd). I rewrote the draft from the interrupted attempt. That draft had a defect: it turned the cap's missing value into inf, and backdate_parameters then copied that inf to every date before 2026-10-01 (21 leaf-date values outside the window; no formula reads them). The new _lift_leaf keeps what raw backdating produces and changes only October-December. It is idempotent, and 2.15.17 applies reforms twice.\n\nFull sweep (sweep_latest.py): 1,984 outputs, 32 moved against the board (41 on raw 2.15.17). Against raw 2.15.17 the module changes 17 outputs, all SNAP. With the eight state/IRS conventions added (latest_state_conventions), the SNAP outputs are identical (probe_snap_plus_state_conventions.csv).\n\nLeave-one-out attribution (latest/port_snap/attribution_v3.csv):\n- max_allotment.main moves 12 outputs.\n- The standard deduction moves 10.\n- published_adjustment moves 5 (013, 027, 030, 073, 108).\n- The excess shelter cap moves 1 (023).\n- These are held for fidelity to the FY2026 schedule and move no benchmark output: the asset limit, homeless deduction, Arizona LUA, limited.main, utility.single, additional, the cap lift, and the index.\n\nFY2026 values match between engines for allotments, deductions and caps. The only differences from the board's effective Q4 values are 22 utility-allowance leaves (ID, NV, WI, MD, SD, VA). There, 2.15.17 corrected the FY2026 figures to the official FNS table (policyengine-us#9319, ec91251c2e, 2026-08-25). That is an upstream correction, not the convention, and it moves no benchmark output.\n\nJudgment calls for the orchestrator:\n- Arizona's FY2027 LUA is held as an FY2027 utility allowance. I could not verify when DES published it: azdes.gov is behind Cloudflare and Wayback has no 2026 capture. If it was published before 2026-07-03, remove that node; no output changes.\n- The sidecar dates the FY2026 memo as signed 2025-08-14. The FNS web memo shows DATE August 13, 2025. Both are before the freeze.\n- Scenario_066 needs a situation-builder mapping of stated hours to weekly_hours_worked_before_lsr, outside this convention. The probe shows it restores 3,576 and touches nothing else.\n- Scenario_013's 240 follows from Arizona's March 2026 BBCE increase (pre-freeze) as upstream encoded it.\n- Scenario_056's exclusion alternative_value (0.0) is stale for 2.15.17 (95).\n\nEvidence is in /Users/maxghenis/PolicyEngine/policybench/results/local/adds202609/triage/latest/port_snap/:\n- param_diff_module_21517.json (full-tree diff)\n- test_hold_invariants.py and .log (0 failures)\n- p1755_*.json and p21517_*.json (parameter dumps)\n- held_1755_rerun.json (the 340 leaves the 1.755.4 convention held)\n- snap_table.csv\n- the probe_*.py and .csv files\n- check_post_init_apply.py\n- fns_fy26_cola_wayback_20250902215244.html and fns_fy27_cola_live_20260928.html\n\nI modified no existing file except the draft module the task allowed me to overwrite. Nothing was pushed or filed. DONE."
+}

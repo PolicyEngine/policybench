@@ -136,7 +136,7 @@ scenario_008,federal_refundable_credits,12433.611328125,
 scenario_008,payroll_tax,2162.760009765625,
 scenario_008,self_employment_tax,565.1820068359375,
 scenario_008,state_income_tax_before_refundable_credits,264.80999755859375,
-scenario_008,state_refundable_credits,5342.39990234375,
+scenario_008,state_refundable_credits,5842.39990234375,
 scenario_008,local_income_tax,0.0,
 scenario_008,snap,15108.0,
 scenario_008,ssi,0.0,
@@ -240,7 +240,7 @@ scenario_013,self_employment_tax,0.0,
 scenario_013,state_income_tax_before_refundable_credits,0.0,
 scenario_013,state_refundable_credits,25.0,
 scenario_013,local_income_tax,0.0,
-scenario_013,snap,0.0,
+scenario_013,snap,240.0,
 scenario_013,ssi,0.0,
 scenario_013,tanf,0.0,
 scenario_013,head_wic_eligible,0.0,0.0
@@ -492,7 +492,7 @@ scenario_028,child1_early_head_start_eligible,0.0,0.0
 scenario_028,child2_early_head_start_eligible,0.0,0.0
 scenario_028,child3_early_head_start_eligible,0.0,0.0
 scenario_028,free_school_meals_eligible,0.0,0.0
-scenario_028,reduced_price_school_meals_eligible,1.0,3009.81884765625
+scenario_028,reduced_price_school_meals_eligible,0.0,3009.81884765625
 scenario_029,federal_income_tax_before_refundable_credits,0.0,
 scenario_029,federal_refundable_credits,0.0,
 scenario_029,payroll_tax,0.0,
@@ -567,7 +567,7 @@ scenario_032,child1_head_start_eligible,0.0,0.0
 scenario_032,child1_early_head_start_eligible,0.0,0.0
 scenario_032,free_school_meals_eligible,1.0,1130.9622802734375
 scenario_032,reduced_price_school_meals_eligible,0.0,0.0
-scenario_033,federal_income_tax_before_refundable_credits,3788.988037109375,
+scenario_033,federal_income_tax_before_refundable_credits,3818.148193359375,
 scenario_033,federal_refundable_credits,0.0,
 scenario_033,payroll_tax,6043.5,
 scenario_033,self_employment_tax,0.0,
@@ -1241,11 +1241,11 @@ scenario_077,head_chip_eligible,0.0,0.0
 scenario_077,head_medicare_eligible,0.0,0.0
 scenario_077,free_school_meals_eligible,0.0,0.0
 scenario_077,reduced_price_school_meals_eligible,0.0,0.0
-scenario_078,federal_income_tax_before_refundable_credits,24780.61328125,
+scenario_078,federal_income_tax_before_refundable_credits,24164.45703125,
 scenario_078,federal_refundable_credits,0.0,
 scenario_078,payroll_tax,14317.322265625,
 scenario_078,self_employment_tax,0.0,
-scenario_078,state_income_tax_before_refundable_credits,6936.33740234375,
+scenario_078,state_income_tax_before_refundable_credits,6936.87646484375,
 scenario_078,state_refundable_credits,0.0,
 scenario_078,local_income_tax,0.0,
 scenario_078,snap,0.0,
@@ -1314,7 +1314,7 @@ scenario_082,federal_refundable_credits,0.0,
 scenario_082,payroll_tax,8108.02734375,
 scenario_082,self_employment_tax,0.0,
 scenario_082,state_income_tax_before_refundable_credits,5598.55224609375,
-scenario_082,state_refundable_credits,650.5,
+scenario_082,state_refundable_credits,667.0,
 scenario_082,local_income_tax,0.0,
 scenario_082,snap,0.0,
 scenario_082,ssi,0.0,
@@ -1760,8 +1760,8 @@ scenario_111,spouse_medicare_eligible,0.0,0.0
 scenario_111,free_school_meals_eligible,0.0,0.0
 scenario_111,reduced_price_school_meals_eligible,0.0,0.0
 scenario_112,federal_income_tax_before_refundable_credits,0.0,
-scenario_112,federal_refundable_credits,453.0960083007813,
-scenario_112,payroll_tax,453.0960083007813,
+scenario_112,federal_refundable_credits,453.09600830078125,
+scenario_112,payroll_tax,453.09600830078125,
 scenario_112,self_employment_tax,0.0,
 scenario_112,state_income_tax_before_refundable_credits,0.0,
 scenario_112,state_refundable_credits,0.0,
@@ -1827,11 +1827,11 @@ scenario_116,head_medicare_eligible,0.0,0.0
 scenario_116,spouse_medicare_eligible,0.0,0.0
 scenario_116,free_school_meals_eligible,0.0,0.0
 scenario_116,reduced_price_school_meals_eligible,0.0,0.0
-scenario_117,federal_income_tax_before_refundable_credits,24391.796875,
+scenario_117,federal_income_tax_before_refundable_credits,24961.33984375,
 scenario_117,federal_refundable_credits,0.0,
 scenario_117,payroll_tax,15044.787109375,
 scenario_117,self_employment_tax,0.0,
-scenario_117,state_income_tax_before_refundable_credits,7984.05419921875,
+scenario_117,state_income_tax_before_refundable_credits,7984.53369140625,
 scenario_117,state_refundable_credits,0.0,
 scenario_117,local_income_tax,0.0,
 scenario_117,snap,0.0,
