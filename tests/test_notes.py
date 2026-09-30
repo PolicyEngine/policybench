@@ -2233,12 +2233,16 @@ def _and(names: list[str]) -> str:
 
 
 @cache
-def _exact_under(previous_release: bool) -> dict[str, float]:
+def _exact_under(
+    previous_release: bool, *, score_audit_exclusions: bool = False
+) -> dict[str, float]:
     """Every board model's exact score, recomputed from this snapshot's
     predictions and weights on the current references or on the previous
     release's: the references with the engine upgrade's changes reverted to
     their previous values, scored without the exclusions it added or the
-    audit's (final_actions.json audit_exclusions)."""
+    audit's (final_actions.json audit_exclusions). With
+    ``score_audit_exclusions``, the current references are scored with the
+    audit's exclusions put back, which isolates the audit's effect."""
     import pandas as pd
 
     from policybench.scorer_vectors import canonical_filtered_scores
@@ -2264,6 +2268,8 @@ def _exact_under(previous_release: bool) -> dict[str, float]:
             assert row.sum() == 1
             reference.loc[row, "value"] = change["previous"]
         excluded -= added | audit
+    elif score_audit_exclusions:
+        excluded -= audit
     keys = zip(reference["scenario_id"], reference["variable"], strict=True)
     scored = reference[[key not in excluded for key in keys]]
     predictions = pd.DataFrame(
@@ -2824,6 +2830,20 @@ def test_release_20260929_note() -> None:
     incumbents = sorted(previous)
     after = {m: by_model[m]["exact"] for m in incumbents}
     assert all(after[m] > previous[m] for m in incumbents)
+    # The rise is the two causes' joint effect: the Medicaid exclusion by
+    # itself lowers the rate of every incumbent that had matched that output,
+    # so the note says "Together".
+    medicaid_answers = payload["scenarioPredictions"][MEDICAID_EXCLUSION[0]][
+        MEDICAID_EXCLUSION[1]
+    ]
+    medicaid_matched = [
+        m
+        for m in incumbents
+        if medicaid_answers[m].get("prediction") == medicaid["frozen_value"]
+    ]
+    assert len(medicaid_matched) == facts["medicaidMatched"]
+    medicaid_scored = _exact_under(False, score_audit_exclusions=True)
+    assert all(after[m] < medicaid_scored[m] for m in medicaid_matched)
     for exclusion in new:
         key = (exclusion["scenario_id"], exclusion["variable"])
         previous = next(
@@ -2847,9 +2867,9 @@ def test_release_20260929_note() -> None:
     # The drift's two causes, as the drift baseline test rebuilds them.
     test_previous_release_scores_rebuild_from_this_snapshot()
     pin(
-        "The new references and the Medicaid exclusion raise the exact rate of "
-        "every one of the {incumbents} earlier models, by {driftMin} to {driftMax} "
-        "points.",
+        "Together, the new references and the Medicaid exclusion raise the exact "
+        "rate of every one of the {incumbents} earlier models, by {driftMin} to "
+        "{driftMax} points.",
         "None of the {incumbents} matched any of the {newExclusions:words} federal "
         "outputs now excluded, and all {incumbents} had matched the Arizona "
         "household's old ${azBefore} SNAP reference, which none matches now.",
