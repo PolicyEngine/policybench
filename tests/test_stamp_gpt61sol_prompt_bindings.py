@@ -51,7 +51,16 @@ def _transcript(config: Path, session: str, prompt: str) -> Path:
 
 
 @pytest.fixture
-def stage(tmp_path):
+def stage(tmp_path, monkeypatch):
+    # The driver re-derives the re-opened cases from a bound seed; these
+    # synthetic stages have none, so read prompt-changes.json as written.
+    monkeypatch.setattr(
+        stamp,
+        "rejudged_cases",
+        lambda stage: frozenset(
+            json.loads((stage / "prompt-changes.json").read_text())["changed"]
+        ),
+    )
     stage = tmp_path / "stage"
     stage.mkdir()
     (stage / "prompt-changes.json").write_text(
@@ -90,7 +99,9 @@ def test_a_verdict_is_stamped_with_the_prompt_its_transcript_shows(stage):
     assert _files(stage) == before
 
 
-@pytest.mark.parametrize("defect", ["other_prompt", "missing", "duplicate", "stale"])
+@pytest.mark.parametrize(
+    "defect", ["other_prompt", "missing", "duplicate", "stale", "no_sidecar"]
+)
 def test_nothing_is_stamped_unless_every_transcript_agrees(stage, tmp_path, defect):
     stage, reopened, _, config = stage
     transcript = config / "projects/-private-tmp-x/s-1.jsonl"
@@ -100,6 +111,8 @@ def test_nothing_is_stamped_unless_every_transcript_agrees(stage, tmp_path, defe
         transcript.unlink()
     elif defect == "duplicate":
         _transcript(tmp_path / "other-claude", "s-1", "Classify anything.\n")
+    elif defect == "no_sidecar":
+        (reopened / "verdict.meta.json").unlink()
     else:
         meta = json.loads((reopened / "verdict.meta.json").read_text())
         meta["prompt_sha256"] = "0" * 64

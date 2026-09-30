@@ -120,6 +120,7 @@ def verify_adjudication_record(
     source_us: Path,
     rejudged: frozenset[str],
     amendments: list[dict],
+    cases_dir: Path | None = None,
 ) -> int:
     """The staged record may change only where GPT-6.1 Sol re-opened a case.
 
@@ -128,9 +129,11 @@ def verify_adjudication_record(
     judge fields, and its reasoning exactly as the listed wording amendments
     say; nothing else in any committed entry may change, and the scoring
     exclusions stay release 20260929's. Returns how many staged decisions the
-    committed record lacks. The staged record, prompt-changes.json and the
-    amendments are bound by the receipt, which export writes only after
-    triage applied them.
+    committed record lacks. The staged file's bytes must be exactly its
+    parsed content, with 20260929's note and conventions; with ``cases_dir``,
+    each re-opened entry must be restated as the restate script does. The
+    staged record, prompt-changes.json and the amendments are bound by the
+    receipt, which export writes only after triage applied them.
     """
     from policybench.adjudications import excluded_case_keys, load_adjudications
     from policybench.reference_exclusions import (
@@ -138,10 +141,12 @@ def verify_adjudication_record(
         load_reference_exclusions,
     )
 
+    driver.verify_record_form(staged.read_text(), driver.base_adjudication_record())
     after = load_adjudications(staged)
-    added = driver.verify_adjudication_changes(
-        driver.base_adjudications(), after, rejudged, amendments
-    )
+    base = driver.base_adjudications()
+    added = driver.verify_adjudication_changes(base, after, rejudged, amendments)
+    if cases_dir is not None:
+        driver.verify_restatements(base, after, rejudged, cases_dir)
     if excluded_case_keys(after) != exclusion_keys(
         load_reference_exclusions(source_us)
     ):
@@ -150,6 +155,28 @@ def verify_adjudication_record(
             "has no reference revision"
         )
     return added
+
+
+def base_prediction_rows():
+    """Release 20260929's predictions, read from git at BASE_COMMIT.
+
+    Never the working-tree copy, which the freezer rewrites from the stage: a
+    freeze that stopped partway would compare the staged rows with themselves.
+    """
+    import io
+
+    import pandas as pd
+
+    path = Path("paper/snapshot/20260501/runs") / RUN / "predictions.csv.gz"
+    return pd.read_csv(
+        io.BytesIO(driver.base_commit_blob(path)), compression="gzip", low_memory=False
+    )
+
+
+def base_serving_config() -> dict:
+    """Release 20260929's serving configuration, read from git at BASE_COMMIT."""
+    path = Path("paper/snapshot/20260501/model_serving_config.json")
+    return json.loads(driver.base_commit_blob(path))
 
 
 def verify_annotation_amendments(annotations: Path, amendments: list[dict]) -> None:
@@ -234,8 +261,8 @@ def main(argv: list[str] | None = None) -> None:
 
     snapshot = ROOT / "paper/snapshot/20260501"
     frozen_run = snapshot / "runs" / RUN
-    serving_path = snapshot / "model_serving_config.json"
-    previous_serving = read_json(serving_path)
+    # The incumbents' frozen serving evidence is release 20260929's, from git.
+    previous_serving = base_serving_config()
     incumbents = set(previous_serving["models"]) - set(NEW_MODELS.values())
     if len(incumbents) != driver.BASE_MODELS or model_names != incumbents | set(
         NEW_MODELS.values()
@@ -250,10 +277,14 @@ def main(argv: list[str] | None = None) -> None:
     rejudged = driver.rejudged_cases(stage)
     amendments = driver.load_amendments(stage, rejudged)
     added = verify_adjudication_record(
-        staged_annotations / ADJUDICATIONS, source_us, rejudged, amendments
+        staged_annotations / ADJUDICATIONS,
+        source_us,
+        rejudged,
+        amendments,
+        stage / "audit" / "cases",
     )
     verify_annotation_amendments(staged_annotations, amendments)
-    previous_rows = pd.read_csv(frozen_run / "predictions.csv.gz", low_memory=False)
+    previous_rows = base_prediction_rows()
     staged_rows = pd.read_csv(source_us / "predictions.csv", low_memory=False)
     for model in sorted(incumbents):
         if freezer._model_prediction_rows_sha256(previous_rows, model) != (

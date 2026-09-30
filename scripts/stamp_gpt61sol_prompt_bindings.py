@@ -71,6 +71,9 @@ def plan(stage: Path, configs: list[Path]) -> dict[str, tuple[dict, Path]]:
     problems: list[str] = []
     for case in sorted(rejudged_cases(stage)):
         directory = cases / case
+        if not (directory / "verdict.meta.json").is_file():
+            problems.append(f"{case}: no verdict sidecar")
+            continue
         meta = json.loads((directory / "verdict.meta.json").read_text())
         prompt = (directory / "prompt.md").read_bytes()
         digest = hashlib.sha256(prompt).hexdigest()

@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
@@ -181,6 +183,9 @@ def staged_board(freeze_preflight, monkeypatch):
     import policybench.dashboard_schema
 
     stage, payload, receipt = freeze_preflight
+    # A synthetic stage binds no seed; the re-derived case list is tested in
+    # test_finish_gpt61sol.py.
+    monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset())
     snapshot = release.ROOT / "paper/snapshot/20260501"
     frozen = snapshot / "runs" / RUN
     frozen.mkdir(parents=True)
@@ -221,7 +226,7 @@ def test_the_freeze_refuses_a_dropped_adjudication_before_mutation(staged_board)
     record = json.loads(COMMITTED_ADJUDICATIONS.read_text())
     record["adjudications"].pop(0)
     (stage / BUNDLE / "annotations/us_adjudications.json").write_text(
-        json.dumps(record)
+        driver.record_text(record)
     )
     rebind()
     before = workspace_files()
@@ -244,7 +249,7 @@ def test_the_freeze_baseline_is_release_20260929_in_git_not_the_working_tree(
     record = json.loads(COMMITTED_ADJUDICATIONS.read_text())
     record["adjudications"].pop(0)
     staged = stage / BUNDLE / "annotations/us_adjudications.json"
-    staged.write_text(json.dumps(record))
+    staged.write_text(driver.record_text(record))
     rebind()
     # What a partial freeze leaves behind: the working-tree record is the
     # staged one, byte for byte.
@@ -302,7 +307,7 @@ def adjudications(tmp_path):
 
 
 def _write(path, record):
-    path.write_text(json.dumps(record, indent=2) + "\n")
+    path.write_text(driver.record_text(record))
 
 
 def _case(entry):
@@ -403,6 +408,209 @@ def test_a_new_exclusion_is_refused(adjudications):
         _verify(staged, rejudged={_case(added)})
 
 
+def test_the_committed_record_is_in_the_form_the_gate_requires():
+    text = COMMITTED_ADJUDICATIONS.read_text()
+    driver.verify_record_form(text, driver.base_adjudication_record())
+    assert text == driver.record_text(json.loads(text))
+
+
+@pytest.mark.parametrize("defect", ["duplicate_key", "note", "conventions", "compact"])
+def test_bytes_the_entry_gate_cannot_see_are_refused(adjudications, defect):
+    """A duplicate key hides text a parser drops; the note and conventions are
+    outside the entries; a record in another layout could hide either."""
+    staged, record = adjudications
+    text = driver.record_text(record)
+    if defect == "duplicate_key":
+        text = text.replace(
+            '"adjudicator": "developer"',
+            '"adjudicator": "SMUGGLED", "adjudicator": "developer"',
+            1,
+        )
+    elif defect == "note":
+        record["note"] = "Rewritten."
+        text = driver.record_text(record)
+    elif defect == "conventions":
+        record["date_conventions"] = {}
+        text = driver.record_text(record)
+    else:
+        text = json.dumps(record)
+    staged.write_text(text)
+    assert load_entries(staged) == load_entries(COMMITTED_ADJUDICATIONS) or (
+        defect in ("note", "conventions")
+    )
+    with pytest.raises(SystemExit, match="committed form|only entries may change"):
+        _verify(staged)
+
+
+def load_entries(path):
+    from policybench.adjudications import load_adjudications
+
+    return load_adjudications(path)
+
+
+def _restated(entry, day="2026-09-30"):
+    return {
+        **entry,
+        "judge_failure_subtype": "thresholds_rates",
+        "judge_rejudged_on": day,
+        "judge_previous": [
+            *entry.get("judge_previous", []),
+            {
+                "judge_model": entry["judge_model"],
+                "judge_failure_source": entry["judge_failure_source"],
+                "judge_failure_subtype": entry["judge_failure_subtype"],
+                "judge_reference_suspect": bool(entry.get("judge_reference_suspect")),
+                "judged_on": "2026-09-29",
+            },
+        ],
+        **({"judged_on_utc": day} if "judged_on_utc" in entry else {}),
+    }
+
+
+@pytest.fixture
+def restated(tmp_path):
+    """A re-opened entry restated as the restate script does, with its verdict."""
+    base = driver.base_adjudications()
+    entry = next(
+        e
+        for e in base
+        if e["judge_model"] == driver.JUDGE_MODEL and e.get("judge_previous")
+    )
+    cases = tmp_path / "cases"
+    case = cases / _case(entry)
+    case.mkdir(parents=True)
+    verdict = case / "verdict.json"
+    verdict.write_text('{"case_failure_source": "llm_error"}')
+    (case / "verdict.meta.json").write_text(
+        json.dumps(
+            {
+                "verdict_sha256": sha(verdict),
+                "judge_model_requested": driver.JUDGE_MODEL,
+                "judge_model_reported": [driver.JUDGE_MODEL],
+                "judged_at_utc": "2026-09-30T05:10:00+00:00",
+            }
+        )
+    )
+    staged = [_restated(e) if e is entry else e for e in base]
+    return (
+        base,
+        staged,
+        frozenset({_case(entry)}),
+        cases,
+        staged.index(next(e for e in staged if _case(e) == _case(entry))),
+    )
+
+
+def test_a_restated_entry_passes_the_restatement_check(restated):
+    base, staged, rejudged, cases, _ = restated
+    driver.verify_restatements(base, staged, rejudged, cases)
+
+
+@pytest.mark.parametrize(
+    "tamper",
+    ["judge_model", "emptied_history", "two_items", "rewritten_history", "day"],
+)
+def test_judge_fields_written_by_hand_are_refused(restated, tamper):
+    base, staged, rejudged, cases, index = restated
+    entry = copy.deepcopy(staged[index])
+    if tamper == "judge_model":
+        entry["judge_model"] = "a-human-typed-this"
+    elif tamper == "emptied_history":
+        entry["judge_previous"] = []
+    elif tamper == "two_items":
+        entry["judge_previous"] = entry["judge_previous"] + entry["judge_previous"][-1:]
+    elif tamper == "rewritten_history":
+        entry["judge_previous"][0] = {**entry["judge_previous"][0], "judged_on": "1999"}
+    else:
+        entry["judge_rejudged_on"] = "1999-01-01"
+    staged[index] = entry
+    with pytest.raises(SystemExit, match="not restated by the restate script"):
+        driver.verify_restatements(base, staged, rejudged, cases)
+
+
+def test_the_freeze_reads_20260929_predictions_and_serving_from_git(monkeypatch):
+    import gzip
+
+    blobs = {}
+
+    def blob(path):
+        blobs[str(path)] = True
+        if path.name == "predictions.csv.gz":
+            return gzip.compress(b"model,scenario_id,variable,prediction\nm,s,v,1\n")
+        return json.dumps({"models": {"m": {}}}).encode()
+
+    monkeypatch.setattr(driver, "base_commit_blob", blob)
+    assert list(release.base_prediction_rows().model) == ["m"]
+    assert release.base_serving_config() == {"models": {"m": {}}}
+    assert blobs == {
+        f"paper/snapshot/20260501/runs/{RUN}/predictions.csv.gz": True,
+        "paper/snapshot/20260501/model_serving_config.json": True,
+    }
+
+
+BASE_ENTRIES = None
+
+
+def _base_entries():
+    global BASE_ENTRIES
+    if BASE_ENTRIES is None:
+        BASE_ENTRIES = driver.base_adjudications()
+    return copy.deepcopy(BASE_ENTRIES)
+
+
+@settings(max_examples=200, deadline=None)
+@given(
+    index=st.integers(min_value=0, max_value=68),
+    pick=st.integers(min_value=0, max_value=10**6),
+    mutation=st.sampled_from(
+        ["value", "delete", "add_decision_key", "add_judge_key", "swap_decisions"]
+    ),
+    reopened=st.booleans(),
+)
+def test_the_gate_allows_exactly_the_judge_fields_of_reopened_cases(
+    index, pick, mutation, reopened
+):
+    """For every entry and every kind of single change: a change to a judge
+    field passes only where the case is re-opened; any other change fails."""
+    from restate_gpt61sol_adjudications import JUDGE_FIELDS
+
+    base = _base_entries()
+    staged = copy.deepcopy(base)
+    entry = staged[index]
+    keys = list(entry)
+    judge = mutation == "add_judge_key"
+    if mutation in ("value", "delete"):
+        key = keys[pick % len(keys)]
+        judge = key in JUDGE_FIELDS
+        if key in ("country", "scenario_id", "variable"):
+            return  # a different case key is a dropped plus an added entry
+        if mutation == "delete":
+            del entry[key]
+        else:
+            entry[key] = [entry[key], "mutated"]
+    elif mutation == "add_decision_key":
+        entry["x_extra"] = "added"
+    elif mutation == "add_judge_key":
+        if "judged_on_utc" in entry:
+            del entry["judged_on_utc"]
+        else:
+            entry["judged_on_utc"] = "2026-09-30"
+    else:
+        decisions = [k for k in keys if k not in JUDGE_FIELDS]
+        first = decisions[pick % (len(decisions) - 1)]
+        second = decisions[decisions.index(first) + 1]
+        items = list(entry.items())
+        i, j = keys.index(first), keys.index(second)
+        items[i], items[j] = items[j], items[i]
+        staged[index] = entry = dict(items)
+    rejudged = frozenset({_case(entry)}) if reopened else frozenset()
+    if reopened and judge:
+        assert driver.verify_adjudication_changes(base, staged, rejudged, []) == 0
+    else:
+        with pytest.raises(SystemExit, match="change recorded decisions"):
+            driver.verify_adjudication_changes(base, staged, rejudged, [])
+
+
 # --- Wording amendments --------------------------------------------------------
 
 
@@ -451,7 +659,7 @@ def amendment_stage(tmp_path, adjudications):
 
     def write(*items):
         (stage / driver.AMENDMENTS).write_text(json.dumps({"amendments": items}))
-        return driver.load_amendments(stage, driver.rejudged_cases(stage))
+        return driver.load_amendments(stage, frozenset({_case(entry)}))
 
     return entry, write
 

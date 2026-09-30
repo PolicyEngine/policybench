@@ -861,6 +861,76 @@ def test_bind_seed_binds_a_stage_prepared_before_prepare_did(seeded_stage):
         driver.bind_seed(args)
 
 
+@pytest.mark.parametrize("move", ["kept_to_changed", "changed_to_kept", "dropped"])
+def test_prompt_changes_that_disagree_with_the_stage_stop_every_step(
+    seeded_stage, move
+):
+    """prompt-changes.json is re-derived from the stage's prompts and the
+    bound seed on every read: moving a case between the lists, or dropping
+    one, is refused (the review's bypass of the adjudication gate)."""
+    _, stage, prepare = seeded_stage
+    prepare(JOINS_S0)
+    path = stage / driver.PROMPT_CHANGES
+    changes = json.loads(path.read_text())
+    if move == "kept_to_changed":
+        changes["kept"].remove("us__s1__snap")
+        changes["changed"].append("us__s1__snap")
+    elif move == "changed_to_kept":
+        changes["changed"].remove("us__s0__snap")
+        changes["kept"].append("us__s0__snap")
+    else:
+        changes["changed"].remove("us__s0__snap")
+    path.write_text(json.dumps(changes))
+    for step in (driver.load_seed, driver.rejudged_cases):
+        with pytest.raises(SystemExit, match="disagrees with the stage's prompts"):
+            step(stage)
+
+
+@pytest.mark.parametrize("edit", ["prompt_only", "verdict_sidecar_and_prompt"])
+def test_a_kept_case_cannot_pass_as_a_new_verdict(seeded_stage, edit):
+    """The review's bypass of finding 2: a kept case whose prompt is edited
+    (with or without a re-bound verdict) is refused, not re-judged."""
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    write_verdict(audit / "cases/us__s0__snap", _verdict(["m1", "m2", NEW]))
+    kept = audit / "cases/us__s1__snap"
+    (kept / "prompt.md").write_text((kept / "prompt.md").read_text() + "\n")
+    if edit == "verdict_sidecar_and_prompt":
+        verdict = json.loads((kept / "verdict.json").read_text())
+        verdict["case_failure_subtype"] = "other"
+        write_verdict(kept, verdict)
+    before = sorted(p.name for p in kept.iterdir())
+    with pytest.raises(SystemExit, match="incumbent-only case prompts changed"):
+        driver.load_seed(stage)
+    assert sorted(p.name for p in kept.iterdir()) == before
+
+
+def test_set_aside_keeps_the_judge_evidence_with_the_verdict(tmp_path):
+    root = tmp_path / "audit"
+    case = _audit(root, [NEW])
+    write_verdict(case, _verdict(["someone-else"]))
+    for name in ("claude.json", "claude.log", "claude.transcript.jsonl"):
+        (case / name).write_text(name)
+    assert driver.validate_verdicts(root, remove_invalid=True) == [case.name]
+    (kept,) = (tmp_path / "rejected-verdicts" / case.name).iterdir()
+    assert sorted(p.name for p in kept.iterdir()) == [
+        "claude.json",
+        "claude.log",
+        "claude.transcript.jsonl",
+        "reason.txt",
+        "verdict.json",
+        "verdict.meta.json",
+    ]
+    assert sorted(p.name for p in case.iterdir()) == ["prompt.md"]
+
+
+@pytest.mark.parametrize("payload", [[], "text", {"amendments": {}}])
+def test_a_malformed_amendment_file_is_refused(tmp_path, payload):
+    (tmp_path / driver.AMENDMENTS).write_text(json.dumps(payload))
+    with pytest.raises(SystemExit, match="'amendments' is not a list"):
+        driver.load_amendments(tmp_path, frozenset())
+
+
 @pytest.mark.parametrize("defect", ["kept_verdict", "kept_prompt", "changed_prompt"])
 def test_bind_seed_refuses_a_stage_that_disagrees_with_the_seed(seeded_stage, defect):
     seed, stage, prepare = seeded_stage
@@ -1103,12 +1173,14 @@ def test_triage_stops_and_records_flags_for_evidence_review(
     )
     monkeypatch.setattr(driver, "validate_verdicts", lambda *a, **kw: [])
     monkeypatch.setattr(driver, "load_seed", lambda stage: {})
-    monkeypatch.setattr(driver, "base_adjudications", lambda: [])
+    monkeypatch.setattr(
+        driver, "base_adjudication_record", lambda: {"adjudications": []}
+    )
     (stage / driver.PROMPT_CHANGES).write_text(
         json.dumps({"added": [], "changed": [], "kept": []})
     )
     (bundle / "annotations" / driver.ADJUDICATIONS).write_text(
-        json.dumps({"adjudications": []})
+        driver.record_text({"adjudications": []})
     )
     monkeypatch.setattr(
         policybench.audit,
@@ -1158,16 +1230,16 @@ def triage_stage(tmp_path, monkeypatch):
     )
     case = stage / "audit/cases" / CASE
     case.mkdir(parents=True)
-    (case / "verdict.json").write_text(
-        json.dumps({**_verdict([NEW]), "reference_suspect": True})
-    )
+    write_verdict(case, {**_verdict([NEW]), "reference_suspect": True})
     record = bundle / "annotations" / driver.ADJUDICATIONS
     record.write_text(
         json.dumps({"adjudications": [DECISION]}, indent=2, ensure_ascii=False) + "\n"
     )
     monkeypatch.setattr(driver, "validate_verdicts", lambda *a, **kw: [])
     monkeypatch.setattr(driver, "load_seed", lambda stage: {})
-    monkeypatch.setattr(driver, "base_adjudications", lambda: [dict(DECISION)])
+    monkeypatch.setattr(
+        driver, "base_adjudication_record", lambda: {"adjudications": [DECISION]}
+    )
     row = {
         "country": "us",
         "scenario_id": "scenario_000",
@@ -1217,12 +1289,55 @@ def triage_stage(tmp_path, monkeypatch):
     return stage, record, run
 
 
+SEED_ITEM = {
+    "judge_model": "claude-opus-5-5",
+    "judge_failure_source": "llm_error",
+    "judge_failure_subtype": "thresholds_rates",
+    "judge_reference_suspect": True,
+    "judged_on": "2026-09-29",
+}
+RESTATED = {
+    **DECISION,
+    "judge_rejudged_on": "2026-09-30",
+    "judge_previous": [SEED_ITEM],
+}
+
+
+def _record(*entries):
+    return driver.record_text({"adjudications": list(entries)})
+
+
 def test_triage_lets_a_rejudged_case_restate_its_judge_fields(triage_stage):
     stage, record, run = triage_stage
-    restated = {**DECISION, "judge_rejudged_on": "2026-09-30"}
-    record.write_text(json.dumps({"adjudications": [restated]}))
+    record.write_text(_record(RESTATED))
     entry, _, _ = run()
-    assert entry == restated
+    assert entry == RESTATED
+
+
+@pytest.mark.parametrize(
+    "tamper",
+    [
+        {"judge_model": "a-human-typed-this"},
+        {"judge_previous": []},
+        {"judge_rejudged_on": "1999-01-01"},
+    ],
+)
+def test_triage_refuses_judge_fields_written_by_hand(triage_stage, tamper):
+    stage, record, run = triage_stage
+    record.write_text(_record({**RESTATED, **tamper}))
+    with pytest.raises(SystemExit, match="not restated by the restate script"):
+        run()
+
+
+def test_triage_refuses_a_record_whose_bytes_hide_text(triage_stage):
+    stage, record, run = triage_stage
+    text = _record(DECISION).replace(
+        '"adjudicator": "developer"',
+        '"adjudicator": "SMUGGLED", "adjudicator": "developer"',
+    )
+    record.write_text(text)
+    with pytest.raises(SystemExit, match="committed form"):
+        run()
 
 
 @pytest.mark.parametrize(
@@ -1233,7 +1348,7 @@ def test_triage_refuses_any_other_change_to_a_recorded_decision(
     triage_stage, field, value
 ):
     stage, record, run = triage_stage
-    record.write_text(json.dumps({"adjudications": [{**DECISION, field: value}]}))
+    record.write_text(_record({**DECISION, field: value}))
     with pytest.raises(SystemExit, match="change recorded decisions"):
         run()
 
@@ -1243,9 +1358,7 @@ def test_triage_refuses_a_judge_rewrite_of_an_incumbent_only_case(triage_stage):
     (stage / driver.PROMPT_CHANGES).write_text(
         json.dumps({"added": [], "changed": [], "kept": [CASE]})
     )
-    record.write_text(
-        json.dumps({"adjudications": [{**DECISION, "judge_rejudged_on": "2026-09-30"}]})
-    )
+    record.write_text(_record(RESTATED))
     with pytest.raises(SystemExit, match="change recorded decisions"):
         run()
 

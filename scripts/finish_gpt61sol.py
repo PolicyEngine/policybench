@@ -322,22 +322,110 @@ def base_payload_from_commit() -> dict:
     return live
 
 
-def base_adjudications() -> list[dict]:
-    """Release 20260929's adjudication record, read from BASE_COMMIT.
+def base_adjudication_record() -> dict:
+    """Release 20260929's adjudication record file, read from BASE_COMMIT.
 
     The working-tree copy is not a baseline: the freeze overwrites it, and a
     freeze that stops partway would leave the staged record in its place.
     """
+    path = Path("annotations") / RUN_NAME / ADJUDICATIONS
+    return json.loads(base_commit_blob(path))
+
+
+def base_adjudications() -> list[dict]:
+    """Release 20260929's adjudication entries, read from BASE_COMMIT."""
     from policybench.adjudications import parse_adjudications
 
     path = Path("annotations") / RUN_NAME / ADJUDICATIONS
-    return parse_adjudications(
-        json.loads(base_commit_blob(path)), f"{BASE_COMMIT[:12]}:{path}"
+    return parse_adjudications(base_adjudication_record(), f"{BASE_COMMIT[:12]}:{path}")
+
+
+def record_text(record: dict) -> str:
+    """An adjudication record as the committed file spells it."""
+    return json.dumps(record, indent=2, ensure_ascii=False) + "\n"
+
+
+def verify_record_form(text: str, base: dict) -> None:
+    """The staged record's bytes are exactly its parsed content, and its top
+    level other than the entries is release 20260929's.
+
+    Duplicate keys, or any other bytes a parser drops, would ship in the
+    frozen file unseen by the entry gate; so would a rewritten note or date
+    convention.
+    """
+    record = json.loads(text)
+    require(
+        text == record_text(record),
+        "the staged adjudication record is not in the committed form (duplicate "
+        "keys or other bytes the entry gate cannot see); write it with "
+        "json.dumps(indent=2, ensure_ascii=False)",
+    )
+    require(
+        record_text({k: v for k, v in record.items() if k != "adjudications"})
+        == record_text({k: v for k, v in base.items() if k != "adjudications"}),
+        "the staged adjudication record changes its note, schema or date "
+        "conventions; only entries may change",
+    )
+
+
+def verify_restatements(
+    base: list[dict], staged: list[dict], rejudged: frozenset[str], cases_dir: Path
+) -> None:
+    """A re-opened entry's judge fields must be the restate script's.
+
+    Where they differ from 20260929's, the entry must name the case's current
+    Opus 5.5 verdict (bound by its sidecar) as its judge, date it by that
+    sidecar's UTC day, and keep 20260929's judge_previous with exactly one
+    item appended (the replaced verdict). A new entry must name the current
+    judge too.
+    """
+    from restate_gpt61sol_adjudications import JUDGE_FIELDS, _utc_day
+
+    before = {case_id(entry): entry for entry in base}
+    wrong = []
+    for entry in staged:
+        case = case_id(entry)
+        if case not in rejudged:
+            continue
+        original = before.get(case)
+        judge = {k: v for k, v in entry.items() if k in JUDGE_FIELDS}
+        if original is not None and judge == {
+            k: v for k, v in original.items() if k in JUDGE_FIELDS
+        }:
+            continue
+        verdict = cases_dir / case / "verdict.json"
+        meta_path = verdict.with_name("verdict.meta.json")
+        meta = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
+        bound = verdict.is_file() and meta.get("verdict_sha256") == digest(verdict)
+        day = _utc_day(meta["judged_at_utc"]) if meta.get("judged_at_utc") else None
+        problems = []
+        if not bound or entry.get("judge_model") != JUDGE_MODEL:
+            problems.append("judge is not the current Opus 5.5 verdict")
+        if original is not None:
+            previous = original.get("judge_previous", [])
+            restated = entry.get("judge_previous", [])
+            if len(restated) != len(previous) + 1 or restated[:-1] != previous:
+                problems.append("judge_previous is not 20260929's plus one item")
+            if (
+                entry.get("judge_rejudged_on") != day
+                or entry.get("judged_on_utc", day) != day
+            ):
+                problems.append(f"not dated by the current verdict's day {day}")
+        if problems:
+            wrong.append(f"{case}: {'; '.join(problems)}")
+    require(
+        not wrong,
+        f"re-opened adjudications not restated by the restate script: {wrong[:4]}",
     )
 
 
 def rejudged_cases(stage: Path) -> frozenset[str]:
-    """The cases GPT-6.1 Sol re-opened: prompt-changes.json's changed and added."""
+    """The cases GPT-6.1 Sol re-opened: prompt-changes.json's changed and added.
+
+    load_seed re-derives prompt-changes.json from the stage's prompts and the
+    seed stage.json binds, so the lists cannot drift from the stage.
+    """
+    load_seed(stage)
     changes = json.loads((stage / PROMPT_CHANGES).read_text())
     return frozenset(changes["changed"]) | frozenset(changes["added"])
 
@@ -367,7 +455,8 @@ def load_amendments(stage: Path, rejudged: frozenset[str]) -> list[dict]:
     path = stage / AMENDMENTS
     if not path.exists():
         return []
-    amendments = json.loads(path.read_text()).get("amendments")
+    payload = json.loads(path.read_text())
+    amendments = payload.get("amendments") if isinstance(payload, dict) else None
     require(isinstance(amendments, list), f"{AMENDMENTS}: 'amendments' is not a list")
     for item in amendments:
         require(isinstance(item, dict), f"{AMENDMENTS}: {item!r} is not an object")
@@ -502,8 +591,11 @@ def stage_adjudications(
 
     from policybench.adjudications import parse_adjudications
 
+    base_record = base_adjudication_record()
     base = base_adjudications()
-    record = json.loads(path.read_text())
+    current = path.read_text()
+    verify_record_form(current, base_record)
+    record = json.loads(current)
     grouped = _record_amendments(amendments)
     original = {case_id(entry): entry for entry in base}
     applied = False
@@ -516,9 +608,11 @@ def stage_adjudications(
                     wording, grouped[case], f"{case} reasoning"
                 )
                 applied = True
-    text = json.dumps(record, indent=2, ensure_ascii=False) + "\n"
+    text = record_text(record)
+    verify_record_form(text, base_record)
     entries = parse_adjudications(json.loads(text), path)
     verify_adjudication_changes(base, entries, rejudged, amendments)
+    verify_restatements(base, entries, rejudged, cases_dir)
     verify_adjudications_keep_judge_verdicts(entries, cases_dir)
     if applied:
         pending = path.with_name(path.name + ".amending")
@@ -809,7 +903,13 @@ def verify_seed(seed: dict[str, dict[str, str]]) -> None:
 
 
 def load_seed(stage: Path) -> dict[str, dict[str, str]]:
-    """The seed stage.json binds, checked against the committed digest."""
+    """The seed stage.json binds, checked against the committed digest.
+
+    It also re-derives which cases are kept, changed and added from the
+    stage's prompts and that seed, and refuses unless prompt-changes.json
+    says the same: a kept case's prompt that drifts, or a case moved between
+    the lists, stops every step that relies on them.
+    """
     receipt = json.loads((stage / "stage.json").read_text())
     require(
         "seed" in receipt,
@@ -817,7 +917,34 @@ def load_seed(stage: Path) -> dict[str, dict[str, str]]:
         "--audit-seed <the 20260929 audit>",
     )
     verify_seed(receipt["seed"])
+    verify_prompt_changes(stage, receipt["seed"])
     return receipt["seed"]
+
+
+def verify_prompt_changes(stage: Path, seed: dict[str, dict[str, str]]) -> None:
+    """prompt-changes.json must be what the stage's prompts say against the seed.
+
+    A case whose prompt is the seed's is kept, one whose prompt differs is
+    changed and one the seed lacks is added; GPT-6.1 Sol must be among the
+    wrong models of every changed or added case, and no seed case may vanish
+    (check_prompt_changes, as prepare applies it).
+    """
+    derived = check_prompt_changes(
+        stage / "audit", {case: item["prompt_sha256"] for case, item in seed.items()}
+    )
+    recorded = json.loads((stage / PROMPT_CHANGES).read_text())
+    differ = sorted(
+        {
+            case
+            for key in ("kept", "changed", "added")
+            for case in set(derived[key]) ^ set(recorded.get(key, []))
+        }
+    )
+    require(
+        not differ,
+        f"{PROMPT_CHANGES} disagrees with the stage's prompts and the bound "
+        f"seed on {len(differ)} cases: {differ[:8]}",
+    )
 
 
 def bind_seed(args) -> None:
@@ -949,16 +1076,24 @@ def prepare_cases(args, bundle) -> dict[str, dict[str, str]]:
 
 
 def set_aside(audit: Path, case_id: str, reason: str) -> None:
-    """Move a case's verdict and sidecar out of the audit, keeping them.
+    """Move a case's verdict, sidecar and judge evidence out of the audit.
 
-    They go to <stage>/rejected-verdicts/<case>/<UTC time>/, so a re-judge
-    never destroys the verdict it replaces.
+    They go to <stage>/rejected-verdicts/<case>/<UTC time>/ with the judge's
+    envelope, log and transcript, so a re-judge never destroys the verdict it
+    replaces or the record of how it was made.
     """
     from datetime import datetime, timezone
 
     case = audit / "cases" / case_id
-    files = [case / name for name in ("verdict.json", "verdict.meta.json")]
-    if not any(path.exists() for path in files):
+    names = (
+        "verdict.json",
+        "verdict.meta.json",
+        "claude.json",
+        "claude.log",
+        "claude.transcript.jsonl",
+    )
+    files = [case / name for name in names]
+    if not any(path.exists() for path in files[:2]):
         return
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     target = audit.parent / "rejected-verdicts" / case_id / stamp
