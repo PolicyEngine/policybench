@@ -153,21 +153,21 @@ without an elderly or disabled member), and an output such a defect moves that
 was already excluded for an unstated input keeps that record. On
 policyengine-us 2.15.17 each of these outputs keeps the value its defect
 produced, or it moved and a re-review found the defect still present.
-Twenty-eight depend on an input the prompt never states, such as the SSI
-disability criterion, months of SSDI receipt, weekly hours worked, the type of
-survivor benefits, who paid for the coverage behind a disability benefit,
-whether an adult tax dependent is the filers' child, or whether a listed state
-and local tax refund counts as income, which turns on whether the refunded tax
-reduced federal tax in the year the household paid it (26 U.S.C. 111(a));
-each was recomputed under the other reading a careful reader could take, on the
-engine version that produced its reference, and it moved. One of them, a
-California household head's Medicaid eligibility, moved only once the engine
-read the SSI disability criterion where the law does. The head's income is
-above the limit for the adult expansion group, so only a disability pathway
-leads to Medi-Cal, and California's Working Disabled Program requires the
-Social Security definition of disability (42 CFR 435.540(a)). policyengine-us
+Twenty-eight depend on an input the prompt never states, such as whether a
+person meets SSI's definition of disability, months of SSDI receipt, weekly
+hours worked, the type of survivor benefits, who paid for the coverage behind a
+disability benefit, whether an adult tax dependent is the filers' child, or
+whether a listed state and local tax refund counts as income, which turns on
+whether the refunded tax reduced federal tax in the year the household paid it
+(26 U.S.C. 111(a)); each was recomputed under the other reading a careful
+reader could take, on the engine version that produced its reference, and it
+moved. One of them, a California household head's Medicaid eligibility, moved
+only once the engine read SSI's definition of disability where the law does.
+The head's income is above the limit for the adult expansion group, so only a
+disability pathway leads to Medi-Cal, and California's Working Disabled Program
+requires SSI's definition of disability (42 CFR 435.540(a)). policyengine-us
 2.15.17 tests the general disability flag instead and gives 1 under either
-reading; with the program's test reading the Social Security definition, the
+reading; with the program's test reading SSI's definition of disability, the
 head qualifies only by meeting it.
 Exclusion is symmetric: rows that matched the frozen reference leave the score
 with rows that did not, so every model is scored on 1,928 of its 1,984
@@ -190,14 +190,14 @@ investment income tax definition, and the readings for mortgage residence and
 reading. Set against the same 2.15.17 calculation without its fix or reading,
 no sweep moves a scored output by more than the $1 exact-match tolerance, and
 three scored outputs move by less. The other ten defect fixes and the other
-readings (the SSI disability criterion, months of SSDI receipt, survivor
+readings (SSI's definition of disability, months of SSDI receipt, survivor
 benefits, disability coverage, adult dependents and Massachusetts bank
 interest) ran on 1.755.4 only. The engine-upgrade review covered the outputs
 the upgrade moved, and through them it flagged the California Medicaid output
-above, which the SSI disability criterion does not move on 2.15.17 because the
-engine's Working Disabled Program test reads the general disability flag. An
-output that one of those fixes or readings would move on 2.15.17, but did not
-move on 1.755.4, could still be scored.
+above, which the reading of SSI's definition of disability does not move on
+2.15.17 because the engine's Working Disabled Program test reads the general
+disability flag. An output that one of those fixes or readings would move on
+2.15.17, but did not move on 1.755.4, could still be scored.
 
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be
