@@ -1,10 +1,15 @@
 """Tests for PolicyEngine runtime provenance metadata."""
 
 import copy
+import hashlib
 import json
+import tempfile
 from importlib import metadata
+from pathlib import Path
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 import policybench.policyengine_runtime as runtime
 
@@ -285,6 +290,207 @@ def test_provenance_inputs_track_package_versions(monkeypatch):
 
     assert changed != baseline
     assert changed["distributions"]["policyengine-uk"]["version"] == "0.0.1"
+
+
+# Where each policyengine.py layout keeps its release manifests: 4.16.1 ships
+# one per country, 6.1.2 one bundle manifest with each under data_releases.
+RELEASE_MANIFEST = "policyengine/data/release_manifests/{country}.json"
+BUNDLE_MANIFEST = "policyengine/data/bundle/manifest.json"
+LAYOUTS = ["per-country", "bundle"]
+
+
+class _RelocatedDistribution:
+    """An installed distribution whose package files live under ``root``."""
+
+    def __init__(self, distribution, root):
+        self._distribution = distribution
+        self._root = Path(root)
+
+    def locate_file(self, path):
+        return self._root / path
+
+    def __getattr__(self, name):
+        return getattr(self._distribution, name)
+
+
+def _relocate_policyengine(monkeypatch, root):
+    real = metadata.distribution
+    monkeypatch.setattr(
+        metadata,
+        "distribution",
+        lambda name: (
+            _RelocatedDistribution(real(name), root)
+            if name == "policyengine"
+            else real(name)
+        ),
+    )
+
+
+def _file_texts(files):
+    """``{relative path: JSON payload}`` as written; a None payload is absent.
+
+    Key order survives serialization, so payloads that compare equal as
+    dicts can still differ as files.
+    """
+    return {
+        relative_path: json.dumps(payload)
+        for relative_path, payload in files.items()
+        if payload is not None
+    }
+
+
+def _write_files(root, files):
+    for relative_path, text in _file_texts(files).items():
+        path = Path(root) / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+
+def _release(country, bundle_id):
+    return {
+        "bundle_id": bundle_id,
+        "policyengine_version": "6.1.2",
+        "data_package": {"name": f"{country}-fixture-data", "version": "0.1.0"},
+        "default_dataset": f"{country}_fixture_dataset",
+    }
+
+
+def _layout_files(layout, us_bundle_id):
+    releases = {"us": _release("us", us_bundle_id), "uk": _release("uk", "uk-fixture")}
+    if layout == "per-country":
+        return {
+            RELEASE_MANIFEST.format(country=country): release
+            for country, release in releases.items()
+        }
+    return {BUNDLE_MANIFEST: {"bundle_version": "6.1.2", "data_releases": releases}}
+
+
+def _sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+@pytest.fixture
+def relocated_policyengine(monkeypatch, tmp_path):
+    """policyengine's package files under a temporary root, read unimported.
+
+    ``_load_policyengine_manifest`` returns None, as it does when no installed
+    model package is the version policyengine.py pins, so every bundle comes
+    from ``_load_raw_policyengine_manifest``.
+    """
+    root = tmp_path / "site-packages"
+    _relocate_policyengine(monkeypatch, root)
+    monkeypatch.setattr(runtime, "_load_policyengine_manifest", lambda country: None)
+    runtime.policyengine_release_bundle.cache_clear()
+    yield root
+    runtime.policyengine_release_bundle.cache_clear()
+
+
+@pytest.mark.parametrize("layout", LAYOUTS)
+def test_provenance_inputs_hash_each_layouts_manifests(relocated_policyengine, layout):
+    """The per-country layout fingerprints as before; the bundle manifest too."""
+    root = relocated_policyengine
+    _write_files(root, _layout_files(layout, "us-fixture-1"))
+
+    inputs = runtime.policyengine_provenance_inputs()
+
+    if layout == "per-country":
+        assert inputs["release_manifest_sha256"] == {
+            country: _sha256(root / RELEASE_MANIFEST.format(country=country))
+            for country in ("uk", "us")
+        }
+        assert inputs["bundle_manifest_sha256"] is None
+    else:
+        assert inputs["release_manifest_sha256"] == {"uk": None, "us": None}
+        assert inputs["bundle_manifest_sha256"] == _sha256(root / BUNDLE_MANIFEST)
+
+
+@pytest.mark.parametrize("layout", LAYOUTS)
+def test_manifest_edited_in_place_makes_the_provenance_file_stale(
+    relocated_policyengine, tmp_path, capsys, layout
+):
+    """An in-place edit of the release a bundle came from is never reused.
+
+    For the bundle layout this is the review of PR #182: editing
+    data_releases.us.bundle_id left the fingerprint unchanged.
+    """
+    root = relocated_policyengine
+    _write_files(root, _layout_files(layout, "us-fixture-1"))
+    path = tmp_path / runtime.POLICYENGINE_PROVENANCE_FILENAME
+    env = {runtime.POLICYENGINE_PROVENANCE_ENV: str(path)}
+    assert runtime.write_policyengine_provenance(path, {"us"}) is True
+    before = runtime.policyengine_provenance_inputs()
+    reused = runtime.resolve_policyengine_bundles({"us"}, env=env)
+    assert reused["us"]["bundle_id"] == "us-fixture-1"
+
+    _write_files(root, _layout_files(layout, "us-fixture-2"))
+    # As in a worker started after the edit.
+    runtime.policyengine_release_bundle.cache_clear()
+
+    assert runtime.policyengine_provenance_inputs() != before
+    bundles, reason = runtime._read_policyengine_provenance(path, ["us"])
+    assert bundles is None
+    assert reason == "it was written for different PolicyEngine packages or code"
+    fresh = runtime.resolve_policyengine_bundles({"us"}, env=env)
+    assert fresh["us"]["bundle_id"] == "us-fixture-2"
+    assert runtime.POLICYENGINE_PROVENANCE_NOT_REUSED in capsys.readouterr().err
+
+
+def test_installed_policyengine_manifest_is_fingerprinted():
+    """Whichever layout the pinned policyengine.py ships, its manifest is hashed."""
+    assert runtime._load_raw_policyengine_manifest("us") is not None
+    inputs = runtime.policyengine_provenance_inputs()
+    hashes = [
+        *inputs["release_manifest_sha256"].values(),
+        inputs["bundle_manifest_sha256"],
+    ]
+    assert any(sha256 is not None for sha256 in hashes)
+
+
+_RELEASES = st.sampled_from([{"bundle_id": "one"}, {"bundle_id": "two"}])
+# Any mix of the two layouts' files, each present with some content or absent.
+_MANIFEST_FILES = st.fixed_dictionaries(
+    {
+        RELEASE_MANIFEST.format(country="us"): st.none() | _RELEASES,
+        RELEASE_MANIFEST.format(country="uk"): st.none() | _RELEASES,
+        BUNDLE_MANIFEST: st.none()
+        | st.fixed_dictionaries(
+            {"data_releases": st.fixed_dictionaries({"us": _RELEASES, "uk": _RELEASES})}
+        ),
+    }
+)
+
+
+def _fingerprint_and_raw_manifests(files):
+    with (
+        pytest.MonkeyPatch.context() as monkeypatch,
+        tempfile.TemporaryDirectory() as root,
+    ):
+        _write_files(root, files)
+        _relocate_policyengine(monkeypatch, root)
+        return runtime.policyengine_provenance_inputs(), {
+            country: runtime._load_raw_policyengine_manifest(country)
+            for country in runtime.MODEL_PACKAGES
+        }
+
+
+@settings(max_examples=60, deadline=None)
+@given(first=_MANIFEST_FILES, second=_MANIFEST_FILES)
+def test_equal_fingerprints_mean_equal_raw_manifests(first, second):
+    """Every file the raw manifest reader reads is in the fingerprint.
+
+    For two environments that differ only in these files, the fingerprints
+    are equal exactly when the files are byte for byte the same, wherever
+    they are installed; so equal fingerprints hand every country the same
+    release.
+    """
+    first_inputs, first_manifests = _fingerprint_and_raw_manifests(first)
+    second_inputs, second_manifests = _fingerprint_and_raw_manifests(second)
+
+    assert (first_inputs == second_inputs) == (
+        _file_texts(first) == _file_texts(second)
+    )
+    if first_inputs == second_inputs:
+        assert first_manifests == second_manifests
 
 
 def test_provenance_without_env_computes_directly(fake_release_bundles, monkeypatch):

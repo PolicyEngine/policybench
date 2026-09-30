@@ -33,6 +33,11 @@ PROVENANCE_DISTRIBUTIONS = (
     "policyengine-us",
     "policyengine-uk",
 )
+# policyengine.py's bundled release manifests, relative to its distribution.
+# 4.16.1 ships one per country; 6.1.2 ships one bundle manifest that keeps each
+# country's release under data_releases.
+RELEASE_MANIFEST_PATH = "policyengine/data/release_manifests/{country}.json"
+BUNDLE_MANIFEST_PATH = "policyengine/data/bundle/manifest.json"
 
 DATA_PACKAGES = {
     "us": "policyengine-us-data",
@@ -258,15 +263,13 @@ def _load_raw_policyengine_manifest(country: str) -> dict[str, Any] | None:
     except metadata.PackageNotFoundError:
         return None
     manifest_path = Path(
-        distribution.locate_file(f"policyengine/data/release_manifests/{country}.json")
+        distribution.locate_file(RELEASE_MANIFEST_PATH.format(country=country))
     )
     if manifest_path.exists():
         return json.loads(manifest_path.read_text(encoding="utf-8"))
     # policyengine.py 6.x ships one bundle manifest; each country's data release
     # keeps the per-country manifest's shape under data_releases.
-    bundle_path = Path(
-        distribution.locate_file("policyengine/data/bundle/manifest.json")
-    )
+    bundle_path = Path(distribution.locate_file(BUNDLE_MANIFEST_PATH))
     if bundle_path.exists():
         bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
         release = (bundle.get("data_releases") or {}).get(country)
@@ -448,15 +451,24 @@ def _distribution_inputs(name: str) -> dict[str, Any]:
     }
 
 
+def _packaged_file_sha256(distribution: Any, relative_path: str) -> str | None:
+    if distribution is None:
+        return None
+    return _sha256_or_none(Path(distribution.locate_file(relative_path)))
+
+
 def policyengine_provenance_inputs() -> dict[str, Any]:
     """Fingerprint the environment ``policyengine_bundles_for_countries`` sees.
 
     Reads package metadata, files and environment flags only; importing
-    policyengine is the cost this exists to avoid. The PolicyEngine packages,
-    their bundled release manifests, this module and the import flags are
-    recorded directly; the environment holding everything else (pydantic,
-    requests, ...) is identified by ``sys.prefix``, though an in-place upgrade
-    of those packages is not detected. A provenance file is
+    policyengine is the cost this exists to avoid. Recorded directly: each
+    PolicyEngine package's version, install URL and METADATA; the hash of
+    each release manifest file, in either layout policyengine.py ships (one
+    file per country, or one bundle manifest holding every country's
+    release), with None for each file the installed layout lacks; this
+    module; and the import flags. The environment holding everything
+    else (pydantic, requests, ...) is identified by ``sys.prefix``, though an
+    in-place upgrade of those packages is not detected. A provenance file is
     reused only when its recorded fingerprint equals the reader's, so a
     worker whose environment differs from the writer's recomputes instead.
     """
@@ -465,16 +477,8 @@ def policyengine_provenance_inputs() -> dict[str, Any]:
     except metadata.PackageNotFoundError:
         policyengine_distribution = None
     release_manifests = {
-        country: (
-            _sha256_or_none(
-                Path(
-                    policyengine_distribution.locate_file(
-                        f"policyengine/data/release_manifests/{country}.json"
-                    )
-                )
-            )
-            if policyengine_distribution is not None
-            else None
+        country: _packaged_file_sha256(
+            policyengine_distribution, RELEASE_MANIFEST_PATH.format(country=country)
         )
         for country in sorted(MODEL_PACKAGES)
     }
@@ -485,6 +489,9 @@ def policyengine_provenance_inputs() -> dict[str, Any]:
             name: _distribution_inputs(name) for name in PROVENANCE_DISTRIBUTIONS
         },
         "release_manifest_sha256": release_manifests,
+        "bundle_manifest_sha256": _packaged_file_sha256(
+            policyengine_distribution, BUNDLE_MANIFEST_PATH
+        ),
         "policyengine_runtime_sha256": _RUNTIME_SOURCE_SHA256,
         # Whether ``import policyengine`` succeeds decides which branch of
         # policyengine_release_bundle records the US bundle. The skip flag
