@@ -833,45 +833,167 @@ def test_load_amendments_refuses_anything_but_wording_of_rejudged_cases(
         write({**_amendment(entry, "a", "b"), **defect})
 
 
-def _annotations(tmp_path, row_text, note_text="The case note."):
-    import pandas as pd
+# One re-opened, decided case: its verdict's rationale and diagnoses are the
+# sources triage folds into the published case note and row annotations.
+WORDING_CASE = "us__scenario_001__snap"
+RATIONALE = "The model applied an outdated threshold."
+DIAGNOSES = {"m1": "It left out A. More.", "m2": "It used last year's threshold."}
+DECISION = {
+    "country": "us",
+    "scenario_id": "scenario_001",
+    "variable": "snap",
+    "judge_model": "claude-opus-5-5",
+    "judge_failure_source": "llm_error",
+    "judge_failure_subtype": "thresholds_rates",
+    "adjudicated_failure_source": "llm_error",
+    "adjudicated_failure_subtype": "thresholds_rates",
+    "adjudicated_on": "2026-09-30",
+    "adjudicator": "developer",
+    "reasoning": "The threshold is the current year's.",
+}
 
-    keys = {"country": "us", "scenario_id": "scenario_001", "variable": "snap"}
-    pd.DataFrame([{**keys, "model": "m1", "annotation": row_text}]).to_csv(
-        tmp_path / "us_audit_row_annotations.csv", index=False
-    )
-    pd.DataFrame([{**keys, "case_annotation": note_text}]).to_csv(
-        tmp_path / "us_case_notes.csv", index=False
-    )
-    return tmp_path
 
-
-def _row_amendment(old, new):
+def _row_amendment(old, new, model="m1"):
     return {
-        "case_id": "us__scenario_001__snap",
+        "case_id": WORDING_CASE,
         "field": "annotation",
-        "model": "m1",
+        "model": model,
         "old": old,
         "new": new,
         "reason": "r",
     }
 
 
-def test_the_freeze_finds_chained_amendments_in_the_staged_text(tmp_path):
-    """A later amendment may rewrite words an earlier one wrote; the freeze
-    chains them before looking, and refuses a text that lacks the result."""
-    chained = [
-        _row_amendment("It left out A.", "It left out A, as B does."),
-        _row_amendment("as B does", "as the corrected B does"),
+def _note_amendment(old, new):
+    return {
+        "case_id": WORDING_CASE,
+        "field": "case_annotation",
+        "old": old,
+        "new": new,
+        "reason": "r",
+    }
+
+
+# A later amendment rewrites words an earlier one wrote.
+CHAINED = [
+    _row_amendment("It left out A.", "It left out A, as B does."),
+    _row_amendment("as B does", "as the corrected B does"),
+    _note_amendment("an outdated", "the prior year's"),
+]
+# What triage publishes with CHAINED applied, spelled out by hand.
+PUBLISHED = {
+    "m1": "It left out A, as the corrected B does. More.",
+    "m2": DIAGNOSES["m2"],
+    "note": "The model applied the prior year's threshold."
+    + " Developer adjudication (2026-09-30): the judge (claude-opus-5-5) returned "
+    "llm_error; adjudicated llm_error (thresholds_rates). The threshold is the "
+    "current year's.",
+}
+
+
+def _wording_stage(tmp_path, published):
+    """An audit with the case's verdict, the staged record deciding it, and
+    the published case note and row annotations ``published`` spells."""
+    import pandas as pd
+
+    from policybench.adjudications import adjudication_sentence
+
+    assert PUBLISHED["note"].endswith(adjudication_sentence(DECISION))
+    audit = tmp_path / "audit"
+    (audit / "cases" / WORDING_CASE).mkdir(parents=True)
+    keys = {"country": "us", "scenario_id": "scenario_001", "variable": "snap"}
+    (audit / "cases.jsonl").write_text(
+        json.dumps(
+            {
+                "case_id": WORDING_CASE,
+                "scenario_id": keys["scenario_id"],
+                "variable": keys["variable"],
+                "wrong_models": list(DIAGNOSES),
+                "parse_failure_only": False,
+            }
+        )
+        + "\n"
+    )
+    verdict = {
+        "reference_suspect": False,
+        "reference_bug_hypothesis": "",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "rationale": RATIONALE,
+        "models": [
+            {
+                "model": model,
+                "failure_source": "llm_error",
+                "failure_subtype": "thresholds_rates",
+                "diagnosis": diagnosis,
+            }
+            for model, diagnosis in DIAGNOSES.items()
+        ],
+    }
+    (audit / "cases" / WORDING_CASE / "verdict.json").write_text(json.dumps(verdict))
+    annotations = tmp_path / "publish" / RUN / "annotations"
+    annotations.mkdir(parents=True)
+    (annotations / "us_adjudications.json").write_text(
+        json.dumps({"adjudications": [DECISION]})
+    )
+    pd.DataFrame(
+        [
+            {**keys, "model": model, "annotation": published[model]}
+            for model in DIAGNOSES
+            if model in published
+        ]
+    ).to_csv(annotations / "us_audit_row_annotations.csv", index=False)
+    pd.DataFrame([{**keys, "case_annotation": published["note"]}]).to_csv(
+        annotations / "us_case_notes.csv", index=False
+    )
+    return annotations, audit
+
+
+def test_the_freeze_replays_chained_amendments_onto_the_sources(tmp_path):
+    """Each text is rebuilt from its verdict source and the adjudication
+    sentence, the amendments replayed in order; the full result must be the
+    published text, and a text no amendment names must be its source."""
+    annotations, audit = _wording_stage(tmp_path, PUBLISHED)
+    release.verify_annotation_amendments(annotations, CHAINED, audit)
+
+
+@pytest.mark.parametrize(
+    "published, amendments",
+    [
+        # The listed fragment is present, beside wording nobody listed.
+        ({**PUBLISHED, "m1": PUBLISHED["m1"] + " Unlisted."}, CHAINED),
+        ({**PUBLISHED, "note": "Unlisted. " + PUBLISHED["note"]}, CHAINED),
+        # A text no amendment names, reworded.
+        ({**PUBLISHED, "m2": "It used an unlisted threshold."}, CHAINED),
+        ({**PUBLISHED, "m2": DIAGNOSES["m2"] + " Unlisted."}, CHAINED),
+        # With no amendments at all, every text is still checked.
+        ({**PUBLISHED, "m1": DIAGNOSES["m1"] + " Unlisted."}, []),
+        # A listed amendment not applied, or only half of a chain.
+        ({**PUBLISHED, "m1": DIAGNOSES["m1"]}, CHAINED),
+        ({**PUBLISHED, "m1": "It left out A, as B does. More."}, CHAINED),
+        # A published row annotation dropped.
+        ({key: text for key, text in PUBLISHED.items() if key != "m2"}, CHAINED),
+    ],
+)
+def test_the_freeze_refuses_wording_the_amendments_do_not_produce(
+    tmp_path, published, amendments
+):
+    annotations, audit = _wording_stage(tmp_path, published)
+    with pytest.raises(SystemExit, match="not their verdict sources"):
+        release.verify_annotation_amendments(annotations, amendments, audit)
+
+
+def test_each_replayed_old_text_must_occur_once_when_applied(tmp_path):
+    """The first amendment makes the second's old text occur twice."""
+    twice = [
+        _row_amendment("It left out A.", "It left out A. A."),
+        _row_amendment("A.", "B."),
     ]
-    applied = _annotations(tmp_path, "It left out A, as the corrected B does. More.")
-    release.verify_annotation_amendments(applied, chained)
-    stale = _annotations(tmp_path, "It left out A, as B does. More.")
-    with pytest.raises(SystemExit, match="does not carry its listed wording"):
-        release.verify_annotation_amendments(stale, chained)
-    missing = _annotations(tmp_path, "It left out A. More.")
-    with pytest.raises(SystemExit, match="does not carry its listed wording"):
-        release.verify_annotation_amendments(missing, chained[:1])
+    annotations, audit = _wording_stage(
+        tmp_path, {**PUBLISHED, "m1": "It left out B. A. More."}
+    )
+    with pytest.raises(SystemExit, match="occurs 2 times"):
+        release.verify_annotation_amendments(annotations, twice, audit)
 
 
 def test_an_amendment_must_find_its_old_text_exactly_once(adjudications):

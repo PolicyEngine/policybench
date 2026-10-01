@@ -239,46 +239,61 @@ def base_serving_config() -> dict:
     return json.loads(driver.base_commit_blob(path))
 
 
-def verify_annotation_amendments(annotations: Path, amendments: list[dict]) -> None:
-    """Every listed case-note and row-annotation amendment is in the staged CSVs.
+def verify_annotation_amendments(
+    annotations: Path, amendments: list[dict], audit: Path
+) -> None:
+    """Every staged case note and row annotation is its source, amended exactly
+    as listed and in no other way.
 
-    Amendments of one text apply in order, and a later one may rewrite words
-    an earlier one wrote, so the expected fragments are chained the same way
-    before each is looked for in the staged text.
+    Each text is rebuilt as triage builds it: the verdict's rationale (a case
+    note) or the model's diagnosis (a row annotation), as collect_audit folds
+    them; the staged adjudication record's sentence, whose reasoning
+    verify_adjudication_record has already replayed, appended to each decided
+    case note; then the listed amendments replayed in order, each old wording
+    found exactly once when it is applied. Each staged text must equal its
+    rebuilt text in full, so a text no amendment names must be its source,
+    and wording nobody listed is refused even beside a listed fragment.
     """
     import pandas as pd
 
-    frames = {
-        "case_annotation": pd.read_csv(annotations / "us_case_notes.csv"),
-        "annotation": pd.read_csv(annotations / "us_audit_row_annotations.csv"),
-    }
-    expected: dict[tuple, list[str]] = {}
-    for item in amendments:
-        if item["field"] not in frames:
-            continue
-        target = (item["case_id"], item["field"], item.get("model"))
-        fragments = expected.setdefault(target, [])
-        for index, fragment in enumerate(fragments):
-            if item["old"] in fragment:
-                fragments[index] = fragment.replace(item["old"], item["new"], 1)
-                break
-        else:
-            fragments.append(item["new"])
-    for (case, field, model), fragments in expected.items():
-        frame = frames[field]
-        country, scenario, variable = case.split("__", 2)
-        mask = (
-            (frame["country"].astype(str) == country)
-            & (frame["scenario_id"].astype(str) == scenario)
-            & (frame["variable"].astype(str) == variable)
+    from policybench.adjudications import apply_adjudications, load_adjudications
+    from policybench.audit import collect_audit
+
+    collected = collect_audit(annotations.parent / "us", audit)
+    rows, cases, _ = apply_adjudications(
+        collected["row"],
+        collected["case"].rename(
+            columns={
+                "case_failure_source": "case_failure_sources",
+                "case_failure_subtype": "case_failure_subtypes",
+            }
+        ),
+        load_adjudications(annotations / ADJUDICATIONS),
+    )
+    driver.amend_annotations(rows, cases, amendments)
+    for name, rebuilt, field, key in (
+        ("us_case_notes.csv", cases, "case_annotation", driver.KEY),
+        ("us_audit_row_annotations.csv", rows, "annotation", [*driver.KEY, "model"]),
+    ):
+        key = ["country", *key]
+        staged = pd.read_csv(annotations / name, dtype=str, keep_default_na=False)
+        texts = {
+            tuple(map(str, values)): str(text)
+            for *values, text in rebuilt[[*key, field]].itertuples(index=False)
+        }
+        published = dict(
+            zip(map(tuple, staged[key].values.tolist()), staged[field], strict=True)
         )
-        if model is not None:
-            mask &= frame["model"].astype(str) == model
-        texts = frame.loc[mask, field].astype(str).tolist()
-        if len(texts) != 1 or any(fragment not in texts[0] for fragment in fragments):
+        differ = sorted(
+            "__".join(k)
+            for k in set(texts) | set(published)
+            if texts.get(k) != published.get(k)
+        )
+        if differ or len(published) != len(staged):
             raise SystemExit(
-                f"Staged {field} of {case} does not carry its listed wording "
-                "amendment; run triage and export again"
+                f"Staged {field} texts are not their verdict sources with the "
+                f"listed wording amendments applied: {differ[:4]}; run triage "
+                "and export again"
             )
 
 
@@ -360,7 +375,7 @@ def main(argv: list[str] | None = None) -> None:
         amendments,
         stage / "audit" / "cases",
     )
-    verify_annotation_amendments(staged_annotations, amendments)
+    verify_annotation_amendments(staged_annotations, amendments, stage / "audit")
     previous_rows = base_prediction_rows()
     staged_rows = pd.read_csv(source_us / "predictions.csv", low_memory=False)
     for model in sorted(incumbents):
