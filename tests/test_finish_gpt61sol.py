@@ -32,6 +32,10 @@ from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
 NEW = "gpt-6.1-sol"
 SLUG = "gpt61sol"
 COMMITTED_SEED_DIGEST_SHA256 = driver.SEED_DIGEST_SHA256
+# The exported stage this release was frozen from (git-ignored, local only).
+STAGE_CASES = (
+    Path(__file__).resolve().parents[1] / "results/local/gpt61sol-v1/audit/cases"
+)
 # Release 20260929's audit (the seed) and the grounding it was rendered with.
 SEED = Path(
     "/Users/maxghenis/PolicyEngine/policybench-wt/adds0928-stage2/results/local/"
@@ -1254,7 +1258,7 @@ def test_the_committed_seed_digest_matches_the_real_seed():
     )
 
 
-def test_the_committed_adjudications_keep_the_seed_judge_verdicts():
+def test_the_committed_adjudications_keep_the_seed_judge_verdicts(tmp_path):
     """Every recorded decision keeps its seed verdict's class, 023 Medicaid too.
 
     Triage and the freeze re-check this against the staged audit, where a
@@ -1266,8 +1270,20 @@ def test_the_committed_adjudications_keep_the_seed_judge_verdicts():
 
     from policybench.adjudications import load_adjudications
 
-    decisions = load_adjudications(driver.ANNOTATIONS / "us_adjudications.json")
-    verify_adjudications_keep_judge_verdicts(decisions, SEED / "cases")
+    # Release 20260929's record keeps the seed verdicts it was frozen with.
+    # The record this release commits restates the cases GPT-6.1 Sol
+    # re-opened, so it keeps the staged verdicts instead (checked below when
+    # the stage is on this machine; the freeze checked it before writing).
+    base = tmp_path / "us_adjudications.json"
+    base.write_bytes(
+        driver.base_commit_blob(
+            Path("annotations") / driver.RUN_NAME / driver.ADJUDICATIONS
+        )
+    )
+    verify_adjudications_keep_judge_verdicts(load_adjudications(base), SEED / "cases")
+    if STAGE_CASES.is_dir():
+        decisions = load_adjudications(driver.ANNOTATIONS / "us_adjudications.json")
+        verify_adjudications_keep_judge_verdicts(decisions, STAGE_CASES)
     case = SEED / "cases/us__scenario_023__head_medicaid_eligible"
     meta = json.loads((case / "verdict.meta.json").read_text())
     assert meta["prompt_sha256"] == driver.digest(case / "prompt.md")
@@ -1295,7 +1311,8 @@ def test_each_20260929_entry_names_its_seed_verdict_as_its_sidecar_records_it():
 
 @pytest.mark.slow
 def test_every_seed_prompt_rerenders_from_the_committed_snapshot(tmp_path):
-    """The committed 45-model board renders exactly the seed's cases and prompts.
+    """Release 20260929's 45-model board, as BASE_COMMIT holds it, renders
+    exactly the seed's cases and prompts.
 
     So check_prompt_changes may attribute every changed or new prompt in a
     stage to GPT-6.1 Sol joining its case. #182's review excluded
@@ -1308,11 +1325,18 @@ def test_every_seed_prompt_rerenders_from_the_committed_snapshot(tmp_path):
 
     bundle = tmp_path / "publish" / driver.RUN_NAME
     (bundle / "us").mkdir(parents=True)
+    # From git: after this release's freeze the working tree holds 20260930.
     for name in (*driver.REFERENCE_FILES, "predictions.csv.gz"):
-        shutil.copyfile(driver.SNAPSHOT / name, bundle / "us" / name)
+        (bundle / "us" / name).write_bytes(
+            driver.base_commit_blob((driver.SNAPSHOT / name).relative_to(driver.ROOT))
+        )
     (bundle / "annotations").mkdir()
     for name in driver.ANNOTATION_FILES:
-        shutil.copyfile(driver.ANNOTATIONS / name, bundle / "annotations" / name)
+        (bundle / "annotations" / name).write_bytes(
+            driver.base_commit_blob(
+                (driver.ANNOTATIONS / name).relative_to(driver.ROOT)
+            )
+        )
     grounding = pd.read_csv(GROUNDING)
     lookup = {
         (str(r.scenario_id), str(r.variable)): str(r.grounding)

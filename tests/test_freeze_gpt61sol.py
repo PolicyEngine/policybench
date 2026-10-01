@@ -975,8 +975,12 @@ def test_any_reference_revision_is_refused(references, name, where):
 
 @pytest.fixture
 def adjudications(tmp_path):
+    """Release 20260929's record, from git at BASE_COMMIT: the baseline every
+    staged record is checked against, before and after this release's freeze."""
     staged = tmp_path / "us_adjudications.json"
-    shutil.copyfile(COMMITTED_ADJUDICATIONS, staged)
+    staged.write_bytes(
+        driver.base_commit_blob(COMMITTED_ADJUDICATIONS.relative_to(driver.ROOT))
+    )
     record = json.loads(staged.read_text())
     return staged, record
 
@@ -995,12 +999,27 @@ def _verify(staged, rejudged=frozenset(), amendments=()):
     )
 
 
-def test_the_committed_record_is_release_20260929s():
-    """The working-tree record the tests edit is the one at BASE_COMMIT."""
-    assert (
-        json.loads(COMMITTED_ADJUDICATIONS.read_text())["adjudications"]
-        == driver.base_adjudications()
+def test_the_committed_record_is_release_20260929s_restated_where_reopened(
+    tmp_path,
+):
+    """The record the freeze committed is release 20260929's, changed only
+    where GPT-6.1 Sol re-opened a case (the cases the committed judge
+    provenance record lists), only in judge fields and by the committed
+    wording amendments, and with no decision added."""
+    reopened = frozenset(
+        entry["case_id"]
+        for entry in json.loads(driver.JUDGE_PROVENANCE.read_text())["verdicts"]
     )
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    shutil.copyfile(
+        driver.ANNOTATIONS / f"us_{driver.AMENDMENTS}", stage / driver.AMENDMENTS
+    )
+    amendments = driver.load_amendments(stage, reopened)
+    assert len(amendments) == 394
+    assert _verify(COMMITTED_ADJUDICATIONS, reopened, amendments) == 0
+    committed = json.loads(COMMITTED_ADJUDICATIONS.read_text())["adjudications"]
+    assert committed != driver.base_adjudications()
 
 
 def test_an_unchanged_adjudication_record_passes(adjudications):
@@ -1110,7 +1129,7 @@ def test_bytes_the_entry_gate_cannot_see_are_refused(adjudications, defect):
     else:
         text = json.dumps(record)
     staged.write_text(text)
-    assert load_entries(staged) == load_entries(COMMITTED_ADJUDICATIONS) or (
+    assert load_entries(staged) == driver.base_adjudications() or (
         defect in ("note", "conventions")
     )
     with pytest.raises(SystemExit, match="committed form|only entries may change"):
