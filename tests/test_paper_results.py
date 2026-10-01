@@ -286,18 +286,20 @@ def test_judge_provenance_is_frozen_in_the_manifest():
         == (prov["cases_judged"])
     )
     # The older judges' counts fall release to release (Opus 5 had 183 cases
-    # and GPT-5.6 Sol 314 on 20260922c) because Claude Opus 5.5 re-judged
-    # their cases after the reference revisions; a re-judged case with an
-    # adjudication keeps the replaced verdict under judge_previous.
-    assert prov["by_judge"]["claude-opus-5"]["cases"] == 132
+    # and GPT-5.6 Sol 314 on 20260922c, 132 and 303 on 20260929) because
+    # Claude Opus 5.5 re-judged their cases: after the reference revisions,
+    # and on 2026-09-30 for the 134 cases GPT-6.1 Sol joined (16 of them Opus
+    # 5's, 5 GPT-5.6 Sol's). A re-judged case with an adjudication keeps the
+    # replaced verdict under judge_previous.
+    assert prov["by_judge"]["claude-opus-5"]["cases"] == 116
     assert prov["by_judge"]["claude-opus-5"]["judged_on_utc"] == ["2026-09-05"]
-    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 239
-    assert "2026-09-29" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
-    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 303
+    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 260
+    assert "2026-09-30" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
+    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 298
     assert r.audit_case_count_fmt == "674"
-    assert r.audit_opus_judged_case_count_fmt == "132"
-    assert r.audit_opus55_judged_case_count_fmt == "239"
-    assert r.audit_sol_judged_case_count_fmt == "303"
+    assert r.audit_opus_judged_case_count_fmt == "116"
+    assert r.audit_opus55_judged_case_count_fmt == "260"
+    assert r.audit_sol_judged_case_count_fmt == "298"
 
 
 def test_joint_credit_table_orders_ties_deterministically():
