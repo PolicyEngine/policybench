@@ -21,10 +21,10 @@ from policybench.paper_results import (
 )
 
 
-def test_frozen_roster_has_45_display_names_and_release_dates():
+def test_frozen_roster_has_46_display_names_and_release_dates():
     roster = {row["model"] for row in r.model_stats}
 
-    assert len(roster) == 45
+    assert len(roster) == 46
     assert set(MODEL_DISPLAY_NAMES) == roster
     assert roster <= set(MODEL_RELEASE_DATES)
     assert MODEL_DISPLAY_NAMES["claude-fable-5.1"] == "Claude Fable 5.1"
@@ -45,6 +45,8 @@ def test_frozen_roster_has_45_display_names_and_release_dates():
     assert MODEL_RELEASE_DATES["grok-4.7"] == "2026-09-21"
     assert MODEL_DISPLAY_NAMES["deepseek-v4.1-flash"] == "DeepSeek V4.1 Flash"
     assert MODEL_RELEASE_DATES["deepseek-v4.1-flash"] == "2026-09-10"
+    assert MODEL_DISPLAY_NAMES["gpt-6.1-sol"] == "GPT-6.1 Sol"
+    assert MODEL_RELEASE_DATES["gpt-6.1-sol"] == "2026-09-29"
 
 
 def test_app_release_dates_mirror_the_paper_registry():
