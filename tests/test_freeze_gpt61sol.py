@@ -283,13 +283,52 @@ def staged_board(freeze_preflight, monkeypatch):
         policybench.dashboard_schema, "validate_dashboard_payload", lambda *a, **k: []
     )
 
+    # The synthetic stage re-opens no case, so its provenance record lists none.
+    record = stage.parent / "judge_provenance.json"
+    record.write_text(json.dumps({"verdicts": []}))
+    monkeypatch.setattr(driver, "JUDGE_PROVENANCE", record)
+
     def rebind():
         receipt["payload_sha256"] = sha(payload)
         receipt["files"] = {name: sha(stage / name) for name in receipt["files"]}
+        receipt["judge_provenance"] = {
+            "path": driver.JUDGE_PROVENANCE_PATH,
+            "sha256": sha(record),
+        }
         (stage / "release-ready.json").write_text(json.dumps(receipt))
 
     rebind()
     return stage, rebind
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("defect", ["edited", "unbound", "other_path", "missing"])
+def test_the_freeze_refuses_a_provenance_record_export_did_not_bind(
+    staged_board, defect, dry_run
+):
+    """Export binds the judge provenance record's hash in the receipt. A
+    record edited afterwards, one the receipt does not bind or binds under
+    another path, or a missing one, is refused before any workspace mutation."""
+    stage, rebind = staged_board
+    for name in driver.REFERENCE_FILES:
+        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    rebind()
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    if defect == "edited":
+        driver.JUDGE_PROVENANCE.write_text(
+            json.dumps({"note": "every judge ran isolated", "verdicts": []})
+        )
+    elif defect == "missing":
+        driver.JUDGE_PROVENANCE.unlink()
+    elif defect == "unbound":
+        del receipt["judge_provenance"]
+    else:
+        receipt["judge_provenance"]["path"] = "docs/elsewhere.json"
+    (stage / "release-ready.json").write_text(json.dumps(receipt))
+    before = workspace_files()
+    with pytest.raises(SystemExit, match="not the judge provenance record"):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
 
 
 @pytest.mark.parametrize("dry_run", [True, False])

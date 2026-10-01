@@ -144,6 +144,32 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
     return receipt
 
 
+def verify_judge_provenance(
+    stage: Path, receipt: dict, rejudged: frozenset[str]
+) -> None:
+    """The judge provenance record is the one export bound, and still true.
+
+    The record is a repository file (driver.JUDGE_PROVENANCE), so the receipt
+    binds it apart from the stage's files. Its bytes must be the ones export
+    hashed, and it must still describe the staged new verdicts and their
+    transcripts, as export checked.
+    """
+    bound = receipt.get("judge_provenance")
+    if (
+        not isinstance(bound, dict)
+        or bound.get("path") != driver.JUDGE_PROVENANCE_PATH
+        or not driver.JUDGE_PROVENANCE.is_file()
+        or bound.get("sha256") != digest(driver.JUDGE_PROVENANCE)
+    ):
+        raise SystemExit(
+            f"{driver.JUDGE_PROVENANCE_PATH} is not the judge provenance record "
+            "the strict export bound; export again"
+        )
+    driver.verify_judge_provenance(
+        stage / "audit" / "cases", rejudged, driver.JUDGE_PROVENANCE
+    )
+
+
 def verify_references(source_us: Path, frozen_run: Path, manifest: dict) -> None:
     """Staged, committed and manifest-pinned references all equal 20260929's."""
     pins = manifest["source_run_artifacts"][RUN]["files"]
@@ -331,7 +357,7 @@ def main(argv: list[str] | None = None) -> None:
     from policybench.dashboard_schema import validate_dashboard_payload
 
     payload_path = stage / f"data-board{BOARD_MODELS}.json"
-    verify_receipt(stage, payload_path, args.tag)
+    receipt = verify_receipt(stage, payload_path, args.tag)
     payload_hash = digest(payload_path)
     payload = read_json(payload_path)
     recombined = json.dumps({"countries": {"us": payload["countries"]["us"]}})
@@ -367,6 +393,7 @@ def main(argv: list[str] | None = None) -> None:
     staged_annotations = source_run / "annotations"
     verify_verdicts(stage)
     rejudged = driver.rejudged_cases(stage)
+    verify_judge_provenance(stage, receipt, rejudged)
     amendments = driver.load_amendments(stage, rejudged)
     added = verify_adjudication_record(
         staged_annotations / ADJUDICATIONS,
