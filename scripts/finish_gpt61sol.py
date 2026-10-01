@@ -933,8 +933,9 @@ def load_seed(stage: Path) -> dict[str, dict[str, str]]:
 
     It also re-derives which cases are kept, changed and added from the
     stage's prompts and that seed, and refuses unless prompt-changes.json
-    says the same: a kept case's prompt that drifts, or a case moved between
-    the lists, stops every step that relies on them.
+    says the same: a kept case's prompt that drifts, a case moved between
+    the lists, or a manifest whose wrong models the staged predictions do not
+    bear out, stops every step that relies on them.
     """
     receipt = json.loads((stage / "stage.json").read_text())
     require(
@@ -953,7 +954,8 @@ def verify_prompt_changes(stage: Path, seed: dict[str, dict[str, str]]) -> None:
     A case whose prompt is the seed's is kept, one whose prompt differs is
     changed and one the seed lacks is added; GPT-6.1 Sol must be among the
     wrong models of every changed or added case, and no seed case may vanish
-    (check_prompt_changes, as prepare applies it).
+    (check_prompt_changes, as prepare applies it). The staged predictions
+    must agree (verify_reopened_by_predictions).
     """
     derived = check_prompt_changes(
         stage / "audit", {case: item["prompt_sha256"] for case, item in seed.items()}
@@ -970,6 +972,46 @@ def verify_prompt_changes(stage: Path, seed: dict[str, dict[str, str]]) -> None:
         not differ,
         f"{PROMPT_CHANGES} disagrees with the stage's prompts and the bound "
         f"seed on {len(differ)} cases: {differ[:8]}",
+    )
+    verify_reopened_by_predictions(stage, derived)
+
+
+def verify_reopened_by_predictions(stage: Path, derived: dict[str, list]) -> None:
+    """The manifest's claim that GPT-6.1 Sol re-opened a case must hold.
+
+    cases.jsonl is editable, so re-score the staged predictions against the
+    staged references with wrong_prediction_rows, the rule prepare_audit
+    used to list each case's wrong models. A changed or added case must list
+    the new model exactly when its prediction is wrong; any other case it
+    gets wrong must be parse-failure-only as the manifest records it, so a
+    kept case needs the new model's prediction right.
+    """
+    from policybench.audit import _case_id, _load_manifest
+    from policybench.case_annotations import wrong_prediction_rows
+
+    us = stage / "publish" / RUN_NAME / "us"
+    wrong = wrong_prediction_rows(us)
+    manifest = _load_manifest(stage / "audit")
+    reopened = {*derived["changed"], *derived["added"]}
+    parse_only = {case for case, row in manifest.items() if row["parse_failure_only"]}
+    differ = set()
+    for model in MODELS.values():
+        rows = wrong[wrong.model == model]
+        missed = {
+            _case_id(us.name, str(scenario), str(variable))
+            for scenario, variable in zip(rows.scenario_id, rows.variable)
+        }
+        differ |= {
+            case
+            for case in reopened
+            if (model in manifest[case]["wrong_models"]) != (case in missed)
+        }
+        differ |= missed - reopened - parse_only
+    require(
+        not differ,
+        f"the audit manifest's wrong models disagree with the staged "
+        f"predictions of {sorted(MODELS.values())} on {len(differ)} cases: "
+        f"{sorted(differ)[:8]}",
     )
 
 

@@ -905,6 +905,43 @@ def test_a_kept_case_cannot_pass_as_a_new_verdict(seeded_stage, edit):
     assert sorted(p.name for p in kept.iterdir()) == before
 
 
+@pytest.mark.parametrize("claim", ["reopens_a_right_answer", "keeps_a_wrong_answer"])
+def test_the_manifest_cannot_reopen_a_case_the_predictions_do_not(seeded_stage, claim):
+    """The review's finding 4: GPT-6.1 Sol answers s1 right and s0 wrong.
+    Listing it as wrong on s1 (prompt edited, case moved to changed), or
+    dropping it from s0 (seed prompt restored, case moved to kept), leaves
+    the re-derived lists agreeing, so only the predictions can refuse it."""
+    seed, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    driver.load_seed(stage)
+    manifest = [
+        json.loads(line) for line in (audit / "cases.jsonl").read_text().splitlines()
+    ]
+    changes = json.loads((stage / driver.PROMPT_CHANGES).read_text())
+    case = "us__s1__snap" if claim == "reopens_a_right_answer" else "us__s0__snap"
+    row = next(item for item in manifest if item["case_id"] == case)
+    if claim == "reopens_a_right_answer":
+        row["wrong_models"].append(NEW)
+        prompt = audit / "cases" / case / "prompt.md"
+        prompt.write_text(prompt.read_text() + f"{NEW}: Wrong.\n")
+        changes["kept"].remove(case)
+        changes["changed"].append(case)
+    else:
+        row["wrong_models"].remove(NEW)
+        shutil.copyfile(
+            seed / "cases" / case / "prompt.md", audit / "cases" / case / "prompt.md"
+        )
+        changes["changed"].remove(case)
+        changes["kept"].append(case)
+    (audit / "cases.jsonl").write_text("".join(json.dumps(r) + "\n" for r in manifest))
+    (stage / driver.PROMPT_CHANGES).write_text(json.dumps(changes))
+    for step in (driver.load_seed, driver.rejudged_cases):
+        with pytest.raises(
+            SystemExit, match=f"disagree with the staged predictions.*{case}"
+        ):
+            step(stage)
+
+
 def test_set_aside_keeps_the_judge_evidence_with_the_verdict(tmp_path):
     root = tmp_path / "audit"
     case = _audit(root, [NEW])
