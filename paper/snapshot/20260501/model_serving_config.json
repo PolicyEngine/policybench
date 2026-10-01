@@ -13,7 +13,7 @@
   },
   "evidence_summary": {
     "registry": 29,
-    "run_state": 16
+    "run_state": 17
   },
   "models": {
     "claude-fable-5": {
@@ -1126,6 +1126,63 @@
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
+    "gpt-6.1-sol": {
+      "answer_contract": "tool",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "initial_completion_budget_tokens",
+          "max_repair_rounds",
+          "model_id",
+          "prompt_contract_version",
+          "request_timeout_seconds",
+          "thinking",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "6d20d23add25271aebf0ee05cce7075817d2ff5286eeea868ea7834238b5c992",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "adds202609/gpt61sol",
+        "source_predictions_sha256": "e1e7662d5afa5a886d1b9b39fd0488b9d11941ebf10ddc88d821b24f3861d2aa",
+        "source_rows_sha256": "6d20d23add25271aebf0ee05cce7075817d2ff5286eeea868ea7834238b5c992",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 3,
+          "initial_completion_budget_tokens": 16384,
+          "max_repair_rounds": 2,
+          "model_id": "gpt-6.1-sol",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "request_timeout_seconds": 300,
+          "thinking": {
+            "mode": "provider_default"
+          },
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "gpt-6.1-sol",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": "forced"
+    },
     "grok-4.3": {
       "answer_contract": "tool",
       "evidence": {
@@ -1471,7 +1528,7 @@
       "tool_choice": null
     }
   },
-  "registry_commit": "69116fb1d961ad2d73d70f91b49d79b1aee1d6b1",
+  "registry_commit": "cddd01812ad6d6311502ef997f93634f70c28fda",
   "sources": [
     "policybench.config.MODELS",
     "policybench.model_cards",
