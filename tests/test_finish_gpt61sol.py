@@ -1515,6 +1515,11 @@ def exporting(tmp_path, monkeypatch):
     monkeypatch.setattr(
         policybench.dashboard_schema, "validate_dashboard_payload", validate
     )
+    # No case is re-opened here, so the judge provenance record lists none.
+    record = tmp_path / "judge_provenance.json"
+    record.write_text(json.dumps({"verdicts": []}))
+    monkeypatch.setattr(driver, "JUDGE_PROVENANCE", record)
+    monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset())
 
     def run(stats, live_stats, *, partial=False, early=False):
         exported["stats"] = stats
@@ -1536,7 +1541,12 @@ def _evidence(stage, bundle):
     paths += [stage / "stage.json"]
     paths += [
         stage / "audit/cases/example" / name
-        for name in ("verdict.json", "verdict.meta.json", "prompt.md")
+        for name in (
+            "verdict.json",
+            "verdict.meta.json",
+            "prompt.md",
+            "claude.transcript.jsonl",
+        )
     ]
     for path in paths:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1569,6 +1579,10 @@ def test_strict_export_carries_fable_usage_and_binds_the_evidence(exporting):
         str(path.relative_to(stage)): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in evidence
     }
+    assert receipt["judge_provenance"] == {
+        "path": "docs/gpt61sol/judge_provenance.json",
+        "sha256": hashlib.sha256(driver.JUDGE_PROVENANCE.read_bytes()).hexdigest(),
+    }
 
 
 def test_partial_export_never_gets_a_release_receipt(exporting):
@@ -1579,6 +1593,243 @@ def test_partial_export_never_gets_a_release_receipt(exporting):
     assert "PARTIAL" in json.loads(payload.read_text())["stage2Status"]
     assert (bundle / "data.json").read_bytes() == payload.read_bytes()
     assert not (stage / "release-ready.json").exists()
+
+
+# --- Judge provenance ----------------------------------------------------------
+
+ISOLATED = "us__scenario_001__snap"
+UNHARDENED = "us__scenario_002__snap"
+
+
+def _event(kind, **fields):
+    return {"type": kind, **fields}
+
+
+def _attachment(kind, **fields):
+    return _event("attachment", attachment={"type": kind, **fields})
+
+
+def _call(name, call_id):
+    content = [{"type": "tool_use", "id": call_id, "name": name, "input": {}}]
+    return _event("assistant", effort="xhigh", message={"content": content})
+
+
+def _result(call_id, error=False):
+    part = {"type": "tool_result", "tool_use_id": call_id, "content": "done"}
+    if error:
+        part["is_error"] = True
+    return _event("user", message={"content": [part]})
+
+
+def _clean_transcript():
+    """An isolated judge's transcript, shaped like the stage's real ones."""
+    return [
+        _event("user", message={"content": "Classify these wrong answers.\n"}),
+        _attachment("environment", snapshot={"isGitRepo": False}),
+        _attachment("model"),
+        _attachment("session_context", context={}),
+        _attachment("date"),
+        _attachment("prompt_snapshot"),
+        _event("assistant", effort="xhigh", message={"content": [{"type": "text"}]}),
+        _call("StructuredOutput", "call-1"),
+        _attachment("structured_output"),
+        _result("call-1"),
+    ]
+
+
+def _write_transcript(case, events):
+    (case / "claude.transcript.jsonl").write_text(
+        "".join(json.dumps(event) + "\n" for event in events)
+    )
+
+
+@pytest.fixture
+def provenance(tmp_path):
+    """Two new verdicts, one isolated and one not, and a record of both."""
+    cases = tmp_path / "audit/cases"
+    entries = []
+    for name, isolated in ((ISOLATED, True), (UNHARDENED, False)):
+        case = cases / name
+        case.mkdir(parents=True)
+        (case / "prompt.md").write_text(f"Classify {name}.\n")
+        meta = {"judge_effort": "xhigh"} if isolated else {}
+        if isolated:
+            meta["judge_isolation"] = {"tools": "none (--tools '')"}
+        write_verdict(case, _verdict([NEW]), **meta)
+        _write_transcript(case, _clean_transcript())
+        entries.append(
+            {
+                "case_id": name,
+                "isolated": isolated,
+                "verdict_sha256": driver.digest(case / "verdict.json"),
+                "prompt_sha256": driver.digest(case / "prompt.md"),
+            }
+        )
+    record = tmp_path / "judge_provenance.json"
+
+    def verify(edit=lambda entries: None):
+        edited = copy.deepcopy(entries)
+        edit(edited)
+        record.write_text(json.dumps({"verdicts": edited}))
+        driver.verify_judge_provenance(cases, frozenset({ISOLATED, UNHARDENED}), record)
+
+    return cases, verify
+
+
+def test_the_judge_provenance_record_describes_the_staged_verdicts(provenance):
+    _, verify = provenance
+    verify()
+
+
+def test_the_runners_attachment_allowlist_is_the_gates():
+    script = (driver.ROOT / "scripts/run_audit_claude.sh").read_text()
+    line = next(line for line in script.splitlines() if line.startswith("ATTACHMENTS="))
+    assert set(line.split('"')[1].split(",")) == driver.JUDGE_ATTACHMENTS
+
+
+@pytest.mark.parametrize("case", [ISOLATED, UNHARDENED])
+def test_a_verdict_whose_isolation_disagrees_with_the_record_is_refused(
+    provenance, case
+):
+    _, verify = provenance
+
+    def flip(entries):
+        entry = next(e for e in entries if e["case_id"] == case)
+        entry["isolated"] = not entry["isolated"]
+
+    with pytest.raises(SystemExit, match=f"{case}: the record says isolated"):
+        verify(flip)
+
+
+def test_a_sidecar_that_drops_its_isolation_disagrees_with_the_record(provenance):
+    cases, verify = provenance
+    case = cases / ISOLATED
+    meta = json.loads((case / "verdict.meta.json").read_text())
+    del meta["judge_isolation"]
+    (case / "verdict.meta.json").write_text(json.dumps(meta))
+    with pytest.raises(SystemExit, match="sidecar lacks judge_isolation"):
+        verify()
+
+
+@pytest.mark.parametrize(
+    "edit, problem",
+    [
+        (lambda e: e.pop(), "does not list each re-opened case once"),
+        (lambda e: e.append(dict(e[0])), "does not list each re-opened case once"),
+        (lambda e: e[0].update(verdict_sha256="0" * 64), "names another verdict"),
+        (lambda e: e[1].update(prompt_sha256="0" * 64), "names another prompt"),
+    ],
+)
+def test_the_record_must_list_each_staged_new_verdict_once(provenance, edit, problem):
+    _, verify = provenance
+    with pytest.raises(SystemExit, match=problem):
+        verify(edit)
+
+
+def _read_call(events):
+    events[-3:-3] = [_call("Read", "call-0"), _result("call-0")]
+
+
+def _second_answer(events):
+    events += [_call("StructuredOutput", "call-2"), _result("call-2")]
+
+
+def _no_answer(events):
+    del events[7:10]
+
+
+TRANSCRIPT_DEFECTS = {
+    "read_tool_call": (_read_call, r"tool calls \['Read'\]"),
+    "no_answer": (_no_answer, "0 accepted StructuredOutput"),
+    "two_answers": (_second_answer, "2 accepted StructuredOutput"),
+    "account_email": (
+        lambda e: e[3].update(_attachment("session_context", context={"userEmail": 1})),
+        r"session context carrying \['userEmail'\]",
+    ),
+    "credential_org": (
+        lambda e: e.append(_attachment("credential_org")),
+        "'credential_org' attachment",
+    ),
+    "skill_listing": (
+        lambda e: e.append(_attachment("skill_listing")),
+        "'skill_listing' attachment",
+    ),
+    "git_repository": (
+        lambda e: e[1].update(_attachment("environment", snapshot={"isGitRepo": True})),
+        "inside a git repository",
+    ),
+    "other_effort": (lambda e: e[6].update(effort="max"), "effort 'max'"),
+    "advisor": (lambda e: e[6].update(advisorModel="m"), "advisor model"),
+    "not_an_event": (lambda e: e.append("{"), "not an event"),
+}
+
+
+@pytest.mark.parametrize("defect", sorted(TRANSCRIPT_DEFECTS))
+def test_an_isolated_verdict_whose_transcript_fails_the_runners_checks_is_refused(
+    provenance, defect
+):
+    cases, verify = provenance
+    edit, problem = TRANSCRIPT_DEFECTS[defect]
+    events = _clean_transcript()
+    edit(events)
+    _write_transcript(cases / ISOLATED, events)
+    with pytest.raises(SystemExit, match=f"{ISOLATED}: .*{problem}"):
+        verify()
+
+
+def test_an_isolated_verdict_needs_its_transcript(provenance):
+    cases, verify = provenance
+    (cases / ISOLATED / "claude.transcript.jsonl").unlink()
+    with pytest.raises(SystemExit, match="no transcript"):
+        verify()
+
+
+def test_an_answer_the_schema_refused_and_the_judge_gave_again_passes(provenance):
+    """As in the stage's us__scenario_031__head_medicaid_eligible transcript."""
+    cases, verify = provenance
+    events = _clean_transcript()
+    events[7:7] = [_call("StructuredOutput", "call-0"), _result("call-0", error=True)]
+    _write_transcript(cases / ISOLATED, events)
+    verify()
+
+
+def test_an_unhardened_verdicts_transcript_is_not_held_to_isolation(provenance):
+    cases, verify = provenance
+    events = _clean_transcript()
+    _read_call(events)
+    _write_transcript(cases / UNHARDENED, events)
+    verify()
+
+
+def test_export_writes_no_receipt_when_the_record_disagrees(exporting, monkeypatch):
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    case = stage / "audit/cases" / ISOLATED
+    case.mkdir(parents=True)
+    (case / "prompt.md").write_text("Classify these wrong answers.\n")
+    write_verdict(case, _verdict([NEW]), judge_isolation={"tools": "none"})
+    _write_transcript(case, _clean_transcript())
+    entry = {
+        "case_id": ISOLATED,
+        "isolated": True,
+        "verdict_sha256": driver.digest(case / "verdict.json"),
+        "prompt_sha256": driver.digest(case / "prompt.md"),
+    }
+    driver.JUDGE_PROVENANCE.write_text(json.dumps({"verdicts": [entry]}))
+    monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset({ISOLATED}))
+    incumbents = _incumbents()
+    run(_exported(incumbents), incumbents)
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    assert f"audit/cases/{ISOLATED}/claude.transcript.jsonl" in receipt["files"]
+
+    (stage / "release-ready.json").unlink()
+    (stage / "data-board46.json").unlink()
+    entry["isolated"] = False
+    driver.JUDGE_PROVENANCE.write_text(json.dumps({"verdicts": [entry]}))
+    with pytest.raises(SystemExit, match="disagree with docs/gpt61sol"):
+        run(_exported(incumbents), incumbents)
+    assert not (stage / "release-ready.json").exists()
+    assert not (stage / "data-board46.json").exists()
 
 
 MUTATIONS = {

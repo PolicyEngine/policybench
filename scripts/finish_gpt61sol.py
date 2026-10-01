@@ -57,6 +57,25 @@ ADJUDICATIONS = "us_adjudications.json"
 # wording-only amendments a developer lists for them.
 PROMPT_CHANGES = "prompt-changes.json"
 AMENDMENTS = "wording-amendments.json"
+# The published record of how each new verdict (a case GPT-6.1 Sol re-opened)
+# was judged. Export requires it to describe the staged verdicts and binds its
+# bytes in the receipt.
+JUDGE_PROVENANCE_PATH = "docs/gpt61sol/judge_provenance.json"
+JUDGE_PROVENANCE = ROOT / JUDGE_PROVENANCE_PATH
+# The context attachments an isolated judge's transcript may carry: ATTACHMENTS
+# in scripts/run_audit_claude.sh, which a test keeps equal to this set.
+JUDGE_ATTACHMENTS = frozenset(
+    {
+        "environment",
+        "model",
+        "date",
+        "session_context",
+        "total_tokens_reminder",
+        "prompt_snapshot",
+        "structured_output",
+        "silent_turn_reminder",
+    }
+)
 # The merge of PR #182 on main, whose tree holds release 20260929.
 BASE_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
 # Release 20260929's references. There is no reference revision in this
@@ -1190,6 +1209,131 @@ def validate_verdicts(
     return sorted(pending)
 
 
+def transcript_problems(path: Path, effort: str | None) -> list[str]:
+    """Why a judge's transcript does not show an isolated judge; [] if it does.
+
+    A Python port of the transcript checks in scripts/run_audit_claude.sh
+    (extract_verdict): no tool call but StructuredOutput, no context attachment
+    outside its ATTACHMENTS (JUDGE_ATTACHMENTS; so no skill listing and no
+    credential_org record), a session context that is empty (no account e-mail
+    or git status), no working directory inside a git repository, every
+    assistant turn at the effort the sidecar records, when it records one (the
+    sidecars of the stage's first 17 isolated verdicts record none), and no
+    advisor model. It also requires exactly one accepted
+    StructuredOutput call: any other must be one the schema refused, which the
+    judge then answered again.
+    """
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return ["no transcript"]
+    problems, calls, refused = [], [], set()
+    for number, line in enumerate(lines, 1):
+        try:
+            event = json.loads(line)
+        except ValueError:
+            problems.append(f"transcript line {number} is not JSON")
+            continue
+        if not isinstance(event, dict):
+            problems.append(f"transcript line {number} is not an event")
+            continue
+        if event.get("type") == "attachment":
+            attachment = event.get("attachment") or {}
+            kind = attachment.get("type")
+            if kind not in JUDGE_ATTACHMENTS:
+                problems.append(f"a {kind!r} attachment")
+            if kind == "environment" and (attachment.get("snapshot") or {}).get(
+                "isGitRepo"
+            ):
+                problems.append("a working directory inside a git repository")
+            context = attachment.get("context")
+            if kind == "session_context" and context != {}:
+                carried = sorted(context) if isinstance(context, dict) else context
+                problems.append(f"a session context carrying {carried!r}")
+        if event.get("type") == "assistant":
+            if effort is not None and event.get("effort") != effort:
+                problems.append(f"a turn at effort {event.get('effort')!r}")
+            if event.get("advisorModel"):
+                problems.append(f"advisor model {event.get('advisorModel')!r}")
+        message = event.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        for part in content if isinstance(content, list) else []:
+            if not isinstance(part, dict):
+                continue
+            if str(part.get("type", "")).endswith("tool_use"):
+                calls.append(part)
+            elif part.get("type") == "tool_result" and part.get("is_error"):
+                refused.add(part.get("tool_use_id"))
+
+    def answer(part: dict) -> bool:
+        return part.get("type") == "tool_use" and part.get("name") == "StructuredOutput"
+
+    structured = [part for part in calls if answer(part)]
+    other = [part.get("name") or part.get("type") for part in calls if not answer(part)]
+    if other:
+        problems.append(f"tool calls {other}")
+    accepted = [part for part in structured if part.get("id") not in refused]
+    if len(accepted) != 1:
+        problems.append(f"{len(accepted)} accepted StructuredOutput calls, not 1")
+    return problems
+
+
+def verify_judge_provenance(
+    cases_dir: Path, rejudged: frozenset[str], record_path: Path
+) -> None:
+    """The published judge provenance must describe the staged new verdicts.
+
+    The record (JUDGE_PROVENANCE) lists every case GPT-6.1 Sol re-opened, each
+    once, with its verdict's and prompt's sha256 and whether its judge ran
+    isolated. Each entry's hashes must be the staged verdict's and prompt's.
+    Its isolation must be its sidecar's: a sidecar records judge_isolation
+    only when scripts/run_audit_claude.sh's hardened runner wrote it. An
+    isolated verdict's transcript, claude.transcript.jsonl, must pass the
+    runner's transcript checks (transcript_problems).
+    """
+    record = json.loads(record_path.read_text())
+    entries = record.get("verdicts") if isinstance(record, dict) else None
+    require(
+        isinstance(entries, list) and all(isinstance(e, dict) for e in entries),
+        f"{JUDGE_PROVENANCE_PATH} lists no verdicts",
+    )
+    named = [entry.get("case_id") for entry in entries]
+    require(
+        len(named) == len(set(named)) and set(named) == set(rejudged),
+        f"{JUDGE_PROVENANCE_PATH} does not list each re-opened case once: "
+        f"{sorted(set(named) ^ set(rejudged))[:4]}",
+    )
+    wrong = []
+    for entry in entries:
+        case = cases_dir / entry["case_id"]
+        try:
+            meta = json.loads((case / "verdict.meta.json").read_text())
+            problems = []
+            if entry.get("verdict_sha256") != digest(case / "verdict.json"):
+                problems.append("the record names another verdict")
+            if entry.get("prompt_sha256") != digest(case / "prompt.md"):
+                problems.append("the record names another prompt")
+        except (OSError, ValueError) as error:
+            wrong.append(f"{entry['case_id']}: {error}")
+            continue
+        isolated = isinstance(meta, dict) and "judge_isolation" in meta
+        if entry.get("isolated") is not isolated:
+            problems.append(
+                f"the record says isolated={entry.get('isolated')!r} but the "
+                f"sidecar {'records' if isolated else 'lacks'} judge_isolation"
+            )
+        elif isolated:
+            problems += transcript_problems(
+                case / "claude.transcript.jsonl", meta.get("judge_effort")
+            )
+        if problems:
+            wrong.append(f"{entry['case_id']}: {'; '.join(problems)}")
+    require(
+        not wrong,
+        f"{len(wrong)} new verdicts disagree with {JUDGE_PROVENANCE_PATH}: {wrong[:4]}",
+    )
+
+
 def judge(args, bundle) -> None:
     """Run one Claude CLI judge at a time and retry missing/hedged cases."""
     from policybench.audit import collect_audit
@@ -1320,6 +1464,12 @@ def export(args, bundle, live) -> dict:
     if not args.partial:
         verify_reference_pins(SNAPSHOT, "committed reference")
         verify_reference_pins(bundle / "us", "staged reference")
+    if not args.early:
+        verify_judge_provenance(
+            args.stage_dir / "audit" / "cases",
+            rejudged_cases(args.stage_dir),
+            JUDGE_PROVENANCE,
+        )
     payload = export_full_run(bundle, countries=["us"], skip_app_data=True)
     stats = payload["countries"]["us"]["modelStats"]
     require(
@@ -1394,6 +1544,7 @@ def export(args, bundle, live) -> dict:
                 "verdict.json",
                 "verdict.meta.json",
                 "prompt.md",
+                "claude.transcript.jsonl",
                 "cases.jsonl",
                 "schema.json",
             }
@@ -1409,6 +1560,11 @@ def export(args, bundle, live) -> dict:
                 "partial": False,
                 "files": {
                     str(p.relative_to(args.stage_dir)): digest(p) for p in pinned
+                },
+                # A repository file, so outside "files", which binds stage files.
+                "judge_provenance": {
+                    "path": JUDGE_PROVENANCE_PATH,
+                    "sha256": digest(JUDGE_PROVENANCE),
                 },
             },
         )
