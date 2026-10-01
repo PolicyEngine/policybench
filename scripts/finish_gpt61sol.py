@@ -717,6 +717,12 @@ def amend_annotations(rows, cases, amendments: list[dict]) -> None:
         )
 
 
+def annotation_csv_text(frame) -> str:
+    """The bytes triage writes for the row annotations or the case notes, and
+    the freeze rebuilds: every column, in collect_audit's row order."""
+    return frame.to_csv(index=False)
+
+
 def resolve_live_base(args) -> dict:
     """The 20260929 payload an export compares the incumbents against.
 
@@ -1606,8 +1612,11 @@ def triage(args, bundle) -> None:
     ]
     flags.to_csv(args.stage_dir / "reference-flags.csv", index=False)
     unresolved.to_csv(args.stage_dir / "unresolved-rows.csv", index=False)
-    rows.to_csv(annotations / "us_audit_row_annotations.csv", index=False)
-    cases.to_csv(annotations / "us_case_notes.csv", index=False)
+    for name, frame in (
+        ("us_audit_row_annotations.csv", rows),
+        ("us_case_notes.csv", cases),
+    ):
+        (annotations / name).write_text(annotation_csv_text(frame), encoding="utf-8")
     require(
         flags.empty and unresolved.empty,
         "triage required: inspect reference-flags.csv/unresolved-rows.csv; "

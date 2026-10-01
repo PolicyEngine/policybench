@@ -338,23 +338,67 @@ def base_serving_config() -> dict:
     return json.loads(driver.base_commit_blob(path))
 
 
+def annotation_differences(
+    rebuilt_text: str, staged: Path, key: list[str], limit: int = 4
+) -> list[str]:
+    """The first ``limit`` places where a staged annotation CSV is not the
+    rebuilt one: a column set or order, a row only one side has, or a cell
+    (named by its case, model and column). Empty when the two parse to the
+    same cells, so only the row order or the serialization differs."""
+    import io
+
+    import pandas as pd
+
+    def read(source) -> pd.DataFrame:
+        return pd.read_csv(source, dtype=str, keep_default_na=False)
+
+    try:
+        rebuilt, published = read(io.StringIO(rebuilt_text)), read(staged)
+    except ValueError:
+        return ["its serialization"]
+    if list(rebuilt.columns) != list(published.columns):
+        return [f"its columns {list(published.columns)}, not {list(rebuilt.columns)}"]
+
+    def by_key(frame: pd.DataFrame) -> dict[tuple, dict]:
+        return {tuple(row[k] for k in key): row for row in frame.to_dict("records")}
+
+    found = []
+    if published.duplicated(key).any():
+        found.append(f"duplicate {key} rows")
+    built, staged_rows = by_key(rebuilt), by_key(published)
+    for item in sorted(set(built) | set(staged_rows)):
+        name = "__".join(item)
+        if item not in staged_rows or item not in built:
+            side = "rebuilt" if item in built else "staged"
+            found.append(f"{name} (only {side})")
+            continue
+        found += [
+            f"{name} {column}"
+            for column in rebuilt.columns
+            if built[item][column] != staged_rows[item][column]
+        ]
+    return found[:limit]
+
+
 def verify_annotation_amendments(
     annotations: Path, amendments: list[dict], audit: Path
 ) -> None:
-    """Every staged case note and row annotation is its source, amended exactly
-    as listed and in no other way.
+    """The staged row annotations and case notes are what triage builds from
+    the verdicts, the staged adjudications and the listed amendments, in every
+    column.
 
-    Each text is rebuilt as triage builds it: the verdict's rationale (a case
-    note) or the model's diagnosis (a row annotation), as collect_audit folds
-    them; the staged adjudication record's sentence, whose reasoning
-    verify_adjudication_record has already replayed, appended to each decided
-    case note; then the listed amendments replayed in order, each old wording
-    found exactly once when it is applied. Each staged text must equal its
-    rebuilt text in full, so a text no amendment names must be its source,
-    and wording nobody listed is refused even beside a listed fragment.
+    Both frames are rebuilt as triage builds them: collect_audit folds each
+    verdict into its rows (the model's failure class and diagnosis) and its
+    case note (the case's classes, flag, hypothesis and rationale); the staged
+    adjudication record, whose reasoning verify_adjudication_record has
+    already replayed, sets each decided case's classes and appends its
+    sentence to the case note; then the listed amendments are replayed in
+    order, each old wording found exactly once when it is applied. Each staged
+    file must be the rebuilt frame's bytes as triage writes them
+    (driver.annotation_csv_text), so a failure class, flag or count edited on
+    a case no adjudication decides is refused as surely as unlisted wording,
+    even beside a listed fragment.
     """
-    import pandas as pd
-
     from policybench.adjudications import apply_adjudications, load_adjudications
     from policybench.audit import collect_audit
 
@@ -370,29 +414,18 @@ def verify_annotation_amendments(
         load_adjudications(annotations / ADJUDICATIONS),
     )
     driver.amend_annotations(rows, cases, amendments)
-    for name, rebuilt, field, key in (
-        ("us_case_notes.csv", cases, "case_annotation", driver.KEY),
-        ("us_audit_row_annotations.csv", rows, "annotation", [*driver.KEY, "model"]),
+    for name, rebuilt, key in (
+        ("us_case_notes.csv", cases, driver.KEY),
+        ("us_audit_row_annotations.csv", rows, [*driver.KEY, "model"]),
     ):
-        key = ["country", *key]
-        staged = pd.read_csv(annotations / name, dtype=str, keep_default_na=False)
-        texts = {
-            tuple(map(str, values)): str(text)
-            for *values, text in rebuilt[[*key, field]].itertuples(index=False)
-        }
-        published = dict(
-            zip(map(tuple, staged[key].values.tolist()), staged[field], strict=True)
-        )
-        differ = sorted(
-            "__".join(k)
-            for k in set(texts) | set(published)
-            if texts.get(k) != published.get(k)
-        )
-        if differ or len(published) != len(staged):
+        text = driver.annotation_csv_text(rebuilt)
+        if text.encode() != (annotations / name).read_bytes():
+            differ = annotation_differences(text, annotations / name, ["country", *key])
             raise SystemExit(
-                f"Staged {field} texts are not their verdict sources with the "
-                f"listed wording amendments applied: {differ[:4]}; run triage "
-                "and export again"
+                f"Staged {name} is not what triage builds from the verdicts, the "
+                "staged adjudications and the listed wording amendments; it "
+                f"differs at {differ or ['its row order or serialization']}; run "
+                "triage and export again"
             )
 
 

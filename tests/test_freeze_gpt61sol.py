@@ -53,9 +53,17 @@ def write_audit(audit: Path) -> None:
     case.mkdir(parents=True)
     (audit / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA))
     manifest = [
-        {"case_id": KEPT, "wrong_models": ["incumbent"], "parse_failure_only": False},
+        {
+            "case_id": KEPT,
+            "scenario_id": "scenario_000",
+            "variable": "snap",
+            "wrong_models": ["incumbent"],
+            "parse_failure_only": False,
+        },
         {
             "case_id": "us__scenario_001__snap",
+            "scenario_id": "scenario_001",
+            "variable": "snap",
             "wrong_models": ["incumbent"],
             "parse_failure_only": True,
         },
@@ -280,7 +288,14 @@ def rebuilds():
 
 
 @pytest.fixture
-def staged_board(freeze_preflight, monkeypatch, rebuilds):
+def exports():
+    """The board the stubbed export_full_run returns for the bound bundle; a
+    test that edits a bundle input edits it as export would rebuild it."""
+    return {}
+
+
+@pytest.fixture
+def staged_board(freeze_preflight, monkeypatch, rebuilds, exports):
     """A 46-row payload past the receipt, with the committed snapshot copied in.
 
     export_full_run is stubbed to return what it would for the bound bundle:
@@ -330,6 +345,7 @@ def staged_board(freeze_preflight, monkeypatch, rebuilds):
     )
     fable.update(costUsd=0.0, costPerHousehold=0.0)
     del fable["totalTokens"], fable["latencySeconds"]
+    exports["board"] = exported
 
     def export_full_run(run_dir, *, countries, skip_app_data):
         assert countries == ["us"] and skip_app_data
@@ -341,7 +357,7 @@ def staged_board(freeze_preflight, monkeypatch, rebuilds):
         }
         rebuilds.append((run_dir, files))
         (run_dir / "data.json").write_text("Fable 5's usage is not carried here.\n")
-        return copy.deepcopy(exported)
+        return copy.deepcopy(exports["board"])
 
     monkeypatch.setattr(policybench.full_run_export, "export_full_run", export_full_run)
 
@@ -584,6 +600,100 @@ def test_the_freeze_refuses_a_verdict_edited_after_export(
     rebind()
     before = workspace_files()
     with pytest.raises(SystemExit, match=message):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
+def _publish_annotations(stage: Path) -> None:
+    """The row annotations and case notes triage publishes for the synthetic
+    audit, with a staged record that decides none of its cases."""
+    from policybench.audit import collect_audit
+
+    annotations = stage / BUNDLE / "annotations"
+    (annotations / "us_adjudications.json").write_text(
+        json.dumps({"adjudications": []})
+    )
+    collected = collect_audit(stage / BUNDLE / "us", stage / "audit")
+    cases = collected["case"].rename(
+        columns={
+            "case_failure_source": "case_failure_sources",
+            "case_failure_subtype": "case_failure_subtypes",
+        }
+    )
+    for name, frame in (
+        ("us_audit_row_annotations.csv", collected["row"]),
+        ("us_case_notes.csv", cases),
+    ):
+        frame.to_csv(annotations / name, index=False)
+
+
+@pytest.fixture
+def annotated_board(staged_board, monkeypatch):
+    """The synthetic stage with 20260929's references and the annotations
+    triage publishes, past every gate up to the annotation gate; the next
+    gate, the incumbents' predictions, stops the freeze. The kept case is
+    decided by no adjudication. The record gate reads the committed record's
+    69 cases, which the synthetic audit lacks; it is tested on its own."""
+    stage, rebind = staged_board
+    for name in driver.REFERENCE_FILES:
+        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    monkeypatch.setattr(release, "verify_adjudication_record", lambda *a, **k: 0)
+    _publish_annotations(stage)
+
+    def next_gate():
+        raise SystemExit("Reached the prediction gate")
+
+    monkeypatch.setattr(release, "base_prediction_rows", next_gate)
+    rebind()
+    return stage, rebind
+
+
+def test_the_annotations_triage_publishes_pass_the_annotation_gate(annotated_board):
+    stage, _ = annotated_board
+    with pytest.raises(SystemExit, match="Reached the prediction gate"):
+        release.main(["--stage-dir", str(stage), "--dry-run"])
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_the_freeze_refuses_a_failure_class_no_judge_gave(
+    annotated_board, exports, dry_run
+):
+    """A row's failure_source and its case note's case_failure_sources changed
+    on the kept case, which no adjudication decides, with the payload rebuilt
+    to carry the new class (export's rebuild agrees) and the receipt hashes
+    of both CSVs and the payload updated, are refused before any workspace
+    mutation."""
+    import pandas as pd
+
+    stage, rebind = annotated_board
+    annotations = stage / BUNDLE / "annotations"
+    for name, column in (
+        ("us_audit_row_annotations.csv", "failure_source"),
+        ("us_case_notes.csv", "case_failure_sources"),
+    ):
+        frame = pd.read_csv(annotations / name, dtype=str, keep_default_na=False)
+        kept = frame.scenario_id == "scenario_000"
+        assert list(frame.loc[kept, column]) == ["llm_error"]
+        frame.loc[kept, column] = "prompt_ambiguity"
+        frame.to_csv(annotations / name, index=False)
+    payload = stage / "data-board46.json"
+    board = json.loads(payload.read_text())
+    scenario, variable = CASE
+    for target in (board, exports["board"]):
+        for row in target["countries"]["us"]["scenarioPredictions"][scenario][
+            variable
+        ].values():
+            row.update(
+                failureSource="prompt_ambiguity", caseFailureSources="prompt_ambiguity"
+            )
+    payload.write_text(json.dumps(board))
+    rebind()
+    before = workspace_files()
+    with pytest.raises(
+        SystemExit,
+        match=r"us_case_notes\.csv is not what triage builds.*"
+        r"us__scenario_000__snap case_failure_sources",
+    ):
         release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
     assert workspace_files() == before
 
@@ -1156,9 +1266,16 @@ PUBLISHED = {
 }
 
 
-def _wording_stage(tmp_path, published):
-    """An audit with the case's verdict, the staged record deciding it, and
-    the published case note and row annotations ``published`` spells."""
+# What triage publishes on the case with CHAINED applied when no adjudication
+# decides it: the case note is the amended rationale alone.
+UNDECIDED = {**PUBLISHED, "note": "The model applied the prior year's threshold."}
+
+
+def _wording_stage(tmp_path, published, decided=True):
+    """An audit with the case's verdict, the staged record deciding it (or,
+    with ``decided`` false, deciding nothing), and the published case note
+    and row annotations ``published`` spells, every column as triage writes
+    it: the verdict's classes, which the decision affirms, beside the text."""
     import pandas as pd
 
     from policybench.adjudications import adjudication_sentence
@@ -1199,18 +1316,32 @@ def _wording_stage(tmp_path, published):
     annotations = tmp_path / "publish" / RUN / "annotations"
     annotations.mkdir(parents=True)
     (annotations / "us_adjudications.json").write_text(
-        json.dumps({"adjudications": [DECISION]})
+        json.dumps({"adjudications": [DECISION] if decided else []})
     )
+    classes = {"failure_source": "llm_error", "failure_subtype": "thresholds_rates"}
     pd.DataFrame(
         [
-            {**keys, "model": model, "annotation": published[model]}
+            {
+                **keys,
+                "model": model,
+                **classes,
+                "reference_suspect": False,
+                "annotation": published[model],
+            }
             for model in DIAGNOSES
             if model in published
         ]
     ).to_csv(annotations / "us_audit_row_annotations.csv", index=False)
-    pd.DataFrame([{**keys, "case_annotation": published["note"]}]).to_csv(
-        annotations / "us_case_notes.csv", index=False
-    )
+    note = {
+        **keys,
+        "wrong_model_count": len(DIAGNOSES),
+        "case_failure_sources": "llm_error",
+        "case_failure_subtypes": "thresholds_rates",
+        "reference_suspect": False,
+        "reference_bug_hypothesis": "",
+        "case_annotation": published["note"],
+    }
+    pd.DataFrame([note]).to_csv(annotations / "us_case_notes.csv", index=False)
     return annotations, audit
 
 
@@ -1244,7 +1375,7 @@ def test_the_freeze_refuses_wording_the_amendments_do_not_produce(
     tmp_path, published, amendments
 ):
     annotations, audit = _wording_stage(tmp_path, published)
-    with pytest.raises(SystemExit, match="not their verdict sources"):
+    with pytest.raises(SystemExit, match="is not what triage builds"):
         release.verify_annotation_amendments(annotations, amendments, audit)
 
 
@@ -1259,6 +1390,70 @@ def test_each_replayed_old_text_must_occur_once_when_applied(tmp_path):
     )
     with pytest.raises(SystemExit, match="occurs 2 times"):
         release.verify_annotation_amendments(annotations, twice, audit)
+
+
+def test_an_undecided_case_publishes_its_verdict_sources(tmp_path):
+    annotations, audit = _wording_stage(tmp_path, UNDECIDED, decided=False)
+    release.verify_annotation_amendments(annotations, CHAINED, audit)
+
+
+# Each column triage publishes beside the wording, changed on the case: its
+# rows' classes and flag, and its note's classes, flag, count and hypothesis.
+COLUMN_EDITS = [
+    ("us_audit_row_annotations.csv", "failure_source", "prompt_ambiguity"),
+    ("us_audit_row_annotations.csv", "failure_subtype", "missing_output"),
+    ("us_audit_row_annotations.csv", "reference_suspect", "True"),
+    ("us_case_notes.csv", "case_failure_sources", "prompt_ambiguity"),
+    ("us_case_notes.csv", "case_failure_subtypes", "missing_output"),
+    ("us_case_notes.csv", "reference_suspect", "True"),
+    ("us_case_notes.csv", "wrong_model_count", "3"),
+    ("us_case_notes.csv", "reference_bug_hypothesis", "The reference is wrong."),
+]
+
+
+@pytest.mark.parametrize("decided", [False, True])
+@pytest.mark.parametrize("name, column, value", COLUMN_EDITS)
+def test_the_freeze_refuses_any_column_triage_did_not_write(
+    tmp_path, decided, name, column, value
+):
+    """The texts unchanged, any other published column that is not the
+    verdict's (or, on a decided case, the adjudication's) is refused, and
+    named by its case and column."""
+    import pandas as pd
+
+    annotations, audit = _wording_stage(
+        tmp_path, PUBLISHED if decided else UNDECIDED, decided=decided
+    )
+    frame = pd.read_csv(annotations / name, dtype=str, keep_default_na=False)
+    frame.loc[0, column] = value
+    frame.to_csv(annotations / name, index=False)
+    with pytest.raises(
+        SystemExit,
+        match=rf"{re.escape(name)} is not what triage builds.*{WORDING_CASE}\S* "
+        rf"{column}",
+    ):
+        release.verify_annotation_amendments(annotations, CHAINED, audit)
+
+
+@pytest.mark.parametrize("defect", ["dropped_column", "extra_column", "row_order"])
+def test_the_freeze_refuses_columns_or_rows_triage_did_not_write(tmp_path, defect):
+    import pandas as pd
+
+    annotations, audit = _wording_stage(tmp_path, PUBLISHED)
+    path = annotations / "us_audit_row_annotations.csv"
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if defect == "dropped_column":
+        frame = frame.drop(columns=["failure_subtype"])
+        problem = "its columns"
+    elif defect == "extra_column":
+        frame["reviewed"] = "yes"
+        problem = "its columns"
+    else:
+        frame = frame.iloc[::-1]
+        problem = "its row order or serialization"
+    frame.to_csv(path, index=False)
+    with pytest.raises(SystemExit, match=f"differs at.*{problem}"):
+        release.verify_annotation_amendments(annotations, CHAINED, audit)
 
 
 def test_an_amendment_must_find_its_old_text_exactly_once(adjudications):
