@@ -1,17 +1,462 @@
-"""Tests for PolicyEngine runtime provenance metadata."""
+"""Tests for PolicyEngine runtime provenance metadata.
+
+``policyengine_release_bundle`` must record the same bundle on every call, in
+every process, whatever the policyengine import flags say, and the bundle must
+not contradict itself. Until 2026-09-29 the US bundle depended on whether
+``import policyengine`` had already been attempted in the process: the first
+attempt fails without HUGGING_FACE_TOKEN (the UK model's data certification
+gets a 401), so sidecars recorded "installed package, no matching
+policyengine.py bundle manifest" for a model that matched the bundle.
+
+The synthetic tests enumerate every combination of the inputs that decide the
+bundle. The installed-environment tests pin the real result in fresh processes
+and check the manifest reading against policyengine's own code.
+"""
 
 import copy
 import hashlib
+import importlib.util
+import itertools
 import json
+import os
+import shutil
+import subprocess
+import sys
 import tempfile
+import textwrap
 from importlib import metadata
 from pathlib import Path
 
+import pydantic
 import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 import policybench.policyengine_runtime as runtime
+
+# The only fields allowed to differ between a matching and a non-matching
+# installed model for the same bundled manifest.
+MATCH_DEPENDENT_FIELDS = {
+    "model_version",
+    "model_version_source",
+    "model_matches_policyengine_bundle",
+    "compatibility_basis",
+    "certified_by",
+}
+
+PINNED_US_MODEL = "1.0.0"
+
+
+def _installed_policyengine_root() -> Path:
+    root = Path(metadata.distribution("policyengine").locate_file("policyengine"))
+    assert root.is_dir(), root
+    return root
+
+
+def _raw_installed_manifest(country: str) -> dict:
+    """The installed manifest's own JSON, read without the runtime's reader."""
+    root = _installed_policyengine_root()
+    per_country = root / "data" / "release_manifests" / f"{country}.json"
+    if per_country.is_file():
+        return json.loads(per_country.read_text(encoding="utf-8"))
+    bundle = json.loads(
+        (root / "data" / "bundle" / "manifest.json").read_text(encoding="utf-8")
+    )
+    return bundle["data_releases"][country]
+
+
+def _installed_model_matches_bundle(country: str) -> bool:
+    """policyengine's own rule: the installed model is the manifest's model."""
+    installed = metadata.version(runtime.MODEL_PACKAGES[country])
+    return installed == _raw_installed_manifest(country)["model_package"]["version"]
+
+
+@pytest.fixture(autouse=True)
+def _fresh_caches():
+    runtime.policyengine_release_bundle.cache_clear()
+    runtime._load_policyengine_manifest_schema.cache_clear()
+    sys.modules.pop(runtime.MANIFEST_SCHEMA_MODULE, None)
+    yield
+    runtime.policyengine_release_bundle.cache_clear()
+    runtime._load_policyengine_manifest_schema.cache_clear()
+    sys.modules.pop(runtime.MANIFEST_SCHEMA_MODULE, None)
+
+
+def _policyengine_modules() -> set[str]:
+    return {
+        name
+        for name in sys.modules
+        if name == "policyengine" or name.startswith("policyengine.")
+    }
+
+
+# -- synthetic policyengine distributions ------------------------------------
+
+
+def _synthetic_manifest(
+    *,
+    certification: str = "full",
+    certified_artifact: str = "default",
+    default_in_datasets: bool = True,
+    dataset_pins: bool = False,
+) -> dict:
+    """A bundled US manifest built from one point of the input space."""
+    manifest = {
+        "schema_version": 1,
+        "bundle_id": "us-9.9.9",
+        "country_id": "us",
+        "policyengine_version": "9.9.9",
+        "model_package": {"name": "policyengine-us", "version": PINNED_US_MODEL},
+        "data_package": {
+            "name": "sample-data",
+            "version": "0.1.0",
+            "repo_id": "policyengine/sample-data",
+            "release_manifest_revision": "sample-build-rev",
+        },
+        "default_dataset": "sample_2024",
+        "datasets": {},
+    }
+    if default_in_datasets:
+        reference = {"path": "sample_2024.h5"}
+        if dataset_pins:
+            reference |= {"repo_id": "policyengine/pinned", "revision": "pin-rev"}
+        manifest["datasets"]["sample_2024"] = reference
+    if certification == "full":
+        manifest["certification"] = {
+            "compatibility_basis": "exact_build_model_version",
+            "certified_for_model_version": PINNED_US_MODEL,
+            "data_build_id": "sample-build",
+            "built_with_model_version": PINNED_US_MODEL,
+            "built_with_model_git_sha": "abc123",
+            "data_build_fingerprint": "sha256:feed",
+            "certified_by": "policyengine.py bundled manifest",
+        }
+    elif certification == "partial":
+        manifest["certification"] = {
+            "compatibility_basis": "bundle_candidate",
+            "certified_for_model_version": PINNED_US_MODEL,
+        }
+    if certified_artifact != "absent":
+        manifest["certified_data_artifact"] = {
+            "dataset": "sample_2024" if certified_artifact == "default" else "other",
+            "uri": "hf://policyengine/sample-data/certified.h5@certified-rev",
+            "sha256": "0" * 64,
+            "build_id": "certified-build",
+        }
+    return manifest
+
+
+OVERLAY = {"sample_overlay": {"path": "overlay.h5", "revision": "overlay-rev"}}
+
+
+@pytest.fixture
+def fake_policyengine(tmp_path, monkeypatch):
+    """Point the runtime at a synthetic policyengine distribution.
+
+    The schema module is the installed policyengine's real manifest.py, copied
+    next to the synthetic manifest, so validation runs policyengine's own model.
+    ``layout`` is policyengine.py 4.x's per-country manifest file or 6.x's
+    single bundle manifest (with a dataset overlay).
+    """
+    site = tmp_path / "site-packages"
+    root = site / "policyengine"
+    (root / "provenance").mkdir(parents=True)
+    (root / "data" / "release_manifests").mkdir(parents=True)
+    (root / "data" / "bundle").mkdir(parents=True)
+    shutil.copy(
+        _installed_policyengine_root() / "provenance" / "manifest.py",
+        root / "provenance" / "manifest.py",
+    )
+    per_country_path = root / "data" / "release_manifests" / "us.json"
+    bundle_path = root / "data" / "bundle" / "manifest.json"
+    state = {"installed": PINNED_US_MODEL, "pinned": PINNED_US_MODEL}
+
+    def install(
+        manifest: dict | None,
+        *,
+        installed: str,
+        pinned=PINNED_US_MODEL,
+        layout: str = "per_country",
+        overlays: dict | None = None,
+    ):
+        per_country_path.unlink(missing_ok=True)
+        bundle_path.unlink(missing_ok=True)
+        if manifest is not None and layout == "per_country":
+            per_country_path.write_text(json.dumps(manifest), encoding="utf-8")
+        elif manifest is not None:
+            bundle_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "data_releases": {"us": manifest},
+                        "dataset_overlays": {
+                            "us": OVERLAY if overlays is None else overlays
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+        state["installed"] = installed
+        state["pinned"] = pinned
+        runtime.policyengine_release_bundle.cache_clear()
+
+    _relocate_policyengine(monkeypatch, site)
+    monkeypatch.setattr(
+        runtime,
+        "_bundled_model_version_from_policyengine_metadata",
+        lambda country, model_package_name: state["pinned"],
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_package_version_or_none",
+        lambda package: {"policyengine": "9.9.9"}.get(package),
+    )
+    monkeypatch.setattr(runtime, "_package_direct_url_or_none", lambda package: None)
+    real_version = metadata.version
+    monkeypatch.setattr(
+        runtime.metadata,
+        "version",
+        lambda package: (
+            state["installed"]
+            if package == "policyengine-us"
+            else real_version(package)
+        ),
+    )
+    install.root = root
+    install.per_country_path = per_country_path
+    install.bundle_path = bundle_path
+    return install
+
+
+# Every shape of bundled manifest the runtime distinguishes, in both layouts,
+# plus no manifest at all.
+INPUT_SPACE = [
+    (True, *shape)
+    for shape in itertools.product(
+        ("per_country", "bundle"),  # policyengine.py 4.x or 6.x layout
+        ("full", "partial", "absent"),  # certification
+        ("default", "other", "absent"),  # certified data artifact
+        (True, False),  # default dataset listed in the manifest
+        (True, False),  # that listing pins its own repo and revision
+    )
+] + [(False, "per_country", "absent", "absent", False, False)]
+
+
+@pytest.mark.parametrize(
+    "manifest_present,layout,certification,certified_artifact,"
+    "default_in_datasets,dataset_pins",
+    INPUT_SPACE,
+)
+def test_bundle_invariants_hold_for_every_manifest_shape(
+    fake_policyengine,
+    manifest_present,
+    layout,
+    certification,
+    certified_artifact,
+    default_in_datasets,
+    dataset_pins,
+):
+    manifest = (
+        _synthetic_manifest(
+            certification=certification,
+            certified_artifact=certified_artifact,
+            default_in_datasets=default_in_datasets,
+            dataset_pins=dataset_pins,
+        )
+        if manifest_present
+        else None
+    )
+    loaded_before = _policyengine_modules()
+
+    results = {}
+    for installed in (PINNED_US_MODEL, "1.0.1"):
+        fake_policyengine(manifest, installed=installed, layout=layout)
+        attempts = []
+        for _ in range(3):
+            runtime.policyengine_release_bundle.cache_clear()
+            attempts.append(runtime.policyengine_release_bundle("us"))
+        # Determinism: the attempt count never changes the bundle.
+        assert all(attempt == attempts[0] for attempt in attempts)
+        results[installed] = attempts[0]
+
+    # Isolation: computing the bundle never imports policyengine.
+    assert _policyengine_modules() == loaded_before
+
+    for installed, bundle in results.items():
+        matches = manifest_present and installed == PINNED_US_MODEL
+        certification_block = (manifest or {}).get("certification") or {}
+        # Consistency: every match-dependent field agrees with the match.
+        assert bundle["model_matches_policyengine_bundle"] is matches
+        assert bundle["model_version"] == installed
+        assert bundle["bundled_model_version"] == PINNED_US_MODEL
+        assert bundle["model_version_source"] == (
+            "policyengine.py bundle" if matches else "installed package"
+        )
+        if matches:
+            assert (
+                bundle["compatibility_basis"]
+                == bundle["bundled_compatibility_basis"]
+                == certification_block.get("compatibility_basis")
+            )
+            assert (
+                bundle["certified_by"]
+                == bundle["bundled_certified_by"]
+                == certification_block.get("certified_by")
+            )
+        else:
+            assert bundle["compatibility_basis"] == (
+                runtime.UNBUNDLED_COMPATIBILITY_BASIS
+            )
+            assert bundle["certified_by"] == runtime.UNBUNDLED_CERTIFIED_BY
+
+    # Branch agreement: a matching and a newer installed model record the same
+    # bundle except for the match-dependent fields.
+    matching, newer = results[PINNED_US_MODEL], results["1.0.1"]
+    assert list(matching) == list(newer)
+    differing = {key for key in matching if matching[key] != newer[key]}
+    assert differing <= MATCH_DEPENDENT_FIELDS
+
+    # Field provenance: the data fields come from the manifest when there is one.
+    if manifest is not None:
+        for bundle in results.values():
+            assert bundle["bundle_id"] == manifest["bundle_id"]
+            assert bundle["bundled_policyengine_version"] == "9.9.9"
+            assert bundle["data_package"] == "sample-data"
+            assert bundle["data_version"] == "0.1.0"
+            assert bundle["default_dataset"] == "sample_2024"
+            assert bundle["default_dataset_uri"] == _expected_default_uri(
+                certified_artifact, default_in_datasets, dataset_pins
+            )
+
+
+def _expected_default_uri(certified_artifact, default_in_datasets, dataset_pins):
+    """policyengine's default_dataset_uri, written out for the synthetic shapes."""
+    if certified_artifact == "default":
+        return "hf://policyengine/sample-data/certified.h5@certified-rev"
+    if not default_in_datasets:
+        return None  # policyengine would look further, on disk or online
+    if dataset_pins:
+        return "hf://policyengine/pinned/sample_2024.h5@pin-rev"
+    return "hf://policyengine/sample-data/sample_2024.h5@sample-build-rev"
+
+
+def test_bundle_layout_merges_dataset_overlays(fake_policyengine):
+    fake_policyengine(_synthetic_manifest(), installed=PINNED_US_MODEL, layout="bundle")
+
+    raw = runtime._load_raw_policyengine_manifest("us")
+
+    assert raw["datasets"] == {"sample_2024": {"path": "sample_2024.h5"}} | OVERLAY
+    assert runtime._load_raw_policyengine_manifest("uk") is None
+    assert runtime.policyengine_release_bundle("us")[
+        "model_matches_policyengine_bundle"
+    ]
+
+
+@pytest.mark.parametrize("name", ["sample_2024", "other_2024"])
+def test_overlay_that_replaces_a_certified_dataset_raises(fake_policyengine, name):
+    manifest = _synthetic_manifest()
+    manifest["datasets"]["other_2024"] = {"path": "other_2024.h5"}
+    fake_policyengine(
+        manifest,
+        installed=PINNED_US_MODEL,
+        layout="bundle",
+        overlays={name: {"path": "replacement.h5"}},
+    )
+
+    with pytest.raises(ValueError, match="overlays may only add datasets"):
+        runtime.policyengine_release_bundle("us")
+
+
+def test_invalid_matching_manifest_raises_instead_of_recording_no_manifest(
+    fake_policyengine,
+):
+    manifest = _synthetic_manifest()
+    del manifest["model_package"]
+    fake_policyengine(manifest, installed=PINNED_US_MODEL)
+
+    with pytest.raises(pydantic.ValidationError, match="model_package"):
+        runtime.policyengine_release_bundle("us")
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        (("model_package", "version"), "1.0.2"),
+        (("model_package", "name"), "policyengine-uk"),
+        (("country_id",), "uk"),
+        (("certification", "certified_for_model_version"), "0.9.0"),
+    ],
+)
+def test_manifest_that_contradicts_the_pin_raises(fake_policyengine, field, value):
+    manifest = _synthetic_manifest()
+    target = manifest
+    for key in field[:-1]:
+        target = target[key]
+    target[field[-1]] = value
+    fake_policyengine(manifest, installed=PINNED_US_MODEL)
+
+    with pytest.raises(ValueError, match="contradictory PolicyEngine provenance"):
+        runtime.policyengine_release_bundle("us")
+
+
+def test_newer_installed_model_does_not_validate_the_manifest(fake_policyengine):
+    """A model newer than the bundle keeps the tolerant raw-JSON read."""
+    manifest = _synthetic_manifest()
+    manifest["model_package"]["version"] = "not validated"
+    fake_policyengine(manifest, installed="1.0.1")
+
+    bundle = runtime.policyengine_release_bundle("us")
+
+    assert bundle["model_matches_policyengine_bundle"] is False
+    assert bundle["data_version"] == "0.1.0"
+    assert runtime.MANIFEST_SCHEMA_MODULE not in sys.modules
+
+
+def test_no_policyengine_distribution_records_the_source_data_fallback(
+    fake_policyengine, monkeypatch
+):
+    fake_policyengine(None, installed="1.0.1", pinned=None)
+    monkeypatch.setattr(runtime, "_policyengine_package_file", lambda relative: None)
+
+    bundle = runtime.policyengine_release_bundle("us")
+
+    assert bundle["model_matches_policyengine_bundle"] is False
+    assert bundle["bundled_model_version"] is None
+    assert bundle["bundle_id"] is None
+    assert (
+        bundle["default_dataset_uri"]
+        == runtime.SOURCE_DATA_PROVENANCE["us"]["default_dataset_uri"]
+    )
+
+
+def test_schema_module_that_imports_policyengine_is_refused(
+    fake_policyengine, monkeypatch
+):
+    fake_policyengine(_synthetic_manifest(), installed=PINNED_US_MODEL)
+    leaked = "policyengine._policybench_test_leak"
+    monkeypatch.delitem(sys.modules, leaked, raising=False)
+    schema_path = fake_policyengine.root / "provenance" / "manifest.py"
+    schema_path.write_text(
+        "import sys, types\n"
+        f"sys.modules[{leaked!r}] = types.ModuleType({leaked!r})\n"
+        + schema_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    try:
+        with pytest.raises(RuntimeError, match="without running"):
+            runtime.policyengine_release_bundle("us")
+        assert runtime.MANIFEST_SCHEMA_MODULE not in sys.modules
+    finally:
+        sys.modules.pop(leaked, None)
+
+
+def test_missing_schema_module_raises_for_a_matching_manifest(fake_policyengine):
+    fake_policyengine(_synthetic_manifest(), installed=PINNED_US_MODEL)
+    (fake_policyengine.root / "provenance" / "manifest.py").unlink()
+
+    with pytest.raises(RuntimeError, match="provenance/manifest.py"):
+        runtime.policyengine_release_bundle("us")
 
 
 def test_uk_policyengine_bundle_uses_transfer_artifact(monkeypatch):
@@ -35,58 +480,6 @@ def test_uk_policyengine_bundle_uses_transfer_artifact(monkeypatch):
         "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
     )
     assert "not native UK survey microdata" in bundle["runtime_dataset_note"]
-
-
-def test_unbundled_runtime_metadata_does_not_import_policyengine(monkeypatch):
-    monkeypatch.setattr(
-        runtime,
-        "_bundled_model_version_from_policyengine_metadata",
-        lambda country, model_package_name: "1.0.0",
-    )
-    monkeypatch.setattr(runtime, "_load_policyengine_manifest", lambda country: None)
-    monkeypatch.setattr(
-        runtime,
-        "_load_raw_policyengine_manifest",
-        lambda country: {
-            "bundle_id": f"{country}-bundle",
-            "policyengine_version": "4.0.0",
-            "data_package": {
-                "name": f"policyengine-{country}-data",
-                "version": "1.2.3",
-                "repo_id": f"policyengine/{country}-data",
-            },
-            "default_dataset": "sample_dataset",
-            "datasets": {"sample_dataset": {"path": "sample_dataset.h5"}},
-            "certification": {
-                "compatibility_basis": "exact_build_model_version",
-                "data_build_id": "sample-build",
-                "built_with_model_version": "1.0.0",
-                "certified_by": "policyengine.py bundled manifest",
-            },
-        },
-    )
-    monkeypatch.setattr(
-        metadata,
-        "version",
-        lambda package: {
-            "policyengine": "4.3.1",
-            "policyengine-us": "1.1.0",
-        }[package],
-    )
-
-    runtime.policyengine_release_bundle.cache_clear()
-    bundle = runtime.policyengine_release_bundle("us")
-
-    assert bundle["model_version"] == "1.1.0"
-    assert bundle["bundled_model_version"] == "1.0.0"
-    assert bundle["model_matches_policyengine_bundle"] is False
-    assert (
-        bundle["compatibility_basis"]
-        == "installed_model_package_not_policyengine_py_bundle"
-    )
-    assert bundle["data_version"] == "1.2.3"
-    assert bundle["certified_data_build_id"] == "sample-build"
-    runtime.policyengine_release_bundle.cache_clear()
 
 
 class _Distribution:
@@ -129,6 +522,166 @@ def test_installed_policyengine_yields_a_complete_reference_bundle():
         if not isinstance(bundle.get(field), str) or not bundle[field].strip()
     ]
     assert not missing, missing
+
+
+# -- the installed PolicyEngine packages -------------------------------------
+
+
+@pytest.mark.parametrize("country", sorted(runtime.MODEL_PACKAGES))
+def test_installed_bundle_follows_policyengines_match_rule_on_every_attempt(country):
+    raw = _raw_installed_manifest(country)
+    certification = raw.get("certification") or {}
+    matches = _installed_model_matches_bundle(country)
+    loaded_before = _policyengine_modules()
+
+    attempts = []
+    for _ in range(2):
+        runtime.policyengine_release_bundle.cache_clear()
+        attempts.append(runtime.policyengine_release_bundle(country))
+
+    assert attempts[0] == attempts[1]
+    bundle = attempts[0]
+    assert bundle["model_matches_policyengine_bundle"] is matches
+    assert bundle["model_version_source"] == (
+        "policyengine.py bundle" if matches else "installed package"
+    )
+    assert bundle["compatibility_basis"] == (
+        certification.get("compatibility_basis")
+        if matches
+        else runtime.UNBUNDLED_COMPATIBILITY_BASIS
+    )
+    assert bundle["certified_by"] == (
+        certification.get("certified_by") if matches else runtime.UNBUNDLED_CERTIFIED_BY
+    )
+    assert bundle["bundle_id"] == raw["bundle_id"]
+    assert _policyengine_modules() == loaded_before
+
+
+# Runs in a fresh interpreter with sockets disabled, so a bundle that needed the
+# network (the old import path) would fail or change instead of passing.
+BUNDLE_PROBE = textwrap.dedent(
+    """
+    import json, os, socket, sys
+
+    def _no_network(*args, **kwargs):
+        raise OSError("network disabled by test_policyengine_runtime")
+
+    socket.socket.connect = _no_network
+    socket.create_connection = _no_network
+
+    mode = os.environ["PROBE_MODE"]
+    if mode in ("after_policyengine_import", "after_failed_policyengine_import"):
+        # Leaves whatever policyengine modules the attempt loaded, as production
+        # processes had, whether or not the import succeeds here.
+        try:
+            import policyengine.provenance.manifest  # noqa: F401
+        except Exception:
+            pass
+
+    from policybench import policyengine_runtime as runtime
+
+    loaded_before = {m for m in sys.modules if m.split(".")[0] == "policyengine"}
+    attempts = 2 if mode == "second_attempt" else 1
+    for _ in range(attempts):
+        runtime.policyengine_release_bundle.cache_clear()
+        bundles = runtime.policyengine_bundles_for_countries({"us", "uk"})
+    loaded_after = {m for m in sys.modules if m.split(".")[0] == "policyengine"}
+    assert loaded_after == loaded_before, sorted(loaded_after - loaded_before)
+    print(json.dumps(bundles, sort_keys=True))
+    """
+)
+
+PROBE_VARIANTS = {
+    "first_attempt": {},
+    "second_attempt": {},
+    "skip_country_imports": {"POLICYENGINE_SKIP_COUNTRY_IMPORTS": "1"},
+    "invalid_hf_token": {"HUGGING_FACE_TOKEN": "hf_invalid_policybench_test"},
+    "after_policyengine_import": {"POLICYENGINE_SKIP_COUNTRY_IMPORTS": "1"},
+}
+
+
+def _probe(mode: str, extra_env: dict) -> dict:
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"HUGGING_FACE_TOKEN", "POLICYENGINE_SKIP_COUNTRY_IMPORTS"}
+    }
+    env |= extra_env | {"PROBE_MODE": mode}
+    completed = subprocess.run(
+        [sys.executable, "-c", BUNDLE_PROBE],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=600,
+    )
+    assert completed.returncode == 0, completed.stderr[-4000:]
+    return json.loads(completed.stdout.strip().splitlines()[-1])
+
+
+def test_bundles_are_identical_across_processes_attempts_and_env_flags():
+    bundles = {mode: _probe(mode, env) for mode, env in PROBE_VARIANTS.items()}
+
+    reference = bundles["first_attempt"]
+    for mode, bundle in bundles.items():
+        assert bundle == reference, mode
+    for country, bundle in reference.items():
+        assert bundle["model_matches_policyengine_bundle"] is (
+            _installed_model_matches_bundle(country)
+        ), country
+
+
+@pytest.mark.slow
+def test_bundle_is_unchanged_after_the_failed_package_import():
+    """The production failure: policyengine's import raised before provenance.
+
+    Without POLICYENGINE_SKIP_COUNTRY_IMPORTS the import builds the US model
+    before the UK data certification fails, so this is slow.
+    """
+    reference = _probe("first_attempt", {})
+    assert _probe("after_failed_policyengine_import", {}) == reference
+
+
+def _policyengine_manifest_module(monkeypatch):
+    """policyengine's own manifest module, executed from its file.
+
+    Its ``get_release_manifest`` finds the package through
+    ``importlib.resources.files("policyengine")``, which imports policyengine.
+    That one lookup is pointed at the installed package directory; everything
+    else is policyengine's code as shipped.
+    """
+    root = _installed_policyengine_root()
+    name = "_policybench_test_policyengine_manifest"
+    spec = importlib.util.spec_from_file_location(
+        name, root / "provenance" / "manifest.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, name, module)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, "files", lambda package: root)
+    return module
+
+
+@pytest.mark.parametrize("country", sorted(runtime.MODEL_PACKAGES))
+def test_manifest_reading_agrees_with_policyengines_own_code(monkeypatch, country):
+    policyengine_manifest = _policyengine_manifest_module(monkeypatch)
+    loaded_before = _policyengine_modules()
+
+    expected = policyengine_manifest.get_release_manifest(country)
+    raw = runtime._load_raw_policyengine_manifest(country)
+    schema = runtime._policyengine_manifest_schema()
+    ours = schema.CountryReleaseManifest.model_validate(copy.deepcopy(raw))
+
+    assert ours.model_dump(mode="json") == expected.model_dump(mode="json")
+    assert (
+        runtime._default_dataset_uri_from_raw_manifest(raw)
+        == expected.default_dataset_uri
+    )
+    assert expected.datasets
+    for name in expected.datasets:
+        assert runtime._dataset_uri_from_raw_manifest(
+            raw, name
+        ) == policyengine_manifest.resolve_dataset_reference(country, name), name
+    assert _policyengine_modules() == loaded_before
 
 
 # -- provenance computed once per supervised run ------------------------------
@@ -377,13 +930,16 @@ def _sha256(path):
 def relocated_policyengine(monkeypatch, tmp_path):
     """policyengine's package files under a temporary root, read unimported.
 
-    ``_load_policyengine_manifest`` is made to return None, so every bundle
-    comes from ``_load_raw_policyengine_manifest``, as it does when no
-    installed model package is the version policyengine.py pins.
+    No installed model package is made the version policyengine.py pins, so
+    the fixture releases, which name no model package, are never validated.
     """
     root = tmp_path / "site-packages"
     _relocate_policyengine(monkeypatch, root)
-    monkeypatch.setattr(runtime, "_load_policyengine_manifest", lambda country: None)
+    monkeypatch.setattr(
+        runtime,
+        "_bundled_model_version_from_policyengine_metadata",
+        lambda country, model_package_name: None,
+    )
     runtime.policyengine_release_bundle.cache_clear()
     yield root
     runtime.policyengine_release_bundle.cache_clear()
@@ -565,22 +1121,27 @@ def test_provenance_file_that_does_not_round_trip_is_removed(
     "variable,value",
     [("POLICYENGINE_SKIP_COUNTRY_IMPORTS", "1"), ("HUGGING_FACE_TOKEN", "hf_x")],
 )
-def test_provenance_inputs_track_policyengine_import_flags(
+def test_provenance_file_is_reused_whatever_the_policyengine_import_flags(
     fake_release_bundles, tmp_path, monkeypatch, capsys, variable, value
 ):
-    # Either flag can change whether ``import policyengine`` succeeds, and so
-    # which branch records the US bundle.
+    # The bundles never import policyengine, so neither flag can change them.
     monkeypatch.delenv("POLICYENGINE_SKIP_COUNTRY_IMPORTS", raising=False)
     monkeypatch.delenv("HUGGING_FACE_TOKEN", raising=False)
     path = tmp_path / runtime.POLICYENGINE_PROVENANCE_FILENAME
     runtime.write_policyengine_provenance(path, {"us"})
+    assert "environment" not in runtime.policyengine_provenance_inputs()
 
     monkeypatch.setenv(variable, value)
-
-    runtime.resolve_policyengine_bundles(
-        {"us"}, env={runtime.POLICYENGINE_PROVENANCE_ENV: str(path)}
+    monkeypatch.setattr(
+        runtime,
+        "policyengine_bundles_for_countries",
+        lambda requested: pytest.fail("fast path computed bundles directly"),
     )
-    assert "different PolicyEngine packages or code" in capsys.readouterr().err
+
+    assert runtime.resolve_policyengine_bundles(
+        {"us"}, env={runtime.POLICYENGINE_PROVENANCE_ENV: str(path)}
+    ) == {"us": FAKE_BUNDLES["us"]}
+    assert runtime.POLICYENGINE_PROVENANCE_NOT_REUSED not in capsys.readouterr().err
 
 
 def test_provenance_inputs_identify_the_python_environment(
@@ -607,7 +1168,7 @@ def test_provenance_file_never_records_the_token(
 
     text = path.read_text()
     assert "hf_secret_value" not in text
-    assert json.loads(text)["inputs"]["environment"]["HUGGING_FACE_TOKEN_set"] is True
+    assert "HUGGING_FACE_TOKEN" not in text
 
 
 def test_editable_policyengine_install_is_never_reused(

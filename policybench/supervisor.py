@@ -20,19 +20,17 @@ For a single-country run (every supervised run in practice), PolicyEngine
 provenance (the ``policyengine_bundles`` block of every scenario sidecar) is
 computed once, in a fresh interpreter, into
 ``<run_dir>/policyengine_provenance.json`` and handed to workers through
-``POLICYBENCH_POLICYENGINE_PROVENANCE``. What computing it costs depends on
-the environment. It imports policyengine only when a country's installed
-model package is the exact version policyengine.py pins for it. Under
-policyengine.py 4.16.1, with ``POLICYENGINE_SKIP_COUNTRY_IMPORTS`` unset,
-that import built the US and UK tax-benefit systems: about 1 GB of peak RSS
-and 11-14 CPU-seconds per process when measured on 2026-09-28. Otherwise it
-reads only package metadata and policyengine.py's bundled release manifest,
-and imports no PolicyEngine module; that was the case on 2026-09-30 for
-policyengine-us 2.15.17, which differs from the 2.2.1 that policyengine.py
-6.1.2 pins. Either way, computing it once per run bounds the cost: a worker
-that only calls an LLM does not pay it, and neither does the supervisor.
-Without the file (a mixed-country run, or a failed write), workers and the
-supervisor compute provenance themselves, as before.
+``POLICYBENCH_POLICYENGINE_PROVENANCE``. Computing it reads package metadata
+and policyengine.py's bundled release manifest and imports no PolicyEngine
+module (about 0.15 CPU-seconds). Until 2026-09-30 it imported policyengine
+whenever a country's installed model package was the exact version
+policyengine.py pins; under policyengine.py 4.16.1 with
+``POLICYENGINE_SKIP_COUNTRY_IMPORTS`` unset, that built the US and UK
+tax-benefit systems: about 1 GB of peak RSS and 11-14 CPU-seconds per process
+when measured on 2026-09-28. The file now mainly makes every worker record the
+bundles the supervisor checks. Without the file (a mixed-country run, or a
+failed write), workers and the supervisor compute provenance themselves, as
+before.
 """
 
 from __future__ import annotations
@@ -747,10 +745,11 @@ class Supervisor:
         with contextlib.suppress(OSError):
             path.unlink(missing_ok=True)
         countries = sorted(_scenario_countries(self.scenarios))
-        # Each worker computed its one scenario's country in a fresh process.
-        # Whether ``import policyengine`` succeeds, and so which branch
-        # records the US bundle, can depend on what the same process looked
-        # up first, so the handoff covers single-country runs only.
+        # The handoff covers single-country runs only. It was built while the
+        # US bundle still depended on whether the process had already tried to
+        # import policyengine, so a file covering several countries could
+        # differ from what each worker computed alone. That dependence is gone,
+        # and mixed-country workers computing their own bundles is now cheap.
         if len(countries) != 1:
             return
         if not self._compute_policyengine_provenance(path, countries, dict(self.env)):

@@ -2,14 +2,17 @@
 
 import contextlib
 import hashlib
+import importlib.util
 import json
 import os
 import platform
 import re
 import sys
+import threading
 from functools import lru_cache
 from importlib import metadata
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 MODEL_PACKAGES = {
@@ -25,8 +28,9 @@ POLICYENGINE_PROVENANCE_FILENAME = "policyengine_provenance.json"
 POLICYENGINE_PROVENANCE_FORMAT_VERSION = 1
 # Logged by a worker that could not reuse the file; the supervisor counts it.
 POLICYENGINE_PROVENANCE_NOT_REUSED = "PolicyEngine provenance file not reused"
-# Distributions whose metadata policyengine_release_bundle reads or whose code
-# runs when it imports policyengine.
+# PolicyEngine distributions a provenance file's fingerprint records. The bundles
+# read the metadata of policyengine and the country models and policyengine's
+# files; policyengine-core identifies the models' engine.
 PROVENANCE_DISTRIBUTIONS = (
     "policyengine",
     "policyengine-core",
@@ -99,6 +103,19 @@ UK_TRANSFER_DATASET = {
 }
 
 
+# policyengine/provenance/manifest.py is executed from its file under this
+# private name so the bundled release manifest can be checked with
+# policyengine's own model without running policyengine/__init__.py.
+MANIFEST_SCHEMA_MODULE = "_policybench_policyengine_manifest"
+MANIFEST_SCHEMA_PATH = "policyengine/provenance/manifest.py"
+_MANIFEST_SCHEMA_LOCK = threading.Lock()
+
+UNBUNDLED_COMPATIBILITY_BASIS = "installed_model_package_not_policyengine_py_bundle"
+UNBUNDLED_CERTIFIED_BY = (
+    "installed model package; no matching policyengine.py bundle manifest"
+)
+
+
 @lru_cache(maxsize=None)
 def policyengine_release_bundle(country: str) -> dict[str, Any]:
     """Return PolicyEngine runtime metadata for the installed model package.
@@ -107,6 +124,15 @@ def policyengine_release_bundle(country: str) -> dict[str, Any]:
     can also run against newer installed model-package releases before a matching
     policyengine.py bundle exists, so the metadata keeps both the bundle version
     and the installed version explicit instead of rejecting the run.
+
+    The installed model matches the bundle when policyengine.py ships a release
+    manifest for the country and pins the installed model version. Everything is
+    read from installed package metadata and files, and ``policyengine`` itself is
+    never imported: its ``__init__`` builds the country models, and the UK model
+    fetches a data release manifest from Hugging Face that fails without
+    HUGGING_FACE_TOKEN. The result is therefore the same on every call and in
+    every process, whatever POLICYENGINE_SKIP_COUNTRY_IMPORTS or
+    HUGGING_FACE_TOKEN are set to.
     """
     country = country.lower()
     installed_policyengine_version = _package_version_or_none("policyengine")
@@ -117,87 +143,27 @@ def policyengine_release_bundle(country: str) -> dict[str, Any]:
         country,
         model_package_name,
     )
-    manifest = None
-    if bundled_model_version == installed_model_version:
-        manifest = _load_policyengine_manifest(country)
-
-    if manifest is None:
-        return _unbundled_policyengine_metadata(
+    raw_manifest = _load_raw_policyengine_manifest(country)
+    model_matches_bundle = (
+        raw_manifest is not None and installed_model_version == bundled_model_version
+    )
+    if model_matches_bundle:
+        _validate_bundled_manifest(
+            raw_manifest,
             country=country,
-            installed_policyengine_version=installed_policyengine_version,
             model_package_name=model_package_name,
-            installed_model_version=installed_model_version,
-            installed_model_direct_url=installed_model_direct_url,
-            bundled_model_version=bundled_model_version,
-            raw_manifest=_load_raw_policyengine_manifest(country),
+            model_version=installed_model_version,
         )
-
-    model_matches_bundle = installed_model_version == bundled_model_version
-
-    certification = manifest.certification
-    certified_data_artifact = manifest.certified_data_artifact
-    bundled_compatibility_basis = (
-        certification.compatibility_basis if certification is not None else None
+    return _policyengine_bundle_metadata(
+        country=country,
+        installed_policyengine_version=installed_policyengine_version,
+        model_package_name=model_package_name,
+        installed_model_version=installed_model_version,
+        installed_model_direct_url=installed_model_direct_url,
+        bundled_model_version=bundled_model_version,
+        raw_manifest=raw_manifest,
+        model_matches_bundle=model_matches_bundle,
     )
-    bundled_certifier = (
-        certification.certified_by if certification is not None else None
-    )
-    return {
-        "bundle_id": manifest.bundle_id,
-        "country_id": manifest.country_id,
-        "policyengine_version": installed_policyengine_version,
-        "bundled_policyengine_version": manifest.policyengine_version,
-        "model_package": manifest.model_package.name,
-        "model_version": installed_model_version,
-        "model_direct_url": installed_model_direct_url,
-        "bundled_model_version": bundled_model_version,
-        "model_version_source": "policyengine.py bundle"
-        if model_matches_bundle
-        else "installed package",
-        "model_matches_policyengine_bundle": model_matches_bundle,
-        "data_package": manifest.data_package.name,
-        "data_version": manifest.data_package.version,
-        "default_dataset": manifest.default_dataset,
-        "default_dataset_uri": manifest.default_dataset_uri,
-        "certified_data_build_id": (
-            certification.data_build_id
-            if certification is not None
-            else (
-                certified_data_artifact.build_id
-                if certified_data_artifact is not None
-                else None
-            )
-        ),
-        "certified_data_artifact_sha256": (
-            certified_data_artifact.sha256
-            if certified_data_artifact is not None
-            else None
-        ),
-        "data_build_model_version": (
-            certification.built_with_model_version
-            if certification is not None
-            else None
-        ),
-        "data_build_model_git_sha": (
-            certification.built_with_model_git_sha
-            if certification is not None
-            else None
-        ),
-        "data_build_fingerprint": (
-            certification.data_build_fingerprint if certification is not None else None
-        ),
-        "compatibility_basis": bundled_compatibility_basis
-        if model_matches_bundle
-        else "installed_model_package_not_policyengine_py_bundle",
-        "bundled_compatibility_basis": bundled_compatibility_basis,
-        "certified_by": bundled_certifier
-        if model_matches_bundle
-        else (
-            "installed model package; policyengine.py bundle metadata retained "
-            "for provenance"
-        ),
-        "bundled_certified_by": bundled_certifier,
-    }
 
 
 def _bundled_model_version_from_policyengine_metadata(
@@ -240,61 +206,194 @@ def _package_direct_url_or_none(package_name: str) -> dict[str, Any] | None:
         return {"raw": direct_url}
 
 
-def _load_policyengine_manifest(country: str) -> Any | None:
-    """Load a policyengine.py manifest when it is importable for this environment."""
-    try:
-        from policyengine.provenance.manifest import get_release_manifest
-    except Exception:
-        try:
-            from policyengine.core.release_manifest import get_release_manifest
-        except Exception:
-            return None
+def _policyengine_package_file(relative_path: str) -> Path | None:
+    """Locate a file of the installed policyengine distribution without importing it.
 
-    try:
-        return get_release_manifest(country)
-    except Exception:
-        return None
-
-
-def _load_raw_policyengine_manifest(country: str) -> dict[str, Any] | None:
-    """Read the bundled release-manifest JSON without importing policyengine."""
+    ``relative_path`` is relative to the distribution, like the ``*_PATH``
+    constants above.
+    """
     try:
         distribution = metadata.distribution("policyengine")
     except metadata.PackageNotFoundError:
         return None
-    manifest_path = Path(
-        distribution.locate_file(RELEASE_MANIFEST_PATH.format(country=country))
+    return Path(distribution.locate_file(relative_path))
+
+
+def _load_raw_policyengine_manifest(country: str) -> dict[str, Any] | None:
+    """Read the bundled release manifest the way policyengine's
+    ``get_release_manifest`` does, without importing policyengine.
+
+    policyengine.py 4.x ships one release manifest per country. 6.x ships one
+    bundle manifest that keeps each country's release under ``data_releases``
+    and extra named datasets under ``dataset_overlays``, which are merged in.
+    """
+    release_path = _policyengine_package_file(
+        RELEASE_MANIFEST_PATH.format(country=country)
     )
-    if manifest_path.exists():
-        return json.loads(manifest_path.read_text(encoding="utf-8"))
-    # policyengine.py 6.x ships one bundle manifest; each country's data release
-    # keeps the per-country manifest's shape under data_releases.
-    bundle_path = Path(distribution.locate_file(BUNDLE_MANIFEST_PATH))
-    if bundle_path.exists():
-        bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
-        release = (bundle.get("data_releases") or {}).get(country)
-        if isinstance(release, dict):
-            return release
-    return None
+    if release_path is not None and release_path.is_file():
+        return json.loads(release_path.read_text(encoding="utf-8"))
+    bundle_path = _policyengine_package_file(BUNDLE_MANIFEST_PATH)
+    if bundle_path is None or not bundle_path.is_file():
+        return None
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    release = (bundle.get("data_releases") or {}).get(country)
+    if not isinstance(release, dict):
+        return None
+    return _with_dataset_overlays(country, release, bundle)
+
+
+def _with_dataset_overlays(
+    country: str, release: dict[str, Any], bundle: dict[str, Any]
+) -> dict[str, Any]:
+    """Merge ``dataset_overlays`` in as policyengine 6.x does.
+
+    Overlays only add datasets. One that names the default dataset or a certified
+    dataset makes the bundle invalid, and policyengine raises, so this does too.
+    """
+    overlays = (bundle.get("dataset_overlays") or {}).get(country) or {}
+    if not overlays:
+        return release
+    datasets = dict(release.get("datasets") or {})
+    for name, reference in overlays.items():
+        if name == release.get("default_dataset") or name in datasets:
+            raise ValueError(
+                f"policyengine.py's bundle manifest overlays dataset {name!r} for "
+                f"{country} over a certified dataset; overlays may only add datasets."
+            )
+        datasets[name] = reference
+    return {**release, "datasets": datasets}
+
+
+def _loaded_policyengine_modules() -> set[str]:
+    return {
+        name
+        for name in sys.modules
+        if name == "policyengine" or name.startswith("policyengine.")
+    }
+
+
+def _policyengine_manifest_schema() -> ModuleType:
+    """Return policyengine's release-manifest models, loaded without its package.
+
+    Importing ``policyengine.provenance.manifest`` by name runs
+    ``policyengine/__init__.py`` first. The module itself needs only the standard
+    library, requests and pydantic at import time, so executing its file under a
+    private name yields the same pydantic models with none of the package's
+    import side effects. A policyengine release whose manifest module starts
+    importing the package raises here instead of silently reintroducing them.
+    """
+    with _MANIFEST_SCHEMA_LOCK:
+        return _load_policyengine_manifest_schema()
+
+
+@lru_cache(maxsize=1)
+def _load_policyengine_manifest_schema() -> ModuleType:
+    module_path = _policyengine_package_file(MANIFEST_SCHEMA_PATH)
+    if module_path is None or not module_path.is_file():
+        raise RuntimeError(
+            "Cannot validate the policyengine.py release manifest: the installed "
+            f"policyengine has no provenance/manifest.py (looked at {module_path})."
+        )
+    spec = importlib.util.spec_from_file_location(MANIFEST_SCHEMA_MODULE, module_path)
+    module = importlib.util.module_from_spec(spec)
+    already_loaded = _loaded_policyengine_modules()
+    sys.modules[MANIFEST_SCHEMA_MODULE] = module
+    try:
+        spec.loader.exec_module(module)
+        newly_loaded = _loaded_policyengine_modules() - already_loaded
+        if newly_loaded:
+            raise RuntimeError(
+                f"{module_path} imported {sorted(newly_loaded)} when loaded on "
+                "its own, so it can no longer be used without running "
+                "policyengine/__init__.py."
+            )
+    except BaseException:
+        sys.modules.pop(MANIFEST_SCHEMA_MODULE, None)
+        raise
+    return module
+
+
+def _validate_bundled_manifest(
+    raw_manifest: dict[str, Any],
+    *,
+    country: str,
+    model_package_name: str,
+    model_version: str,
+) -> None:
+    """Refuse a bundled manifest that is invalid or bundles a different model.
+
+    The manifest is validated with policyengine's own ``CountryReleaseManifest``
+    model, and it has to name the country, model package and model version that
+    policyengine.py pins, including in its data certification when it has one.
+    A policyengine release that fails either check cannot be recorded as a
+    matching bundle or as having no manifest, so this raises.
+    """
+    schema = _policyengine_manifest_schema()
+    manifest = schema.CountryReleaseManifest.model_validate(raw_manifest)
+    certification = manifest.certification
+    named = {
+        "country_id": manifest.country_id,
+        "model_package": manifest.model_package.name,
+        "model_version": manifest.model_package.version,
+        "certified_for_model_version": (
+            certification.certified_for_model_version
+            if certification is not None
+            else model_version
+        ),
+    }
+    pinned = {
+        "country_id": country,
+        "model_package": model_package_name,
+        "model_version": model_version,
+        "certified_for_model_version": model_version,
+    }
+    if named != pinned:
+        raise ValueError(
+            f"policyengine.py's bundled {country} release manifest names {named}, "
+            f"but its package metadata pins {pinned}. Refusing to record "
+            "contradictory PolicyEngine provenance."
+        )
 
 
 def _default_dataset_uri_from_raw_manifest(raw_manifest: dict[str, Any]) -> str | None:
+    """Resolve the default dataset like ``CountryReleaseManifest.default_dataset_uri``.
+
+    policyengine resolves a dataset missing from the bundled manifest from disk
+    (6.x) or from the data release manifest on Hugging Face. That case returns
+    None here instead of guessing or making a network request from provenance
+    code.
+    """
     default_dataset = raw_manifest.get("default_dataset")
-    certified_artifact = raw_manifest.get("certified_data_artifact") or {}
-    if certified_artifact.get("dataset") == default_dataset:
+    certified_artifact = raw_manifest.get("certified_data_artifact")
+    if certified_artifact and certified_artifact.get("dataset") == default_dataset:
         return certified_artifact.get("uri")
+    return _dataset_uri_from_raw_manifest(raw_manifest, default_dataset)
 
+
+def _dataset_uri_from_raw_manifest(
+    raw_manifest: dict[str, Any], dataset: str | None
+) -> str | None:
+    """Resolve a bundled dataset name like policyengine's resolve_dataset_reference."""
+    if not dataset:
+        return None
+    if "://" in dataset:
+        return dataset
+    reference = (raw_manifest.get("datasets") or {}).get(dataset)
+    if not reference or not reference.get("path"):
+        return None
     data_package = raw_manifest.get("data_package") or {}
-    repo_id = data_package.get("repo_id")
-    data_version = data_package.get("version")
-    dataset_entry = (raw_manifest.get("datasets") or {}).get(default_dataset) or {}
-    path = dataset_entry.get("path")
-    if repo_id and data_version and path:
-        return f"hf://{repo_id}/{path}@{data_version}"
-    return None
+    repo_id = reference.get("repo_id") or data_package.get("repo_id")
+    revision = (
+        reference.get("revision")
+        or data_package.get("release_manifest_revision")
+        or data_package.get("version")
+    )
+    if not repo_id or not revision:
+        return None
+    return f"hf://{repo_id}/{reference['path']}@{revision}"
 
 
-def _unbundled_policyengine_metadata(
+def _policyengine_bundle_metadata(
     *,
     country: str,
     installed_policyengine_version: str | None,
@@ -303,8 +402,16 @@ def _unbundled_policyengine_metadata(
     installed_model_direct_url: dict[str, Any] | None,
     bundled_model_version: str | None,
     raw_manifest: dict[str, Any] | None,
+    model_matches_bundle: bool,
 ) -> dict[str, Any]:
-    """Build runtime metadata when installed models are newer than policyengine.py."""
+    """Build runtime metadata from the bundled manifest, whether or not it matches.
+
+    Only ``model_version_source``, ``model_matches_policyengine_bundle``,
+    ``compatibility_basis`` and ``certified_by`` depend on whether the installed
+    model is the one policyengine.py bundles. The data fields come from the
+    bundled manifest either way, so an installed model newer than policyengine.py
+    keeps the bundle's data provenance.
+    """
     data_package = (raw_manifest or {}).get("data_package") or {}
     certification = (raw_manifest or {}).get("certification") or {}
     certified_artifact = (raw_manifest or {}).get("certified_data_artifact") or {}
@@ -320,8 +427,10 @@ def _unbundled_policyengine_metadata(
         "model_version": installed_model_version,
         "model_direct_url": installed_model_direct_url,
         "bundled_model_version": bundled_model_version,
-        "model_version_source": "installed package",
-        "model_matches_policyengine_bundle": False,
+        "model_version_source": "policyengine.py bundle"
+        if model_matches_bundle
+        else "installed package",
+        "model_matches_policyengine_bundle": model_matches_bundle,
         "data_package": data_package.get(
             "name", source_data.get("data_package", DATA_PACKAGES[country])
         ),
@@ -341,11 +450,13 @@ def _unbundled_policyengine_metadata(
         or source_data.get("data_build_model_version"),
         "data_build_model_git_sha": certification.get("built_with_model_git_sha"),
         "data_build_fingerprint": certification.get("data_build_fingerprint"),
-        "compatibility_basis": "installed_model_package_not_policyengine_py_bundle",
+        "compatibility_basis": certification.get("compatibility_basis")
+        if model_matches_bundle
+        else UNBUNDLED_COMPATIBILITY_BASIS,
         "bundled_compatibility_basis": certification.get("compatibility_basis"),
-        "certified_by": (
-            "installed model package; no matching policyengine.py bundle manifest"
-        ),
+        "certified_by": certification.get("certified_by")
+        if model_matches_bundle
+        else UNBUNDLED_CERTIFIED_BY,
         "bundled_certified_by": certification.get("certified_by"),
     }
 
@@ -460,15 +571,17 @@ def _packaged_file_sha256(distribution: Any, relative_path: str) -> str | None:
 def policyengine_provenance_inputs() -> dict[str, Any]:
     """Fingerprint the environment ``policyengine_bundles_for_countries`` sees.
 
-    Reads package metadata, files and environment flags only; importing
-    policyengine is the cost this exists to avoid. Recorded directly: each
-    PolicyEngine package's version, install URL and METADATA; the hash of
-    each release manifest file, in either layout policyengine.py ships (one
-    file per country, or one bundle manifest holding every country's
-    release), with None for each file the installed layout lacks; this
-    module; and the import flags. The environment holding everything
-    else (pydantic, requests, ...) is identified by ``sys.prefix``, though an
-    in-place upgrade of those packages is not detected. A provenance file is
+    Reads package metadata and files only; importing policyengine is the cost
+    this exists to avoid. Recorded directly: each PolicyEngine package's
+    version, install URL and METADATA; the hash of each release manifest file,
+    in either layout policyengine.py ships (one file per country, or one bundle
+    manifest holding every country's release), with None for each file the
+    installed layout lacks; and this module. Environment variables are not
+    inputs: the bundles never import policyengine, so
+    POLICYENGINE_SKIP_COUNTRY_IMPORTS and HUGGING_FACE_TOKEN cannot change
+    them. The environment holding everything else (pydantic, requests, ...) is
+    identified by ``sys.prefix``, though an in-place upgrade of those packages
+    is not detected. A provenance file is
     reused only when its recorded fingerprint equals the reader's, so a
     worker whose environment differs from the writer's recomputes instead.
     """
@@ -493,17 +606,6 @@ def policyengine_provenance_inputs() -> dict[str, Any]:
             policyengine_distribution, BUNDLE_MANIFEST_PATH
         ),
         "policyengine_runtime_sha256": _RUNTIME_SOURCE_SHA256,
-        # Whether ``import policyengine`` succeeds decides which branch of
-        # policyengine_release_bundle records the US bundle. The skip flag
-        # stops policyengine/__init__.py importing the country models, and
-        # the token is sent with the Hugging Face request those imports make.
-        # Only the token's presence is recorded, never its value.
-        "environment": {
-            "POLICYENGINE_SKIP_COUNTRY_IMPORTS": os.environ.get(
-                "POLICYENGINE_SKIP_COUNTRY_IMPORTS"
-            ),
-            "HUGGING_FACE_TOKEN_set": bool(os.environ.get("HUGGING_FACE_TOKEN")),
-        },
     }
 
 
