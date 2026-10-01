@@ -18,10 +18,15 @@
 #     directory has neither), and at one explicit effort level;
 #   - its session transcript is copied beside the verdict as
 #     claude.transcript.jsonl. A verdict is rejected if the transcript shows
-#     any tool call but the structured answer, a context attachment of a kind
-#     not listed below, a session context that is not empty (an account
-#     e-mail or git status), a working directory inside a git repository, an
-#     assistant turn at any effort but the requested one, or an advisor model;
+#     any tool call but the structured answer, an event of a type or a
+#     context attachment of a kind not listed below, a session context that
+#     is not empty (an account e-mail or git status), account data anywhere
+#     outside the prompt's own user message and the judge's own turns (an
+#     e-mail address, or a key naming an e-mail, account, credential,
+#     organization or git status), a working directory inside a git
+#     repository, an assistant turn at any effort but the requested one, or
+#     an advisor model; and unless the judge's one accepted StructuredOutput
+#     call (any other is one the schema refused) answered exactly the verdict;
 #   - it reads a private copy of prompt.md, hashed before it runs; the sidecar
 #     records that hash. A verdict is rejected if prompt.md no longer has it
 #     at extraction, or if the transcript's user events are not exactly one
@@ -62,8 +67,8 @@
 # revoked login, an organization that bars Claude Code, a usage limit), and
 # when a judge's transcript shows the login putting account context in the
 # judge's context (a session context, such as the account e-mail Claude Code
-# 2.1.284 adds for a claude.ai login, or a credential_org record), which it
-# would do for every judge.
+# 2.1.284 adds for a claude.ai login, a credential_org record, or account data
+# anywhere else in the transcript), which it would do for every judge.
 #
 # Concurrency, model and effort are tunable via env (AUDIT_PARALLEL, a
 # positive integer; AUDIT_MODEL, default opus; AUDIT_EFFORT, default xhigh,
@@ -99,6 +104,10 @@ DISALLOWED="Bash,BashOutput,KillShell,Read,Write,Edit,MultiEdit,NotebookEdit,Glo
 # The context attachments a tool-less judge's transcript may carry.
 # (No ultra_effort_enter: a judge runs at its one explicit effort level.)
 ATTACHMENTS="environment,model,date,session_context,total_tokens_reminder,prompt_snapshot,structured_output,silent_turn_reminder"
+# The event types a judge's transcript may carry: those of the GPT-6.1 Sol
+# stage's 60 isolated transcripts. JUDGE_EVENT_TYPES in
+# scripts/finish_gpt61sol.py, which a test keeps equal to this list.
+EVENT_TYPES="queue-operation,user,attachment,atis-latch,last-prompt,assistant,cost-state"
 # The one user text message besides the prompt a judge's transcript may carry:
 # Claude Code's own nudge, recorded as an isMeta user message, when a judge
 # answers in text without calling StructuredOutput (as the GPT-6.1 Sol stage's
@@ -345,13 +354,13 @@ extract_verdict() {
   case_dir="$1"; out_tmp="$2"; meta_tmp="$3"; judged="$4"; judged_sha="$5"
   "$PYTHON" - "$case_dir" "$out_tmp" "$meta_tmp" "$MODEL" "$CLI_VERSION" \
     "$CONFIG_DIR" "$AUTH" "$DECLARED" "$DISALLOWED" "$ATTACHMENTS" \
-    "$EFFORT" "$judged" "$judged_sha" "$PROMPT_NUDGE" <<'PY'
-import datetime, glob, hashlib, json, shutil, sys
+    "$EFFORT" "$judged" "$judged_sha" "$PROMPT_NUDGE" "$EVENT_TYPES" <<'PY'
+import datetime, glob, hashlib, json, re, shutil, sys
 from pathlib import Path
 
 (case_dir, out_path, meta_path, requested_model, cli_version, config_dir, auth,
  declared, disallowed, attachments, effort, judged_path, judged_sha,
- nudge) = sys.argv[1:15]
+ nudge, event_types) = sys.argv[1:16]
 case = Path(case_dir)
 try:
     envelope = json.load(open(case / "claude.json"))
@@ -390,17 +399,74 @@ if not session or len(found) != 1:
     print(f"no single transcript for session {session} in {config_dir}", file=sys.stderr)
     sys.exit(3)
 shutil.copyfile(found[0], case / "claude.transcript.jsonl")
+# The judged copy of prompt.md, hashed before the judge ran.
+judged = Path(judged_path).read_bytes()
+try:
+    judged_text = judged.decode("utf-8")
+except UnicodeDecodeError:
+    judged_text = None
+# Account data: ACCOUNT_KEY and EMAIL_ADDRESS in scripts/finish_gpt61sol.py,
+# whose account_data and outside_the_judge these mirror.
+account_key = re.compile(r"email|account|credential|organi[sz]ation|gitstatus", re.I)
+email_address = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+def account_data(value, at):
+    """Where value carries an e-mail address or a key naming an account."""
+    hits = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            where = f"{at}.{key}"
+            if account_key.search(str(key)):
+                hits.append(f"key {where}")
+            if email_address.search(str(key)):
+                hits.append(f"an e-mail address in key {where}")
+            hits += account_data(item, where)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            hits += account_data(item, f"{at}[{index}]")
+    elif isinstance(value, str) and email_address.search(value):
+        hits.append(f"an e-mail address at {at}")
+    return hits
+
+
+def outside_the_judge(event):
+    """The event without the judged prompt's own text or the judge's words."""
+    message = event.get("message")
+    if isinstance(message, dict) and (
+        event.get("type") == "assistant"
+        or (
+            event.get("type") == "user"
+            and judged_text is not None
+            and message.get("content") == judged_text
+        )
+    ):
+        return {**event, "message": {k: v for k, v in message.items() if k != "content"}}
+    return event
+
+
 allowed = set(attachments.split(","))
-calls, unexpected, turns, account = [], [], [], []
+listed = set(event_types.split(","))
+calls, unexpected, turns, account, foreign = [], [], [], [], []
 # The user events: text messages (the prompt) and everything else (which may
 # only answer the judge's own StructuredOutput calls, by id).
 texts, others, answers = [], [], set()
+# Every StructuredOutput call, and the calls the schema refused (by id).
+structured, refused = [], set()
 for number, line in enumerate(open(found[0]), 1):
     try:
         event = json.loads(line)
     except ValueError:
         print(f"transcript line {number} is not JSON", file=sys.stderr)
         sys.exit(4)
+    if not isinstance(event, dict):
+        print(f"transcript line {number} is not an event", file=sys.stderr)
+        sys.exit(4)
+    if event.get("type") not in listed:
+        foreign.append(f"an event of type {event.get('type')!r}")
+    carried = account_data(outside_the_judge(event), f"line {number}")
+    foreign += carried
+    account += carried
     if event.get("type") == "attachment":
         attachment = event.get("attachment") or {}
         kind = attachment.get("type")
@@ -434,6 +500,20 @@ for number, line in enumerate(open(found[0]), 1):
                 and part.get("type") == "tool_use"
                 and part.get("name") == "StructuredOutput"
             }
+        structured += [
+            part
+            for part in content
+            if isinstance(part, dict)
+            and part.get("type") == "tool_use"
+            and part.get("name") == "StructuredOutput"
+        ]
+        refused |= {
+            part.get("tool_use_id")
+            for part in content
+            if isinstance(part, dict)
+            and part.get("type") == "tool_result"
+            and part.get("is_error")
+        }
         calls += [
             part.get("name") or part.get("type")
             for part in content
@@ -453,16 +533,14 @@ if calls:
 if unexpected:
     print(f"the judge's context carried unexpected attachments: {unexpected}", file=sys.stderr)
     sys.exit(5)
+if foreign:
+    print(f"the judge's transcript carried what an isolated judge's cannot: {foreign}", file=sys.stderr)
+    sys.exit(5)
 if turns:
     print(f"the judge did not run as requested: {sorted(set(turns))}", file=sys.stderr)
     sys.exit(6)
 # The prompt binding: the judge read the judged copy, hashed before it ran,
 # and prompt.md still has that hash.
-judged = Path(judged_path).read_bytes()
-try:
-    judged_text = judged.decode("utf-8")
-except UnicodeDecodeError:
-    judged_text = None
 unbound = []
 if hashlib.sha256(judged).hexdigest() != judged_sha:
     unbound.append("the judged copy of prompt.md changed")
@@ -491,6 +569,25 @@ for content in others:
 if unbound:
     print(f"the verdict is not bound to the judged prompt: {unbound}", file=sys.stderr)
     sys.exit(8)
+# The answer: the judge's one accepted StructuredOutput call (any other is one
+# the schema refused) answered exactly the verdict about to be written.
+accepted = [part for part in structured if part.get("id") not in refused]
+if len(accepted) != 1:
+    print(
+        f"the verdict is not the judge's answer: {len(accepted)} accepted "
+        "StructuredOutput calls, not 1",
+        file=sys.stderr,
+    )
+    sys.exit(9)
+if json.dumps(accepted[0].get("input"), sort_keys=True) != json.dumps(
+    verdict, sort_keys=True
+):
+    print(
+        "the verdict is not the judge's answer: its accepted StructuredOutput "
+        "call answered otherwise",
+        file=sys.stderr,
+    )
+    sys.exit(9)
 verdict_bytes = json.dumps(verdict, indent=2, sort_keys=True).encode("utf-8")
 open(out_path, "wb").write(verdict_bytes)
 meta = {

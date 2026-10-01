@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNNER = ROOT / "scripts/run_audit_claude.sh"
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from freeze_snapshot import (  # noqa: E402
@@ -133,7 +134,8 @@ def _fake_cli(path: Path, body: str) -> None:
 # thinking and text turns at the requested effort, one StructuredOutput call
 # and its result) and prints the CLI JSON envelope with the verdict. It reads
 # its canned output from fake.json beside it: the runner gives claude calls an
-# allowlisted environment.
+# allowlisted environment. fake.json may also give the call another answer
+# than the envelope's verdict, an environment snapshot and further events.
 FAKE_CLAUDE = """
 import json, os, sys
 from pathlib import Path
@@ -155,9 +157,13 @@ verdict = envelope["structured_output"]
 turns = [
     {"type": "thinking", "thinking": "", "signature": "sig"},
     {"type": "text", "text": json.dumps(verdict)},
-    {"type": "tool_use", "id": "toolu_1", "name": "StructuredOutput", "input": verdict},
+    {"type": "tool_use", "id": "toolu_1", "name": "StructuredOutput",
+     "input": fake.get("answer", verdict)},
 ]
 events = [{"type": "user", "message": {"role": "user", "content": prompt}}]
+if "snapshot" in fake:
+    events.append({"type": "attachment", "attachment": {
+        "type": "environment", "snapshot": fake["snapshot"]}})
 events += [
     {"type": "assistant", "effort": effort,
      "message": {"role": "assistant", "content": [part]}}
@@ -166,6 +172,7 @@ events += [
 events.append({"type": "user", "message": {"role": "user", "content": [
     {"type": "tool_result", "tool_use_id": "toolu_1",
      "content": "Structured output provided successfully"}]}})
+events += fake.get("events", [])
 project = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "p"
 project.mkdir(parents=True, exist_ok=True)
 (project / (envelope["session_id"] + ".jsonl")).write_text(
@@ -175,11 +182,10 @@ print(json.dumps(envelope))
 """
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="bash runners")
-def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
-    """Claude judges a case; the case is re-prepared (verdict gone, stale
-    sidecar left behind as before the fix); Codex re-judges it. The published
-    provenance must be Codex's, both in the sidecar and in the tally."""
+def _claude_audit(tmp_path: Path, **fake) -> tuple[Path, Path, dict]:
+    """One case to judge, fake claude and codex CLIs and a lane config dir;
+    ``fake`` adds to the fake claude's fake.json. Returns the audit directory,
+    the case directory and the runners' environment."""
     audit_dir = tmp_path / "audit"
     cases = audit_dir / "cases"
     case_dir = cases / "us__scenario_001__snap"
@@ -212,7 +218,9 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     )
     verdict_path = tmp_path / "canned_verdict.json"
     verdict_path.write_text(json.dumps(VERDICT))
-    (bin_dir / "fake.json").write_text(json.dumps({"envelope": str(envelope_path)}))
+    (bin_dir / "fake.json").write_text(
+        json.dumps({"envelope": str(envelope_path), **fake})
+    )
     (bin_dir / "claude").write_text(f"#!{sys.executable}\n{FAKE_CLAUDE}")
     (bin_dir / "claude").chmod(0o755)
     lane_config = tmp_path / "lane-config"
@@ -234,9 +242,19 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
         "CLAUDE_CONFIG_DIR": str(lane_config),
         "AUDIT_ACCOUNT": "claude:lane@example.org",
     }
+    return audit_dir, case_dir, env
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash runners")
+def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
+    """Claude judges a case; the case is re-prepared (verdict gone, stale
+    sidecar left behind as before the fix); Codex re-judges it. The published
+    provenance must be Codex's, both in the sidecar and in the tally."""
+    audit_dir, case_dir, env = _claude_audit(tmp_path)
+    cases = audit_dir / "cases"
 
     claude = subprocess.run(
-        ["bash", str(ROOT / "scripts/run_audit_claude.sh"), str(audit_dir)],
+        ["bash", str(RUNNER), str(audit_dir)],
         capture_output=True,
         text=True,
         env=env,
@@ -278,6 +296,61 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     assert {
         j: e["cases"] for j, e in audit_judge_provenance(cases)["by_judge"].items()
     } == {"gpt-5.6-sol": 1}
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash runners")
+@pytest.mark.parametrize(
+    "fake, problem",
+    [
+        # The judge's one accepted answer is not the envelope's verdict.
+        (
+            {"answer": {**VERDICT, "rationale": "Another answer."}},
+            "the verdict is not the judge's answer",
+        ),
+        # An event of a type the stage's isolated transcripts never carry.
+        ({"events": [{"type": "progress", "data": {}}]}, "an event of type 'progress'"),
+        # An e-mail address in an attachment other than the session context.
+        (
+            {
+                "events": [
+                    {
+                        "type": "attachment",
+                        "attachment": {
+                            "type": "prompt_snapshot",
+                            "systemPrompt": ["The user's email is max@example.org."],
+                        },
+                    }
+                ]
+            },
+            "an e-mail address at line 6.attachment.systemPrompt[0]",
+        ),
+        # A key naming an account, nested in the environment snapshot.
+        (
+            {"snapshot": {"isGitRepo": False, "identity": {"accountUuid": "8f0c"}}},
+            "key line 2.attachment.snapshot.identity.accountUuid",
+        ),
+    ],
+)
+def test_no_verdict_or_provenance_is_recorded_from_a_transcript_the_runner_rejects(
+    tmp_path: Path, fake, problem
+):
+    """The runner writes a verdict and its sidecar only from a transcript whose
+    one accepted answer is the verdict, whose events are all of the listed
+    types and which carries no account data. Otherwise the case keeps no
+    verdict and no provenance, and the tally counts no judge."""
+    audit_dir, case_dir, env = _claude_audit(tmp_path, **fake)
+    claude = subprocess.run(
+        ["bash", str(RUNNER), str(audit_dir)],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+    )
+    assert "[ok]" not in claude.stdout
+    assert not (case_dir / "verdict.json").exists()
+    assert not (case_dir / "verdict.meta.json").exists()
+    assert audit_judge_provenance(audit_dir / "cases")["by_judge"] == {}
+    assert problem in (case_dir / "claude.log").read_text()
 
 
 def _touch(path: Path, when: float) -> None:

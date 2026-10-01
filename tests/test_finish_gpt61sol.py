@@ -11,6 +11,7 @@ import copy
 import gzip
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -1728,8 +1729,8 @@ def _attachment(kind, **fields):
     return _event("attachment", attachment={"type": kind, **fields})
 
 
-def _call(name, call_id):
-    content = [{"type": "tool_use", "id": call_id, "name": name, "input": {}}]
+def _call(name, call_id, answer=None):
+    content = [{"type": "tool_use", "id": call_id, "name": name, "input": answer or {}}]
     return _event("assistant", effort="xhigh", message={"content": content})
 
 
@@ -1741,7 +1742,9 @@ def _result(call_id, error=False):
 
 
 def _clean_transcript():
-    """An isolated judge's transcript, shaped like the stage's real ones."""
+    """An isolated judge's transcript, shaped like the stage's real ones: its
+    one accepted StructuredOutput call answers the verdict the provenance
+    fixture writes."""
     return [
         _event("user", message={"content": JUDGED}),
         _attachment("environment", snapshot={"isGitRepo": False}),
@@ -1750,7 +1753,7 @@ def _clean_transcript():
         _attachment("date"),
         _attachment("prompt_snapshot"),
         _event("assistant", effort="xhigh", message={"content": [{"type": "text"}]}),
-        _call("StructuredOutput", "call-1"),
+        _call("StructuredOutput", "call-1", _verdict([NEW])),
         _attachment("structured_output"),
         _result("call-1"),
     ]
@@ -1919,6 +1922,50 @@ TRANSCRIPT_DEFECTS = {
         "not a StructuredOutput call's result",
     ),
     "forged_answer": (_forged_answer, "not a StructuredOutput call's result"),
+    # The verdict: the one accepted answer must be verdict.json.
+    "other_answer": (
+        lambda e: e[7]["message"]["content"][0]["input"].update(rationale="Other."),
+        "its accepted StructuredOutput answer is not verdict.json",
+    ),
+    # Only the event types the stage's isolated transcripts carry.
+    "unlisted_event": (
+        lambda e: e.append(_event("progress", data={"phase": "thinking"})),
+        "an event of type 'progress'",
+    ),
+    # No account data outside the prompt's own text and the judge's words.
+    "email_in_system_prompt": (
+        lambda e: e[5].update(
+            _attachment("prompt_snapshot", systemPrompt=["Mail max@example.org."])
+        ),
+        r"an e-mail address at line 6\.attachment\.systemPrompt\[0\]",
+    ),
+    "account_key_in_environment": (
+        lambda e: e[1].update(
+            _attachment(
+                "environment",
+                snapshot={"isGitRepo": False, "identity": {"accountUuid": "8f0c"}},
+            )
+        ),
+        r"key line 2\.attachment\.snapshot\.identity\.accountUuid",
+    ),
+    "email_beside_the_prompt": (
+        lambda e: e[0].update(userEmail="max@example.org"),
+        r"key line 1\.userEmail",
+    ),
+    "account_key_beside_the_judges_words": (
+        lambda e: e[6].update(organizationUuid="org-1"),
+        r"key line 7\.organizationUuid",
+    ),
+    "email_in_queue_operation": (
+        lambda e: e.insert(
+            0, _event("queue-operation", operation="enqueue", content="max@x.org")
+        ),
+        r"an e-mail address at line 1\.content",
+    ),
+    "git_status_key": (
+        lambda e: e[4].update(_attachment("date", gitStatus="M a.py")),
+        r"key line 5\.attachment\.gitStatus",
+    ),
 }
 
 
@@ -1960,6 +2007,65 @@ def test_claude_codes_own_structured_output_nudge_passes(provenance):
     events.insert(7, _user(driver.JUDGE_PROMPT_NUDGE, isMeta=True))
     _write_transcript(cases / ISOLATED, events)
     verify()
+
+
+def test_an_address_in_the_prompt_or_the_judges_own_words_passes(provenance):
+    """The account-data rule reads neither the judged prompt's own text nor
+    the judge's turns: a prompt that quotes an e-mail address, and a judge
+    that repeats it, carry no account context."""
+    cases, verify = provenance
+    case = cases / ISOLATED
+    prompt = "Classify these wrong answers; the filer wrote to irs@example.gov.\n"
+    (case / "prompt.md").write_text(prompt)
+    events = _clean_transcript()
+    events[0] = _user(prompt)
+    events[6]["message"]["content"] = [{"type": "text", "text": "irs@example.gov"}]
+    _write_transcript(case, events)
+
+    def follow(entries):
+        entry = next(e for e in entries if e["case_id"] == ISOLATED)
+        entry["prompt_sha256"] = driver.digest(case / "prompt.md")
+
+    verify(follow)
+
+
+def test_the_runners_event_types_are_the_gates():
+    script = (driver.ROOT / "scripts/run_audit_claude.sh").read_text()
+    line = next(line for line in script.splitlines() if line.startswith("EVENT_TYPES="))
+    assert set(line.split('"')[1].split(",")) == driver.JUDGE_EVENT_TYPES
+
+
+def test_the_runners_account_patterns_are_the_gates():
+    script = (driver.ROOT / "scripts/run_audit_claude.sh").read_text()
+    assert driver.ACCOUNT_KEY.flags & re.IGNORECASE
+    assert f'account_key = re.compile(r"{driver.ACCOUNT_KEY.pattern}", re.I)' in script
+    assert f'email_address = re.compile(r"{driver.EMAIL_ADDRESS.pattern}")' in script
+
+
+STAGE = driver.ROOT / "results/local/gpt61sol-v1"
+
+
+@pytest.mark.skipif(
+    not (STAGE / "audit/cases").is_dir(), reason="needs the GPT-6.1 Sol stage"
+)
+def test_every_isolated_transcript_in_the_stage_passes_the_gate():
+    """(local) All 60 isolated verdicts the record names pass the transcript
+    checks, the answer, event-type and account-data rules included."""
+    record = json.loads(driver.JUDGE_PROVENANCE.read_text())["verdicts"]
+    isolated = [entry["case_id"] for entry in record if entry["isolated"]]
+    failing = {}
+    for name in isolated:
+        case = STAGE / "audit/cases" / name
+        meta = json.loads((case / "verdict.meta.json").read_text())
+        problems = driver.transcript_problems(
+            case / "claude.transcript.jsonl",
+            meta.get("judge_effort"),
+            (case / "prompt.md").read_bytes(),
+            json.loads((case / "verdict.json").read_text()),
+        )
+        if problems:
+            failing[name] = problems
+    assert len(isolated) == 60 and failing == {}
 
 
 def test_the_runners_nudge_is_the_gates():
