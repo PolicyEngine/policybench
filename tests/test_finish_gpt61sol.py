@@ -1722,7 +1722,7 @@ def exporting(tmp_path, monkeypatch):
     )
     # No case is re-opened here, so the judge provenance record lists none.
     record = tmp_path / "judge_provenance.json"
-    record.write_text(json.dumps({"verdicts": []}))
+    record.write_text(json.dumps(_provenance_record([])))
     monkeypatch.setattr(driver, "JUDGE_PROVENANCE", record)
     monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset())
     # GPT-6.1 Sol's staged run, its pins standing in for the committed ones.
@@ -1941,34 +1941,68 @@ def _write_transcript(case, events):
     )
 
 
+# An isolated judge's sidecar fields: a token login on a lane whose account
+# it declares, which the public record withholds.
+ISOLATED_SIDECAR = {
+    "judge_effort": "xhigh",
+    "judge_isolation": {"tools": "none (--tools '')"},
+    "judge_auth": {"method": "oauth_token", "account": None, "org": None},
+    "judge_account_declared": "claude:lane@example.org (lane 7)",
+}
+
+
+def _record_entry(case: Path, group: str) -> dict:
+    """The entry a true record gives a staged verdict: its hashes, its group
+    and isolation, and its sidecar's fields with addresses withheld."""
+    meta = json.loads((case / "verdict.meta.json").read_text())
+    return {
+        "case_id": case.name,
+        "group": group,
+        "isolated": "judge_isolation" in meta,
+        "judge_account_declared": (
+            meta["judge_account_declared"].replace("lane@example.org", WITHHELD)
+            if "judge_account_declared" in meta
+            else None
+        ),
+        "judge_effort": meta.get("judge_effort"),
+        "judge_model_reported": meta["judge_model_reported"],
+        "judged_at_utc": meta["judged_at_utc"],
+        "verdict_sha256": driver.digest(case / "verdict.json"),
+        "prompt_sha256": driver.digest(case / "prompt.md"),
+    }
+
+
+def _provenance_record(entries: list[dict], note: str = "How each was judged."):
+    counts: dict[str, int] = {}
+    for entry in entries:
+        counts[entry["group"]] = counts.get(entry["group"], 0) + 1
+    return {"note": note, "counts": counts, "verdicts": entries}
+
+
+WITHHELD = "<account withheld>"
+GROUPS = {ISOLATED: "isolated: lane 7", UNHARDENED: "unhardened: in-repo runner"}
+
+
 @pytest.fixture
 def provenance(tmp_path):
-    """Two new verdicts, one isolated and one not, and a record of both."""
+    """Two new verdicts, one isolated and one not, and a true record of both."""
     cases = tmp_path / "audit/cases"
     entries = []
     for name, isolated in ((ISOLATED, True), (UNHARDENED, False)):
         case = cases / name
         case.mkdir(parents=True)
         (case / "prompt.md").write_text(JUDGED)
-        meta = {"judge_effort": "xhigh"} if isolated else {}
-        if isolated:
-            meta["judge_isolation"] = {"tools": "none (--tools '')"}
-        write_verdict(case, _verdict([NEW]), **meta)
+        write_verdict(case, _verdict([NEW]), **(ISOLATED_SIDECAR if isolated else {}))
         _write_transcript(case, _clean_transcript())
-        entries.append(
-            {
-                "case_id": name,
-                "isolated": isolated,
-                "verdict_sha256": driver.digest(case / "verdict.json"),
-                "prompt_sha256": driver.digest(case / "prompt.md"),
-            }
-        )
+        entries.append(_record_entry(case, GROUPS[name]))
     record = tmp_path / "judge_provenance.json"
 
-    def verify(edit=lambda entries: None):
+    def verify(edit=lambda entries: None, edit_record=lambda record: None):
         edited = copy.deepcopy(entries)
         edit(edited)
-        record.write_text(json.dumps({"verdicts": edited}))
+        written = _provenance_record(edited)
+        edit_record(written)
+        record.write_text(json.dumps(written))
         driver.verify_judge_provenance(cases, frozenset({ISOLATED, UNHARDENED}), record)
 
     return cases, verify
@@ -2022,6 +2056,112 @@ def test_the_record_must_list_each_staged_new_verdict_once(provenance, edit, pro
     _, verify = provenance
     with pytest.raises(SystemExit, match=problem):
         verify(edit)
+
+
+def _entry(case):
+    return lambda entries: next(e for e in entries if e["case_id"] == case)
+
+
+# Each sidecar field the record copies, rewritten in one entry.
+SIDECAR_FIELD_EDITS = {
+    "judge_effort": (ISOLATED, "max"),
+    "judge_model_reported": (UNHARDENED, ["claude-opus-5"]),
+    "judged_at_utc": (ISOLATED, "2026-09-30T08:00:00+00:00"),
+    "judge_account_declared": (ISOLATED, f"claude:{WITHHELD} (another lane)"),
+    "judge_account_declared_unhardened": (UNHARDENED, "a lane it never ran on"),
+}
+
+
+@pytest.mark.parametrize("edit", sorted(SIDECAR_FIELD_EDITS))
+def test_each_entrys_fields_must_be_its_sidecars(provenance, edit):
+    _, verify = provenance
+    case, value = SIDECAR_FIELD_EDITS[edit]
+    field = edit.removesuffix("_unhardened")
+
+    def rewrite(entries):
+        _entry(case)(entries)[field] = value
+
+    problem = f"{case}: its {field} .* is not the sidecar's"
+    with pytest.raises(SystemExit, match=problem):
+        verify(rewrite)
+
+
+def test_the_record_withholds_the_sidecars_address_and_names_none(provenance):
+    """The entry carries the sidecar's declaration with its address withheld;
+    the address itself, there or anywhere else in the record, is refused."""
+    _, verify = provenance
+
+    def declared(entries):
+        _entry(ISOLATED)(entries)["judge_account_declared"] = (
+            "claude:lane@example.org (lane 7)"
+        )
+
+    with pytest.raises(SystemExit, match=r"is public and names .*e-mail address"):
+        verify(declared)
+
+    def in_note(record):
+        record["note"] += " Lane 7 is lane@example.org."
+
+    with pytest.raises(SystemExit, match=r"is public and names .*record\.note"):
+        verify(edit_record=in_note)
+
+    def in_group(entries):
+        for entry in entries:
+            entry["group"] = entry["group"].replace("lane 7", "lane7@example.org")
+
+    with pytest.raises(SystemExit, match="is public and names"):
+        verify(in_group)
+
+
+# The fixture record's true counts: one entry in each group.
+GROUP_COUNTS = {group: 1 for group in GROUPS.values()}
+
+
+@pytest.mark.parametrize(
+    "counts", [{}, {"isolated: lane 7": 2}, {**GROUP_COUNTS, "extra": 0}]
+)
+def test_the_counts_must_be_the_tally_of_the_entries_groups(provenance, counts):
+    _, verify = provenance
+    with pytest.raises(SystemExit, match="counts .* are not the tally"):
+        verify(edit_record=lambda record: record.update(counts=counts))
+
+
+@pytest.mark.parametrize(
+    "auth", [None, {"method": "claude.ai", "account": "8f0c"}, {"method": None}]
+)
+def test_an_isolated_verdict_needs_a_token_login(provenance, auth):
+    cases, verify = provenance
+    meta_path = cases / ISOLATED / "verdict.meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta.pop("judge_auth")
+    if auth is not None:
+        meta["judge_auth"] = auth
+    meta_path.write_text(json.dumps(meta))
+    problem = f"{ISOLATED}: the sidecar does not record a token login"
+    with pytest.raises(SystemExit, match=problem):
+        verify()
+
+
+def test_the_record_and_its_entries_carry_only_checked_keys(provenance):
+    _, verify = provenance
+
+    def claim(entries):
+        _entry(ISOLATED)(entries)["environment"] = "allowlisted"
+
+    with pytest.raises(SystemExit, match=f"{ISOLATED}: the entry has keys"):
+        verify(claim)
+    with pytest.raises(SystemExit, match="has keys .*, not"):
+        verify(edit_record=lambda record: record.update(isolation="all allowlisted"))
+
+
+def test_only_an_isolated_entrys_group_says_isolated(provenance):
+    _, verify = provenance
+
+    def regroup(entries):
+        _entry(UNHARDENED)(entries)["group"] = "isolated: in-repo runner"
+
+    with pytest.raises(SystemExit, match=f"{UNHARDENED}: its group .* disagrees"):
+        verify(regroup)
 
 
 def _read_call(events):
@@ -2244,6 +2384,52 @@ def test_every_isolated_transcript_in_the_stage_passes_the_gate():
     assert len(isolated) == 60 and failing == {}
 
 
+def test_the_committed_provenance_record_is_public_and_tallied():
+    """Runs anywhere: the record is json.dumps(indent=1), ASCII-escaped, with a
+    trailing newline; it names no e-mail address, and its counts are the
+    tally of its entries' groups."""
+    text = driver.JUDGE_PROVENANCE.read_text()
+    record = json.loads(text)
+    assert text == json.dumps(record, indent=1) + "\n" and text.isascii()
+    assert not driver.EMAIL_ADDRESS.search(text)
+    groups = [entry["group"] for entry in record["verdicts"]]
+    assert record["counts"] == {group: groups.count(group) for group in groups}
+
+
+@pytest.mark.skipif(
+    not (STAGE / "audit/cases").is_dir(), reason="needs the GPT-6.1 Sol stage"
+)
+def test_the_record_and_its_isolation_note_are_the_sidecars():
+    """(local) The committed record passes the gate against the stage. Of its
+    60 isolated verdicts, the 43 whose sidecars record an allowlisted
+    environment and no user settings are exactly those outside the 17
+    "subfleet lane claude-10" verdicts, which record neither and were judged
+    on the first hardened runner: after 33493f80 (09:02:46Z) and before
+    51b3e722 (11:13:07Z) added both."""
+    driver.verify_judge_provenance(
+        STAGE / "audit/cases", driver.rejudged_cases(STAGE), driver.JUDGE_PROVENANCE
+    )
+    record = json.loads(driver.JUDGE_PROVENANCE.read_text())
+    isolated = [entry for entry in record["verdicts"] if entry["isolated"]]
+    hardened, first = [], []
+    for entry in isolated:
+        case = STAGE / "audit/cases" / entry["case_id"]
+        meta = json.loads((case / "verdict.meta.json").read_text())
+        isolation = meta["judge_isolation"]
+        if isolation.get("environment") == "allowlisted" and "settings" in isolation:
+            hardened.append(entry)
+        else:
+            assert "environment" not in isolation and "settings" not in isolation
+            first.append(entry)
+    assert len(isolated) == 60 and len(hardened) == 43 and len(first) == 17
+    assert {entry["group"] for entry in first} == {"isolated: subfleet lane claude-10"}
+    assert all(
+        "2026-09-30T09:02:46" <= entry["judged_at_utc"] < "2026-09-30T11:13:07"
+        for entry in first
+    )
+    assert "43 of them also ran with an allowlisted environment" in record["note"]
+
+
 def test_the_runners_nudge_is_the_gates():
     script = (driver.ROOT / "scripts/run_audit_claude.sh").read_text()
     line = next(
@@ -2280,15 +2466,10 @@ def test_export_writes_no_receipt_when_the_record_disagrees(exporting, monkeypat
     case = stage / "audit/cases" / ISOLATED
     case.mkdir(parents=True)
     (case / "prompt.md").write_text(JUDGED)
-    write_verdict(case, _verdict([NEW]), judge_isolation={"tools": "none"})
+    write_verdict(case, _verdict([NEW]), **ISOLATED_SIDECAR)
     _write_transcript(case, _clean_transcript())
-    entry = {
-        "case_id": ISOLATED,
-        "isolated": True,
-        "verdict_sha256": driver.digest(case / "verdict.json"),
-        "prompt_sha256": driver.digest(case / "prompt.md"),
-    }
-    driver.JUDGE_PROVENANCE.write_text(json.dumps({"verdicts": [entry]}))
+    entry = _record_entry(case, GROUPS[ISOLATED])
+    driver.JUDGE_PROVENANCE.write_text(json.dumps(_provenance_record([entry])))
     monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset({ISOLATED}))
     incumbents = _incumbents()
     run(_exported(incumbents), incumbents)
@@ -2298,7 +2479,7 @@ def test_export_writes_no_receipt_when_the_record_disagrees(exporting, monkeypat
     (stage / "release-ready.json").unlink()
     (stage / "data-board46.json").unlink()
     entry["isolated"] = False
-    driver.JUDGE_PROVENANCE.write_text(json.dumps({"verdicts": [entry]}))
+    driver.JUDGE_PROVENANCE.write_text(json.dumps(_provenance_record([entry])))
     with pytest.raises(SystemExit, match="disagree with docs/gpt61sol"):
         run(_exported(incumbents), incumbents)
     assert not (stage / "release-ready.json").exists()

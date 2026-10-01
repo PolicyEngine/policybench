@@ -63,6 +63,31 @@ AMENDMENTS = "wording-amendments.json"
 # bytes in the receipt.
 JUDGE_PROVENANCE_PATH = "docs/gpt61sol/judge_provenance.json"
 JUDGE_PROVENANCE = ROOT / JUDGE_PROVENANCE_PATH
+# The record's keys, and each entry's: every one is checked, against the
+# case's verdict, prompt or sidecar, the entries' tally, or the isolated flag.
+JUDGE_PROVENANCE_KEYS = frozenset({"note", "counts", "verdicts"})
+JUDGE_PROVENANCE_ENTRY_KEYS = frozenset(
+    {
+        "case_id",
+        "group",
+        "isolated",
+        "judge_account_declared",
+        "judge_effort",
+        "judge_model_reported",
+        "judged_at_utc",
+        "prompt_sha256",
+        "verdict_sha256",
+    }
+)
+# The entry fields copied from the verdict's sidecar, an e-mail address in any
+# of them withheld as WITHHELD_ADDRESS: the record is public.
+JUDGE_SIDECAR_FIELDS = (
+    "judge_effort",
+    "judge_model_reported",
+    "judged_at_utc",
+    "judge_account_declared",
+)
+WITHHELD_ADDRESS = "<account withheld>"
 # The context attachments an isolated judge's transcript may carry: ATTACHMENTS
 # in scripts/run_audit_claude.sh, which a test keeps equal to this set.
 JUDGE_ATTACHMENTS = frozenset(
@@ -1513,24 +1538,25 @@ def validate_verdicts(
     return sorted(pending)
 
 
-def account_data(value, at: str) -> list[str]:
+def account_data(value, at: str, keys: bool = True) -> list[str]:
     """Where ``value`` carries an e-mail address or a key naming an account.
 
-    Any key that matches ACCOUNT_KEY, and any key or string that holds an
-    e-mail address (EMAIL_ADDRESS), at any depth; ``at`` names ``value``.
+    Any key that matches ACCOUNT_KEY (unless ``keys`` is false), and any key
+    or string that holds an e-mail address (EMAIL_ADDRESS), at any depth;
+    ``at`` names ``value``.
     """
     hits = []
     if isinstance(value, dict):
         for key, item in value.items():
             where = f"{at}.{key}"
-            if ACCOUNT_KEY.search(str(key)):
+            if keys and ACCOUNT_KEY.search(str(key)):
                 hits.append(f"key {where}")
             if EMAIL_ADDRESS.search(str(key)):
                 hits.append(f"an e-mail address in key {where}")
-            hits += account_data(item, where)
+            hits += account_data(item, where, keys)
     elif isinstance(value, list):
         for index, item in enumerate(value):
-            hits += account_data(item, f"{at}[{index}]")
+            hits += account_data(item, f"{at}[{index}]", keys)
     elif isinstance(value, str) and EMAIL_ADDRESS.search(value):
         hits.append(f"an e-mail address at {at}")
     return hits
@@ -1669,20 +1695,36 @@ def transcript_problems(
     return problems
 
 
+def withhold_addresses(value):
+    """``value`` with every e-mail address in it replaced by WITHHELD_ADDRESS."""
+    if not isinstance(value, str):
+        return value
+    return EMAIL_ADDRESS.sub(WITHHELD_ADDRESS, value)
+
+
 def verify_judge_provenance(
     cases_dir: Path, rejudged: frozenset[str], record_path: Path
 ) -> None:
     """The published judge provenance must describe the staged new verdicts.
 
     The record (JUDGE_PROVENANCE) lists every case GPT-6.1 Sol re-opened, each
-    once, with its verdict's and prompt's sha256 and whether its judge ran
-    isolated. Each entry's hashes must be the staged verdict's and prompt's.
-    Its isolation must be its sidecar's: a sidecar records judge_isolation
-    only when scripts/run_audit_claude.sh's hardened runner wrote it. An
-    isolated verdict's transcript, claude.transcript.jsonl, must pass the
-    runner's transcript checks (transcript_problems), its prompt and verdict
-    included: the one user text message must be the staged prompt.md, and the
-    one accepted StructuredOutput answer the staged verdict.json.
+    once, with its verdict's and prompt's sha256, its group and whether its
+    judge ran isolated, and its sidecar's judge_effort, judge_model_reported,
+    judged_at_utc and judge_account_declared (JUDGE_SIDECAR_FIELDS), an
+    e-mail address in any of them withheld as WITHHELD_ADDRESS. The record and
+    each entry carry exactly their listed keys (JUDGE_PROVENANCE_KEYS,
+    JUDGE_PROVENANCE_ENTRY_KEYS), its counts are the tally of the entries'
+    groups, and it names no e-mail address anywhere, for it is public. Each
+    entry's hashes must be the staged verdict's and prompt's, and its other
+    fields its sidecar's. Its isolation must be its sidecar's: a sidecar
+    records judge_isolation only when scripts/run_audit_claude.sh's hardened
+    runner wrote it, and only an isolated entry's group says "isolated: ".
+    An isolated verdict's sidecar must record a token login
+    (judge_auth.method oauth_token), and its transcript,
+    claude.transcript.jsonl, must pass the runner's transcript checks
+    (transcript_problems), its prompt and verdict included: the one user
+    text message must be the staged prompt.md, and the one accepted
+    StructuredOutput answer the staged verdict.json.
     """
     record = json.loads(record_path.read_text())
     entries = record.get("verdicts") if isinstance(record, dict) else None
@@ -1690,11 +1732,31 @@ def verify_judge_provenance(
         isinstance(entries, list) and all(isinstance(e, dict) for e in entries),
         f"{JUDGE_PROVENANCE_PATH} lists no verdicts",
     )
+    require(
+        set(record) == JUDGE_PROVENANCE_KEYS,
+        f"{JUDGE_PROVENANCE_PATH} has keys {sorted(record)}, not "
+        f"{sorted(JUDGE_PROVENANCE_KEYS)}",
+    )
+    addresses = account_data(record, "record", keys=False)
+    require(
+        not addresses,
+        f"{JUDGE_PROVENANCE_PATH} is public and names {addresses[:4]}; withhold "
+        f"each e-mail address as {WITHHELD_ADDRESS!r}",
+    )
     named = [entry.get("case_id") for entry in entries]
     require(
         len(named) == len(set(named)) and set(named) == set(rejudged),
         f"{JUDGE_PROVENANCE_PATH} does not list each re-opened case once: "
         f"{sorted(set(named) ^ set(rejudged))[:4]}",
+    )
+    tally: dict = {}
+    for entry in entries:
+        group = entry.get("group")
+        tally[group] = tally.get(group, 0) + 1
+    require(
+        record["counts"] == tally,
+        f"{JUDGE_PROVENANCE_PATH} counts {record['counts']!r} are not the tally "
+        f"of its entries' groups {tally!r}",
     )
     wrong = []
     for entry in entries:
@@ -1711,13 +1773,32 @@ def verify_judge_provenance(
         except (OSError, ValueError) as error:
             wrong.append(f"{entry['case_id']}: {error}")
             continue
-        isolated = isinstance(meta, dict) and "judge_isolation" in meta
+        if set(entry) != JUDGE_PROVENANCE_ENTRY_KEYS:
+            problems.append(f"the entry has keys {sorted(entry)}")
+        meta = meta if isinstance(meta, dict) else {}
+        for field in JUDGE_SIDECAR_FIELDS:
+            expected = withhold_addresses(meta.get(field))
+            if entry.get(field) != expected:
+                problems.append(
+                    f"its {field} {entry.get(field)!r} is not the sidecar's "
+                    f"{expected!r}"
+                )
+        isolated = "judge_isolation" in meta
+        group = entry.get("group")
+        if not isinstance(group, str) or group.startswith("isolated: ") != isolated:
+            problems.append(f"its group {group!r} disagrees with its isolation")
         if entry.get("isolated") is not isolated:
             problems.append(
                 f"the record says isolated={entry.get('isolated')!r} but the "
                 f"sidecar {'records' if isolated else 'lacks'} judge_isolation"
             )
         elif isolated:
+            auth = meta.get("judge_auth")
+            if not isinstance(auth, dict) or auth.get("method") != "oauth_token":
+                problems.append(
+                    "the sidecar does not record a token login (judge_auth "
+                    f"method oauth_token): {auth!r}"
+                )
             problems += transcript_problems(
                 case / "claude.transcript.jsonl",
                 meta.get("judge_effort"),

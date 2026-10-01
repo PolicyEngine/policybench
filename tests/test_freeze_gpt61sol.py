@@ -423,7 +423,7 @@ def staged_board(freeze_preflight, monkeypatch, rebuilds, exports):
 
     # The synthetic stage re-opens no case, so its provenance record lists none.
     record = stage.parent / "judge_provenance.json"
-    record.write_text(json.dumps({"verdicts": []}))
+    record.write_text(json.dumps({"note": "None.", "counts": {}, "verdicts": []}))
     monkeypatch.setattr(driver, "JUDGE_PROVENANCE", record)
 
     def rebind(restamp_stage=True):
