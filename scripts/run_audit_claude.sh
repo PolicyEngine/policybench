@@ -21,7 +21,13 @@
 #     any tool call but the structured answer, a context attachment of a kind
 #     not listed below, a session context that is not empty (an account
 #     e-mail or git status), a working directory inside a git repository, an
-#     assistant turn at any effort but the requested one, or an advisor model.
+#     assistant turn at any effort but the requested one, or an advisor model;
+#   - it reads a private copy of prompt.md, hashed before it runs; the sidecar
+#     records that hash. A verdict is rejected if prompt.md no longer has it
+#     at extraction, or if the transcript's user events are not exactly one
+#     text message equal to the judged prompt (plus Claude Code's own
+#     StructuredOutput nudge, PROMPT_NUDGE) and the results of the judge's
+#     StructuredOutput calls.
 #
 # Credentials: the lane's own subscription login, never the desktop login and
 # never an API key. CLAUDE_CONFIG_DIR must name the lane's config directory,
@@ -93,6 +99,13 @@ DISALLOWED="Bash,BashOutput,KillShell,Read,Write,Edit,MultiEdit,NotebookEdit,Glo
 # The context attachments a tool-less judge's transcript may carry.
 # (No ultra_effort_enter: a judge runs at its one explicit effort level.)
 ATTACHMENTS="environment,model,date,session_context,total_tokens_reminder,prompt_snapshot,structured_output,silent_turn_reminder"
+# The one user text message besides the prompt a judge's transcript may carry:
+# Claude Code's own nudge, recorded as an isMeta user message, when a judge
+# answers in text without calling StructuredOutput (as the GPT-6.1 Sol stage's
+# us__scenario_014__state_income_tax_before_refundable_credits transcript
+# shows). JUDGE_PROMPT_NUDGE in scripts/finish_gpt61sol.py, which a test keeps
+# equal to this text.
+PROMPT_NUDGE="[structured-output-enforce] You MUST call the StructuredOutput tool to complete this request. Call this tool now."
 # Verdict validation needs jsonschema: prefer the project virtual environment's
 # interpreter (uv sync installs it), then an explicit AUDIT_PYTHON, then python3.
 if [ -n "${AUDIT_PYTHON:-}" ]; then
@@ -326,17 +339,19 @@ case_ok() {
 # returns `structured_output` when --json-schema is set; fall back to parsing
 # the `result` text as JSON. Copy the session transcript beside the verdict
 # and reject a verdict whose transcript shows the judge had anything but its
-# prompt. Also emit the provenance sidecar.
+# prompt, the judged copy of prompt.md, hashed before the judge ran. Also
+# emit the provenance sidecar.
 extract_verdict() {
-  case_dir="$1"; out_tmp="$2"; meta_tmp="$3"
+  case_dir="$1"; out_tmp="$2"; meta_tmp="$3"; judged="$4"; judged_sha="$5"
   "$PYTHON" - "$case_dir" "$out_tmp" "$meta_tmp" "$MODEL" "$CLI_VERSION" \
     "$CONFIG_DIR" "$AUTH" "$DECLARED" "$DISALLOWED" "$ATTACHMENTS" \
-    "$EFFORT" <<'PY'
+    "$EFFORT" "$judged" "$judged_sha" "$PROMPT_NUDGE" <<'PY'
 import datetime, glob, hashlib, json, shutil, sys
 from pathlib import Path
 
 (case_dir, out_path, meta_path, requested_model, cli_version, config_dir, auth,
- declared, disallowed, attachments, effort) = sys.argv[1:12]
+ declared, disallowed, attachments, effort, judged_path, judged_sha,
+ nudge) = sys.argv[1:15]
 case = Path(case_dir)
 try:
     envelope = json.load(open(case / "claude.json"))
@@ -377,6 +392,9 @@ if not session or len(found) != 1:
 shutil.copyfile(found[0], case / "claude.transcript.jsonl")
 allowed = set(attachments.split(","))
 calls, unexpected, turns, account = [], [], [], []
+# The user events: text messages (the prompt) and everything else (which may
+# only answer the judge's own StructuredOutput calls, by id).
+texts, others, answers = [], [], set()
 for number, line in enumerate(open(found[0]), 1):
     try:
         event = json.loads(line)
@@ -402,7 +420,20 @@ for number, line in enumerate(open(found[0]), 1):
         if event.get("advisorModel"):
             turns.append(f"advisor model {event.get('advisorModel')!r}")
     content = (event.get("message") or {}).get("content")
+    if event.get("type") == "user":
+        if not isinstance(content, str):
+            others.append(content)
+        elif not (event.get("isMeta") is True and content == nudge):
+            texts.append(content)
     if isinstance(content, list):
+        if event.get("type") == "assistant":
+            answers |= {
+                part.get("id")
+                for part in content
+                if isinstance(part, dict)
+                and part.get("type") == "tool_use"
+                and part.get("name") == "StructuredOutput"
+            }
         calls += [
             part.get("name") or part.get("type")
             for part in content
@@ -425,6 +456,41 @@ if unexpected:
 if turns:
     print(f"the judge did not run as requested: {sorted(set(turns))}", file=sys.stderr)
     sys.exit(6)
+# The prompt binding: the judge read the judged copy, hashed before it ran,
+# and prompt.md still has that hash.
+judged = Path(judged_path).read_bytes()
+try:
+    judged_text = judged.decode("utf-8")
+except UnicodeDecodeError:
+    judged_text = None
+unbound = []
+if hashlib.sha256(judged).hexdigest() != judged_sha:
+    unbound.append("the judged copy of prompt.md changed")
+try:
+    current = hashlib.sha256((case / "prompt.md").read_bytes()).hexdigest()
+except OSError:
+    current = None
+if current != judged_sha:
+    unbound.append("prompt.md changed while the judge ran")
+if len(texts) != 1:
+    unbound.append(f"{len(texts)} user text messages, not the prompt alone")
+elif judged_text is None or texts[0] != judged_text:
+    unbound.append("its user message is not the judged prompt")
+for content in others:
+    if not (
+        isinstance(content, list)
+        and content
+        and all(
+            isinstance(part, dict)
+            and part.get("type") == "tool_result"
+            and part.get("tool_use_id") in answers
+            for part in content
+        )
+    ):
+        unbound.append("a user event that is not a StructuredOutput call's result")
+if unbound:
+    print(f"the verdict is not bound to the judged prompt: {unbound}", file=sys.stderr)
+    sys.exit(8)
 verdict_bytes = json.dumps(verdict, indent=2, sort_keys=True).encode("utf-8")
 open(out_path, "wb").write(verdict_bytes)
 meta = {
@@ -432,8 +498,8 @@ meta = {
     # Binds the sidecar to this verdict: a sidecar whose hash does not match
     # the case's verdict.json is stale and carries no provenance.
     "verdict_sha256": hashlib.sha256(verdict_bytes).hexdigest(),
-    # The exact bytes the judge read on stdin.
-    "prompt_sha256": hashlib.sha256((case / "prompt.md").read_bytes()).hexdigest(),
+    # The exact bytes the judge read on stdin, hashed before it ran.
+    "prompt_sha256": judged_sha,
     "judge_model_requested": requested_model,
     "judge_model_reported": sorted((envelope.get("modelUsage") or {}).keys()),
     "judge_cli_version": cli_version,
@@ -480,6 +546,23 @@ classify_one() {
     echo "[FAIL] $(basename "$case_dir") (scratch directory is inside a git repository)"
     return 0
   fi
+  # The judged bytes: a private copy of prompt.md beside the judge's empty
+  # directory, hashed before the judge runs and fed to it on stdin, so the
+  # sidecar's prompt_sha256 is what the judge read, whatever happens to
+  # prompt.md meanwhile.
+  judged=$(mktemp "${TMPDIR:-/tmp}/pb-judge-prompt.XXXXXX") || {
+    rmdir "$work"
+    echo "[FAIL] $name (no scratch file for the prompt)"
+    return 0
+  }
+  if ! cp "$prompt" "$judged" || ! judged_sha=$("$PYTHON" -c \
+    'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' \
+    "$judged"); then
+    rm -f "$judged"
+    rmdir "$work"
+    echo "[FAIL] $name (could not copy and hash the prompt)"
+    return 0
+  fi
   # Self-contained prompt on stdin, no tools, no project instructions; the
   # schema enforces the JSON shape. Publish atomically only once it validates.
   ( cd "$work" && claude_child -p \
@@ -492,10 +575,13 @@ classify_one() {
       --disable-slash-commands \
       --setting-sources project,local \
       --effort "$EFFORT" \
-      < "$prompt" > "$envelope" 2> "$case_dir/claude.log" )
+      < "$judged" > "$envelope" 2> "$case_dir/claude.log" )
   rmdir "$work" 2>/dev/null || echo "[warn] $(basename "$case_dir"): the judge left files in $work"
-  if extract_verdict "$case_dir" "$tmp" "$meta_tmp" 2>> "$case_dir/claude.log" \
-    && verdict_ok "$tmp"; then
+  extract_verdict "$case_dir" "$tmp" "$meta_tmp" "$judged" "$judged_sha" \
+    2>> "$case_dir/claude.log"
+  extracted=$?
+  rm -f "$judged"
+  if [ "$extracted" = 0 ] && verdict_ok "$tmp"; then
     if problem=$(case_ok "$tmp" "$name" 2>&1); then
       mv -f "$tmp" "$out"
       mv -f "$meta_tmp" "$case_dir/verdict.meta.json"

@@ -128,6 +128,53 @@ def _fake_cli(path: Path, body: str) -> None:
     path.chmod(0o755)
 
 
+# Fake claude: reports a lane login, keeps a real-shaped session transcript
+# where Claude Code does (the prompt it read as the one user text message,
+# thinking and text turns at the requested effort, one StructuredOutput call
+# and its result) and prints the CLI JSON envelope with the verdict. It reads
+# its canned output from fake.json beside it: the runner gives claude calls an
+# allowlisted environment.
+FAKE_CLAUDE = """
+import json, os, sys
+from pathlib import Path
+
+args = sys.argv[1:]
+if args[:1] == ["--version"]:
+    print("9.9.9 (fake)")
+    sys.exit(0)
+if args[:1] == ["auth"]:
+    print(json.dumps(
+        {"loggedIn": True, "authMethod": "oauth_token", "apiProvider": "firstParty"}
+    ))
+    sys.exit(0)
+fake = json.loads(Path(__file__).with_name("fake.json").read_text())
+prompt = sys.stdin.buffer.read().decode("utf-8")
+effort = args[args.index("--effort") + 1]
+envelope = json.loads(Path(fake["envelope"]).read_text())
+verdict = envelope["structured_output"]
+turns = [
+    {"type": "thinking", "thinking": "", "signature": "sig"},
+    {"type": "text", "text": json.dumps(verdict)},
+    {"type": "tool_use", "id": "toolu_1", "name": "StructuredOutput", "input": verdict},
+]
+events = [{"type": "user", "message": {"role": "user", "content": prompt}}]
+events += [
+    {"type": "assistant", "effort": effort,
+     "message": {"role": "assistant", "content": [part]}}
+    for part in turns
+]
+events.append({"type": "user", "message": {"role": "user", "content": [
+    {"type": "tool_result", "tool_use_id": "toolu_1",
+     "content": "Structured output provided successfully"}]}})
+project = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "p"
+project.mkdir(parents=True, exist_ok=True)
+(project / (envelope["session_id"] + ".jsonl")).write_text(
+    "".join(json.dumps(event) + "\\n" for event in events)
+)
+print(json.dumps(envelope))
+"""
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="bash runners")
 def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     """Claude judges a case; the case is re-prepared (verdict gone, stale
@@ -165,17 +212,9 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     )
     verdict_path = tmp_path / "canned_verdict.json"
     verdict_path.write_text(json.dumps(VERDICT))
-    # Fake claude: reports a lane login, keeps the session transcript where
-    # Claude Code does, and prints the CLI JSON envelope with the verdict.
-    _fake_cli(
-        bin_dir / "claude",
-        'if [ "$1" = --version ]; then echo "9.9.9 (fake)"; exit 0; fi\n'
-        'if [ "$1" = auth ]; then echo \'{"loggedIn": true, "authMethod":'
-        ' "oauth_token", "apiProvider": "firstParty"}\'; exit 0; fi\n'
-        'mkdir -p "$CLAUDE_CONFIG_DIR/projects/p"\n'
-        'echo \'{"type": "user"}\' > "$CLAUDE_CONFIG_DIR/projects/p/s.jsonl"\n'
-        f'cat >/dev/null; cat "{envelope_path}"\n',
-    )
+    (bin_dir / "fake.json").write_text(json.dumps({"envelope": str(envelope_path)}))
+    (bin_dir / "claude").write_text(f"#!{sys.executable}\n{FAKE_CLAUDE}")
+    (bin_dir / "claude").chmod(0o755)
     lane_config = tmp_path / "lane-config"
     lane_config.mkdir()
     # Fake codex: writes the -o file and logs its model header to stdout.
@@ -209,6 +248,10 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     assert (
         meta["verdict_sha256"]
         == hashlib.sha256((case_dir / "verdict.json").read_bytes()).hexdigest()
+    )
+    assert (
+        meta["prompt_sha256"]
+        == hashlib.sha256((case_dir / "prompt.md").read_bytes()).hexdigest()
     )
     assert {
         j: e["cases"] for j, e in audit_judge_provenance(cases)["by_judge"].items()

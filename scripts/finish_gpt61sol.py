@@ -76,6 +76,13 @@ JUDGE_ATTACHMENTS = frozenset(
         "silent_turn_reminder",
     }
 )
+# Claude Code's own nudge to a judge that answered in text, the one user text
+# message an isolated judge's transcript may carry besides its prompt:
+# PROMPT_NUDGE in scripts/run_audit_claude.sh, which a test keeps equal to this.
+JUDGE_PROMPT_NUDGE = (
+    "[structured-output-enforce] You MUST call the StructuredOutput tool to "
+    "complete this request. Call this tool now."
+)
 # The merge of PR #182 on main, whose tree holds release 20260929.
 BASE_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
 # Release 20260929's references. There is no reference revision in this
@@ -1251,7 +1258,7 @@ def validate_verdicts(
     return sorted(pending)
 
 
-def transcript_problems(path: Path, effort: str | None) -> list[str]:
+def transcript_problems(path: Path, effort: str | None, prompt: bytes) -> list[str]:
     """Why a judge's transcript does not show an isolated judge; [] if it does.
 
     A Python port of the transcript checks in scripts/run_audit_claude.sh
@@ -1260,8 +1267,11 @@ def transcript_problems(path: Path, effort: str | None) -> list[str]:
     credential_org record), a session context that is empty (no account e-mail
     or git status), no working directory inside a git repository, every
     assistant turn at the effort the sidecar records, when it records one (the
-    sidecars of the stage's first 17 isolated verdicts record none), and no
-    advisor model. It also requires exactly one accepted
+    sidecars of the stage's first 17 isolated verdicts record none), no
+    advisor model, and user events that are exactly one text message, the
+    case's ``prompt`` (prompt.md's bytes, decoded as UTF-8), besides Claude
+    Code's own nudge (JUDGE_PROMPT_NUDGE) and the results of the judge's
+    StructuredOutput calls. It also requires exactly one accepted
     StructuredOutput call: any other must be one the schema refused, which the
     judge then answered again.
     """
@@ -1270,6 +1280,13 @@ def transcript_problems(path: Path, effort: str | None) -> list[str]:
     except OSError:
         return ["no transcript"]
     problems, calls, refused = [], [], set()
+    # The user events: text messages (the prompt) and everything else (which
+    # may only answer the judge's own StructuredOutput calls, by id).
+    texts, others, answers = [], [], set()
+
+    def answer(part: dict) -> bool:
+        return part.get("type") == "tool_use" and part.get("name") == "StructuredOutput"
+
     for number, line in enumerate(lines, 1):
         try:
             event = json.loads(line)
@@ -1299,16 +1316,20 @@ def transcript_problems(path: Path, effort: str | None) -> list[str]:
                 problems.append(f"advisor model {event.get('advisorModel')!r}")
         message = event.get("message")
         content = message.get("content") if isinstance(message, dict) else None
+        if event.get("type") == "user":
+            if not isinstance(content, str):
+                others.append(content)
+            elif not (event.get("isMeta") is True and content == JUDGE_PROMPT_NUDGE):
+                texts.append(content)
         for part in content if isinstance(content, list) else []:
             if not isinstance(part, dict):
                 continue
             if str(part.get("type", "")).endswith("tool_use"):
                 calls.append(part)
+                if event.get("type") == "assistant" and answer(part):
+                    answers.add(part.get("id"))
             elif part.get("type") == "tool_result" and part.get("is_error"):
                 refused.add(part.get("tool_use_id"))
-
-    def answer(part: dict) -> bool:
-        return part.get("type") == "tool_use" and part.get("name") == "StructuredOutput"
 
     structured = [part for part in calls if answer(part)]
     other = [part.get("name") or part.get("type") for part in calls if not answer(part)]
@@ -1317,6 +1338,26 @@ def transcript_problems(path: Path, effort: str | None) -> list[str]:
     accepted = [part for part in structured if part.get("id") not in refused]
     if len(accepted) != 1:
         problems.append(f"{len(accepted)} accepted StructuredOutput calls, not 1")
+    try:
+        text = prompt.decode("utf-8")
+    except UnicodeDecodeError:
+        text = None
+    if len(texts) != 1:
+        problems.append(f"{len(texts)} user text messages, not the prompt alone")
+    elif text is None or texts[0] != text:
+        problems.append("its user message is not prompt.md")
+    if not all(
+        isinstance(content, list)
+        and content
+        and all(
+            isinstance(part, dict)
+            and part.get("type") == "tool_result"
+            and part.get("tool_use_id") in answers
+            for part in content
+        )
+        for content in others
+    ):
+        problems.append("a user event that is not a StructuredOutput call's result")
     return problems
 
 
@@ -1331,7 +1372,8 @@ def verify_judge_provenance(
     Its isolation must be its sidecar's: a sidecar records judge_isolation
     only when scripts/run_audit_claude.sh's hardened runner wrote it. An
     isolated verdict's transcript, claude.transcript.jsonl, must pass the
-    runner's transcript checks (transcript_problems).
+    runner's transcript checks (transcript_problems), its prompt included: the
+    one user text message must be the staged prompt.md.
     """
     record = json.loads(record_path.read_text())
     entries = record.get("verdicts") if isinstance(record, dict) else None
@@ -1350,10 +1392,11 @@ def verify_judge_provenance(
         case = cases_dir / entry["case_id"]
         try:
             meta = json.loads((case / "verdict.meta.json").read_text())
+            prompt = (case / "prompt.md").read_bytes()
             problems = []
             if entry.get("verdict_sha256") != digest(case / "verdict.json"):
                 problems.append("the record names another verdict")
-            if entry.get("prompt_sha256") != digest(case / "prompt.md"):
+            if entry.get("prompt_sha256") != hashlib.sha256(prompt).hexdigest():
                 problems.append("the record names another prompt")
         except (OSError, ValueError) as error:
             wrong.append(f"{entry['case_id']}: {error}")
@@ -1366,7 +1409,7 @@ def verify_judge_provenance(
             )
         elif isolated:
             problems += transcript_problems(
-                case / "claude.transcript.jsonl", meta.get("judge_effort")
+                case / "claude.transcript.jsonl", meta.get("judge_effort"), prompt
             )
         if problems:
             wrong.append(f"{entry['case_id']}: {'; '.join(problems)}")
