@@ -3,10 +3,11 @@
 Adapted from freeze_adds0928.py. It configures the existing freezer in process
 and never calls a release upload. Run only after finish_gpt61sol.py --step
 export has written release-ready.json. The optional --dry-run validates inputs
-without changing repository files. This release has no reference revision:
-the references, exclusions and scenarios must equal release 20260929's pinned
-bytes, and the adjudications may change only through a staged record that
-triage applied and export bound.
+without changing repository files. Both rebuild the payload from the bound
+bundle, as export builds it, and refuse a staged payload that differs. This
+release has no reference revision: the references, exclusions and scenarios
+must equal release 20260929's pinned bytes, and the adjudications may change
+only through a staged record that triage applied and export bound.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -224,23 +226,94 @@ def verify_adjudication_record(
     return added
 
 
-def verify_incumbent_stats(stats: list[dict]) -> None:
+def verify_incumbent_stats(stats: list[dict], live: dict) -> None:
     """Every incumbent's modelStats row is release 20260929's, byte for byte.
 
     Export refuses any drift before it writes the receipt, but the receipt
     binds only the payload's hash: a payload edited after export, with its
     receipt rehashed, would otherwise publish incumbent statistics export
-    refuses. The base is release 20260929's payload from git (BASE_COMMIT),
-    checked against BASE_SHA256, as a re-export reads it; the comparison is
-    export's own incumbent_drift.
+    refuses. ``live`` is release 20260929's payload from git (BASE_COMMIT,
+    driver.base_payload_from_commit), checked against BASE_SHA256, as a
+    re-export reads it; the comparison is export's own incumbent_drift.
     """
-    live = driver.base_payload_from_commit()
     previous = {row["model"]: row for row in live["countries"]["us"]["modelStats"]}
     if set(previous) & set(NEW_MODELS.values()):
         raise SystemExit("Release 20260929's modelStats already hold the addition")
     drift = driver.incumbent_drift(stats, previous)
     if drift:
         raise SystemExit(f"Incumbent modelStats drift from release 20260929: {drift}")
+
+
+def payload_differences(
+    rebuilt, staged, path: str = "payload", limit: int = 5
+) -> list[str]:
+    """The first ``limit`` paths at which two parsed JSON values differ.
+
+    Key order counts, as it does in the bytes: the paths are empty exactly
+    when the two values serialize to the same JSON. A list item that names a
+    model is labelled with it.
+    """
+    found: list[str] = []
+
+    def walk(a, b, at: str) -> None:
+        if len(found) >= limit:
+            return
+        if isinstance(a, dict) and isinstance(b, dict):
+            for key in a:
+                if key in b:
+                    walk(a[key], b[key], f"{at}.{key}")
+                else:
+                    found.append(f"{at}.{key} (only rebuilt)")
+            found.extend(f"{at}.{key} (only staged)" for key in b if key not in a)
+            if a.keys() == b.keys() and list(a) != list(b):
+                found.append(f"{at} (key order)")
+        elif isinstance(a, list) and isinstance(b, list):
+            for index, (x, y) in enumerate(zip(a, b)):
+                name = x.get("model") if isinstance(x, dict) else None
+                label = f"{index} {name}" if isinstance(name, str) else index
+                walk(x, y, f"{at}[{label}]")
+            if len(a) != len(b):
+                found.append(f"{at} (length {len(a)} rebuilt, {len(b)} staged)")
+        elif json.dumps(a) != json.dumps(b):
+            found.append(at)
+
+    walk(rebuilt, staged, path)
+    return found[:limit]
+
+
+def rebuild_payload(stage: Path, receipt: dict, payload_path: Path, live: dict) -> None:
+    """The staged payload must be what export builds from the bound bundle.
+
+    The receipt binds the payload only by a hash that sits beside it, so a
+    payload edited after export (the addition's scores, a case's classes) with
+    its receipt rehashed passes every other gate. Export's own build
+    (driver.build_payload, against release 20260929 as ``live``) runs again
+    on a scratch copy of the bundle files the receipt binds, each checked
+    against its receipt hash, and its bytes must equal the staged payload's.
+    The copy is the bundle's: export_full_run writes data.json, us/data.json
+    and us/analysis/ into the bundle it reads, and its data.json lacks the
+    carried usage, so a rebuild in place would rewrite the stage.
+    """
+    bundle = Path("publish") / RUN
+    with tempfile.TemporaryDirectory(prefix="freeze-gpt61sol-") as scratch:
+        copy = Path(scratch) / RUN
+        for name, expected in receipt["files"].items():
+            if not Path(name).is_relative_to(bundle):
+                continue
+            target = copy / Path(name).relative_to(bundle)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(stage / name, target)
+            if digest(target) != expected:
+                raise SystemExit(f"Staged evidence changed since strict export: {name}")
+        rebuilt = driver.payload_text(driver.build_payload(copy, live))
+    staged = payload_path.read_bytes()
+    if rebuilt.encode() != staged:
+        differ = payload_differences(json.loads(rebuilt), json.loads(staged))
+        raise SystemExit(
+            f"Staged {payload_path.name} is not what export builds from the "
+            f"bound bundle; it differs at {differ or ['its serialization']}; "
+            "export again"
+        )
 
 
 def base_prediction_rows():
@@ -386,10 +459,14 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(
             f"Frozen incumbent roster and staged {BOARD_MODELS}-model roster disagree"
         )
-    verify_incumbent_stats(stats)
+    base = driver.base_payload_from_commit()
+    verify_incumbent_stats(stats, base)
     source_run = stage / "publish" / RUN
     source_us = source_run / "us"
     verify_references(source_us, frozen_run, read_json(snapshot / "manifest.json"))
+    del payload, stats
+    rebuild_payload(stage, receipt, payload_path, base)
+    del base
     staged_annotations = source_run / "annotations"
     verify_verdicts(stage)
     rejudged = driver.rejudged_cases(stage)

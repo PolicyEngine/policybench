@@ -254,10 +254,43 @@ def test_wording_amendments_present_in_the_stage_must_be_bound(freeze_preflight)
         release.main(["--stage-dir", str(stage), "--dry-run"])
 
 
+SOL = "gpt-6.1-sol"
+# One unadjudicated case of the synthetic payload, as two models answered it.
+CASE = ("scenario_017", "snap")
+
+
+def _case_row(prediction: float) -> dict:
+    return {
+        "prediction": prediction,
+        "groundTruth": 1200.0,
+        "scored": True,
+        "annotation": "Used the prior year's allotment.",
+        "failureSource": "llm_error",
+        "failureSubtype": "thresholds_rates",
+        "caseAnnotation": "Both models used the prior year's maximum allotment.",
+        "caseFailureSources": "llm_error",
+        "caseFailureSubtypes": "thresholds_rates",
+    }
+
+
 @pytest.fixture
-def staged_board(freeze_preflight, monkeypatch):
-    """A 46-row payload past the receipt, with the committed snapshot copied in."""
+def rebuilds():
+    """Each bundle the freeze's rebuild exported, with its files' bytes."""
+    return []
+
+
+@pytest.fixture
+def staged_board(freeze_preflight, monkeypatch, rebuilds):
+    """A 46-row payload past the receipt, with the committed snapshot copied in.
+
+    export_full_run is stubbed to return what it would for the bound bundle:
+    the staged payload before export carries Fable 5's usage. The freeze's
+    rebuild runs export's own build on it, so an unedited payload rebuilds,
+    and each test that stops at a later gate still reaches it. Like the real
+    exporter, the stub writes data.json into the bundle it reads.
+    """
     import policybench.dashboard_schema
+    import policybench.full_run_export
 
     stage, payload, receipt = freeze_preflight
     # A synthetic stage binds no seed; the re-derived case list is tested in
@@ -277,11 +310,40 @@ def staged_board(freeze_preflight, monkeypatch):
         shutil.copyfile(driver.SNAPSHOT / name, frozen / name)
     # The incumbents' rows are release 20260929's, as export leaves them.
     stats = driver.base_payload_from_commit()["countries"]["us"]["modelStats"]
-    stats += [{"model": "gpt-6.1-sol", "condition": "no_tools"}]
-    payload.write_text(json.dumps({"countries": {"us": {"modelStats": stats}}}))
+    stats += [{"model": SOL, "condition": "no_tools", "exact": 61.5, "score": 74.2}]
+    scenario, variable = CASE
+    cases = {
+        scenario: {
+            variable: {"claude-fable-5": _case_row(900.0), SOL: _case_row(950.0)}
+        }
+    }
+    board = {"countries": {"us": {"modelStats": stats, "scenarioPredictions": cases}}}
+    payload.write_text(json.dumps(board))
     monkeypatch.setattr(
         policybench.dashboard_schema, "validate_dashboard_payload", lambda *a, **k: []
     )
+    exported = copy.deepcopy(board)
+    fable = next(
+        row
+        for row in exported["countries"]["us"]["modelStats"]
+        if row["model"] == "claude-fable-5"
+    )
+    fable.update(costUsd=0.0, costPerHousehold=0.0)
+    del fable["totalTokens"], fable["latencySeconds"]
+
+    def export_full_run(run_dir, *, countries, skip_app_data):
+        assert countries == ["us"] and skip_app_data
+        run_dir = Path(run_dir)
+        files = {
+            path.relative_to(run_dir): path.read_bytes()
+            for path in run_dir.rglob("*")
+            if path.is_file()
+        }
+        rebuilds.append((run_dir, files))
+        (run_dir / "data.json").write_text("Fable 5's usage is not carried here.\n")
+        return copy.deepcopy(exported)
+
+    monkeypatch.setattr(policybench.full_run_export, "export_full_run", export_full_run)
 
     # The synthetic stage re-opens no case, so its provenance record lists none.
     record = stage.parent / "judge_provenance.json"
@@ -352,6 +414,146 @@ def test_the_freeze_refuses_incumbent_stats_edited_after_export(staged_board, dr
     with pytest.raises(SystemExit, match=f"modelStats drift.*{row['model']}"):
         release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
     assert workspace_files() == before
+
+
+def _edit_new_model_scores(board: dict) -> list[str]:
+    row = next(r for r in board["countries"]["us"]["modelStats"] if r["model"] == SOL)
+    row.update(exact=100.0, score=100.0)
+    at = f"payload.countries.us.modelStats[45 {SOL}]"
+    return [f"{at}.exact", f"{at}.score"]
+
+
+def _edit_case_review(board: dict) -> list[str]:
+    scenario, variable = CASE
+    case = board["countries"]["us"]["scenarioPredictions"][scenario][variable]
+    for row in case.values():
+        row.update(
+            caseFailureSources="needs_review",
+            reference_suspect=True,
+            wrong_model_count=999,
+        )
+    at = f"payload.countries.us.scenarioPredictions.{scenario}.{variable}"
+    return [
+        f"{at}.claude-fable-5.caseFailureSources",
+        f"{at}.claude-fable-5.reference_suspect (only staged)",
+        f"{at}.claude-fable-5.wrong_model_count (only staged)",
+    ]
+
+
+# The second review's edits to the staged payload, each of which passed every
+# other gate once the receipt's payload hash was updated to match.
+PAYLOAD_EDITS = {
+    "new_model_scores": _edit_new_model_scores,
+    "case_review": _edit_case_review,
+}
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("edit", PAYLOAD_EDITS)
+def test_the_freeze_refuses_a_payload_edited_after_export(staged_board, edit, dry_run):
+    """The receipt binds the payload only by a hash beside it. GPT-6.1 Sol's
+    exact and score set to 100, or a case marked needs_review with
+    reference_suspect and wrong_model_count 999, with the receipt's payload
+    hash updated to match, is refused before any workspace mutation: the
+    payload export builds from the bound bundle is not the staged one."""
+    stage, rebind = staged_board
+    for name in driver.REFERENCE_FILES:
+        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    payload = stage / "data-board46.json"
+    board = json.loads(payload.read_text())
+    paths = PAYLOAD_EDITS[edit](board)
+    payload.write_text(json.dumps(board))
+    rebind()
+    before = workspace_files()
+    with pytest.raises(SystemExit, match="is not what export builds") as refused:
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    for path in paths:
+        assert repr(path) in str(refused.value)
+    assert workspace_files() == before
+
+
+def test_the_rebuild_reads_a_scratch_copy_of_the_bound_bundle(
+    staged_board, rebuilds, monkeypatch
+):
+    """export_full_run writes into the bundle it reads. The rebuild hands it a
+    scratch copy outside the workspace holding exactly the bundle files the
+    receipt binds, with their bound bytes, and removes it; an unedited
+    payload rebuilds, carrying Fable 5's usage as export does, and the
+    freeze goes on to its next gate."""
+    stage, rebind = staged_board
+    for name in driver.REFERENCE_FILES:
+        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    rebind()
+
+    def next_gate(stage):
+        raise SystemExit("Reached the verdict gate")
+
+    monkeypatch.setattr(release, "verify_verdicts", next_gate)
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    before = workspace_files()
+    with pytest.raises(SystemExit, match="Reached the verdict gate"):
+        release.main(["--stage-dir", str(stage), "--dry-run"])
+    assert workspace_files() == before
+    [(run_dir, files)] = rebuilds
+    assert run_dir.name == RUN and not run_dir.exists()
+    assert not run_dir.is_relative_to(release.ROOT)
+    bound = [Path(name) for name in receipt["files"]]
+    assert files == {
+        name.relative_to(BUNDLE): (stage / name).read_bytes()
+        for name in bound
+        if name.is_relative_to(BUNDLE)
+    }
+    assert len(files) == 9
+
+
+def test_the_rebuild_reads_only_the_bytes_the_receipt_binds(staged_board, rebuilds):
+    """A bound bundle file that changes after the receipt was checked is
+    refused rather than exported."""
+    stage, rebind = staged_board
+    payload = stage / "data-board46.json"
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    base = driver.base_payload_from_commit()
+    release.rebuild_payload(stage, receipt, payload, base)
+    (stage / BUNDLE / "us/predictions.csv").write_text("Edited after the check.\n")
+    with pytest.raises(SystemExit, match="changed since strict export.*predictions"):
+        release.rebuild_payload(stage, receipt, payload, base)
+    assert len(rebuilds) == 1
+
+
+JSON_LEAVES = st.none() | st.booleans() | st.integers() | st.text(max_size=3)
+JSON_LEAVES |= st.floats(allow_nan=False, allow_infinity=False)
+JSON_VALUES = st.recursive(
+    JSON_LEAVES,
+    lambda inner: (
+        st.lists(inner, max_size=3)
+        | st.dictionaries(st.sampled_from("abcd"), inner, max_size=3)
+    ),
+    max_leaves=12,
+)
+
+
+@settings(max_examples=400, deadline=None)
+@given(a=JSON_VALUES, b=JSON_VALUES, swap=st.booleans())
+def test_payload_differences_are_empty_exactly_when_the_bytes_match(a, b, swap):
+    """The freeze refuses on bytes and names paths from the parsed values; the
+    two agree, key order, 1 against 1.0, True against 1 and -0.0 included."""
+    if swap and isinstance(a, dict):
+        b = dict(reversed(list(a.items())))
+    differ = release.payload_differences(a, b)
+    assert (differ == []) == (json.dumps(a) == json.dumps(b))
+    assert len(differ) <= 5
+
+
+def test_payload_differences_name_the_first_differing_paths():
+    rebuilt = {"rows": [{"model": "m", "x": 1, "y": [1, 2]}], "z": True}
+    staged = {"z": 1, "rows": [{"model": "m", "y": [1], "x": 1.0, "w": 0}]}
+    assert release.payload_differences(rebuilt, staged) == [
+        "payload.rows[0 m].x",
+        "payload.rows[0 m].y (length 2 rebuilt, 1 staged)",
+        "payload.rows[0 m].w (only staged)",
+        "payload.z",
+        "payload (key order)",
+    ]
 
 
 @pytest.mark.parametrize("dry_run", [True, False])

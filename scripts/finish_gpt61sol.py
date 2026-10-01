@@ -1553,20 +1553,30 @@ def incumbent_drift(stats: list[dict], previous: dict[str, dict]) -> list[str]:
     )
 
 
-def export(args, bundle, live) -> dict:
-    """Export into scratch, preserve incumbent statistics, and gate release."""
+def payload_text(payload: dict) -> str:
+    """The bytes export writes for a payload, and the freeze rebuilds.
+
+    freeze_snapshot reassembles these exact default-json bytes from the
+    compact country payload. Pretty-printing here breaks its release hash.
+    """
+    return json.dumps(payload, allow_nan=False)
+
+
+def build_payload(
+    bundle: Path, live: dict, *, partial: bool = False, early: bool = False
+) -> dict:
+    """The payload export writes, built from ``bundle``; the one definition.
+
+    export_full_run's US payload must hold all 46 models. For a release, its
+    roster must be the base's incumbents plus the addition, Fable 5's usage is
+    carried from ``live`` (CARRIED_USAGE), and no incumbent may drift; then the
+    dashboard schema. The freeze rebuilds the staged payload with this.
+    export_full_run writes data.json, us/data.json and us/analysis/ into
+    ``bundle``.
+    """
     from policybench.dashboard_schema import validate_dashboard_payload
     from policybench.full_run_export import export_full_run
 
-    if not args.partial:
-        verify_reference_pins(SNAPSHOT, "committed reference")
-        verify_reference_pins(bundle / "us", "staged reference")
-    if not args.early:
-        verify_judge_provenance(
-            args.stage_dir / "audit" / "cases",
-            rejudged_cases(args.stage_dir),
-            JUDGE_PROVENANCE,
-        )
     payload = export_full_run(bundle, countries=["us"], skip_app_data=True)
     stats = payload["countries"]["us"]["modelStats"]
     require(
@@ -1574,7 +1584,7 @@ def export(args, bundle, live) -> dict:
         f"export did not contain all {BOARD_MODELS} models",
     )
     previous = {m["model"]: m for m in live["countries"]["us"]["modelStats"]}
-    if not args.partial:
+    if not partial:
         require(
             len(previous) == BASE_MODELS and not set(previous) & set(MODELS.values()),
             f"base must hold the {BASE_MODELS} incumbents only",
@@ -1589,22 +1599,34 @@ def export(args, bundle, live) -> dict:
                 row[key] = previous[model][key]
         drift = incumbent_drift(stats, previous)
         require(not drift, f"incumbent modelStats drift: {drift}")
-    errors = validate_dashboard_payload(
-        payload, require_failure_annotations=not args.early
-    )
+    errors = validate_dashboard_payload(payload, require_failure_annotations=not early)
     require(not errors, f"payload validation failed: {errors[:8]}")
-    if args.partial:
+    if partial:
         payload["stage2Status"] = (
             "PARTIAL — incomplete household cohorts, not a release"
         )
+    return payload
+
+
+def export(args, bundle, live) -> dict:
+    """Export into scratch, preserve incumbent statistics, and gate release."""
+    if not args.partial:
+        verify_reference_pins(SNAPSHOT, "committed reference")
+        verify_reference_pins(bundle / "us", "staged reference")
+    if not args.early:
+        verify_judge_provenance(
+            args.stage_dir / "audit" / "cases",
+            rejudged_cases(args.stage_dir),
+            JUDGE_PROVENANCE,
+        )
+    payload = build_payload(bundle, live, partial=args.partial, early=args.early)
+    stats = payload["countries"]["us"]["modelStats"]
     path = args.stage_dir / (
         f"PARTIAL-data-board{BOARD_MODELS}.json"
         if args.partial
         else f"data-board{BOARD_MODELS}.json"
     )
-    # freeze_snapshot reassembles these exact default-json bytes from the
-    # compact country payload. Pretty-printing here breaks its release hash.
-    path.write_text(json.dumps(payload, allow_nan=False))
+    path.write_text(payload_text(payload))
     # Keep the freeze input identical to the gated payload, including Fable usage.
     shutil.copyfile(path, bundle / "data.json")
     ranked = sorted(stats, key=lambda s: (-s["exact"], -s["score"], s["model"]))

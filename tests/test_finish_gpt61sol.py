@@ -1667,6 +1667,41 @@ def test_strict_export_carries_fable_usage_and_binds_the_evidence(exporting):
     }
 
 
+def test_the_freeze_rebuilds_exactly_what_export_wrote(exporting, monkeypatch):
+    """Export and the freeze's rebuild share build_payload. Rebuilt from a
+    scratch copy of the bundle files the receipt binds, an exported stage's
+    payload comes back byte for byte, Fable 5's usage carried again, and the
+    stage is left as export left it; a score edited after export is refused."""
+    import freeze_gpt61sol as release
+
+    import policybench.full_run_export
+
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    incumbents = _incumbents()
+    stats = _exported(incumbents)
+
+    def export_full_run(run_dir, **kwargs):
+        (Path(run_dir) / "data.json").write_text("Fable 5's usage is not carried.\n")
+        return {"countries": {"us": {"modelStats": copy.deepcopy(stats)}}}
+
+    monkeypatch.setattr(policybench.full_run_export, "export_full_run", export_full_run)
+    run(stats, incumbents)
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    payload = stage / "data-board46.json"
+    live = {"countries": {"us": {"modelStats": incumbents}}}
+    exported = {path: path.read_bytes() for path in stage.rglob("*") if path.is_file()}
+    release.rebuild_payload(stage, receipt, payload, live)
+    assert {
+        path: path.read_bytes() for path in stage.rglob("*") if path.is_file()
+    } == exported
+    board = json.loads(payload.read_text())
+    board["countries"]["us"]["modelStats"][-1]["exact"] = 100.0
+    payload.write_text(json.dumps(board))
+    with pytest.raises(SystemExit, match=r"export builds.*\[45 gpt-6\.1-sol\]\.exact"):
+        release.rebuild_payload(stage, receipt, payload, live)
+
+
 def test_partial_export_never_gets_a_release_receipt(exporting):
     stage, bundle, run, _ = exporting
     stats = [_stat(f"incumbent-{i:02d}", 40.0) for i in range(45)]
