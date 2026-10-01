@@ -146,16 +146,40 @@ def _named(entry: dict) -> tuple[dict, str | None]:
     return named, dated
 
 
+def named_item(entry: dict) -> dict:
+    """The judge_previous item for the verdict an entry's top level names:
+    its judge, classes, flag and day, with the item wording of a flag source
+    where the entry records one. A restatement that replaces that verdict
+    appends exactly this item."""
+    named, dated = _named(entry)
+    item = {**named, "judged_on": dated}
+    if "judge_reference_suspect_source" in entry:
+        item["judge_reference_suspect_source"] = ITEM_FLAG_SOURCE
+    return item
+
+
+def replaced_item(found: tuple[dict, dict], waved: bool) -> dict:
+    """The judge_previous item for a replaced verdict, as its sha256-bound
+    sidecar records it (``found`` is ``_bound_verdict``'s pair); ``waved``
+    says whether a 2026-09-22 run flagged its case."""
+    old, old_meta = found
+    old_flag = bool(old.get("reference_suspect"))
+    item = {
+        "judge_model": _judge(old_meta),
+        "judge_failure_source": old["case_failure_source"],
+        "judge_failure_subtype": old["case_failure_subtype"],
+        "judge_reference_suspect": old_flag or waved,
+        "judged_on": _utc_day(old_meta["judged_at_utc"]),
+    }
+    if waved and not old_flag:
+        item["judge_reference_suspect_source"] = ITEM_FLAG_SOURCE
+    return item
+
+
 def _names(entry: dict, item: dict) -> bool:
     """Whether the entry's top level names ``item``: its judge, classes, flag,
     flag source and day."""
-    named, dated = _named(entry)
-    return (
-        named == {name: item[name] for name in TOP}
-        and ("judge_reference_suspect_source" in entry)
-        == ("judge_reference_suspect_source" in item)
-        and dated == item["judged_on"]
-    )
+    return named_item(entry) == item
 
 
 def _restated(
@@ -255,15 +279,7 @@ def restate_entries(
         if old_meta["verdict_sha256"] == meta["verdict_sha256"]:
             raise SystemExit(f"{case}: the stage still holds the seed verdict")
         old_flag = bool(old.get("reference_suspect"))
-        item = {
-            "judge_model": _judge(old_meta),
-            "judge_failure_source": old["case_failure_source"],
-            "judge_failure_subtype": old["case_failure_subtype"],
-            "judge_reference_suspect": old_flag or waved,
-            "judged_on": _utc_day(old_meta["judged_at_utc"]),
-        }
-        if waved and not old_flag:
-            item["judge_reference_suspect_source"] = ITEM_FLAG_SOURCE
+        item = replaced_item(replaced, waved)
         flag = bool(verdict.get("reference_suspect"))
         top = {
             "judge_model": _judge(meta),

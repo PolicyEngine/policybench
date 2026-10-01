@@ -642,9 +642,28 @@ def test_a_restated_entry_passes_the_restatement_check(restated):
     driver.verify_restatements(base, staged, rejudged, cases)
 
 
+# Each rewrites the appended item: the verdict the re-judge replaced must stay
+# the one 20260929's entry names, as its seed sidecar records it.
+APPENDED_ITEM_TAMPERS = {
+    "appended_judged_on": {"judged_on": "2026-09-28"},
+    "appended_class": {"judge_failure_source": "reference_error"},
+    "appended_subtype": {"judge_failure_subtype": "thresholds_rates"},
+    "appended_flag": {"judge_reference_suspect": True},
+    "appended_judge": {"judge_model": "claude-opus-5"},
+    "appended_flag_source": {"judge_reference_suspect_source": "a-human-typed-this"},
+}
+
+
 @pytest.mark.parametrize(
     "tamper",
-    ["judge_model", "emptied_history", "two_items", "rewritten_history", "day"],
+    [
+        "judge_model",
+        "emptied_history",
+        "two_items",
+        "rewritten_history",
+        "day",
+        *APPENDED_ITEM_TAMPERS,
+    ],
 )
 def test_judge_fields_written_by_hand_are_refused(restated, tamper):
     base, staged, rejudged, cases, index = restated
@@ -657,6 +676,11 @@ def test_judge_fields_written_by_hand_are_refused(restated, tamper):
         entry["judge_previous"] = entry["judge_previous"] + entry["judge_previous"][-1:]
     elif tamper == "rewritten_history":
         entry["judge_previous"][0] = {**entry["judge_previous"][0], "judged_on": "1999"}
+    elif tamper in APPENDED_ITEM_TAMPERS:
+        appended = entry["judge_previous"][-1]
+        edit = APPENDED_ITEM_TAMPERS[tamper]
+        assert all(appended.get(k) != v for k, v in edit.items())
+        entry["judge_previous"][-1] = {**appended, **edit}
     else:
         entry["judge_rejudged_on"] = "1999-01-01"
     staged[index] = entry

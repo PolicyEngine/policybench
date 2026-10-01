@@ -376,10 +376,12 @@ def verify_restatements(
     Where they differ from 20260929's, the entry must name the case's current
     Opus 5.5 verdict (bound by its sidecar) as its judge, date it by that
     sidecar's UTC day, and keep 20260929's judge_previous with exactly one
-    item appended (the replaced verdict). A new entry must name the current
-    judge too.
+    item appended: the replaced verdict, which is the one 20260929's entry
+    names (its judge, classes, flag and day are its seed verdict's, as the
+    sha256-bound sidecar records it). A new entry must name the current judge
+    too.
     """
-    from restate_gpt61sol_adjudications import JUDGE_FIELDS, _utc_day
+    from restate_gpt61sol_adjudications import JUDGE_FIELDS, _utc_day, named_item
 
     before = {case_id(entry): entry for entry in base}
     wrong = []
@@ -406,6 +408,11 @@ def verify_restatements(
             restated = entry.get("judge_previous", [])
             if len(restated) != len(previous) + 1 or restated[:-1] != previous:
                 problems.append("judge_previous is not 20260929's plus one item")
+            elif restated[-1] != named_item(original):
+                problems.append(
+                    "the appended judge_previous item is not the verdict "
+                    "20260929's entry names"
+                )
             if (
                 entry.get("judge_rejudged_on") != day
                 or entry.get("judged_on_utc", day) != day

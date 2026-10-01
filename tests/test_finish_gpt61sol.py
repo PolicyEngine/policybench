@@ -1068,6 +1068,26 @@ def test_the_committed_adjudications_keep_the_seed_judge_verdicts():
     assert meta["prompt_sha256"] == driver.digest(case / "prompt.md")
 
 
+def test_each_20260929_entry_names_its_seed_verdict_as_its_sidecar_records_it():
+    """verify_restatements requires a restatement's appended item to be the
+    verdict release 20260929's entry names. That is the item the restate
+    script builds from the seed verdict and its sha256-bound sidecar, for
+    every entry: judge, classes, flag, flag source and UTC day."""
+    if not SEED.is_dir():
+        pytest.skip("release 20260929's audit is not on this machine")
+    from date_adds0928_judge_verdicts import WAVE_FLAGS, _bound_verdict
+    from restate_gpt61sol_adjudications import named_item, replaced_item
+
+    waved = frozenset(json.loads(WAVE_FLAGS.read_text()))
+    base = driver.base_adjudications()
+    assert len(base) == 69
+    for entry in base:
+        found = _bound_verdict(SEED / "cases" / driver.case_id(entry))
+        assert found is not None, driver.case_id(entry)
+        key = f"{entry['scenario_id']}:{entry['variable']}"
+        assert named_item(entry) == replaced_item(found, key in waved), entry
+
+
 @pytest.mark.slow
 def test_every_seed_prompt_rerenders_from_the_committed_snapshot(tmp_path):
     """The committed 45-model board renders exactly the seed's cases and prompts.
@@ -1204,6 +1224,7 @@ DECISION = {
     "scenario_id": "scenario_000",
     "variable": "snap",
     "judge_model": "claude-opus-5-5",
+    "judged_on_utc": "2026-09-29",
     "judge_failure_source": "llm_error",
     "judge_failure_subtype": "thresholds_rates",
     "adjudicated_failure_source": "llm_error",
@@ -1298,6 +1319,7 @@ SEED_ITEM = {
 }
 RESTATED = {
     **DECISION,
+    "judged_on_utc": "2026-09-30",
     "judge_rejudged_on": "2026-09-30",
     "judge_previous": [SEED_ITEM],
 }
@@ -1320,6 +1342,11 @@ def test_triage_lets_a_rejudged_case_restate_its_judge_fields(triage_stage):
         {"judge_model": "a-human-typed-this"},
         {"judge_previous": []},
         {"judge_rejudged_on": "1999-01-01"},
+        # The appended item must be the verdict 20260929's entry names.
+        {"judge_previous": [{**SEED_ITEM, "judged_on": "2026-09-28"}]},
+        {"judge_previous": [{**SEED_ITEM, "judge_failure_source": "reference_error"}]},
+        {"judge_previous": [{**SEED_ITEM, "judge_failure_subtype": "other"}]},
+        {"judge_previous": [{**SEED_ITEM, "judge_reference_suspect": False}]},
     ],
 )
 def test_triage_refuses_judge_fields_written_by_hand(triage_stage, tamper):
