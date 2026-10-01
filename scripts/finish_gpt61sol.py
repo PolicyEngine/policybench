@@ -271,12 +271,7 @@ def resolve_base(args):
                 h.update(block)
         return h.hexdigest()
 
-    manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
-    pin = manifest["source_run_artifacts"][RUN_NAME]["files"]["predictions.csv.gz"]
-    require(
-        digest(SNAPSHOT / "predictions.csv.gz") == pin,
-        "committed base predictions fail their manifest hash",
-    )
+    verify_base_predictions(SNAPSHOT)
     if args.base_predictions.resolve() != (SNAPSHOT / "predictions.csv.gz").resolve():
         require(
             csv_digest(args.base_predictions)
@@ -331,6 +326,23 @@ def base_commit_blob(path: Path) -> bytes:
         f"history (git fetch --unshallow): {result.stderr.decode().strip()}",
     )
     return result.stdout
+
+
+def verify_base_predictions(snapshot: Path) -> None:
+    """The snapshot's predictions are release 20260929's.
+
+    The pin is that release's own: the snapshot manifest as committed at
+    BASE_COMMIT, not the working tree's, which could be edited together with
+    the predictions it pins.
+    """
+    manifest = json.loads(
+        base_commit_blob(Path("paper/snapshot/20260501/manifest.json"))
+    )
+    pin = manifest["source_run_artifacts"][RUN_NAME]["files"]["predictions.csv.gz"]
+    require(
+        digest(snapshot / "predictions.csv.gz") == pin,
+        "committed base predictions fail release 20260929's manifest hash",
+    )
 
 
 def base_payload_from_commit() -> dict:

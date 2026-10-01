@@ -12,6 +12,7 @@ import gzip
 import hashlib
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -355,6 +356,50 @@ def test_the_base_commit_holds_release_20260929():
     for name, pin in driver.BASE_REFERENCE_SHA256.items():
         raw = driver.base_commit_blob(driver.SNAPSHOT.relative_to(driver.ROOT) / name)
         assert hashlib.sha256(raw).hexdigest() == pin
+
+
+def test_the_base_predictions_pin_is_the_release_commits_not_the_working_trees(
+    tmp_path, monkeypatch
+):
+    """A working tree whose predictions and manifest pin are both replaced.
+
+    The pin comes from the manifest at BASE_COMMIT, so editing the working
+    tree's manifest to match substituted predictions does not pass.
+    """
+    real_root = driver.ROOT
+    committed = Path("paper/snapshot/20260501/manifest.json")
+    snapshot = tmp_path / "paper/snapshot/20260501/runs" / driver.RUN_NAME
+    snapshot.mkdir(parents=True)
+    substitute = snapshot / "predictions.csv.gz"
+    with gzip.open(substitute, "wt") as stream:
+        stream.write("model,scenario_id,variable,prediction\n")
+    manifest = json.loads((real_root / committed).read_text())
+    files = manifest["source_run_artifacts"][driver.RUN_NAME]["files"]
+    files["predictions.csv.gz"] = driver.digest(substitute)
+    (tmp_path / committed).write_text(json.dumps(manifest))
+
+    def blob(path):
+        return subprocess.run(
+            ["git", "-C", str(real_root), "show", f"{driver.BASE_COMMIT}:{path}"],
+            capture_output=True,
+            check=True,
+        ).stdout
+
+    monkeypatch.setattr(driver, "ROOT", tmp_path)
+    monkeypatch.setattr(driver, "base_commit_blob", blob)
+    with pytest.raises(SystemExit, match="fail release 20260929's manifest hash"):
+        driver.verify_base_predictions(snapshot)
+
+
+def test_release_20260929s_manifest_pins_its_predictions():
+    manifest = json.loads(
+        driver.base_commit_blob(Path("paper/snapshot/20260501/manifest.json"))
+    )
+    pin = manifest["source_run_artifacts"][driver.RUN_NAME]["files"]
+    raw = driver.base_commit_blob(
+        driver.SNAPSHOT.relative_to(driver.ROOT) / "predictions.csv.gz"
+    )
+    assert hashlib.sha256(raw).hexdigest() == pin["predictions.csv.gz"]
 
 
 def test_base_commit_blob_names_the_missing_history():
