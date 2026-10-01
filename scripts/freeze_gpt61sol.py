@@ -127,7 +127,13 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
     required = [bundle / "us" / name for name in driver.REFERENCE_FILES]
     required += [bundle / "us/predictions.csv", bundle / "annotations" / ADJUDICATIONS]
     required += [bundle / "annotations" / name for name in ANNOTATION_CSVS]
-    required += [Path("inputs") / slug / "run_state.json" for slug in NEW_MODELS]
+    # Each new model's pinned run files, and the prepare-time hashes.
+    required += [
+        Path("inputs") / slug / name
+        for slug in NEW_MODELS
+        for name in driver.PINNED_INPUTS
+    ]
+    required += [Path("model-provenance.json")]
     # What the adjudication and verdict gates allow rests on these.
     required += [Path(driver.PROMPT_CHANGES), Path("stage.json")]
     if (stage / driver.AMENDMENTS).exists():
@@ -464,6 +470,9 @@ def main(argv: list[str] | None = None) -> None:
 
     payload_path = stage / f"data-board{BOARD_MODELS}.json"
     receipt = verify_receipt(stage, payload_path, args.tag)
+    # GPT-6.1 Sol's run files are the committed pins' and its bundle rows are
+    # its run file's, every column: its cost, tokens and latency included.
+    driver.verify_new_model_inputs(stage)
     payload_hash = digest(payload_path)
     payload = read_json(payload_path)
     recombined = json.dumps({"countries": {"us": payload["countries"]["us"]}})

@@ -41,6 +41,8 @@ GROUNDING = Path(
     "/Users/maxghenis/PolicyEngine/policybench/results/local/unified_audit/"
     "grounding.csv"
 )
+# The supervised runs root holding GPT-6.1 Sol's finished run.
+RUNS = Path("/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609")
 
 
 def test_the_addition_is_gpt61sol_alone_on_a_46_model_board():
@@ -129,6 +131,126 @@ def test_scratch_completion_still_requires_completed_equal_total(runs):
         driver.discover_new_models(runs)
     change_state(runs, completed=5)
     assert len(driver.discover_new_models(runs)) == 1
+
+
+# --- Input pins ----------------------------------------------------------------
+
+
+def test_pin_inputs_writes_the_finished_runs_file_hashes(runs, tmp_path, monkeypatch):
+    """--step pin-inputs needs no stage: it hashes the finished run's
+    predictions.csv and run_state.json and refuses an unfinished run."""
+    pins = tmp_path / "input_pins.json"
+    monkeypatch.setattr(driver, "INPUT_PINS", pins)
+    driver.main(["--step", "pin-inputs", "--runs-root", str(runs)])
+    record = json.loads(pins.read_text())
+    assert record == driver.input_pins_record(runs)
+    run = runs / SLUG / "run"
+    assert record["inputs"] == {
+        SLUG: {
+            "run": f"runs/{SLUG}/run",
+            "sha256": {
+                name: hashlib.sha256((run / name).read_bytes()).hexdigest()
+                for name in ("predictions.csv", "run_state.json")
+            },
+        }
+    }
+    change_state(runs, completed=99)
+    with pytest.raises(SystemExit, match="refusing incomplete additions"):
+        driver.main(["--step", "pin-inputs", "--runs-root", str(runs)])
+
+
+def test_the_committed_input_pins_name_both_run_files():
+    """Runs anywhere: the committed pins name GPT-6.1 Sol's two run files."""
+    record = json.loads(driver.INPUT_PINS.read_text())
+    assert set(record["inputs"]) == {SLUG}
+    pins = record["inputs"][SLUG]["sha256"]
+    assert set(pins) == {"predictions.csv", "run_state.json"}
+    assert all(re.fullmatch("[0-9a-f]{64}", value) for value in pins.values())
+    assert driver.INPUT_PINS.read_text() == (
+        json.dumps(record, indent=2, sort_keys=True) + "\n"
+    )
+
+
+def test_the_committed_input_pins_are_the_finished_runs():
+    """Local only: recomputed from the run directory, the pins are the same."""
+    if not (RUNS / SLUG / "run").is_dir():
+        pytest.skip("GPT-6.1 Sol's run directory is not on this machine")
+    assert driver.input_pins_record(RUNS) == json.loads(driver.INPUT_PINS.read_text())
+
+
+def test_the_stages_inputs_are_the_pinned_run():
+    """Local only: the stage's copies are the pinned bytes, its prepare-time
+    hashes hold, and its bundle rows are the run file's in every column."""
+    stage = driver.ROOT / "results/local/gpt61sol-v1"
+    if not (stage / "inputs" / SLUG).is_dir():
+        pytest.skip("needs the GPT-6.1 Sol stage")
+    pins = json.loads(driver.INPUT_PINS.read_text())["inputs"][SLUG]["sha256"]
+    for name, pin in pins.items():
+        assert driver.digest(stage / "inputs" / SLUG / name) == pin
+    driver.verify_prepared_inputs(stage)
+    assert driver.new_model_row_differences(stage) == []
+
+
+def commit(root: Path, message: str) -> None:
+    """Commit everything in a scratch repository, with no user hooks or keys."""
+    git = ["git", "-C", str(root), "-c", "core.hooksPath=/dev/null"]
+    git += ["-c", "commit.gpgsign=false", "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run([*git, "add", "."], check=True)
+    subprocess.run([*git, "commit", "-qm", message], check=True)
+
+
+@pytest.fixture
+def pinned_repo(tmp_path, monkeypatch):
+    """A git repository whose HEAD commits an input-pins file."""
+    root = tmp_path / "repo"
+    pins = root / driver.INPUT_PINS_PATH
+    pins.parent.mkdir(parents=True)
+    record = {"inputs": {SLUG: {"sha256": {"predictions.csv": "a" * 64}}}}
+    record["inputs"][SLUG]["sha256"]["run_state.json"] = "b" * 64
+    pins.write_text(json.dumps(record))
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    commit(root, "pins")
+    monkeypatch.setattr(driver, "ROOT", root)
+    monkeypatch.setattr(driver, "INPUT_PINS", pins)
+    return pins, record
+
+
+def test_the_input_pins_are_read_as_committed_at_head(pinned_repo):
+    pins, record = pinned_repo
+    assert driver.committed_input_pins() == {
+        SLUG: {"predictions.csv": "a" * 64, "run_state.json": "b" * 64}
+    }
+    # Pins rewritten and not committed are refused, not silently ignored.
+    record["inputs"][SLUG]["sha256"]["predictions.csv"] = "c" * 64
+    pins.write_text(json.dumps(record))
+    with pytest.raises(SystemExit, match="differs from its HEAD commit; commit it"):
+        driver.committed_input_pins()
+
+
+def test_input_pins_never_committed_are_refused(pinned_repo, monkeypatch):
+    pins, _ = pinned_repo
+    elsewhere = pins.with_name("other_pins.json")
+    elsewhere.write_text(pins.read_text())
+    monkeypatch.setattr(driver, "INPUT_PINS_PATH", "docs/gpt61sol/other_pins.json")
+    monkeypatch.setattr(driver, "INPUT_PINS", elsewhere)
+    with pytest.raises(SystemExit, match="is not committed at HEAD"):
+        driver.committed_input_pins()
+
+
+@pytest.mark.parametrize(
+    "inputs",
+    [
+        {},
+        {SLUG: {"sha256": {"predictions.csv": "a" * 64}}},
+        {SLUG: {"sha256": {"predictions.csv": "a", "run_state.json": "b"}}, "x": {}},
+    ],
+)
+def test_input_pins_that_miss_a_run_file_are_refused(pinned_repo, inputs):
+    pins, _ = pinned_repo
+    pins.write_text(json.dumps({"inputs": inputs}))
+    commit(driver.ROOT, "other pins")
+    with pytest.raises(SystemExit, match="does not pin"):
+        driver.committed_input_pins()
 
 
 # --- Stage isolation -----------------------------------------------------------
@@ -1603,6 +1725,9 @@ def exporting(tmp_path, monkeypatch):
     record.write_text(json.dumps({"verdicts": []}))
     monkeypatch.setattr(driver, "JUDGE_PROVENANCE", record)
     monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset())
+    # GPT-6.1 Sol's staged run, its pins standing in for the committed ones.
+    pins = _write_run(stage, bundle)
+    monkeypatch.setattr(driver, "committed_input_pins", lambda: pins, raising=False)
 
     def run(stats, live_stats, *, partial=False, early=False):
         exported["stats"] = stats
@@ -1613,15 +1738,46 @@ def exporting(tmp_path, monkeypatch):
     return stage, bundle, run, gate_calls
 
 
+# GPT-6.1 Sol's synthetic run file, and an incumbent row beside its row.
+SOL_RUN = (
+    "model,scenario_id,variable,prediction,estimated_cost_usd,elapsed_seconds\n"
+    f"{NEW},scenario_000,snap,1200.0,0.0125,12.75\n"
+)
+PINNED = ("predictions.csv", "run_state.json")
+
+
+def _write_run(stage, bundle) -> dict:
+    """GPT-6.1 Sol's run files as prepare stages them, the bundle's
+    predictions holding its row, and the prepare-time hashes in stage.json
+    and model-provenance.json; returns the run files' pins."""
+    inputs = stage / "inputs" / SLUG
+    inputs.mkdir(parents=True, exist_ok=True)
+    (inputs / "predictions.csv").write_text(SOL_RUN)
+    fingerprint = {"model_id": NEW}
+    state = {"model": NEW, "treatment_fingerprint": fingerprint}
+    (inputs / "run_state.json").write_text(json.dumps(state))
+    header, row = SOL_RUN.splitlines(keepends=True)
+    (bundle / "us/predictions.csv").write_text(
+        header + "incumbent,scenario_000,snap,900.0,0.002,3.5\n" + row
+    )
+    names = [bundle / "us" / name for name in driver.REFERENCE_FILES]
+    names += [bundle / "us/predictions.csv", *(inputs / name for name in PINNED)]
+    files = {str(path.relative_to(stage)): driver.digest(path) for path in names}
+    (stage / "stage.json").write_text(
+        json.dumps({"partial": False, "early": False, "files": files})
+    )
+    provenance = {
+        "predictions_sha256": driver.digest(inputs / "predictions.csv"),
+        "treatment_fingerprint": fingerprint,
+    }
+    (stage / "model-provenance.json").write_text(json.dumps({NEW: provenance}))
+    return {SLUG: {name: driver.digest(inputs / name) for name in PINNED}}
+
+
 def _evidence(stage, bundle):
-    paths = [
-        bundle / "us/predictions.csv",
-        bundle / "annotations/us_adjudications.json",
-    ]
-    paths += [stage / f"inputs/{SLUG}/run_state.json", stage / "audit/cases.jsonl"]
-    paths += [stage / "audit/schema.json"]
+    paths = [bundle / "annotations/us_adjudications.json"]
+    paths += [stage / "audit/cases.jsonl", stage / "audit/schema.json"]
     paths += [stage / driver.PROMPT_CHANGES, stage / driver.AMENDMENTS]
-    paths += [stage / "stage.json"]
     paths += [
         stage / "audit/cases/example" / name
         for name in (
@@ -1634,6 +1790,10 @@ def _evidence(stage, bundle):
     for path in paths:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"Evidence: {path.name}\n")
+    # The run files and prepare-time hashes the exporting fixture wrote.
+    paths += [bundle / "us/predictions.csv", stage / "stage.json"]
+    paths += [stage / "model-provenance.json"]
+    paths += [stage / "inputs" / SLUG / name for name in PINNED]
     return paths + [bundle / "us" / name for name in driver.REFERENCE_FILES]
 
 
@@ -1701,6 +1861,22 @@ def test_the_freeze_rebuilds_exactly_what_export_wrote(exporting, monkeypatch):
     payload.write_text(json.dumps(board))
     with pytest.raises(SystemExit, match=r"export builds.*\[45 gpt-6\.1-sol\]\.exact"):
         release.rebuild_payload(stage, receipt, payload, live)
+
+
+def test_export_writes_no_receipt_when_the_inputs_are_not_the_pinned_run(
+    exporting, monkeypatch
+):
+    """Export checks GPT-6.1 Sol's staged run files against the committed pins
+    before it writes the payload or a receipt."""
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    pins = {SLUG: {"predictions.csv": "0" * 64, "run_state.json": "0" * 64}}
+    monkeypatch.setattr(driver, "committed_input_pins", lambda: pins, raising=False)
+    incumbents = _incumbents()
+    with pytest.raises(SystemExit, match=f"staged inputs/{SLUG}/.* is not the run"):
+        run(_exported(incumbents), incumbents)
+    assert not (stage / "release-ready.json").exists()
+    assert not (stage / "data-board46.json").exists()
 
 
 def test_partial_export_never_gets_a_release_receipt(exporting):

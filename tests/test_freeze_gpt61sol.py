@@ -27,6 +27,9 @@ import freeze_gpt61sol as release  # noqa: E402
 from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
 
 RUN = driver.RUN_NAME
+SLUG = "gpt61sol"
+# The run files the committed input pins name (driver.PINNED_INPUTS).
+PINNED = ("predictions.csv", "run_state.json")
 BUNDLE = Path("publish") / RUN
 COMMITTED_ADJUDICATIONS = driver.ANNOTATIONS / "us_adjudications.json"
 # The synthetic stage's one judged case, an incumbent-only case kept from the
@@ -42,8 +45,59 @@ ANNOTATION_CSVS = [
 ]
 
 
+SOL = "gpt-6.1-sol"
+# GPT-6.1 Sol's run file as the synthetic stage pins it, with the usage
+# columns its published cost, tokens and latency come from, and an incumbent
+# row the bundle's predictions hold beside its rows.
+SOL_RUN = (
+    "model,scenario_id,variable,prediction,estimated_cost_usd,total_cost_usd,"
+    "total_tokens,elapsed_seconds\n"
+    "gpt-6.1-sol,scenario_000,snap,1200.0,0.0125,0.0125,4096.5,12.75\n"
+    "gpt-6.1-sol,scenario_001,snap,0.0,0.011,0.011,3900.25,11.5\n"
+)
+INCUMBENT_ROW = "incumbent,scenario_000,snap,900.0,0.002,0.002,1000.0,3.5\n"
+
+
 def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def restamp(stage: Path) -> None:
+    """Write the prepare-time hashes of stage.json and model-provenance.json
+    for the stage as it stands, as prepare would have."""
+    names = [
+        BUNDLE / "us" / name for name in (*driver.REFERENCE_FILES, "predictions.csv")
+    ]
+    names += [Path("inputs/gpt61sol") / name for name in PINNED]
+    files = {str(name): sha(stage / name) for name in names}
+    (stage / "stage.json").write_text(
+        json.dumps({"partial": False, "early": False, "files": files})
+    )
+    inputs = stage / "inputs/gpt61sol"
+    state = json.loads((inputs / "run_state.json").read_text())
+    provenance = {
+        SOL: {
+            "predictions_sha256": sha(inputs / "predictions.csv"),
+            "treatment_fingerprint": state["treatment_fingerprint"],
+        }
+    }
+    (stage / "model-provenance.json").write_text(json.dumps(provenance))
+
+
+def write_inputs(stage: Path) -> dict:
+    """GPT-6.1 Sol's run files, the bundle's predictions holding its rows as
+    prepare folds them, and the prepare-time hashes; returns the pins."""
+    inputs = stage / "inputs/gpt61sol"
+    inputs.mkdir(parents=True, exist_ok=True)
+    (inputs / "predictions.csv").write_text(SOL_RUN)
+    state = {"model": SOL, "treatment_fingerprint": GPT61SOL_FINGERPRINT}
+    (inputs / "run_state.json").write_text(json.dumps(state))
+    header, *rows = SOL_RUN.splitlines(keepends=True)
+    (stage / BUNDLE / "us/predictions.csv").write_text(
+        header + INCUMBENT_ROW + "".join(rows)
+    )
+    restamp(stage)
+    return {SLUG: {name: sha(inputs / name) for name in PINNED}}
 
 
 def write_audit(audit: Path) -> None:
@@ -116,11 +170,16 @@ def freeze_preflight(tmp_path, monkeypatch):
         BUNDLE / "us" / name for name in (*driver.REFERENCE_FILES, "predictions.csv")
     ]
     evidence += [BUNDLE / "annotations/us_adjudications.json", *ANNOTATION_CSVS]
-    evidence += [Path("inputs/gpt61sol/run_state.json")]
-    evidence += [Path(driver.PROMPT_CHANGES), Path("stage.json")]
+    evidence += [Path(driver.PROMPT_CHANGES)]
     for name in evidence:
         (stage / name).parent.mkdir(parents=True, exist_ok=True)
         (stage / name).write_text(f"Evidence: {name.name}\n")
+    # GPT-6.1 Sol's run files are the committed pins' (stubbed here), and the
+    # bundle's predictions hold its rows as prepare folded them.
+    pins = write_inputs(stage)
+    monkeypatch.setattr(driver, "committed_input_pins", lambda: pins, raising=False)
+    evidence += [Path("inputs/gpt61sol") / name for name in PINNED]
+    evidence += [Path("model-provenance.json"), Path("stage.json")]
     write_audit(stage / "audit")
     evidence += AUDIT_EVIDENCE
     (stage / driver.PROMPT_CHANGES).write_text(
@@ -224,6 +283,8 @@ def test_freeze_refuses_changed_or_unbound_evidence(freeze_preflight, defect):
         str(BUNDLE / "us/reference_exclusions.json"),
         str(BUNDLE / "annotations/us_adjudications.json"),
         "inputs/gpt61sol/run_state.json",
+        "inputs/gpt61sol/predictions.csv",
+        "model-provenance.json",
         driver.PROMPT_CHANGES,
         "stage.json",
     ],
@@ -262,7 +323,6 @@ def test_wording_amendments_present_in_the_stage_must_be_bound(freeze_preflight)
         release.main(["--stage-dir", str(stage), "--dry-run"])
 
 
-SOL = "gpt-6.1-sol"
 # One unadjudicated case of the synthetic payload, as two models answered it.
 CASE = ("scenario_017", "snap")
 
@@ -366,7 +426,11 @@ def staged_board(freeze_preflight, monkeypatch, rebuilds, exports):
     record.write_text(json.dumps({"verdicts": []}))
     monkeypatch.setattr(driver, "JUDGE_PROVENANCE", record)
 
-    def rebind():
+    def rebind(restamp_stage=True):
+        # Every hash in the stage follows the edit: the receipt's and, unless
+        # a test keeps them, stage.json's and model-provenance.json's.
+        if restamp_stage:
+            restamp(stage)
         receipt["payload_sha256"] = sha(payload)
         receipt["files"] = {name: sha(stage / name) for name in receipt["files"]}
         receipt["judge_provenance"] = {
@@ -601,6 +665,130 @@ def test_the_freeze_refuses_a_verdict_edited_after_export(
     before = workspace_files()
     with pytest.raises(SystemExit, match=message):
         release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
+def _double_cost(frame, rows) -> list[str]:
+    columns = ["estimated_cost_usd", "total_cost_usd"]
+    for column in columns:
+        frame.loc[rows, column] = (frame.loc[rows, column].astype(float) * 2).map(str)
+    return columns
+
+
+def _slower(frame, rows) -> list[str]:
+    frame.loc[rows, "elapsed_seconds"] = "99.0"
+    return ["elapsed_seconds"]
+
+
+USAGE_EDITS = {"cost": _double_cost, "elapsed_seconds": _slower}
+
+
+def _edit_sol_rows(path: Path, edit) -> list[str]:
+    import pandas as pd
+
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    columns = edit(frame, frame["model"] == SOL)
+    frame.to_csv(path, index=False)
+    return columns
+
+
+def _republish_sol_usage(stage: Path, exports: dict) -> None:
+    """The payload as export would rebuild it from the edited predictions:
+    GPT-6.1 Sol's costUsd changes, and the export stub agrees."""
+    payload = stage / "data-board46.json"
+    board = json.loads(payload.read_text())
+    for target in (board, exports["board"]):
+        stats = target["countries"]["us"]["modelStats"]
+        next(row for row in stats if row["model"] == SOL)["costUsd"] = 2.0
+    payload.write_text(json.dumps(board))
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("edit", USAGE_EDITS)
+def test_the_freeze_refuses_new_model_usage_edited_in_the_bundle(
+    staged_board, exports, edit, dry_run
+):
+    """GPT-6.1 Sol's cost columns doubled, or its elapsed_seconds changed, in
+    the bundle's predictions, with the payload rebuilt to match and every
+    hash in the stage updated (the receipt's, stage.json's and
+    model-provenance.json's), is refused before any workspace mutation: its
+    rows must be its pinned run file's in every column."""
+    stage, rebind = staged_board
+    columns = _edit_sol_rows(stage / BUNDLE / "us/predictions.csv", USAGE_EDITS[edit])
+    _republish_sol_usage(stage, exports)
+    rebind()
+    before = workspace_files()
+    with pytest.raises(SystemExit, match="not the pinned run's") as refused:
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    for column in columns:
+        assert f"{SOL} {column} differs from the run on 2 rows" in str(refused.value)
+    assert workspace_files() == before
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_the_freeze_refuses_a_new_model_input_edited_with_the_bundle(
+    staged_board, exports, dry_run
+):
+    """The staged run file edited together with the bundle's rows, every
+    stage hash following, is not the run file the committed pins name."""
+    stage, rebind = staged_board
+    for path in (
+        stage / "inputs/gpt61sol/predictions.csv",
+        stage / BUNDLE / "us/predictions.csv",
+    ):
+        _edit_sol_rows(path, _double_cost)
+    _republish_sol_usage(stage, exports)
+    rebind()
+    before = workspace_files()
+    with pytest.raises(
+        SystemExit, match="staged inputs/gpt61sol/predictions.csv is not the run file"
+    ):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
+def _edit_json(path: Path, edit) -> None:
+    value = json.loads(path.read_text())
+    edit(value)
+    path.write_text(json.dumps(value))
+
+
+@pytest.mark.parametrize(
+    "defect",
+    ["stale_stage_json", "unrecorded_input", "provenance_hash", "fingerprint"],
+)
+def test_the_freeze_rechecks_the_prepare_time_hashes(staged_board, defect):
+    """stage.json and model-provenance.json, both bound by the receipt, must
+    still describe the staged inputs."""
+    stage, rebind = staged_board
+    if defect == "stale_stage_json":
+        path = stage / BUNDLE / "us/predictions.csv"
+        path.write_text(path.read_text().replace(INCUMBENT_ROW, INCUMBENT_ROW * 2))
+        message = f"changed since prepare: {BUNDLE}/us/predictions.csv"
+    elif defect == "unrecorded_input":
+        _edit_json(
+            stage / "stage.json",
+            lambda record: record["files"].pop("inputs/gpt61sol/predictions.csv"),
+        )
+        message = "stage.json does not record.*inputs/gpt61sol/predictions.csv"
+    elif defect == "provenance_hash":
+        _edit_json(
+            stage / "model-provenance.json",
+            lambda record: record[SOL].update(predictions_sha256="0" * 64),
+        )
+        message = "model-provenance.json disagrees with the staged run"
+    else:
+        _edit_json(
+            stage / "model-provenance.json",
+            lambda record: record[SOL]["treatment_fingerprint"].update(
+                request_timeout_seconds=600
+            ),
+        )
+        message = "model-provenance.json disagrees with the staged run"
+    rebind(restamp_stage=False)
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=message):
+        release.main(["--stage-dir", str(stage), "--dry-run"])
     assert workspace_files() == before
 
 

@@ -136,6 +136,13 @@ GROUNDING_SHA256 = "b1e4a9bc74d762f410524a147efcda7d705c3afcfa3dc27f720fa60c54a7
 # stage.json, and a carried-over verdict must keep the seed's bytes.
 SEED_DIGEST = ROOT / "docs/gpt61sol/seed_digest.csv"
 SEED_DIGEST_SHA256 = "a94e96970113c4fb38dad9ec5a00fb430f026370a6b63ccffeefaae44436fe3d"
+# GPT-6.1 Sol's supervised run as it finished, pinned outside the stage: the
+# sha256 of the run directory's predictions.csv and run_state.json, which
+# --step pin-inputs writes here. Export and the freeze read the file as
+# committed at HEAD, and the stage's inputs/<slug>/ copies must be those bytes.
+INPUT_PINS_PATH = "docs/gpt61sol/input_pins.json"
+INPUT_PINS = ROOT / INPUT_PINS_PATH
+PINNED_INPUTS = ("predictions.csv", "run_state.json")
 # Incumbent usage the exporter cannot recompute from committed predictions:
 # Fable 5 ran through the Anthropic batch adapter, and its rows carry no cost,
 # token or latency fields, so export_full_run reports $0 and omits the rest.
@@ -216,6 +223,215 @@ def discover_new_models(runs_root: Path) -> list[NewRun]:
             found.append(NewRun(slug, expected, directory, predictions, state))
     require(not skipped, "refusing incomplete additions: " + "; ".join(skipped))
     return found
+
+
+def input_pins_record(runs_root: Path) -> dict:
+    """The record --step pin-inputs writes: the sha256 of each new model's
+    finished run files, read from the run directory under ``runs_root``."""
+    return {
+        "note": (
+            "The sha256 of GPT-6.1 Sol's supervised run files as the run "
+            "finished, written by scripts/finish_gpt61sol.py --step pin-inputs "
+            "from the run directory. prepare copies them into the stage's "
+            "inputs/<slug>/; export and the freeze refuse a staged copy that "
+            "is not these bytes, and read this file as committed at HEAD."
+        ),
+        "inputs": {
+            run.slug: {
+                "run": f"{runs_root.name}/{run.slug}/run",
+                "sha256": {name: digest(run.run_dir / name) for name in PINNED_INPUTS},
+            }
+            for run in discover_new_models(runs_root)
+        },
+    }
+
+
+def pin_inputs(args) -> None:
+    """Write INPUT_PINS from the finished run; commit it before export."""
+    write_json(INPUT_PINS, input_pins_record(args.runs_root))
+    print(f"Pinned {', '.join(PINNED_INPUTS)} of {sorted(MODELS)} in {INPUT_PINS_PATH}")
+
+
+def head_blob(path: str) -> bytes:
+    """A repository file as committed at HEAD, never the working tree's copy,
+    which could be edited together with the stage it pins."""
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"HEAD:{path}"], capture_output=True
+    )
+    require(
+        result.returncode == 0,
+        f"{path} is not committed at HEAD; commit it: {result.stderr.decode().strip()}",
+    )
+    return result.stdout
+
+
+def committed_input_pins() -> dict[str, dict[str, str]]:
+    """Each new model's pinned run-file sha256, as committed at HEAD.
+
+    The working-tree file must be HEAD's too, so pins written and not yet
+    committed are refused rather than silently ignored.
+    """
+    blob = head_blob(INPUT_PINS_PATH)
+    require(
+        INPUT_PINS.is_file() and INPUT_PINS.read_bytes() == blob,
+        f"{INPUT_PINS_PATH} differs from its HEAD commit; commit it",
+    )
+    record = json.loads(blob)
+    inputs = record.get("inputs") if isinstance(record, dict) else None
+    require(
+        isinstance(inputs, dict)
+        and set(inputs) == set(MODELS)
+        and all(
+            isinstance(item, dict)
+            and isinstance(item.get("sha256"), dict)
+            and set(item["sha256"]) == set(PINNED_INPUTS)
+            for item in inputs.values()
+        ),
+        f"{INPUT_PINS_PATH} does not pin {list(PINNED_INPUTS)} for {sorted(MODELS)}",
+    )
+    return {slug: item["sha256"] for slug, item in inputs.items()}
+
+
+def verify_input_pins(stage: Path) -> None:
+    """The stage's copies of each new model's run files are the pinned bytes."""
+    for slug, pins in committed_input_pins().items():
+        for name, pin in pins.items():
+            path = stage / "inputs" / slug / name
+            require(
+                path.is_file() and digest(path) == pin,
+                f"staged inputs/{slug}/{name} is not the run file "
+                f"{INPUT_PINS_PATH} pins; prepare a new stage from the pinned run",
+            )
+
+
+def verify_prepared_inputs(stage: Path) -> None:
+    """The prepare-time hashes in stage.json and model-provenance.json hold.
+
+    stage.json records every file prepare copied or folded (each new model's
+    run files, the bundle's predictions and references); model-provenance.json
+    records each new model's predictions sha256 and treatment fingerprint.
+    """
+    receipt = json.loads((stage / "stage.json").read_text())
+    files = receipt.get("files") if isinstance(receipt, dict) else None
+    require(isinstance(files, dict), "stage.json records no prepared files")
+    us = Path("publish") / RUN_NAME / "us"
+    expected = {str(us / name) for name in (*REFERENCE_FILES, "predictions.csv")}
+    expected |= {
+        str(Path("inputs") / slug / name) for slug in MODELS for name in PINNED_INPUTS
+    }
+    require(
+        expected <= set(files),
+        f"stage.json does not record {sorted(expected - set(files))}",
+    )
+    for name, pin in files.items():
+        path = (stage / name).resolve()
+        require(
+            path.is_relative_to(stage.resolve())
+            and path.is_file()
+            and digest(path) == pin,
+            f"staged input changed since prepare: {name}",
+        )
+    provenance = json.loads((stage / "model-provenance.json").read_text())
+    require(
+        isinstance(provenance, dict) and set(provenance) == set(MODELS.values()),
+        f"model-provenance.json does not describe exactly {sorted(MODELS.values())}",
+    )
+    for slug, model in MODELS.items():
+        inputs = stage / "inputs" / slug
+        state = json.loads((inputs / "run_state.json").read_text())
+        entry = provenance[model]
+        fingerprint = state.get("treatment_fingerprint")
+        require(
+            isinstance(entry, dict)
+            and entry.get("predictions_sha256") == digest(inputs / "predictions.csv")
+            and entry.get("treatment_fingerprint") == fingerprint,
+            f"model-provenance.json disagrees with the staged run of {model}",
+        )
+
+
+def new_model_row_differences(stage: Path, limit: int = 5) -> list[str]:
+    """Where a new model's rows in the bundle's predictions are not its run's.
+
+    Every column of the staged run file (inputs/<slug>/predictions.csv, which
+    verify_input_pins pins) is compared cell by cell, as text, keyed by
+    scenario and variable: the answers and also the cost, token and latency
+    columns the payload's costUsd, totalTokens and latencySeconds come from.
+    No column is exempt. prepare_inputs copies the run file, and fold_board
+    reads it with read_csv and writes its concat with the base by to_csv.
+    That round trip could rewrite a cell (an integer column the base leaves
+    blank would come back as a float), and such a cell is refused, never
+    skipped; on the real stage it changes no cell of the run's 26 columns
+    (its token and cost columns are already floats). A bundle column the run
+    lacks (a base column the concat adds) must be empty on the new model's
+    rows.
+    """
+    import pandas as pd
+
+    text = {"dtype": str, "keep_default_na": False}
+    us = stage / "publish" / RUN_NAME / "us" / "predictions.csv"
+    header = list(pd.read_csv(us, nrows=0, **text).columns)
+    if "model" not in header:
+        return [f"{us.name} has no model column"]
+    parts: dict[str, list] = {}
+    for chunk in pd.read_csv(us, chunksize=100_000, **text):
+        for model in MODELS.values():
+            rows = chunk[chunk["model"] == model]
+            if len(rows):
+                parts.setdefault(model, []).append(rows)
+    found = []
+    for slug, model in MODELS.items():
+        source = pd.read_csv(stage / "inputs" / slug / "predictions.csv", **text)
+        folded = (
+            pd.concat(parts[model]) if model in parts else pd.DataFrame(columns=header)
+        )
+        missing = [column for column in source.columns if column not in header]
+        if missing or not set(KEY) <= set(source.columns):
+            found.append(f"{model}: run columns {missing or KEY} not in the bundle")
+            continue
+        run = source.sort_values(KEY, kind="stable").reset_index(drop=True)
+        board = folded.sort_values(KEY, kind="stable").reset_index(drop=True)
+        if (
+            run.duplicated(KEY).any()
+            or len(run) != len(board)
+            or not run[KEY].equals(board[KEY])
+        ):
+            found.append(
+                f"{model}: the bundle holds {len(board)} rows, not the run's "
+                f"{len(run)} scenario and variable keys"
+            )
+            continue
+        for column in header:
+            if column in run.columns:
+                differ = run[column] != board[column]
+                what = "differs from the run"
+            else:
+                differ = board[column] != ""
+                what = "is filled, and the run has no such column"
+            if differ.any():
+                first = board.loc[differ.idxmax(), KEY]
+                found.append(
+                    f"{model} {column} {what} on {int(differ.sum())} rows "
+                    f"(first {'__'.join(first)})"
+                )
+    return found[:limit]
+
+
+def verify_new_model_inputs(stage: Path) -> None:
+    """Each new model's staged inputs are its pinned run, as prepare folded it.
+
+    Its staged run files are the bytes INPUT_PINS (committed at HEAD) records,
+    the prepare-time hashes in stage.json and model-provenance.json still
+    hold, and its rows in the bundle's predictions are its run file's, every
+    column, so its published cost, tokens and latency are the run's.
+    """
+    verify_input_pins(stage)
+    verify_prepared_inputs(stage)
+    differ = new_model_row_differences(stage)
+    require(
+        not differ,
+        f"{sorted(MODELS.values())} rows in the bundle's predictions are not the "
+        f"pinned run's: {differ}; prepare a new stage",
+    )
 
 
 def validate_stage_path(stage: Path, sources: list[Path]) -> None:
@@ -1702,6 +1918,7 @@ def export(args, bundle, live) -> dict:
         verify_reference_pins(SNAPSHOT, "committed reference")
         verify_reference_pins(bundle / "us", "staged reference")
     if not args.early:
+        verify_new_model_inputs(args.stage_dir)
         verify_judge_provenance(
             args.stage_dir / "audit" / "cases",
             rejudged_cases(args.stage_dir),
@@ -1732,13 +1949,15 @@ def export(args, bundle, live) -> dict:
         ]
         pinned += [p for p in (args.stage_dir / "inputs").rglob("*") if p.is_file()]
         # The cases GPT-6.1 Sol re-opened, the listed wording amendments and the
-        # seed binding decide what the adjudication and verdict gates allow.
+        # seed binding decide what the adjudication and verdict gates allow;
+        # stage.json and model-provenance.json hold the prepare-time hashes.
         pinned += [
             path
             for path in (
                 args.stage_dir / PROMPT_CHANGES,
                 args.stage_dir / AMENDMENTS,
                 args.stage_dir / "stage.json",
+                args.stage_dir / "model-provenance.json",
             )
             if path.is_file()
         ]
@@ -1781,7 +2000,7 @@ def export(args, bundle, live) -> dict:
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--runs-root", type=Path)
-    parser.add_argument("--stage-dir", type=Path, required=True)
+    parser.add_argument("--stage-dir", type=Path)
     parser.add_argument(
         "--base-predictions", type=Path, default=SNAPSHOT / "predictions.csv.gz"
     )
@@ -1798,24 +2017,31 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--step",
-        choices=("prepare", "bind-seed", "judge", "triage", "export"),
+        choices=("pin-inputs", "prepare", "bind-seed", "judge", "triage", "export"),
         default="prepare",
-        help="bind-seed binds the audit seed in the stage.json of a stage "
-        "prepared before prepare bound it",
+        help="pin-inputs writes the finished run's file hashes to "
+        f"{INPUT_PINS_PATH} (no stage); bind-seed binds the audit seed in the "
+        "stage.json of a stage prepared before prepare bound it",
     )
     args = parser.parse_args(argv)
     if args.partial and not args.early:
         parser.error("--partial requires --early")
     if args.early and args.step != "prepare":
         parser.error("--early only applies to prepare")
-    if args.step == "prepare" and not args.runs_root:
-        parser.error("prepare requires --runs-root")
-    args.stage_dir = args.stage_dir.resolve()
+    if args.step in ("prepare", "pin-inputs") and not args.runs_root:
+        parser.error(f"{args.step} requires --runs-root")
+    if args.step != "pin-inputs":
+        if args.stage_dir is None:
+            parser.error(f"{args.step} requires --stage-dir")
+        args.stage_dir = args.stage_dir.resolve()
     return args
 
 
 def main(argv=None) -> None:
     args = parse_args(argv)
+    if args.step == "pin-inputs":
+        pin_inputs(args)
+        return
     sources = [SNAPSHOT, ANNOTATIONS, args.base_predictions, args.base_payload]
     sources += [
         p for p in (args.runs_root, args.audit_seed, args.grounding) if p is not None
