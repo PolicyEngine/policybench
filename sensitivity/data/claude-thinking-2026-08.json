@@ -1,8 +1,8 @@
 {
-  "release": "dashboard-data-20260929",
+  "release": "dashboard-data-20260930",
   "run_dates": "2026-08",
   "condition": "tool_choice auto (POLICYBENCH_TOOL_CHOICE=auto); Fable 5 and Sonnet 5 also whole-scenario (POLICYBENCH_CHUNK_OVERRIDE=none)",
-  "scored_against": "the frozen 45-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the fifty-six outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,928 scored outputs); per-variable rates likewise on the scored outputs",
+  "scored_against": "the frozen 46-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the fifty-six outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,928 scored outputs); per-variable rates likewise on the scored outputs",
   "runs": {
     "claude-fable-5-thinking": {
       "model": "claude-fable-5",
@@ -58,7 +58,7 @@
         "exact": 90.013,
         "within1pct": 91.849,
         "score": 96.18,
-        "would_rank": 9,
+        "would_rank": 10,
         "n": 1984,
         "n_parsed": 1984
       },
@@ -88,7 +88,7 @@
         "exact": 84.803,
         "within1pct": 87.737,
         "score": 94.564,
-        "would_rank": 19,
+        "would_rank": 20,
         "n": 1984,
         "n_parsed": 1928
       },

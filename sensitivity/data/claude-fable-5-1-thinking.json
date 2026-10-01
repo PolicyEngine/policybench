@@ -3,7 +3,7 @@
   "sensitivity_model_id": "claude-fable-5.1-thinking",
   "condition": "answer tool declared, tool_choice auto (POLICYBENCH_CONTRACT_OVERRIDE=tool POLICYBENCH_TOOL_CHOICE=auto), whole scenario",
   "run_date": "2026-09-01",
-  "release": "dashboard-data-20260929",
+  "release": "dashboard-data-20260930",
   "assets": {
     "sensitivity-claude-fable-5-1-thinking-predictions.csv.gz": {
       "sha256": "452bf5165540462561748ea75dcfa71f5a023ef0281f303aeac7c7ea39c1f1bd",
@@ -35,5 +35,5 @@
     "n": 1984
   },
   "delta_exact": 0.9,
-  "scored_against": "the frozen 45-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the fifty-six outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,928 scored outputs); exact, within-1% and the bounded score all on that universe. The fold used results/local/fable51/predictions32.csv as the incumbent base"
+  "scored_against": "the frozen 46-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the fifty-six outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,928 scored outputs); exact, within-1% and the bounded score all on that universe. The fold used results/local/fable51/predictions32.csv as the incumbent base"
 }
