@@ -21,10 +21,10 @@ from policybench.paper_results import (
 )
 
 
-def test_frozen_roster_has_45_display_names_and_release_dates():
+def test_frozen_roster_has_46_display_names_and_release_dates():
     roster = {row["model"] for row in r.model_stats}
 
-    assert len(roster) == 45
+    assert len(roster) == 46
     assert set(MODEL_DISPLAY_NAMES) == roster
     assert roster <= set(MODEL_RELEASE_DATES)
     assert MODEL_DISPLAY_NAMES["claude-fable-5.1"] == "Claude Fable 5.1"
@@ -45,6 +45,8 @@ def test_frozen_roster_has_45_display_names_and_release_dates():
     assert MODEL_RELEASE_DATES["grok-4.7"] == "2026-09-21"
     assert MODEL_DISPLAY_NAMES["deepseek-v4.1-flash"] == "DeepSeek V4.1 Flash"
     assert MODEL_RELEASE_DATES["deepseek-v4.1-flash"] == "2026-09-10"
+    assert MODEL_DISPLAY_NAMES["gpt-6.1-sol"] == "GPT-6.1 Sol"
+    assert MODEL_RELEASE_DATES["gpt-6.1-sol"] == "2026-09-29"
 
 
 def test_app_release_dates_mirror_the_paper_registry():
@@ -75,21 +77,24 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     )
     assert r.parse_contract_failure_count == 652
     assert r.parse_contract_failure_count_fmt == "652"
-    assert r.parse_contract_failure_pct_fmt == "0.8"
+    # 652 of the 46-model board's 88,688 scored answers (0.8% of 20260929's
+    # 86,760): GPT-6.1 Sol parsed all 1,928.
+    assert r.parse_contract_failure_pct_fmt == "0.7"
 
 
 def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
-    assert r.audit_annotated_row_count == 7_772
-    assert r.audit_annotated_row_count_fmt == "7,772"
+    # Release 20260929's counts plus GPT-6.1 Sol's 88 exact misses.
+    assert r.audit_annotated_row_count == 7_860
+    assert r.audit_annotated_row_count_fmt == "7,860"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 7_768
-    assert r.exact_match_miss_count_fmt == "7,768"
-    assert r.annotated_exact_miss_count == 7_768
-    assert r.annotated_exact_miss_count_fmt == "7,768"
+    assert r.exact_match_miss_count == 7_856
+    assert r.exact_match_miss_count_fmt == "7,856"
+    assert r.annotated_exact_miss_count == 7_856
+    assert r.annotated_exact_miss_count_fmt == "7,856"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
-    assert r.unannotated_below_full_bounded_score_count == 2_027
-    assert r.unannotated_below_full_bounded_score_count_fmt == "2,027"
+    assert r.unannotated_below_full_bounded_score_count == 2_107
+    assert r.unannotated_below_full_bounded_score_count_fmt == "2,107"
 
 
 def test_contract_violations_are_counted_both_ways():
@@ -192,17 +197,19 @@ def test_serving_evidence_caption_comes_from_frozen_configuration():
             "completion ceiling",
         ],
     }
+    # GPT-6.1 Sol's supervised run fingerprints all four fields, and its
+    # reasoning setup and timeouts.
     assert r.serving_evidence_pinned_counts == {
-        "answer contract": 16,
-        "request shape": 16,
-        "tool choice": 15,
-        "completion ceiling": 16,
+        "answer contract": 17,
+        "request shape": 17,
+        "tool choice": 16,
+        "completion ceiling": 17,
     }
-    assert summary == {"registry": 29, "run_state": 16}
+    assert summary == {"registry": 29, "run_state": 17}
     assert r.serving_evidence_caption == (
         "Supervised-run fingerprints pin answer contract, request shape, "
-        "and completion ceiling for 16 rows; tool choice for 15 rows; reasoning "
-        "setup and timeouts for six rows. Reasoning setup and timeouts for the "
+        "and completion ceiling for 17 rows; tool choice for 16 rows; reasoning "
+        "setup and timeouts for seven rows. Reasoning setup and timeouts for the "
         "other ten fingerprinted rows, and all fields for the other "
         f"{summary['registry']} rows, are the harness registry as frozen in the "
         "snapshot's serving-configuration file."
@@ -214,11 +221,11 @@ def test_serving_evidence_counts_exclude_legacy_or_unrecorded_fields():
     results.serving_config = deepcopy(r.serving_config)
     fable_evidence = results.serving_config["models"]["claude-fable-5.1"]["evidence"]
 
-    assert results.serving_evidence_pinned_counts["tool choice"] == 15
-    del fable_evidence["legacy_tool_choice_label"]
     assert results.serving_evidence_pinned_counts["tool choice"] == 16
+    del fable_evidence["legacy_tool_choice_label"]
+    assert results.serving_evidence_pinned_counts["tool choice"] == 17
     del fable_evidence["treatment_fingerprint"]["answer_contract"]
-    assert results.serving_evidence_pinned_counts["answer contract"] == 15
+    assert results.serving_evidence_pinned_counts["answer contract"] == 16
 
 
 def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
@@ -230,8 +237,10 @@ def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
     assert table.loc["GPT-6 Sol"].tolist() == [99.0, 87.6, 87.6]
     assert table.loc["Grok 4.7"].tolist() == [99.0, 87.6, 87.6]
     assert table.loc["GPT-5.6 Sol"].tolist() == [99.0, 86.6, 86.6]
+    assert table.loc["GPT-6.1 Sol"].tolist() == [99.0, 92.8, 92.8]
     assert r.joint_credit_accuracy_exceptions == [
         "Claude Fable 5.1",
+        "GPT-6.1 Sol",
         "Claude Opus 5.5",
         "GPT-6 Astra",
         "GPT-6 Sol",
@@ -241,7 +250,8 @@ def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
     assert r.joint_credit_accuracy_note == (
         "The joint hit rate can be no higher than either marginal and is "
         "strictly lower than both for every model except Claude Fable 5.1, "
-        "Claude Opus 5.5, GPT-6 Astra, GPT-6 Sol, Grok 4.7, and GPT-5.6 Sol."
+        "GPT-6.1 Sol, Claude Opus 5.5, GPT-6 Astra, GPT-6 Sol, Grok 4.7, and "
+        "GPT-5.6 Sol."
     )
     other_models = table.drop(index=r.joint_credit_accuracy_exceptions)
     assert (other_models["Joint within 10%"] < other_models["Federal within 10%"]).all()
@@ -259,6 +269,7 @@ def test_joint_credit_accuracy_prose_tracks_changed_table_exceptions():
     results.federal_state_joint_accuracy = table
 
     assert results.joint_credit_accuracy_exceptions == [
+        "GPT-6.1 Sol",
         "Claude Opus 5.5",
         "GPT-6 Astra",
         "GPT-6 Sol",
@@ -266,8 +277,8 @@ def test_joint_credit_accuracy_prose_tracks_changed_table_exceptions():
         "GPT-5.6 Sol",
     ]
     assert (
-        "except Claude Opus 5.5, GPT-6 Astra, GPT-6 Sol, Grok 4.7, and GPT-5.6 Sol."
-        in results.joint_credit_accuracy_note
+        "except GPT-6.1 Sol, Claude Opus 5.5, GPT-6 Astra, GPT-6 Sol, Grok 4.7, "
+        "and GPT-5.6 Sol." in results.joint_credit_accuracy_note
     )
     assert "Claude Fable 5.1" not in results.joint_credit_accuracy_note
 
@@ -284,18 +295,20 @@ def test_judge_provenance_is_frozen_in_the_manifest():
         == (prov["cases_judged"])
     )
     # The older judges' counts fall release to release (Opus 5 had 183 cases
-    # and GPT-5.6 Sol 314 on 20260922c) because Claude Opus 5.5 re-judged
-    # their cases after the reference revisions; a re-judged case with an
-    # adjudication keeps the replaced verdict under judge_previous.
-    assert prov["by_judge"]["claude-opus-5"]["cases"] == 132
+    # and GPT-5.6 Sol 314 on 20260922c, 132 and 303 on 20260929) because
+    # Claude Opus 5.5 re-judged their cases: after the reference revisions,
+    # and on 2026-09-30 for the 134 cases GPT-6.1 Sol joined (16 of them Opus
+    # 5's, 5 GPT-5.6 Sol's). A re-judged case with an adjudication keeps the
+    # replaced verdict under judge_previous.
+    assert prov["by_judge"]["claude-opus-5"]["cases"] == 116
     assert prov["by_judge"]["claude-opus-5"]["judged_on_utc"] == ["2026-09-05"]
-    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 239
-    assert "2026-09-29" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
-    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 303
+    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 260
+    assert "2026-09-30" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
+    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 298
     assert r.audit_case_count_fmt == "674"
-    assert r.audit_opus_judged_case_count_fmt == "132"
-    assert r.audit_opus55_judged_case_count_fmt == "239"
-    assert r.audit_sol_judged_case_count_fmt == "303"
+    assert r.audit_opus_judged_case_count_fmt == "116"
+    assert r.audit_opus55_judged_case_count_fmt == "260"
+    assert r.audit_sol_judged_case_count_fmt == "298"
 
 
 def test_joint_credit_table_orders_ties_deterministically():
@@ -344,8 +357,10 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     )
     assert r.scored_outputs_per_model_fmt == "1,928"
     assert r.total_outputs_per_model_fmt == "1,984"
-    assert r.excluded_output_annotation_row_count == 2065
-    assert r.prompt_ambiguity_row_count == 802
+    # Release 20260929's 2,065 plus GPT-6.1 Sol's 46 rows on excluded outputs.
+    assert r.excluded_output_annotation_row_count == 2111
+    # Release 20260929's 802 plus GPT-6.1 Sol's 18.
+    assert r.prompt_ambiguity_row_count == 820
     # No scored row carries a descriptive class; every excluded-output row
     # carries its exclusion's class unless it never parsed.
     scored_sources = {

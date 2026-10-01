@@ -88,8 +88,12 @@ SUPERSEDED_RELEASES = {
     # Superseded by dashboard-data-20260929, which adds three models and moves
     # the references to policyengine-us 2.15.17.
     "dashboard-data-20260922c": "2026-09-22",
+    # Superseded by dashboard-data-20260930, which adds GPT-6.1 Sol on the
+    # same references and exclusions. Its note's facts are still recomputed,
+    # from the snapshot its own commit holds (RELEASE_20260929_COMMIT).
+    "dashboard-data-20260929": "2026-09-29",
 }
-CURRENT_RELEASE_SNAPSHOT = "2026-09-29"
+CURRENT_RELEASE_SNAPSHOT = "2026-09-30"
 
 
 @cache
@@ -625,11 +629,11 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(source))
 
 
-def _scenario_inputs() -> dict[str, dict]:
+def _scenario_inputs(run_dir: Path = RUN_DIR) -> dict[str, dict]:
     """Each household's frozen scenario: people with their inputs, and units."""
     return {
         row["scenario_id"]: json.loads(row["scenario_json"])
-        for row in _read_csv(RUN_DIR / "scenarios.csv")
+        for row in _read_csv(run_dir / "scenarios.csv")
     }
 
 
@@ -2118,7 +2122,13 @@ def test_snap_pathways_20260922_regenerates() -> None:
 
 RELEASE_NOTE = "2026-09-29-claude-sonnet-5-5-debuts-fifth"
 ADDED_MODELS = ("claude-sonnet-5.5", "grok-4.7", "deepseek-v4.1-flash")
-SERVING_CONFIG_PATH = ROOT / "paper/snapshot/20260501/model_serving_config.json"
+# Release dashboard-data-20260929 was frozen by the merge of #182. Its note's
+# facts are recomputed from the snapshot that commit holds, read from git, so
+# they stay checked against their own release after a later one is frozen.
+RELEASE_20260929 = "dashboard-data-20260929"
+RELEASE_20260929_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
+SNAPSHOT_DIR = ROOT / "paper/snapshot/20260501"
+SERVING_CONFIG_PATH = SNAPSHOT_DIR / "model_serving_config.json"
 UPGRADE_README = ROOT / "reference_audit/2026-09-28/README.md"
 UPGRADE_CLUSTERS = ROOT / "reference_audit/2026-09-28/clusters.json"
 UPGRADE_ACTIONS = ROOT / "reference_audit/2026-09-28/final_actions.json"
@@ -2177,13 +2187,72 @@ UPGRADE_CHANGES = {
 }
 
 
+@cache
+def _snapshot_20260929_root() -> Path:
+    """A scratch tree holding paper/snapshot/20260501 exactly as
+    RELEASE_20260929_COMMIT has it, removed when the session exits."""
+    import atexit
+    import shutil
+    import subprocess
+    import tempfile
+
+    def git(*args: str) -> bytes:
+        shown = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True)
+        assert shown.returncode == 0, (
+            f"release 20260929's snapshot needs git history at "
+            f"{RELEASE_20260929_COMMIT[:8]}; fetch full history. "
+            + shown.stderr.decode()
+        )
+        return shown.stdout
+
+    snapshot = SNAPSHOT_DIR.relative_to(ROOT).as_posix()
+    listed = git("ls-tree", "-r", "--name-only", RELEASE_20260929_COMMIT, snapshot)
+    root = Path(tempfile.mkdtemp(prefix="policybench-release-20260929-"))
+    atexit.register(shutil.rmtree, root, ignore_errors=True)
+    for name in listed.decode().splitlines():
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(git("show", f"{RELEASE_20260929_COMMIT}:{name}"))
+    return root
+
+
+def _at_20260929(path: Path) -> Path:
+    """A snapshot file as release 20260929's commit holds it."""
+    assert path.is_relative_to(SNAPSHOT_DIR), path
+    return _snapshot_20260929_root() / path.relative_to(ROOT)
+
+
+@cache
+def _dashboard_20260929() -> dict:
+    return read_run_payload(_at_20260929(RUN_DIR))
+
+
+def _release_20260929_tag() -> str:
+    """The tag release 20260929's manifest names, after checking that it pins
+    the payload its commit holds."""
+    manifest = _load_json(_at_20260929(SNAPSHOT_DIR / "manifest.json"))
+    payload = run_payload_path(_at_20260929(RUN_DIR))
+    assert manifest["files"] == [
+        {
+            "path": payload.relative_to(_at_20260929(SNAPSHOT_DIR)).as_posix(),
+            "sha256": _sha256_file(payload),
+        }
+    ]
+    assert manifest["snapshot_date"] == SUPERSEDED_RELEASES[RELEASE_20260929]
+    return manifest["published_dashboard_artifact"]["tag"]
+
+
 def _engine_upgrade() -> dict:
-    meta = _load_json(REFERENCE_META_PATH)
+    meta = _load_json(_at_20260929(REFERENCE_META_PATH))
     return next(r for r in meta["revisions"] if r.get("kind") == "engine_upgrade")
 
 
 def _board_rows() -> list[dict]:
-    return [row for row in _dashboard()["modelStats"] if row["condition"] == "no_tools"]
+    return [
+        row
+        for row in _dashboard_20260929()["modelStats"]
+        if row["condition"] == "no_tools"
+    ]
 
 
 @cache
@@ -2248,13 +2317,13 @@ def _exact_under(
     from policybench.scorer_vectors import canonical_filtered_scores
     from policybench.spec import output_group_id
 
-    payload = _dashboard()
-    reference = pd.read_csv(REFERENCES_PATH)
+    payload = _dashboard_20260929()
+    reference = pd.read_csv(_at_20260929(REFERENCES_PATH))
     changes = _engine_upgrade()["changed"]
     added = {(c["scenario_id"], c["variable"]) for c in changes}
     excluded = {
         (e["scenario_id"], e["variable"])
-        for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
+        for e in _load_json(_at_20260929(EXCLUSIONS_PATH))["exclusions"]
     }
     audit = {
         (a["scenario_id"], a["variable"])
@@ -2299,7 +2368,9 @@ def _added_model_responses() -> dict[str, dict]:
         model: {"rows": 0, "resolved": set(), "fingerprints": set()}
         for model in ADDED_MODELS
     }
-    with gzip.open(PREDICTIONS_PATH, "rt", encoding="utf-8", newline="") as source:
+    with gzip.open(
+        _at_20260929(PREDICTIONS_PATH), "rt", encoding="utf-8", newline=""
+    ) as source:
         for row in csv.DictReader(source):
             record = seen.get(row["model"])
             if record is None:
@@ -2315,7 +2386,7 @@ def _matches(prediction: float | None, reference: float) -> bool:
 
 
 def _release_20260929_facts() -> dict:
-    """The release note's facts, computed on the frozen snapshot."""
+    """The release note's facts, computed on release 20260929's snapshot."""
     import math
 
     from policybench.paper_results import MODEL_DISPLAY_NAMES
@@ -2325,10 +2396,10 @@ def _release_20260929_facts() -> dict:
     sonnet, grok, flash = (by_model[m] for m in ADDED_MODELS)
     luna, sol = by_model["gpt-6-luna"], by_model["gpt-6-sol"]
     opus, sol56 = by_model["claude-opus-5.5"], by_model["gpt-5.6-sol"]
-    serving = _load_json(SERVING_CONFIG_PATH)["models"]
-    meta = _load_json(REFERENCE_META_PATH)
+    serving = _load_json(_at_20260929(SERVING_CONFIG_PATH))["models"]
+    meta = _load_json(_at_20260929(REFERENCE_META_PATH))
     upgrade = _engine_upgrade()
-    exclusions = _load_json(EXCLUSIONS_PATH)["exclusions"]
+    exclusions = _load_json(_at_20260929(EXCLUSIONS_PATH))["exclusions"]
     excluded = {(e["scenario_id"], e["variable"]) for e in exclusions}
     changes = {(c["scenario_id"], c["variable"]): c for c in upgrade["changed"]}
     scored_changes = {
@@ -2348,7 +2419,7 @@ def _release_20260929_facts() -> dict:
     # The BBCE note's households on this release (its September 29 data
     # files): held back by income, the Arizona household among them, and held
     # back by savings.
-    payload = _dashboard()
+    payload = _dashboard_20260929()
     income_held = _load_json(
         ROOT / "notes/data/bbce_households_20260929.csv.meta.json"
     )["households"]
@@ -2448,7 +2519,7 @@ def _release_20260929_facts() -> dict:
         "nyAfter": before_after("NY")[1],
         "newExclusions": len(new_exclusions),
         "scoredOutputs": sonnet["n"],
-        "totalOutputs": sum(1 for _ in open(REFERENCES_PATH)) - 1,
+        "totalOutputs": sum(1 for _ in open(_at_20260929(REFERENCES_PATH))) - 1,
         "engineUploadedUtc": ENGINE_UPLOADED_UTC[
             upgrade["engine_version"].removeprefix("policyengine-us ")
         ],
@@ -2498,15 +2569,14 @@ def _release_20260929_facts() -> dict:
 
 
 def test_release_20260929_note() -> None:
-    """The September 29 release note: its facts recompute from the frozen
-    snapshot, and every sentence is pinned beside the evidence for it."""
+    """The September 29 release note: its facts recompute from release
+    20260929's snapshot, as its commit holds it, and every sentence is pinned
+    beside the evidence for it."""
     from policybench.model_cards import MODEL_CARDS
     from policybench.paper_results import MODEL_DISPLAY_NAMES, MODEL_RELEASE_DATES
 
     note = _note(RELEASE_NOTE)
-    assert note["release"] == "dashboard-data-20260929"
-    if not _recompute_against_frozen_snapshot(note):
-        return
+    assert note["release"] == RELEASE_20260929
     facts = note["facts"]
     assert facts == _release_20260929_facts()
     text = " ".join(note["paragraphs"])
@@ -2537,7 +2607,7 @@ def test_release_20260929_note() -> None:
     assert note["slug"] == f"{note['date']}-claude-sonnet-5-5-debuts-{ordinal}"
     assert facts["engineVersion"] == engine
     assert (
-        _frozen_release()
+        _release_20260929_tag()
         == note["release"]
         == "dashboard-data-" + (note["date"].replace("-", ""))
     )
@@ -2593,7 +2663,7 @@ def test_release_20260929_note() -> None:
     )
 
     # Serving: the frozen configuration and the model cards' onboarding notes.
-    serving = _load_json(SERVING_CONFIG_PATH)["models"]
+    serving = _load_json(_at_20260929(SERVING_CONFIG_PATH))["models"]
     for model in ("claude-sonnet-5.5", "claude-opus-5.5", "claude-fable-5.1"):
         assert serving[model]["answer_contract"] == "json"
         assert serving[model]["tool_choice"] is None
@@ -2647,7 +2717,7 @@ def test_release_20260929_note() -> None:
     assert "are all in 2.15.17 and need no module" in readme
     assert "The nine publication conventions" in readme
     assert facts["conventions"] == 9
-    manifest = _load_json(ROOT / "paper/snapshot/20260501/manifest.json")
+    manifest = _load_json(_at_20260929(SNAPSHOT_DIR / "manifest.json"))
     refresh = manifest["reference_output_refresh"]
     assert refresh["policyengine_us_version"] == facts["engineVersion"]
     # PolicyBench began sweeping on the day it rebuilt the references.
@@ -2698,7 +2768,7 @@ def test_release_20260929_note() -> None:
         )
         for state, key in UPGRADE_CHANGES.items()
     }
-    payload = _dashboard()
+    payload = _dashboard_20260929()
     for state, (scenario_id, _) in UPGRADE_CHANGES.items():
         assert payload["scenarios"][scenario_id]["state"] == state
     assert (
@@ -2737,7 +2807,7 @@ def test_release_20260929_note() -> None:
     revised = {(c["scenario_id"], c["variable"]) for c in _engine_upgrade()["changed"]}
     decided = [
         e
-        for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
+        for e in _load_json(_at_20260929(EXCLUSIONS_PATH))["exclusions"]
         if e["decided_on"] == note["date"]
     ]
     new = [e for e in decided if (e["scenario_id"], e["variable"]) in revised]
@@ -2748,7 +2818,7 @@ def test_release_20260929_note() -> None:
     # Every rechecked output is excluded, and its value moved on the new engine.
     excluded_keys = {
         (e["scenario_id"], e["variable"])
-        for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
+        for e in _load_json(_at_20260929(EXCLUSIONS_PATH))["exclusions"]
     }
     for record in _engine_upgrade()["excluded_outputs_rechecked"]:
         assert (record["scenario_id"], record["variable"]) in excluded_keys
@@ -2769,7 +2839,7 @@ def test_release_20260929_note() -> None:
     assert medicaid["reason_code"] == "reference_depends_on_unlisted_input"
     snap_exclusion = next(
         e
-        for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
+        for e in _load_json(_at_20260929(EXCLUSIONS_PATH))["exclusions"]
         if (e["scenario_id"], e["variable"]) == (MEDICAID_EXCLUSION[0], "snap")
     )
     assert (
@@ -2797,7 +2867,9 @@ def test_release_20260929_note() -> None:
         "head_medicaid_eligible"
     ] == (1.0)
     # The head's only disability fact is the general flag.
-    head = _person(_scenario_inputs()[MEDICAID_EXCLUSION[0]], "head")
+    head = _person(
+        _scenario_inputs(_at_20260929(RUN_DIR))[MEDICAID_EXCLUSION[0]], "head"
+    )
     assert head["is_disabled"] is True
     assert not {k for k in head if "disab" in k or "ssi" in k} - {"is_disabled"}
     pin(
@@ -2940,11 +3012,12 @@ def test_release_20260929_note() -> None:
 
 def test_previous_release_scores_rebuild_from_this_snapshot() -> None:
     """The drift baseline is the previous release's own board. Every model's
-    exact score, rebuilt from this snapshot's predictions with the upgrade and
-    the audit exclusion reverted, equals the score release
-    dashboard-data-20260922c published (the committed fixture of its asset's
-    scores); the current scores rebuild to this payload's. So the note's drift
-    comes from the reference revision and the audit exclusion alone."""
+    exact score, rebuilt from release 20260929's predictions (its commit's
+    snapshot) with the upgrade and the audit exclusion reverted, equals the
+    score release dashboard-data-20260922c published (the committed fixture of
+    its asset's scores); the current scores rebuild to release 20260929's
+    payload. So the note's drift comes from the reference revision and the
+    audit exclusion alone."""
     after = _exact_under(False)
     for row in _board_rows():
         assert after[row["model"]] == pytest.approx(row["exact"], abs=1e-9)
@@ -2961,7 +3034,8 @@ BBCE_UPDATE_RELEASE = "dashboard-data-20260929"
 def test_bbce_note_update_for_release_20260929() -> None:
     """The BBCE note keeps its release-20260922b figures and closes with a
     dated update for release dashboard-data-20260929, whose figures are
-    recomputed here, sentence by sentence, while that release is frozen."""
+    recomputed here, sentence by sentence, from that release's snapshot as its
+    commit holds it."""
     sys.path.insert(0, str(ROOT / "scripts"))
     from bbce_households_20260929 import (
         ASSET_HOUSEHOLDS,
@@ -2985,8 +3059,7 @@ def test_bbce_note_update_for_release_20260929() -> None:
         f"/notes/{RELEASE_NOTE}"
     )
     assert links["Arizona resident"] == "/?country=us&scenario=scenario_013#scenarios"
-    if _frozen_release() != BBCE_UPDATE_RELEASE:
-        return
+    assert _release_20260929_tag() == BBCE_UPDATE_RELEASE
 
     facts = note["facts"]
     text = " ".join(update)
@@ -2997,16 +3070,16 @@ def test_bbce_note_update_for_release_20260929() -> None:
             assert text.count(sentence) == 1, sentence
             pinned.append(sentence)
 
-    payload = _dashboard()
+    payload = _dashboard_20260929()
     snap = payload["scenarioPredictions"]
     board = sorted(row["model"] for row in _board_rows())
     regexes = {
         k: re.compile(v, re.IGNORECASE) for k, v in note["mentionRegexes"].items()
     }
 
-    # The committed rows regenerate from the frozen payload, with the note's
-    # own mention patterns, and their metas pin this release.
-    manifest = _load_json(ROOT / "paper/snapshot/20260501/manifest.json")
+    # The committed rows regenerate from release 20260929's payload, with the
+    # note's own mention patterns, and their metas pin that release.
+    manifest = _load_json(_at_20260929(SNAPSHOT_DIR / "manifest.json"))
     for output, (rows, households, patterns) in build(payload).items():
         assert _read_csv(output) == [
             {key: str(value) for key, value in row.items()} for row in rows
@@ -3016,7 +3089,9 @@ def test_bbce_note_update_for_release_20260929() -> None:
         assert meta["households"] == households
         assert meta["mention_patterns"] == patterns
         assert meta["rows"] == len(rows) == len(board) * len(households)
-        assert meta["run_payload_sha256"] == _sha256_file(run_payload_path(RUN_DIR))
+        assert meta["run_payload_sha256"] == _sha256_file(
+            run_payload_path(_at_20260929(RUN_DIR))
+        )
         assert (
             meta["release_payload_sha256"]
             == manifest["published_dashboard_artifact"]["sha256"]

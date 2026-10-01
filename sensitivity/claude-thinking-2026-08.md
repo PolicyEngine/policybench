@@ -46,7 +46,7 @@ runs also use the canonical whole-scenario request
 (`POLICYBENCH_CHUNK_OVERRIDE=none`); their deltas therefore combine two
 shape changes, while Claude Opus 5's isolates thinking alone.
 
-All ranks are on the 45-model board (2026-09-29). Scores are on the
+All ranks are on the 46-model board (2026-09-30). Scores are on the
 1,928 outputs the board scores; the 56 outputs `reference_exclusions.json`
 lists (engine defects, and references that depend on an input the prompt
 never states) are excluded for every model, sensitivity runs included. On
@@ -54,9 +54,9 @@ all 1,984 outputs the thinking runs scored 87.1, 85.8 and 80.3.
 
 | | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5 | 83.6 (#20) | **91.5** | +7.9 | **#7** | $0.541 → $0.323 | 54 | 1,984/1,984 |
-| Claude Opus 5 | 84.0 (#19) | **90.0** | +6.0 | #9 | $0.067 → $0.152 | 51 | 1,984/1,984 |
-| Claude Sonnet 5 | 72.6 (#43) | **84.8** | +12.2 | #19 | $0.086 | 64 | 1,928/1,984 |
+| Claude Fable 5 | 83.6 (#21) | **91.5** | +7.9 | **#7** | $0.541 → $0.323 | 54 | 1,984/1,984 |
+| Claude Opus 5 | 84.0 (#20) | **90.0** | +6.0 | #10 | $0.067 → $0.152 | 51 | 1,984/1,984 |
+| Claude Sonnet 5 | 72.6 (#44) | **84.8** | +12.2 | #20 | $0.086 | 64 | 1,928/1,984 |
 
 In this table and the Claude Fable 5.1 table below, deltas are differences of
 the unrounded scores, so a delta can differ by 0.1 from the difference of the
@@ -136,7 +136,7 @@ The sensitivity run for this model isolates request shape under thinking
 rather than thinking itself: the answer tool declared with `tool_choice:
 "auto"` (`POLICYBENCH_CONTRACT_OVERRIDE=tool` together with
 `POLICYBENCH_TOOL_CHOICE=auto`), against the JSON board row. Both rows
-reason. The ranks are on the 45-model board (2026-09-29).
+reason. The ranks are on the 46-model board (2026-09-30).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|

@@ -98,6 +98,20 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "provider-default reasoning (effort medium), like GPT-6 Astra."
         ),
     ),
+    "gpt-6.1-sol": ModelCard(
+        litellm_id="gpt-6.1-sol",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.021,
+        notes=(
+            "Onboarded 2026-09-29, the day OpenAI announced it: forced tool "
+            "contract passed 3/3 (735 completion tokens) and 16/16 "
+            "whole-scenario (1,626 tokens) on the Responses API with "
+            "provider-default reasoning (effort medium, per the model page), "
+            "like GPT-6 Sol. Probed before its card existed, it got the "
+            "384-token non-thinking budget and stopped incomplete."
+        ),
+    ),
     "gpt-6-luna": ModelCard(
         litellm_id="gpt-6-luna",
         answer_contract="tool",

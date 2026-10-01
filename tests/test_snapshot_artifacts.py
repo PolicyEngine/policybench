@@ -643,18 +643,21 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
+    # Release 20260930: release 20260929's counts plus GPT-6.1 Sol's 88 exact
+    # misses, every one annotated and classed llm_error (it parsed all 1,928
+    # scored outputs).
     expected_audit_counts = {
         "us": {
-            "annotated": 7_772,
-            "exact_misses": 7_768,
-            "annotated_exact_misses": 7_768,
+            "annotated": 7_860,
+            "exact_misses": 7_856,
+            "annotated_exact_misses": 7_856,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 9_799,
-            "unannotated_below_full_bounded_score": 2_027,
+            "below_full_bounded_score": 9_967,
+            "unannotated_below_full_bounded_score": 2_107,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 7_120, "parse_contract_failure": 652},
+        "us": {"llm_error": 7_208, "parse_contract_failure": 652},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())

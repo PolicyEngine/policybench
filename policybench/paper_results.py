@@ -157,6 +157,7 @@ def partition_engine_upgrade_changes(
 MODEL_DISPLAY_NAMES = {
     "gpt-6-astra": "GPT-6 Astra",
     "gpt-6-sol": "GPT-6 Sol",
+    "gpt-6.1-sol": "GPT-6.1 Sol",
     "gpt-6-luna": "GPT-6 Luna",
     "gpt-5.6-sol": "GPT-5.6 Sol",
     "gpt-5.6-terra": "GPT-5.6 Terra",
@@ -1799,6 +1800,8 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # openai.com/index/introducing-gpt-6-sol-and-luna (2026-09-22; API and
     # ChatGPT availability the same day per techcrunch.com 2026-09-22)
     "gpt-6-sol": "2026-09-22",
+    # OpenAI announced GPT-6.1 Sol at DevDay on 2026-09-29 (API id gpt-6.1-sol).
+    "gpt-6.1-sol": "2026-09-29",
     "gpt-6-luna": "2026-09-22",
     # piunikaweb.com 2026-04-17 SuperGrok beta (paid public tier)
     "grok-4.3": "2026-04-17",

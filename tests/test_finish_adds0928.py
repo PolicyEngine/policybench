@@ -864,6 +864,20 @@ def test_base_reference_bytes_are_checked_against_their_pins(monkeypatch):
         driver.base_reference_bytes("reference_outputs.csv")
 
 
+def _superseded(pointer: dict) -> bool:
+    """Whether a later release has replaced this one as the live pointer.
+
+    Release 20260929 is this driver's; once a later release (20260930, GPT-6.1
+    Sol) is frozen, this driver's re-export has no base to compare against
+    and must refuse rather than stage over the newer release.
+    """
+    if pointer["tag"] == driver.RELEASE_TAG:
+        return False
+    with pytest.raises(SystemExit, match="base pointer changed"):
+        driver.resolve_live_base(SimpleNamespace())
+    return True
+
+
 def test_a_re_export_after_the_freeze_gates_on_the_22c_asset(monkeypatch):
     """After the freeze the live pointer names this release, so a re-export
     reads the 22c payload from git and checks it against the 22c asset's
@@ -871,6 +885,8 @@ def test_a_re_export_after_the_freeze_gates_on_the_22c_asset(monkeypatch):
     pointer = json.loads((driver.ROOT / "app/src/data.artifact.json").read_text())
     if pointer["tag"] == driver.BASE_TAG:
         pytest.skip("this checkout is still at the 22c base")
+    if _superseded(pointer):
+        return
     live = driver.resolve_live_base(SimpleNamespace())
     stats = live["countries"]["us"]["modelStats"]
     assert len(stats) == 42
@@ -1055,6 +1071,8 @@ def test_a_re_export_after_the_freeze_gates_the_committed_exclusions(monkeypatch
     pointer = json.loads((driver.ROOT / "app/src/data.artifact.json").read_text())
     if pointer["tag"] == driver.BASE_TAG:
         pytest.skip("this checkout is still at the 22c base")
+    if _superseded(pointer):
+        return
     added = driver.check_exclusions(driver.reference_revision(), driver.SNAPSHOT)
     assert ("scenario_023", "head_medicaid_eligible") in added
     assert len(added) == 4

@@ -102,16 +102,16 @@ records the investigation and the independent review behind each.
 
 ## Audit scope
 
-The frozen US annotations cover 7,772 scored rows selected because their
-legacy threshold score is below 1 (2,065 further annotated rows sit on the 56
+The frozen US annotations cover 7,860 scored rows selected because their
+legacy threshold score is below 1 (2,111 further annotated rows sit on the 56
 excluded outputs and are description, not audit). This audit universe contains
-7,768 of the snapshot's 7,768 exact-match misses and four exact hits. Another
-2,027 scored rows have a bounded score below 100 but fall outside the
+7,856 of the snapshot's 7,856 exact-match misses and four exact hits. Another
+2,107 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
-CLI for 303 cases, Claude Opus 5 through the Claude Code CLI for the 132 cases
+CLI for 298 cases, Claude Opus 5 through the Claude Code CLI for the 116 cases
 the September 5 additions joined that no later judge re-judged, and Claude Opus
-5.5 for 239 cases the September 22 and September 29 additions joined or a
+5.5 for 260 cases the September 22, September 29 and September 30 additions joined or a
 reference revision changed; the
 manifest's audit_annotation_artifacts.judge_provenance block carries the tally.
 Verdicts change no score. A judge verdict outside the final classes, and every
@@ -274,7 +274,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-09-29 snapshot scores
+- Activation is a snapshot decision: the current 2026-09-30 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should

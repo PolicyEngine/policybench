@@ -8,11 +8,11 @@ Top model: `gpt-6-sol` with `bounded_score=0.980` and `within_1pct=0.959`.
 
 ## Usage
 
-Recorded-usage cost subtotal (42 of 45 models): $448.339.
+Recorded-usage cost subtotal (43 of 46 models): $450.639.
 
-Published model costs total $512.418 (includes release-metadata costs for: claude-fable-5, gemini-3.6-flash, grok-build-0.1).
+Published model costs total $514.719 (includes release-metadata costs for: claude-fable-5, gemini-3.6-flash, grok-build-0.1).
 
-Cumulative request-time: `11265.4 min` (summed across concurrent calls; not wall-clock). Run wall-clock: `127776.2 min`.
+Cumulative request-time: `11326.1 min` (summed across concurrent calls; not wall-clock). Run wall-clock: `129046.0 min`.
 
 | model | total_cost_usd | cost_rows_estimated | cumulative_request_time | wall_clock | total_tokens | reasoning_tokens | parsed_rows | total_rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -49,6 +49,7 @@ Cumulative request-time: `11265.4 min` (summed across concurrent calls; not wall
 | gpt-6-astra | 12.640 | 0 | 61.4 min | 307.1 min | 450016.000 | 114690.000 | 1984 | 1984 |
 | gpt-6-luna | 0.191 | 0 | 51.2 min | 152.1 min | 576729.000 | 239727.000 | 1984 | 1984 |
 | gpt-6-sol | 2.710 | 0 | 40.1 min | 150.3 min | 466450.000 | 137755.000 | 1984 | 1984 |
+| gpt-6.1-sol | 2.300 | 0 | 60.7 min | 204.9 min | 424952.000 | 89656.000 | 1984 | 1984 |
 | grok-4.3 | 1.541 | 1984 | 43.6 min | n/a | 1022867.000 | 149054.000 | 1984 | 1984 |
 | grok-4.5 | 7.268 | 1968 | 196.7 min | 80.7 min | 1502083.000 | 986107.000 | 1984 | 1984 |
 | grok-4.6 | 8.701 | 1984 | 386.1 min | 147.2 min | 1722142.000 | 1157238.000 | 1984 | 1984 |
@@ -76,6 +77,7 @@ Cumulative request-time: `11265.4 min` (summed across concurrent calls; not wall
 | claude-fable-5.1 | 0.978 | 0.948 | 0.957 | 0.965 | 0.971 | 0.985 | 40.483 | 1928 |
 | inkling | 0.968 | 0.924 | 0.936 | 0.945 | 0.953 | 0.993 | 52.122 | 1928 |
 | gemini-3.8-flash | 0.972 | 0.922 | 0.926 | 0.948 | 0.956 | 0.990 | 60.429 | 1928 |
+| gpt-6.1-sol | 0.979 | 0.952 | 0.954 | 0.961 | 0.967 | 0.985 | 26.741 | 1928 |
 | gemini-3.6-flash | 0.968 | 0.909 | 0.914 | 0.934 | 0.942 | 0.991 | 63.156 | 1928 |
 | gpt-5.6-terra | 0.964 | 0.925 | 0.934 | 0.945 | 0.954 | 0.985 | 54.846 | 1928 |
 | gpt-5.5 | 0.965 | 0.925 | 0.930 | 0.944 | 0.953 | 0.975 | 52.641 | 1928 |
@@ -151,6 +153,7 @@ Households receive equal weight. The score is a weighted average of row scores: 
 | gpt-6-astra | 0.970 | 0.909 | 0.987 |
 | gpt-6-luna | 0.974 | 0.890 | 0.982 |
 | gpt-6-sol | 0.980 | 0.905 | 0.987 |
+| gpt-6.1-sol | 0.956 | 0.898 | 0.982 |
 | grok-4.3 | 0.891 | 0.694 | 0.949 |
 | grok-4.5 | 0.937 | 0.811 | 0.976 |
 | grok-4.6 | 0.949 | 0.834 | 0.979 |
@@ -171,21 +174,21 @@ Amount variables use the tolerance columns. Binary coverage flags use `mean_accu
 
 | variable | metric_type | mean_score | mean_exact | mean_within_1pct | mean_within_5pct | mean_within_10pct | mean_accuracy | mean_mae | total_n |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| federal_income_tax_before_refundable_credits | amount_tolerance | 0.825 | 0.611 | 0.631 | 0.683 | 0.714 | n/a | 839.639 | 3690 |
-| federal_refundable_credits | amount_tolerance | 0.918 | 0.866 | 0.878 | 0.890 | 0.902 | n/a | 176.762 | 4410 |
-| free_school_meals_eligible | binary_accuracy | 0.979 | 0.979 | 0.979 | 0.979 | 0.979 | 0.979 | 0.017 | 4500 |
-| local_income_tax | amount_tolerance | 0.993 | 0.993 | 0.993 | 0.993 | 0.993 | n/a | 6.508 | 4500 |
-| payroll_tax | amount_tolerance | 0.949 | 0.783 | 0.818 | 0.865 | 0.907 | n/a | 273.156 | 4455 |
-| person_chip_eligible | binary_accuracy | 0.957 | 0.957 | 0.957 | 0.957 | 0.957 | 0.957 | 0.036 | 7965 |
-| person_early_head_start_eligible | binary_accuracy | 0.983 | 0.983 | 0.983 | 0.983 | 0.983 | 0.983 | 0.011 | 1710 |
-| person_head_start_eligible | binary_accuracy | 0.971 | 0.971 | 0.971 | 0.971 | 0.971 | 0.971 | 0.023 | 1710 |
-| person_medicaid_eligible | binary_accuracy | 0.921 | 0.921 | 0.921 | 0.921 | 0.921 | 0.921 | 0.073 | 7785 |
-| person_medicare_eligible | binary_accuracy | 0.974 | 0.974 | 0.974 | 0.974 | 0.974 | 0.974 | 0.022 | 7740 |
-| person_wic_eligible | binary_accuracy | 0.979 | 0.979 | 0.979 | 0.979 | 0.979 | 0.979 | 0.016 | 7965 |
-| reduced_price_school_meals_eligible | binary_accuracy | 0.985 | 0.985 | 0.985 | 0.985 | 0.985 | 0.985 | 0.011 | 4500 |
-| self_employment_tax | amount_tolerance | 0.976 | 0.970 | 0.975 | 0.975 | 0.976 | n/a | 23.596 | 4500 |
-| snap | amount_tolerance | 0.894 | 0.840 | 0.853 | 0.873 | 0.879 | n/a | 225.457 | 4185 |
-| ssi | amount_tolerance | 0.987 | 0.977 | 0.980 | 0.983 | 0.984 | n/a | 79.599 | 4365 |
-| state_income_tax_before_refundable_credits | amount_tolerance | 0.840 | 0.641 | 0.664 | 0.721 | 0.758 | n/a | 218.256 | 3870 |
-| state_refundable_credits | amount_tolerance | 0.853 | 0.818 | 0.818 | 0.823 | 0.826 | n/a | 62.021 | 4410 |
-| tanf | amount_tolerance | 0.988 | 0.984 | 0.985 | 0.985 | 0.985 | n/a | 43.727 | 4500 |
+| federal_income_tax_before_refundable_credits | amount_tolerance | 0.827 | 0.616 | 0.636 | 0.687 | 0.718 | n/a | 826.301 | 3772 |
+| federal_refundable_credits | amount_tolerance | 0.919 | 0.868 | 0.880 | 0.893 | 0.904 | n/a | 173.006 | 4508 |
+| free_school_meals_eligible | binary_accuracy | 0.980 | 0.980 | 0.980 | 0.980 | 0.980 | 0.980 | 0.017 | 4600 |
+| local_income_tax | amount_tolerance | 0.993 | 0.993 | 0.993 | 0.993 | 0.993 | n/a | 6.366 | 4600 |
+| payroll_tax | amount_tolerance | 0.950 | 0.785 | 0.819 | 0.866 | 0.907 | n/a | 269.028 | 4554 |
+| person_chip_eligible | binary_accuracy | 0.958 | 0.958 | 0.958 | 0.958 | 0.958 | 0.958 | 0.036 | 8142 |
+| person_early_head_start_eligible | binary_accuracy | 0.983 | 0.983 | 0.983 | 0.983 | 0.983 | 0.983 | 0.011 | 1748 |
+| person_head_start_eligible | binary_accuracy | 0.971 | 0.971 | 0.971 | 0.971 | 0.971 | 0.971 | 0.023 | 1748 |
+| person_medicaid_eligible | binary_accuracy | 0.922 | 0.922 | 0.922 | 0.922 | 0.922 | 0.922 | 0.072 | 7958 |
+| person_medicare_eligible | binary_accuracy | 0.972 | 0.972 | 0.972 | 0.972 | 0.972 | 0.972 | 0.023 | 7912 |
+| person_wic_eligible | binary_accuracy | 0.979 | 0.979 | 0.979 | 0.979 | 0.979 | 0.979 | 0.015 | 8142 |
+| reduced_price_school_meals_eligible | binary_accuracy | 0.985 | 0.985 | 0.985 | 0.985 | 0.985 | 0.985 | 0.011 | 4600 |
+| self_employment_tax | amount_tolerance | 0.976 | 0.970 | 0.975 | 0.976 | 0.976 | n/a | 23.083 | 4600 |
+| snap | amount_tolerance | 0.895 | 0.842 | 0.855 | 0.874 | 0.880 | n/a | 221.958 | 4278 |
+| ssi | amount_tolerance | 0.987 | 0.977 | 0.981 | 0.984 | 0.985 | n/a | 77.869 | 4462 |
+| state_income_tax_before_refundable_credits | amount_tolerance | 0.842 | 0.643 | 0.667 | 0.724 | 0.761 | n/a | 214.939 | 3956 |
+| state_refundable_credits | amount_tolerance | 0.855 | 0.819 | 0.820 | 0.825 | 0.828 | n/a | 61.134 | 4508 |
+| tanf | amount_tolerance | 0.988 | 0.985 | 0.985 | 0.985 | 0.985 | n/a | 43.135 | 4600 |

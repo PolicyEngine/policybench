@@ -264,12 +264,13 @@ def test_current_board_copy_makes_no_identical_request_claim():
 
 def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     counts = _audit_counts_from_frozen_files()
+    # Release 20260929's counts plus GPT-6.1 Sol's 88 exact misses.
     assert counts == {
-        "annotated": 7_772,
-        "exact_misses": 7_768,
-        "annotated_exact_misses": 7_768,
+        "annotated": 7_860,
+        "exact_misses": 7_856,
+        "annotated_exact_misses": 7_856,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 2_027,
+        "unannotated_below_full_bounded_score": 2_107,
     }
 
     for path in (
