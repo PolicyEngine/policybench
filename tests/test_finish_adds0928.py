@@ -1085,7 +1085,6 @@ def test_a_re_export_after_the_freeze_gates_the_committed_exclusions(monkeypatch
 # pass. Registering each with monkeypatch restores it after the test.
 FREEZER_ASSIGNED = (
     "SNAPSHOT_DATE",
-    "MODEL_RESPONSE_DATE",
     "SOURCE_RUN",
     "SOURCE_US",
     "SOURCE_ANNOTATIONS",
