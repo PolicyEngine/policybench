@@ -48,7 +48,7 @@ import json
 import re
 import shutil
 import subprocess
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -85,7 +85,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
 SNAPSHOT_DATE = "2026-09-22"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-09-22"
+# The response window runs from the first wave to the last answer. The first
+# waves' rows carry no request timestamps, so the start is the run label's date
+# (us_full_run_20260612); the end is derived from the predictions
+# (model_response_window), never taken from the release date.
+MODEL_RESPONSE_START = "2026-06-12"
+# A driver may name the window it expects; the freeze refuses unless the
+# predictions give the same one. None names no window.
+MODEL_RESPONSE_DATE: str | None = None
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
 # Completed runs live under the main clone's gitignored results/local. A
@@ -441,6 +448,67 @@ def developer_adjudications_block(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
             "entries the judge flagged."
         ),
     }
+
+
+REQUEST_TIMESTAMP_COLUMNS = ("request_started_at", "request_completed_at")
+
+
+def _utc_date(seconds: float) -> date:
+    """The UTC calendar date of a Unix time, on any machine's clock.
+
+    Floor division, not ``datetime.fromtimestamp``, whose microsecond rounding
+    can carry a time just before midnight into the next day.
+    """
+    return date(1970, 1, 1) + timedelta(days=int(seconds // 86_400))
+
+
+def model_response_window(
+    predictions: Path, start: str, expected: str | None = None
+) -> str:
+    """The ``'<start> to <end>'`` window the predictions' answers fall in.
+
+    ``end`` is the UTC date of the latest ``request_completed_at`` (Unix
+    seconds) the predictions record, whatever the release is called and
+    wherever it is frozen. Rows without timestamps (the first waves, which
+    predate the columns, and the batch adapter's) cannot move it. ``start`` is
+    configured, since those first waves recorded no time. Every timestamp the
+    predictions do record must fall inside the window, by UTC date. Refuses
+    predictions that time no answer, and an ``expected`` window that differs.
+    """
+    columns = list(REQUEST_TIMESTAMP_COLUMNS)
+    missing = set(columns) - set(pd.read_csv(predictions, nrows=0).columns)
+    if missing:
+        raise SystemExit(
+            f"{predictions} has no {', '.join(sorted(missing))} column; "
+            "cannot date the model response window"
+        )
+    frame = pd.read_csv(predictions, usecols=columns, dtype="float64")
+    completed = frame["request_completed_at"].dropna()
+    if completed.empty:
+        raise SystemExit(
+            f"{predictions} times no answer; cannot date the model response window"
+        )
+    first, end = date.fromisoformat(start), _utc_date(completed.max())
+    timed = frame.to_numpy()
+    earliest, latest = _utc_date(np.nanmin(timed)), _utc_date(np.nanmax(timed))
+    if earliest < first:
+        raise SystemExit(
+            f"{predictions} records a request on {earliest}, before the "
+            f"configured model response start {start}"
+        )
+    if latest > end:
+        raise SystemExit(
+            f"{predictions} records a request on {latest}, after its last "
+            f"answer ({end})"
+        )
+    window = f"{first.isoformat()} to {end.isoformat()}"
+    if expected is not None and expected != window:
+        raise SystemExit(
+            f"The configured model response window ({expected}) is not the "
+            f"predictions' ({window}): the window ends on the last answer's "
+            "UTC date, not the release date"
+        )
+    return window
 
 
 def _response_window_phrase(window: str) -> str:
@@ -1477,6 +1545,7 @@ def build_manifest(
     run_files: dict[str, str],
     committed: dict[str, str],
     annotation_files: dict[str, str],
+    response_window: str,
 ) -> dict:
     reference_refresh = read_reference_refresh()
     engine_setup = read_reference_engine_setup()
@@ -1532,7 +1601,7 @@ def build_manifest(
             "artifacts copied under "
             f"paper/snapshot/{SNAPSHOT_DIR_NAME}/runs/.",
             "Model responses were collected in waves between "
-            f"{_response_window_phrase(MODEL_RESPONSE_DATE)}, as models were "
+            f"{_response_window_phrase(response_window)}, as models were "
             "added to the board; each model's full 100-household run is a "
             "single consistent wave. PolicyBench computes each scored "
             "reference output with policyengine_us.Simulation from "
@@ -1567,7 +1636,7 @@ def build_manifest(
             "run metadata (scenarios.csv.meta.json) records the "
             "populace_us_2024 build actually loaded.",
             "Model APIs and upstream model aliases may change after the "
-            f"recorded {MODEL_RESPONSE_DATE} response window, so exact "
+            f"recorded {response_window} response window, so exact "
             "reruns can diverge even with the committed household inputs, "
             "reference outputs, parsed dashboard export, and analysis "
             "summaries.",
@@ -1583,7 +1652,7 @@ def build_manifest(
                 "subsets per model as recorded in model_serving_config.json."
             ),
         },
-        "model_response_date": MODEL_RESPONSE_DATE,
+        "model_response_date": response_window,
         "reference_output_refresh": reference_refresh,
         "household_dataset": household_dataset,
         "files": [
@@ -1764,13 +1833,17 @@ def main() -> None:
         raise SystemExit(f"Published dashboard not found: {PUBLISHED_DASHBOARD_SOURCE}")
     if not REFERENCE_META_SOURCE.exists():
         raise SystemExit(f"Reference metadata not found: {REFERENCE_META_SOURCE}")
+    # Dated from the rows freeze_run gzips into the snapshot, before any write.
+    response_window = model_response_window(
+        SOURCE_US / "predictions.csv", MODEL_RESPONSE_START, MODEL_RESPONSE_DATE
+    )
 
     remove_stale_artifacts()
     run_files = freeze_run()
     committed = freeze_committed_artifacts()
     annotation_files = freeze_annotations()
 
-    manifest = build_manifest(run_files, committed, annotation_files)
+    manifest = build_manifest(run_files, committed, annotation_files, response_window)
     # Pin the rendered-paper block to the served files. Falls back to the block
     # already recorded in the manifest when the paper has not been rendered yet.
     try:

@@ -956,6 +956,62 @@ def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
     assert refresh["date"] <= refresh["snapshot_date"]
 
 
+def _frozen_run_dir(manifest: dict) -> Path:
+    run_label = manifest["source_run_labels"]["us"]
+    return ROOT / manifest["source_run_artifacts"][run_label]["path"]
+
+
+def test_frozen_predictions_and_usage_summary_agree_on_the_last_answer():
+    """Two computations of the last answer agree: the freezer's window, from
+    the frozen predictions, and the frozen usage summary's latest
+    last_request_at, which policybench.analysis aggregates per model."""
+    from scripts.freeze_snapshot import _utc_date, model_response_window
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    run_dir = _frozen_run_dir(manifest)
+    start = manifest["model_response_date"].split(" to ")[0]
+    window = model_response_window(run_dir / "predictions.csv.gz", start)
+    usage = pd.read_csv(run_dir / "analysis" / "usage_summary.csv")
+    assert window == f"{start} to {_utc_date(usage['last_request_at'].max())}"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "Release dashboard-data-20260930 dated the window's end by its tag "
+        "(2026-09-30); the last answer is 2026-09-29 UTC. Whether to refreeze "
+        "now or at the next freeze is Max's call (cos decision d831). "
+        "Remove this mark with the freeze that corrects the manifest."
+    ),
+)
+def test_model_response_window_ends_on_the_last_frozen_answer():
+    """The manifest's window ends on the UTC date of the last answer the frozen
+    predictions record, not on the release date, and its reproducibility
+    notes state the same window."""
+    from scripts.freeze_snapshot import _response_window_phrase, model_response_window
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    start = manifest["model_response_date"].split(" to ")[0]
+    window = model_response_window(
+        _frozen_run_dir(manifest) / "predictions.csv.gz", start
+    )
+    assert manifest["model_response_date"] == window
+    notes = " ".join(manifest["reproducibility_notes"])
+    assert f"between {_response_window_phrase(window)}, as models" in notes
+    assert f"recorded {window} response window" in notes
+
+
+def test_rendered_paper_states_the_manifest_response_window():
+    """The rendered manuscript's snapshot table names the manifest's window, so
+    a manifest corrected without a re-render fails here."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    web = ROOT / manifest["rendered_paper_artifacts"]["web"]["path"]
+    page = (web / "index.html").read_text()
+    cells = re.findall(r"<td>Model response date</td>\s*<td>([^<]*)</td>", page)
+    assert cells == [manifest["model_response_date"]]
+
+
 def test_app_copy_of_serving_configuration_matches_the_frozen_file():
     """The scenario explorer bundles a copy of the frozen serving config.
 
