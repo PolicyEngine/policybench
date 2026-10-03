@@ -771,3 +771,42 @@ def test_probe_that_fails_before_sending_records_no_budget(scenario):
     assert report.probes[0].timeout_seconds is None
     assert "s of ?, tokens=None of ?," in format_report(report)
     assert card_for("openrouter/example/broken") is None
+
+
+def test_failed_request_records_the_budget_and_timeout_it_was_sent_with(scenario):
+    """A probe whose request raises (a refusal, a timeout) still records the
+    budget and timeout it ran under, so a timed-out probe can be diagnosed."""
+    with patch(
+        "policybench.onboard.completion",
+        side_effect=RuntimeError("BadRequestError: tool_choice is not supported"),
+    ):
+        report = run_gauntlet("openrouter/example/refuser", scenario, FULL_VARS)
+
+    assert [probe.name for probe in report.probes] == ["tool-3var", "json-3var"]
+    assert all(probe.error for probe in report.probes)
+    assert [(p.completion_budget, p.timeout_seconds) for p in report.probes] == [
+        (16_384, 300),
+        (16_384, 300),
+    ]
+    assert "s of 300s, tokens=None of 16384, finish=None)" in format_report(report)
+
+
+def test_derived_card_follows_the_provisional_probe_card(scenario):
+    """The suggested card is the provisional card plus the probe findings, so
+    any field the probes ran under carries into the suggestion."""
+    model_id = "openrouter/example/long-reasoner"
+    capped = ModelCard(
+        litellm_id=model_id, thinking_budget=True, completion_token_cap=49_152
+    )
+    calls = []
+    with (
+        patch("policybench.onboard.provisional_probe_card", return_value=capped),
+        _provider(_answer_every_probe(calls)),
+    ):
+        report = run_gauntlet(model_id, scenario, FULL_VARS)
+
+    assert [call["max_completion_tokens"] for call in calls] == [49_152, 49_152]
+    assert report.probe_card is capped
+    assert report.card.completion_token_cap == 49_152
+    assert report.card.thinking_budget is True
+    assert card_for(model_id) is None
