@@ -678,6 +678,39 @@ def test_the_freeze_refuses_a_stage_edited_after_its_pin_was_committed(
     assert workspace_files() == before
 
 
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("where", ["unlisted_case", "parse_only_case", "sidecar_alone"])
+def test_the_freeze_refuses_a_verdict_outside_the_judged_cases(
+    staged_board, monkeypatch, where, dry_run
+):
+    """The snapshot manifest's judge tally counts every case directory that
+    holds a verdict.json. A verdict and its bound sidecar added after export
+    to a case cases.jsonl does not list, or to a parse-failure-only case, are
+    bound by no receipt entry and checked by no other gate; so is a sidecar
+    alone. Each is refused before any later gate and any workspace mutation."""
+    stage, rebind = staged_board
+    for name in driver.REFERENCE_FILES:
+        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    rebind()
+    monkeypatch.setattr(release, "verify_judge_provenance", _reached("next gate"))
+    cases = stage / "audit/cases"
+    case = {
+        "unlisted_case": "us__scenario_999__snap",
+        "parse_only_case": "us__scenario_001__snap",
+        "sidecar_alone": "us__scenario_999__snap",
+    }[where]
+    (cases / case).mkdir(exist_ok=True)
+    meta = json.loads((cases / KEPT / "verdict.meta.json").read_text())
+    meta["judge_model_requested"] = "claude-opus-5-5"
+    if where != "sidecar_alone":
+        shutil.copyfile(cases / KEPT / "verdict.json", cases / case / "verdict.json")
+    (cases / case / "verdict.meta.json").write_text(json.dumps(meta))
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=f"not judged cases in cases.jsonl.*{case}"):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
 def _commit(root: Path, message: str) -> None:
     """Commit everything in a scratch repository, with no user hooks or keys."""
     git = ["git", "-C", str(root), "-c", "core.hooksPath=/dev/null"]

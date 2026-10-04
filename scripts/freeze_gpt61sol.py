@@ -478,7 +478,8 @@ def main(argv: list[str] | None = None) -> None:
     payload_path = stage / f"data-board{BOARD_MODELS}.json"
     receipt = verify_receipt(stage, payload_path, args.tag)
     # The receipt binds the stage only by hashes stored beside it; its pin,
-    # committed at HEAD, makes any later edit to the stage a visible commit.
+    # committed at HEAD, means a file the receipt binds can change after
+    # export, its receipt re-hashed to match, only with a visible commit.
     driver.verify_release_receipt(stage, payload_path, args.tag)
     # GPT-6.1 Sol's run files are the committed pins' and its bundle rows are
     # its run file's, every column: its cost, tokens and latency included.

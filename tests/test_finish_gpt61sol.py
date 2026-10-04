@@ -1092,6 +1092,29 @@ def test_a_kept_sidecar_must_be_the_seeds(seeded_stage, changes):
     assert sorted(p.name for p in kept.iterdir()) == before
 
 
+@pytest.mark.parametrize(
+    "files", [("verdict.json", "verdict.meta.json"), ("verdict.meta.json",)]
+)
+def test_a_verdict_outside_the_judged_cases_is_refused(seeded_stage, files):
+    """A verdict or sidecar in a case directory cases.jsonl does not list as
+    judged would be counted by the snapshot manifest's judge tally and checked
+    by nothing else; every step that validates verdicts refuses it."""
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    write_verdict(audit / "cases/us__s0__snap", _verdict(["m1", "m2", NEW]))
+    seed = driver.load_seed(stage)
+    assert driver.validate_verdicts(audit, seed=seed) == []
+    stray = audit / "cases/us__s9__snap"
+    stray.mkdir()
+    for name in files:
+        shutil.copyfile(audit / "cases/us__s1__snap" / name, stray / name)
+    with pytest.raises(
+        SystemExit, match="not judged cases in cases.jsonl.*us__s9__snap"
+    ):
+        driver.validate_verdicts(audit, seed=seed)
+    assert sorted(path.name for path in stray.iterdir()) == sorted(files)
+
+
 @pytest.mark.parametrize("move", ["kept_to_changed", "changed_to_kept", "dropped"])
 def test_prompt_changes_that_disagree_with_the_stage_stop_every_step(
     seeded_stage, move

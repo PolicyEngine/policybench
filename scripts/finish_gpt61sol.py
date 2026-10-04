@@ -1659,6 +1659,26 @@ def set_aside(audit: Path, case_id: str, reason: str) -> None:
             os.replace(path, target / path.name)
 
 
+def stray_verdicts(audit: Path, manifest: dict[str, dict]) -> list[str]:
+    """Case directories that hold a verdict.json or verdict.meta.json but are
+    not a judged case of ``manifest`` (cases.jsonl, keyed by case id): a case
+    it does not list, or a parse-failure-only one.
+
+    freeze_snapshot.audit_judge_provenance tallies the judge of every case
+    directory holding a verdict.json, from its sidecar, for the snapshot
+    manifest; validate_verdicts checks only the manifest's judged cases.
+    """
+    judged = {case for case, item in manifest.items() if not item["parse_failure_only"]}
+    return sorted(
+        {
+            path.parent.name
+            for name in ("verdict.json", "verdict.meta.json")
+            for path in (audit / "cases").glob(f"*/{name}")
+            if path.parent.name not in judged
+        }
+    )
+
+
 def validate_verdicts(
     audit: Path,
     remove_invalid: bool = False,
@@ -1674,7 +1694,8 @@ def validate_verdicts(
     A verdict naming GPT-6.1 Sol also needs bound Opus 5.5 provenance. Returns
     the pending cases; ``remove_invalid`` sets their verdicts aside. A
     carried-over verdict that fails is refused outright: a re-judge cannot
-    restore it.
+    restore it. A verdict or sidecar in any other case directory is refused
+    too (stray_verdicts).
     """
     import jsonschema
 
@@ -1683,6 +1704,13 @@ def validate_verdicts(
         item["case_id"]: item
         for item in map(json.loads, (audit / "cases.jsonl").read_text().splitlines())
     }
+    stray = stray_verdicts(audit, manifest)
+    require(
+        not stray,
+        f"{len(stray)} audit case directories hold a verdict or sidecar but are "
+        f"not judged cases in cases.jsonl: {stray[:8]}; the snapshot manifest's "
+        "judge tally would count them, and no gate checks them",
+    )
     seed = seed or {}
     pending, refused = [], []
     for case_id, item in manifest.items():
