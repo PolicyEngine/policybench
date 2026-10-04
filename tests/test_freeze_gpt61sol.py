@@ -637,7 +637,9 @@ def test_payload_differences_name_the_first_differing_paths():
 
 
 @pytest.mark.parametrize("dry_run", [True, False])
-@pytest.mark.parametrize("defect", ["edited_kept", "unbound_new"])
+@pytest.mark.parametrize(
+    "defect", ["edited_kept", "edited_kept_sidecar", "unbound_new"]
+)
 def test_the_freeze_refuses_a_verdict_edited_after_export(
     staged_board, monkeypatch, defect, dry_run
 ):
@@ -658,6 +660,13 @@ def test_the_freeze_refuses_a_verdict_edited_after_export(
         meta["verdict_sha256"] = sha(case / "verdict.json")
         (case / "verdict.meta.json").write_text(json.dumps(meta))
         message = f"carried-over verdicts differ.*{KEPT}"
+    elif defect == "edited_kept_sidecar":
+        # The judge the snapshot manifest tallies, rewritten; the sidecar
+        # still binds the seed's verdict bytes.
+        meta = json.loads((case / "verdict.meta.json").read_text())
+        meta["judge_model_requested"] = "claude-opus-5-5"
+        (case / "verdict.meta.json").write_text(json.dumps(meta))
+        message = f"carried-over verdicts differ.*{KEPT}.*sidecar is not the seed's"
     else:
         monkeypatch.setattr(driver, "load_seed", lambda stage: {})
         message = f"fail validation.*{KEPT}"

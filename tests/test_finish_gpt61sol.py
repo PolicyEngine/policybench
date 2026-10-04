@@ -1033,6 +1033,65 @@ def test_bind_seed_binds_a_stage_prepared_before_prepare_did(seeded_stage):
         driver.bind_seed(args)
 
 
+def test_bind_seed_adds_the_sidecars_to_a_binding_made_before_them(seeded_stage):
+    """A stage bound when the digest held prompts and verdicts alone (as the
+    real stage was) is bound again with each case's sidecar sha256; until
+    then every read of the seed refuses it. A binding of another seed is
+    refused, not extended."""
+    seed, stage, prepare = seeded_stage
+    prepare(JOINS_S0)
+    receipt = json.loads((stage / "stage.json").read_text())
+    full = receipt["seed"]
+    receipt["seed"] = {
+        case: {key: item[key] for key in ("prompt_sha256", "verdict_sha256")}
+        for case, item in full.items()
+    }
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    with pytest.raises(SystemExit, match="binds it again with --step bind-seed"):
+        driver.load_seed(stage)
+    args = SimpleNamespace(stage_dir=stage, audit_seed=seed)
+    driver.bind_seed(args)
+    assert driver.load_seed(stage) == full
+    receipt["seed"]["us__s1__snap"]["verdict_sha256"] = "0" * 64
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    with pytest.raises(SystemExit, match="binds another audit seed"):
+        driver.bind_seed(args)
+
+
+def _edit_sidecar(case: Path, **changes) -> None:
+    """Rewrite a verdict's sidecar, its verdict_sha256 kept."""
+    meta = json.loads((case / "verdict.meta.json").read_text())
+    meta.update(changes)
+    (case / "verdict.meta.json").write_text(json.dumps(meta))
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"judge_model_requested": "claude-opus-5-5"},
+        {"judge_runner": "a Workflow subagent"},
+        {"judged_at_utc": "2026-09-30T05:00:00+00:00"},
+    ],
+)
+def test_a_kept_sidecar_must_be_the_seeds(seeded_stage, changes):
+    """A carried-over verdict's sidecar names the judge, runner and date the
+    snapshot manifest tallies; one rewritten with its verdict_sha256 kept is
+    refused, not re-judged."""
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    write_verdict(audit / "cases/us__s0__snap", _verdict(["m1", "m2", NEW]))
+    seed = driver.load_seed(stage)
+    assert driver.validate_verdicts(audit, seed=seed) == []
+    kept = audit / "cases/us__s1__snap"
+    _edit_sidecar(kept, **changes)
+    before = sorted(p.name for p in kept.iterdir())
+    with pytest.raises(
+        SystemExit, match="carried-over verdicts differ.*sidecar is not the seed's"
+    ):
+        driver.validate_verdicts(audit, remove_invalid=True, seed=seed)
+    assert sorted(p.name for p in kept.iterdir()) == before
+
+
 @pytest.mark.parametrize("move", ["kept_to_changed", "changed_to_kept", "dropped"])
 def test_prompt_changes_that_disagree_with_the_stage_stop_every_step(
     seeded_stage, move
@@ -1140,7 +1199,9 @@ def test_a_malformed_amendment_file_is_refused(tmp_path, payload):
         driver.load_amendments(tmp_path, frozenset())
 
 
-@pytest.mark.parametrize("defect", ["kept_verdict", "kept_prompt", "changed_prompt"])
+@pytest.mark.parametrize(
+    "defect", ["kept_verdict", "kept_sidecar", "kept_prompt", "changed_prompt"]
+)
 def test_bind_seed_refuses_a_stage_that_disagrees_with_the_seed(seeded_stage, defect):
     seed, stage, prepare = seeded_stage
     audit = prepare(JOINS_S0)
@@ -1149,6 +1210,8 @@ def test_bind_seed_refuses_a_stage_that_disagrees_with_the_seed(seeded_stage, de
     (stage / "stage.json").write_text(json.dumps(receipt))
     if defect == "kept_verdict":
         (audit / "cases/us__s1__snap/verdict.json").write_text("{}")
+    elif defect == "kept_sidecar":
+        _edit_sidecar(audit / "cases/us__s1__snap", judge_model_requested="opus")
     elif defect == "kept_prompt":
         (audit / "cases/us__s1__snap/prompt.md").write_text("Another prompt.\n")
     else:
@@ -1216,11 +1279,11 @@ def test_the_pinned_grounding_is_the_one_the_20260929_stage_used():
 
 def _committed_seed_digest() -> dict[str, dict[str, str]]:
     lines = driver.SEED_DIGEST.read_text().splitlines()
-    assert lines[0] == "case_id,prompt_sha256,verdict_sha256"
+    assert lines[0] == "case_id,prompt_sha256,verdict_sha256,meta_sha256"
     rows = [line.split(",") for line in lines[1:]]
     return {
-        case: {"prompt_sha256": prompt, "verdict_sha256": verdict}
-        for case, prompt, verdict in rows
+        case: {"prompt_sha256": prompt, "verdict_sha256": verdict, "meta_sha256": meta}
+        for case, prompt, verdict, meta in rows
     }
 
 

@@ -156,11 +156,13 @@ BASE_REFERENCE_SHA256 = {
 # different grounding would silently invalidate carried-over verdicts.
 GROUNDING_SHA256 = "b1e4a9bc74d762f410524a147efcda7d705c3afcfa3dc27f720fa60c54a7b55c"
 # The seed: every judged case of the 20260929 audit, with the sha256 of its
-# prompt and of its verdict, committed at docs/gpt61sol/seed_digest.csv. This
-# pins that file's bytes; prepare refuses any other seed and binds this one in
-# stage.json, and a carried-over verdict must keep the seed's bytes.
+# prompt, its verdict and its verdict's sidecar, committed at
+# docs/gpt61sol/seed_digest.csv. This pins that file's bytes; prepare refuses
+# any other seed and binds this one in stage.json, and a carried-over verdict
+# and its sidecar must keep the seed's bytes.
 SEED_DIGEST = ROOT / "docs/gpt61sol/seed_digest.csv"
-SEED_DIGEST_SHA256 = "a94e96970113c4fb38dad9ec5a00fb430f026370a6b63ccffeefaae44436fe3d"
+SEED_DIGEST_SHA256 = "e80ec95ee4440f252df87aa16cee3113e4345dff4b9cd66a7bba9039bf8b1326"
+SEED_FIELDS = ("prompt_sha256", "verdict_sha256", "meta_sha256")
 # GPT-6.1 Sol's supervised run as it finished, pinned outside the stage: the
 # sha256 of the run directory's predictions.csv and run_state.json, which
 # --step pin-inputs writes here. Export and the freeze read the file as
@@ -1183,15 +1185,21 @@ def seed_prompt_digests(audit: Path) -> dict[str, str]:
 
 
 def seed_digest(audit: Path) -> dict[str, dict[str, str]]:
-    """Each judged case's prompt and verdict sha256, keyed by case id."""
+    """Each judged case's prompt, verdict and sidecar sha256, keyed by case id.
+
+    The sidecar (verdict.meta.json) names the verdict's judge, runner and
+    date, which the snapshot manifest's judge tally reads.
+    """
     seed = {}
     for case in sorted((audit / "cases").glob("*")):
         if not (case / "prompt.md").is_file():
             continue
-        require((case / "verdict.json").is_file(), f"seed case unjudged: {case.name}")
+        for name in ("verdict.json", "verdict.meta.json"):
+            require((case / name).is_file(), f"seed case lacks {name}: {case.name}")
         seed[case.name] = {
             "prompt_sha256": digest(case / "prompt.md"),
             "verdict_sha256": digest(case / "verdict.json"),
+            "meta_sha256": digest(case / "verdict.meta.json"),
         }
     return seed
 
@@ -1199,19 +1207,29 @@ def seed_digest(audit: Path) -> dict[str, dict[str, str]]:
 def seed_digest_text(seed: dict[str, dict[str, str]]) -> str:
     """The seed digest as docs/gpt61sol/seed_digest.csv spells it."""
     rows = [
-        f"{case},{item['prompt_sha256']},{item['verdict_sha256']}\n"
+        ",".join([case, *(item[field] for field in SEED_FIELDS)]) + "\n"
         for case, item in sorted(seed.items())
     ]
-    return "case_id,prompt_sha256,verdict_sha256\n" + "".join(rows)
+    return ",".join(["case_id", *SEED_FIELDS]) + "\n" + "".join(rows)
 
 
 def verify_seed(seed: dict[str, dict[str, str]]) -> None:
     """The seed must be the 20260929 audit the committed digest records."""
     require(
+        isinstance(seed, dict)
+        and all(
+            isinstance(item, dict) and set(item) == set(SEED_FIELDS)
+            for item in seed.values()
+        ),
+        "the audit seed does not record each judged case's prompt, verdict and "
+        "sidecar sha256; a stage bound before the digest recorded sidecars "
+        "binds it again with --step bind-seed --audit-seed <the 20260929 audit>",
+    )
+    require(
         hashlib.sha256(seed_digest_text(seed).encode()).hexdigest()
         == SEED_DIGEST_SHA256,
         "the audit seed is not release 20260929's (see docs/gpt61sol/"
-        "seed_digest.csv): its cases, prompts or verdicts differ",
+        "seed_digest.csv): its cases, prompts, verdicts or sidecars differ",
     )
 
 
@@ -1305,25 +1323,43 @@ def verify_reopened_by_predictions(stage: Path, derived: dict[str, list]) -> Non
 def bind_seed(args) -> None:
     """Bind the seed in the stage.json of a stage prepared before prepare did.
 
-    The seed must match the committed digest, and the stage must agree with it
-    case by case: every kept case keeps the seed's prompt and verdict bytes,
-    every changed case's prompt differs, and no added case is a seed case.
+    A stage bound before the digest recorded sidecars (its binding is this
+    seed's prompt and verdict sha256 alone) is bound again, with them. The
+    seed must match the committed digest, and the stage must agree with it
+    case by case: every kept case keeps the seed's prompt, verdict and
+    sidecar bytes, every changed case's prompt differs, and no added case is
+    a seed case.
     """
     receipt_path = args.stage_dir / "stage.json"
     receipt = json.loads(receipt_path.read_text())
-    require("seed" not in receipt, "stage.json already binds its audit seed")
     require(args.audit_seed is not None, "bind-seed needs --audit-seed")
     seed = seed_digest(args.audit_seed)
     verify_seed(seed)
+    bound = receipt.get("seed")
+    without_sidecars = {
+        case: {key: item[key] for key in ("prompt_sha256", "verdict_sha256")}
+        for case, item in seed.items()
+    }
+    require(
+        bound is None or bound == without_sidecars,
+        "stage.json already binds its audit seed"
+        if bound == seed
+        else "stage.json binds another audit seed",
+    )
     changes = json.loads((args.stage_dir / PROMPT_CHANGES).read_text())
     cases = args.stage_dir / "audit" / "cases"
+
+    def differs(case: str, name: str, field: str) -> bool:
+        path = cases / case / name
+        return not path.is_file() or digest(path) != seed[case][field]
+
     differ = [
         case
         for case in changes["kept"]
         if case not in seed
-        or not (cases / case / "verdict.json").is_file()
-        or digest(cases / case / "prompt.md") != seed[case]["prompt_sha256"]
-        or digest(cases / case / "verdict.json") != seed[case]["verdict_sha256"]
+        or differs(case, "prompt.md", "prompt_sha256")
+        or differs(case, "verdict.json", "verdict_sha256")
+        or differs(case, "verdict.meta.json", "meta_sha256")
     ]
     differ += [
         case
@@ -1468,12 +1504,13 @@ def validate_verdicts(
 
     Every judged verdict's sidecar must carry the verdict's own sha256. A case
     whose prompt is the seed's (``seed``, as stage.json binds it) carries its
-    seed verdict over: the verdict must be the seed's, byte for byte, and any
-    prompt_sha256 its sidecar records must match. Every other verdict is new
-    and must record the sha256 of the prompt it judged. A verdict naming
-    GPT-6.1 Sol also needs bound Opus 5.5 provenance. Returns the pending
-    cases; ``remove_invalid`` sets their verdicts aside. A carried-over verdict
-    that fails is refused outright: a re-judge cannot restore it.
+    seed verdict over: the verdict and its sidecar must be the seed's, byte
+    for byte, and any prompt_sha256 its sidecar records must match. Every
+    other verdict is new and must record the sha256 of the prompt it judged.
+    A verdict naming GPT-6.1 Sol also needs bound Opus 5.5 provenance. Returns
+    the pending cases; ``remove_invalid`` sets their verdicts aside. A
+    carried-over verdict that fails is refused outright: a re-judge cannot
+    restore it.
     """
     import jsonschema
 
@@ -1511,6 +1548,10 @@ def validate_verdicts(
             if carried:
                 if hashlib.sha256(blob).hexdigest() != seed[case_id]["verdict_sha256"]:
                     raise ValueError("a carried-over verdict is not the seed's")
+                if digest(meta_path) != seed[case_id].get("meta_sha256"):
+                    raise ValueError(
+                        "a carried-over verdict's sidecar is not the seed's"
+                    )
                 if bound is not None and bound != digest(prompt):
                     raise ValueError("verdict is bound to a different prompt")
             elif bound != digest(prompt):
