@@ -1812,6 +1812,10 @@ def exporting(tmp_path, monkeypatch):
     record.write_text(json.dumps(_provenance_record([])))
     monkeypatch.setattr(driver, "JUDGE_PROVENANCE", record)
     monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset())
+    # Export's receipt pin goes to a scratch file, never the repository's.
+    monkeypatch.setattr(
+        driver, "RELEASE_RECEIPT", tmp_path / "release_receipt.json", raising=False
+    )
     # GPT-6.1 Sol's staged run, its pins standing in for the committed ones.
     pins = _write_run(stage, bundle)
     monkeypatch.setattr(driver, "committed_input_pins", lambda: pins, raising=False)
@@ -2057,6 +2061,27 @@ def test_the_stages_reference_explanations_are_20260929s():
     driver.verify_reference_explanations(annotations, "staged")
 
 
+def test_export_pins_its_receipt_outside_the_stage(exporting):
+    """After release-ready.json, export writes the receipt's commitment to a
+    repository file: the release tag and the sha256 of the payload and of
+    release-ready.json, for the freeze to read as committed at HEAD."""
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    incumbents = _incumbents()
+    run(_exported(incumbents), incumbents)
+    receipt = stage / "release-ready.json"
+    pin = json.loads(driver.RELEASE_RECEIPT.read_text())
+    assert set(pin) == {"note", "release_tag", "payload_sha256", "release_ready_sha256"}
+    assert pin["release_tag"] == driver.RELEASE_TAG
+    assert pin["payload_sha256"] == json.loads(receipt.read_text())["payload_sha256"]
+    assert (
+        pin["release_ready_sha256"] == hashlib.sha256(receipt.read_bytes()).hexdigest()
+    )
+    assert driver.RELEASE_RECEIPT.read_text() == (
+        json.dumps(pin, indent=2, sort_keys=True) + "\n"
+    )
+
+
 def test_partial_export_never_gets_a_release_receipt(exporting):
     stage, bundle, run, _ = exporting
     stats = [_stat(f"incumbent-{i:02d}", 40.0) for i in range(45)]
@@ -2065,6 +2090,91 @@ def test_partial_export_never_gets_a_release_receipt(exporting):
     assert "PARTIAL" in json.loads(payload.read_text())["stage2Status"]
     assert (bundle / "data.json").read_bytes() == payload.read_bytes()
     assert not (stage / "release-ready.json").exists()
+    assert not driver.RELEASE_RECEIPT.exists()
+
+
+@pytest.fixture
+def pinned_receipt(tmp_path, monkeypatch):
+    """A git repository whose HEAD commits a receipt pin, and the stage and
+    payload it names."""
+    root = tmp_path / "repo"
+    pin = root / "docs/gpt61sol/release_receipt.json"
+    pin.parent.mkdir(parents=True)
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    (stage / "release-ready.json").write_text('{"files": {}}\n')
+    payload = stage / "data-board46.json"
+    payload.write_text('{"countries": {}}')
+    record = {
+        "note": "A pin.",
+        "release_tag": driver.RELEASE_TAG,
+        "payload_sha256": driver.digest(payload),
+        "release_ready_sha256": driver.digest(stage / "release-ready.json"),
+    }
+    pin.write_text(json.dumps(record))
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    commit(root, "pin")
+    monkeypatch.setattr(driver, "ROOT", root)
+    monkeypatch.setattr(driver, "RELEASE_RECEIPT", pin, raising=False)
+    return pin, record, stage, payload
+
+
+def test_the_receipt_pin_is_read_as_committed_at_head(pinned_receipt):
+    pin, record, stage, payload = pinned_receipt
+    assert driver.committed_release_receipt() == record
+    driver.verify_release_receipt(stage, payload, driver.RELEASE_TAG)
+    # A pin rewritten and not committed is refused, not silently ignored.
+    pin.write_text(json.dumps({**record, "payload_sha256": "0" * 64}))
+    with pytest.raises(SystemExit, match="differs from its HEAD commit; commit it"):
+        driver.committed_release_receipt()
+
+
+def test_a_receipt_pin_never_committed_is_refused(pinned_receipt, monkeypatch):
+    pin, _, _, _ = pinned_receipt
+    elsewhere = pin.with_name("other_receipt.json")
+    elsewhere.write_text(pin.read_text())
+    monkeypatch.setattr(
+        driver,
+        "RELEASE_RECEIPT_PATH",
+        "docs/gpt61sol/other_receipt.json",
+        raising=False,
+    )
+    monkeypatch.setattr(driver, "RELEASE_RECEIPT", elsewhere)
+    with pytest.raises(SystemExit, match="is not committed at HEAD"):
+        driver.committed_release_receipt()
+
+
+@pytest.mark.parametrize(
+    "key", ["release_tag", "payload_sha256", "release_ready_sha256"]
+)
+def test_a_receipt_pin_that_misses_a_hash_is_refused(pinned_receipt, key):
+    pin, record, _, _ = pinned_receipt
+    pin.write_text(json.dumps({k: v for k, v in record.items() if k != key}))
+    commit(driver.ROOT, "a pin without a key")
+    with pytest.raises(SystemExit, match="does not pin"):
+        driver.committed_release_receipt()
+
+
+@pytest.mark.parametrize("change", ["tag", "payload", "receipt", "payload_and_receipt"])
+def test_a_stage_the_committed_pin_does_not_name_is_refused(pinned_receipt, change):
+    """The freeze refuses a release tag, payload or receipt the committed pin
+    does not name, and names what differs."""
+    _, _, stage, payload = pinned_receipt
+    tag = driver.RELEASE_TAG
+    if change == "tag":
+        tag = "dashboard-data-20261001"
+    if change in ("payload", "payload_and_receipt"):
+        payload.write_text('{"countries": {"us": {}}}')
+    if change in ("receipt", "payload_and_receipt"):
+        (stage / "release-ready.json").write_text('{"files": {"x": "0"}}\n')
+    expected = {
+        "tag": ["release_tag"],
+        "payload": ["payload_sha256"],
+        "receipt": ["release_ready_sha256"],
+        "payload_and_receipt": ["payload_sha256", "release_ready_sha256"],
+    }[change]
+    with pytest.raises(SystemExit, match=re.escape(f"stage's {expected} are not what")):
+        driver.verify_release_receipt(stage, payload, tag)
 
 
 # --- Judge provenance ----------------------------------------------------------

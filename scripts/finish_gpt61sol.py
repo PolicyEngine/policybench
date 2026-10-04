@@ -184,6 +184,13 @@ SEED_FIELDS = ("prompt_sha256", "verdict_sha256", "meta_sha256")
 INPUT_PINS_PATH = "docs/gpt61sol/input_pins.json"
 INPUT_PINS = ROOT / INPUT_PINS_PATH
 PINNED_INPUTS = ("predictions.csv", "run_state.json")
+# Export's receipt, committed outside the stage: the release tag, the
+# payload's sha256 and the sha256 of release-ready.json, which export writes
+# here. The freeze reads the file as committed at HEAD, so an edit to the stage
+# after export, its receipt re-hashed to match, also needs a visible commit.
+RELEASE_RECEIPT_PATH = "docs/gpt61sol/release_receipt.json"
+RELEASE_RECEIPT = ROOT / RELEASE_RECEIPT_PATH
+RELEASE_RECEIPT_KEYS = ("release_tag", "payload_sha256", "release_ready_sha256")
 # Incumbent usage the exporter cannot recompute from committed predictions:
 # Fable 5 ran through the Anthropic batch adapter, and its rows carry no cost,
 # token or latency fields, so export_full_run reports $0 and omits the rest.
@@ -472,6 +479,64 @@ def verify_new_model_inputs(stage: Path) -> None:
         not differ,
         f"{sorted(MODELS.values())} rows in the bundle's predictions are not the "
         f"pinned run's: {differ}; prepare a new stage",
+    )
+
+
+def release_receipt_record(stage: Path, payload: Path) -> dict:
+    """The receipt pin export writes to RELEASE_RECEIPT: the release tag and
+    the sha256 of the staged ``payload`` and of release-ready.json."""
+    return {
+        "note": (
+            "The GPT-6.1 Sol stage's export receipt, written by "
+            "scripts/finish_gpt61sol.py --step export: the release tag and the "
+            "sha256 of the staged payload and of release-ready.json. The freeze "
+            "reads this file as committed at HEAD and refuses a stage whose "
+            "receipt or payload it does not name."
+        ),
+        "release_tag": RELEASE_TAG,
+        "payload_sha256": digest(payload),
+        "release_ready_sha256": digest(stage / "release-ready.json"),
+    }
+
+
+def committed_release_receipt() -> dict:
+    """The receipt pin as committed at HEAD.
+
+    The working-tree file must be HEAD's too, so a pin export wrote and no
+    one committed is refused rather than silently ignored.
+    """
+    blob = head_blob(RELEASE_RECEIPT_PATH)
+    require(
+        RELEASE_RECEIPT.is_file() and RELEASE_RECEIPT.read_bytes() == blob,
+        f"{RELEASE_RECEIPT_PATH} differs from its HEAD commit; commit it",
+    )
+    record = json.loads(blob)
+    require(
+        isinstance(record, dict)
+        and all(isinstance(record.get(key), str) for key in RELEASE_RECEIPT_KEYS),
+        f"{RELEASE_RECEIPT_PATH} does not pin {list(RELEASE_RECEIPT_KEYS)}",
+    )
+    return record
+
+
+def verify_release_receipt(stage: Path, payload: Path, tag: str) -> None:
+    """The stage's receipt and payload are the ones the committed pin names.
+
+    Export writes the pin after release-ready.json; it must be committed
+    before the freeze, which reads it at HEAD (committed_release_receipt).
+    """
+    pin = committed_release_receipt()
+    staged = {
+        "release_tag": tag,
+        "payload_sha256": digest(payload),
+        "release_ready_sha256": digest(stage / "release-ready.json"),
+    }
+    differ = [key for key in RELEASE_RECEIPT_KEYS if pin[key] != staged[key]]
+    require(
+        not differ,
+        f"the stage's {differ} are not what {RELEASE_RECEIPT_PATH} pins as "
+        "committed at HEAD; the stage changed after export, or export ran "
+        "again and its pin is not committed",
     )
 
 
@@ -2224,6 +2289,9 @@ def export(args, bundle, live) -> dict:
                 },
             },
         )
+        # The receipt's commitment outside the stage; commit it, then freeze.
+        write_json(RELEASE_RECEIPT, release_receipt_record(args.stage_dir, path))
+        print(f"Wrote {RELEASE_RECEIPT_PATH}; commit it before the freeze")
     return payload
 
 

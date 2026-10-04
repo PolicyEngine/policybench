@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -57,6 +58,9 @@ EXPORT_READS = (
 )
 
 
+# The committed receipt pin's reader, which the fixtures stub; the tests of
+# the pin itself restore it.
+COMMITTED_RELEASE_RECEIPT = getattr(driver, "committed_release_receipt", None)
 SOL = "gpt-6.1-sol"
 # GPT-6.1 Sol's run file as the synthetic stage pins it, with the usage
 # columns its published cost, tokens and latency come from, and an incumbent
@@ -212,6 +216,21 @@ def freeze_preflight(tmp_path, monkeypatch):
     pointer = workspace / "app/src/data.artifact.json"
     pointer.parent.mkdir(parents=True)
     pointer.write_text("The live pointer must stay unchanged.\n")
+
+    def committed_release_receipt():
+        # The pin export would write for the stage as it stands, committed;
+        # the tests of the pin itself fix or restore it.
+        return {
+            "release_tag": json.loads((stage / "release-ready.json").read_text()).get(
+                "release_tag"
+            ),
+            "payload_sha256": sha(payload),
+            "release_ready_sha256": sha(stage / "release-ready.json"),
+        }
+
+    monkeypatch.setattr(
+        driver, "committed_release_receipt", committed_release_receipt, raising=False
+    )
     return stage, payload, receipt
 
 
@@ -617,6 +636,94 @@ def test_the_rebuild_reads_only_the_bytes_the_receipt_binds(staged_board, rebuil
     with pytest.raises(SystemExit, match="changed since strict export.*predictions"):
         release.rebuild_payload(stage, receipt, payload, base)
     assert len(rebuilds) == 1
+
+
+def _reached(gate: str):
+    def stop(*args, **kwargs):
+        raise SystemExit(f"Reached the {gate}")
+
+    return stop
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("edit", ["receipt", "payload"])
+def test_the_freeze_refuses_a_stage_edited_after_its_pin_was_committed(
+    staged_board, monkeypatch, edit, dry_run
+):
+    """The receipt binds the stage only by hashes beside it. A stage file
+    edited after export, the receipt re-hashed to match (or the payload
+    edited, its receipt hash updated), is refused before any later gate
+    and any workspace mutation: the committed pin still names the receipt
+    and payload export wrote."""
+    stage, rebind = staged_board
+    pin = driver.committed_release_receipt()
+    monkeypatch.setattr(driver, "committed_release_receipt", lambda: pin)
+    monkeypatch.setattr(driver, "verify_new_model_inputs", _reached("input gate"))
+    if edit == "receipt":
+        meta = stage / "audit/cases" / KEPT / "verdict.meta.json"
+        meta.write_text(
+            json.dumps({**json.loads(meta.read_text()), "judge_runner": "by hand"})
+        )
+        expected = "\\['release_ready_sha256'\\]"
+    else:
+        payload = stage / "data-board46.json"
+        board = json.loads(payload.read_text())
+        board["countries"]["us"]["modelStats"][-1]["exact"] = 100.0
+        payload.write_text(json.dumps(board))
+        expected = "\\['payload_sha256', 'release_ready_sha256'\\]"
+    rebind()
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=f"stage's {expected} are not what"):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
+def _commit(root: Path, message: str) -> None:
+    """Commit everything in a scratch repository, with no user hooks or keys."""
+    git = ["git", "-C", str(root), "-c", "core.hooksPath=/dev/null"]
+    git += ["-c", "commit.gpgsign=false", "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run([*git, "add", "."], check=True)
+    subprocess.run([*git, "commit", "-qm", message], check=True)
+
+
+def test_the_freeze_reads_the_receipt_pin_as_committed_at_head(
+    staged_board, monkeypatch
+):
+    """Export writes the pin; the freeze reads it as committed at HEAD. A pin
+    never committed, or rewritten and not committed, is refused before any
+    later gate; once committed, a pin that names another payload is refused
+    too. Only the committed pin of this stage's receipt lets it through."""
+    stage, _ = staged_board
+    root = release.ROOT
+    monkeypatch.setattr(driver, "committed_release_receipt", COMMITTED_RELEASE_RECEIPT)
+    monkeypatch.setattr(driver, "ROOT", root)
+    pin = root / "docs/gpt61sol/release_receipt.json"
+    monkeypatch.setattr(driver, "RELEASE_RECEIPT", pin, raising=False)
+    monkeypatch.setattr(driver, "verify_new_model_inputs", _reached("input gate"))
+    pin.parent.mkdir(parents=True)
+    payload = stage / "data-board46.json"
+    record = {
+        "note": "The stage's receipt.",
+        "release_tag": driver.RELEASE_TAG,
+        "payload_sha256": sha(payload),
+        "release_ready_sha256": sha(stage / "release-ready.json"),
+    }
+    pin.write_text(json.dumps(record))
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+
+    def freeze(match: str) -> None:
+        before = workspace_files()
+        with pytest.raises(SystemExit, match=match):
+            release.main(["--stage-dir", str(stage), "--dry-run"])
+        assert workspace_files() == before
+
+    freeze("release_receipt.json is not committed at HEAD")
+    _commit(root, "Pin the receipt")
+    freeze("Reached the input gate")
+    pin.write_text(json.dumps({**record, "payload_sha256": "0" * 64}))
+    freeze("release_receipt.json differs from its HEAD commit; commit it")
+    _commit(root, "Pin another payload")
+    freeze("stage's \\['payload_sha256'\\] are not what")
 
 
 def _edit_explanation(stage: Path) -> None:

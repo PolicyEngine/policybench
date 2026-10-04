@@ -2,7 +2,8 @@
 
 Adapted from freeze_adds0928.py. It configures the existing freezer in process
 and never calls a release upload. Run only after finish_gpt61sol.py --step
-export has written release-ready.json. The optional --dry-run validates inputs
+export has written release-ready.json and its pin, committed at HEAD
+(docs/gpt61sol/release_receipt.json). The optional --dry-run validates inputs
 without changing repository files. Both rebuild the payload from the bound
 bundle, as export builds it, and refuse a staged payload that differs. This
 release has no reference revision: the references, exclusions and scenarios
@@ -476,6 +477,9 @@ def main(argv: list[str] | None = None) -> None:
 
     payload_path = stage / f"data-board{BOARD_MODELS}.json"
     receipt = verify_receipt(stage, payload_path, args.tag)
+    # The receipt binds the stage only by hashes stored beside it; its pin,
+    # committed at HEAD, makes any later edit to the stage a visible commit.
+    driver.verify_release_receipt(stage, payload_path, args.tag)
     # GPT-6.1 Sol's run files are the committed pins' and its bundle rows are
     # its run file's, every column: its cost, tokens and latency included.
     driver.verify_new_model_inputs(stage)
