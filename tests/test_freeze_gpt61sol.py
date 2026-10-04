@@ -43,6 +43,18 @@ ANNOTATION_CSVS = [
     BUNDLE / "annotations" / name
     for name in ("us_audit_row_annotations.csv", "us_case_notes.csv")
 ]
+# The case reference explanations, which must stay release 20260929's.
+EXPLANATIONS_NAME = "us_case_reference_explanations.csv"
+EXPLANATIONS = BUNDLE / "annotations" / EXPLANATIONS_NAME
+# The bundle files export_full_run reads (driver.EXPORT_INPUTS): the
+# references and predictions, and the three annotation CSVs whose loaders
+# fall back to the working directory's committed annotations.
+EXPORT_READS = (
+    *(f"us/{name}" for name in (*driver.REFERENCE_FILES, "predictions.csv")),
+    "annotations/us_audit_row_annotations.csv",
+    "annotations/us_case_notes.csv",
+    f"annotations/{EXPLANATIONS_NAME}",
+)
 
 
 SOL = "gpt-6.1-sol"
@@ -174,6 +186,8 @@ def freeze_preflight(tmp_path, monkeypatch):
     for name in evidence:
         (stage / name).parent.mkdir(parents=True, exist_ok=True)
         (stage / name).write_text(f"Evidence: {name.name}\n")
+    (stage / EXPLANATIONS).write_bytes(base_explanations())
+    evidence += [EXPLANATIONS]
     # GPT-6.1 Sol's run files are the committed pins' (stubbed here), and the
     # bundle's predictions hold its rows as prepare folded them.
     pins = write_inputs(stage)
@@ -199,6 +213,11 @@ def freeze_preflight(tmp_path, monkeypatch):
     pointer.parent.mkdir(parents=True)
     pointer.write_text("The live pointer must stay unchanged.\n")
     return stage, payload, receipt
+
+
+def base_explanations() -> bytes:
+    """Release 20260929's case reference explanations, from git."""
+    return driver.base_commit_blob(Path("annotations") / RUN / EXPLANATIONS_NAME)
 
 
 def workspace_files():
@@ -583,7 +602,7 @@ def test_the_rebuild_reads_a_scratch_copy_of_the_bound_bundle(
         for name in bound
         if name.is_relative_to(BUNDLE)
     }
-    assert len(files) == 9
+    assert len(files) == 10
 
 
 def test_the_rebuild_reads_only_the_bytes_the_receipt_binds(staged_board, rebuilds):
@@ -598,6 +617,64 @@ def test_the_rebuild_reads_only_the_bytes_the_receipt_binds(staged_board, rebuil
     with pytest.raises(SystemExit, match="changed since strict export.*predictions"):
         release.rebuild_payload(stage, receipt, payload, base)
     assert len(rebuilds) == 1
+
+
+def _edit_explanation(stage: Path) -> None:
+    """Rewrite one case's written reference derivation in the staged file."""
+    path = stage / EXPLANATIONS
+    text = path.read_text()
+    first = text.splitlines()[1]
+    path.write_text(text.replace(first, first + " A sentence no review wrote.", 1))
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("receipt_entry", ["removed", "updated"])
+def test_the_freeze_refuses_edited_reference_explanations(
+    staged_board, receipt_entry, dry_run
+):
+    """The staged case reference explanations must be release 20260929's,
+    byte for byte. Edited with its receipt entry removed, the file is unbound;
+    edited with its entry re-hashed, it is not 20260929's. Either is refused
+    before any workspace mutation."""
+    stage, rebind = staged_board
+    for name in driver.REFERENCE_FILES:
+        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    _edit_explanation(stage)
+    rebind()
+    if receipt_entry == "removed":
+        receipt = json.loads((stage / "release-ready.json").read_text())
+        del receipt["files"][str(EXPLANATIONS)]
+        (stage / "release-ready.json").write_text(json.dumps(receipt))
+        message = f"does not bind.*{re.escape(str(EXPLANATIONS))}"
+    else:
+        message = f"Staged {EXPLANATIONS_NAME} is not release 20260929's"
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=message):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
+def test_the_export_inputs_are_the_files_export_full_run_reads():
+    assert driver.EXPORT_INPUTS == EXPORT_READS
+
+
+@pytest.mark.parametrize("name", EXPORT_READS)
+def test_the_rebuild_refuses_a_bundle_file_export_reads_and_the_receipt_omits(
+    staged_board, rebuilds, name
+):
+    """A file export reads that the receipt does not bind is missing from the
+    scratch copy. The rebuild refuses it before export_full_run runs: its
+    loaders would read the working directory's committed annotations in the
+    copy's place and rebuild the staged payload from other bytes."""
+    stage, _ = staged_board
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    del receipt["files"][str(BUNDLE / name)]
+    payload = stage / "data-board46.json"
+    with pytest.raises(SystemExit, match=f"the bundle lacks.*{re.escape(name)}"):
+        release.rebuild_payload(
+            stage, receipt, payload, driver.base_payload_from_commit()
+        )
+    assert rebuilds == []
 
 
 JSON_LEAVES = st.none() | st.booleans() | st.integers() | st.text(max_size=3)

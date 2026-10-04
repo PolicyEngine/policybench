@@ -1815,6 +1815,12 @@ def exporting(tmp_path, monkeypatch):
     # GPT-6.1 Sol's staged run, its pins standing in for the committed ones.
     pins = _write_run(stage, bundle)
     monkeypatch.setattr(driver, "committed_input_pins", lambda: pins, raising=False)
+    # The annotation CSVs export reads, the reference explanations release
+    # 20260929's.
+    for path in _annotations(bundle):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"Annotations: {path.name}\n")
+    (bundle / "annotations" / EXPLANATIONS).write_bytes(_base_explanations())
 
     def run(stats, live_stats, *, partial=False, early=False):
         exported["stats"] = stats
@@ -1861,6 +1867,27 @@ def _write_run(stage, bundle) -> dict:
     return {SLUG: {name: driver.digest(inputs / name) for name in PINNED}}
 
 
+# The case reference explanations, which must stay release 20260929's, and
+# the bundle files export_full_run reads (driver.EXPORT_INPUTS).
+EXPLANATIONS = "us_case_reference_explanations.csv"
+EXPORT_READS = (
+    *(f"us/{name}" for name in (*driver.REFERENCE_FILES, "predictions.csv")),
+    "annotations/us_audit_row_annotations.csv",
+    "annotations/us_case_notes.csv",
+    f"annotations/{EXPLANATIONS}",
+)
+
+
+def _annotations(bundle) -> list[Path]:
+    """The annotation CSVs export reads, which the exporting fixture writes."""
+    return [bundle / name for name in EXPORT_READS if name.startswith("annotations/")]
+
+
+def _base_explanations() -> bytes:
+    """Release 20260929's case reference explanations, from git."""
+    return driver.base_commit_blob(Path("annotations") / driver.RUN_NAME / EXPLANATIONS)
+
+
 def _evidence(stage, bundle):
     paths = [bundle / "annotations/us_adjudications.json"]
     paths += [stage / "audit/cases.jsonl", stage / "audit/schema.json"]
@@ -1877,8 +1904,10 @@ def _evidence(stage, bundle):
     for path in paths:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"Evidence: {path.name}\n")
-    # The run files and prepare-time hashes the exporting fixture wrote.
-    paths += [bundle / "us/predictions.csv", stage / "stage.json"]
+    # The annotations, run files and prepare-time hashes the exporting
+    # fixture wrote.
+    paths += [*_annotations(bundle), bundle / "us/predictions.csv"]
+    paths += [stage / "stage.json"]
     paths += [stage / "model-provenance.json"]
     paths += [stage / "inputs" / SLUG / name for name in PINNED]
     return paths + [bundle / "us" / name for name in driver.REFERENCE_FILES]
@@ -1964,6 +1993,68 @@ def test_export_writes_no_receipt_when_the_inputs_are_not_the_pinned_run(
         run(_exported(incumbents), incumbents)
     assert not (stage / "release-ready.json").exists()
     assert not (stage / "data-board46.json").exists()
+
+
+@pytest.mark.parametrize("name", EXPORT_READS)
+def test_export_refuses_a_bundle_without_a_file_it_reads(exporting, monkeypatch, name):
+    """build_payload, which export and the freeze's rebuild share, refuses a
+    bundle that lacks a file export reads before export_full_run runs: for an
+    annotation CSV, its loader would read the working directory's committed
+    annotations/<RUN>/ instead. Export writes no payload and no receipt."""
+    import policybench.full_run_export
+
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    calls = []
+    monkeypatch.setattr(
+        policybench.full_run_export,
+        "export_full_run",
+        lambda *a, **kw: calls.append(a),
+    )
+    (bundle / name).unlink()
+    incumbents = _incumbents()
+    with pytest.raises(SystemExit, match=f"the bundle lacks.*{re.escape(name)}"):
+        driver.build_payload(bundle, {"countries": {"us": {"modelStats": []}}})
+    if name.startswith("annotations/"):
+        # Export refuses the bundle too, the explanations at their own gate.
+        with pytest.raises(SystemExit, match=re.escape(Path(name).name)):
+            run(_exported(incumbents), incumbents)
+    assert calls == []
+    assert not (stage / "release-ready.json").exists()
+    assert not (stage / "data-board46.json").exists()
+
+
+@pytest.mark.parametrize("edit", ["edited", "missing"])
+def test_export_refuses_reference_explanations_that_are_not_20260929s(exporting, edit):
+    """The staged case reference explanations must be release 20260929's, as
+    committed at BASE_COMMIT, byte for byte, before export writes anything."""
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    path = bundle / "annotations" / EXPLANATIONS
+    if edit == "edited":
+        path.write_bytes(_base_explanations() + b"scenario_000,snap,Rewritten.\n")
+    else:
+        path.unlink()
+    incumbents = _incumbents()
+    with pytest.raises(SystemExit, match="staged us_case_reference_explanations.csv"):
+        run(_exported(incumbents), incumbents)
+    assert not (stage / "release-ready.json").exists()
+    assert not (stage / "data-board46.json").exists()
+
+
+def test_the_committed_reference_explanations_are_20260929s():
+    """Runs anywhere with full history: the working tree's copy, which the
+    freeze wrote from the stage, is release 20260929's."""
+    driver.verify_reference_explanations(driver.ANNOTATIONS, "committed")
+
+
+def test_the_stages_reference_explanations_are_20260929s():
+    """Local only: the staged copy is release 20260929's."""
+    stage = driver.ROOT / "results/local/gpt61sol-v1"
+    annotations = stage / "publish" / driver.RUN_NAME / "annotations"
+    if not annotations.is_dir():
+        pytest.skip("needs the GPT-6.1 Sol stage")
+    driver.verify_reference_explanations(annotations, "staged")
 
 
 def test_partial_export_never_gets_a_release_receipt(exporting):

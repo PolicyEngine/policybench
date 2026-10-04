@@ -52,6 +52,20 @@ ANNOTATION_FILES = (
     "us_case_reference_explanations.csv",
     "us_adjudications.json",
 )
+# The written derivation of each case's reference. This release revises no
+# reference, so it must stay release 20260929's, byte for byte.
+REFERENCE_EXPLANATIONS = "us_case_reference_explanations.csv"
+# The bundle files export_full_run reads, relative to the bundle. For each
+# annotation CSV a bundle lacks, its loader falls back to the working
+# directory's committed annotations/<RUN>/ (full_run_export.load_annotations,
+# load_case_annotations, load_case_reference_explanations), so build_payload
+# refuses a bundle without one rather than export another file's text.
+EXPORT_INPUTS = (
+    *(f"us/{name}" for name in (*REFERENCE_FILES, "predictions.csv")),
+    "annotations/us_audit_row_annotations.csv",
+    "annotations/us_case_notes.csv",
+    f"annotations/{REFERENCE_EXPLANATIONS}",
+)
 JUDGE_MODEL = "claude-opus-5-5"
 ADJUDICATIONS = "us_adjudications.json"
 # Stage files export binds: the cases GPT-6.1 Sol re-opened, and the
@@ -622,6 +636,21 @@ def base_payload_from_commit() -> dict:
         f"base must have {BASE_MODELS} models",
     )
     return live
+
+
+def verify_reference_explanations(annotations: Path, label: str) -> None:
+    """``annotations``' case reference explanations are release 20260929's.
+
+    The file is compared byte for byte with the one committed at BASE_COMMIT,
+    never with the working tree's copy, which the freeze overwrites.
+    """
+    path = annotations / REFERENCE_EXPLANATIONS
+    base = base_commit_blob(Path("annotations") / RUN_NAME / REFERENCE_EXPLANATIONS)
+    require(
+        path.is_file() and path.read_bytes() == base,
+        f"{label} {REFERENCE_EXPLANATIONS} is not release 20260929's; this "
+        "release has no reference revision",
+    )
 
 
 def base_adjudication_record() -> dict:
@@ -1998,11 +2027,19 @@ def build_payload(
     carried from ``live`` (CARRIED_USAGE), and no incumbent may drift; then the
     dashboard schema. The freeze rebuilds the staged payload with this.
     export_full_run writes data.json, us/data.json and us/analysis/ into
-    ``bundle``.
+    ``bundle``. A bundle that lacks a file export reads (EXPORT_INPUTS) is
+    refused, so neither export nor the freeze's rebuild ever reads the
+    working directory's annotations in its place.
     """
     from policybench.dashboard_schema import validate_dashboard_payload
     from policybench.full_run_export import export_full_run
 
+    missing = [name for name in EXPORT_INPUTS if not (bundle / name).is_file()]
+    require(
+        not missing,
+        f"the bundle lacks {missing}, which export reads; export_full_run would "
+        f"read the working directory's annotations/{RUN_NAME}/ in their place",
+    )
     payload = export_full_run(bundle, countries=["us"], skip_app_data=True)
     stats = payload["countries"]["us"]["modelStats"]
     require(
@@ -2041,6 +2078,7 @@ def export(args, bundle, live) -> dict:
         verify_reference_pins(bundle / "us", "staged reference")
     if not args.early:
         verify_new_model_inputs(args.stage_dir)
+        verify_reference_explanations(bundle / "annotations", "staged")
         verify_judge_provenance(
             args.stage_dir / "audit" / "cases",
             rejudged_cases(args.stage_dir),

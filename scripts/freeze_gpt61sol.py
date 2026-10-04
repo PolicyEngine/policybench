@@ -41,6 +41,9 @@ EVIDENCE_RUN_ROOT = "adds202609"
 ADJUDICATIONS = "us_adjudications.json"
 # The published annotations the adjudications and amendments are applied to.
 ANNOTATION_CSVS = ("us_audit_row_annotations.csv", "us_case_notes.csv")
+# Every annotation file the freeze publishes, the case reference explanations
+# included; the receipt must bind each.
+ANNOTATION_FILES = driver.ANNOTATION_FILES
 
 
 def read_json(path: Path) -> dict:
@@ -125,8 +128,8 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
             raise SystemExit(f"Staged evidence changed since strict export: {name}")
     bundle = Path("publish") / RUN
     required = [bundle / "us" / name for name in driver.REFERENCE_FILES]
-    required += [bundle / "us/predictions.csv", bundle / "annotations" / ADJUDICATIONS]
-    required += [bundle / "annotations" / name for name in ANNOTATION_CSVS]
+    required += [bundle / "us/predictions.csv"]
+    required += [bundle / "annotations" / name for name in ANNOTATION_FILES]
     # Each new model's pinned run files, and the prepare-time hashes.
     required += [
         Path("inputs") / slug / name
@@ -298,7 +301,10 @@ def rebuild_payload(stage: Path, receipt: dict, payload_path: Path, live: dict) 
     against its receipt hash, and its bytes must equal the staged payload's.
     The copy is the bundle's: export_full_run writes data.json, us/data.json
     and us/analysis/ into the bundle it reads, and its data.json lacks the
-    carried usage, so a rebuild in place would rewrite the stage.
+    carried usage, so a rebuild in place would rewrite the stage. A copy that
+    lacks a file export reads, because the receipt does not bind it, is
+    refused by build_payload; the rebuild never reads the working directory's
+    annotations in its place.
     """
     bundle = Path("publish") / RUN
     with tempfile.TemporaryDirectory(prefix="freeze-gpt61sol-") as scratch:
@@ -506,6 +512,7 @@ def main(argv: list[str] | None = None) -> None:
     source_run = stage / "publish" / RUN
     source_us = source_run / "us"
     verify_references(source_us, frozen_run, read_json(snapshot / "manifest.json"))
+    driver.verify_reference_explanations(source_run / "annotations", "Staged")
     del payload, stats
     rebuild_payload(stage, receipt, payload_path, base)
     del base
@@ -649,8 +656,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     freezer.main()
     freeze_amendments(stage, freezer.ANNOTATIONS_DEST)
-    # The freezer copies the staged references byte for byte; confirm it.
+    # The freezer copies the staged references and their explanations byte
+    # for byte; confirm it.
     driver.verify_reference_pins(frozen_run, "frozen reference")
+    driver.verify_reference_explanations(freezer.ANNOTATIONS_DEST, "Frozen")
     cache = ROOT / "app/.cache" / f"dashboard-data-{payload_hash[:16]}.json"
     cache.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(payload_path, cache)
