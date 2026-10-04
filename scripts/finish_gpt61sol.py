@@ -699,21 +699,77 @@ def verify_record_form(text: str, base: dict) -> None:
     )
 
 
+# The cases a 2026-09-22 judge run flagged, as release 20260929 records them:
+# the restate script's --wave-flags default (WAVE_FLAGS in
+# scripts/date_adds0928_judge_verdicts.py), which a test keeps equal to this.
+WAVE_FLAGS_PATH = "reference_audit/2026-09-28/verification/flagged_sept22_wave.json"
+
+
+def base_wave_flags() -> frozenset[str]:
+    """The "scenario_id:variable" keys of WAVE_FLAGS_PATH at BASE_COMMIT."""
+    return frozenset(json.loads(base_commit_blob(Path(WAVE_FLAGS_PATH))))
+
+
+def reference_flag_problem(
+    entry: dict, original: dict | None, flag: bool, waved: bool
+) -> str | None:
+    """Why a re-opened entry's top-level reference flag is not the one the
+    restate script writes from its current verdict, or None.
+
+    The restate script's reference_flag (the one definition) says, from the
+    current verdict's own flag ``flag`` and whether a 2026-09-22 judge run
+    flagged the case (``waved``), whether judge_reference_suspect is raised
+    and whether the entry names a judge_reference_suspect_source. A named
+    source keeps the wording 20260929's entry (``original``) gave it, or is
+    FLAG_SOURCE_EARLIER_RUN where the restatement had to write one.
+    """
+    from restate_gpt61sol_adjudications import FLAG_SOURCE_EARLIER_RUN, reference_flag
+
+    raised, sourced = reference_flag(flag, waved)
+    key = "judge_reference_suspect_source"
+    wordings = {FLAG_SOURCE_EARLIER_RUN}
+    if original is not None and key in original:
+        wordings.add(original[key])
+    recorded = entry.get("judge_reference_suspect")
+    if (
+        recorded is raised
+        and (key in entry) == sourced
+        and (not sourced or entry[key] in wordings)
+    ):
+        return None
+    return (
+        f"its reference flag {recorded!r} (source {entry.get(key)!r}) is not "
+        f"what the restate script writes from the current verdict's flag {flag} "
+        f"and the 2026-09-22 wave's {waved}: {raised!r}"
+        + (" with a named source" if sourced else " with no source")
+    )
+
+
 def verify_restatements(
-    base: list[dict], staged: list[dict], rejudged: frozenset[str], cases_dir: Path
+    base: list[dict],
+    staged: list[dict],
+    rejudged: frozenset[str],
+    cases_dir: Path,
+    wave_flags: frozenset[str] | None = None,
 ) -> None:
     """A re-opened entry's judge fields must be the restate script's.
 
-    Where they differ from 20260929's, the entry must name the case's current
-    Opus 5.5 verdict (bound by its sidecar) as its judge, date it by that
-    sidecar's UTC day, and keep 20260929's judge_previous with exactly one
-    item appended: the replaced verdict, which is the one 20260929's entry
-    names (its judge, classes, flag and day are its seed verdict's, as the
-    sha256-bound sidecar records it). A new entry must name the current judge
-    too.
+    Every re-opened entry's top-level reference flag (judge_reference_suspect
+    and judge_reference_suspect_source) must be what the restate script
+    writes from the case's current verdict, bound by its sidecar, and the
+    2026-09-22 wave (``wave_flags``, by default release 20260929's, from
+    BASE_COMMIT): reference_flag_problem. Where an entry's judge fields
+    differ from 20260929's, it must also name the case's current Opus 5.5
+    verdict as its judge, date it by that sidecar's UTC day, and keep
+    20260929's judge_previous with exactly one item appended: the replaced
+    verdict, which is the one 20260929's entry names (its judge, classes,
+    flag and day are its seed verdict's, as the sha256-bound sidecar records
+    it). A new entry must name the current judge too.
     """
     from restate_gpt61sol_adjudications import JUDGE_FIELDS, _utc_day, named_item
 
+    if wave_flags is None:
+        wave_flags = base_wave_flags()
     before = {case_id(entry): entry for entry in base}
     wrong = []
     for entry in staged:
@@ -721,34 +777,48 @@ def verify_restatements(
         if case not in rejudged:
             continue
         original = before.get(case)
-        judge = {k: v for k, v in entry.items() if k in JUDGE_FIELDS}
-        if original is not None and judge == {
-            k: v for k, v in original.items() if k in JUDGE_FIELDS
-        }:
-            continue
         verdict = cases_dir / case / "verdict.json"
         meta_path = verdict.with_name("verdict.meta.json")
         meta = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
         bound = verdict.is_file() and meta.get("verdict_sha256") == digest(verdict)
-        day = _utc_day(meta["judged_at_utc"]) if meta.get("judged_at_utc") else None
         problems = []
-        if not bound or entry.get("judge_model") != JUDGE_MODEL:
-            problems.append("judge is not the current Opus 5.5 verdict")
-        if original is not None:
-            previous = original.get("judge_previous", [])
-            restated = entry.get("judge_previous", [])
-            if len(restated) != len(previous) + 1 or restated[:-1] != previous:
-                problems.append("judge_previous is not 20260929's plus one item")
-            elif restated[-1] != named_item(original):
-                problems.append(
-                    "the appended judge_previous item is not the verdict "
-                    "20260929's entry names"
-                )
-            if (
-                entry.get("judge_rejudged_on") != day
-                or entry.get("judged_on_utc", day) != day
-            ):
-                problems.append(f"not dated by the current verdict's day {day}")
+        if bound:
+            try:
+                current = json.loads(verdict.read_text())
+            except ValueError:
+                current = None
+            if isinstance(current, dict):
+                flag = bool(current.get("reference_suspect"))
+                waved = f"{entry['scenario_id']}:{entry['variable']}" in wave_flags
+                problem = reference_flag_problem(entry, original, flag, waved)
+                if problem:
+                    problems.append(problem)
+            else:
+                problems.append("its current verdict is not a JSON object")
+        else:
+            problems.append("its current verdict is not bound by its sidecar")
+        judge = {k: v for k, v in entry.items() if k in JUDGE_FIELDS}
+        if original is None or judge != {
+            k: v for k, v in original.items() if k in JUDGE_FIELDS
+        }:
+            day = _utc_day(meta["judged_at_utc"]) if meta.get("judged_at_utc") else None
+            if not bound or entry.get("judge_model") != JUDGE_MODEL:
+                problems.append("judge is not the current Opus 5.5 verdict")
+            if original is not None:
+                previous = original.get("judge_previous", [])
+                restated = entry.get("judge_previous", [])
+                if len(restated) != len(previous) + 1 or restated[:-1] != previous:
+                    problems.append("judge_previous is not 20260929's plus one item")
+                elif restated[-1] != named_item(original):
+                    problems.append(
+                        "the appended judge_previous item is not the verdict "
+                        "20260929's entry names"
+                    )
+                if (
+                    entry.get("judge_rejudged_on") != day
+                    or entry.get("judged_on_utc", day) != day
+                ):
+                    problems.append(f"not dated by the current verdict's day {day}")
         if problems:
             wrong.append(f"{case}: {'; '.join(problems)}")
     require(

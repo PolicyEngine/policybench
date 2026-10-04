@@ -15,6 +15,7 @@ from hypothesis import strategies as st
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import finish_gpt61sol as driver  # noqa: E402
 import restate_gpt61sol_adjudications as restate  # noqa: E402
 from freeze_snapshot import verify_adjudications_keep_judge_verdicts  # noqa: E402
 
@@ -781,3 +782,67 @@ def test_restatement_properties(tmp_path_factory, history):
     record.write_text(json.dumps({"adjudications": [restated]}))
     (loaded,) = load_adjudications(record)
     assert excluded_case_keys([loaded]) == excluded_case_keys([original])
+
+
+# --- The freeze's restatement gate and this script share one flag rule --------
+
+# The top-level flag source wordings 20260929's record holds.
+SOURCE_WORDINGS = [
+    restate.FLAG_SOURCE_EARLIER_RUN,
+    "claude-opus-5-5 judge run adjudicated 2026-09-22",
+]
+
+
+@settings(max_examples=80, deadline=None)
+@given(
+    seed_flag=st.booleans(),
+    waved=st.booleans(),
+    wording=st.sampled_from(SOURCE_WORDINGS),
+    rejudges=st.lists(st.booleans(), min_size=1, max_size=3),
+)
+def test_the_freeze_accepts_exactly_the_reference_flag_restatements_write(
+    tmp_path_factory, seed_flag, waved, wording, rejudges
+):
+    """Differential: for any seed flag, 2026-09-22 wave flag and 20260929
+    source wording, and any sequence of re-judges and their flags, every
+    entry this script restates passes the freeze's verify_restatements
+    against the current verdict, and the same entry with its top-level flag
+    lowered or raised, its source dropped or added, or its source reworded,
+    is refused."""
+    root = tmp_path_factory.mktemp("restated")
+    stage, seed = root / "stage", root / "seed"
+    _write_case(
+        seed,
+        CASE,
+        _verdict("reference_model_issue_fixed", flag=seed_flag),
+        "2026-09-29",
+    )
+    raised, sourced = restate.reference_flag(seed_flag, waved)
+    original = _entry(judge_reference_suspect=raised, judge_rejudged_on="2026-09-29")
+    if sourced:
+        original = restate._put(
+            original,
+            "judge_reference_suspect_source",
+            wording,
+            before=("judge_rejudged_on",),
+        )
+    wave = frozenset({KEY} if waved else ())
+    rejudged = frozenset({CASE})
+    current = original
+    for day, flag in zip(("2026-09-30", "2026-10-01", "2026-10-02"), rejudges):
+        _write_case(stage, CASE, _verdict("llm_error", flag=flag), day)
+        (current,), _ = restate.restate_entries(
+            [copy.deepcopy(current)], stage, seed, rejudged, wave
+        )
+        driver.verify_restatements([original], [current], rejudged, stage, wave)
+        verify_adjudications_keep_judge_verdicts([current], stage)
+    flag_key, key = "judge_reference_suspect", "judge_reference_suspect_source"
+    others = [{**current, flag_key: not current[flag_key]}]
+    if key in current:
+        others.append({k: v for k, v in current.items() if k != key})
+        others.append({**current, key: "a-human-typed-this"})
+    else:
+        others.append({**current, key: restate.FLAG_SOURCE_EARLIER_RUN})
+    for other in others:
+        with pytest.raises(SystemExit, match="its reference flag"):
+            driver.verify_restatements([original], [other], rejudged, stage, wave)

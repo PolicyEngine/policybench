@@ -1332,6 +1332,181 @@ def test_judge_fields_written_by_hand_are_refused(restated, tamper):
         driver.verify_restatements(base, staged, rejudged, cases)
 
 
+# The September 22c record's wording for a flag an earlier judge run raised
+# (FLAG_SOURCE_EARLIER_RUN in scripts/date_adds0928_judge_verdicts.py).
+EARLIER_RUN = (
+    "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); "
+    "the case's current verdict.json does not flag it"
+)
+# Each: the current verdict's own flag, whether the 2026-09-22 wave flagged
+# the case, the entry's top-level flag and its source, and whether the gate
+# passes it. The flag is raised when the verdict or the wave raised it, and
+# names a source exactly when the wave alone did.
+REFERENCE_FLAGS = {
+    "raised_with_a_source_the_verdict_does_not_raise": (
+        False,
+        False,
+        True,
+        EARLIER_RUN,
+        False,
+    ),
+    "raised_with_no_source_the_verdict_does_not_raise": (
+        False,
+        False,
+        True,
+        None,
+        False,
+    ),
+    "lowered_as_the_verdict_says": (False, False, False, None, True),
+    "raised_as_the_verdict_says": (True, False, True, None, True),
+    "lowered_against_the_verdict": (True, False, False, None, False),
+    "raised_by_the_verdict_naming_an_earlier_run": (
+        True,
+        False,
+        True,
+        EARLIER_RUN,
+        False,
+    ),
+    "raised_by_the_wave_alone_and_sourced": (False, True, True, EARLIER_RUN, True),
+    "raised_by_the_wave_alone_unsourced": (False, True, True, None, False),
+    "raised_by_the_wave_alone_in_other_words": (
+        False,
+        True,
+        True,
+        "a-human-typed-this",
+        False,
+    ),
+    "lowered_against_the_wave": (False, True, False, None, False),
+    "raised_by_both": (True, True, True, None, True),
+    "raised_by_both_naming_an_earlier_run": (True, True, True, EARLIER_RUN, False),
+}
+
+
+def _judge_verdict(cases: Path, case: str, flag: bool) -> None:
+    """The case's current verdict with its own reference flag, its sidecar
+    re-bound to it."""
+    verdict = cases / case / "verdict.json"
+    verdict.write_text(
+        json.dumps({"case_failure_source": "llm_error", "reference_suspect": flag})
+    )
+    meta = json.loads(verdict.with_name("verdict.meta.json").read_text())
+    meta["verdict_sha256"] = sha(verdict)
+    verdict.with_name("verdict.meta.json").write_text(json.dumps(meta))
+
+
+def _flagged(entry: dict, flag: bool, source: str | None) -> dict:
+    entry = {**entry, "judge_reference_suspect": flag}
+    entry.pop("judge_reference_suspect_source", None)
+    if source is not None:
+        entry["judge_reference_suspect_source"] = source
+    return entry
+
+
+@pytest.mark.parametrize("name", REFERENCE_FLAGS)
+def test_a_restated_entrys_reference_flag_is_the_current_verdicts(
+    restated, monkeypatch, name
+):
+    """The restate script writes a re-opened entry's top-level flag from the
+    current verdict and the 2026-09-22 wave; a flag the verdict does not
+    raise, named to an earlier run the wave does not record, is refused. The
+    gate reads the wave from BASE_COMMIT (stubbed here)."""
+    verdict_flag, waved, flag, source, passes = REFERENCE_FLAGS[name]
+    base, staged, rejudged, cases, index = restated
+    entry = _flagged(staged[index], flag, source)
+    staged[index] = entry
+    _judge_verdict(cases, _case(entry), verdict_flag)
+    key = f"{entry['scenario_id']}:{entry['variable']}"
+    wave = frozenset({key} if waved else ())
+    monkeypatch.setattr(driver, "base_wave_flags", lambda: wave, raising=False)
+    if passes:
+        driver.verify_restatements(base, staged, rejudged, cases)
+        return
+    with pytest.raises(SystemExit, match=f"{_case(entry)}: its reference flag"):
+        driver.verify_restatements(base, staged, rejudged, cases)
+
+
+@pytest.mark.parametrize("verdict_flag", [False, True])
+def test_an_unrestated_reopened_entry_must_carry_the_current_verdicts_flag(
+    restated, verdict_flag
+):
+    """A re-opened entry left as 20260929's wrote it is checked too: its flag
+    must be the one the current verdict gives it."""
+    base, staged, rejudged, cases, index = restated
+    at = next(i for i, e in enumerate(base) if _case(e) == _case(staged[index]))
+    _judge_verdict(cases, _case(base[at]), verdict_flag)
+    # 20260929's entry, unrestated, with the flag the verdict does not give.
+    base[at] = staged[index] = _flagged(base[at], not verdict_flag, None)
+    with pytest.raises(SystemExit, match="its reference flag"):
+        driver.verify_restatements(
+            base, staged, rejudged, cases, wave_flags=frozenset()
+        )
+    base[at] = staged[index] = _flagged(base[at], verdict_flag, None)
+    driver.verify_restatements(base, staged, rejudged, cases, wave_flags=frozenset())
+
+
+@pytest.mark.parametrize(
+    "original, source, passes",
+    [
+        (None, EARLIER_RUN, True),
+        (None, "claude-opus-5-5 judge run adjudicated 2026-09-22", False),
+        ("claude-opus-5-5 judge run adjudicated 2026-09-22", EARLIER_RUN, True),
+        (
+            "claude-opus-5-5 judge run adjudicated 2026-09-22",
+            "claude-opus-5-5 judge run adjudicated 2026-09-22",
+            True,
+        ),
+        (
+            "claude-opus-5-5 judge run adjudicated 2026-09-22",
+            "a-human-typed-this",
+            False,
+        ),
+    ],
+)
+def test_a_named_flag_source_keeps_20260929s_wording_or_the_restate_scripts(
+    original, source, passes
+):
+    """A flag the wave alone raised names its source in the wording 20260929's
+    entry gave it, or in the restate script's FLAG_SOURCE_EARLIER_RUN, which
+    a restatement writes where the entry has none (a case whose first
+    re-judge flagged the reference loses its source, and a later re-judge
+    that does not restores the restate script's)."""
+    first = {} if original is None else {"judge_reference_suspect_source": original}
+    entry = {"judge_reference_suspect": True, "judge_reference_suspect_source": source}
+    problem = driver.reference_flag_problem(entry, first, False, True)
+    assert (problem is None) == passes
+
+
+def test_the_gate_reads_the_restate_scripts_wave_flags_from_git():
+    """The restate script's --wave-flags default is the file the gate reads
+    at BASE_COMMIT, and the working tree's copy is unchanged."""
+    import date_adds0928_judge_verdicts as dates
+    import restate_gpt61sol_adjudications as restate
+
+    assert restate.WAVE_FLAGS == dates.WAVE_FLAGS
+    assert dates.WAVE_FLAGS == driver.ROOT / driver.WAVE_FLAGS_PATH
+    assert driver.base_wave_flags() == frozenset(
+        json.loads(dates.WAVE_FLAGS.read_text())
+    )
+    assert restate.FLAG_SOURCE_EARLIER_RUN == EARLIER_RUN
+
+
+def test_the_stages_restated_entries_pass_the_restatement_check():
+    """Local only: every re-opened entry of the staged record, each restated
+    by the restate script, passes the gate against the stage's verdicts."""
+    from policybench.adjudications import load_adjudications
+
+    stage = driver.ROOT / "results/local/gpt61sol-v1"
+    if not (stage / "audit/cases").is_dir():
+        pytest.skip("needs the GPT-6.1 Sol stage")
+    changes = json.loads((stage / driver.PROMPT_CHANGES).read_text())
+    rejudged = frozenset(changes["changed"]) | frozenset(changes["added"])
+    staged = load_adjudications(stage / BUNDLE / "annotations/us_adjudications.json")
+    assert sum(_case(entry) in rejudged for entry in staged) == 54
+    driver.verify_restatements(
+        driver.base_adjudications(), staged, rejudged, stage / "audit/cases"
+    )
+
+
 def test_the_freeze_reads_20260929_predictions_and_serving_from_git(monkeypatch):
     import gzip
 
