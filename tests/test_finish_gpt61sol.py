@@ -2093,6 +2093,29 @@ def test_partial_export_never_gets_a_release_receipt(exporting):
     assert not driver.RELEASE_RECEIPT.exists()
 
 
+def test_the_committed_receipt_pin_names_the_published_release():
+    """Runs anywhere: the committed pin names release 20260930's tag and the
+    payload the live pointer publishes, in the form export writes."""
+    pin = json.loads(driver.RELEASE_RECEIPT.read_text())
+    pointer = json.loads((driver.ROOT / "app/src/data.artifact.json").read_text())
+    assert pin["release_tag"] == pointer["tag"] == driver.RELEASE_TAG
+    assert pin["payload_sha256"] == pointer["sha256"]
+    assert re.fullmatch("[0-9a-f]{64}", pin["release_ready_sha256"])
+    assert driver.RELEASE_RECEIPT.read_text() == (
+        json.dumps(pin, indent=2, sort_keys=True) + "\n"
+    )
+
+
+def test_the_committed_receipt_pin_names_the_stages_receipt():
+    """Local only: the committed pin names the stage's receipt and payload."""
+    stage = driver.ROOT / "results/local/gpt61sol-v1"
+    if not (stage / "release-ready.json").is_file():
+        pytest.skip("needs the GPT-6.1 Sol stage")
+    driver.verify_release_receipt(
+        stage, stage / "data-board46.json", driver.RELEASE_TAG
+    )
+
+
 @pytest.fixture
 def pinned_receipt(tmp_path, monkeypatch):
     """A git repository whose HEAD commits a receipt pin, and the stage and
