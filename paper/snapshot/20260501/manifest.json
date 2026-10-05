@@ -25,9 +25,9 @@
     },
     "files": {
       "us_adjudications.json": "42d6a90fe402b6dc8a37422999ea05cd0e481a5ead690ee4045f649d682270c6",
-      "us_audit_row_annotations.csv": "c3b3e2c11f90650f6dc61696bed40542445ffe972be1b54c12116e3cfe4b785f",
-      "us_case_notes.csv": "2b262f87d98aeef931c3fd5af30013a7115f3b93066e03be83ae1c06454f7a8a",
-      "us_case_reference_explanations.csv": "1d9c0b7b3240a3057dad519a1a97e3d6c1ce4077686b536ab90f174e92c569f6"
+      "us_audit_row_annotations.csv": "ef393cc0604fe3ef57a1dc0eb10395405c818521ec172e29a00748b6e8657f0f",
+      "us_case_notes.csv": "fa26630bcdace072230beb23f4699e3f52f1ed6dba45cd8a89e745d4d4de00b5",
+      "us_case_reference_explanations.csv": "c5905eff49c28bf7fec436e49b5608f298eb8b3fb110cf35e214f4daacb0b275"
     },
     "judge_provenance": {
       "by_judge": {

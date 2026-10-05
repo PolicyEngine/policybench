@@ -89,6 +89,7 @@ PERSON_VARIABLES = (
     "is_optional_senior_or_disabled_for_medicaid",
     "is_adult_for_medicaid_nfc",
     "is_adult_for_medicaid",
+    "immigration_status",
     "is_medicaid_immigration_status_eligible",
     "medicaid_category",
     "is_medicaid_eligible",
@@ -174,7 +175,7 @@ def main() -> None:
         values = {}
         for variable in PERSON_VARIABLES:
             result = sim.calculate(variable, YEAR)
-            if variable == "medicaid_category":
+            if hasattr(result, "decode_to_str"):
                 values[variable] = str(result.decode_to_str()[0])
             else:
                 values[variable] = _scalar(result)
@@ -233,6 +234,9 @@ def main() -> None:
     assert modeled["is_ssi_recipient_for_medicaid"] is False
     assert modeled["is_adult_for_medicaid_nfc"] is False
     assert modeled["medicaid_category"] == "SENIOR_OR_DISABLED"
+    # No status is listed, so the default applies.
+    assert modeled["immigration_status"] == "CITIZEN"
+    assert modeled["is_medicaid_immigration_status_eligible"] is True
 
     # The modeled Part B premium does not enter the test.
     assert modeled["medicare_enrolled"] is True

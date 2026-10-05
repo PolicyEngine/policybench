@@ -123,9 +123,10 @@ def main() -> None:
     assert sections == ["scenarioPredictions"], sections
     assert cells == [("scenario_031", "head_medicaid_eligible")], cells
     assert set(fields) <= {"annotation", "caseAnnotation", "referenceExplanation"}, fields
-    assert {p[1] for p in reproduction} <= {
-        i for i, s in enumerate(stats) if s["model"] == "claude-fable-5"
-    }, reproduction
+    fable = {i for i, s in enumerate(stats) if s["model"] == "claude-fable-5"}
+    assert all(p[0] == "modelStats" and p[1] in fable for p in reproduction), (
+        reproduction
+    )
 
 
 if __name__ == "__main__":

@@ -3,7 +3,8 @@
  "post_review_edits": [
   "Inserted '(,760 a year)' after ' monthly disregard' in 21 rows that subtracted the monthly disregard from an annual figure (critic), and merged the resulting double parentheses.",
   "grok-build-0.1: 'aged Medi-Cal' -> 'aged Medicaid'; gemini-3.1-flash-lite-preview: 'the Medi-Cal limit' -> 'the Medicaid limit'.",
-  "glm-5.2 and grok-4.3: 'The engine has no Medicare exclusion' -> 'In the engine's Medicaid rules, Medicare eligibility bars only the adult expansion group' (in variables/gov/hhs/medicaid, is_adult_for_medicaid_nfc is the only formula that bars on is_medicare_eligible; medicaid_work_requirement_eligible reads it as an exemption)."
+  "glm-5.2 and grok-4.3: 'The engine has no Medicare exclusion' -> 'In the engine's Medicaid rules, Medicare eligibility bars only the adult expansion group' (in variables/gov/hhs/medicaid, is_adult_for_medicaid_nfc is the only formula that bars on is_medicare_eligible; medicaid_work_requirement_eligible reads it as an exemption).",
+  "After the independent review (verification/independent_review.md): gemini-3.7-flash, gpt-5.6-luna and gpt-5.6-sol now say income is over the limit only if the  disregard is skipped or replaced by a smaller one, such as SSI's $20; gemini-3.5-flash names its federal tax and SNAP answers as the source of $23,853 and drops 'about' before exact figures; deepseek-v4-pro drops 'about'; claude-fable-5 is reworded ('assumed no specific disregard')."
  ],
  "tally": {
   "total": 43,
@@ -115,7 +116,7 @@
    ],
    "evidence": "\"less alimony expense adjustment $1,165 gives MAGI-style income ~$22,688; even with SSI-style disregards, monthly income (~$1,890) exceeds the 138% FPL limit for one person (~$1,800/month in 2026)\"; \"eligibility would come via the aged/senior pathway (ACA MAGI expansion covers only ages 19-64)\"",
    "checked_text": "It took the aged pathway and a 138% limit of about $1,800 a month but applied no disregard: it subtracted the $1,165 of alimony, put income at about $1,890 a month, and said even SSI-style disregards would leave it over. The engine does not subtract alimony; it takes $1,987.79 a month less California's $230 disregard, which replaces SSI's $20 exclusion, for $1,757.79, under the $1,835.40 limit (138% of the 2026 guideline).",
-   "final_text": "It took the aged pathway and a 138% limit of about $1,800 a month but applied no disregard: it subtracted the $1,165 of alimony, put income at about $1,890 a month, and said even SSI-style disregards would leave it over. The engine does not subtract alimony; it takes $1,987.79 a month less California's $230 disregard, which replaces SSI's $20 exclusion, for $1,757.79, under the $1,835.40 limit (138% of the 2026 guideline).",
+   "final_text": "It took the aged pathway and a 138% limit of about $1,800 a month, subtracted the $1,165 of alimony to put income at about $1,890 a month, and assumed no specific disregard, saying even SSI-style disregards would leave it over. The engine does not subtract alimony; it takes $1,987.79 a month less California's $230 disregard, which replaces SSI's $20 exclusion, for $1,757.79, under the $1,835.40 limit (138% of the 2026 guideline).",
    "subtype": "taxable_income_or_deductions",
    "subtype_note": "Kept. The income count decided the case: with $1,757.79 it would pass even its own $1,800 limit."
   },
@@ -247,7 +248,7 @@
    ],
    "evidence": "Medicaid row: \"income of $1,987.75/month exceeds CA Aged & Disabled FPL income limit of 138% FPL ($1,732/month estimated)\". SSI row: \"Countable unearned income $1,967.75/month ($1,987.75 - $20)\".",
    "checked_text": "It tested gross monthly income of $1,987.75 against an understated 138% FPL limit of $1,732. The engine subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves about $1,757.79, under the actual limit of $1,835.40 a month (138% of the 2026 guideline). Both errors mattered: income after the disregard still tops the model's $1,732 figure.",
-   "final_text": "It tested gross monthly income of $1,987.75 against an understated 138% FPL limit of $1,732. The engine subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves about $1,757.79, under the actual limit of $1,835.40 a month (138% of the 2026 guideline). Both errors mattered: income after the disregard still tops the model's $1,732 figure.",
+   "final_text": "It tested gross monthly income of $1,987.75 against an understated 138% FPL limit of $1,732. The engine subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves $1,757.79, under the actual limit of $1,835.40 a month (138% of the 2026 guideline). Both errors mattered: income after the disregard still tops the model's $1,732 figure.",
    "subtype": "taxable_income_or_deductions",
    "subtype_note": "Kept. Two errors were each necessary: the missed disregard and the understated limit. Income counting matches corpus practice and is not clearly wrong; thresholds_rates would be the secondary label."
   },
@@ -327,7 +328,7 @@
    ],
    "evidence": "Medicaid row: \"The head's monthly income exceeds the 138% Federal Poverty Level threshold for free non-MAGI Medi-Cal (Medicaid) in California.\" Federal tax row: \"The head's gross income of $23,853\"; SNAP row: \"With a gross income of $23,853\".",
    "checked_text": "It correctly picked the 138% FPL limit for what it called \"free non-MAGI Medi-Cal\" but gave no figures, saying only that the head's monthly income was over it; elsewhere it cited gross income of $23,853. The engine subtracts California's $230 monthly disregard from about $1,987.79 a month, in place of SSI's $20 exclusion. That leaves about $1,757.79 a month, under the $1,835.40 monthly limit (138% of the 2026 guideline).",
-   "final_text": "It correctly picked the 138% FPL limit for what it called \"free non-MAGI Medi-Cal\" but gave no figures, saying only that the head's monthly income was over it; elsewhere it cited gross income of $23,853. The engine subtracts California's $230 monthly disregard from about $1,987.79 a month, in place of SSI's $20 exclusion. That leaves about $1,757.79 a month, under the $1,835.40 monthly limit (138% of the 2026 guideline).",
+   "final_text": "It correctly picked the 138% FPL limit for what it called \"free non-MAGI Medi-Cal\" but gave no figures, saying only that the head's monthly income was over it; in the same response it put gross income at $23,853 for its federal tax and SNAP answers. The engine subtracts California's $230 monthly disregard from $1,987.79 a month, in place of SSI's $20 exclusion. That leaves $1,757.79 a month, under the $1,835.40 monthly limit (138% of the 2026 guideline).",
    "subtype": "taxable_income_or_deductions",
    "subtype_note": "Kept. Its pathway and threshold were right, so the deciding error is the income count without the disregard."
   },
@@ -360,7 +361,7 @@
    "problems_found": [],
    "evidence": "\"Head's income exceeds the non-MAGI Medi-Cal income limits for an elderly individual.\" (no income figure, exclusion or limit anywhere in raw_response)",
    "checked_text": "It placed the head in what it called the \"non-MAGI\" elderly pathway but gave no income figure or limit, and it judged income too high, which holds only if California's disregard is skipped. In the engine's senior-or-disabled pathway, $23,853.47 less California's $230 monthly disregard (which takes the place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
-   "final_text": "It placed the head in what it called the \"non-MAGI\" elderly pathway but gave no income figure or limit, and it judged income too high, which holds only if California's disregard is skipped. In the engine's senior-or-disabled pathway, $23,853.47 less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion, gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It placed the head in what it called the \"non-MAGI\" elderly pathway but gave no income figure or limit, and it judged income too high, which holds against the engine's limit only if California's $230 disregard is skipped or replaced by a smaller one, such as SSI's $20. In the engine's senior-or-disabled pathway, $23,853.47 less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion, gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
    "subtype": "taxable_income_or_deductions",
    "subtype_note": "Kept. The pathway was right, so the 0 comes from counting income without California's disregard, an income-counting error."
   },
@@ -435,7 +436,7 @@
    ],
    "evidence": "\"The head's countable annual income is above the applicable California Medicaid income threshold for this case; not eligible\" (no figures, pathway or threshold anywhere in raw_response)",
    "checked_text": "It gave no figures, pathway or threshold and only asserted that countable income was above the applicable California limit, which holds only if the state's $230 monthly disregard is skipped. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway, where $23,853.47 less that disregard (which takes the place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
-   "final_text": "It gave no figures, pathway or threshold and only asserted that countable income was above the applicable California limit, which holds only if the state's $230 monthly disregard ($2,760 a year) is skipped. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway, where $23,853.47 less that disregard (which takes the place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It gave no figures, pathway or threshold and only asserted that countable income was above the applicable California limit, which holds against the engine's limit only if the state's $230 monthly disregard ($2,760 a year) is skipped or replaced by a smaller one, such as SSI's $20. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway, where $23,853.47 less that disregard (which takes the place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
    "subtype": "taxable_income_or_deductions",
    "subtype_note": "Kept. It said outright that countable income was over the limit, so the error lies in counting income."
   },
@@ -448,7 +449,7 @@
    ],
    "evidence": "\"The Head's annual retirement income exceeds California's income limit for the applicable aged Medicaid pathway, so the Head is not eligible\" (no figures). Its SSI output: \"Countable monthly Social Security, pension, and IRA income exceeds the federal SSI payment standard even after the general income exclusion\"",
    "checked_text": "It identified the aged pathway but concluded, without showing figures, that retirement income exceeded California's limit. That holds only if California's $230 monthly disregard is skipped: gross income of $23,853.47 is $1,828.67 over the limit. The engine's senior-or-disabled pathway subtracts that disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
-   "final_text": "It identified the aged pathway but concluded, without showing figures, that retirement income exceeded California's limit. That holds only if California's $230 monthly disregard is skipped: gross income of $23,853.47 is $1,828.67 over the limit. The engine's senior-or-disabled pathway subtracts that disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It identified the aged pathway but concluded, without showing figures, that retirement income exceeded California's limit. That holds against the engine's limit only if California's $230 monthly disregard is skipped or replaced by a smaller one, such as SSI's $20: gross income of $23,853.47 is $1,828.67 over the limit. The engine's senior-or-disabled pathway subtracts that disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
    "subtype": "taxable_income_or_deductions",
    "subtype_note": "Kept. The pathway was right, and its decisive error was counting income without California's disregard."
   },
