@@ -66,9 +66,10 @@ ASSET_OUTPUT = ROOT / "notes/data/bbce_asset_households_20260930.csv"
 SCRIPT_PATH = "scripts/bbce_households_20260930.py"
 # Categorical eligibility, matched case-insensitively: the rule by name, a
 # household called categorically eligible with a space or a hyphen between
-# the words, or a state's "expanded categorical" limit, Arizona's name for
-# its BBCE ("Michigan's expanded categorical gross-income limit"). It leaves
-# out "categorically ineligible" and the ABAWD "categorically exempt" wording.
+# the words, or a state's "expanded categorical" limit, another name for BBCE
+# (GPT-6.1 Sol: "Michigan's expanded categorical gross-income limit"). It
+# leaves out "categorically ineligible" and the ABAWD "categorically exempt"
+# wording.
 BBCE_PATTERN = r"broad-based|\bbbce\b|categorical(?:ly)?[- ]eligib|expanded categorical"
 INCOME_MENTIONS = {
     "mentions_categorical_eligibility": BBCE_PATTERN,

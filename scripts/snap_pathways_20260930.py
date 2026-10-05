@@ -20,9 +20,11 @@ The meta records:
 - the SNAP and state TANF non-cash parameters the note cites, on each date in
   2026 they change for the note's states;
 - the engine's own formulas for SNAP categorical eligibility, eligibility for
-  the TANF non-cash benefit, SNAP eligibility and the normal allotment, read
-  from the installed policyengine-us, so the note's claims about how
-  PolicyEngine applies BBCE are checked against the engine's code;
+  the TANF non-cash benefit and the three tests it combines (with the gross
+  limit and the elderly-or-disabled status they read), SNAP eligibility, the
+  gross income test and the normal allotment, read from the installed
+  policyengine-us, so the note's claims about how PolicyEngine applies BBCE
+  are checked against the engine's code;
 - each household whose SNAP output the release excludes, with the exclusion
   record's reason;
 - for each household with a member the engine treats as elderly or disabled
@@ -108,6 +110,11 @@ TESTS = (
 ENGINE_RULES = (
     "meets_snap_categorical_eligibility",
     "is_tanf_non_cash_eligible",
+    "meets_tanf_non_cash_gross_income_test",
+    "meets_tanf_non_cash_net_income_test",
+    "meets_tanf_non_cash_asset_test",
+    "tanf_non_cash_gross_income_limit",
+    "is_tanf_non_cash_hheod",
     "is_snap_eligible",
     "snap_normal_allotment",
     "meets_snap_gross_income_test",
