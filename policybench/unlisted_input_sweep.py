@@ -23,9 +23,14 @@ Every simulation runs on one tax-benefit system per worker process: building the
 second.
 
 The swept system adds ``policybench.output_scope.reform`` to the fix module, so its
-state income tax output excludes local tax as the benchmark defines it. The run
-checks that the adapter changes no published reference: each local tax it removes
-must be zero for every household.
+state income tax and state refundable credit outputs exclude local taxes and
+credits as the benchmark defines them. The run checks that the adapter changes no
+published reference: each local entry it removes must be zero for every household.
+
+A county reading that switches on one of the engine's locality flags (in_nyc,
+in_san_francisco, ...) makes an unlisted household fact true, which the prompt's
+rule makes false. Its moves are reported with status ``prompt_rules_out`` and do
+not fail ``--strict``.
 
 Usage (``docs/runbook.md``, "Reference-build gates"):
 
@@ -76,16 +81,22 @@ COMBINED_READING = "all_literal"
 
 # Inputs the references were built under another name. The frozen manifest stores
 # partnership_se_income; policyengine-us 2.15.17 calls it
-# partnership_self_employment_net_earnings. The reference builder
-# (reference_audit/2026-09-28/scripts/sweep.py, build_situation) renames it.
+# partnership_self_employment_net_earnings. The 2026-09-28 reference builder
+# (reference_audit/2026-09-28/scripts/build_references_latest.py) builds households
+# with sweep.py's build_situation, which renames it.
 REFERENCE_INPUT_RENAMES = {
     "partnership_se_income": "partnership_self_employment_net_earnings"
 }
 
-# Local income taxes that reach the federal SALT deduction only through the
-# withholding estimate. policyengine-us 2.15.17 sends Maryland county tax to SALT
-# through md_withheld_income_tax; local_income_tax, the other income-tax line of
-# SALT, does not add it. NYC tax reaches SALT through local_income_tax.
+# Local income taxes whose only route to the federal SALT deduction is the
+# withholding estimate. In policyengine-us 2.15.17 the income-tax line of SALT is
+# state_withheld_income_tax plus local_income_tax. md_withheld_income_tax carries an
+# AGI-based estimate of Maryland county tax (the county's rate times AGI less the
+# largest single standard deduction); local_income_tax adds no Maryland entry, and
+# the county liability variable feeds no SALT variable. Replacing the withholding
+# estimate with what the household paid therefore has to add the county liability
+# back. NYC tax already reaches SALT through local_income_tax (as nyc_income_tax,
+# net of NYC refundable credits), so it is not added.
 SALT_VIA_WITHHOLDING_ONLY = ("md_local_income_tax_before_refundable_credits",)
 
 DEFAULT_RUN_DIR = Path(
@@ -276,6 +287,25 @@ class UnlistedEstimate:
 # ---------------------------------------------------------------------------
 
 
+def discover_locality_flags() -> tuple[str, ...]:
+    """Household flags that put a household in a locality with its own rules.
+
+    policyengine-us defines them as ``in_*`` variables under ``variables/gov/local``
+    (in_san_francisco, in_denver, ...) and ``variables/household/demographic/
+    geographic`` (in_nyc), each a formula of county. They are read from the installed
+    source tree, so no system is built. The prompt states no locality, and its rule
+    makes every unlisted household fact false.
+    """
+    spec = importlib.util.find_spec("policyengine_us")
+    if spec is None or not spec.submodule_search_locations:
+        return ()
+    root = Path(next(iter(spec.submodule_search_locations))) / "variables"
+    names = set()
+    for pattern in ("gov/local/**/in_*.py", "household/demographic/geographic/in_*.py"):
+        names.update(path.stem for path in root.glob(pattern))
+    return tuple(sorted(names))
+
+
 class Engine:
     """The swept tax-benefit system and how to simulate a situation on it."""
 
@@ -285,13 +315,38 @@ class Engine:
         simulation_class: Any,
         aggregate_local_components: Sequence[str] = (),
         removed_local_components: Sequence[str] = (),
+        remaining_local_components: Sequence[str] | None = None,
         county_states: frozenset[str] | None = None,
+        locality_flags: Sequence[str] | None = None,
     ):
         self.system = system
         self.simulation_class = simulation_class
+        # Local taxes still in the swept state income tax aggregate.
         self.aggregate_local_components = tuple(aggregate_local_components)
+        # Local entries the output-scope adapter removed from the state lists.
         self.removed_local_components = tuple(removed_local_components)
+        # Local entries still in any state list (taxes and credits).
+        self.remaining_local_components = tuple(
+            aggregate_local_components
+            if remaining_local_components is None
+            else remaining_local_components
+        )
         self.county_states = county_states
+        if locality_flags is None:
+            locality_flags = [
+                name for name in discover_locality_flags() if self.has_variable(name)
+            ]
+        self.locality_flags = tuple(locality_flags)
+
+    @property
+    def remaining_local_credits(self) -> tuple[str, ...]:
+        """Local credits the swept system still counts in state refundable credits."""
+        return tuple(
+            name
+            for name in self.remaining_local_components
+            if name not in output_scope.LOCAL_INCOME_TAX_COMPONENTS
+            and name not in self.aggregate_local_components
+        )
 
     def simulate(self, situation: dict) -> Any:
         return self.simulation_class(
@@ -438,9 +493,10 @@ def salt_income_tax_paid(
     """The state income tax a household pays during the year if it pays its liability.
 
     The engine's state income tax before refundable credits, less any local tax the
-    swept system's state aggregate still adds, plus the local tax that reaches SALT
-    only through the withholding estimate (Maryland county tax). ``net`` also
-    subtracts state refundable credits. Floored at zero.
+    swept system's state aggregate still adds, plus the local tax whose only route
+    to SALT is the withholding estimate (Maryland county tax). ``net`` also
+    subtracts state refundable credits, less any local credit the swept system still
+    counts in them. Floored at zero.
     """
     amount = ctx.total(simulation, output_scope.STATE_AGGREGATE)
     for name in ctx.engine.aggregate_local_components:
@@ -450,6 +506,8 @@ def salt_income_tax_paid(
             amount += ctx.total(simulation, name)
     if net:
         amount -= ctx.total(simulation, "state_refundable_credits")
+        for name in ctx.engine.remaining_local_credits:
+            amount += ctx.total(simulation, name)
     return max(0.0, amount)
 
 
@@ -532,11 +590,16 @@ def _is_disabled(ctx: HouseholdContext) -> dict[str, bool]:
 
 
 def _pre_tcja_mortgage(ctx: HouseholdContext) -> list[ReadingPlan]:
-    # Only deductible_mortgage_interest_tax_unit reads the origination years, and
-    # raising a balance cap can only raise its deductible share. Where none of the
-    # interest is capped out, every output is unchanged, so no simulation is needed.
-    capped = ctx.total(ctx.baseline, "non_deductible_mortgage_interest_tax_unit")
-    if capped <= 0:
+    # deductible_mortgage_interest_tax_unit is the only variable that reads the
+    # origination years; it is interest times a deductible share, min(1, capped
+    # balance / balance), which raising a cap cannot lower. Where the share is
+    # already 1 (deductible equals interest), every output is unchanged, so no
+    # simulation is needed. Testing the share, not non-deductible interest, keeps
+    # this exact for negative interest too.
+    interest = ctx.total(ctx.baseline, "home_mortgage_interest_tax_unit")
+    deductible = ctx.total(ctx.baseline, "deductible_mortgage_interest_tax_unit")
+    capped = interest - deductible
+    if abs(capped) <= NOOP_TOLERANCE:
         return []
     year = int(
         ctx.engine.parameter(
@@ -574,11 +637,13 @@ ESTIMATES: tuple[UnlistedEstimate, ...] = (
         engine_inputs=("state_withheld_income_tax",),
         entity="tax_unit",
         engine_behavior=(
-            "The state income tax part of the federal SALT deduction is "
-            "state_withheld_income_tax, which adds per-state *_withheld_income_tax "
-            "formulas on the person's federal AGI "
+            "The income-tax line of the federal SALT deduction is "
+            "state_withheld_income_tax plus local_income_tax, and it counts when it "
+            "exceeds general sales tax. state_withheld_income_tax adds per-state "
+            "*_withheld_income_tax formulas on each person's federal AGI "
             "(parameters/gov/states/household/state_withheld_income_tax.yaml); "
-            "several state formulas that read SALT or withholding consume it too."
+            "Maryland's includes a county estimate. CO and MO formulas read it, and "
+            "HI, VA, SC, NM, ID, UT and AZ formulas read SALT."
         ),
         why_unlisted=(
             "No prompt states state income tax withheld or paid during the year "
@@ -600,8 +665,8 @@ ESTIMATES: tuple[UnlistedEstimate, ...] = (
                 kind=ALTERNATIVE,
                 description=(
                     "The household pays its own state income tax before refundable "
-                    "credits during the year, Maryland county tax included, iterated "
-                    "to a fixed point."
+                    "credits during the year, with its Maryland county liability in "
+                    "place of the county estimate, iterated to a fixed point."
                 ),
                 plan=_withholding_fixed_point(net=False),
             ),
@@ -620,9 +685,12 @@ ESTIMATES: tuple[UnlistedEstimate, ...] = (
         engine_inputs=("local_sales_tax",),
         entity="tax_unit",
         engine_behavior=(
-            "local_sales_tax is 20% of the IRS state sales tax table amount outside "
-            "the states with no local sales tax, a stand-in for the locality's "
-            "rate (variables/gov/irs/.../local_sales_tax.py)."
+            "local_sales_tax is 0.2 times state_sales_tax (the optional state sales "
+            "tax table amount; for 2026 the reference system holds the 2025 IRS "
+            "table) outside CT, DC, IN, KY, MA, MD, ME, MI, NJ and RI, an "
+            "approximation of the locality's tax "
+            "(variables/gov/local/tax/sales/local_sales_tax.py). Federal SALT and "
+            "Hawaii's SALT deduction read it."
         ),
         why_unlisted="No prompt states a locality or a local sales tax rate.",
         found_in="reference_audit 2026-10-05 (variants.py no_local_sales)",
@@ -641,8 +709,10 @@ ESTIMATES: tuple[UnlistedEstimate, ...] = (
         entity="person",
         engine_behavior=(
             "takes_up_medicare_if_eligible defaults to true, so every "
-            "Medicare-eligible person is medicare_enrolled and pays a modeled "
-            "medicare_part_b_premium, which medical expenses include."
+            "Medicare-eligible person is medicare_enrolled and is charged a modeled "
+            "medicare_part_b_premium, net of Medicare Savings Program coverage. "
+            "medical_expense_health_insurance_premiums adds it unless a direct "
+            "health_insurance_premiums input is set, which no frozen household does."
         ),
         why_unlisted=(
             "No prompt states Medicare enrollment or a Part B premium, and the "
@@ -665,7 +735,9 @@ ESTIMATES: tuple[UnlistedEstimate, ...] = (
         engine_behavior=(
             "A household with no county takes its state's alphabetically first "
             "county (first_county_in_state): Allegany County for Maryland, whose "
-            "county income tax rate then applies."
+            "county rate then sets the county withholding estimate and liability. "
+            "County also sets locality flags (in_nyc, in_san_francisco and others) "
+            "and county-level program rules."
         ),
         why_unlisted="Prompts state the state, never the county.",
         found_in=(
@@ -675,7 +747,12 @@ ESTIMATES: tuple[UnlistedEstimate, ...] = (
             Reading(
                 id="each_county",
                 kind=ALTERNATIVE,
-                description="Each other county of the household's state.",
+                description=(
+                    "Each other county of the household's state. A county that "
+                    "switches on a locality flag (living in NYC or San Francisco) "
+                    "makes an unlisted fact true, which the prompt's rule makes "
+                    "false; its moves are marked prompt_rules_out."
+                ),
                 plan=_each_county,
             ),
         ),
@@ -685,9 +762,11 @@ ESTIMATES: tuple[UnlistedEstimate, ...] = (
         engine_inputs=("weekly_hours_worked_before_lsr",),
         entity="person",
         engine_behavior=(
-            "SNAP's work rules read weekly_hours_worked_before_lsr. Stated usual "
-            "hours reach it through PE_INPUT_ALIASES; otherwise the 2.15.17 "
-            "default is 0 (the literal reading; it was 40 before upstream #9261)."
+            "SNAP's work rules and the TANF rules of HI, MA, MT, DC and OK read "
+            "weekly_hours_worked_before_lsr (some through weekly_hours_worked). "
+            "Stated usual hours reach it through PE_INPUT_ALIASES; otherwise the "
+            "2.15.17 default is 0 (the literal reading; it was 40 before upstream "
+            "#9261)."
         ),
         why_unlisted="Most prompts list no hours worked.",
         found_in="reference_audit 2026-09-22 root cause r14 (weekly hours)",
@@ -863,6 +942,7 @@ def _reading_record(
     plan: ReadingPlan,
     noop: bool,
     outputs: dict[str, float] | None,
+    localities: Sequence[str] = (),
 ) -> dict[str, Any]:
     return {
         "estimate": estimate_id,
@@ -876,6 +956,7 @@ def _reading_record(
         "iterations": len(plan.trace),
         "trace": plan.trace,
         "detail": plan.detail,
+        "localities": list(localities),
         "outputs": outputs,
     }
 
@@ -895,8 +976,8 @@ def sweep_household(job: HouseholdJob, engine: Engine, patch=None) -> dict[str, 
     )
     ctx.baseline = engine.simulate(copy.deepcopy(situation))
     baseline_outputs = ctx.outputs(ctx.baseline)
-    scope_components = (
-        engine.aggregate_local_components + engine.removed_local_components
+    scope_components = dict.fromkeys(
+        engine.removed_local_components + engine.remaining_local_components
     )
     local_taxes = {
         name: ctx.total(ctx.baseline, name)
@@ -904,21 +985,31 @@ def sweep_household(job: HouseholdJob, engine: Engine, patch=None) -> dict[str, 
         if engine.has_variable(name)
     }
 
+    def localities_on(simulation: Any) -> set[str]:
+        return {
+            flag for flag in engine.locality_flags if ctx.total(simulation, flag) > 0
+        }
+
+    baseline_localities = localities_on(ctx.baseline)
     estimates = [ESTIMATES_BY_ID[i] for i in job.estimate_ids]
     readings = []
-    output_cache: dict[str, dict[str, float]] = {}
+    output_cache: dict[str, tuple[dict[str, float], list[str]]] = {}
 
     def evaluate(estimate_id: str, reading_id: str, kind: str, plan: ReadingPlan):
         noop = plan.override.is_empty() or ctx.is_noop(plan.override)
         outputs = None
+        localities: list[str] = []
         if not noop:
             key = plan.override.key()
             if key not in output_cache:
                 simulation = plan.simulation or ctx.simulate(plan.override)
-                output_cache[key] = ctx.outputs(simulation)
-            outputs = output_cache[key]
+                switched_on = sorted(localities_on(simulation) - baseline_localities)
+                output_cache[key] = (ctx.outputs(simulation), switched_on)
+            outputs, localities = output_cache[key]
         readings.append(
-            _reading_record(estimate_id, reading_id, kind, plan, noop, outputs)
+            _reading_record(
+                estimate_id, reading_id, kind, plan, noop, outputs, localities
+            )
         )
 
     for estimate in estimates:
@@ -934,10 +1025,12 @@ def sweep_household(job: HouseholdJob, engine: Engine, patch=None) -> dict[str, 
         "state": scenario.state,
         "baseline": baseline_outputs,
         "local_taxes": local_taxes,
+        "baseline_localities": sorted(baseline_localities),
         "readings": readings,
         "simulations": 1 + len(ctx._cache),
         "aggregate_local_components": list(engine.aggregate_local_components),
         "removed_local_components": list(engine.removed_local_components),
+        "remaining_local_components": list(engine.remaining_local_components),
         "seconds": round(time.perf_counter() - started, 3),
     }
 
@@ -981,7 +1074,7 @@ def compose_reform(fix_reform, adapter: bool):
         def apply(self):
             if fix_reform is not None:
                 fix_reform.apply(self)
-            seen["listed"] = output_scope.listed_local_components(self.parameters)
+            seen["listed"] = output_scope.all_listed_local_components(self.parameters)
             if adapter:
                 self.modify_parameters(output_scope.remove_local_components)
 
@@ -1000,12 +1093,14 @@ def build_engine(config: EngineConfig) -> tuple[Engine, Any]:
     system = CountryTaxBenefitSystem(reform=reform)
     listed = list(seen.get("listed", ()))
     aggregate = output_scope.listed_local_components(system.parameters)
-    removed = [name for name in listed if name not in aggregate]
+    remaining = output_scope.all_listed_local_components(system.parameters)
+    removed = [name for name in listed if name not in remaining]
     engine = Engine(
         system=system,
         simulation_class=Simulation,
         aggregate_local_components=aggregate,
         removed_local_components=removed,
+        remaining_local_components=remaining,
         county_states=(
             frozenset(config.county_states)
             if config.county_states is not None
@@ -1182,6 +1277,7 @@ MOVE_COLUMNS = [
     "excluded_reason",
     "exclusion_names_input",
     "acknowledged_status",
+    "localities",
     "override",
 ]
 
@@ -1266,6 +1362,8 @@ def evaluate(
                             if names_input
                             else "excluded_other_reason"
                         )
+                    elif reading["localities"]:
+                        status = "prompt_rules_out"
                     elif ack is not None:
                         status = "acknowledged"
                     else:
@@ -1288,6 +1386,7 @@ def evaluate(
                             "excluded_reason": record["reason_code"] if record else "",
                             "exclusion_names_input": names_input,
                             "acknowledged_status": ack["status"] if ack else "",
+                            "localities": ";".join(reading["localities"]),
                             "override": reading["override_text"],
                         }
                     )
@@ -1303,6 +1402,7 @@ def evaluate(
                     "converged": reading["converged"],
                     "iterations": reading["iterations"],
                     "outputs_moved": moved_here,
+                    "localities": ";".join(reading["localities"]),
                     "override": reading["override_text"],
                     "detail": json.dumps(reading["detail"], sort_keys=True),
                 }
@@ -1368,6 +1468,14 @@ def summarize(
                     "status": _strongest_status(frame["status"]),
                     "excluded_reason": frame["excluded_reason"].iloc[0],
                     "estimates": sorted(set(frame["estimate"])),
+                    "localities": sorted(
+                        {
+                            flag
+                            for text in frame["localities"].fillna("")
+                            for flag in str(text).split(";")
+                            if flag
+                        }
+                    ),
                     "readings": sorted(set(frame["estimate"] + "/" + frame["reading"])),
                     "reference": float(frame["reference"].iloc[0]),
                     "baseline": float(frame["baseline"].iloc[0]),
@@ -1398,19 +1506,18 @@ def summarize(
         "moved_outputs": by_output,
         "counts": {
             status: sum(1 for o in by_output if o["status"] == status)
-            for status in (
-                "scored",
-                "acknowledged",
-                "excluded_same_input",
-                "excluded_other_reason",
-            )
+            for status in _STATUS_ORDER
         },
     }
 
 
+# Strongest first: an output's status is the strongest of its moves. A move is
+# scored unless the output is excluded, the reading switches on a locality fact the
+# prompt's rule makes false (prompt_rules_out), or an --acknowledged entry covers it.
 _STATUS_ORDER = (
     "scored",
     "acknowledged",
+    "prompt_rules_out",
     "excluded_other_reason",
     "excluded_same_input",
 )
@@ -1444,12 +1551,15 @@ def render_markdown(summary: dict[str, Any], moves: pd.DataFrame) -> str:
         f"- Baseline reproduces every scored reference: "
         f"{'yes' if not summary['baseline_scored_mismatches'] else 'NO'} "
         f"({len(summary['baseline_scored_mismatches'])} mismatches)",
-        f"- Local tax in the state output: "
+        f"- Local taxes and credits in the state outputs: "
         f"{'none' if not summary['scope_violations'] else 'FOUND'}"
-        f" (aggregate after adapter: {meta['aggregate_local_components'] or 'none'}; "
-        f"removed by adapter: {meta['removed_local_components'] or 'none'})",
+        f" (removed by the adapter and zero in every household: "
+        f"{', '.join(meta['removed_local_components']) or 'none'}; "
+        f"still listed: {', '.join(meta['remaining_local_components']) or 'none'})",
         f"- Fixed points converged: {'yes' if not summary['unconverged'] else 'NO'}",
         f"- Scored outputs that move: {summary['counts']['scored']}",
+        f"- Outputs that move only where a reading puts the household in a "
+        f"locality (prompt_rules_out): {summary['counts']['prompt_rules_out']}",
         "",
         "## Readings",
         "",
@@ -1476,6 +1586,8 @@ def render_markdown(summary: dict[str, Any], moves: pd.DataFrame) -> str:
             status = row["status"]
             if row["excluded_reason"]:
                 status += f" ({row['excluded_reason']})"
+            elif row["status"] == "prompt_rules_out":
+                status += f" ({', '.join(row['localities'])})"
             lines.append(
                 f"| {row['scenario_id']} {row['variable']} | {status} | "
                 f"{row['reference']:,.2f} | {row['baseline']:,.2f} | "
@@ -1641,7 +1753,7 @@ def run(args) -> int:
             flush=True,
         )
         results = run_jobs(jobs, config, workers)
-    aggregate, removed = scope_lists(results)
+    scope = scope_lists(results)
 
     report = evaluate(results, reference, exclusions, acknowledgements, args.tolerance)
     summary = report.summary
@@ -1653,8 +1765,7 @@ def run(args) -> int:
         "fix_id": fix.stem if fix else "baseline",
         "fix_files_sha256": fix_files,
         "output_scope_adapter": not args.no_output_scope_adapter,
-        "aggregate_local_components": aggregate,
-        "removed_local_components": removed,
+        **scope,
         "scenarios": str(scenarios_path),
         "scenarios_sha256": _sha256(scenarios_path),
         "reference": str(reference_path),
@@ -1710,24 +1821,24 @@ def run(args) -> int:
     )
 
 
-def scope_lists(results: Sequence[dict[str, Any]]) -> tuple[list[str], list[str]]:
-    """The local taxes left in, and removed from, the swept state aggregate.
+SCOPE_KEYS = (
+    "aggregate_local_components",
+    "removed_local_components",
+    "remaining_local_components",
+)
+
+
+def scope_lists(results: Sequence[dict[str, Any]]) -> dict[str, list[str]]:
+    """The local entries the swept system removed from, or keeps in, its state lists.
 
     Every worker builds the same system, so every household reports the same lists.
     """
-    lists = {
-        (
-            tuple(r["aggregate_local_components"]),
-            tuple(r["removed_local_components"]),
-        )
-        for r in results
-    }
+    lists = {tuple(tuple(r[key]) for key in SCOPE_KEYS) for r in results}
     if len(lists) > 1:
         raise RuntimeError(f"workers built different systems: {sorted(lists)}")
     if not lists:
-        return [], []
-    aggregate, removed = lists.pop()
-    return list(aggregate), list(removed)
+        return {key: [] for key in SCOPE_KEYS}
+    return {key: list(values) for key, values in zip(SCOPE_KEYS, lists.pop())}
 
 
 def exit_code(

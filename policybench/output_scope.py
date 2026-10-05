@@ -1,31 +1,41 @@
-"""Keep local income taxes out of the state income tax output.
+"""Keep local taxes and credits out of the state outputs.
 
-PolicyBench defines ``state_income_tax_before_refundable_credits`` as "state
-individual income tax after nonrefundable credits and before refundable credits,
-excluding local income and payroll taxes" (``benchmark_specs.json``). Local income
-taxes have their own output, ``local_income_tax``.
+PolicyBench's state outputs are state-only (``benchmark_specs.json``):
 
-policyengine-us builds its variable of the same name by adding the variables
-listed in ``parameters/gov/states/household/
-state_income_tax_before_refundable_credits.yaml``. On 2.15.17 that list carries
-two local taxes:
+- ``state_income_tax_before_refundable_credits``: "state individual income tax after
+  nonrefundable credits and before refundable credits, excluding local income and
+  payroll taxes";
+- ``state_refundable_credits``: "total refundable state individual income tax
+  credits".
 
-- ``md_local_income_tax_before_refundable_credits``, Maryland county income tax,
-  added by upstream #8888 (2026-07-05). The 2026-09-28 reference system removes it
-  with ``reference_audit/2026-09-28/fixes/latest_md_local_output_scope.py``.
-- ``nyc_income_tax_before_refundable_credits``, New York City income tax. Nothing
-  removes it. It is zero for every frozen household: ``in_nyc`` is true only for
-  the five NYC counties, and a household with no county takes its state's
-  alphabetically first county (Albany County for New York).
+Local income taxes have their own output, ``local_income_tax``.
 
-``reform`` removes both, so the engine variable matches the benchmark output. The
-county taxes stay where the engine puts them otherwise: Maryland county tax in
-``md_withheld_income_tax`` (and so in the federal SALT deduction), NYC tax in
-``local_income_tax``. Only the list changes; no formula or amount does.
+policyengine-us builds each engine variable of those names by adding the variables
+a parameter list names. On 2.15.17 three of those lists carry local entries
+(``SCOPED_LISTS``):
 
-``scope_violations`` is the assertion half: given a simulation on a system that
-still lists a local tax, it returns each listed local tax that is nonzero, which
-would put local tax in the state output.
+- ``gov.states.household.state_income_tax_before_refundable_credits``:
+  ``md_local_income_tax_before_refundable_credits`` (Maryland county income tax,
+  added by upstream #8888; the 2026-09-28 reference system removes it with
+  ``reference_audit/2026-09-28/fixes/latest_md_local_output_scope.py``) and
+  ``nyc_income_tax_before_refundable_credits`` (New York City income tax, which
+  nothing removed);
+- ``gov.states.household.state_refundable_credits``: ``nyc_refundable_credits``;
+- ``gov.states.ca.tax.income.credits.refundable``: ``ca_sf_wftc``, San Francisco's
+  Working Families Tax Credit, which reaches ``state_refundable_credits`` through
+  ``ca_refundable_credits``.
+
+``reform`` removes every local entry, so the engine variables match the benchmark
+outputs. Only the lists change; no formula or amount does. Maryland county tax still
+reaches the federal SALT deduction through ``md_withheld_income_tax``'s county
+estimate, and NYC tax net of NYC refundable credits (``nyc_income_tax``) is still in
+``local_income_tax``.
+
+Every one of these is zero for every frozen household: ``in_nyc`` is true only in
+the five NYC counties and ``in_san_francisco`` only in San Francisco County, and a
+household with no county takes its state's alphabetically first county (Albany
+County for New York, Alameda County for California). ``scope_violations`` is the
+check: it returns each listed local entry that is nonzero in a simulation.
 """
 
 from __future__ import annotations
@@ -37,76 +47,120 @@ STATE_AGGREGATE = "state_income_tax_before_refundable_credits"
 STATE_AGGREGATE_PARAMETER = (
     "gov.states.household.state_income_tax_before_refundable_credits"
 )
-LOCAL_INCOME_TAX_COMPONENTS = (
-    "md_local_income_tax_before_refundable_credits",
-    "nyc_income_tax_before_refundable_credits",
+STATE_REFUNDABLE_PARAMETER = "gov.states.household.state_refundable_credits"
+CA_REFUNDABLE_PARAMETER = "gov.states.ca.tax.income.credits.refundable"
+# Each list, the local entries 2.15.17 puts in it, and state entries it must keep.
+SCOPED_LISTS = {
+    STATE_AGGREGATE_PARAMETER: {
+        "local": (
+            "md_local_income_tax_before_refundable_credits",
+            "nyc_income_tax_before_refundable_credits",
+        ),
+        "keeps": (
+            "md_income_tax_before_refundable_credits",
+            "ny_income_tax_before_refundable_credits",
+        ),
+    },
+    STATE_REFUNDABLE_PARAMETER: {
+        "local": ("nyc_refundable_credits",),
+        "keeps": ("ny_refundable_credits", "ca_refundable_credits"),
+    },
+    CA_REFUNDABLE_PARAMETER: {
+        "local": ("ca_sf_wftc",),
+        "keeps": ("ca_eitc",),
+    },
+}
+LOCAL_INCOME_TAX_COMPONENTS = SCOPED_LISTS[STATE_AGGREGATE_PARAMETER]["local"]
+LOCAL_COMPONENTS = tuple(
+    name for spec in SCOPED_LISTS.values() for name in spec["local"]
 )
 # Spelled as engine variable names so a new local entry is caught by name: any
-# list entry containing one of these fragments is a local tax.
+# list entry containing one of these fragments is local.
 LOCAL_NAME_FRAGMENTS = (
     "_local_",
     "nyc_",
+    "_sf_",
+    "san_francisco",
     "philadelphia",
     "kansas_city",
     "st_louis",
     "wilmington",
     "denver",
+    "yonkers",
+    "multnomah",
 )
+SCOPE_INSTANT = "2026-01-01"
+# Where the lists are rewritten: the benchmark year and the years after it.
+SCOPE_PERIOD = "year:2026-01-01:10"
 FIX_ID = "policybench_output_scope"
 DESCRIPTION = (
-    "Exclude Maryland county and New York City income tax from the state income "
-    "tax output (output definition)"
+    "Exclude Maryland county tax and New York City and San Francisco taxes and "
+    "credits from the state income tax and state refundable credit outputs "
+    "(output definition)"
 )
 
 
 def is_local_component(name: str) -> bool:
-    """Whether a state-aggregate entry names a local (county or city) tax."""
-    return name in LOCAL_INCOME_TAX_COMPONENTS or any(
+    """Whether a list entry names a local (county or city) tax or credit."""
+    return name in LOCAL_COMPONENTS or any(
         fragment in name for fragment in LOCAL_NAME_FRAGMENTS
     )
 
 
 def scoped_components(components: Iterable[str]) -> list[str]:
-    """The state aggregate's list without its local entries, order kept."""
+    """A list without its local entries, order kept."""
     return [name for name in components if not is_local_component(name)]
 
 
 def local_components(components: Iterable[str]) -> list[str]:
-    """The local entries of a state-aggregate list, order kept."""
+    """The local entries of a list, order kept."""
     return [name for name in components if is_local_component(name)]
 
 
-def _aggregate_parameter(parameters):
+def _parameter(parameters, path: str):
     node = parameters
-    for part in STATE_AGGREGATE_PARAMETER.split("."):
+    for part in path.split("."):
         node = getattr(node, part)
     return node
 
 
-def listed_local_components(parameters, instant: str = "2026-01-01") -> list[str]:
-    """The local taxes a parameter tree adds into the state aggregate."""
-    return local_components(_aggregate_parameter(parameters)(instant))
+def listed_local_components(
+    parameters, path: str = STATE_AGGREGATE_PARAMETER, instant: str = SCOPE_INSTANT
+) -> list[str]:
+    """The local entries one parameter list adds (default: the state income tax)."""
+    return local_components(_parameter(parameters, path)(instant))
+
+
+def all_listed_local_components(parameters, instant: str = SCOPE_INSTANT) -> list[str]:
+    """Every local entry in every scoped list, in ``SCOPED_LISTS`` order."""
+    return [
+        name
+        for path in SCOPED_LISTS
+        for name in listed_local_components(parameters, path, instant)
+    ]
 
 
 def remove_local_components(parameters):
-    """``modify_parameters`` callback: drop every local entry from the list."""
-    param = _aggregate_parameter(parameters)
-    current = list(param("2026-01-01"))
-    kept = scoped_components(current)
-    if kept != current:
-        param.update(period="year:2015-01-01:20", value=kept)
-    assert not local_components(param("2026-01-01"))
-    assert "md_income_tax_before_refundable_credits" in param("2026-01-01")
-    assert "ny_income_tax_before_refundable_credits" in param("2026-01-01")
+    """``modify_parameters`` callback: drop every local entry from every list."""
+    for path, spec in SCOPED_LISTS.items():
+        param = _parameter(parameters, path)
+        current = list(param(SCOPE_INSTANT))
+        kept = scoped_components(current)
+        if kept != current:
+            param.update(period=SCOPE_PERIOD, value=kept)
+        after = param(SCOPE_INSTANT)
+        assert not local_components(after), (path, after)
+        for name in spec["keeps"]:
+            assert name in after, (path, name)
     return parameters
 
 
-def installed_state_aggregate() -> list[str]:
-    """The installed policyengine-us state aggregate list, read from its YAML.
+def installed_parameter_list(path: str = STATE_AGGREGATE_PARAMETER) -> list[str]:
+    """A list parameter of the installed policyengine-us, read from its YAML.
 
-    The file is located without importing policyengine_us and parsed without
-    building a tax-benefit system (about 40 seconds), so a test can check every
-    engine upgrade for a new local entry cheaply.
+    The latest value is returned. The file is located without importing
+    policyengine_us and parsed without building a tax-benefit system (about 40
+    seconds), so a test can check every engine upgrade for a new local entry.
     """
     import importlib.util
     from pathlib import Path
@@ -117,12 +171,9 @@ def installed_state_aggregate() -> list[str]:
     if spec is None or not spec.submodule_search_locations:
         raise ModuleNotFoundError("policyengine_us is not installed")
     root = Path(next(iter(spec.submodule_search_locations)))
-    path = root / (
-        "parameters/gov/states/household/"
-        "state_income_tax_before_refundable_credits.yaml"
-    )
+    path_on_disk = root / "parameters" / (path.replace(".", "/") + ".yaml")
     # BaseLoader keeps the 0000-01-01 key a string; the default loader rejects it.
-    data = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    data = yaml.load(path_on_disk.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     values = data["values"]
     return list(values[sorted(values)[-1]])
 
@@ -133,7 +184,7 @@ def scope_violations(
     period: int | str,
     tolerance: float = 0.005,
 ) -> dict[str, float]:
-    """Each listed local tax that is nonzero in ``simulation``, with its amount."""
+    """Each listed local entry that is nonzero in ``simulation``, with its amount."""
     violations = {}
     for name in components:
         amount = float(simulation.calculate(name, period).sum())

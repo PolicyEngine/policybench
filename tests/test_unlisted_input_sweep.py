@@ -54,9 +54,17 @@ class FakeCounty(Enum):
     BALTIMORE_CITY_MD = "Baltimore city, MD"
     ALPINE_COUNTY_CA = "Alpine County, CA"
     ALAMEDA_COUNTY_CA = "Alameda County, CA"
+    ALBANY_COUNTY_NY = "Albany County, NY"
+    KINGS_COUNTY_NY = "Kings County, NY"
+    NASSAU_COUNTY_NY = "Nassau County, NY"
 
 
-FIRST_COUNTY = {"MD": "ALLEGANY_COUNTY_MD", "CA": "ALAMEDA_COUNTY_CA"}
+FIRST_COUNTY = {
+    "MD": "ALLEGANY_COUNTY_MD",
+    "CA": "ALAMEDA_COUNTY_CA",
+    "NY": "ALBANY_COUNTY_NY",
+}
+NYC_COUNTIES = {"KINGS_COUNTY_NY"}
 
 
 class EnumResult(list):
@@ -80,7 +88,11 @@ class Node(SimpleNamespace):
         self._value = value
 
 
-def fake_parameters(aggregate):
+def fake_parameters(
+    aggregate,
+    refundable=("ny_refundable_credits", "ca_refundable_credits"),
+    ca_refundable=("ca_eitc",),
+):
     return Node(
         gov=Node(
             irs=Node(
@@ -94,8 +106,14 @@ def fake_parameters(aggregate):
             ),
             states=Node(
                 household=Node(
-                    state_income_tax_before_refundable_credits=Node(list(aggregate))
-                )
+                    state_income_tax_before_refundable_credits=Node(list(aggregate)),
+                    state_refundable_credits=Node(list(refundable)),
+                ),
+                ca=Node(
+                    tax=Node(
+                        income=Node(credits=Node(refundable=Node(list(ca_refundable))))
+                    )
+                ),
             ),
         )
     )
@@ -220,7 +238,9 @@ class FakeSimulation:
         )
 
     def _v_local_income_tax(self):
-        return np.array([0.0])
+        # NYC residents owe a toy 3% city tax.
+        rate = 0.03 if self._sum("in_nyc") else 0.0
+        return np.array([rate * self._sum("adjusted_gross_income")])
 
     def _v_salt_deduction(self):
         income = self._sum("state_withheld_income_tax") + self._sum("local_income_tax")
@@ -270,6 +290,15 @@ class FakeSimulation:
             + self._sum("deductible_mortgage_interest_tax_unit")
         )
         return np.array([0.2 * max(0.0, agi - max(15_000.0, itemized))])
+
+    def _v_in_nyc(self):
+        county = self.calculate("county", YEAR).decode_to_str()[0]
+        return np.array([county in NYC_COUNTIES])
+
+    def _v_home_mortgage_interest_tax_unit(self):
+        return np.array(
+            [float(self.tax_unit.get("first_home_mortgage_interest", {YEAR: 0})[YEAR])]
+        )
 
     def _v_md_local_income_tax_before_refundable_credits(self):
         if self.state != "MD":
@@ -732,6 +761,18 @@ def test_pre_tcja_reading_runs_only_where_the_cap_binds():
     assert reading["detail"]["capped_interest"] == pytest.approx(
         45_000 * (1 - 750_000 / 900_000)
     )
+    negative = make_scenario(
+        tax_unit_inputs={
+            "first_home_mortgage_balance": 900_000.0,
+            "first_home_mortgage_interest": -9_000.0,
+        }
+    )
+    # Negative interest: nothing is non-deductible, yet the share is below 1,
+    # so the pre-TCJA cap still changes the deduction and must be simulated.
+    moved = sweep.sweep_household(
+        make_job(negative, ["mortgage_origination_year"]), make_engine()
+    )
+    assert len(readings_of(moved, "mortgage_origination_year")) == 1
     base = result["baseline"]["federal_income_tax_before_refundable_credits"]
     assert reading["outputs"]["federal_income_tax_before_refundable_credits"] < base
     none = sweep.sweep_household(
@@ -760,6 +801,41 @@ def test_county_states_limits_the_county_reading():
     engine = make_engine(county_states=frozenset({"CA"}))
     result = sweep.sweep_household(make_job(make_scenario(), ["county"]), engine)
     assert readings_of(result, "county") == []
+
+
+def test_county_readings_that_put_a_household_in_a_locality_are_labeled():
+    engine = make_engine()
+    assert "in_nyc" in engine.locality_flags
+    scenario = make_scenario(state="NY", income=80_000.0)
+    job = make_job(scenario, ["county"], programs=PROGRAMS + ["local_income_tax"])
+    result = sweep.sweep_household(job, engine)
+    assert result["baseline_localities"] == []
+    by_county = {r["variant"]: r for r in readings_of(result, "county")}
+    assert by_county["KINGS_COUNTY_NY"]["localities"] == ["in_nyc"]
+    assert by_county["NASSAU_COUNTY_NY"]["localities"] == []
+    assert by_county["KINGS_COUNTY_NY"]["outputs"]["local_income_tax"] == 2_400.0
+    reference = pd.Series(
+        {(scenario.id, v): value for v, value in result["baseline"].items()}
+    )
+    report = sweep.evaluate([result], reference, {})
+    moves = report.moves.set_index(["variable", "variant"])
+    assert moves.loc[("local_income_tax", "KINGS_COUNTY_NY"), "status"] == (
+        "prompt_rules_out"
+    )
+    assert moves.loc[("local_income_tax", "KINGS_COUNTY_NY"), "localities"] == "in_nyc"
+    assert report.summary["counts"]["scored"] == 0
+    assert report.summary["counts"]["prompt_rules_out"] == 1
+    assert report.summary["moved_outputs"][0]["localities"] == ["in_nyc"]
+    summary = report.summary
+    assert sweep.exit_code(summary, strict=True, allow_baseline_mismatch=False) == 0
+
+
+def test_locality_flags_are_discovered_from_the_installed_engine():
+    flags = sweep.discover_locality_flags()
+    assert {"in_nyc", "in_san_francisco", "in_denver"} <= set(flags)
+    assert all(flag.startswith("in_") for flag in flags)
+    # Indiana's state variables share the in_ prefix; none is a locality flag.
+    assert "in_income_tax" not in flags
 
 
 def test_ssdi_and_ssi_alternatives_target_the_right_people():
@@ -883,7 +959,12 @@ SALT_CONTEXTS = (
             aggregate_local_components=(
                 "md_local_income_tax_before_refundable_credits",
                 "nyc_income_tax_before_refundable_credits",
-            )
+            ),
+            remaining_local_components=(
+                "md_local_income_tax_before_refundable_credits",
+                "nyc_income_tax_before_refundable_credits",
+                "nyc_refundable_credits",
+            ),
         ),
     ),
 )
@@ -895,28 +976,40 @@ SALT_CONTEXTS = (
     md=st.floats(min_value=0, max_value=1e4),
     nyc=st.floats(min_value=0, max_value=1e4),
     refundable=st.floats(min_value=0, max_value=1e4),
+    nyc_credits=st.floats(min_value=0, max_value=1e3),
     net=st.booleans(),
 )
 def test_salt_paid_is_the_same_with_or_without_the_scope_adapter(
-    state, md, nyc, refundable, net
+    state, md, nyc, refundable, nyc_credits, net
 ):
-    """With the adapter the aggregate is state-only; without it it carries both
-    local taxes. Either way the amount paid is state tax plus Maryland county tax."""
+    """With the adapter the state lists are state-only; without it they carry the
+    local taxes and NYC's credits. Either way the amount paid is state tax plus
+    Maryland county tax, less state refundable credits for the net reading."""
     common = {
         "md_local_income_tax_before_refundable_credits": md,
         "nyc_income_tax_before_refundable_credits": nyc,
-        "state_refundable_credits": refundable,
+        "nyc_refundable_credits": nyc_credits,
     }
     adapted, raw = SALT_CONTEXTS
     with_adapter = sweep.salt_income_tax_paid(
         adapted,
-        StubSimulation({**common, "state_income_tax_before_refundable_credits": state}),
+        StubSimulation(
+            {
+                **common,
+                "state_income_tax_before_refundable_credits": state,
+                "state_refundable_credits": refundable,
+            }
+        ),
         net=net,
     )
     without = sweep.salt_income_tax_paid(
         raw,
         StubSimulation(
-            {**common, "state_income_tax_before_refundable_credits": state + md + nyc}
+            {
+                **common,
+                "state_income_tax_before_refundable_credits": state + md + nyc,
+                "state_refundable_credits": refundable + nyc_credits,
+            }
         ),
         net=net,
     )
@@ -940,10 +1033,20 @@ def result_for(sid, baseline, readings, local_taxes=None):
         "simulations": 1 + len(readings),
         "aggregate_local_components": [],
         "removed_local_components": [],
+        "remaining_local_components": [],
+        "baseline_localities": [],
     }
 
 
-def reading(estimate, name, outputs, kind=sweep.LITERAL, variant="", converged=True):
+def reading(
+    estimate,
+    name,
+    outputs,
+    kind=sweep.LITERAL,
+    variant="",
+    converged=True,
+    localities=(),
+):
     return {
         "estimate": estimate,
         "reading": name,
@@ -956,6 +1059,7 @@ def reading(estimate, name, outputs, kind=sweep.LITERAL, variant="", converged=T
         "iterations": 1,
         "trace": [],
         "detail": {},
+        "localities": list(localities),
         "outputs": outputs,
     }
 
@@ -1001,6 +1105,19 @@ def test_evaluate_marks_scored_excluded_and_acknowledged_moves():
             {FED: 3_000.0},
             [reading("county", "each_county", {FED: 3_050.0}, variant="X_MD")],
         ),
+        result_for(
+            "s4",
+            {FED: 4_000.0},
+            [
+                reading(
+                    "county",
+                    "each_county",
+                    {FED: 4_100.0},
+                    variant="KINGS_COUNTY_NY",
+                    localities=["in_nyc"],
+                )
+            ],
+        ),
     ]
     exclusions = {
         ("s1", "head_medicare_eligible"): {
@@ -1021,9 +1138,11 @@ def test_evaluate_marks_scored_excluded_and_acknowledged_moves():
     assert moves.loc[("s2", FED), "status"] == "excluded_other_reason"
     assert moves.loc[("s3", FED), "status"] == "acknowledged"
     assert moves.loc[("s3", FED), "acknowledged_status"] == "pending d999"
+    assert moves.loc[("s4", FED), "status"] == "prompt_rules_out"
     assert report.summary["counts"] == {
         "scored": 1,
         "acknowledged": 1,
+        "prompt_rules_out": 1,
         "excluded_same_input": 1,
         "excluded_other_reason": 1,
     }
@@ -1116,7 +1235,10 @@ def test_acknowledgements_require_the_key_fields(tmp_path):
 def test_scope_lists_must_agree_across_workers():
     a = result_for("s1", {}, [])
     b = dict(a, removed_local_components=["nyc_income_tax_before_refundable_credits"])
-    assert sweep.scope_lists([a, a]) == ([], [])
+    assert sweep.scope_lists([a, a]) == {key: [] for key in sweep.SCOPE_KEYS}
+    assert sweep.scope_lists([b])["removed_local_components"] == [
+        "nyc_income_tax_before_refundable_credits"
+    ]
     with pytest.raises(RuntimeError):
         sweep.scope_lists([a, b])
 
@@ -1461,8 +1583,12 @@ def test_real_engine_reproduces_the_recorded_unlisted_input_exclusions(real_engi
     engine, patch = real_engine
     assert engine.removed_local_components == (
         "nyc_income_tax_before_refundable_credits",
+        "nyc_refundable_credits",
+        "ca_sf_wftc",
     )
     assert engine.aggregate_local_components == ()
+    assert engine.remaining_local_components == ()
+    assert {"in_nyc", "in_san_francisco"} <= set(engine.locality_flags)
     run = ROOT / sweep.DEFAULT_RUN_DIR
     scenarios = pd.read_csv(run / "scenarios.csv")
     scenarios = scenarios[

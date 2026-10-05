@@ -99,11 +99,16 @@ inputs no prompt lists.
    - its recomputed reference differs from any scored published reference
      (the wrong reference system, or a changed engine; pass
      `--allow-baseline-mismatch` only to preview a new engine);
-   - a local income tax is nonzero in the state income tax output (gate 4);
+   - a local tax or credit is nonzero in a state output (gate 4);
    - a reading's fixed point did not converge.
 
-   With `--strict` it exits 2 when a scored output moves. Each moved output
-   needs one of:
+   With `--strict` it exits 2 when a scored output moves. A move is not
+   counted when the reading switches on a locality flag (`in_nyc`,
+   `in_san_francisco` and the engine's other `in_*` locality variables): such a
+   county makes an unlisted household fact true, which the prompt's rule makes
+   false, so its moves are reported with status `prompt_rules_out` (and the
+   flag in the `localities` column) for review rather than gated. Each other
+   moved output needs one of:
    - an exclusion record with reason `reference_depends_on_unlisted_input`;
    - for an output already excluded for another reason, a note on its record
      (status `excluded_other_reason`);
@@ -113,7 +118,8 @@ inputs no prompt lists.
 
    The out directory holds `report.md` (the gates and every moved output),
    `moves.csv` (one row per output and reading that moved, marked `scored`,
-   `acknowledged`, `excluded_same_input` or `excluded_other_reason`),
+   `acknowledged`, `prompt_rules_out`, `excluded_same_input` or
+   `excluded_other_reason`),
    `readings.csv` (what each reading set in each household),
    `values.csv.gz` (every simulated value), `baseline.csv` (the recomputed
    reference against the CSV), `households.json` (overrides, fixed-point
@@ -129,13 +135,15 @@ inputs no prompt lists.
    receipt, and SSI's disability criterion, plus one reading that applies
    every literal reading at once. When an audit finds another estimate,
    register it there, with a test, before the next build.
-4. **Output scope.** The state income tax output excludes local income tax.
-   The sweep adds `policybench/output_scope.py`'s adapter, which removes
-   Maryland county tax and New York City tax from the engine's state
-   aggregate, and checks that each tax it removes is zero for every
-   household, so the adapter changes no published reference.
-   `tests/test_output_scope.py` fails when a policyengine-us upgrade adds a
-   local tax the adapter does not name.
+4. **Output scope.** The state income tax and state refundable credit outputs
+   are state-only. policyengine-us 2.15.17 adds Maryland county tax and New
+   York City tax into its state income tax, and New York City's refundable
+   credits and San Francisco's Working Families Tax Credit into its state
+   refundable credits. The sweep adds `policybench/output_scope.py`'s adapter,
+   which removes each of them from the engine's lists, and checks that each one
+   it removes is zero for every household, so the adapter changes no published
+   reference. `tests/test_output_scope.py` fails when a policyengine-us upgrade
+   adds a local entry the adapter does not name.
 
 ## 3. Run Claude Separately
 
