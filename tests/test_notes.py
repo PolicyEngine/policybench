@@ -2060,8 +2060,8 @@ def test_bbce_households_note_facts() -> None:
         "encodes the raise.",
         f"{', '.join(arizona_over_names[:-1])}, and {arizona_over_names[-1]} "
         "write that the resident's income exceeds Arizona's categorical "
-        "eligibility limit; the two Gemini models, along with "
-        f"{display['gemini-3-flash-preview']}, give "
+        f"eligibility limit; {arizona_over_names[2]} and {arizona_over_names[3]}, "
+        f"along with {display['gemini-3-flash-preview']}, give "
         f"{names[arizona]}'s limit as {{azLimitBefore}}%, the limit before March.",
     )
 
@@ -2188,15 +2188,41 @@ def test_bbce_households_note_facts() -> None:
     # unearned income after this release's engine, 2.15.17.
     # The prompt does not name the source of its financial assistance, so
     # these listed facts do not establish a gross-income consequence.
+    # Under the prompt's rule for unlisted numbers (0 hours), the exclusion
+    # record's alternative value is the engine's $0, and the September 3
+    # note's three models answered $0.
+    assert second_texan["alternative_value"] == 0
+    for model in TOP_MODELS:
+        assert (
+            payload["scenarioPredictions"][second_texan_id]["snap"][model]["prediction"]
+            == 0
+        )
+    zero_hours = (
+        "At 0 hours, as the prompt's rule for unlisted numbers reads, PolicyEngine "
+        "gives that household $0, the answer "
+        f"{', '.join(display[m] for m in TOP_MODELS[:-1])}, and "
+        f"{display[TOP_MODELS[-1]]} gave in the September 3 note."
+    )
     farm_rent_correction = (
         "The September 3 note also says SNAP excludes that household's farm "
-        "rent, but SNAP counts rent, including farm rent, as unearned income "
-        "under 7 CFR 273.9(b)(2), or as self-employment income when the landlord "
-        "averages at least 20 hours a week managing the property "
-        "(policyengine-us #9671)."
+        "rent, but SNAP counts rent, farm rent included, net of the costs of "
+        "doing business: as unearned income under 7 CFR 273.9(b)(2)(ii), or as "
+        "earned income under 273.9(b)(1)(ii) when a household member averages "
+        "at least 20 hours a week managing the property."
     )
-    pin(farm_rent_correction)
-    assert ("does not list. " + farm_rent_correction) in note["paragraphs"][-1]
+    farm_rent_engine = (
+        "PolicyEngine counts farm rent from policyengine-us #9671, which "
+        "postdates the references' engine, {engineVersion}."
+    )
+    pin(zero_hours, farm_rent_correction, farm_rent_engine)
+    assert (
+        "does not list. "
+        + zero_hours
+        + " "
+        + farm_rent_correction
+        + " "
+        + farm_rent_engine
+    ) in note["paragraphs"][-1]
     # What the September 3 note said about receipt and the asset test, and
     # the four states it named.
     sept3_states = ["Connecticut", "Michigan", "Texas", "Wisconsin"]
@@ -2254,9 +2280,9 @@ def test_bbce_households_note_facts() -> None:
         # policyengine-us#9586 does the same, and the worker's gross income is
         # then above the 200% limit in every month (above).
         "Michigan counts that child support in gross income and deducts it when "
-        "computing net income, as PolicyEngine does (policyengine-us #9586), "
-        "which puts the worker's gross income above Michigan's "
-        "{bbceGrossLimitHigh}% BBCE limit.",
+        "computing net income, which puts the worker's gross income above "
+        "Michigan's {bbceGrossLimitHigh}% BBCE limit; PolicyEngine subtracted it "
+        "from gross income until policyengine-us #9586.",
         f"The version of this note published {_month_day(first['date'])} "
         "counted the worker among its households.",
         "PolicyBench no longer scores another of the "
@@ -2289,6 +2315,9 @@ def test_bbce_households_note_facts() -> None:
         "gpt-5.5",
         zero_tanf_model,
         "gpt-5.6-sol",
+        # The September 3 note's three models, named in the corrections.
+        "claude-fable-5.1",
+        "kimi-k3",
         "gpt-6-luna",
         "gemini-3-flash-preview",
         "gemini-3.1-pro-preview",
