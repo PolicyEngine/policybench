@@ -2015,6 +2015,10 @@ def test_bbce_households_note_facts() -> None:
         assert links[label] == f"/notes/{slug}"
         assert _note(slug)["slug"] == slug
     assert not any(BBCE_NOTE_EARLIER in href for href in links.values())
+    # Every repository link resolves to a committed file.
+    for href in links.values():
+        if href.startswith(blob):
+            assert (ROOT / href.removeprefix(blob)).is_file(), href
 
     derived = {
         "householdCount": len(households),
