@@ -1584,15 +1584,17 @@ def test_uk_workers_request_the_uk_country_and_output_set(
     assert cmd[cmd.index("--country") + 1] == "uk"
     assert supervisor._expected_outputs_for_scenario(0) == get_programs("uk")
     assert supervisor.initial_request_variables == get_programs("uk")
-    assert supervisor.workload["output_set_sha256"] == hashlib.sha256(
-        "\n".join(sorted(get_programs("uk"))).encode("utf-8")
-    ).hexdigest()
+    assert (
+        supervisor.workload["output_set_sha256"]
+        == hashlib.sha256(
+            "\n".join(sorted(get_programs("uk"))).encode("utf-8")
+        ).hexdigest()
+    )
 
 
-def test_us_workload_fingerprint_is_unchanged_by_country_awareness(
-    manifest, tmp_path
-):
+def test_us_workload_fingerprint_is_unchanged_by_country_awareness(manifest, tmp_path):
     supervisor = make_supervisor(manifest, tmp_path)
-    assert supervisor.workload["output_set_sha256"] == hashlib.sha256(
-        "\n".join(sorted(PROGRAMS)).encode("utf-8")
-    ).hexdigest()
+    assert (
+        supervisor.workload["output_set_sha256"]
+        == hashlib.sha256("\n".join(sorted(PROGRAMS)).encode("utf-8")).hexdigest()
+    )
