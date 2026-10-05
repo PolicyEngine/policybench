@@ -1,0 +1,489 @@
+{
+  "policyengine_us_version": "2.15.17",
+  "configuration": "policyengine-us 2.15.17 with latest_final (the nine publication conventions and the Maryland output-scope adapter), on households built by policybench.scenarios.Scenario.to_pe_household, as release dashboard-data-20260929 built the references release dashboard-data-20260930 scores",
+  "fix_module": "reference_audit/2026-09-28/fixes/latest_final.py",
+  "fix_modules_sha256": {
+    "alt_conventions_r25.py": "0f77fdd44e758581f7e563b0f7b70c4d4359a833b08a4ac45a614c380938775e",
+    "latest_alt_r02_ira_219g.py": "3e71bab1db867988544e6f87f6dda4dc7c719d51320fbbb7558cd574a0374f6e",
+    "latest_alt_salt_refund_no_prior_benefit.py": "d8a314093466caf5fe0a226f1060acba2e4364c4b87befbd80639ebf41cc4a2c",
+    "latest_alt_snap_mortgage_residence.py": "00cd13886a8c3d03c4e84944d35f7e8a1448af26838e8bc0761b914b887c70cd",
+    "latest_alt_unlisted_hours_40.py": "5e6538a903112243ad85051ccba26b6133bdfbd5b9e5ba3dfa81ba690c061b32",
+    "latest_c_ca_hold_2025.py": "f19a47b9583032a0602a31e52f995eee824a427a76e87a9d4257d6682a016fa2",
+    "latest_c_id_hold_2025.py": "39fb99292691600cd273a1c6ef3c90847453e21e4d7b872603bcaac71727f8a5",
+    "latest_c_irs_sales_tax_2025.py": "7f7fd235b29c45d1d5cceded0c3391aceb38740518dfda770e3aebcc3003228e",
+    "latest_c_md_2026.py": "8111c77ffd2e43d434d083994a7e8506ba42461a0845b33ac47ce0df988c2c76",
+    "latest_c_mi_published_2026.py": "787cf837422e0bdf331a8e01a6fa8e8f2e3b78c35c248a4da83f3b2dbfa9ef9e",
+    "latest_c_mn_published_2026.py": "02a8ccc1fce71485fc9411d4a55f33226de4c8de09cf6375f99866b79da70522",
+    "latest_c_mo_published_2026.py": "0474524c83a7eb0c8440abf06bbeee38d4394e08260464d0dacb195ed3a8d916",
+    "latest_c_snap_hold_fy2026.py": "3a8709ef36582af2248e460136db618fd319d490b7aeed94adbd6143ad9c07dd",
+    "latest_c_wi_published_2026.py": "4edf4c714c05d300e6fa32c4b56879aad8aa0de1d9ddd9a77987eefe3b06acce",
+    "latest_conventions.py": "4155ed4a0be72c907815b33e2b3603cf0b5ea3eca351ad7509f8bd9ea5bb8ddb",
+    "latest_final.py": "dbbdd228b99933c6f336af97970821c25c863a18606285e8d6d9ffb3bc9af78e",
+    "latest_map_stated_hours.py": "b210e780a31cfa0a3a0da2c49a8068ee14f00029b3ed39c00be67a1e917eda21",
+    "latest_md_local_output_scope.py": "53a6de3cd9b149467e5d86a5bb1fcc258e859478a7c16b7d3df951c713e423dd",
+    "latest_state_conventions.py": "56e62e399d20ba8c8d9c5dc9bc7ea6681e74d2b529fa38561dbc8e8b2a90b442",
+    "r19_irs_sales_tax_2025.json": "7cf93799aad6a8c3a6fc70e7df4acc6043202a1ecc083f2c3101f76b87a85eae"
+  },
+  "scenarios_sha256": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+  "reference_csv_sha256": "e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466",
+  "months": "the *_months columns count the months of 2026 in which each test holds; the *_by_month and monthly_* columns list January to December",
+  "bbce_parameters": {
+    "state_tanf_non_cash": {
+      "2026-01-01": {
+        "AZ": {
+          "gross_income_limit_fpg": 1.85,
+          "gross_income_limit_fpg_elderly_disabled": 1.85,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "CT": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "MI": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "TX": {
+          "gross_income_limit_fpg": 1.65,
+          "gross_income_limit_fpg_elderly_disabled": 1.65,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": 5000.0
+        },
+        "WI": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "NC": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "NJ": {
+          "gross_income_limit_fpg": 1.85,
+          "gross_income_limit_fpg_elderly_disabled": 1.85,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "PA": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "VA": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        }
+      },
+      "2026-03-01": {
+        "AZ": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "CT": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "MI": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "TX": {
+          "gross_income_limit_fpg": 1.65,
+          "gross_income_limit_fpg_elderly_disabled": 1.65,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": 5000.0
+        },
+        "WI": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "NC": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "NJ": {
+          "gross_income_limit_fpg": 1.85,
+          "gross_income_limit_fpg_elderly_disabled": 1.85,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "PA": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "VA": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        }
+      },
+      "2026-10-01": {
+        "AZ": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "CT": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "MI": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "TX": {
+          "gross_income_limit_fpg": 1.65,
+          "gross_income_limit_fpg_elderly_disabled": 1.65,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": 5000.0
+        },
+        "WI": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "NC": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "NJ": {
+          "gross_income_limit_fpg": 1.85,
+          "gross_income_limit_fpg_elderly_disabled": 1.85,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "PA": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        },
+        "VA": {
+          "gross_income_limit_fpg": 2.0,
+          "gross_income_limit_fpg_elderly_disabled": 2.0,
+          "net_income_test_applies": false,
+          "net_income_test_applies_elderly_disabled": false,
+          "asset_limit": null
+        }
+      }
+    },
+    "snap_categorical_eligibility_programs": [
+      "ssi",
+      "is_tanf_non_cash_eligible",
+      "tanf"
+    ]
+  },
+  "snap_parameters": {
+    "2026-01-01": {
+      "gross_income_limit_fpg": 1.3,
+      "unearned_income_sources": [
+        "ssi",
+        "general_assistance",
+        "ak_ssp",
+        "al_ssp",
+        "co_oap",
+        "co_state_supplement",
+        "ct_ssp_person",
+        "dc_ossp",
+        "de_ssp",
+        "fl_oss",
+        "ga_ssp_person",
+        "hi_oss",
+        "id_aabd",
+        "in_ssp",
+        "ks_sspp",
+        "ky_ssp",
+        "la_oss",
+        "ma_state_supplement",
+        "md_paa",
+        "me_ssp",
+        "mi_ssp_person",
+        "mn_msa_person",
+        "mo_ssp",
+        "ne_aabd",
+        "nm_ssi_state_supplement",
+        "sc_ssi_state_supplement",
+        "tx_ssi_state_supplement",
+        "wa_ssp",
+        "pension_income",
+        "veterans_benefits",
+        "unemployment_compensation",
+        "disability_benefits",
+        "workers_compensation",
+        "social_security",
+        "survivor_benefits",
+        "retirement_distributions",
+        "rental_income",
+        "child_support_received",
+        "alimony_income",
+        "dividend_income",
+        "interest_income",
+        "financial_assistance",
+        "miscellaneous_income"
+      ]
+    },
+    "2026-03-01": {
+      "gross_income_limit_fpg": 1.3,
+      "unearned_income_sources": [
+        "ssi",
+        "general_assistance",
+        "ak_ssp",
+        "al_ssp",
+        "co_oap",
+        "co_state_supplement",
+        "ct_ssp_person",
+        "dc_ossp",
+        "de_ssp",
+        "fl_oss",
+        "ga_ssp_person",
+        "hi_oss",
+        "id_aabd",
+        "in_ssp",
+        "ks_sspp",
+        "ky_ssp",
+        "la_oss",
+        "ma_state_supplement",
+        "md_paa",
+        "me_ssp",
+        "mi_ssp_person",
+        "mn_msa_person",
+        "mo_ssp",
+        "ne_aabd",
+        "nm_ssi_state_supplement",
+        "sc_ssi_state_supplement",
+        "tx_ssi_state_supplement",
+        "wa_ssp",
+        "pension_income",
+        "veterans_benefits",
+        "unemployment_compensation",
+        "disability_benefits",
+        "workers_compensation",
+        "social_security",
+        "survivor_benefits",
+        "retirement_distributions",
+        "rental_income",
+        "child_support_received",
+        "alimony_income",
+        "dividend_income",
+        "interest_income",
+        "financial_assistance",
+        "miscellaneous_income"
+      ]
+    },
+    "2026-10-01": {
+      "gross_income_limit_fpg": 1.3,
+      "unearned_income_sources": [
+        "ssi",
+        "general_assistance",
+        "ak_ssp",
+        "al_ssp",
+        "co_oap",
+        "co_state_supplement",
+        "ct_ssp_person",
+        "dc_ossp",
+        "de_ssp",
+        "fl_oss",
+        "ga_ssp_person",
+        "hi_oss",
+        "id_aabd",
+        "in_ssp",
+        "ks_sspp",
+        "ky_ssp",
+        "la_oss",
+        "ma_state_supplement",
+        "md_paa",
+        "me_ssp",
+        "mi_ssp_person",
+        "mn_msa_person",
+        "mo_ssp",
+        "ne_aabd",
+        "nm_ssi_state_supplement",
+        "sc_ssi_state_supplement",
+        "tx_ssi_state_supplement",
+        "wa_ssp",
+        "pension_income",
+        "veterans_benefits",
+        "unemployment_compensation",
+        "disability_benefits",
+        "workers_compensation",
+        "social_security",
+        "survivor_benefits",
+        "retirement_distributions",
+        "rental_income",
+        "child_support_received",
+        "alimony_income",
+        "dividend_income",
+        "interest_income",
+        "financial_assistance",
+        "miscellaneous_income"
+      ]
+    }
+  },
+  "engine_rules": {
+    "meets_snap_categorical_eligibility": "    def formula(spm_unit, period, parameters):\n        programs = parameters(period).gov.usda.snap.categorical_eligibility\n        spm_level_programs = [program for program in programs if program != \"ssi\"]\n        person = spm_unit.members\n        receives_ssi = (person(\"ssi\", period) > 0) | person(\"receives_ssi\", period)\n        all_members_receive_ssi = spm_unit.all(receives_ssi)\n        return (\n            all_members_receive_ssi\n            | (add(spm_unit, period, spm_level_programs) > 0)\n            | spm_unit(\"receives_tanf\", period)\n        )\n",
+    "is_tanf_non_cash_eligible": "    def formula(spm_unit, period, parameters):\n        gross = spm_unit(\"meets_tanf_non_cash_gross_income_test\", period)\n        net = spm_unit(\"meets_tanf_non_cash_net_income_test\", period)\n        asset = spm_unit(\"meets_tanf_non_cash_asset_test\", period)\n        return gross & net & asset\n",
+    "meets_tanf_non_cash_gross_income_test": "    def formula(spm_unit, period, parameters):\n        # Use the gross-test income concept so states electing full\n        # counting of certain ineligible aliens' income under the gross\n        # income test (7 CFR 273.11(c)(3)(i)) apply it to this categorical\n        # eligibility screen as well.\n        gross_income = spm_unit(\"snap_gross_test_income\", period)\n        limit = spm_unit(\"tanf_non_cash_gross_income_limit\", period)\n        return gross_income <= limit\n",
+    "meets_tanf_non_cash_net_income_test": "    def formula(spm_unit, period, parameters):\n        # Determine if the net income limit applies to the household.\n        applies = parameters(period).gov.hhs.tanf.non_cash.income_limit.net_applies\n        state = spm_unit.household(\"state_code_str\", period)\n        # Varies depending on if the household has elderly and disabled people.\n        hheod = spm_unit(\"is_tanf_non_cash_hheod\", period)\n        net_limit_applies = where(\n            hheod, applies.hheod[state], applies.non_hheod[state]\n        ).astype(bool)\n        net_income = spm_unit(\"snap_net_income\", period)\n        net_limit = parameters(period).gov.usda.snap.income.limit.net\n        # The state's BBCE net test uses the federal SNAP net standard: the\n        # FNS table built per 7 CFR 273.9(a)(3)(ii), including the separately\n        # rounded-up increment above eight persons. It is compared against\n        # the whole-dollar rounded net income; a raw ratio would deny\n        # households exactly at the published standard.\n        limit = snap_monthly_income_standard(spm_unit, period, parameters, net_limit)\n        # Either the net limit doesn't apply or they pass it.\n        return ~net_limit_applies | (net_income <= limit)\n",
+    "meets_tanf_non_cash_asset_test": "    def formula(spm_unit, period, parameters):\n        assets = spm_unit(\"snap_assets\", period)\n        state = spm_unit.household(\"state_code_str\", period)\n        limits = parameters(period).gov.hhs.tanf.non_cash\n        vehicle_value = spm_unit.household(\"household_vehicles_value\", period)\n        vehicles_owned = spm_unit.household(\"household_vehicles_owned\", period)\n        # Preserve the historical one-vehicle assumption when vehicle value is\n        # provided without a vehicle count.\n        vehicle_count = max_(vehicles_owned, vehicle_value > 0)\n        vehicle_exemption = where(\n            vehicle_count > 0,\n            limits.tx_vehicle_exemption\n            + max_(vehicle_count - 1, 0) * limits.tx_additional_vehicle_exemption,\n            0,\n        )\n        tx_vehicle_value = max_(vehicle_value - vehicle_exemption, 0)\n        assets = assets + where(state == \"TX\", tx_vehicle_value, 0)\n        asset_limit = limits.asset_limit[state]\n        return assets <= asset_limit\n",
+    "tanf_non_cash_gross_income_limit": "    def formula(spm_unit, period, parameters):\n        state = spm_unit.household(\"state_code_str\", period.this_year)\n        limits = parameters(period).gov.hhs.tanf.non_cash.income_limit\n        gross_limit = limits.gross[state]\n        hheod = spm_unit(\"is_tanf_non_cash_hheod\", period)\n        gross_limit = where(hheod, limits.gross_hheod[state], gross_limit)\n\n        ny = state == \"NY\"\n        has_dependent_care = spm_unit(\"snap_dependent_care_deduction\", period) > 0\n        has_earned_income = spm_unit(\"snap_earned_income\", period) > 0\n        ny_gross_limit = where(\n            has_dependent_care | hheod,\n            limits.ny.dependent_care,\n            where(\n                has_earned_income,\n                limits.ny.earned_income,\n                limits.gross.NY,\n            ),\n        )\n        gross_limit = where(ny, ny_gross_limit, gross_limit)\n\n        # The standard is the state's percentage of the poverty guideline\n        # vintage its BBCE schedule selects (fpg_year_start_month). The\n        # rounding each state applies when publishing its chart is a\n        # feature of that chart, not of the regulation: categorically\n        # eligible households are exempt from the 7 CFR 273.9 income\n        # standards, so the rounding 273.9(a)(3) prescribes for the\n        # federal tests does not reach this limit. Return the exact\n        # computation rather than assert an unlegislated convention.\n        # Charts round in state-specific directions: Washington and\n        # Maine publish figures equal to the exact value, while states\n        # that round up publish a figure up to about $2 above it, so a\n        # household between the two can score ineligible here slightly\n        # before the published chart would say so.\n        fpg = spm_unit(\"tanf_non_cash_fpg\", period)\n        return gross_limit * fpg\n",
+    "is_tanf_non_cash_hheod": "    def formula(spm_unit, period, parameters):\n        state = spm_unit.household(\"state_code_str\", period)\n        bbce = parameters(period).gov.hhs.tanf.non_cash\n        requires_all = bbce.requires_all_for_hheod[state]\n        # Excluded members are not household members under the 7 CFR 271.2\n        # definition, so they do not confer elderly or disabled status.\n        return where(\n            requires_all,\n            spm_unit(\"has_all_usda_elderly_disabled\", period),\n            spm_unit(\"has_snap_elderly_disabled_member\", period),\n        )\n",
+    "is_snap_eligible": "    def formula(spm_unit, period, parameters):\n        net = spm_unit(\"meets_snap_net_income_test\", period)\n        gross = spm_unit(\"meets_snap_gross_income_test\", period)\n        asset = spm_unit(\"meets_snap_asset_test\", period)\n        normal_eligibility = net & gross & asset\n        # Categorical eligibility (SSI, TANF, and BBCE TANF) overrides tests.\n        categorical_eligibility = spm_unit(\"meets_snap_categorical_eligibility\", period)\n        person = spm_unit.members\n        # At least one member must satisfy the student (7 USC 2015(e)),\n        # immigration (7 USC 2015(f)), and work-requirement (7 CFR 273.7,\n        # 273.24) rules simultaneously. Testing these conditions with\n        # separate any() reductions would incorrectly pass a unit where\n        # different members satisfy different rules with no single member\n        # satisfying all of them; is_snap_excluded_member already encodes\n        # the per-person disjunction of the three filters.\n        eligible_member_present = spm_unit.any(\n            ~person(\"is_snap_excluded_member\", period)\n        )\n        return (normal_eligibility | categorical_eligibility) & eligible_member_present\n",
+    "snap_normal_allotment": "    def formula(spm_unit, period, parameters):\n        # Federal SNAP rules are defined in U.S.C Title 7, Chapter 51, which\n        # also defines state powers to modify the rules.\n        expected_contribution = spm_unit(\"snap_expected_contribution\", period)\n        max_allotment = spm_unit(\"snap_max_allotment\", period)\n        normal_allotment = max_allotment - expected_contribution\n        min_allotment = spm_unit(\"snap_min_allotment\", period)\n        return max_(min_allotment, normal_allotment)\n",
+    "meets_snap_gross_income_test": "    def formula(spm_unit, period, parameters):\n        p = parameters(period).gov.usda.snap.income.limit\n        # The gross test uses state-specific income counting for certain\n        # ineligible aliens (7 CFR 273.11(c)(3)(i)).\n        income = spm_unit(\"snap_gross_test_income\", period)\n        # 7 CFR 273.9(a)(3)(i): the monthly standard is 130% of the poverty\n        # guideline divided by 12, rounded up to the next whole dollar, with\n        # a separately rounded per-person increment for large households.\n        limit = snap_monthly_income_standard(spm_unit, period, parameters, p.gross)\n        # Households with an elderly or disabled unit member are exempt\n        # from the gross income test; excluded members are not household\n        # members under the 7 CFR 271.2 definition, so they do not confer\n        # this status.\n        has_elderly_disabled = spm_unit(\"has_snap_elderly_disabled_member\", period)\n        return has_elderly_disabled | (income <= limit)\n"
+  },
+  "excluded_snap_rows": {
+    "note": "Rows whose snap_scored is False show PolicyEngine's computation, which the release's exclusion record sets aside for every model (reference_exclusions.json)",
+    "households": {
+      "scenario_023": "reference_depends_on_unlisted_input (meets_ssi_disability_criteria)",
+      "scenario_056": "reference_depends_on_unlisted_input (weekly_hours_worked_before_lsr and whether the listed home mortgage interest is on the home the SNAP household occupies)",
+      "scenario_057": "reference_depends_on_unlisted_input (meets_ssi_disability_criteria)",
+      "scenario_080": "reference_engine_defect (r30_snap_heat_and_eat_sua); upstream: to be filed",
+      "scenario_100": "reference_depends_on_unlisted_input (meets_ssi_disability_criteria)",
+      "scenario_112": "reference_depends_on_unlisted_input (weekly_hours_worked_before_lsr)",
+      "scenario_118": "reference_depends_on_unlisted_input (whether the listed home mortgage interest is on the home the SNAP household occupies)"
+    }
+  },
+  "employer_premiums_paid_by_household": {
+    "engine_documentation": "Annual employer-paid health insurance premiums. CBO treats this as part of household market income.",
+    "reading": "employer_sponsored_insurance_premiums moved into health_insurance_premiums_without_medicare_part_b, for households with a member the engine treats as elderly or disabled",
+    "households": {
+      "scenario_000": {
+        "monthly_net_income": "8921 8921 8921 8921 8921 8921 8921 8921 8921 8921 8921 8921",
+        "monthly_net_income_premiums_paid": "8221 8221 8221 8221 8221 8221 8221 8221 8221 8221 8221 8221",
+        "net_income_test_months_premiums_paid": 0,
+        "pathway_by_month_premiums_paid": "ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible",
+        "monthly_snap_premiums_paid": "0 0 0 0 0 0 0 0 0 0 0 0"
+      },
+      "scenario_003": {
+        "monthly_net_income": "17512 17512 17512 17512 17512 17512 17512 17512 17512 17512 17512 17512",
+        "monthly_net_income_premiums_paid": "16145 16145 16145 16145 16145 16145 16145 16145 16145 16145 16145 16145",
+        "net_income_test_months_premiums_paid": 0,
+        "pathway_by_month_premiums_paid": "ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible",
+        "monthly_snap_premiums_paid": "0 0 0 0 0 0 0 0 0 0 0 0"
+      },
+      "scenario_004": {
+        "monthly_net_income": "4174 4174 4174 4174 4174 4174 4174 4174 4174 4174 4174 4174",
+        "monthly_net_income_premiums_paid": "4174 4174 4174 4174 4174 4174 4174 4174 4174 4174 4174 4174",
+        "net_income_test_months_premiums_paid": 0,
+        "pathway_by_month_premiums_paid": "ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible",
+        "monthly_snap_premiums_paid": "0 0 0 0 0 0 0 0 0 0 0 0"
+      },
+      "scenario_007": {
+        "monthly_net_income": "4211 4211 4211 4211 4211 4211 4211 4211 4211 4211 4211 4211",
+        "monthly_net_income_premiums_paid": "3685 3685 3685 3685 3685 3685 3685 3685 3685 3685 3685 3685",
+        "net_income_test_months_premiums_paid": 0,
+        "pathway_by_month_premiums_paid": "ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible",
+        "monthly_snap_premiums_paid": "0 0 0 0 0 0 0 0 0 0 0 0"
+      },
+      "scenario_025": {
+        "monthly_net_income": "6083 6083 6083 6083 6083 6083 6083 6083 6083 6083 6083 6083",
+        "monthly_net_income_premiums_paid": "4315 4315 4315 4315 4315 4315 4315 4315 4315 4315 4315 4315",
+        "net_income_test_months_premiums_paid": 0,
+        "pathway_by_month_premiums_paid": "ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible",
+        "monthly_snap_premiums_paid": "0 0 0 0 0 0 0 0 0 0 0 0"
+      },
+      "scenario_039": {
+        "monthly_net_income": "4821 4821 4821 4821 4821 4821 4821 4821 4821 4821 4821 4821",
+        "monthly_net_income_premiums_paid": "4521 4521 4521 4521 4521 4521 4521 4521 4521 4521 4521 4521",
+        "net_income_test_months_premiums_paid": 0,
+        "pathway_by_month_premiums_paid": "ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible",
+        "monthly_snap_premiums_paid": "0 0 0 0 0 0 0 0 0 0 0 0"
+      },
+      "scenario_043": {
+        "monthly_net_income": "0 0 0 0 0 0 0 0 0 0 0 0",
+        "monthly_net_income_premiums_paid": "0 0 0 0 0 0 0 0 0 0 0 0",
+        "net_income_test_months_premiums_paid": 12,
+        "pathway_by_month_premiums_paid": "ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary",
+        "monthly_snap_premiums_paid": "298 298 298 298 298 298 298 298 298 298 298 298"
+      },
+      "scenario_073": {
+        "monthly_net_income": "1755 1755 1755 1755 1755 1755 1755 1755 1755 1755 1755 1755",
+        "monthly_net_income_premiums_paid": "1228 1228 1228 1228 1228 1228 1228 1228 1228 1228 1228 1228",
+        "net_income_test_months_premiums_paid": 12,
+        "pathway_by_month_premiums_paid": "ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary",
+        "monthly_snap_premiums_paid": "24 24 24 24 24 24 24 24 24 24 24 24"
+      },
+      "scenario_084": {
+        "monthly_net_income": "2120 2120 2120 2120 2120 2120 2120 2120 2120 2120 2120 2120",
+        "monthly_net_income_premiums_paid": "1721 1721 1721 1721 1721 1721 1721 1721 1721 1721 1721 1721",
+        "net_income_test_months_premiums_paid": 0,
+        "pathway_by_month_premiums_paid": "ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible",
+        "monthly_snap_premiums_paid": "0 0 0 0 0 0 0 0 0 0 0 0"
+      },
+      "scenario_104": {
+        "monthly_net_income": "2307 2307 2307 2307 2307 2307 2307 2307 2307 2307 2307 2307",
+        "monthly_net_income_premiums_paid": "1258 1258 1258 1258 1258 1258 1258 1258 1258 1258 1258 1258",
+        "net_income_test_months_premiums_paid": 12,
+        "pathway_by_month_premiums_paid": "ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary ordinary",
+        "monthly_snap_premiums_paid": "24 24 24 24 24 24 24 24 24 24 24 24"
+      },
+      "scenario_120": {
+        "monthly_net_income": "17617 17617 17617 17617 17617 17617 17617 17617 17617 17617 17617 17617",
+        "monthly_net_income_premiums_paid": "16998 16998 16998 16998 16998 16998 16998 16998 16998 16998 16998 16998",
+        "net_income_test_months_premiums_paid": 0,
+        "pathway_by_month_premiums_paid": "ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible ineligible",
+        "monthly_snap_premiums_paid": "0 0 0 0 0 0 0 0 0 0 0 0"
+      }
+    }
+  },
+  "generated_at_utc": "2026-10-05T12:54:30.665476+00:00",
+  "script": "scripts/snap_pathways_20260930.py"
+}
