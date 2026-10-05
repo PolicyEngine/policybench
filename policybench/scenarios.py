@@ -152,6 +152,26 @@ EXCLUDED_INPUT_VARIABLES = {
 # also the prompt's rule for unlisted numbers (0).
 PE_INPUT_ALIASES = {"hours_worked_last_week": "weekly_hours_worked_before_lsr"}
 
+# Household inputs PolicyEngine reads under a newer name. The prompt keeps the
+# scenario's name; the engine gets only the new one. policyengine-us 2.15.17 has
+# no partnership_se_income and reads partnership_self_employment_net_earnings;
+# the v1.1 references (policyengine-us 1.755.4) and the 2026-09-29 rebuild
+# renamed it the same way (reference_audit/2026-09-28/scripts/sweep.py).
+PE_INPUT_RENAMES = {
+    "partnership_se_income": "partnership_self_employment_net_earnings",
+}
+
+
+def _pe_input_name(key: str, inputs: dict[str, Any]) -> str:
+    """The engine name of a household input (PE_INPUT_RENAMES)."""
+    target = PE_INPUT_RENAMES.get(key)
+    if target is None:
+        return key
+    if target in inputs:
+        raise ValueError(f"Inputs set both {key} and its engine name {target}.")
+    return target
+
+
 EXCLUDED_INPUT_PREFIXES = (
     "takes_up_",
     "would_",
@@ -484,7 +504,7 @@ class Scenario:
                 "employment_income": self._yearize(person.employment_income),
             }
             for key, value in person.inputs.items():
-                person_data[key] = self._yearize(value)
+                person_data[_pe_input_name(key, person.inputs)] = self._yearize(value)
             for source, target in PE_INPUT_ALIASES.items():
                 if source in person.inputs and target not in person.inputs:
                     person_data[target] = self._yearize(person.inputs[source])
@@ -499,7 +519,7 @@ class Scenario:
                 "employment_income": self._yearize(person.employment_income),
             }
             for key, value in person.inputs.items():
-                person_data[key] = self._yearize(value)
+                person_data[_pe_input_name(key, person.inputs)] = self._yearize(value)
             for source, target in PE_INPUT_ALIASES.items():
                 if source in person.inputs and target not in person.inputs:
                     person_data[target] = self._yearize(person.inputs[source])

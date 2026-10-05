@@ -916,6 +916,30 @@ def regenerate_analysis(dest_dir: Path) -> None:
     impact.to_csv(dest_dir / "impact_summary_by_model.csv", index=False)
 
 
+def verify_staged_impact_weights(reference_metadata_bytes: bytes) -> None:
+    """Refuse staged references whose impact weights are not the engine's.
+
+    Recomputes every output of the staged households on the reference system
+    (policybench/impact_weights.py) and compares each impact weight exactly.
+    It reads a scratch copy of the staged files, before the freeze replaces
+    the committed run directory, so a refusal leaves the snapshot as it was.
+    """
+    import tempfile
+
+    from policybench.impact_weights import verify_published_impact_weights
+
+    with tempfile.TemporaryDirectory(prefix="freeze_impact_weights_") as tmp:
+        staged = Path(tmp)
+        for name in ("reference_outputs.csv", "scenarios.csv"):
+            copy_exact(SOURCE_US / name, staged / name)
+        if (SOURCE_US / EXCLUSIONS_NAME).exists():
+            copy_exact(SOURCE_US / EXCLUSIONS_NAME, staged / EXCLUSIONS_NAME)
+        (staged / "reference_outputs.csv.meta.json").write_bytes(
+            reference_metadata_bytes
+        )
+        verify_published_impact_weights(staged)
+
+
 def freeze_run() -> dict[str, str]:
     """Freeze the compact run artifacts and return their file->sha256 map."""
     published_bytes = PUBLISHED_DASHBOARD_SOURCE.read_bytes()
@@ -949,6 +973,7 @@ def freeze_run() -> dict[str, str]:
         require_digest=True,
         manifest_reference_sha256=reference_digest,
     )
+    verify_staged_impact_weights(reference_metadata_bytes)
 
     if RUN_DEST.exists():
         shutil.rmtree(RUN_DEST)

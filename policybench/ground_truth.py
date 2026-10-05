@@ -383,15 +383,47 @@ def calculate_single(
     )
 
 
+def _us_simulation(situation: dict, tax_benefit_system: Any = None):
+    """A PE-US situation simulation, on ``tax_benefit_system`` when given."""
+    Simulation = get_us_situation_simulation_class()
+    if tax_benefit_system is None:
+        return Simulation(situation=situation)
+    return Simulation(situation=situation, tax_benefit_system=tax_benefit_system)
+
+
+def _state_isolated_batches(scenarios: list[Scenario]) -> list[list[Scenario]]:
+    """Split scenarios into batches in which no two households share a state.
+
+    policyengine-us computes some person values from sums over everyone in the
+    simulation who lives in the same state: Medicaid's per-enrollee cost
+    (``medicaid_cost_if_enrolled``) divides by ``medicaid_slcsp_state_denominator``,
+    which reads ``medicaid_slcsp_state_average_cost_index``, and both sum with
+    ``state_aggregate_helpers.sum_by_state``. In one situation holding several
+    households of a state, each one's Medicaid cost would depend on the others.
+    A batch therefore holds at most one household per state, so a vectorized
+    batch computes what one simulation per household computes. The k-th
+    household of each state, in input order, goes to batch k.
+    """
+    batches: list[list[Scenario]] = []
+    seen: dict[str | None, int] = {}
+    for scenario in scenarios:
+        position = seen.get(scenario.state, 0)
+        seen[scenario.state] = position + 1
+        if position == len(batches):
+            batches.append([])
+        batches[position].append(scenario)
+    return batches
+
+
 def _calculate_ground_truth_us_scalar(
     scenarios: list[Scenario],
     programs: list[str],
     year: int,
+    tax_benefit_system: Any = None,
 ) -> pd.DataFrame:
-    Simulation = get_us_situation_simulation_class()
     rows = []
     for scenario in scenarios:
-        sim = Simulation(situation=scenario.to_pe_household())
+        sim = _us_simulation(scenario.to_pe_household(), tax_benefit_system)
         for variable in expand_programs_for_scenario(programs, scenario):
             pe_variable = _pe_variable_for_output(variable, "us")
             value_result = sim.calculate(pe_variable, year)
@@ -420,10 +452,31 @@ def _calculate_ground_truth_us(
     scenarios: list[Scenario],
     programs: list[str],
     year: int,
+    tax_benefit_system: Any = None,
 ) -> pd.DataFrame:
-    Simulation = get_us_situation_simulation_class()
+    ids = [scenario.id for scenario in scenarios]
+    duplicates = sorted({sid for sid in ids if ids.count(sid) > 1})
+    if duplicates:
+        raise ValueError(f"Duplicate scenario id '{duplicates[0]}'.")
+    rows_by_scenario: dict[str, list[dict[str, Any]]] = {}
+    for batch in _state_isolated_batches(scenarios):
+        rows_by_scenario.update(
+            _calculate_ground_truth_us_batch(batch, programs, year, tax_benefit_system)
+        )
+    return pd.DataFrame(
+        [row for scenario in scenarios for row in rows_by_scenario[scenario.id]]
+    )
+
+
+def _calculate_ground_truth_us_batch(
+    scenarios: list[Scenario],
+    programs: list[str],
+    year: int,
+    tax_benefit_system: Any = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Reference rows of households in one situation, by scenario id."""
     situation, scenario_indexes = _build_us_vectorized_situation(scenarios)
-    sim = Simulation(situation=situation)
+    sim = _us_simulation(situation, tax_benefit_system)
 
     variable_cache: dict[str, tuple[np.ndarray, str]] = {}
 
@@ -436,8 +489,9 @@ def _calculate_ground_truth_us(
             )
         return variable_cache[variable]
 
-    rows = []
+    rows_by_scenario: dict[str, list[dict[str, Any]]] = {}
     for scenario in scenarios:
+        rows = rows_by_scenario.setdefault(scenario.id, [])
         index = scenario_indexes[scenario.id]
         for variable in expand_programs_for_scenario(programs, scenario):
             pe_variable = _pe_variable_for_output(variable, "us")
@@ -472,7 +526,7 @@ def _calculate_ground_truth_us(
                     "impact_weight": impact_weight,
                 }
             )
-    return pd.DataFrame(rows)
+    return rows_by_scenario
 
 
 def _calculate_ground_truth_uk(
@@ -585,10 +639,15 @@ def calculate_ground_truth(
     scenarios: list[Scenario],
     programs: list[str] | None = None,
     year: int = TAX_YEAR,
+    *,
+    tax_benefit_system: Any = None,
 ) -> pd.DataFrame:
     """Calculate PolicyEngine reference outputs for all scenarios × programs.
 
-    Returns a DataFrame with columns: scenario_id, variable, value
+    Returns a DataFrame with columns: scenario_id, variable, value,
+    impact_weight. US outputs are computed on ``tax_benefit_system`` when given
+    (a reference system with its conventions applied), else on the installed
+    policyengine-us baseline.
     """
     if not scenarios:
         return pd.DataFrame(
@@ -605,7 +664,9 @@ def calculate_ground_truth(
         programs = get_programs(country)
 
     if country == "us":
-        return _calculate_ground_truth_us(scenarios, programs, year)
+        return _calculate_ground_truth_us(scenarios, programs, year, tax_benefit_system)
+    if tax_benefit_system is not None:
+        raise ValueError("tax_benefit_system applies to US reference outputs only.")
     if country == "uk":
         return _calculate_ground_truth_uk(scenarios, programs, year)
     raise ValueError(f"Unsupported country '{country}'")
