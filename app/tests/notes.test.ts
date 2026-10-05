@@ -132,7 +132,7 @@ describe("notes", () => {
       createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "A later note, published October 5, corrects this one. On release dashboard-data-20260922c, PolicyBench scores the SNAP amounts of four of these six households at $288 each, and scores a Michigan worker who pays child support at $0",
+      "A later note, published October 5, corrects this one. From release dashboard-data-20260922c on, PolicyBench scores the SNAP amounts of four of these six households at $288 each, and scores a Michigan worker who pays child support at $0",
     );
     expect(markup).toContain(
       'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922c"',

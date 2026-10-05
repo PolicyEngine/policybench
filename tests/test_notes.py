@@ -2225,11 +2225,11 @@ def test_snap_pathways_20260930_regenerates() -> None:
     """Rerun the pathway recomputation on the references' engine and compare it
     with the committed CSV and meta, which the BBCE note test reads.
 
-    It needs policyengine-us 2.15.17, which the repository's environment does
-    not pin, so it skips elsewhere. Run it with
+    It runs on policyengine-us 2.15.17, which the repository pins, and skips
+    on any other version; it is marked slow, so CI deselects it. Run it with
 
-      OPENBLAS_NUM_THREADS=1 PYTHONPATH=. <2.15.17 venv>/bin/python -m pytest \\
-        -m slow tests/test_notes.py -k 20260930_regenerates
+      OPENBLAS_NUM_THREADS=1 uv run pytest -m slow tests/test_notes.py \\
+        -k 20260930_regenerates
     """
     from importlib.metadata import PackageNotFoundError, version
 
@@ -2391,17 +2391,17 @@ def test_september_22_notes_point_to_the_later_release() -> None:
 
 def test_september_3_note_describes_the_later_release() -> None:
     """The September 3 note closes by pointing to the October 5 note, which
-    corrects it, and by stating how release dashboard-data-20260922c scores
-    its six households. The one reference revision after that release, the
-    engine upgrade of dashboard-data-20260929, changes none of their SNAP
-    references and no exclusion postdates it, so the frozen release's
-    references and exclusions for the six are 20260922c's and recompute the
-    paragraph's figures."""
+    corrects it, and by stating how PolicyBench scores its six households
+    from release dashboard-data-20260922c on. No reference revision after
+    that release changes any of their SNAP references, and no exclusion of
+    any of them postdates it, so the frozen release's references and
+    exclusions for the six are 20260922c's and recompute the paragraph's
+    figures."""
     previous, bbce = _note(SNAP_NOTE), _note(BBCE_NOTE)
     later_note = _month_day(bbce["date"])
     assert previous["paragraphs"][-1] == (
-        f"A later note, published {later_note}, corrects this one. On release "
-        f"{LATER_RELEASE}, PolicyBench scores the SNAP amounts of "
+        f"A later note, published {later_note}, corrects this one. From release "
+        f"{LATER_RELEASE} on, PolicyBench scores the SNAP amounts of "
         "{laterScoredCount:words} of these {deniedCount:words} households at "
         "${laterReference} each, and scores a Michigan worker who pays child "
         "support at $0: once PolicyEngine counts that child support in gross "
@@ -2419,22 +2419,26 @@ def test_september_3_note_describes_the_later_release() -> None:
     )
 
     # Release 20260922c carries the audit's revisions, all dated September 22;
-    # the only later one is the engine upgrade.
+    # none of the later ones, the engine upgrade of 20260929 among them,
+    # changes the six's SNAP references.
     audit_day = "2026-09-22"
     denied = previous["facts"]["deniedScenarios"]
     meta = _load_json(REFERENCE_META_PATH)
-    (upgrade,) = [r for r in meta["revisions"] if r["date"] > audit_day]
-    assert upgrade["kind"] == "engine_upgrade"
-    assert not {
-        c["scenario_id"] for c in upgrade["changed"] if c["variable"] == "snap"
-    } & set(denied)
+    later = [r for r in meta["revisions"] if r["date"] > audit_day]
+    assert "engine_upgrade" in {r.get("kind") for r in later}
+    for revision in later:
+        assert not {
+            c["scenario_id"]
+            for c in revision.get("changed", [])
+            if c["variable"] == "snap"
+        } & set(denied)
     snap_exclusions = {
         e["scenario_id"]: e
         for e in _load_json(EXCLUSIONS_PATH)["exclusions"]
         if e["variable"] == "snap"
     }
-    for exclusion in snap_exclusions.values():
-        assert exclusion["decided_on"] <= audit_day
+    for scenario_id in set(denied) & set(snap_exclusions):
+        assert snap_exclusions[scenario_id]["decided_on"] <= audit_day
     references = _snap_references()
     scored = [s for s in denied if s not in snap_exclusions]
     at_minimum = [s for s in scored if references[s] > 0]
@@ -3387,9 +3391,9 @@ def test_release_20260929_note() -> None:
         "PolicyBench's October 5 note on such households counts it as a fifth "
         "household held back by income, beside {bbceIncomeHeldCount:words} in "
         "{bbceIncomeHeldStates}.",
-        "That note's data give every model's answers, the three new models' "
-        "among them, for those five households and for the "
-        "{bbceAssetHeldCount:words} held back by savings.",
+        "That note's data list every model's answer for those five households "
+        "and for the {bbceAssetHeldCount:words} held back by savings, including "
+        "the three models this release adds.",
     )
 
     # The models the prose names, and no sentence left unpinned.
