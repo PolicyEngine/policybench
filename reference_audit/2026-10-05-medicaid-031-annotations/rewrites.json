@@ -1,0 +1,453 @@
+{
+ "note": "Wording-only rewrites of the frozen audit annotations for scenario_031 head_medicaid_eligible (scripts/apply_rewrites.py applies them; tests/test_annotation_rewrites.py keeps them in force). Each replaces a field's whole old text with its whole new text. None changes a failure_source, failure_subtype, reference_suspect flag, exclusion, reference or score.",
+ "rewrites": [
+  {
+   "file": "us_case_notes.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "field": "case_annotation",
+   "old": "At 67, the head qualifies as aged, so the engine tests Medi-Cal through the optional senior-or-disabled pathway (California's Aged & Disabled FPL program). This is a non-MAGI pathway with a 138% FPL income limit. Countable income is gross income minus health insurance premiums, including the Medicare Part B standard premium (about $202.90/month, or about $2,435/year in 2026). That brings the $23,853 gross down to about $21,400, below 138% FPL (about $21,600). The $4,200 in bank assets easily passes California's asset test. Almost every model compared gross or near-gross income with the limit and never subtracted the Part B premium. Others used the wrong threshold (100% FPL or the SSI rate), applied the $2,000 SSI resource limit, or denied that an aged person has a Medicaid category.",
+   "new": "At 67 the head is aged (65 or older), which alone meets the category condition of the engine's optional senior-or-disabled pathway; it needs no disability or SSI receipt. The adult expansion group (ages 19 to 64, no Medicare eligibility) does not apply, but in the engine's Medicaid rules Medicare eligibility bars only that group. The pathway counts income under SSI rules: Social Security ($9,445.47, in full), the $13,608 pension and the $800 IRA distribution give $23,853.47; the $1,165 of alimony paid is not subtracted. In place of SSI's $20 monthly general income exclusion, the engine applies California's $230 monthly disregard ($2,760 a year), leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 poverty guideline of $15,960). The $4,200 in bank assets is far below California's $130,000 asset limit for the pathway. The engine also models a $2,434.80 Medicare Part B premium for the head, but countable income does not subtract it: with the premium at zero, or the head not enrolled in Medicare, countable income is still $21,093.47. Most models (29 of 43) miscounted income: most of those compared about $23,853 with the limit, a few applied only SSI's $20 exclusion or an exclusion of unstated size, and several asserted without figures that income was too high. The rest used the wrong threshold (100% of the poverty guideline or an SSI income limit), applied SSI's $2,000 resource limit or otherwise judged the $4,200 too much, or missed that age alone gives the head a category.",
+   "reason": "The old note said countable income subtracts health insurance premiums, including the Medicare Part B premium, and compared about $21,400 with a 138% FPL limit of about $21,600 (2025 guideline). The engine applies California's $230 monthly disregard and the 2026 guideline: $21,093.47 against $22,024.80."
+  },
+  {
+   "file": "us_case_reference_explanations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "field": "explanation",
+   "old": "PolicyEngine determined that the head of household is eligible for Medicaid in California as a senior-or-disabled individual. The person, age 67, qualifies through the optional senior-or-disabled category (a non-MAGI pathway) because they meet three conditions: they are aged or disabled (is_ssi_aged_blind_disabled = True), they satisfy the income test under this category (is_optional_senior_or_disabled_income_eligible = True), and they meet the asset limits (is_optional_senior_or_disabled_asset_eligible = True). Additionally, the person satisfies California's immigration status requirements, having been in the United States for 5 years. Under the senior-or-disabled category, countable income is calculated by deducting health insurance premiums, including Medicare Part B, from gross income, which results in the household falling within California's income limits for this eligibility group.",
+   "new": "PolicyEngine determined that the head of household is eligible for Medicaid in California through the optional senior-or-disabled category. At 67 the head is aged, which meets the category's first condition (is_ssi_aged_blind_disabled = True) without SSI receipt or a disability; the adult expansion group (ages 19 to 64) does not apply, and in the engine's Medicaid rules Medicare eligibility bars only that group. Income follows SSI rules: Social Security ($9,445.47, counted in full), the private pension ($13,608) and the IRA distribution ($800) total $23,853.47; the $1,165 of alimony paid is not subtracted. California's $230 monthly income disregard ($2,760 a year), which takes the place of SSI's $20 general income exclusion, leaves countable income of $21,093.47, within the limit of 138% of the 2026 federal poverty guideline for one person, $22,024.80 (is_optional_senior_or_disabled_income_eligible = True). Countable resources are the $4,200 bank balance, under California's $130,000 limit for an individual (is_optional_senior_or_disabled_asset_eligible = True). The household lists no immigration status, so the engine's default status (citizen) applies and the immigration test passes.",
+   "reason": "The old explanation said countable income deducts health insurance premiums, including Medicare Part B, and that the head had been in the United States for 5 years. The engine deducts no premium; it applies California's $230 monthly disregard. No immigration status is listed, so the engine's default status (citizen) applies."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "claude-fable-5",
+   "field": "annotation",
+   "old": "It correctly picked the aged pathway and its 138% FPL limit. But it built countable income by subtracting only alimony ($22,688) and never subtracted the Medicare Part B premium (about $2,435/year). With that deduction, countable income is about $21,400, which is under the limit.",
+   "new": "It took the aged pathway and a 138% limit of about $1,800 a month but applied no disregard: it subtracted the $1,165 of alimony, put income at about $1,890 a month, and said even SSI-style disregards would leave it over. The engine does not subtract alimony; it takes $1,987.79 a month less California's $230 disregard, which replaces SSI's $20 exclusion, for $1,757.79, under the $1,835.40 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "claude-fable-5.1",
+   "field": "annotation",
+   "old": "It applied only the $240 general income exclusion ($23,613) against the 138% FPL aged/disabled limit. It left out the senior-or-disabled deduction for health insurance premiums, including Medicare Part B (about $2,435/year), which puts countable income below the roughly $21,600 limit.",
+   "new": "It used the aged pathway but applied only SSI's $240 annual general exclusion, putting countable income at $23,613 against a 138% limit of about $21,600. California's $230 monthly disregard takes the place of that $20 exclusion, so the engine counts $23,853.47 less $2,760, or $21,093.47, which is under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "claude-haiku-4.5",
+   "field": "annotation",
+   "old": "It compared gross income of $23,853 with a 138% FPL figure understated at $18,564 and never deducted the Medicare Part B premium from countable income. With Part B subtracted, countable income is about $21,400, under 138% FPL (about $21,600). It also doubted the $4,200 in assets, although that amount easily passes California's senior-or-disabled asset test.",
+   "new": "It compared gross income of $23,853, and that amount less the $1,165 of alimony, against a 138% limit it understated at about $18,564, and doubted the $4,200 in assets. The engine subtracts no alimony: $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline). The $4,200 is far under California's $130,000 asset limit.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "claude-opus-4.8",
+   "field": "annotation",
+   "old": "It changed its answer to a 100% FPL limit (about $15,650). California's senior-or-disabled pathway uses 138% FPL. It also counted the full $23,853 without deducting the Medicare Part B premium, which brings countable income to about $21,400, within the limit.",
+   "new": "It first called gross income of $23,853 well below the threshold, then switched to a MAGI-based 100% limit of about $15,650 (the 2025 guideline), and its explanation concluded the head was ineligible. The engine's senior pathway uses SSI income rules and 138% of the 2026 guideline, $22,024.80; it counts $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, for $21,093.47, under the limit.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "claude-opus-5",
+   "field": "annotation",
+   "old": "It tested gross income of $23,853 against a 100–138% FPL range and never subtracted health insurance premiums. The non-MAGI senior-or-disabled count deducts the Medicare Part B premium (about $2,435/year), which puts income under the 138% FPL limit.",
+   "new": "It tested gross income of $23,853 against an aged limit it gave as 100% to 138% of the poverty line, about $15,650 to $21,600 (2025-guideline figures), and found it over. The engine counts $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, for $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "claude-opus-5.5",
+   "field": "annotation",
+   "old": "It used the correct 138% FPL aged limit but compared it with gross income of $23,853. Under this pathway, countable income is net of the Medicare Part B premium (about $2,435/year), leaving about $21,400, which is below the limit.",
+   "new": "It used the 138% aged limit, at about $21,600 (the 2025-guideline figure), but compared it with gross income of $23,853. The engine counts $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, for $21,093.47, under its $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "claude-sonnet-4.6",
+   "field": "annotation",
+   "old": "It switched between the ACA expansion test, which does not cover someone aged 67, and a 100% FPL aged limit. It settled on gross $23,853 against an understated 138% FPL figure of $20,783. It never used the senior-or-disabled pathway's deduction of the Medicare Part B premium, which brings countable income under the real 138% FPL limit.",
+   "new": "It moved between the adult expansion test, which excludes someone aged 67, and a 100% aged limit of $15,060; its explanation settled on the expansion test, with gross income of $23,853 against $20,783, which is 138% of its understated $15,060 guideline. The engine's senior pathway counts $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, for $21,093.47, under $22,024.80 (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "claude-sonnet-5",
+   "field": "annotation",
+   "old": "It first stated the correct Aged & Disabled FPL limit (about $21,597), which its own $14,408 figure would pass. Then it switched to the SSI federal benefit rate (about $13,596) as the binding limit. It also treated Social Security as MAGI-excluded, although the non-MAGI count includes Social Security in full and instead deducts the Medicare Part B premium.",
+   "new": "It excluded most Social Security to get $14,408, said 138% applied only to expansion adults under 65, cited a 138% aged limit of about $21,597 that $14,408 would pass, then used an SSI limit of about $13,596 as binding. The engine counts Social Security in full and uses 138% of the 2026 guideline, $22,024.80: $23,853.47 less California's $230 monthly disregard ($2,760 a year) gives $21,093.47, under the limit.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "claude-sonnet-5.5",
+   "field": "annotation",
+   "old": "It said the head is in no categorical group, but at 67 the head is aged, which is exactly the senior-or-disabled category. It also used unadjusted income of about $23.9k and skipped the Medicare Part B premium deduction, which brings countable income below 138% FPL.",
+   "new": "It said the head was in no categorical group and that countable income of about $23.9k, including Social Security and with no disregard, exceeded 138% FPL. At 67 the head is aged, which alone meets the category condition of the engine's senior-or-disabled pathway, and the engine counts $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, for $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "deepseek-v4-flash-0731",
+   "field": "annotation",
+   "old": "It compared gross income of $23,853 with 138% FPL without deducting health insurance premiums. The senior-or-disabled pathway subtracts the Medicare Part B premium (about $2,435/year), leaving countable income of about $21,400, under the limit.",
+   "new": "It compared gross income of about $23,853 with 138% FPL and concluded the head was over the limit. The engine counts that income under SSI rules but subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "deepseek-v4-pro",
+   "field": "annotation",
+   "old": "It used gross monthly income of $1,987.75 against an understated 138% FPL of $1,732/month. It never deducted the Medicare Part B premium (about $203/month), which brings countable income to about $1,785/month, under the correct 138% FPL of about $1,800/month.",
+   "new": "It tested gross monthly income of $1,987.75 against an understated 138% FPL limit of $1,732. The engine subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves about $1,757.79, under the actual limit of $1,835.40 a month (138% of the 2026 guideline). Both errors mattered: income after the disregard still tops the model's $1,732 figure.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "deepseek-v4-pro-0813",
+   "field": "annotation",
+   "old": "It treated the full $23,853 as countable income and required SSI receipt for a categorical route. The senior-or-disabled pathway does not require SSI and deducts the Medicare Part B premium, leaving countable income below 138% FPL.",
+   "new": "It treated the full $23,853 as countable income and found it over California's FPL-based limit for a senior, without stating the limit. The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "deepseek-v4.1-flash",
+   "field": "annotation",
+   "old": "It compared gross income of $23,853 with its own 138% FPL figure of $22,218. Deducting the Medicare Part B premium (about $2,435/year), as the senior-or-disabled income count requires, leaves about $21,400, below even the model's own threshold.",
+   "new": "It compared gross income of $23,853 with its own 138% FPL figure of $22,218, slightly above the engine's $22,024.80 limit (138% of the 2026 guideline). The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under either figure.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gemini-3-flash-preview",
+   "field": "annotation",
+   "old": "It picked the correct 138% FPL Aged & Disabled limit (about $22,080 by its estimate) but tested gross income of $23,853. The pathway deducts Medicare Part B premiums from countable income, which brings it to about $21,400, under the limit.",
+   "new": "It used a 138% FPL limit of about $22,080, close to the engine's $22,024.80 (138% of the 2026 guideline), but tested gross income of $23,853 against it. The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves countable income of $21,093.47, under the limit.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gemini-3.1-flash-lite-preview",
+   "field": "annotation",
+   "old": "It gave no derivation, and its 'No' is consistent with comparing gross income of $23,853 with an FPL limit. The senior-or-disabled pathway subtracts the Medicare Part B premium, which leaves countable income of about $21,400, below 138% FPL, so the head is eligible.",
+   "new": "It gave no figures or pathway, saying only that household income exceeded the Medicaid limit \"for a single adult.\" At 67 the head meets the aged test of the engine's senior-or-disabled pathway, which needs no SSI or disability. Income of $23,853.47 less California's $230 monthly disregard ($2,760 a year, in place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gemini-3.1-pro-preview",
+   "field": "annotation",
+   "old": "It tested gross income of $23,853 against the 138% FPL Aged & Disabled limit without deducting health insurance premiums. Subtracting the Medicare Part B premium (about $2,435/year) puts countable income under the limit.",
+   "new": "It compared gross income of $23,853 with 138% FPL, without stating the dollar limit, and found it over. The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gemini-3.5-flash",
+   "field": "annotation",
+   "old": "It correctly identified the non-MAGI 138% FPL limit but measured gross monthly income against it. The non-MAGI senior-or-disabled count deducts the Medicare Part B premium, which brings income below the limit.",
+   "new": "It correctly picked the 138% FPL limit for what it called \"free non-MAGI Medi-Cal\" but gave no figures, saying only that the head's monthly income was over it; elsewhere it cited gross income of $23,853. The engine subtracts California's $230 monthly disregard from about $1,987.79 a month, in place of SSI's $20 exclusion. That leaves about $1,757.79 a month, under the $1,835.40 monthly limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gemini-3.5-flash-lite",
+   "field": "annotation",
+   "old": "It gave no derivation. The correct path is the aged (senior-or-disabled) category: $23,853 gross minus the Medicare Part B premium gives about $21,400, under 138% FPL, with assets passing. The 'No' reflects skipping that premium deduction.",
+   "new": "It gave no figures, threshold or pathway, citing only the head's age and income. At 67 the head meets the aged test of the engine's senior-or-disabled pathway, which needs no SSI or disability. Income of $23,853.47 less California's $230 monthly disregard ($2,760 a year, in place of SSI's $20 exclusion) is $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gemini-3.6-flash",
+   "field": "annotation",
+   "old": "It compared the full $23,853 with the aged Medi-Cal threshold without subtracting the Medicare Part B premium. The senior-or-disabled pathway deducts that premium, leaving countable income below 138% FPL.",
+   "new": "It treated the full $23,853 as countable and said it exceeded an unstated threshold for people 65 or older. Gross income is $1,828.67 over the limit, but the engine's senior-or-disabled pathway subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gemini-3.7-flash",
+   "field": "annotation",
+   "old": "It correctly identified the non-MAGI elderly pathway but did not deduct health insurance premiums, including Medicare Part B, from countable income. That deduction brings income from $23,853 to about $21,400, under the 138% FPL limit.",
+   "new": "It placed the head in what it called the \"non-MAGI\" elderly pathway but gave no income figure or limit, and it judged income too high, which holds only if California's disregard is skipped. In the engine's senior-or-disabled pathway, $23,853.47 less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion, gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gemini-3.8-flash",
+   "field": "annotation",
+   "old": "It said total income 'well' exceeds 138% FPL, but gross income is only about 150% FPL. After the senior-or-disabled pathway deducts the Medicare Part B premium, countable income falls below 138% FPL.",
+   "new": "It tested total income against a 138% FPL limit with no disregard and called it \"well\" over, but $23,853.47 is about 149% of the 2026 guideline, only $1,828.67 over the $22,024.80 limit. The engine's senior-or-disabled pathway subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the limit.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "glm-5.2",
+   "field": "annotation",
+   "old": "It assumed Medicare eligibility rules out Medicaid. Medicare-eligible seniors qualify for Medicaid (dual eligibility) through the aged senior-or-disabled pathway, which this head meets on income after the Part B deduction and on assets.",
+   "new": "It assumed that Medicare eligibility at 65 or older bars Medicaid and ran no income test. In the engine's Medicaid rules, Medicare eligibility bars only the adult expansion group, and age 67 alone meets the aged test for the senior-or-disabled pathway. There, $23,853.47 of income less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion, gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "glm-5.3",
+   "field": "annotation",
+   "old": "It tested the head against the ACA adult expansion limit, which does not apply at age 67, and overstated income as about 199% FPL; $23,853 is about 150% FPL. The applicable pathway is senior-or-disabled, where countable income after the Medicare Part B premium deduction is under 138% FPL.",
+   "new": "It applied the adult expansion limit, which excludes anyone over 64, comparing gross income of about $1,988 a month (about 149% of the 2026 guideline, not the 199% it stated) with an understated limit of about $1,600. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway, where $1,987.79 less California's $230 monthly disregard (which takes the place of SSI's $20 exclusion) gives $1,757.79, under the $1,835.40 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gpt-5.4-nano",
+   "field": "annotation",
+   "old": "It looked for a disability flag and missed that age 67 alone meets the aged criterion for the senior-or-disabled pathway. Under that pathway, income net of the Medicare Part B premium is below 138% FPL and the $4,200 in assets passes the asset test.",
+   "new": "It denied eligibility because no disability or low-income flag was listed and income was \"substantial\", without comparing any income figure with a limit. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway. There, $23,853.47 of income less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion, gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gpt-5.5",
+   "field": "annotation",
+   "old": "It applied a spend-down (medically needy) standard and counted only the $50 over-the-counter expense as a medical deduction. The applicable pathway is the 138% FPL senior-or-disabled program, which deducts the Medicare Part B premium (about $2,435/year) and leaves countable income under the limit.",
+   "new": "It correctly ruled out the adult expansion group at age 67 but tested the full $23,853 against an unstated aged income or \"spend-down\" standard, with only minimal medical expenses to offset it. The engine's senior-or-disabled pathway instead subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gpt-5.6-luna",
+   "field": "annotation",
+   "old": "It gave no computation, and its 'above threshold' conclusion matches testing gross income. The senior-or-disabled pathway subtracts the Medicare Part B premium from $23,853, leaving about $21,400, below 138% FPL.",
+   "new": "It gave no figures, pathway or threshold and only asserted that countable income was above the applicable California limit, which holds only if the state's $230 monthly disregard ($2,760 a year) is skipped. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway, where $23,853.47 less that disregard (which takes the place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gpt-5.6-sol",
+   "field": "annotation",
+   "old": "It correctly picked the aged pathway but compared unadjusted retirement income with the limit. That pathway deducts health insurance premiums, including Medicare Part B, which brings countable income under 138% FPL.",
+   "new": "It identified the aged pathway but concluded, without showing figures, that retirement income exceeded California's limit. That holds only if California's $230 monthly disregard is skipped: gross income of $23,853.47 is $1,828.67 over the limit. The engine's senior-or-disabled pathway subtracts that disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gpt-5.6-terra",
+   "field": "annotation",
+   "old": "It used an SSI-linked income level as the aged Medicaid test. California's optional senior-or-disabled pathway uses 138% FPL, and after the Medicare Part B premium deduction the head's countable income is under that limit.",
+   "new": "It placed the head in the aged pathway but tested income against an \"SSI-linked income level,\" giving no figures. The engine's limit for this pathway in California is $22,024.80 (138% of the 2026 poverty guideline), and countable income is $21,093.47: $23,853.47 less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gpt-6-astra",
+   "field": "annotation",
+   "old": "It applied only the $20/month general income exclusion and left out the senior-or-disabled deduction for health insurance premiums. Subtracting the Medicare Part B premium (about $2,435/year) brings countable income below 138% FPL.",
+   "new": "It correctly ruled out the adult expansion group at 67 but said retirement income after the general income exclusion exceeded California's aged limit, giving no figures. In the engine that exclusion is California's $230 monthly disregard, which takes the place of SSI's $20, so countable income is $21,093.47 ($23,853.47 less $2,760), under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gpt-6-sol",
+   "field": "annotation",
+   "old": "It compared gross retirement income with the aged threshold without deducting the Medicare Part B premium. The senior-or-disabled income count requires that deduction, which leaves the head at about $21,400, under 138% FPL.",
+   "new": "It said the head's retirement income exceeded California's aged Medicaid threshold, naming no exclusion and giving no figures. Gross income of $23,853.47 is over the $22,024.80 limit (138% of the 2026 poverty guideline), but the engine first subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion, leaving countable income of $21,093.47, under the limit.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "gpt-6.1-sol",
+   "field": "annotation",
+   "old": "It deducted only the general income exclusion and missed the health insurance premium deduction, including Medicare Part B, that the senior-or-disabled pathway applies. With that deduction, countable income falls below 138% FPL.",
+   "new": "It said retirement income exceeded California's aged limit after \"the applicable general income exclusion,\" without stating its amount, the income or the limit. In the engine that exclusion is California's $230 monthly disregard, which takes the place of SSI's $20, so countable income is $21,093.47 ($23,853.47 less $2,760), under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "grok-4.3",
+   "field": "annotation",
+   "old": "It claimed PolicyEngine excludes Medicare-eligible (dual-eligible) people from Medicaid. The aged senior-or-disabled pathway is built for Medicare-age individuals, and this head meets its income test (after the Part B deduction) and its asset test.",
+   "new": "It ruled the head out as Medicare-eligible, claiming the engine excludes \"full dual eligibles\" from Medicaid. In the engine's Medicaid rules, Medicare eligibility bars only the adult expansion group: at 67 the head counts as aged for the senior-or-disabled pathway, countable income of $21,093.47 ($23,853.47 less California's $230 monthly disregard, $2,760 a year) is under the $22,024.80 limit (138% of the 2026 poverty guideline), and $4,200 in assets is under the $130,000 limit.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "grok-4.5",
+   "field": "annotation",
+   "old": "It treated $4,200 in bank assets as over the aged resource limit, but $4,200 easily passes California's senior-or-disabled asset test ($130,000 for an individual in 2026). It also tested gross income of $23,853 without deducting the Medicare Part B premium, which brings countable income under 138% FPL.",
+   "new": "It said bank assets of $4,200 and countable income of about $23,853 both exceeded California's aged limits, counting gross income in full. The pathway's asset limit is $130,000, so $4,200 passes, and the engine subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "grok-4.6",
+   "field": "annotation",
+   "old": "It mixed MAGI and ABD counting and compared the full $23,853 with the Aged & Disabled FPL limit. The non-MAGI count deducts the Medicare Part B premium (about $2,435/year), leaving about $21,400, under 138% FPL.",
+   "new": "It counted the full $23,853 as \"MAGI/ABD countable income\" and said it exceeded California's \"Aged & Disabled FPL\" limit. The engine counts that income under SSI rules but subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "grok-4.7",
+   "field": "annotation",
+   "old": "It applied only the $20 monthly unearned-income disregard before testing against the 138% FPL Aged & Disabled limit. It missed the deduction of health insurance premiums, including Medicare Part B, which brings countable income below the limit.",
+   "new": "It applied only the $20 monthly unearned-income disregard before testing against California's 138% FPL limit, which leaves about $23,613, still over the $22,024.80 limit. The engine uses California's $230 monthly disregard in place of that $20 exclusion, so countable income is $21,093.47 ($23,853.47 less $2,760), under the limit.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "grok-build-0.1",
+   "field": "annotation",
+   "old": "It applied the $2,000 SSI resource limit. California's senior-or-disabled Medi-Cal asset limit is $130,000 for an individual in 2026, so $4,200 passes, and income after the Medicare Part B deduction is under 138% FPL.",
+   "new": "It applied a $2,000 asset limit to aged Medicaid and denied eligibility because the $4,200 in bank assets exceeded it, but $2,000 is SSI's resource limit, not this pathway's test. The engine's California senior-or-disabled pathway allows assets below $130,000, and countable income is $23,853.47 less California's $230 monthly disregard ($2,760 a year), or $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "inkling",
+   "field": "annotation",
+   "old": "It used a 100% FPL limit (about $15,650) for aged Medi-Cal, but California's senior-or-disabled pathway uses 138% FPL. It also counted gross income without deducting the Medicare Part B premium, which brings countable income to about $21,400, under the limit.",
+   "new": "It applied a 100% FPL limit of about $15,650, the 2025 guideline, and compared gross income of about $23,853 against it. The engine uses 138% of the 2026 guideline, $22,024.80, and subtracts California's $230 monthly disregard ($2,760 a year, in place of SSI's $20 exclusion) from $23,853.47, leaving countable income of $21,093.47, under the limit.",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "kimi-k2.6",
+   "field": "annotation",
+   "old": "It said the head fits no non-MAGI aged or disabled pathway because they are not disabled or on SSI. At 67 the head is aged, which qualifies them for the senior-or-disabled category without SSI receipt, and they pass its income test (after the Part B deduction) and its asset test.",
+   "new": "It correctly placed the head outside the adult expansion group but ruled out the aged and disabled pathways because the head was not disabled, blind or an SSI recipient. The engine's senior-or-disabled pathway needs no disability, blindness or SSI receipt; age 67 alone meets its aged criterion. Countable income is $23,853.47 less California's $230 monthly disregard ($2,760 a year), or $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "kimi-k3",
+   "field": "annotation",
+   "old": "It correctly excluded the adult expansion group but compared unadjusted retirement income with the aged limit. The senior-or-disabled pathway deducts the Medicare Part B premium, which leaves countable income under 138% FPL.",
+   "new": "It correctly placed the head outside the adult expansion group but said the listed retirement income exceeded the California aged income limit, without naming a limit or applying any disregard. The engine subtracts California's $230 monthly disregard ($2,760 a year) from the $23,853.47 of Social Security, pension and IRA income, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "minimax-m3",
+   "field": "annotation",
+   "old": "It guessed that roughly $24k of income exceeds the senior limit without using any threshold or deduction. The correct calculation subtracts the Medicare Part B premium (about $2,435) from $23,853, which gives about $21,400, under 138% FPL.",
+   "new": "It guessed that about $24,000 of income might exceed an unstated senior limit and answered 0 without naming a threshold or applying any disregard. The engine subtracts California's $230 monthly disregard ($2,760 a year) from the $23,853.47 of Social Security, pension and IRA income, leaving countable income of $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "ox-alpha",
+   "field": "annotation",
+   "old": "It applied the SSI $2,000 resource limit to the $4,200 in bank assets. California's senior-or-disabled asset test ($130,000 individual limit in 2026) is passed. It also compared gross income with the income standard without deducting the Medicare Part B premium, which brings income below 138% FPL.",
+   "new": "It correctly treated the head as aged but applied SSI's $2,000 resource limit to the $4,200 in bank assets and said gross income of about $24,000 exceeded the aged income standard. The engine's California pathway allows assets below $130,000 and subtracts a $230 monthly disregard ($2,760 a year) from the $23,853.47 of income, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "qwen-3.7-max",
+   "field": "annotation",
+   "old": "It compared gross income of $23,853 with 'typical' ABD limits and treated missing SSI or disability status as disqualifying. The aged senior-or-disabled pathway requires neither, and it deducts the Medicare Part B premium, which leaves countable income under 138% FPL.",
+   "new": "It counted $23,853 of Social Security, pension and IRA income in full, said it exceeded \"typical aged/blind/disabled Medicaid limits\" without naming one, and cited the missing disability or SSI status. The engine's senior-or-disabled pathway needs neither, since age 67 alone meets its aged criterion, and it subtracts California's $230 monthly disregard ($2,760 a year) from $23,853.47, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  },
+  {
+   "file": "us_audit_row_annotations.csv",
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "model": "qwen3.8-max",
+   "field": "annotation",
+   "old": "It concluded the 67-year-old is in no eligibility category. Age 65+ is itself the aged criterion for the senior-or-disabled pathway, where income net of the Medicare Part B premium is below 138% FPL and assets pass.",
+   "new": "It said the 67-year-old was not disabled, blind or in any other listed category, and that income was above the senior pathway's limit without naming a figure. Age 65 or older alone meets the aged criterion of the engine's senior-or-disabled pathway, and countable income is $23,853.47 less California's $230 monthly disregard ($2,760 a year), or $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "reason": "The old text explained the reference with a Medicare Part B premium subtracted from countable income; the engine subtracts no premium. It counts $23,853.47 of SSI unearned income and applies California's $230 monthly disregard in place of SSI's $20 exclusion, so countable income is $21,093.47 against a $22,024.80 limit (138% of the 2026 guideline). The row stays a model error."
+  }
+ ]
+}

@@ -1,0 +1,645 @@
+{
+ "note": "Review record for the rewritten row annotations. Each model's row was drafted, then checked by a separate agent that read the model's frozen response (predictions.csv.gz raw_response and explanation) and the engine fact sheet, quoted the response words each claim rests on, and corrected the draft. A final critic checked consistency across rows and against the case note. The final text of each row is in ../rewrites.json; it differs from 'checked_text' only by the edits listed in 'post_review_edits'.",
+ "post_review_edits": [
+  "Inserted '(,760 a year)' after ' monthly disregard' in 21 rows that subtracted the monthly disregard from an annual figure (critic), and merged the resulting double parentheses.",
+  "grok-build-0.1: 'aged Medi-Cal' -> 'aged Medicaid'; gemini-3.1-flash-lite-preview: 'the Medi-Cal limit' -> 'the Medicaid limit'.",
+  "glm-5.2 and grok-4.3: 'The engine has no Medicare exclusion' -> 'In the engine's Medicaid rules, Medicare eligibility bars only the adult expansion group' (in variables/gov/hhs/medicaid, is_adult_for_medicaid_nfc is the only formula that bars on is_medicare_eligible; medicaid_work_requirement_eligible reads it as an exemption)."
+ ],
+ "tally": {
+  "total": 43,
+  "buckets": [
+   {
+    "bucket": "gross income vs the limit (stated gross or total income, no exclusion or disregard)",
+    "count": 17,
+    "models": [
+     "claude-fable-5 (gross less alimony)",
+     "claude-haiku-4.5",
+     "claude-opus-5",
+     "claude-opus-5.5",
+     "claude-sonnet-4.6",
+     "deepseek-v4-flash-0731",
+     "deepseek-v4-pro",
+     "deepseek-v4-pro-0813",
+     "deepseek-v4.1-flash",
+     "gemini-3-flash-preview",
+     "gemini-3.1-pro-preview",
+     "gemini-3.6-flash",
+     "gemini-3.8-flash",
+     "gpt-5.5",
+     "grok-4.6",
+     "minimax-m3",
+     "qwen-3.7-max"
+    ]
+   },
+   {
+    "bucket": "only SSI's $20 exclusion",
+    "count": 2,
+    "models": [
+     "claude-fable-5.1",
+     "grok-4.7"
+    ]
+   },
+   {
+    "bucket": "a general income exclusion of unstated size (most likely SSI's $20)",
+    "count": 2,
+    "models": [
+     "gpt-6-astra",
+     "gpt-6.1-sol"
+    ]
+   },
+   {
+    "bucket": "wrong threshold",
+    "count": 4,
+    "models": [
+     "claude-opus-4.8 (100%, $15,650)",
+     "inkling (100%, $15,650)",
+     "claude-sonnet-5 (SSI income limit, $13,596)",
+     "gpt-5.6-terra (SSI-linked income level)"
+    ]
+   },
+   {
+    "bucket": "asset error",
+    "count": 3,
+    "models": [
+     "grok-build-0.1 ($2,000 SSI limit, only reason)",
+     "ox-alpha ($2,000 SSI limit, plus gross income)",
+     "grok-4.5 (unstated resource limit, plus gross income)"
+    ]
+   },
+   {
+    "bucket": "category error (Medicare bar, required disability/blindness/SSI, no category, or adult group only)",
+    "count": 7,
+    "models": [
+     "glm-5.2 (Medicare bars Medicaid)",
+     "grok-4.3 (dual eligibles excluded)",
+     "kimi-k2.6 (not disabled, blind or SSI)",
+     "qwen3.8-max (not disabled, blind or in a category)",
+     "gpt-5.4-nano (no disability or low-income flag)",
+     "claude-sonnet-5.5 (no categorical group, plus gross $23.9k)",
+     "glm-5.3 (adult expansion test only)"
+    ]
+   },
+   {
+    "bucket": "no derivation (no income figure; asserted income too high)",
+    "count": 8,
+    "models": [
+     "gemini-3.1-flash-lite-preview",
+     "gemini-3.5-flash",
+     "gemini-3.5-flash-lite",
+     "gemini-3.7-flash",
+     "gpt-5.6-luna",
+     "gpt-5.6-sol",
+     "gpt-6-sol",
+     "kimi-k3"
+    ]
+   },
+   {
+    "bucket": "other",
+    "count": 0,
+    "models": []
+   }
+  ],
+  "subtype_crosscheck": "Income-counting buckets 17 + 2 + 2 + 8 = 29, which equals the 29 taxable_income_or_deductions rows. Threshold 4 = thresholds_rates 4, asset 3 = asset_resource 3, category 7 = categorical_eligibility 7. Total 43. So 'most models went wrong on countable income' holds (29 of 43).",
+  "secondary_errors": "These rows also compared gross income with a limit outside their primary bucket: claude-opus-4.8, inkling, claude-sonnet-5.5, grok-4.5, ox-alpha, glm-5.3. Counting them, 23 rows stated or used gross income, and 25 with the two $20-only rows. Each of these understated limits would also have produced 0 against the engine's $21,093.47: claude-haiku-4.5 ($18,564), deepseek-v4-pro ($1,732 a month), claude-sonnet-4.6 ($20,783), glm-5.3 ($1,600 a month). Alimony was subtracted by claude-fable-5 and claude-haiku-4.5. Assets were also doubted by claude-haiku-4.5.",
+  "boundary_calls": "gemini-3.8-flash is in the gross bucket because it said 'total income', though it gave no figure. gemini-3.5-flash is in no derivation because it named 138% FPL but gave no income figure. minimax-m3 is in the gross bucket because it guessed about $24k against an unstated limit. claude-sonnet-5.5 and qwen-3.7-max both gave gross figures and a category reason; they are split by their subtypes.",
+  "parser_contingency": "claude-opus-4.8 and claude-sonnet-4.6 submitted a structured value of 1 (verified in raw_response this session). If they are rescored as correct, the total is 41: gross 16 and threshold 3. The corrected closing summary still holds unchanged (28 of 41 income-counting)."
+ },
+ "rows": [
+  {
+   "model": "claude-fable-5",
+   "verdict": "fixed",
+   "problems_found": [
+    "raw_response is null; the check rests on the stored explanation alone.",
+    "The draft's 'but it subtracted the $1,165 of alimony' presents the alimony subtraction as the error that pushed income over the limit. That subtraction lowered income, which helped the model. The deciding error was that it applied no disregard: $22,688 / 12 = $1,890.67, so no exclusion was taken. Even its own $1,890 less California's $230 would be about $1,660, under its $1,800. The rewrite now names the missing disregard as the error and keeps alimony as a side note.",
+    "'Said SSI-style disregards would not change the result' is tightened to the model's actual claim ('even with SSI-style disregards ... exceeds'). Engine figures checked: $1,987.79, $1,757.79 and $1,835.40 are correct, and monthly figures fit because the model worked monthly."
+   ],
+   "evidence": "\"less alimony expense adjustment $1,165 gives MAGI-style income ~$22,688; even with SSI-style disregards, monthly income (~$1,890) exceeds the 138% FPL limit for one person (~$1,800/month in 2026)\"; \"eligibility would come via the aged/senior pathway (ACA MAGI expansion covers only ages 19-64)\"",
+   "checked_text": "It took the aged pathway and a 138% limit of about $1,800 a month but applied no disregard: it subtracted the $1,165 of alimony, put income at about $1,890 a month, and said even SSI-style disregards would leave it over. The engine does not subtract alimony; it takes $1,987.79 a month less California's $230 disregard, which replaces SSI's $20 exclusion, for $1,757.79, under the $1,835.40 limit (138% of the 2026 guideline).",
+   "final_text": "It took the aged pathway and a 138% limit of about $1,800 a month but applied no disregard: it subtracted the $1,165 of alimony, put income at about $1,890 a month, and said even SSI-style disregards would leave it over. The engine does not subtract alimony; it takes $1,987.79 a month less California's $230 disregard, which replaces SSI's $20 exclusion, for $1,757.79, under the $1,835.40 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. The income count decided the case: with $1,757.79 it would pass even its own $1,800 limit."
+  },
+  {
+   "model": "claude-fable-5.1",
+   "verdict": "ok",
+   "problems_found": [
+    "None found. The $240 exclusion, $23,613, the aged pathway and the ~$21,600 limit all match the explanation. Arithmetic checks out: $23,853.47 - $2,760 = $21,093.47, which is under $22,024.80. The text states that the disregard replaces the $20 exclusion. Minor: the exclusion is called '$240 annual' and then 'that $20 exclusion'. The two are consistent ($20 a month) and need no change."
+   ],
+   "evidence": "\"under the CA aged/disabled pathway, countable income of about $23,613/year (23,853 minus $240 exclusion) exceeds the 138% FPL limit (~$21,600), so not eligible for Medi-Cal\"",
+   "checked_text": "It used the aged pathway but applied only SSI's $240 annual general exclusion, putting countable income at $23,613 against a 138% limit of about $21,600. California's $230 monthly disregard takes the place of that $20 exclusion, so the engine counts $23,853.47 less $2,760, or $21,093.47, which is under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It used the aged pathway but applied only SSI's $240 annual general exclusion, putting countable income at $23,613 against a 138% limit of about $21,600. California's $230 monthly disregard takes the place of that $20 exclusion, so the engine counts $23,853.47 less $2,760, or $21,093.47, which is under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. Missing the CA disregard decided the case: $21,093.47 passes even its $21,600 limit."
+  },
+  {
+   "model": "claude-haiku-4.5",
+   "verdict": "fixed",
+   "problems_found": [
+    "'Compared income of $23,853, with or without the $1,165 of alimony' is muddled, since $23,853 less alimony is $22,688. Reworded to say it tested gross $23,853 and that amount less alimony.",
+    "Added 'gross' so the text shows that no exclusion or disregard was applied, which matches the response.",
+    "The engine statements are correct: alimony is not subtracted, $21,093.47 < $22,024.80, and the $130,000 asset limit is right. The asset doubt is quoted accurately."
+   ],
+   "evidence": "\"approximately 138% of federal poverty line (around $1,547/month or ~$18,564 annually). Head's total income of $23,853 exceeds this threshold. Additionally, after accounting for deductible items (alimony expense of $1,165), countable income remains above the limit. With bank account assets of $4,200, which may exceed resource limits\"",
+   "checked_text": "It compared gross income of $23,853, and that amount less the $1,165 of alimony, against a 138% limit it understated at about $18,564, and doubted the $4,200 in assets. The engine subtracts no alimony: $23,853.47 less California's $230 monthly disregard, which replaces SSI's $20 exclusion, leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline). The $4,200 is far under California's $130,000 asset limit.",
+   "final_text": "It compared gross income of $23,853, and that amount less the $1,165 of alimony, against a 138% limit it understated at about $18,564, and doubted the $4,200 in assets. The engine subtracts no alimony: $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline). The $4,200 is far under California's $130,000 asset limit.",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. Gross income and the understated limit each force 0 on their own, so the income-count subtype is not clearly wrong and follows corpus practice."
+  },
+  {
+   "model": "claude-opus-4.8",
+   "verdict": "fixed",
+   "problems_found": [
+    "'Concluded the head was ineligible' overstates what the model submitted. The structured value in its Medicaid tool call is 1, and only the explanation trailer says 0. Reworded to 'its explanation concluded'.",
+    "PARSER FLAG CONFIRMED THIS SESSION: running policybench.reparse_predictions.parse_serialized_response (repo at c7aaffe9) on this raw_response returns head_medicaid_eligible = 1.0 and logs 'Structured value disagrees with explanation trailer ... keeping structured value'. The recorded prediction is 0. Under the current parser the row would score as correct and would not be an llm_error row. The orchestrator must decide before this annotation ships.",
+    "The engine figures check out: 138% of the 2026 guideline is $22,024.80, and $23,853.47 - $2,760 = $21,093.47. $15,650 is the 2025 guideline, per the fact sheet."
+   ],
+   "evidence": "Tool call {\"value\": 1, ...}: \"Countable income: Social Security $9,445 + IRA $800 + pension $13,608 = $23,853, well below the threshold. Wait—MAGI for aged/disabled in PolicyEngine uses 100% FPL-based limits for a single person (~$15,650), so $23,853 exceeds it. value = 0\"",
+   "checked_text": "It first called gross income of $23,853 well below the threshold, then switched to a MAGI-based 100% limit of about $15,650 (the 2025 guideline), and its explanation concluded the head was ineligible. The engine's senior pathway uses SSI income rules and 138% of the 2026 guideline, $22,024.80; it counts $23,853.47 less California's $230 monthly disregard, which replaces SSI's $20 exclusion, for $21,093.47, under the limit.",
+   "final_text": "It first called gross income of $23,853 well below the threshold, then switched to a MAGI-based 100% limit of about $15,650 (the 2025 guideline), and its explanation concluded the head was ineligible. The engine's senior pathway uses SSI income rules and 138% of the 2026 guideline, $22,024.80; it counts $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, for $21,093.47, under the limit.",
+   "subtype": "thresholds_rates",
+   "subtype_note": "Kept. The switch to a 100% limit would fail even the engine's $21,093.47, so the threshold is decisive. The row may not be a scored error at all (see the parser flag)."
+  },
+  {
+   "model": "claude-opus-5",
+   "verdict": "ok",
+   "problems_found": [
+    "None found. Gross $23,853, the 100% to 138% range and $15,650 to $21,600 all match the explanation. Both figures are 2025-guideline numbers: $15,650 at 100% and $21,597 at 138%. The engine path and arithmetic are correct, and nothing about premiums remains."
+   ],
+   "evidence": "\"Annual countable income ~$23,853 (including Social Security) is above the aged/ABD Medi-Cal limit (~100-138% FPL for one person, roughly $15,650-$21,600), so not eligible.\"",
+   "checked_text": "It tested gross income of $23,853 against an aged limit it gave as 100% to 138% of the poverty line, about $15,650 to $21,600 (2025-guideline figures), and found it over. The engine counts $23,853.47 less California's $230 monthly disregard, which replaces SSI's $20 exclusion, for $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It tested gross income of $23,853 against an aged limit it gave as 100% to 138% of the poverty line, about $15,650 to $21,600 (2025-guideline figures), and found it over. The engine counts $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, for $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. The deciding error was gross income with no disregard."
+  },
+  {
+   "model": "claude-opus-5.5",
+   "verdict": "ok",
+   "problems_found": [
+    "None found. The 138% aged limit, about $21,600 (138% of the 2025 guideline is $21,597), and gross $23,853 match the explanation. The engine figures are correct, and the text does not fault its 138% rate."
+   ],
+   "evidence": "\"Annual income of $23,853 exceeds the aged Medi-Cal limit of 138% FPL (about $21,600), so not eligible.\"",
+   "checked_text": "It used the 138% aged limit, at about $21,600 (the 2025-guideline figure), but compared it with gross income of $23,853. The engine counts $23,853.47 less California's $230 monthly disregard, which replaces SSI's $20 exclusion, for $21,093.47, under its $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It used the 138% aged limit, at about $21,600 (the 2025-guideline figure), but compared it with gross income of $23,853. The engine counts $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, for $21,093.47, under its $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. The only deciding error was gross income with no disregard: $21,093.47 passes even its $21,600 limit."
+  },
+  {
+   "model": "claude-sonnet-4.6",
+   "verdict": "fixed",
+   "problems_found": [
+    "The draft says it 'settled on gross income of $23,853 against $20,783' but does not say which test it settled on. Its final reasoning used the ACA expansion test at 138%. The rewrite says so.",
+    "The structured value in its Medicaid tool call is 1, and only the explanation trailer says 0. Reworded to 'its explanation settled'.",
+    "PARSER FLAG CONFIRMED THIS SESSION: parse_serialized_response (policybench c7aaffe9) on this raw_response returns 1.0 and keeps the structured value. The recorded prediction is 0. Under the current parser the row would score as correct, so the orchestrator must decide before this ships.",
+    "Arithmetic checked: 1.38 x $15,060 = $20,782.80 (about $20,783), and $15,060 is below the 2026 guideline of $15,960. The engine figures are correct."
+   ],
+   "evidence": "Tool call {\"value\": 1, ...}: \"138% FPL for a single individual is approximately $20,783/year\"; \"Aged & Disabled Federal Poverty Level (A&D FPL) program, seniors 65+ with income up to 100% FPL (~$15,060 for 2026)\"; \"Given that PolicyEngine typically implements the standard ACA Medi-Cal expansion at 138% FPL and the income exceeds that threshold, the Head is not eligible. value = 0\"",
+   "checked_text": "It moved between the adult expansion test, which excludes someone aged 67, and a 100% aged limit of $15,060; its explanation settled on the expansion test, with gross income of $23,853 against $20,783, which is 138% of its understated $15,060 guideline. The engine's senior pathway counts $23,853.47 less California's $230 monthly disregard, which replaces SSI's $20 exclusion, for $21,093.47, under $22,024.80 (138% of the 2026 guideline).",
+   "final_text": "It moved between the adult expansion test, which excludes someone aged 67, and a 100% aged limit of $15,060; its explanation settled on the expansion test, with gross income of $23,853 against $20,783, which is 138% of its understated $15,060 guideline. The engine's senior pathway counts $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, for $21,093.47, under $22,024.80 (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. Gross income with no disregard fails even the correct limit, so the income count was a necessary error. The pathway confusion does not change the 138% rate. The row may not be a scored error at all (see the parser flag)."
+  },
+  {
+   "model": "claude-sonnet-5",
+   "verdict": "ok",
+   "problems_found": [
+    "None found. $14,408 (pension plus IRA), the claim that 138% applies only to expansion adults, the cited $21,597, and the binding $13,596 SSI limit all match the response and its order. It correctly said assets were under the limit, and the text does not fault that. The engine claims are correct: Social Security counts in full, and $21,093.47 < $22,024.80."
+   ],
+   "evidence": "\"Social Security ($9,445, mostly excluded) ... totaling roughly $14,408\"; \"about 138% FPL is only for MAGI expansion adults under 65\"; \"Aged & Disabled Federal Poverty Level program limit is about 138% FPL (~$21,597 for single in 2026)\"; \"this exceeds the SSI income limit (~$1,133/month = $13,596/year)\"",
+   "checked_text": "It excluded most Social Security to get $14,408, said 138% applied only to expansion adults under 65, cited a 138% aged limit of about $21,597 that $14,408 would pass, then used an SSI limit of about $13,596 as binding. The engine counts Social Security in full and uses 138% of the 2026 guideline, $22,024.80: $23,853.47 less California's $230 monthly disregard gives $21,093.47, under the limit.",
+   "final_text": "It excluded most Social Security to get $14,408, said 138% applied only to expansion adults under 65, cited a 138% aged limit of about $21,597 that $14,408 would pass, then used an SSI limit of about $13,596 as binding. The engine counts Social Security in full and uses 138% of the 2026 guideline, $22,024.80: $23,853.47 less California's $230 monthly disregard ($2,760 a year) gives $21,093.47, under the limit.",
+   "subtype": "thresholds_rates",
+   "subtype_note": "Kept. Its income error ran in its favor, so the binding $13,596 SSI limit is what produced 0."
+  },
+  {
+   "model": "claude-sonnet-5.5",
+   "verdict": "fixed",
+   "problems_found": [
+    "'By itself meets the engine's senior-or-disabled category' is imprecise. In the engine the category also requires the income and asset tests, and age alone meets only its aged-blind-disabled condition. Reworded to 'meets the category condition of the engine's senior-or-disabled pathway'.",
+    "Added 'with no disregard' so the income error is stated directly. $23.9k is the gross sum, so no exclusion was applied.",
+    "The engine figures and arithmetic are correct, and the text does not fault its 138% rate or its inclusion of Social Security."
+   ],
+   "evidence": "\"Not eligible: countable income of about $23.9k including Social Security exceeds 138% FPL, and Head is not in a categorical group.\"",
+   "checked_text": "It said the head was in no categorical group and that countable income of about $23.9k, including Social Security and with no disregard, exceeded 138% FPL. At 67 the head is aged, which alone meets the category condition of the engine's senior-or-disabled pathway, and the engine counts $23,853.47 less California's $230 monthly disregard, which replaces SSI's $20 exclusion, for $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It said the head was in no categorical group and that countable income of about $23.9k, including Social Security and with no disregard, exceeded 138% FPL. At 67 the head is aged, which alone meets the category condition of the engine's senior-or-disabled pathway, and the engine counts $23,853.47 less California's $230 monthly disregard ($2,760 a year), which replaces SSI's $20 exclusion, for $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "categorical_eligibility",
+   "subtype_note": "Kept. Both stated reasons force 0 on their own. The categorical denial is the more basic error, so the current subtype is not clearly wrong."
+  },
+  {
+   "model": "deepseek-v4-flash-0731",
+   "verdict": "ok",
+   "problems_found": [
+    "Rewrite checked and correct, so no change needed. The old annotation's Part B and premium mechanism and its figure of about $21,400 are gone.",
+    "Every model claim is supported: gross $23,853 compared with 138% FPL, no dollar limit stated, no exclusion in the Medicaid row (its SSI row did subtract $20).",
+    "Engine figures match the fact sheet: $2,760 disregard replacing SSI's $20 exclusion, $21,093.47 countable income, $22,024.80 limit at 138% of the 2026 guideline."
+   ],
+   "evidence": "Medicaid row: \"Head is 67 (Medicare-age) with income of about $23,853/year, exceeding the relevant income limits for aged Medicaid eligibility (over 138% FPL)\". SSI row: \"about $1,968 after the $20 general exclusion\".",
+   "checked_text": "It compared gross income of about $23,853 with 138% FPL and concluded the head was over the limit. The engine counts that income under SSI rules but subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It compared gross income of about $23,853 with 138% FPL and concluded the head was over the limit. The engine counts that income under SSI rules but subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. Its 138% FPL limit was the right one, so the deciding error is counting gross income without California's disregard. That is the corpus's income-counting subtype."
+  },
+  {
+   "model": "deepseek-v4-pro",
+   "verdict": "ok",
+   "problems_found": [
+    "Rewrite checked and correct, so no change needed. The Part B mechanism and the old figures ($1,785 a month income, about $1,800 limit) are gone.",
+    "Arithmetic checks out: $1,987.75 - $230 = $1,757.75 on the model's figure ($1,757.79 on the engine's). That is under the $1,835.40 limit but above the model's $1,732, so both errors were needed for its 0. The annotation says so."
+   ],
+   "evidence": "Medicaid row: \"income of $1,987.75/month exceeds CA Aged & Disabled FPL income limit of 138% FPL ($1,732/month estimated)\". SSI row: \"Countable unearned income $1,967.75/month ($1,987.75 - $20)\".",
+   "checked_text": "It tested gross monthly income of $1,987.75 against an understated 138% FPL limit of $1,732. The engine subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves about $1,757.79, under the actual limit of $1,835.40 a month (138% of the 2026 guideline). Both errors mattered: income after the disregard still tops the model's $1,732 figure.",
+   "final_text": "It tested gross monthly income of $1,987.75 against an understated 138% FPL limit of $1,732. The engine subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves about $1,757.79, under the actual limit of $1,835.40 a month (138% of the 2026 guideline). Both errors mattered: income after the disregard still tops the model's $1,732 figure.",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. Two errors were each necessary: the missed disregard and the understated limit. Income counting matches corpus practice and is not clearly wrong; thresholds_rates would be the secondary label."
+  },
+  {
+   "model": "deepseek-v4-pro-0813",
+   "verdict": "ok",
+   "problems_found": [
+    "Rewrite checked and correct, so no change needed. The Part B mechanism is gone, and so is the unsupported claim that it required SSI receipt.",
+    "It did call its $23,853 countable income and named an FPL-based senior limit with no dollar figure, which the rewrite says. Its remark of no SSI categorical eligibility is true in the engine (the head is not an SSI recipient), so the rewrite rightly does not fault it."
+   ],
+   "evidence": "Scored response: \"Annual countable income of about $23,853 exceeds California's applicable Medi-Cal FPL-based income limit for this senior single-person household and there is no SSI categorical eligibility\". Other response: \"income of $23,853 exceeds the Medi-Cal aged/disabled eligibility threshold\".",
+   "checked_text": "It treated the full $23,853 as countable income and found it over California's FPL-based limit for a senior, without stating the limit. The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It treated the full $23,853 as countable income and found it over California's FPL-based limit for a senior, without stating the limit. The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. The deciding error is counting gross income without the disregard. Its SSI remark was accurate and did not decide its answer."
+  },
+  {
+   "model": "deepseek-v4.1-flash",
+   "verdict": "ok",
+   "problems_found": [
+    "Rewrite checked and correct, so no change needed. The false claim that the count requires a Part B deduction, and the $21,400 figure, are gone.",
+    "Its $22,218 limit (138% of $16,100) is slightly above the engine's $22,024.80. $21,093.47 is under both, so the missed disregard decides the case, as the rewrite says."
+   ],
+   "evidence": "Medicaid row: \"Annual income of $23,853 exceeds California's aged/blind/disabled Medicaid income limit of 138% FPL ($22,218 for a single person in 2026)\".",
+   "checked_text": "It compared gross income of $23,853 with its own 138% FPL figure of $22,218, slightly above the engine's $22,024.80 limit (138% of the 2026 guideline). The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under either figure.",
+   "final_text": "It compared gross income of $23,853 with its own 138% FPL figure of $22,218, slightly above the engine's $22,024.80 limit (138% of the 2026 guideline). The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under either figure.",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. The deciding error is the missed disregard. Its slightly high limit would not have changed the answer."
+  },
+  {
+   "model": "gemini-3-flash-preview",
+   "verdict": "ok",
+   "problems_found": [
+    "Rewrite checked and correct, so no change needed. The Part B mechanism and the unquoted program label \"Aged & Disabled\" are gone.",
+    "Its about $22,080 limit is 138% of $16,000, close to the engine's $22,024.80. It tested gross $23,853 against it with no exclusion, which the rewrite says."
+   ],
+   "evidence": "Medicaid row: \"Medi-Cal for the Aged and Disabled generally uses a 138% FPL income limit. Head's annual income of $23,853 exceeds 138% of the projected FPL for 2026 (approximately $22,080 for a household of one)\".",
+   "checked_text": "It used a 138% FPL limit of about $22,080, close to the engine's $22,024.80 (138% of the 2026 guideline), but tested gross income of $23,853 against it. The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves countable income of $21,093.47, under the limit.",
+   "final_text": "It used a 138% FPL limit of about $22,080, close to the engine's $22,024.80 (138% of the 2026 guideline), but tested gross income of $23,853 against it. The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves countable income of $21,093.47, under the limit.",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. Its threshold was essentially right, so the deciding error is counting gross income without the disregard."
+  },
+  {
+   "model": "gemini-3.1-flash-lite-preview",
+   "verdict": "fixed",
+   "problems_found": [
+    "The draft's \"senior-or-disabled pathway, which age 67 meets\" overstated the engine. Age meets only the pathway's aged test; the pathway also has income and asset tests. Reworded to say the head meets the aged test, which needs no SSI or disability.",
+    "The model framed the limit as one \"for a single adult\", not a senior limit. That is now quoted as its own words.",
+    "The rest is correct: the Medicaid row gives no figures or pathway, and the Part B mechanism and the old unsupported \"gross income of $23,853 with an FPL limit\" claim are gone."
+   ],
+   "evidence": "Medicaid row: \"The household income exceeds the California Medicaid (Medi-Cal) income limit for a single adult.\" Federal tax row: \"total gross income of $23,853\".",
+   "checked_text": "It gave no figures or pathway, saying only that household income exceeded the Medi-Cal limit \"for a single adult.\" At 67 the head meets the aged test of the engine's senior-or-disabled pathway, which needs no SSI or disability. Income of $23,853.47 less California's $230 monthly disregard (in place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It gave no figures or pathway, saying only that household income exceeded the Medicaid limit \"for a single adult.\" At 67 the head meets the aged test of the engine's senior-or-disabled pathway, which needs no SSI or disability. Income of $23,853.47 less California's $230 monthly disregard ($2,760 a year, in place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. Its only stated reason was income over the limit. The response does not clearly show a category or threshold error, so the current subtype is not clearly wrong."
+  },
+  {
+   "model": "gemini-3.1-pro-preview",
+   "verdict": "ok",
+   "problems_found": [
+    "Rewrite checked and correct, so no change needed. The premium and Part B mechanism and the unquoted \"Aged & Disabled\" label are gone.",
+    "It named 138% FPL but no dollar limit, and used gross $23,853 (its SSI row subtracted $240, its Medicaid row did not). The rewrite says this accurately and does not fault its pathway or percentage."
+   ],
+   "evidence": "Medicaid row: \"The head's income of $23,853 is above the 138% Federal Poverty Level threshold for California's Aged, Blind, and Disabled Medi-Cal program.\" SSI row: \"$23,853 total minus the $240 annual exclusion\".",
+   "checked_text": "It compared gross income of $23,853 with 138% FPL, without stating the dollar limit, and found it over. The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It compared gross income of $23,853 with 138% FPL, without stating the dollar limit, and found it over. The engine subtracts California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. It had the right pathway and percentage, so the deciding error is counting gross income without the disregard."
+  },
+  {
+   "model": "gemini-3.5-flash",
+   "verdict": "fixed",
+   "problems_found": [
+    "The draft's \"consistent with the gross $23,853 it cited elsewhere\" was a hedged inference. It now states the facts: the Medicaid row gave no figures, and it cited gross income of $23,853 in its other rows.",
+    "The model's phrase is \"free non-MAGI Medi-Cal\"; the full quote replaces the shortened one.",
+    "The rest is correct: the 138% FPL limit matches the engine, and the monthly figures check out ($1,987.79 - $230 = $1,757.79, under $1,835.40). The Part B mechanism is gone."
+   ],
+   "evidence": "Medicaid row: \"The head's monthly income exceeds the 138% Federal Poverty Level threshold for free non-MAGI Medi-Cal (Medicaid) in California.\" Federal tax row: \"The head's gross income of $23,853\"; SNAP row: \"With a gross income of $23,853\".",
+   "checked_text": "It correctly picked the 138% FPL limit for what it called \"free non-MAGI Medi-Cal\" but gave no figures, saying only that the head's monthly income was over it; elsewhere it cited gross income of $23,853. The engine subtracts California's $230 monthly disregard from about $1,987.79 a month, in place of SSI's $20 exclusion. That leaves about $1,757.79 a month, under the $1,835.40 monthly limit (138% of the 2026 guideline).",
+   "final_text": "It correctly picked the 138% FPL limit for what it called \"free non-MAGI Medi-Cal\" but gave no figures, saying only that the head's monthly income was over it; elsewhere it cited gross income of $23,853. The engine subtracts California's $230 monthly disregard from about $1,987.79 a month, in place of SSI's $20 exclusion. That leaves about $1,757.79 a month, under the $1,835.40 monthly limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. Its pathway and threshold were right, so the deciding error is the income count without the disregard."
+  },
+  {
+   "model": "gemini-3.5-flash-lite",
+   "verdict": "fixed",
+   "problems_found": [
+    "The draft's \"Age 67 qualifies the head for the engine's senior-or-disabled pathway\" overstated the engine. Age meets only the aged test; income and asset tests also apply. Reworded to the aged test, which needs no SSI or disability.",
+    "The rest is correct: no figures, threshold or pathway, only age and income cited. The Part B mechanism, the claim that it skipped a premium deduction, and the unsupported mention of assets are gone."
+   ],
+   "evidence": "Medicaid row: \"Based on the head's age and income, Medicaid eligibility is not met under California rules for this household structure.\" SSI row: \"The head's Social Security and pension income exceed the SSI income limit\".",
+   "checked_text": "It gave no figures, threshold or pathway, citing only the head's age and income. At 67 the head meets the aged test of the engine's senior-or-disabled pathway, which needs no SSI or disability. Income of $23,853.47 less California's $230 monthly disregard (in place of SSI's $20 exclusion) is $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It gave no figures, threshold or pathway, citing only the head's age and income. At 67 the head meets the aged test of the engine's senior-or-disabled pathway, which needs no SSI or disability. Income of $23,853.47 less California's $230 monthly disregard ($2,760 a year, in place of SSI's $20 exclusion) is $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. It cited age and income without detail and showed no clear category error. Income counting is this case's deciding step and the corpus default, so the current subtype is not clearly wrong."
+  },
+  {
+   "model": "gemini-3.6-flash",
+   "verdict": "ok",
+   "problems_found": [],
+   "evidence": "\"The head's annual income of $23,853 exceeds the eligibility threshold for CA Medicaid (Medi-Cal) for an individual aged 65 or older.\" (one sentence only; no figure given for the threshold, no exclusion or disregard)",
+   "checked_text": "It treated the full $23,853 as countable and said it exceeded an unstated threshold for people 65 or older. Gross income is $1,828.67 over the limit, but the engine's senior-or-disabled pathway subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It treated the full $23,853 as countable and said it exceeded an unstated threshold for people 65 or older. Gross income is $1,828.67 over the limit, but the engine's senior-or-disabled pathway subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. It chose the aged group correctly, and its decisive error was counting gross income with no disregard, which this corpus records as taxable_income_or_deductions."
+  },
+  {
+   "model": "gemini-3.7-flash",
+   "verdict": "ok",
+   "problems_found": [],
+   "evidence": "\"Head's income exceeds the non-MAGI Medi-Cal income limits for an elderly individual.\" (no income figure, exclusion or limit anywhere in raw_response)",
+   "checked_text": "It placed the head in what it called the \"non-MAGI\" elderly pathway but gave no income figure or limit, and it judged income too high, which holds only if California's disregard is skipped. In the engine's senior-or-disabled pathway, $23,853.47 less California's $230 monthly disregard (which takes the place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It placed the head in what it called the \"non-MAGI\" elderly pathway but gave no income figure or limit, and it judged income too high, which holds only if California's disregard is skipped. In the engine's senior-or-disabled pathway, $23,853.47 less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion, gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. The pathway was right, so the 0 comes from counting income without California's disregard, an income-counting error."
+  },
+  {
+   "model": "gemini-3.8-flash",
+   "verdict": "fixed",
+   "problems_found": [
+    "The draft says gross income is \"about 149% of the guideline\" without naming the year. 149% holds only for the 2026 guideline ($23,853.47 / $15,960). Against the 2025 guideline it is about 152%, so the year is needed.",
+    "The draft only implies the decisive error, testing total income with no disregard. The fix states it outright: the model said \"total income\", which supports it."
+   ],
+   "evidence": "\"Head has total income well exceeding California Medi-Cal eligibility limits (138% FPL) for an individual, so Head is not eligible\" (no dollar figures; the 138% FPL threshold is correct)",
+   "checked_text": "It tested total income against a 138% FPL limit with no disregard and called it \"well\" over, but $23,853.47 is about 149% of the 2026 guideline, only $1,828.67 over the $22,024.80 limit. The engine's senior-or-disabled pathway subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the limit.",
+   "final_text": "It tested total income against a 138% FPL limit with no disregard and called it \"well\" over, but $23,853.47 is about 149% of the 2026 guideline, only $1,828.67 over the $22,024.80 limit. The engine's senior-or-disabled pathway subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the limit.",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. Its 138% threshold was right, and its decisive error was testing gross income without California's disregard, an income-counting error."
+  },
+  {
+   "model": "glm-5.2",
+   "verdict": "ok",
+   "problems_found": [],
+   "evidence": "\"Under PolicyEngine rules, individuals aged 65 and older are generally assumed to be eligible for Medicare, which precludes standalone Medicaid eligibility. The head is 67 years old, so they are not eligible for Medicaid.\" (no income or asset figures in the Medicaid output; the $2,000 resource limit appears only in its SSI chunk)",
+   "checked_text": "It assumed that Medicare eligibility at 65 or older bars Medicaid and ran no income test. The engine has no Medicare exclusion, and age 67 alone meets the aged test for its senior-or-disabled pathway. There, $23,853.47 of income less California's $230 monthly disregard (which takes the place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It assumed that Medicare eligibility at 65 or older bars Medicaid and ran no income test. In the engine's Medicaid rules, Medicare eligibility bars only the adult expansion group, and age 67 alone meets the aged test for the senior-or-disabled pathway. There, $23,853.47 of income less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion, gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "categorical_eligibility",
+   "subtype_note": "Kept. Its decisive error was a false categorical bar: it treated Medicare eligibility as ruling out Medicaid, so it never reached the income test."
+  },
+  {
+   "model": "glm-5.3",
+   "verdict": "fixed",
+   "problems_found": [
+    "\"Age 67 alone qualifies for the engine's senior-or-disabled pathway\" overstates the rule. Age meets only the aged test; the pathway also has income and asset tests. Changed to \"meets the aged test for\".",
+    "The draft says \"about 149% of the guideline\" without the year. The figure is right only for the 2026 guideline ($1,987.79 / $1,330); against 2025 it is about 152%.",
+    "The draft ran to about 78 words, over the style range, so it was tightened to two sentences."
+   ],
+   "evidence": "\"Household income of ~$1,988/month (~199% FPL) exceeds California's Medicaid expansion limit of 138% FPL (~$1,600/month) for a single adult; at 67 the head is also beyond CHIP scope.\" Its SNAP output gives the same gross figure: \"~$23,853/12 = ~$1,988, counting Social Security, pension, and IRA distributions\"",
+   "checked_text": "It applied the adult expansion limit, which excludes anyone over 64, comparing gross income of about $1,988 a month (about 149% of the 2026 guideline, not the 199% it stated) with an understated limit of about $1,600. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway, where $1,987.79 less California's $230 monthly disregard (which takes the place of SSI's $20 exclusion) gives $1,757.79, under the $1,835.40 limit (138% of the 2026 guideline).",
+   "final_text": "It applied the adult expansion limit, which excludes anyone over 64, comparing gross income of about $1,988 a month (about 149% of the 2026 guideline, not the 199% it stated) with an understated limit of about $1,600. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway, where $1,987.79 less California's $230 monthly disregard (which takes the place of SSI's $20 exclusion) gives $1,757.79, under the $1,835.40 limit (138% of the 2026 guideline).",
+   "subtype": "categorical_eligibility",
+   "subtype_note": "Kept. Its decisive error was testing the head under the adult expansion group, which excludes him by age, instead of the senior-or-disabled pathway. Its ratio and limit mistakes are secondary."
+  },
+  {
+   "model": "gpt-5.4-nano",
+   "verdict": "fixed",
+   "problems_found": [
+    "\"without computing either test\" is unclear: it does not say which two tests are meant. The response gives no Medicaid income figure or limit, so the fix says it compared no income figure with a limit."
+   ],
+   "evidence": "\"With substantial retirement income (Social Security plus taxable pension/IRA distributions) and no other disability/low-income qualifying flags provided, Head is estimated not eligible for Medicaid under PolicyEngine rules here.\" (no figures, limit or pathway in the Medicaid output)",
+   "checked_text": "It denied eligibility because no disability or low-income flag was listed and income was \"substantial\", without comparing any income figure with a limit. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway. There, $23,853.47 of income less California's $230 monthly disregard (which takes the place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It denied eligibility because no disability or low-income flag was listed and income was \"substantial\", without comparing any income figure with a limit. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway. There, $23,853.47 of income less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion, gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "categorical_eligibility",
+   "subtype_note": "Kept. Its stated reason was a missing disability or low-income qualifying flag, so it missed that age alone meets the aged test. Its income judgment has no numbers behind it."
+  },
+  {
+   "model": "gpt-5.5",
+   "verdict": "fixed",
+   "problems_found": [
+    "\"The engine needs no spend-down\" is not on the fact sheet. Whether the engine models a spend-down at all was not checked, so the sentence was removed.",
+    "\"reasoning that minimal medical expenses could not bring it down\" goes slightly beyond the text. It was replaced with a closer paraphrase of \"only minimal listed medical expenses\", and the model's own word \"spend-down\" is now in quotation marks."
+   ],
+   "evidence": "\"The Head is age 67, so ACA adult Medicaid does not apply; with annual retirement, IRA, and pension income of $23,853 and only minimal listed medical expenses, the Head is above the relevant California aged Medi-Cal income/spend-down standard\" (no threshold figure; the response has only this one chunk)",
+   "checked_text": "It correctly ruled out the adult expansion group at age 67 but tested the full $23,853 against an unstated aged income or \"spend-down\" standard, with only minimal medical expenses to offset it. The engine's senior-or-disabled pathway instead subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It correctly ruled out the adult expansion group at age 67 but tested the full $23,853 against an unstated aged income or \"spend-down\" standard, with only minimal medical expenses to offset it. The engine's senior-or-disabled pathway instead subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion. That leaves $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. It ruled out the adult group correctly, and its decisive error was counting gross income without California's disregard, an income-counting error."
+  },
+  {
+   "model": "gpt-5.6-luna",
+   "verdict": "fixed",
+   "problems_found": [
+    "\"senior-or-disabled pathway, which age 67 alone meets\" overstates the rule. Age meets only the aged test; the pathway also needs the income and asset tests. Changed to \"Age 67 alone meets the aged test for\".",
+    "Repeated \"California's\" three times; reworded."
+   ],
+   "evidence": "\"The head's countable annual income is above the applicable California Medicaid income threshold for this case; not eligible\" (no figures, pathway or threshold anywhere in raw_response)",
+   "checked_text": "It gave no figures, pathway or threshold and only asserted that countable income was above the applicable California limit, which holds only if the state's $230 monthly disregard is skipped. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway, where $23,853.47 less that disregard (which takes the place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It gave no figures, pathway or threshold and only asserted that countable income was above the applicable California limit, which holds only if the state's $230 monthly disregard ($2,760 a year) is skipped. Age 67 alone meets the aged test for the engine's senior-or-disabled pathway, where $23,853.47 less that disregard (which takes the place of SSI's $20 exclusion) gives $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. It said outright that countable income was over the limit, so the error lies in counting income."
+  },
+  {
+   "model": "gpt-5.6-sol",
+   "verdict": "fixed",
+   "problems_found": [
+    "\"That holds only for gross income\" is wrong. Income after only SSI's $20 exclusion ($23,613.47) is still over the limit, so the conclusion holds whenever California's disregard is skipped. The model's SSI output mentions \"the general income exclusion\", so this case is not hypothetical.",
+    "\"The engine subtracts\" did not name the pathway. Changed to the senior-or-disabled pathway and merged into three sentences."
+   ],
+   "evidence": "\"The Head's annual retirement income exceeds California's income limit for the applicable aged Medicaid pathway, so the Head is not eligible\" (no figures). Its SSI output: \"Countable monthly Social Security, pension, and IRA income exceeds the federal SSI payment standard even after the general income exclusion\"",
+   "checked_text": "It identified the aged pathway but concluded, without showing figures, that retirement income exceeded California's limit. That holds only if California's $230 monthly disregard is skipped: gross income of $23,853.47 is $1,828.67 over the limit. The engine's senior-or-disabled pathway subtracts that disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It identified the aged pathway but concluded, without showing figures, that retirement income exceeded California's limit. That holds only if California's $230 monthly disregard is skipped: gross income of $23,853.47 is $1,828.67 over the limit. The engine's senior-or-disabled pathway subtracts that disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Kept. The pathway was right, and its decisive error was counting income without California's disregard."
+  },
+  {
+   "model": "gpt-5.6-terra",
+   "verdict": "fixed",
+   "problems_found": [
+    "Minor clarity: the draft wrote '$23,853.47 less California's $230 monthly disregard' as the source of $21,093.47, which mixes an annual figure with a monthly one and reads like a wrong subtraction. Added '($2,760 a year)'. Every other claim checks out: the model's words, the 138% limit of the 2026 guideline ($22,024.80), the $230 disregard replacing the $20 exclusion, and $23,853.47 - $2,760 = $21,093.47.",
+    "The old Part B mechanism is fully gone. The annotation does not fault the model for choosing the aged pathway, which was correct."
+   ],
+   "evidence": "Medicaid explanation: \"At age 67, the head is evaluated under California's aged Medicaid pathway, and the listed retirement income is above the applicable SSI-linked income level; therefore not eligible. value = 0\". It gives no income figure, exclusion or threshold amount and does not mention assets.",
+   "checked_text": "It placed the head in the aged pathway but tested income against an \"SSI-linked income level,\" giving no figures. The engine's limit for this pathway in California is $22,024.80 (138% of the 2026 poverty guideline), and countable income is $21,093.47: $23,853.47 less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion.",
+   "final_text": "It placed the head in the aged pathway but tested income against an \"SSI-linked income level,\" giving no figures. The engine's limit for this pathway in California is $22,024.80 (138% of the 2026 poverty guideline), and countable income is $21,093.47: $23,853.47 less California's $230 monthly disregard ($2,760 a year), which takes the place of SSI's $20 exclusion.",
+   "subtype": "thresholds_rates",
+   "subtype_note": "The only error the response names is the threshold: an SSI-linked income level instead of the pathway's 138% FPL limit. No income or exclusion figure is given to fault, so the current thresholds_rates is kept."
+  },
+  {
+   "model": "gpt-6-astra",
+   "verdict": "ok",
+   "problems_found": [
+    "No errors. The model statements are supported: it ruled out adult expansion at 67, and it said retirement income after the general income exclusion exceeded California's aged limit, with no figures. The engine claims match the facts: the $230 disregard is passed in as the general exclusion, $23,853.47 - $2,760 = $21,093.47, under $22,024.80. No Part B or premium language remains, and the annotation does not fault the correct adult-expansion ruling."
+   ],
+   "evidence": "Medicaid explanation: \"at age 67 the adult expansion pathway does not apply, and retirement income after the general income exclusion exceeds California's aged Medicaid income limit. value = 0\". It states no amount for the exclusion, the income or the limit.",
+   "checked_text": "It correctly ruled out the adult expansion group at 67 but said retirement income after the general income exclusion exceeded California's aged limit, giving no figures. In the engine that exclusion is California's $230 monthly disregard, which takes the place of SSI's $20, so countable income is $21,093.47 ($23,853.47 less $2,760), under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "final_text": "It correctly ruled out the adult expansion group at 67 but said retirement income after the general income exclusion exceeded California's aged limit, giving no figures. In the engine that exclusion is California's $230 monthly disregard, which takes the place of SSI's $20, so countable income is $21,093.47 ($23,853.47 less $2,760), under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "The stated reasoning is a countable-income test after an exclusion, and the engine's result depends on how large that exclusion is. Corpus practice classes this as taxable_income_or_deductions, so it is kept."
+  },
+  {
+   "model": "gpt-6-sol",
+   "verdict": "ok",
+   "problems_found": [
+    "No errors. The model said its retirement income exceeded California's aged threshold and named no exclusion or figure, which the draft states accurately. The engine figures check out: $23,853.47 gross is over $22,024.80, and $23,853.47 - $2,760 = $21,093.47 is under it. The disregard is correctly described as replacing the $20 exclusion. No Part B language remains."
+   ],
+   "evidence": "Medicaid explanation: \"The head's retirement income exceeds the California income threshold for aged Medicaid eligibility and the head is not eligible; value = 0\". It names no exclusion, income figure or threshold amount.",
+   "checked_text": "It said the head's retirement income exceeded California's aged Medicaid threshold, naming no exclusion and giving no figures. Gross income of $23,853.47 is over the $22,024.80 limit (138% of the 2026 poverty guideline), but the engine first subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion, leaving countable income of $21,093.47, under the limit.",
+   "final_text": "It said the head's retirement income exceeded California's aged Medicaid threshold, naming no exclusion and giving no figures. Gross income of $23,853.47 is over the $22,024.80 limit (138% of the 2026 poverty guideline), but the engine first subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion, leaving countable income of $21,093.47, under the limit.",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "Gross income is over the limit and countable income is under it, so the case turns on the income disregard. That is a countable-income error, which the corpus classes as taxable_income_or_deductions. The current subtype is kept."
+  },
+  {
+   "model": "gpt-6.1-sol",
+   "verdict": "fixed",
+   "problems_found": [
+    "The draft said the model gave its answer 'without stating the exclusion', but the model did name it ('the applicable general income exclusion'). What it left out was the amount. Changed to 'without stating its amount, the income or the limit'.",
+    "Everything else checks out: the $230 disregard is passed in as the general exclusion and replaces the $20, $23,853.47 - $2,760 = $21,093.47, and the limit is $22,024.80. No Part B or premium language remains."
+   ],
+   "evidence": "Medicaid explanation: \"retirement income exceeds California's aged-person Medi-Cal income limit after the applicable general income exclusion, and no other qualifying pathway is listed; value = 0\". It states no amount for the exclusion, the income or the limit.",
+   "checked_text": "It said retirement income exceeded California's aged limit after \"the applicable general income exclusion,\" without stating its amount, the income or the limit. In the engine that exclusion is California's $230 monthly disregard, which takes the place of SSI's $20, so countable income is $21,093.47 ($23,853.47 less $2,760), under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "final_text": "It said retirement income exceeded California's aged limit after \"the applicable general income exclusion,\" without stating its amount, the income or the limit. In the engine that exclusion is California's $230 monthly disregard, which takes the place of SSI's $20, so countable income is $21,093.47 ($23,853.47 less $2,760), under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "The stated reasoning is a countable-income test after a general exclusion, and the engine's answer depends on how large that exclusion is. Corpus practice uses taxable_income_or_deductions, so it is kept."
+  },
+  {
+   "model": "grok-4.3",
+   "verdict": "fixed",
+   "problems_found": [
+    "The draft dropped the current annotation's accurate point that the head also passes the asset test. Added that $4,200 is under the $130,000 limit. This model never reached any income or asset test, so the full path to eligibility should be stated.",
+    "The draft wrote '$23,853.47 less California's $230 monthly disregard', which mixes an annual figure with a monthly one. Added '$2,760 a year'.",
+    "The rest is correct. 'full dual eligibles' appears only as the model's own words. The engine has no Medicare exclusion, and age 67 meets the aged test. The Part B mechanism is gone."
+   ],
+   "evidence": "Medicaid explanation: \"Head is Medicare-eligible; Medicaid eligibility rules exclude full dual eligibles under PolicyEngine. value = 0\". The content says only \"The tool call follows.\" There is no Medicaid income or asset analysis.",
+   "checked_text": "It ruled the head out as Medicare-eligible, claiming the engine excludes \"full dual eligibles\" from Medicaid. The engine has no Medicare exclusion: at 67 the head counts as aged for the senior-or-disabled pathway, countable income of $21,093.47 ($23,853.47 less California's $230 monthly disregard, $2,760 a year) is under the $22,024.80 limit (138% of the 2026 poverty guideline), and $4,200 in assets is under the $130,000 limit.",
+   "final_text": "It ruled the head out as Medicare-eligible, claiming the engine excludes \"full dual eligibles\" from Medicaid. In the engine's Medicaid rules, Medicare eligibility bars only the adult expansion group: at 67 the head counts as aged for the senior-or-disabled pathway, countable income of $21,093.47 ($23,853.47 less California's $230 monthly disregard, $2,760 a year) is under the $22,024.80 limit (138% of the 2026 poverty guideline), and $4,200 in assets is under the $130,000 limit.",
+   "subtype": "categorical_eligibility",
+   "subtype_note": "The deciding error is a false categorical exclusion: it treated Medicare eligibility as a bar to Medicaid and never ran an income or asset test. categorical_eligibility is correct and is kept."
+  },
+  {
+   "model": "grok-4.5",
+   "verdict": "ok",
+   "problems_found": [
+    "No errors. The model statements are supported: it put about $23,853 of countable income (the gross total, with no disregard) and $4,200 in bank assets over California's aged limits. The engine figures check out: the asset limit is $130,000, $23,853.47 - $2,760 = $21,093.47, and the limit is $22,024.80. No Part B language remains, and the annotation does not fault the correct aged pathway."
+   ],
+   "evidence": "Medicaid explanation: \"Age 67 ABD pathway; countable income ~$23,853 and bank assets $4,200 both exceed CA Medi-Cal aged resource and income limits for full Medicaid or Medicare Savings Programs. value = 0\".",
+   "checked_text": "It said bank assets of $4,200 and countable income of about $23,853 both exceeded California's aged limits, counting gross income in full. The pathway's asset limit is $130,000, so $4,200 passes, and the engine subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "final_text": "It said bank assets of $4,200 and countable income of about $23,853 both exceeded California's aged limits, counting gross income in full. The pathway's asset limit is $130,000, so $4,200 passes, and the engine subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "subtype": "asset_resource",
+   "subtype_note": "It made two independent errors, and either one alone produces 0: it treated $4,200 as over the resource limit, and it counted gross income with no disregard. The explicit asset error makes the current asset_resource defensible, so it is kept."
+  },
+  {
+   "model": "grok-4.6",
+   "verdict": "ok",
+   "problems_found": [
+    "No errors. The quotes match the response exactly: 'MAGI/ABD countable income' of $23,853 and 'Aged & Disabled FPL'. The real-world program name appears only as the model's own words. The engine claims match the facts: income is counted under SSI rules, the $230 disregard replaces the $20 exclusion, the result is $21,093.47, and the limit is $22,024.80. No Part B language remains."
+   ],
+   "evidence": "Medicaid explanation: \"Head is 67 with Medicare-age status and MAGI/ABD countable income of $23,853, which exceeds California's Aged & Disabled FPL and Medicare Savings Program limits, so not eligible. value = 0\". It names no exclusion or limit amount.",
+   "checked_text": "It counted the full $23,853 as \"MAGI/ABD countable income\" and said it exceeded California's \"Aged & Disabled FPL\" limit. The engine counts that income under SSI rules but subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "final_text": "It counted the full $23,853 as \"MAGI/ABD countable income\" and said it exceeded California's \"Aged & Disabled FPL\" limit. The engine counts that income under SSI rules but subtracts California's $230 monthly disregard, which takes the place of SSI's $20 exclusion, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 poverty guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "The deciding error is counting gross income with no disregard, a countable-income error. The corpus classes these as taxable_income_or_deductions, so it is kept."
+  },
+  {
+   "model": "grok-4.7",
+   "verdict": "ok",
+   "problems_found": [
+    "No errors. The model explicitly used only the $20 monthly disregard and the 138% FPL limit, and the annotation does not fault the threshold, which was correct. The arithmetic checks out: $23,853.47 - $240 = $23,613.47, over $22,024.80, and $23,853.47 - $2,760 = $21,093.47, under it. The $230 disregard is correctly described as replacing the $20. Monthly figures are appropriate here because the model worked in monthly terms. No Part B language remains."
+   ],
+   "evidence": "Medicaid explanation: \"After the $20 monthly unearned-income disregard, countable income exceeds California's 138% FPL Aged and Disabled Medi-Cal limit, so the head is not eligible for Medicaid. value = 0\".",
+   "checked_text": "It applied only the $20 monthly unearned-income disregard before testing against California's 138% FPL limit, which leaves about $23,613, still over the $22,024.80 limit. The engine uses California's $230 monthly disregard in place of that $20 exclusion, so countable income is $21,093.47 ($23,853.47 less $2,760), under the limit.",
+   "final_text": "It applied only the $20 monthly unearned-income disregard before testing against California's 138% FPL limit, which leaves about $23,613, still over the $22,024.80 limit. The engine uses California's $230 monthly disregard in place of that $20 exclusion, so countable income is $21,093.47 ($23,853.47 less $2,760), under the limit.",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "The threshold was right, and the only error is the size of the income disregard ($20 instead of California's $230). That is a countable-income error, taxable_income_or_deductions in corpus practice, so it is kept."
+  },
+  {
+   "model": "grok-build-0.1",
+   "verdict": "ok",
+   "problems_found": [],
+   "evidence": "Medicaid explanation: \"Bank account assets of $4,200 exceed the $2,000 asset limit for Medi-Cal eligibility for aged individuals in California.\" SSI answer: \"exceed the $2,000 SSI resource limit\". The Medicaid answer has no income test.",
+   "checked_text": "It applied a $2,000 asset limit to aged Medi-Cal and denied eligibility because the $4,200 in bank assets exceeded it, but $2,000 is SSI's resource limit, not this pathway's test. The engine's California senior-or-disabled pathway allows assets below $130,000, and countable income is $23,853.47 less California's $230 monthly disregard, or $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It applied a $2,000 asset limit to aged Medicaid and denied eligibility because the $4,200 in bank assets exceeded it, but $2,000 is SSI's resource limit, not this pathway's test. The engine's California senior-or-disabled pathway allows assets below $130,000, and countable income is $23,853.47 less California's $230 monthly disregard ($2,760 a year), or $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "asset_resource",
+   "subtype_note": "The model's only reason for 0 was the $2,000 asset limit, so asset_resource is correct. Kept."
+  },
+  {
+   "model": "inkling",
+   "verdict": "ok",
+   "problems_found": [],
+   "evidence": "\"CA Medi-Cal for aged individuals generally requires income at or below 100% FPL (~$15,650/year); the head's ~$23,853 annual income exceeds that limit\"",
+   "checked_text": "It applied a 100% FPL limit of about $15,650, the 2025 guideline, and compared gross income of about $23,853 against it. The engine uses 138% of the 2026 guideline, $22,024.80, and subtracts California's $230 monthly disregard (in place of SSI's $20 exclusion) from $23,853.47, leaving countable income of $21,093.47, under the limit.",
+   "final_text": "It applied a 100% FPL limit of about $15,650, the 2025 guideline, and compared gross income of about $23,853 against it. The engine uses 138% of the 2026 guideline, $22,024.80, and subtracts California's $230 monthly disregard ($2,760 a year, in place of SSI's $20 exclusion) from $23,853.47, leaving countable income of $21,093.47, under the limit.",
+   "subtype": "thresholds_rates",
+   "subtype_note": "The 100% FPL threshold is decisive on its own: even the correct $21,093.47 fails $15,650. Kept."
+  },
+  {
+   "model": "kimi-k2.6",
+   "verdict": "fixed",
+   "problems_found": [
+    "The draft says \"age 67 meets it\" about the pathway. That repeats the overclaim the draft itself flagged in the old annotation: age meets only the aged criterion, and the pathway also needs the income and asset tests. Changed to \"age 67 alone meets its aged criterion\".",
+    "\"needs neither disability nor SSI receipt\" left out blindness, which the model also cited. Reworded to \"needs no disability, blindness or SSI receipt\"."
+   ],
+   "evidence": "\"California Medicaid expansion covers adults ages 19 through 64, so the Head at age 67 is outside that age group. The Head is also not indicated as disabled, blind, pregnant, or an SSI recipient, and therefore does not qualify for categorical non-MAGI aged or disabled Medicaid pathways\"",
+   "checked_text": "It correctly placed the head outside the adult expansion group but ruled out the aged and disabled pathways because the head was not disabled, blind or an SSI recipient. The engine's senior-or-disabled pathway needs no disability, blindness or SSI receipt; age 67 alone meets its aged criterion. Countable income is $23,853.47 less California's $230 monthly disregard, or $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It correctly placed the head outside the adult expansion group but ruled out the aged and disabled pathways because the head was not disabled, blind or an SSI recipient. The engine's senior-or-disabled pathway needs no disability, blindness or SSI receipt; age 67 alone meets its aged criterion. Countable income is $23,853.47 less California's $230 monthly disregard ($2,760 a year), or $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "categorical_eligibility",
+   "subtype_note": "The only reason given was category: no income or asset test was run. Kept."
+  },
+  {
+   "model": "kimi-k3",
+   "verdict": "ok",
+   "problems_found": [],
+   "evidence": "\"At 67 Head is outside the ACA adult expansion group, and the listed retirement income is above PolicyEngine's California aged Medi-Cal income limit, so Head is not Medicaid eligible.\" It names no limit, gives no figure and applies no disregard.",
+   "checked_text": "It correctly placed the head outside the adult expansion group but said the listed retirement income exceeded the California aged income limit, without naming a limit or applying any disregard. The engine subtracts California's $230 monthly disregard from the $23,853.47 of Social Security, pension and IRA income, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It correctly placed the head outside the adult expansion group but said the listed retirement income exceeded the California aged income limit, without naming a limit or applying any disregard. The engine subtracts California's $230 monthly disregard ($2,760 a year) from the $23,853.47 of Social Security, pension and IRA income, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "A countable-income error with unadjusted income and no disregard. The corpus files these under taxable_income_or_deductions. Kept."
+  },
+  {
+   "model": "minimax-m3",
+   "verdict": "ok",
+   "problems_found": [],
+   "evidence": "\"Income ~$24k/year for single. CA Medicaid for 65+: income limit higher. However, head_medicaid_eligible under PolicyEngine may differ. With SS $9,445 and pension $13,608, countable income may exceed limit. Likely 0.\"",
+   "checked_text": "It guessed that about $24,000 of income might exceed an unstated senior limit and answered 0 without naming a threshold or applying any disregard. The engine subtracts California's $230 monthly disregard from the $23,853.47 of Social Security, pension and IRA income, leaving countable income of $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It guessed that about $24,000 of income might exceed an unstated senior limit and answered 0 without naming a threshold or applying any disregard. The engine subtracts California's $230 monthly disregard ($2,760 a year) from the $23,853.47 of Social Security, pension and IRA income, leaving countable income of $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "It used unadjusted income with no disregard, a countable-income error. Kept."
+  },
+  {
+   "model": "ox-alpha",
+   "verdict": "ok",
+   "problems_found": [],
+   "evidence": "\"At 65+ the head falls in the aged category, where Medi-Cal/Medicaid eligibility follows SSI-related rules; he fails the $2,000 resource limit ($4,200 in bank assets) and his ~$24,000 income also exceeds aged-program income standards\"",
+   "checked_text": "It correctly treated the head as aged but applied SSI's $2,000 resource limit to the $4,200 in bank assets and said gross income of about $24,000 exceeded the aged income standard. The engine's California pathway allows assets below $130,000 and subtracts a $230 monthly disregard from the $23,853.47 of income, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It correctly treated the head as aged but applied SSI's $2,000 resource limit to the $4,200 in bank assets and said gross income of about $24,000 exceeded the aged income standard. The engine's California pathway allows assets below $130,000 and subtracts a $230 monthly disregard ($2,760 a year) from the $23,853.47 of income, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "asset_resource",
+   "subtype_note": "Both the asset error and the income error are decisive. The model named the asset test first, so asset_resource is not clearly wrong. Kept."
+  },
+  {
+   "model": "qwen-3.7-max",
+   "verdict": "fixed",
+   "problems_found": [
+    "\"since age 67 meets it\" overclaims: age meets only the pathway's aged criterion, and the income and asset tests still apply. Changed to \"age 67 alone meets its aged criterion\".",
+    "The draft does not say what the $230 disregard is subtracted from. Added \"from $23,853.47\" so $21,093.47 follows from it.",
+    "The paraphrase \"aged, blind and disabled limits\" names a real-world program category without quoting the model. Replaced with the model's exact words in quotes."
+   ],
+   "evidence": "\"Head is 67 and thus qualifies for Medicare, not Medicaid through the ACA MAGI pathways. Head's countable income (Social Security $9,445 + taxable IRA $800 + taxable pension $13,608 = $23,853) exceeds typical aged/blind/disabled Medicaid limits, and no disability, nursing home, or SSI status is indicated.\"",
+   "checked_text": "It counted $23,853 of Social Security, pension and IRA income in full, said it exceeded \"typical aged/blind/disabled Medicaid limits\" without naming one, and cited the missing disability or SSI status. The engine's senior-or-disabled pathway needs neither, since age 67 alone meets its aged criterion, and it subtracts California's $230 monthly disregard from $23,853.47, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It counted $23,853 of Social Security, pension and IRA income in full, said it exceeded \"typical aged/blind/disabled Medicaid limits\" without naming one, and cited the missing disability or SSI status. The engine's senior-or-disabled pathway needs neither, since age 67 alone meets its aged criterion, and it subtracts California's $230 monthly disregard ($2,760 a year) from $23,853.47, leaving $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "taxable_income_or_deductions",
+   "subtype_note": "The main stated reason was income counted in full with no disregard, and missing status was secondary. The current subtype is not clearly wrong. Kept."
+  },
+  {
+   "model": "qwen3.8-max",
+   "verdict": "fixed",
+   "problems_found": [
+    "\"Age 65 or older alone meets the engine's senior-or-disabled pathway\" overclaims: age meets only the aged criterion, and the pathway also needs the income and asset tests. Changed to \"meets the aged criterion of the engine's senior-or-disabled pathway\"."
+   ],
+   "evidence": "\"The 67-year-old Head is not disabled, blind, pregnant, or otherwise in an eligibility category listed, and their income is above the applicable Medicaid pathway for a senior in this household\". The Medicaid answer gives no income figure or limit.",
+   "checked_text": "It said the 67-year-old was not disabled, blind or in any other listed category, and that income was above the senior pathway's limit without naming a figure. Age 65 or older alone meets the aged criterion of the engine's senior-or-disabled pathway, and countable income is $23,853.47 less California's $230 monthly disregard, or $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "final_text": "It said the 67-year-old was not disabled, blind or in any other listed category, and that income was above the senior pathway's limit without naming a figure. Age 65 or older alone meets the aged criterion of the engine's senior-or-disabled pathway, and countable income is $23,853.47 less California's $230 monthly disregard ($2,760 a year), or $21,093.47, under the $22,024.80 limit (138% of the 2026 guideline).",
+   "subtype": "categorical_eligibility",
+   "subtype_note": "The lead reason was that the head fit no category, and the income claim gave no figure. Kept."
+  }
+ ]
+}
