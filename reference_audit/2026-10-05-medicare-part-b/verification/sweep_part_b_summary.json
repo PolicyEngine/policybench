@@ -1,0 +1,4216 @@
+{
+ "policyengine_us": "2.15.17",
+ "households": 100,
+ "outputs": 1984,
+ "scored_outputs": 1928,
+ "scored_reference_mismatches": [],
+ "excluded_outputs_differing_from_frozen_value": 19,
+ "impact_weight_mismatches": [
+  {
+   "scenario_id": "scenario_000",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_001",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_001",
+   "variable": "spouse_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_002",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_002",
+   "variable": "spouse_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_008",
+   "variable": "free_school_meals_eligible",
+   "reference_impact_weight": 5654.81103515625,
+   "baseline_impact_weight": 5711.19091796875
+  },
+  {
+   "scenario_id": "scenario_008",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 13804.8798828125,
+   "baseline_impact_weight": 18664.94921875
+  },
+  {
+   "scenario_id": "scenario_008",
+   "variable": "spouse_medicaid_eligible",
+   "reference_impact_weight": 13565.7646484375,
+   "baseline_impact_weight": 18341.65234375
+  },
+  {
+   "scenario_id": "scenario_008",
+   "variable": "child1_medicaid_eligible",
+   "reference_impact_weight": 9221.0537109375,
+   "baseline_impact_weight": 12467.3671875
+  },
+  {
+   "scenario_id": "scenario_008",
+   "variable": "child2_medicaid_eligible",
+   "reference_impact_weight": 7970.48486328125,
+   "baseline_impact_weight": 10776.529296875
+  },
+  {
+   "scenario_id": "scenario_008",
+   "variable": "child3_medicaid_eligible",
+   "reference_impact_weight": 7970.48486328125,
+   "baseline_impact_weight": 10776.529296875
+  },
+  {
+   "scenario_id": "scenario_008",
+   "variable": "child4_medicaid_eligible",
+   "reference_impact_weight": 7970.48486328125,
+   "baseline_impact_weight": 10776.529296875
+  },
+  {
+   "scenario_id": "scenario_008",
+   "variable": "child5_medicaid_eligible",
+   "reference_impact_weight": 7970.48486328125,
+   "baseline_impact_weight": 10776.529296875
+  },
+  {
+   "scenario_id": "scenario_008",
+   "variable": "child6_medicaid_eligible",
+   "reference_impact_weight": 7970.48486328125,
+   "baseline_impact_weight": 10776.529296875
+  },
+  {
+   "scenario_id": "scenario_008",
+   "variable": "child6_wic_eligible",
+   "reference_impact_weight": 722.9943237304688,
+   "baseline_impact_weight": 723.5671997070312
+  },
+  {
+   "scenario_id": "scenario_012",
+   "variable": "free_school_meals_eligible",
+   "reference_impact_weight": 1130.9622802734375,
+   "baseline_impact_weight": 1142.2381591796875
+  },
+  {
+   "scenario_id": "scenario_012",
+   "variable": "spouse_wic_eligible",
+   "reference_impact_weight": 1026.747314453125,
+   "baseline_impact_weight": 1027.37548828125
+  },
+  {
+   "scenario_id": "scenario_013",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_021",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_022",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_023",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 6612.93994140625,
+   "baseline_impact_weight": 9236.4794921875
+  },
+  {
+   "scenario_id": "scenario_026",
+   "variable": "child1_medicaid_eligible",
+   "reference_impact_weight": 3820.046875,
+   "baseline_impact_weight": 4984.06005859375
+  },
+  {
+   "scenario_id": "scenario_026",
+   "variable": "child2_medicaid_eligible",
+   "reference_impact_weight": 3820.046875,
+   "baseline_impact_weight": 4984.06005859375
+  },
+  {
+   "scenario_id": "scenario_026",
+   "variable": "child3_medicaid_eligible",
+   "reference_impact_weight": 3820.046875,
+   "baseline_impact_weight": 4984.06005859375
+  },
+  {
+   "scenario_id": "scenario_027",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_028",
+   "variable": "reduced_price_school_meals_eligible",
+   "reference_impact_weight": 3009.81884765625,
+   "baseline_impact_weight": 0.0
+  },
+  {
+   "scenario_id": "scenario_029",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 9609.619140625,
+   "baseline_impact_weight": 9682.69140625
+  },
+  {
+   "scenario_id": "scenario_030",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 6607.0888671875,
+   "baseline_impact_weight": 13708.4990234375
+  },
+  {
+   "scenario_id": "scenario_030",
+   "variable": "head_wic_eligible",
+   "reference_impact_weight": 1026.747314453125,
+   "baseline_impact_weight": 1027.37548828125
+  },
+  {
+   "scenario_id": "scenario_031",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 18251.322265625,
+   "baseline_impact_weight": 9236.4794921875
+  },
+  {
+   "scenario_id": "scenario_031",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_032",
+   "variable": "free_school_meals_eligible",
+   "reference_impact_weight": 1130.9622802734375,
+   "baseline_impact_weight": 1142.2381591796875
+  },
+  {
+   "scenario_id": "scenario_032",
+   "variable": "spouse_medicaid_eligible",
+   "reference_impact_weight": 8593.0478515625,
+   "baseline_impact_weight": 11866.7255859375
+  },
+  {
+   "scenario_id": "scenario_032",
+   "variable": "child1_medicaid_eligible",
+   "reference_impact_weight": 8593.0478515625,
+   "baseline_impact_weight": 11866.7255859375
+  },
+  {
+   "scenario_id": "scenario_033",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_033",
+   "variable": "spouse_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_038",
+   "variable": "free_school_meals_eligible",
+   "reference_impact_weight": 2261.924560546875,
+   "baseline_impact_weight": 2284.476318359375
+  },
+  {
+   "scenario_id": "scenario_038",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 9648.587890625,
+   "baseline_impact_weight": 12628.3828125
+  },
+  {
+   "scenario_id": "scenario_038",
+   "variable": "spouse_medicaid_eligible",
+   "reference_impact_weight": 8774.4521484375,
+   "baseline_impact_weight": 11484.2841796875
+  },
+  {
+   "scenario_id": "scenario_038",
+   "variable": "child1_medicaid_eligible",
+   "reference_impact_weight": 7351.86572265625,
+   "baseline_impact_weight": 9622.3583984375
+  },
+  {
+   "scenario_id": "scenario_038",
+   "variable": "child2_medicaid_eligible",
+   "reference_impact_weight": 7351.86572265625,
+   "baseline_impact_weight": 9622.3583984375
+  },
+  {
+   "scenario_id": "scenario_040",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_040",
+   "variable": "spouse_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_042",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_043",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_044",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_048",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_054",
+   "variable": "free_school_meals_eligible",
+   "reference_impact_weight": 1130.9622802734375,
+   "baseline_impact_weight": 1142.2381591796875
+  },
+  {
+   "scenario_id": "scenario_054",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 6381.77099609375,
+   "baseline_impact_weight": 9561.1484375
+  },
+  {
+   "scenario_id": "scenario_054",
+   "variable": "child1_medicaid_eligible",
+   "reference_impact_weight": 3820.046875,
+   "baseline_impact_weight": 5723.18212890625
+  },
+  {
+   "scenario_id": "scenario_054",
+   "variable": "child2_medicaid_eligible",
+   "reference_impact_weight": 3820.046875,
+   "baseline_impact_weight": 5723.18212890625
+  },
+  {
+   "scenario_id": "scenario_054",
+   "variable": "child2_wic_eligible",
+   "reference_impact_weight": 723.1546020507812,
+   "baseline_impact_weight": 723.727783203125
+  },
+  {
+   "scenario_id": "scenario_055",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_056",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 10106.5751953125,
+   "baseline_impact_weight": 12919.5771484375
+  },
+  {
+   "scenario_id": "scenario_057",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 13041.474609375,
+   "baseline_impact_weight": 12642.0439453125
+  },
+  {
+   "scenario_id": "scenario_057",
+   "variable": "spouse_medicaid_eligible",
+   "reference_impact_weight": 9322.166015625,
+   "baseline_impact_weight": 9036.6494140625
+  },
+  {
+   "scenario_id": "scenario_059",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_059",
+   "variable": "spouse_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_060",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_062",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_064",
+   "variable": "dependent1_medicaid_eligible",
+   "reference_impact_weight": 6584.33984375,
+   "baseline_impact_weight": 8977.9208984375
+  },
+  {
+   "scenario_id": "scenario_066",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 7680.8876953125,
+   "baseline_impact_weight": 12066.7314453125
+  },
+  {
+   "scenario_id": "scenario_067",
+   "variable": "dependent1_medicaid_eligible",
+   "reference_impact_weight": 5132.95166015625,
+   "baseline_impact_weight": 4605.86767578125
+  },
+  {
+   "scenario_id": "scenario_071",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_072",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_072",
+   "variable": "spouse_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_079",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 10921.8173828125,
+   "baseline_impact_weight": 12052.697265625
+  },
+  {
+   "scenario_id": "scenario_079",
+   "variable": "spouse_medicaid_eligible",
+   "reference_impact_weight": 9558.6806640625,
+   "baseline_impact_weight": 10548.416015625
+  },
+  {
+   "scenario_id": "scenario_080",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 14526.80078125,
+   "baseline_impact_weight": 14162.1591796875
+  },
+  {
+   "scenario_id": "scenario_085",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_092",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_095",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_098",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_099",
+   "variable": "free_school_meals_eligible",
+   "reference_impact_weight": 1130.9622802734375,
+   "baseline_impact_weight": 1142.2381591796875
+  },
+  {
+   "scenario_id": "scenario_100",
+   "variable": "free_school_meals_eligible",
+   "reference_impact_weight": 2261.924560546875,
+   "baseline_impact_weight": 2284.476318359375
+  },
+  {
+   "scenario_id": "scenario_104",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_107",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_108",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_109",
+   "variable": "free_school_meals_eligible",
+   "reference_impact_weight": 2261.924560546875,
+   "baseline_impact_weight": 2284.476318359375
+  },
+  {
+   "scenario_id": "scenario_109",
+   "variable": "child1_medicaid_eligible",
+   "reference_impact_weight": 3836.309814453125,
+   "baseline_impact_weight": 7735.97314453125
+  },
+  {
+   "scenario_id": "scenario_109",
+   "variable": "child2_medicaid_eligible",
+   "reference_impact_weight": 3836.309814453125,
+   "baseline_impact_weight": 7735.97314453125
+  },
+  {
+   "scenario_id": "scenario_109",
+   "variable": "child3_medicaid_eligible",
+   "reference_impact_weight": 3836.309814453125,
+   "baseline_impact_weight": 7735.97314453125
+  },
+  {
+   "scenario_id": "scenario_109",
+   "variable": "child3_wic_eligible",
+   "reference_impact_weight": 2222.318603515625,
+   "baseline_impact_weight": 2225.416748046875
+  },
+  {
+   "scenario_id": "scenario_111",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_114",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_115",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_118",
+   "variable": "head_medicaid_eligible",
+   "reference_impact_weight": 16059.89453125,
+   "baseline_impact_weight": 14710.86328125
+  },
+  {
+   "scenario_id": "scenario_118",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_120",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  },
+  {
+   "scenario_id": "scenario_122",
+   "variable": "head_medicare_eligible",
+   "reference_impact_weight": 5285.2001953125,
+   "baseline_impact_weight": 12065.2001953125
+  }
+ ],
+ "medicare_eligible_people": 39,
+ "medicare_households": [
+  "scenario_000",
+  "scenario_001",
+  "scenario_002",
+  "scenario_013",
+  "scenario_021",
+  "scenario_022",
+  "scenario_027",
+  "scenario_031",
+  "scenario_033",
+  "scenario_040",
+  "scenario_042",
+  "scenario_043",
+  "scenario_044",
+  "scenario_048",
+  "scenario_055",
+  "scenario_059",
+  "scenario_060",
+  "scenario_062",
+  "scenario_071",
+  "scenario_072",
+  "scenario_085",
+  "scenario_092",
+  "scenario_095",
+  "scenario_098",
+  "scenario_104",
+  "scenario_107",
+  "scenario_108",
+  "scenario_111",
+  "scenario_114",
+  "scenario_115",
+  "scenario_118",
+  "scenario_120",
+  "scenario_122"
+ ],
+ "part_b_households": [
+  "scenario_000",
+  "scenario_002",
+  "scenario_013",
+  "scenario_021",
+  "scenario_022",
+  "scenario_027",
+  "scenario_031",
+  "scenario_033",
+  "scenario_040",
+  "scenario_042",
+  "scenario_044",
+  "scenario_048",
+  "scenario_055",
+  "scenario_059",
+  "scenario_060",
+  "scenario_062",
+  "scenario_071",
+  "scenario_072",
+  "scenario_085",
+  "scenario_092",
+  "scenario_095",
+  "scenario_098",
+  "scenario_104",
+  "scenario_107",
+  "scenario_108",
+  "scenario_111",
+  "scenario_114",
+  "scenario_115",
+  "scenario_120",
+  "scenario_122"
+ ],
+ "msp_part_b_coverage_people": [
+  [
+   "scenario_001",
+   "head"
+  ],
+  [
+   "scenario_001",
+   "spouse"
+  ],
+  [
+   "scenario_043",
+   "head"
+  ],
+  [
+   "scenario_118",
+   "head"
+  ]
+ ],
+ "enrollment_equals_eligibility_in_reference": true,
+ "not_enrolled_vs_direct_differences": [],
+ "moved": {
+  "no_part_b": [
+   {
+    "scenario_id": "scenario_114",
+    "state": "VA",
+    "variable": "federal_income_tax_before_refundable_credits",
+    "reference": 10729.6123046875,
+    "value": 11265.267578125,
+    "delta": 535.6552734375,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_114",
+    "state": "VA",
+    "variable": "state_income_tax_before_refundable_credits",
+    "reference": 3514.14501953125,
+    "value": 3654.14599609375,
+    "delta": 140.0009765625,
+    "excluded": false
+   }
+  ],
+  "not_enrolled": [
+   {
+    "scenario_id": "scenario_114",
+    "state": "VA",
+    "variable": "federal_income_tax_before_refundable_credits",
+    "reference": 10729.6123046875,
+    "value": 11265.267578125,
+    "delta": 535.6552734375,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_114",
+    "state": "VA",
+    "variable": "state_income_tax_before_refundable_credits",
+    "reference": 3514.14501953125,
+    "value": 3654.14599609375,
+    "delta": 140.0009765625,
+    "excluded": false
+   }
+  ],
+  "not_enrolled_direct": [
+   {
+    "scenario_id": "scenario_114",
+    "state": "VA",
+    "variable": "federal_income_tax_before_refundable_credits",
+    "reference": 10729.6123046875,
+    "value": 11265.267578125,
+    "delta": 535.6552734375,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_114",
+    "state": "VA",
+    "variable": "state_income_tax_before_refundable_credits",
+    "reference": 3514.14501953125,
+    "value": 3654.14599609375,
+    "delta": 140.0009765625,
+    "excluded": false
+   }
+  ],
+  "irmaa_from_2026_income": []
+ },
+ "impact_weight_moves": {
+  "no_part_b": [],
+  "not_enrolled": [
+   {
+    "scenario_id": "scenario_000",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_001",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_001",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_002",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_002",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_013",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_021",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_022",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_027",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_031",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_033",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_033",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_040",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_040",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_042",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_043",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_044",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_048",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_055",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_059",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_059",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_060",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_062",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_071",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_072",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_072",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_085",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_092",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_095",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_098",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_104",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_107",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_108",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_111",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_114",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_115",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_118",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_120",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_122",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   }
+  ],
+  "not_enrolled_direct": [
+   {
+    "scenario_id": "scenario_000",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_001",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_001",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_002",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_002",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_013",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_021",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_022",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_027",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_031",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_033",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_033",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_040",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_040",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_042",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_043",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_044",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_048",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_055",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_059",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_059",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_060",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_062",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_071",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_072",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_072",
+    "variable": "spouse_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_085",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_092",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_095",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_098",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_104",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_107",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_108",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_111",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_114",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_115",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_118",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_120",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_122",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 0.0,
+    "excluded": false
+   }
+  ],
+  "irmaa_from_2026_income": [
+   {
+    "scenario_id": "scenario_022",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 11090.7998046875,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_055",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 9630.400390625,
+    "excluded": false
+   },
+   {
+    "scenario_id": "scenario_120",
+    "variable": "head_medicare_eligible",
+    "baseline_impact_weight": 12065.2001953125,
+    "impact_weight": 6709.60009765625,
+    "excluded": false
+   }
+  ]
+ },
+ "snap_and_eligibility_outputs_in_medicare_households": [
+  {
+   "scenario_id": "scenario_000",
+   "state": "TX",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_000",
+   "state": "TX",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_000",
+   "state": "TX",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_000",
+   "state": "TX",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_000",
+   "state": "TX",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_000",
+   "state": "TX",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_000",
+   "state": "TX",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "spouse_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "spouse_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "spouse_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "spouse_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "spouse_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "spouse_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "spouse_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "spouse_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_013",
+   "state": "AZ",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_013",
+   "state": "AZ",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_013",
+   "state": "AZ",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_013",
+   "state": "AZ",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_013",
+   "state": "AZ",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_013",
+   "state": "AZ",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_013",
+   "state": "AZ",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 240.0,
+   "no_part_b": 240.0,
+   "not_enrolled": 240.0,
+   "not_enrolled_direct": 240.0,
+   "irmaa_from_2026_income": 240.0
+  },
+  {
+   "scenario_id": "scenario_021",
+   "state": "MO",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_021",
+   "state": "MO",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_021",
+   "state": "MO",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_021",
+   "state": "MO",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_021",
+   "state": "MO",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_021",
+   "state": "MO",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_021",
+   "state": "MO",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_022",
+   "state": "CA",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_022",
+   "state": "CA",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_022",
+   "state": "CA",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_022",
+   "state": "CA",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_022",
+   "state": "CA",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_022",
+   "state": "CA",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_022",
+   "state": "CA",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "spouse_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "spouse_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "spouse_medicare_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "spouse_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 288.0,
+   "no_part_b": 288.0,
+   "not_enrolled": 288.0,
+   "not_enrolled_direct": 288.0,
+   "irmaa_from_2026_income": 288.0
+  },
+  {
+   "scenario_id": "scenario_031",
+   "state": "CA",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_031",
+   "state": "CA",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_031",
+   "state": "CA",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_031",
+   "state": "CA",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_031",
+   "state": "CA",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_031",
+   "state": "CA",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_031",
+   "state": "CA",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "spouse_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "spouse_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "spouse_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "spouse_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "spouse_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "spouse_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "spouse_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "spouse_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_042",
+   "state": "WI",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_042",
+   "state": "WI",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_042",
+   "state": "WI",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_042",
+   "state": "WI",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_042",
+   "state": "WI",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_042",
+   "state": "WI",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_042",
+   "state": "WI",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_043",
+   "state": "CO",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_043",
+   "state": "CO",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_043",
+   "state": "CO",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_043",
+   "state": "CO",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_043",
+   "state": "CO",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_043",
+   "state": "CO",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_043",
+   "state": "CO",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 3576.0,
+   "no_part_b": 3576.0,
+   "not_enrolled": 3576.0,
+   "not_enrolled_direct": 3576.0,
+   "irmaa_from_2026_income": 3576.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "spouse_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "spouse_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "spouse_medicare_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "spouse_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_048",
+   "state": "OH",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_048",
+   "state": "OH",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_048",
+   "state": "OH",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_048",
+   "state": "OH",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_048",
+   "state": "OH",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_048",
+   "state": "OH",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_048",
+   "state": "OH",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_055",
+   "state": "FL",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_055",
+   "state": "FL",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_055",
+   "state": "FL",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_055",
+   "state": "FL",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_055",
+   "state": "FL",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_055",
+   "state": "FL",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_055",
+   "state": "FL",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "spouse_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "spouse_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "spouse_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "spouse_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_060",
+   "state": "TX",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_060",
+   "state": "TX",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_060",
+   "state": "TX",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_060",
+   "state": "TX",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_060",
+   "state": "TX",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_060",
+   "state": "TX",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_060",
+   "state": "TX",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_062",
+   "state": "FL",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_062",
+   "state": "FL",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_062",
+   "state": "FL",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_062",
+   "state": "FL",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_062",
+   "state": "FL",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_062",
+   "state": "FL",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_062",
+   "state": "FL",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_071",
+   "state": "NY",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_071",
+   "state": "NY",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_071",
+   "state": "NY",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_071",
+   "state": "NY",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_071",
+   "state": "NY",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_071",
+   "state": "NY",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_071",
+   "state": "NY",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "spouse_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "spouse_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "spouse_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "spouse_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_085",
+   "state": "PA",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_085",
+   "state": "PA",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_085",
+   "state": "PA",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_085",
+   "state": "PA",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_085",
+   "state": "PA",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_085",
+   "state": "PA",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_085",
+   "state": "PA",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_092",
+   "state": "AL",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_092",
+   "state": "AL",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_092",
+   "state": "AL",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_092",
+   "state": "AL",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_092",
+   "state": "AL",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_092",
+   "state": "AL",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_092",
+   "state": "AL",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_095",
+   "state": "NJ",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_095",
+   "state": "NJ",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_095",
+   "state": "NJ",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_095",
+   "state": "NJ",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_095",
+   "state": "NJ",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_095",
+   "state": "NJ",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_095",
+   "state": "NJ",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_098",
+   "state": "IL",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_098",
+   "state": "IL",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_098",
+   "state": "IL",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_098",
+   "state": "IL",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_098",
+   "state": "IL",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_098",
+   "state": "IL",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_098",
+   "state": "IL",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_104",
+   "state": "NY",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_104",
+   "state": "NY",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_104",
+   "state": "NY",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_104",
+   "state": "NY",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_104",
+   "state": "NY",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_104",
+   "state": "NY",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_104",
+   "state": "NY",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_107",
+   "state": "OH",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_107",
+   "state": "OH",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_107",
+   "state": "OH",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_107",
+   "state": "OH",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_107",
+   "state": "OH",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_107",
+   "state": "OH",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_107",
+   "state": "OH",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_108",
+   "state": "WI",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_108",
+   "state": "WI",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_108",
+   "state": "WI",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_108",
+   "state": "WI",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_108",
+   "state": "WI",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_108",
+   "state": "WI",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_108",
+   "state": "WI",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 288.0,
+   "no_part_b": 288.0,
+   "not_enrolled": 288.0,
+   "not_enrolled_direct": 288.0,
+   "irmaa_from_2026_income": 288.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "spouse_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "spouse_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "spouse_medicare_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "spouse_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_114",
+   "state": "VA",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_114",
+   "state": "VA",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_114",
+   "state": "VA",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_114",
+   "state": "VA",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_114",
+   "state": "VA",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_114",
+   "state": "VA",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_114",
+   "state": "VA",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_115",
+   "state": "AL",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_115",
+   "state": "AL",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_115",
+   "state": "AL",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_115",
+   "state": "AL",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_115",
+   "state": "AL",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_115",
+   "state": "AL",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_115",
+   "state": "AL",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_118",
+   "state": "NY",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_118",
+   "state": "NY",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_118",
+   "state": "NY",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_118",
+   "state": "NY",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_118",
+   "state": "NY",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_118",
+   "state": "NY",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_118",
+   "state": "NY",
+   "variable": "snap",
+   "excluded": true,
+   "baseline": 2868.0,
+   "no_part_b": 2868.0,
+   "not_enrolled": 2868.0,
+   "not_enrolled_direct": 2868.0,
+   "irmaa_from_2026_income": 2868.0
+  },
+  {
+   "scenario_id": "scenario_120",
+   "state": "CT",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_120",
+   "state": "CT",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_120",
+   "state": "CT",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_120",
+   "state": "CT",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_120",
+   "state": "CT",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_120",
+   "state": "CT",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_120",
+   "state": "CT",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_122",
+   "state": "MN",
+   "variable": "free_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_122",
+   "state": "MN",
+   "variable": "head_chip_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_122",
+   "state": "MN",
+   "variable": "head_medicaid_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_122",
+   "state": "MN",
+   "variable": "head_medicare_eligible",
+   "excluded": false,
+   "baseline": 1.0,
+   "no_part_b": 1.0,
+   "not_enrolled": 1.0,
+   "not_enrolled_direct": 1.0,
+   "irmaa_from_2026_income": 1.0
+  },
+  {
+   "scenario_id": "scenario_122",
+   "state": "MN",
+   "variable": "head_wic_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_122",
+   "state": "MN",
+   "variable": "reduced_price_school_meals_eligible",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  },
+  {
+   "scenario_id": "scenario_122",
+   "state": "MN",
+   "variable": "snap",
+   "excluded": false,
+   "baseline": 0.0,
+   "no_part_b": 0.0,
+   "not_enrolled": 0.0,
+   "not_enrolled_direct": 0.0,
+   "irmaa_from_2026_income": 0.0
+  }
+ ]
+}
