@@ -23,16 +23,27 @@ These files hold for policyengine-us 2.15.17, the version that built the publish
   - `medicare_cost`, the impact weight of the Medicare eligibility outputs;
   - the ACA "at interview" coverage list and CHIP's disqualifying-coverage list.
 
-  The ACA premium tax credit tests `is_medicare_eligible`, not enrollment.
+  The ACA premium tax credit treats Medicare eligibility as disqualifying (`ineligible_coverage` lists `is_medicare_eligible`), so enrollment, which it also reads through the "at interview" list, adds nothing. No output reads the credit: it is not in the federal refundable-credit output.
 
 ## The prompts
 
-No PolicyBench household sets `medicare_enrolled`, `takes_up_medicare_if_eligible`, `medicare_part_b_premium` or `health_insurance_premiums`, so no prompt states Medicare enrollment or a Part B premium. `policybench/scenarios.py` would also hide the first two: `medicare_enrolled` is in `EXCLUDED_INPUT_VARIABLES`, and `takes_up_` is an excluded prefix. The prompt's rules (`policybench/prompts.py`, `TASK_PREFACE`) say:
+No PolicyBench household sets `medicare_enrolled`, `takes_up_medicare_if_eligible`, `medicare_part_b_premium` or `health_insurance_premiums`, so no prompt states Medicare enrollment or a Part B premium. `policybench/scenarios.py` would also hide the first two: `medicare_enrolled` is in `EXCLUDED_INPUT_VARIABLES`, and `takes_up_` is an excluded prefix. The prompt's rules (`policybench/prompts.py`, `TASK_PREFACE`, unchanged since before the June run) say:
 
-- "Treat any unlisted numeric input as 0"
-- "Do not infer unlisted income, expenses, assets, benefit receipt, rent, or health coverage"
+- "Treat any unlisted numeric input as 0 and any other unlisted household fact, boolean, or status input as false."
+- "Assume tax filing and program take-up when required."
+- "Do not infer unlisted income, expenses, assets, benefit receipt, rent, or health coverage."
 
-Sixty-one people carry `health_insurance_premiums_without_medicare_part_b`, which the prompt labels "health insurance premiums excluding Medicare Part B". That line states the person's other premiums; it states no Part B amount. scenario_114's prompt has no premium line. It lists a single head, age 69, with Social Security retirement income, $10,000 of other medical expenses and $2,000 of over-the-counter health expenses. The engine leaves over-the-counter purchases out of itemized medical expenses.
+The take-up sentence is the strongest case for the frozen reading: a reader may take a 69-year-old with Social Security retirement income to be enrolled in Part B and paying the standard premium. Three things point the other way:
+
+- The benchmark sets take-up only for the programs its household data list. `DEFAULT_TAKEUP_INPUTS` covers Medicaid, SSI, the ACA credit, the DC property tax credit, the EITC, SNAP and tax filing, not Medicare; the engine's own default supplies Medicare enrollment.
+- The Medicare request asks only whether a person is eligible.
+- The more specific rules treat unlisted numbers as 0 and forbid inferring expenses or health coverage.
+
+So a careful reader could take the facts either way, which is the case `reference_depends_on_unlisted_input` covers. The drafted records state both sides.
+
+Sixty-one people in 53 households carry `health_insurance_premiums_without_medicare_part_b`, which the prompt labels "health insurance premiums excluding Medicare Part B". That line states the person's other premiums; it states no Part B amount. Ten of the 30 households charged the premium carry it, always on a charged person (12 of the 35). The label can itself suggest Medicare coverage. In scenario_073, Inkling answered that the head is Medicare-eligible partly because of "the presence of Medicare Part B premium exclusions in the health premiums". No output in those 10 households turns on the premium (below).
+
+scenario_114's prompt has no premium or coverage line. It lists a single head, age 69, with Social Security retirement income, $10,000 of other medical expenses and $2,000 of over-the-counter health expenses. The engine leaves over-the-counter purchases out of itemized medical expenses.
 
 ## Method
 
@@ -44,14 +55,20 @@ Sixty-one people carry `health_insurance_premiums_without_medicare_part_b`, whic
 
    For each household with a Medicare-eligible person it records each person's Medicare variables and a propagation trace. The trace lists every engine variable, at every 2026 period the simulation computed, whose value differs between the reference and the `no_part_b` or `not_enrolled` simulation. Households where an output moves also run on a grid: the Part B readings crossed with the four readings of the state income tax in SALT from #191 (withholding estimate, liability at a fixed point, none paid, none paid without the local sales tax estimate). Outputs: `verification/sweep_part_b.csv` (every output and impact weight under every reading), `verification/sweep_part_b_summary.json`, `verification/sweep_part_b_households.json` and `verification/sweep_part_b.log`.
 2. **Explain.** `scripts/explain_households.py` writes `verification/part_b_households.csv`. Each of the 33 Medicare households gets a row with the premium, the federal itemization election and medical deduction with and without it, its federal, state and SNAP outputs, and the state variables its trace shows moving.
-3. **Propose.** `scripts/propose_exclusions.py` writes `proposed_exclusions.json`. It holds a `reference_depends_on_unlisted_input` record, in the format of the frozen run's `reference_exclusions.json`, for every scored output that `no_part_b` moves by more than the $1 exact-match tolerance. An output #191 already proposes to exclude gets a standalone record under `conditional_on_salt_decision` instead, to install only if #191's record is not adopted. The script also writes `verification/model_answers.csv`, which tags every model's answer on the moved outputs with the readings it lands within $1 of.
+3. **Propose.** `scripts/propose_exclusions.py` writes `proposed_exclusions.json`. It holds a `reference_depends_on_unlisted_input` record, in the format of the frozen run's `reference_exclusions.json`, for every scored output that `no_part_b` moves by more than the $1 exact-match tolerance. An output #191 already proposes to exclude gets a standalone record under `conditional_on_salt_decision` instead, to install only if #191's record is not adopted. The script also writes `verification/model_answers.csv`, which tags every model's answer on the moved outputs with the readings it lands within $1 of. It reads #191's records from `verification/inputs/pr191_proposed_exclusions.json`, a copy of #191's `reference_audit/2026-10-05/proposed_exclusions.json` at head 8af912a0 that the script checks against its sha256, so this directory does not depend on #191's branch.
 4. **Impact.** `scripts/leaderboard_impact.py` copies the frozen run to scratch directories and never writes the snapshot. It scores each copy with `python -m policybench.cli analyze`, the command the freeze runs. The unchanged copy reproduces every compared value of the published payload. It then scores three cases:
    - this audit's two records alone, as if #191 is not adopted;
    - #191's three records alone, which reproduces #191's figures exactly;
    - #191's three plus this audit's Virginia record.
 
-   Outputs: `verification/leaderboard_impact.json`, `leaderboard_impact_models.csv`, `leaderboard_impact_marginal.csv` and `leaderboard_impact.log`.
-5. **Verify.** Independent reviewers checked the work. Their reports are in `verification/independent_reviews.json`, and the adversarial review is in `verification/reviews/`.
+   Each case also recomputes the legacy household impact summary, `impact_summary_by_model.csv`. The freeze writes it beside the analyze output with `scripts/freeze_snapshot.household_impact_summary_by_model`, and the snapshot manifest pins it. The unchanged copy reproduces the frozen file. Outputs: `verification/leaderboard_impact.json`, `leaderboard_impact_models.csv`, `leaderboard_impact_marginal.csv` and `leaderboard_impact.log`.
+5. **Verify.** Four independent reviewers checked the work in a Claude Code workflow on 2026-10-05, each in its own scratch directory:
+   - **Mechanism.** One read the engine source, built a static graph of every reader of the premium, recomputed scenario_114 to the cent from engine intermediates, and reran all 100 households.
+   - **Differential.** One reran the no-premium sweep two other ways: a parameter reform setting the 2026 base premium to 0, and a structural reform cutting `medical_expense_health_insurance_premiums` to its non-Medicare branch. Both were bit-identical to `no_part_b` on all 1,984 outputs.
+   - **Prompts and answers.** One rendered all 100 prompts, matched them to the frozen payload, read the matching models' explanations, and judged the record against the exclusion rule.
+   - **Completeness.** One looked for missed channels and script bugs, validated the records against the loader, and checked every quoted number.
+
+   Their reports are in `verification/independent_reviews.json`; their scratch paths are not kept. The reviewers raised three should-fix points, all fixed here: the records now state the take-up argument and its answer, the ACA sentence now names both tests, and the stale-weight finding below is narrowed. An adversarial review on a Subfleet review lane is in `verification/reviews/`.
 
 ## What moves
 
@@ -130,9 +147,18 @@ From `verification/leaderboard_impact.json`. Scored outputs per model are 1,928 
 
 Every model missed both scenario_114 outputs, so excluding them raises every model's rate.
 
+The legacy household impact summary (`impact_summary_by_model.csv`) moves too. In every case, Claude Sonnet 4.6 and Claude Opus 4.7 swap at #24/#25 on `mean_impact_score`; no other model changes rank there. #191's README does not report this file.
+
 ## Related findings
 
-- **Stale impact weights, with no effect on scores.** The published `reference_outputs.csv` carries impact weights for 90 eligibility outputs that differ from those 2.15.17 computes. They comprise 39 Medicare, 37 Medicaid, 9 school-meal and 5 WIC outputs. For example, `head_medicare_eligible` is $5,285.20 published and $12,065.20 on 2.15.17, a gap of $6,780.00. The references' 2026-09-29 rebuild (`../2026-09-28/scripts/build_references_latest.py`) rewrote the `value` column only. `leaderboard_impact.py --weights-check` scores a copy with 2.15.17's weights, and no compared payload value changes.
+- **Stale impact weights.** The published `reference_outputs.csv` carries impact weights for 90 eligibility outputs that differ from those 2.15.17 computes. They comprise 39 Medicare, 37 Medicaid, 9 school-meal and 5 WIC outputs. For example, `head_medicare_eligible` is $5,285.20 published and $12,065.20 on 2.15.17, a gap of $6,780.00. The references' 2026-09-29 rebuild (`../2026-09-28/scripts/build_references_latest.py`) rewrote the `value` column only.
+
+  `leaderboard_impact.py --weights-check` scores a copy with 2.15.17's weights:
+  - No value in the analyze payload changes. That payload holds the dashboard's model, program, heatmap, weight and failure-mode figures.
+  - The legacy household impact summary reads the row weights, so it changes. Every model's `mean_impact_score` rises by 0.0012 to 0.0128, and 10 of 46 models change rank (five adjacent pairs swap).
+  - Nothing in the app, the paper or the package reads that file; the freeze writes it and the manifest pins it.
+
+  A separate task covers the fix.
 - **Enrollment changes only weights.** `not_enrolled` sets `medicare_cost`, the impact weight of the 39 Medicare eligibility outputs, to 0. It changes no output.
 - **scenario_031's Medicaid annotations name the wrong mechanism.** They explain the reference (eligible, through California's optional senior-or-disabled pathway) by subtracting the Part B premium from income, and 43 row annotations fault models for not doing so.
   - On 2.15.17, `medicaid_optional_senior_or_disabled_countable_income` subtracts no premium. It applies SSI income rules with California's $230 monthly disregard: $23,853.47 less $2,760.00 is $21,093.47, under the $22,024.80 limit (138% of the 2026 poverty guideline).
@@ -164,3 +190,4 @@ Two sets of counts follow, one if d963 adopts #191's three records and one if it
    | exact-match misses | 7,718 → 7,672 | 7,856 → 7,764 |
 
 4. **Paper.** Add the Medicare enrollment and Part B premium input to the paper's unlisted-input list and sweep narrative, and re-render the abstract and tables.
+5. **Legacy impact summary.** The freeze regenerates `impact_summary_by_model.csv` from the scored reference; its pin in the snapshot manifest changes with the records (see "Leaderboard impact").

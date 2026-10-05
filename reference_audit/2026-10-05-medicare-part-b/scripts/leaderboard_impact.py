@@ -17,10 +17,19 @@ compared. The cases:
 ``salt_and_part_b``
     #191's three records and this audit's Virginia record.
 
+Each case also recomputes the legacy household impact summary that the freeze writes
+beside the analyze output (``impact_summary_by_model.csv``, pinned in the snapshot
+manifest), with ``scripts/freeze_snapshot.household_impact_summary_by_model`` on the
+scored reference; the published case must reproduce the frozen file.
+
 ``--weights-check`` also scores a copy whose eligibility impact weights are the ones
 policyengine-us 2.15.17 computes (verification/sweep_part_b.csv) instead of the
-published ones, which the 2026-09-29 rebuild did not recompute, and reports whether any
-compared payload value changes.
+published ones, which the 2026-09-29 rebuild did not recompute. It reports whether any
+compared payload value changes and how the legacy impact summary moves.
+
+#191's records are read from ``verification/inputs/pr191_proposed_exclusions.json``, a
+copy of ``reference_audit/2026-10-05/proposed_exclusions.json`` at #191's head
+8af912a0, checked against its sha256.
 
   PYTHONPATH=<checkout> <triage>/.venv-pe21517/bin/python \\
     reference_audit/2026-10-05-medicare-part-b/scripts/leaderboard_impact.py \\
@@ -32,6 +41,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -50,8 +60,9 @@ RUN = (
 PROPOSED = HERE / "proposed_exclusions.json"
 SWEEP = HERE / "verification/sweep_part_b.csv"
 OUT_DIR = HERE / "verification"
-SALT_HEAD = "8af912a062dd7ae1373de4c043ae2727d3406930"
-SALT_PATH = "reference_audit/2026-10-05/proposed_exclusions.json"
+SALT_COPY = HERE / "verification/inputs/pr191_proposed_exclusions.json"
+SALT_SHA256 = "3c330177762c46fa5c52b02f9f943e9d5a65e15855280b64e9b462ab27413272"
+FROZEN_IMPACT = RUN / "analysis/impact_summary_by_model.csv"
 RUN_FILES = (
     "predictions.csv.gz",
     "reference_outputs.csv",
@@ -109,14 +120,41 @@ def sha256(path: Path) -> str:
 
 
 def salt_records() -> list[dict]:
-    text = subprocess.run(
-        ["git", "show", f"{SALT_HEAD}:{SALT_PATH}"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    return json.loads(text)["exclusions"]
+    if sha256(SALT_COPY) != SALT_SHA256:
+        raise SystemExit(f"{SALT_COPY} does not match #191's file at 8af912a0")
+    return json.loads(SALT_COPY.read_text())["exclusions"]
+
+
+def legacy_impact_summary(run_dir: Path) -> pd.DataFrame:
+    """The freeze's impact_summary_by_model.csv, computed on a staged copy."""
+    from policybench.reference_exclusions import scored_reference_for
+
+    path = ROOT / "scripts/freeze_snapshot.py"
+    spec = importlib.util.spec_from_file_location("freeze_snapshot", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    truth, _ = scored_reference_for(run_dir / "reference_outputs.csv")
+    predictions = pd.read_csv(run_dir / "predictions.csv.gz", low_memory=False)
+    return module.household_impact_summary_by_model(truth, predictions)
+
+
+def legacy_impact_change(base: pd.DataFrame, case: pd.DataFrame) -> dict:
+    a = base.set_index("model")["mean_impact_score"]
+    b = case.set_index("model")["mean_impact_score"].reindex(a.index)
+    rank_a = a.rank(ascending=False, method="min")
+    rank_b = b.rank(ascending=False, method="min")
+    moved = rank_a != rank_b
+    return {
+        "mean_impact_score_delta": {
+            "min": float((b - a).min()),
+            "max": float((b - a).max()),
+        },
+        "models_changing_rank": int(moved.sum()),
+        "rank_changes": {
+            model: {"published": int(rank_a[model]), "case": int(rank_b[model])}
+            for model in a.index[moved]
+        },
+    }
 
 
 def stage(target: Path, extra: list[dict], weights: pd.DataFrame | None = None) -> Path:
@@ -308,13 +346,26 @@ def main() -> None:
     base = analyze(base_dir)
     check_reproduces_published(base)
     zero_published = always_zero(base_dir)
+    impact_base = legacy_impact_summary(base_dir)
+    frozen_impact = pd.read_csv(FROZEN_IMPACT)
+    pd.testing.assert_frame_equal(
+        impact_base.reset_index(drop=True),
+        frozen_impact,
+        check_exact=False,
+        rtol=0,
+        atol=1e-12,
+    )
 
     summaries, tables = [], {}
     for name, records in cases.items():
         run_dir = stage(scratch / name, records)
         case = analyze(run_dir)
         zero = {"published": zero_published, "case": always_zero(run_dir)}
-        summaries.append(summarize(name, records, base, case, zero))
+        summary = summarize(name, records, base, case, zero)
+        summary["legacy_impact_summary"] = legacy_impact_change(
+            impact_base, legacy_impact_summary(run_dir)
+        )
+        summaries.append(summary)
         tables[name] = compare(base, case)
 
     # The marginal effect of the Virginia record on top of #191's records.
@@ -365,6 +416,9 @@ def main() -> None:
         weights_check = {
             "impact_weights_replaced": moved,
             "payload_differences": diffs,
+            "legacy_impact_summary": legacy_impact_change(
+                impact_base, legacy_impact_summary(run_dir)
+            ),
         }
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -387,6 +441,7 @@ def main() -> None:
     marginal.to_csv(OUT_DIR / "leaderboard_impact_marginal.csv")
     result = {
         "published_reproduced": True,
+        "legacy_impact_summary_reproduced": True,
         "cases": summaries,
         "virginia_record_on_top_of_salt": marginal_summary,
         "impact_weights_check": weights_check,

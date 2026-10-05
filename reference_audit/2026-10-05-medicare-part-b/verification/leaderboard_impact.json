@@ -1,5 +1,6 @@
 {
   "published_reproduced": true,
+  "legacy_impact_summary_reproduced": true,
   "cases": [
     {
       "case": "part_b",
@@ -80,7 +81,24 @@
           "n_case": 3910,
           "n_delta": -46
         }
-      ]
+      ],
+      "legacy_impact_summary": {
+        "mean_impact_score_delta": {
+          "min": 0.00017757408000151909,
+          "max": 0.005036894110105661
+        },
+        "models_changing_rank": 2,
+        "rank_changes": {
+          "claude-sonnet-4.6": {
+            "published": 24,
+            "case": 25
+          },
+          "claude-opus-4.7": {
+            "published": 25,
+            "case": 24
+          }
+        }
+      }
     },
     {
       "case": "salt",
@@ -200,7 +218,24 @@
           "n_case": 3634,
           "n_delta": -138
         }
-      ]
+      ],
+      "legacy_impact_summary": {
+        "mean_impact_score_delta": {
+          "min": -0.0009745995548785524,
+          "max": 0.0063318981082231
+        },
+        "models_changing_rank": 2,
+        "rank_changes": {
+          "claude-sonnet-4.6": {
+            "published": 24,
+            "case": 25
+          },
+          "claude-opus-4.7": {
+            "published": 25,
+            "case": 24
+          }
+        }
+      }
     },
     {
       "case": "salt_and_part_b",
@@ -341,7 +376,24 @@
           "n_case": 3910,
           "n_delta": -46
         }
-      ]
+      ],
+      "legacy_impact_summary": {
+        "mean_impact_score_delta": {
+          "min": 0.0008573346344286081,
+          "max": 0.008853340075352323
+        },
+        "models_changing_rank": 2,
+        "rank_changes": {
+          "claude-sonnet-4.6": {
+            "published": 24,
+            "case": 25
+          },
+          "claude-opus-4.7": {
+            "published": 25,
+            "case": 24
+          }
+        }
+      }
     }
   ],
   "virginia_record_on_top_of_salt": {
@@ -353,6 +405,55 @@
   },
   "impact_weights_check": {
     "impact_weights_replaced": 90,
-    "payload_differences": []
+    "payload_differences": [],
+    "legacy_impact_summary": {
+      "mean_impact_score_delta": {
+        "min": 0.0012115934103250625,
+        "max": 0.012790050549897125
+      },
+      "models_changing_rank": 10,
+      "rank_changes": {
+        "gpt-5.6-sol": {
+          "published": 6,
+          "case": 7
+        },
+        "claude-sonnet-5.5": {
+          "published": 7,
+          "case": 6
+        },
+        "deepseek-v4.1-flash": {
+          "published": 12,
+          "case": 13
+        },
+        "gpt-5.6-terra": {
+          "published": 13,
+          "case": 12
+        },
+        "gemini-3.6-flash": {
+          "published": 16,
+          "case": 17
+        },
+        "ox-alpha": {
+          "published": 17,
+          "case": 16
+        },
+        "claude-opus-4.7": {
+          "published": 25,
+          "case": 26
+        },
+        "claude-fable-5": {
+          "published": 26,
+          "case": 25
+        },
+        "qwen-3.7-max": {
+          "published": 37,
+          "case": 38
+        },
+        "grok-4.3": {
+          "published": 38,
+          "case": 37
+        }
+      }
+    }
   }
 }

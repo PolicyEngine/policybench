@@ -21,9 +21,9 @@ the ruling's date.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
-import subprocess
 from pathlib import Path
 
 import pandas as pd
@@ -42,7 +42,10 @@ MODEL_META = ROOT / "app/src/modelMeta.ts"
 # PolicyEngine/policybench#191 at the head this audit read.
 SALT_PR = "PolicyEngine/policybench#191"
 SALT_HEAD = "8af912a062dd7ae1373de4c043ae2727d3406930"
-SALT_PATH = "reference_audit/2026-10-05/proposed_exclusions.json"
+# reference_audit/2026-10-05/proposed_exclusions.json at SALT_HEAD, kept here so the
+# script does not depend on #191's branch.
+SALT_COPY = HERE / "verification/inputs/pr191_proposed_exclusions.json"
+SALT_SHA256 = "3c330177762c46fa5c52b02f9f943e9d5a65e15855280b64e9b462ab27413272"
 SALT_DECISION = "d963"
 DRAFTED_ON = "2026-10-05"
 ENGINE = "policyengine-us 2.15.17"
@@ -82,14 +85,9 @@ def model_labels() -> dict[str, str]:
 
 
 def salt_proposal() -> dict:
-    text = subprocess.run(
-        ["git", "show", f"{SALT_HEAD}:{SALT_PATH}"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    return json.loads(text)
+    if hashlib.sha256(SALT_COPY.read_bytes()).hexdigest() != SALT_SHA256:
+        raise SystemExit(f"{SALT_COPY} does not match #191's file at {SALT_HEAD}")
+    return json.loads(SALT_COPY.read_text())
 
 
 def model_answers(rows: list[dict], household: dict) -> pd.DataFrame:
@@ -193,8 +191,17 @@ def record(row: dict, household: dict, summary: dict, answers: pd.DataFrame) -> 
         f"2026 standard premium of $202.90 a month, {money(premium)}, to the listed "
         f"{listed(other)} of other medical expenses. The household itemizes, so the "
         "federal medical expense deduction (26 U.S.C. 213(a): expenses above 7.5% of "
-        f"AGI) counts it{where}. Read with no Part B premium paid, the "
-        f"deduction falls by {money(premium)} and the output is the alternative value."
+        f"AGI) counts it{where}. The prompt also says to assume program take-up when "
+        "required, and a reader who takes a 69-year-old with Social Security "
+        "retirement income to be enrolled in Part B and paying the standard premium "
+        "gets the frozen value. But the benchmark sets take-up only for the programs "
+        "its household data list (Medicaid, SSI, the ACA credit, the DC property tax "
+        "credit, the EITC, SNAP and tax filing; policybench.scenarios."
+        "DEFAULT_TAKEUP_INPUTS), and Medicare is not among them; the Medicare request "
+        "asks only whether the head is eligible; and the more specific rules against "
+        "inferring unlisted expenses or health coverage point the other way. Read with "
+        f"no Part B premium paid, the deduction falls by {money(premium)} and the "
+        "output is the alternative value."
     )
     msp_households = sorted(
         set(summary["medicare_households"]) - set(summary["part_b_households"])
