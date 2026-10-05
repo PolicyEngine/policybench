@@ -970,6 +970,16 @@ def main():
         ),
     )
 
+    sweep_parser = subparsers.add_parser(
+        "unlisted-input-sweep",
+        help="Recompute a frozen run's references with each engine estimate of "
+        "an unlisted input replaced by its literal or documented reading, and "
+        "list every output that moves",
+    )
+    from policybench.unlisted_input_sweep import add_arguments as add_sweep_arguments
+
+    add_sweep_arguments(sweep_parser)
+
     args = parser.parse_args()
 
     # Enable disk cache for ordinary eval calls. Contract-failure retry/repair
@@ -1570,6 +1580,13 @@ def main():
         print(f"{action} {args.source} -> {pointer['url']}")
         print(f"sha256: {pointer['sha256']}")
         print(f"Pointer written to {args.pointer_output}")
+
+    elif args.command == "unlisted-input-sweep":
+        from policybench.unlisted_input_sweep import run as run_unlisted_input_sweep
+
+        code = run_unlisted_input_sweep(args)
+        if code:
+            sys.exit(code)
 
     else:
         parser.print_help()

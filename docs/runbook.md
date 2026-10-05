@@ -54,6 +54,89 @@ uv run python -m policybench.cli reference-outputs \
   --output "$RUN_DIR/us/reference_outputs.csv"
 ```
 
+## 2b. Reference-Build Gates
+
+The published US references are not a bare `reference-outputs` run. They come
+from a reference system: a fix module that composes the newest policyengine-us
+with the pre-freeze publication conventions and the output-definition adapters
+(currently `reference_audit/2026-09-28/fixes/latest_final.py`, built by
+`reference_audit/2026-09-28/scripts/build_references_latest.py`; see that
+directory's README). Before a reference build is published, it must pass every
+gate below. The September 29 build applied gates 1 and 2. Gates 3 and 4 follow
+the October 5 audit, which found references resting on engine estimates of
+inputs no prompt lists.
+
+1. **Newest release.** The references come from the newest policyengine-us
+   release when the sweep begins, and the newest release on PyPI must give the
+   same values before publishing (rule 1 of
+   `reference_audit/2026-09-28/README.md`).
+2. **Reviewed moves.** The reference builder refuses any scored output that
+   moves without a reviewed action, a listed action the engine does not
+   reproduce, and any excluded output that moves without a recheck.
+3. **Unlisted-input sweep.** Recompute every output with each engine estimate
+   of an unlisted input replaced by the prompt's literal reading (unlisted
+   numbers 0, unlisted facts false) or a documented alternative, and list
+   every output that moves:
+
+   ```bash
+   uv run policybench unlisted-input-sweep \
+     --fix reference_audit/2026-09-28/fixes/latest_final.py \
+     --fix-support reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json \
+     --run-dir paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace \
+     --out-dir results/local/unlisted_input_sweep \
+     --strict
+   ```
+
+   `--fix-support` copies a data file the fix module reads from its own
+   directory (the 2026-09-28 sales tax convention reads the September 22 IRS
+   table). Each worker process builds the reference system once (about 40
+   seconds); a household simulation takes about half a second. The county
+   reading tries every county of every household's state, about 9,000
+   simulations for the 100-household run; `--county-states MD` limits it.
+   `--estimate` and `--scenario` restrict a run for a quick check.
+
+   The command exits 1 when the sweep cannot be trusted, and fixes nothing:
+   - its recomputed reference differs from any scored published reference
+     (the wrong reference system, or a changed engine; pass
+     `--allow-baseline-mismatch` only to preview a new engine);
+   - a local income tax is nonzero in the state income tax output (gate 4);
+   - a reading's fixed point did not converge.
+
+   With `--strict` it exits 2 when a scored output moves. Each moved output
+   needs one of:
+   - an exclusion record with reason `reference_depends_on_unlisted_input`;
+   - for an output already excluded for another reason, a note on its record
+     (status `excluded_other_reason`);
+   - an entry in an `--acknowledged` file while a ruling is pending:
+     `{"acknowledged": [{"scenario_id", "variable", "estimate", "reading"
+     (optional), "status", "note"}]}`.
+
+   The out directory holds `report.md` (the gates and every moved output),
+   `moves.csv` (one row per output and reading that moved, marked `scored`,
+   `acknowledged`, `excluded_same_input` or `excluded_other_reason`),
+   `readings.csv` (what each reading set in each household),
+   `values.csv.gz` (every simulated value), `baseline.csv` (the recomputed
+   reference against the CSV), `households.json` (overrides, fixed-point
+   traces and the local taxes checked) and `summary.json` (provenance:
+   engine versions and the sha256 of the fix files, scenarios, references and
+   exclusions).
+
+   `policybench/unlisted_input_sweep.py` registers the estimates
+   (`ESTIMATES`): the state income tax withheld in the federal SALT deduction
+   (zero, liability and net readings), the 20% local sales tax, the modeled
+   Medicare Part B premium, the county (Allegany for Maryland), weekly hours
+   for people with none stated, the mortgage origination year, months of SSDI
+   receipt, and SSI's disability criterion, plus one reading that applies
+   every literal reading at once. When an audit finds another estimate,
+   register it there, with a test, before the next build.
+4. **Output scope.** The state income tax output excludes local income tax.
+   The sweep adds `policybench/output_scope.py`'s adapter, which removes
+   Maryland county tax and New York City tax from the engine's state
+   aggregate, and checks that each tax it removes is zero for every
+   household, so the adapter changes no published reference.
+   `tests/test_output_scope.py` fails when a policyengine-us upgrade adds a
+   local tax the adapter does not name.
+
 ## 3. Run Claude Separately
 
 Run Claude models serially. Claude calls need the main-thread wall timeout, and
