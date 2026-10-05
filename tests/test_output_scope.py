@@ -25,6 +25,11 @@ def test_known_local_taxes_are_recognized():
         assert not output_scope.is_local_component(name)
     assert output_scope.is_local_component("pa_philadelphia_wage_tax")
     assert output_scope.is_local_component("in_local_income_tax_before_credits")
+    assert output_scope.is_local_component("ca_sf_wftc")
+    # SALT variables carry "state_and_local" and are state entries.
+    assert not output_scope.is_local_component(
+        "va_capped_state_and_local_sales_or_income_tax"
+    )
 
 
 @settings(max_examples=200, deadline=None)
@@ -178,11 +183,12 @@ def test_no_other_state_list_carries_a_local_entry():
         if not isinstance(latest, list):
             continue
         local = output_scope.local_components(str(x) for x in latest)
-        # Refundable-credit lists feed state_refundable_credits; nonrefundable
-        # aggregates (state_non_refundable_credits) feed no benchmark output.
+        # Refundable lists feed state_refundable_credits and each state's
+        # nonrefundable list reduces its income tax before refundable credits. The
+        # household-level state_non_refundable_credits aggregate feeds no output.
         feeds_output = (
-            "refundable" in relative and "non_refundable" not in relative
-        ) or "income_tax_before_refundable" in relative
+            "refundable" in relative or "income_tax_before_refundable" in relative
+        ) and not relative.endswith("household/state_non_refundable_credits.yaml")
         if local and feeds_output:
             hits["gov/" + relative.split("gov/", 1)[-1]] = local
     unscoped = {k: v for k, v in hits.items() if k not in scoped}

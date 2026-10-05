@@ -29,15 +29,18 @@ published reference: each local entry it removes must be zero for every househol
 
 A county reading that switches on one of the engine's locality flags (in_nyc,
 in_san_francisco, ...) makes an unlisted household fact true, which the prompt's
-rule makes false. Its moves are reported with status ``prompt_rules_out`` and do
-not fail ``--strict``.
+rule makes false. The county is simulated again with those flags held at their
+reference values; an output whose move that undoes is reported as
+``prompt_rules_out`` and does not fail ``--strict``. A move that survives depends
+on the county itself and stays scored.
 
 Usage (``docs/runbook.md``, "Reference-build gates"):
 
   uv run policybench unlisted-input-sweep \\
     --fix reference_audit/2026-09-28/fixes/latest_final.py \\
     --fix-support reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json \\
-    --out-dir results/local/unlisted_input_sweep
+    --out-dir results/local/unlisted_input_sweep \\
+    --acknowledged reference_audit/unlisted_input_acknowledged.json --strict
 
 ``--run-dir`` defaults to the frozen run,
 ``paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace``.
@@ -52,6 +55,7 @@ import json
 import math
 import multiprocessing
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -291,10 +295,13 @@ def discover_locality_flags() -> tuple[str, ...]:
     """Household flags that put a household in a locality with its own rules.
 
     policyengine-us defines them as ``in_*`` variables under ``variables/gov/local``
-    (in_san_francisco, in_denver, ...) and ``variables/household/demographic/
-    geographic`` (in_nyc), each a formula of county. They are read from the installed
-    source tree, so no system is built. The prompt states no locality, and its rule
-    makes every unlisted household fact false.
+    (in_san_francisco, in_la, ...) and ``variables/household/demographic/geographic``
+    (in_nyc, and in_ny_mctd_zone_2 for the Metropolitan Commuter Transportation
+    District outside the city). Most are formulas of county; a few (in_denver,
+    in_wilmington, in_yonkers) are inputs that default to false, which no county
+    reading switches on. They are read from the installed source tree, so no system
+    is built. The prompt states no locality, and its rule makes every unlisted
+    household fact false.
     """
     spec = importlib.util.find_spec("policyengine_us")
     if spec is None or not spec.submodule_search_locations:
@@ -356,6 +363,10 @@ class Engine:
     def has_variable(self, name: str) -> bool:
         return name in self.system.variables
 
+    def variable_entity(self, name: str) -> str:
+        entity = getattr(self.system.variables[name], "entity", None)
+        return getattr(entity, "key", "household")
+
     def parameter(self, path: str, instant: str) -> Any:
         node = self.system.parameters
         for part in path.split("."):
@@ -384,6 +395,7 @@ class HouseholdContext:
     variables: list[str]
     engine: Engine
     baseline: Any = None
+    simulations: int = 0
     _cache: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -430,15 +442,19 @@ class HouseholdContext:
                 return False
         return True
 
-    def simulate(self, override: Override) -> Any:
+    def simulate(self, override: Override, *, cache: bool = True) -> Any:
+        """The household under ``override``. Kept for reuse unless ``cache`` is off
+        (the county reading's hundreds of variants keep only their outputs)."""
         if override.is_empty() or self.is_noop(override):
             return self.baseline
         key = override.key()
-        if key not in self._cache:
-            self._cache[key] = self.engine.simulate(
-                override.apply(self.situation, self.period)
-            )
-        return self._cache[key]
+        if key in self._cache:
+            return self._cache[key]
+        self.simulations += 1
+        simulation = self.engine.simulate(override.apply(self.situation, self.period))
+        if cache:
+            self._cache[key] = simulation
+        return simulation
 
     def outputs(self, simulation: Any) -> dict[str, float]:
         from policybench.ground_truth import (
@@ -497,6 +513,10 @@ def salt_income_tax_paid(
     to SALT is the withholding estimate (Maryland county tax). ``net`` also
     subtracts state refundable credits, less any local credit the swept system still
     counts in them. Floored at zero.
+
+    It inherits the engine aggregate's entries: Mississippi's is before
+    nonrefundable credits (ms_income_tax_before_credits_unit), and Washington's
+    adds its capital gains and millionaires taxes.
     """
     amount = ctx.total(simulation, output_scope.STATE_AGGREGATE)
     for name in ctx.engine.aggregate_local_components:
@@ -538,7 +558,10 @@ def _withholding_fixed_point(
                 simulation=simulation,
                 trace=trace,
                 converged=converged,
-                detail={"engine_value": estimate, "paid": withheld},
+                detail={
+                    "engine_value": estimate,
+                    "paid": override.tax_unit["state_withheld_income_tax"],
+                },
             )
         ]
 
@@ -582,6 +605,11 @@ def _people_flag_alternative(
 def _receives_ssdi(ctx: HouseholdContext) -> dict[str, bool]:
     values = ctx.by_person(ctx.baseline, "social_security_disability")
     return {name: value > 0 for name, value in values.items()}
+
+
+def _is_medicare_eligible(ctx: HouseholdContext) -> dict[str, bool]:
+    values = ctx.by_person(ctx.baseline, "is_medicare_eligible")
+    return {name: bool(value) for name, value in values.items()}
 
 
 def _is_disabled(ctx: HouseholdContext) -> dict[str, bool]:
@@ -725,6 +753,19 @@ ESTIMATES: tuple[UnlistedEstimate, ...] = (
                 kind=LITERAL,
                 description="No Part B premium is paid (unlisted expense = 0).",
                 plan=_zero_on_people("medicare_part_b_premium"),
+            ),
+            Reading(
+                id="not_enrolled",
+                kind=ALTERNATIVE,
+                description=(
+                    "A Medicare-eligible person is not enrolled, so nothing that "
+                    "reads medicare_enrolled applies. The prompt lists no health "
+                    "coverage but also says to assume program take-up, so this is "
+                    "an alternative reading, not the literal one."
+                ),
+                plan=_people_flag_alternative(
+                    "takes_up_medicare_if_eligible", False, _is_medicare_eligible
+                ),
             ),
         ),
     ),
@@ -933,6 +974,7 @@ class HouseholdJob:
     variables: tuple[str, ...]
     estimate_ids: tuple[str, ...]
     combined: bool = True
+    tolerance: float = TOLERANCE
 
 
 def _reading_record(
@@ -943,6 +985,7 @@ def _reading_record(
     noop: bool,
     outputs: dict[str, float] | None,
     localities: Sequence[str] = (),
+    locality_outputs: Sequence[str] = (),
 ) -> dict[str, Any]:
     return {
         "estimate": estimate_id,
@@ -957,6 +1000,7 @@ def _reading_record(
         "trace": plan.trace,
         "detail": plan.detail,
         "localities": list(localities),
+        "locality_outputs": list(locality_outputs),
         "outputs": outputs,
     }
 
@@ -991,34 +1035,75 @@ def sweep_household(job: HouseholdJob, engine: Engine, patch=None) -> dict[str, 
         }
 
     baseline_localities = localities_on(ctx.baseline)
+
+    def moved(variable: str, value: float) -> bool:
+        return output_moved(
+            baseline_outputs[variable],
+            value,
+            binary=is_binary_output(variable),
+            tolerance=job.tolerance,
+        )
+
+    def locality_only(
+        override: Override, switched_on: Sequence[str], values: dict[str, float]
+    ) -> list[str]:
+        """Outputs whose move is the switched-on locality's doing alone.
+
+        The reading is simulated again with every flag it switched on held at its
+        reference value; an output that then stays put moved only through the
+        locality's own rules. One that still moves (NY SNAP's utility allowance
+        region reads the county directly) depends on the county itself.
+        """
+        if any(engine.variable_entity(f) != "household" for f in switched_on):
+            return []
+        held = override.merged(Override(household={f: False for f in switched_on}))
+        held_values = ctx.outputs(ctx.simulate(held, cache=False))
+        return sorted(
+            variable
+            for variable, value in values.items()
+            if moved(variable, value) and not moved(variable, held_values[variable])
+        )
+
     estimates = [ESTIMATES_BY_ID[i] for i in job.estimate_ids]
     readings = []
-    output_cache: dict[str, tuple[dict[str, float], list[str]]] = {}
+    output_cache: dict[str, tuple[dict[str, float], list[str], list[str]]] = {}
 
-    def evaluate(estimate_id: str, reading_id: str, kind: str, plan: ReadingPlan):
+    def record_reading(estimate_id: str, reading_id: str, kind: str, plan: ReadingPlan):
         noop = plan.override.is_empty() or ctx.is_noop(plan.override)
         outputs = None
         localities: list[str] = []
+        locality_outputs: list[str] = []
         if not noop:
             key = plan.override.key()
             if key not in output_cache:
-                simulation = plan.simulation or ctx.simulate(plan.override)
+                simulation = plan.simulation or ctx.simulate(
+                    plan.override, cache=not plan.variant
+                )
+                values = ctx.outputs(simulation)
                 switched_on = sorted(localities_on(simulation) - baseline_localities)
-                output_cache[key] = (ctx.outputs(simulation), switched_on)
-            outputs, localities = output_cache[key]
+                only = locality_only(plan.override, switched_on, values)
+                output_cache[key] = (values, switched_on, only if switched_on else [])
+            outputs, localities, locality_outputs = output_cache[key]
         readings.append(
             _reading_record(
-                estimate_id, reading_id, kind, plan, noop, outputs, localities
+                estimate_id,
+                reading_id,
+                kind,
+                plan,
+                noop,
+                outputs,
+                localities,
+                locality_outputs,
             )
         )
 
     for estimate in estimates:
         for reading in estimate.readings:
             for plan in reading.plan(ctx):
-                evaluate(estimate.id, reading.id, reading.kind, plan)
+                record_reading(estimate.id, reading.id, reading.kind, plan)
     if job.combined:
         for plan in combined_literal_plan(ctx, estimates):
-            evaluate(COMBINED_ESTIMATE, COMBINED_READING, LITERAL, plan)
+            record_reading(COMBINED_ESTIMATE, COMBINED_READING, LITERAL, plan)
 
     return {
         "scenario_id": scenario.id,
@@ -1027,7 +1112,7 @@ def sweep_household(job: HouseholdJob, engine: Engine, patch=None) -> dict[str, 
         "local_taxes": local_taxes,
         "baseline_localities": sorted(baseline_localities),
         "readings": readings,
-        "simulations": 1 + len(ctx._cache),
+        "simulations": 1 + ctx.simulations,
         "aggregate_local_components": list(engine.aggregate_local_components),
         "removed_local_components": list(engine.removed_local_components),
         "remaining_local_components": list(engine.remaining_local_components),
@@ -1199,10 +1284,16 @@ def reproduces(reference: float, value: float, *, binary: bool) -> bool:
 
 
 def exclusion_names_inputs(record: dict | None, inputs: Iterable[str]) -> bool:
+    """Whether an exclusion record's ``unlisted_input`` names one of ``inputs``.
+
+    Matched as whole identifiers, so ``county`` does not match ``county_fips``. The
+    field is prose in some records, so a word such as ``county`` still matches
+    prose that uses it.
+    """
     if not record:
         return False
-    text = str(record.get("unlisted_input") or "")
-    return any(name in text for name in inputs)
+    tokens = set(re.findall(r"[A-Za-z0-9_]+", str(record.get("unlisted_input") or "")))
+    return any(name in tokens for name in inputs)
 
 
 def _acknowledgement_key(entry: dict) -> tuple[str, str, str, str]:
@@ -1218,7 +1309,8 @@ def load_acknowledgements(path: str | Path | None) -> dict[tuple, dict]:
     """Scored moves already under review (a pending decision or ruling), by key.
 
     The file is ``{"acknowledged": [{"scenario_id", "variable", "estimate",
-    "reading" (optional; any reading if absent), "status", "note"}]}``.
+    "reading" (optional; any reading if absent), "status", "note"}]}``. An
+    ``estimate`` of ``"*"`` covers every reading of the output.
     """
     if not path:
         return {}
@@ -1241,9 +1333,14 @@ def _acknowledgement_for(
     estimate: str,
     reading: str,
 ) -> dict | None:
-    return acknowledgements.get(
-        (sid, variable, estimate, reading)
-    ) or acknowledgements.get((sid, variable, estimate, "*"))
+    for key in (
+        (sid, variable, estimate, reading),
+        (sid, variable, estimate, "*"),
+        (sid, variable, "*", "*"),
+    ):
+        if key in acknowledgements:
+            return acknowledgements[key]
+    return None
 
 
 def _estimate_inputs(estimate_id: str, parts: Sequence[str] = ()) -> tuple[str, ...]:
@@ -1366,7 +1463,7 @@ def evaluate(
                             if names_input
                             else "excluded_other_reason"
                         )
-                    elif reading["localities"]:
+                    elif variable in reading.get("locality_outputs", ()):
                         status = "prompt_rules_out"
                     elif ack is not None:
                         status = "acknowledged"
@@ -1560,6 +1657,8 @@ def render_markdown(summary: dict[str, Any], moves: pd.DataFrame) -> str:
         f" (removed by the adapter and zero in every household: "
         f"{', '.join(meta['removed_local_components']) or 'none'}; "
         f"still listed: {', '.join(meta['remaining_local_components']) or 'none'})",
+        f"- Every reference row recomputed: "
+        f"{'yes' if not summary.get('reference_rows_not_recomputed') else 'NO'}",
         f"- Fixed points converged: {'yes' if not summary['unconverged'] else 'NO'}",
         f"- Scored outputs that move: {summary['counts']['scored']}",
         f"- Outputs that move only where a reading puts the household in a "
@@ -1651,6 +1750,7 @@ def build_jobs(
     estimates: Sequence[UnlistedEstimate],
     county_states: frozenset[str] | None,
     combined: bool = True,
+    tolerance: float = TOLERANCE,
 ) -> list[HouseholdJob]:
     """One job per household, longest first so the pool's tail is short."""
     from policybench.scenarios import scenario_from_dict
@@ -1674,7 +1774,9 @@ def build_jobs(
             (
                 cost,
                 scenario.id,
-                HouseholdJob(row["scenario_json"], variables, estimate_ids, combined),
+                HouseholdJob(
+                    row["scenario_json"], variables, estimate_ids, combined, tolerance
+                ),
             )
         )
     jobs.sort(key=lambda item: (-item[0], item[1]))
@@ -1717,6 +1819,16 @@ def run(args) -> int:
             raise SystemExit("No scenarios match --scenario")
     if (scenarios["country"] != "us").any():
         raise SystemExit("The unlisted-input sweep covers US scenarios only")
+    scope_year = int(output_scope.SCOPE_INSTANT[:4])
+    years = {
+        int(json.loads(raw).get("year", scope_year))
+        for raw in scenarios["scenario_json"]
+    }
+    if years != {scope_year}:
+        raise SystemExit(
+            f"Scenario years {sorted(years)}: the output-scope adapter rewrites the "
+            f"{scope_year} lists only"
+        )
 
     estimates = select_estimates(args.estimate)
     county_states = (
@@ -1731,7 +1843,18 @@ def run(args) -> int:
         estimates,
         county_states,
         combined=not args.no_combined,
+        tolerance=args.tolerance,
     )
+    # Every reference row of the swept households must be recomputed, or the
+    # baseline gate would pass over the rows a program expansion dropped.
+    swept = set(scenarios["scenario_id"])
+    expected = {key for key in reference.index if key[0] in swept}
+    planned = {
+        (json.loads(job.scenario_json)["id"], variable)
+        for job in jobs
+        for variable in job.variables
+    }
+    not_recomputed = sorted(expected - planned)
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1761,6 +1884,7 @@ def run(args) -> int:
 
     report = evaluate(results, reference, exclusions, acknowledgements, args.tolerance)
     summary = report.summary
+    summary["reference_rows_not_recomputed"] = [list(key) for key in not_recomputed]
     summary["run"] = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "policyengine_us": _package_version("policyengine-us"),
@@ -1852,6 +1976,8 @@ def exit_code(
     if summary["baseline_scored_mismatches"] and not allow_baseline_mismatch:
         return 1
     if summary["scope_violations"] or summary["unconverged"]:
+        return 1
+    if summary.get("reference_rows_not_recomputed"):
         return 1
     if strict and summary["counts"]["scored"]:
         return 2

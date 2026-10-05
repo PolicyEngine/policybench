@@ -101,9 +101,13 @@ DESCRIPTION = (
 
 
 def is_local_component(name: str) -> bool:
-    """Whether a list entry names a local (county or city) tax or credit."""
+    """Whether a list entry names a local (county or city) tax or credit.
+
+    "state_and_local" (as in the SALT variables) is a state entry, not a local one.
+    """
+    stripped = name.replace("state_and_local", "")
     return name in LOCAL_COMPONENTS or any(
-        fragment in name for fragment in LOCAL_NAME_FRAGMENTS
+        fragment in stripped for fragment in LOCAL_NAME_FRAGMENTS
     )
 
 

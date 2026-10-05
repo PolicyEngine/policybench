@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from enum import Enum
 from pathlib import Path
 from types import SimpleNamespace
@@ -65,6 +66,10 @@ FIRST_COUNTY = {
     "NY": "ALBANY_COUNTY_NY",
 }
 NYC_COUNTIES = {"KINGS_COUNTY_NY"}
+MCTD_ZONE_2 = {"NASSAU_COUNTY_NY"}
+# A toy SNAP utility allowance region that reads the county directly, as New
+# York's does: NYC and Nassau-Suffolk get higher allowances.
+SNAP_REGION_BONUS = {"KINGS_COUNTY_NY": 300.0, "NASSAU_COUNTY_NY": 200.0}
 
 
 class EnumResult(list):
@@ -192,7 +197,10 @@ class FakeSimulation:
         return self._person("meets_ssi_disability_criteria", False).astype(bool)
 
     def _v_medicare_part_b_premium(self):
-        modeled = np.where(self.calculate("age", YEAR) >= 65, 2_000.0, 0.0)
+        enrolled = (self.calculate("age", YEAR) >= 65) & self.calculate(
+            "takes_up_medicare_if_eligible", YEAR
+        )
+        modeled = np.where(enrolled, 2_000.0, 0.0)
         return np.array(
             [
                 float(p["medicare_part_b_premium"][YEAR])
@@ -293,7 +301,16 @@ class FakeSimulation:
 
     def _v_in_nyc(self):
         county = self.calculate("county", YEAR).decode_to_str()[0]
-        return np.array([county in NYC_COUNTIES])
+        return self._unit(self.household, "in_nyc", lambda: county in NYC_COUNTIES)
+
+    def _v_in_ny_mctd_zone_2(self):
+        county = self.calculate("county", YEAR).decode_to_str()[0]
+        return self._unit(
+            self.household, "in_ny_mctd_zone_2", lambda: county in MCTD_ZONE_2
+        )
+
+    def _v_takes_up_medicare_if_eligible(self):
+        return self._person("takes_up_medicare_if_eligible", True).astype(bool)
 
     def _v_home_mortgage_interest_tax_unit(self):
         return np.array(
@@ -327,7 +344,8 @@ class FakeSimulation:
         ages = self.calculate("age", YEAR)
         adults = ages >= 18
         if (ages < 18).any() or (hours[adults] >= 20).all():
-            return np.array([1_200.0])
+            county = self.calculate("county", YEAR).decode_to_str()[0]
+            return np.array([1_200.0 + SNAP_REGION_BONUS.get(county, 0.0)])
         return np.array([0.0])
 
     def _v_ssi(self):
@@ -583,6 +601,29 @@ def test_no_frozen_household_states_a_registered_input():
         assert not stated & registered, (data["id"], stated & registered)
 
 
+def test_acknowledged_moves_are_scored_outputs_awaiting_a_ruling():
+    """Each acknowledgement names a scored output of the frozen run and the decision
+    it waits on; once a release excludes the output, the entry must go."""
+    root = Path(__file__).resolve().parents[1]
+    path = root / "reference_audit/unlisted_input_acknowledged.json"
+    acknowledgements = sweep.load_acknowledgements(path)
+    assert acknowledgements
+    run = root / sweep.DEFAULT_RUN_DIR
+    reference = pd.read_csv(run / "reference_outputs.csv")
+    outputs = set(zip(reference["scenario_id"], reference["variable"]))
+    excluded = {
+        (e["scenario_id"], e["variable"])
+        for e in json.loads((run / "reference_exclusions.json").read_text())[
+            "exclusions"
+        ]
+    }
+    for (sid, variable, estimate, _), entry in acknowledgements.items():
+        assert (sid, variable) in outputs
+        assert (sid, variable) not in excluded, (sid, variable)
+        assert estimate == "*" or estimate in sweep.ESTIMATES_BY_ID
+        assert re.fullmatch(r"pending d\d+", entry["status"]), entry["status"]
+
+
 def test_registered_person_inputs_never_reach_a_prompt():
     for name in (
         "weekly_hours_worked_before_lsr",
@@ -676,6 +717,12 @@ def test_a_diverging_fixed_point_is_reported_not_hidden():
     reading = readings_of(result, "state_withheld_income_tax", "liability")[0]
     assert not reading["converged"]
     assert reading["iterations"] == sweep.MAX_FIXED_POINT_ITERATIONS
+    # The reported amount is the one last simulated, not the next iterate.
+    assert reading["detail"]["paid"] == reading["trace"][-1]["withheld"]
+    assert (
+        reading["override"]["tax_unit"]["state_withheld_income_tax"]
+        == (reading["trace"][-1]["withheld"])
+    )
 
 
 def test_readings_that_change_nothing_are_not_simulated():
@@ -803,17 +850,24 @@ def test_county_states_limits_the_county_reading():
     assert readings_of(result, "county") == []
 
 
-def test_county_readings_that_put_a_household_in_a_locality_are_labeled():
+def test_only_moves_the_locality_alone_explains_are_labeled_prompt_rules_out():
     engine = make_engine()
-    assert "in_nyc" in engine.locality_flags
-    scenario = make_scenario(state="NY", income=80_000.0)
+    assert {"in_nyc", "in_ny_mctd_zone_2"} <= set(engine.locality_flags)
+    child = Person("child1", 8, 0.0, {})
+    scenario = make_scenario(state="NY", income=80_000.0, children=[child])
     job = make_job(scenario, ["county"], programs=PROGRAMS + ["local_income_tax"])
     result = sweep.sweep_household(job, engine)
     assert result["baseline_localities"] == []
     by_county = {r["variant"]: r for r in readings_of(result, "county")}
-    assert by_county["KINGS_COUNTY_NY"]["localities"] == ["in_nyc"]
-    assert by_county["NASSAU_COUNTY_NY"]["localities"] == []
-    assert by_county["KINGS_COUNTY_NY"]["outputs"]["local_income_tax"] == 2_400.0
+    kings, nassau = by_county["KINGS_COUNTY_NY"], by_county["NASSAU_COUNTY_NY"]
+    assert kings["localities"] == ["in_nyc"]
+    assert nassau["localities"] == ["in_ny_mctd_zone_2"]
+    # NYC tax moves only through in_nyc; SNAP's region reads the county itself.
+    assert kings["locality_outputs"] == ["local_income_tax"]
+    assert nassau["locality_outputs"] == []
+    assert kings["outputs"]["local_income_tax"] == 2_400.0
+    assert kings["outputs"]["snap"] == 1_500.0
+    assert nassau["outputs"]["snap"] == 1_400.0
     reference = pd.Series(
         {(scenario.id, v): value for v, value in result["baseline"].items()}
     )
@@ -823,11 +877,27 @@ def test_county_readings_that_put_a_household_in_a_locality_are_labeled():
         "prompt_rules_out"
     )
     assert moves.loc[("local_income_tax", "KINGS_COUNTY_NY"), "localities"] == "in_nyc"
-    assert report.summary["counts"]["scored"] == 0
+    assert moves.loc[("snap", "KINGS_COUNTY_NY"), "status"] == "scored"
+    assert moves.loc[("snap", "NASSAU_COUNTY_NY"), "status"] == "scored"
+    assert report.summary["counts"]["scored"] == 1
     assert report.summary["counts"]["prompt_rules_out"] == 1
-    assert report.summary["moved_outputs"][0]["localities"] == ["in_nyc"]
     summary = report.summary
-    assert sweep.exit_code(summary, strict=True, allow_baseline_mismatch=False) == 0
+    assert sweep.exit_code(summary, strict=True, allow_baseline_mismatch=False) == 2
+
+
+def test_medicare_not_enrolled_reading_turns_take_up_off_for_eligible_people():
+    spouse = Person("spouse", 70, 0.0, {"is_tax_unit_spouse": True})
+    scenario = make_scenario(spouse=spouse, income=30_000.0)
+    result = sweep.sweep_household(
+        make_job(scenario, ["medicare_part_b_premium"]), make_engine()
+    )
+    zero, not_enrolled = readings_of(result, "medicare_part_b_premium")
+    assert not_enrolled["reading"] == "not_enrolled"
+    assert not_enrolled["kind"] == sweep.ALTERNATIVE
+    assert not_enrolled["override"] == {
+        "people": {"spouse": {"takes_up_medicare_if_eligible": False}}
+    }
+    assert not_enrolled["outputs"] == zero["outputs"]
 
 
 def test_locality_flags_are_discovered_from_the_installed_engine():
@@ -1046,6 +1116,7 @@ def reading(
     variant="",
     converged=True,
     localities=(),
+    locality_outputs=(),
 ):
     return {
         "estimate": estimate,
@@ -1060,6 +1131,7 @@ def reading(
         "trace": [],
         "detail": {},
         "localities": list(localities),
+        "locality_outputs": list(locality_outputs),
         "outputs": outputs,
     }
 
@@ -1115,6 +1187,7 @@ def test_evaluate_marks_scored_excluded_and_acknowledged_moves():
                     {FED: 4_100.0},
                     variant="KINGS_COUNTY_NY",
                     localities=["in_nyc"],
+                    locality_outputs=[FED],
                 )
             ],
         ),
@@ -1207,6 +1280,10 @@ def test_exclusion_names_inputs_matches_the_record_text():
     assert sweep.exclusion_names_inputs(record, ["weekly_hours_worked_before_lsr"])
     assert not sweep.exclusion_names_inputs(record, ["county"])
     assert not sweep.exclusion_names_inputs(None, ["county"])
+    # Whole identifiers only: county_fips does not name county.
+    fips = {"unlisted_input": "county_fips"}
+    assert not sweep.exclusion_names_inputs(fips, ["county"])
+    assert not sweep.exclusion_names_inputs(record, ["weekly_hours_worked"])
 
 
 def test_acknowledgements_require_the_key_fields(tmp_path):
@@ -1228,8 +1305,15 @@ def test_acknowledgements_require_the_key_fields(tmp_path):
             }
         )
     )
-    assert ("s1", FED, "county", "*") in sweep.load_acknowledgements(path)
+    acknowledgements = sweep.load_acknowledgements(path)
+    assert ("s1", FED, "county", "*") in acknowledgements
     assert sweep.load_acknowledgements(None) == {}
+    assert sweep._acknowledgement_for(acknowledgements, "s1", FED, "county", "x")
+    assert not sweep._acknowledgement_for(acknowledgements, "s1", FED, "other", "x")
+    every = {("s1", FED, "*", "*"): {"status": "pending d963"}}
+    assert sweep._acknowledgement_for(every, "s1", FED, "other", "x") == {
+        "status": "pending d963"
+    }
 
 
 def test_scope_lists_must_agree_across_workers():
@@ -1542,6 +1626,70 @@ def test_command_writes_every_artifact_and_gates_on_scored_moves(
     main()
 
 
+def test_command_fails_when_a_reference_row_is_not_recomputed(
+    tmp_path, monkeypatch, capsys
+):
+    from policybench.cli import main
+
+    engine = make_engine()
+    run = write_run(tmp_path, [make_scenario("scenario_a", "TX")], engine)
+    reference = pd.read_csv(run / "reference_outputs.csv")
+    extra = {"scenario_id": "scenario_a", "variable": "tanf", "value": 0.0}
+    pd.concat([reference, pd.DataFrame([extra])]).to_csv(
+        run / "reference_outputs.csv", index=False
+    )
+    monkeypatch.setattr(sweep, "build_engine", lambda config: (engine, None))
+    monkeypatch.setattr(sweep, "_county_count", lambda state: 0)
+    out = tmp_path / "out"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "policybench",
+            "unlisted-input-sweep",
+            "--run-dir",
+            str(run),
+            "--out-dir",
+            str(out),
+            "--workers",
+            "1",
+            "--estimate",
+            "local_sales_tax",
+        ],
+    )
+    with pytest.raises(SystemExit) as raised:
+        main()
+    assert raised.value.code == 1
+    summary = json.loads((out / "summary.json").read_text())
+    assert summary["reference_rows_not_recomputed"] == [["scenario_a", "tanf"]]
+    assert "Every reference row recomputed: NO" in capsys.readouterr().out
+
+
+def test_command_refuses_scenarios_outside_the_scoped_year(tmp_path, monkeypatch):
+    from policybench.cli import main
+
+    engine = make_engine()
+    scenario = make_scenario("scenario_a", "TX")
+    run = write_run(tmp_path, [scenario], engine)
+    manifest = pd.read_csv(run / "scenarios.csv")
+    data = json.loads(manifest.loc[0, "scenario_json"])
+    data["year"] = 2025
+    manifest.loc[0, "scenario_json"] = json.dumps(data)
+    manifest.to_csv(run / "scenarios.csv", index=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "policybench",
+            "unlisted-input-sweep",
+            "--run-dir",
+            str(run),
+            "--out-dir",
+            str(tmp_path / "out"),
+        ],
+    )
+    with pytest.raises(SystemExit, match="Scenario years"):
+        main()
+
+
 def test_command_rejects_a_run_without_its_reference(tmp_path, monkeypatch):
     from policybench.cli import main
 
@@ -1621,3 +1769,46 @@ def test_real_engine_reproduces_the_recorded_unlisted_input_exclusions(real_engi
     assert moved[("scenario_056", "snap")] == "excluded_same_input"
     county = [r for r in results if r["scenario_id"] == "scenario_068"][0]
     assert len(readings_of(county, "county")) == 24
+
+
+@pytest.mark.slow
+def test_real_engine_keeps_county_rules_scored_inside_flagged_counties(real_engine):
+    """scenario_118 (NY, SNAP): in NYC and in Nassau or Suffolk the county turns on a
+    locality flag, but SNAP's utility allowance region reads the county itself, so
+    the SNAP move is not attributed to the locality."""
+    engine, patch = real_engine
+    ny_engine = sweep.Engine(
+        system=engine.system,
+        simulation_class=engine.simulation_class,
+        aggregate_local_components=engine.aggregate_local_components,
+        removed_local_components=engine.removed_local_components,
+        remaining_local_components=engine.remaining_local_components,
+        county_states=frozenset({"NY"}),
+        locality_flags=engine.locality_flags,
+    )
+    run = ROOT / sweep.DEFAULT_RUN_DIR
+    scenarios = pd.read_csv(run / "scenarios.csv")
+    scenarios = scenarios[scenarios["scenario_id"] == "scenario_118"]
+    reference = pd.read_csv(run / "reference_outputs.csv").set_index(
+        ["scenario_id", "variable"]
+    )["value"]
+    meta = json.loads((run / "reference_outputs.csv.meta.json").read_text())
+    (job,) = sweep.build_jobs(
+        scenarios,
+        reference,
+        meta["programs"],
+        [sweep.ESTIMATES_BY_ID["county"]],
+        frozenset({"NY"}),
+        combined=False,
+    )
+    result = sweep.sweep_household(job, ny_engine, patch)
+    by_county = {r["variant"]: r for r in readings_of(result, "county")}
+    kings, nassau = by_county["KINGS_COUNTY_NY"], by_county["NASSAU_COUNTY_NY"]
+    assert kings["localities"] == ["in_nyc"]
+    assert nassau["localities"] == ["in_ny_mctd_zone_2"]
+    base_snap = result["baseline"]["snap"]
+    assert kings["outputs"]["snap"] > base_snap + 1
+    assert nassau["outputs"]["snap"] > base_snap + 1
+    assert "snap" not in kings["locality_outputs"]
+    assert "snap" not in nassau["locality_outputs"]
+    assert "local_income_tax" in kings["locality_outputs"]

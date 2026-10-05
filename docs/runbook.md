@@ -84,37 +84,49 @@ inputs no prompt lists.
      --fix-support reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json \
      --run-dir paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace \
      --out-dir results/local/unlisted_input_sweep \
+     --acknowledged reference_audit/unlisted_input_acknowledged.json \
      --strict
    ```
 
    `--fix-support` copies a data file the fix module reads from its own
    directory (the 2026-09-28 sales tax convention reads the September 22 IRS
    table). Each worker process builds the reference system once (about 40
-   seconds); a household simulation takes about half a second. The county
-   reading tries every county of every household's state, about 9,000
-   simulations for the 100-household run; `--county-states MD` limits it.
-   `--estimate` and `--scenario` restrict a run for a quick check.
+   seconds); a household simulation takes about half a second on an idle
+   machine and over a second under load. The county reading tries every county
+   of every household's state, about 9,000 simulations for the 100-household
+   run (23 minutes on 12 workers on a loaded machine); `--county-states MD`
+   limits it. `--estimate` and `--scenario` restrict a run for a quick check.
 
-   The command exits 1 when the sweep cannot be trusted, and fixes nothing:
+   The command fixes nothing. It exits 1 when the sweep cannot be trusted (and
+   on a configuration error or a worker crash):
    - its recomputed reference differs from any scored published reference
      (the wrong reference system, or a changed engine; pass
      `--allow-baseline-mismatch` only to preview a new engine);
+   - a reference row of a swept household was not recomputed;
    - a local tax or credit is nonzero in a state output (gate 4);
    - a reading's fixed point did not converge.
 
-   With `--strict` it exits 2 when a scored output moves. A move is not
-   counted when the reading switches on a locality flag (`in_nyc`,
-   `in_san_francisco` and the engine's other `in_*` locality variables): such a
-   county makes an unlisted household fact true, which the prompt's rule makes
-   false, so its moves are reported with status `prompt_rules_out` (and the
-   flag in the `localities` column) for review rather than gated. Each other
-   moved output needs one of:
+   With `--strict` it exits 2 when a scored output moves. One kind of move is
+   reported but not gated. A county can switch on one of the engine's locality
+   flags (`in_nyc`, `in_san_francisco`, `in_ny_mctd_zone_2` and its other
+   `in_*` variables), which makes an unlisted household fact true. The prompt's
+   rule makes such facts false. The sweep reruns that county with the flags held
+   at their reference values, and a move that this undoes is marked
+   `prompt_rules_out` (flag in the `localities` column). A move that survives,
+   such as New York SNAP's utility allowance region, which reads the county
+   itself, stays `scored`.
+
+   Each scored move needs one of:
    - an exclusion record with reason `reference_depends_on_unlisted_input`;
-   - for an output already excluded for another reason, a note on its record
-     (status `excluded_other_reason`);
-   - an entry in an `--acknowledged` file while a ruling is pending:
-     `{"acknowledged": [{"scenario_id", "variable", "estimate", "reading"
-     (optional), "status", "note"}]}`.
+   - an entry in the `--acknowledged` file while a ruling is pending:
+     `{"acknowledged": [{"scenario_id", "variable", "estimate" ("*" for every
+     reading), "reading" (optional), "status", "note"}]}`.
+
+   `reference_audit/unlisted_input_acknowledged.json` lists the scored moves on
+   the current references that await Max's rulings (d963, d974). Remove an
+   entry when its release lands. A move on an excluded output whose record does
+   not name the estimate's input is `excluded_other_reason`, and the next
+   release should add a note to that record.
 
    The out directory holds `report.md` (the gates and every moved output),
    `moves.csv` (one row per output and reading that moved, marked `scored`,
@@ -130,7 +142,8 @@ inputs no prompt lists.
    `policybench/unlisted_input_sweep.py` registers the estimates
    (`ESTIMATES`): the state income tax withheld in the federal SALT deduction
    (zero, liability and net readings), the 20% local sales tax, the modeled
-   Medicare Part B premium, the county (Allegany for Maryland), weekly hours
+   Medicare Part B premium (zero) and Medicare enrollment (not enrolled), the
+   county (Allegany for Maryland), weekly hours
    for people with none stated, the mortgage origination year, months of SSDI
    receipt, and SSI's disability criterion, plus one reading that applies
    every literal reading at once. When an audit finds another estimate,
