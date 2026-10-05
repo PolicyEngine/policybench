@@ -1,6 +1,6 @@
 # Optional employer pass-through in the payroll tax references, October 5, 2026
 
-This directory audits the state part of PolicyBench's US `payroll_tax` references in release `dashboard-data-20260930`. Four scored references count an employee share of a state paid-leave or disability premium that the law lets the employer deduct but does not require. The directory proposes two alternative records for those four outputs, excluding them or regenerating them, and changes no reference. Either one changes published scores, so they wait for Max's ruling (cos decision DECISION_ID).
+This directory audits the state part of PolicyBench's US `payroll_tax` references in release `dashboard-data-20260930`. Four scored references count an employee share of a state paid-leave or disability premium that the law lets the employer deduct but does not require. The directory proposes two alternative records for those four outputs, excluding them or regenerating them, and changes no reference. Either one changes published scores, so they wait for Max's ruling (cos decision d972).
 
 ## Recommendation
 
