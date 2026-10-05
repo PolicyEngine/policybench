@@ -115,7 +115,7 @@ describe("notes", () => {
       "GPT-6.1 Sol gets two right, the Michigan and Wisconsin households",
     );
     expect(markup).toContain(
-      "An earlier version of this note, first published September 23, counted the worker among its households.",
+      "The version of this note published September 23 counted the worker among its households.",
     );
     expect(markup).not.toContain("revised this note");
     expect(markup).not.toContain("updated this note");

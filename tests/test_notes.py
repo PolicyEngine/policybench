@@ -551,8 +551,10 @@ BBCE_NOTE = "2026-10-05-five-snap-households-bbce"
 # (app/next.config.ts). Git history holds each of its versions.
 BBCE_NOTE_EARLIER = "2026-09-23-five-snap-households-bbce"
 BBCE_NOTE_EARLIER_PATH = f"app/src/notes/{BBCE_NOTE_EARLIER}.json"
-# The commit that first published it (PR #175), counting the Michigan worker.
+# The commit that first published it (PR #175), counting the Michigan worker,
+# and the commit of its next version (PR #177), which no longer counts them.
 BBCE_NOTE_FIRST_COMMIT = "a6379216f6fd4bbc8d25e297db2bae1db1535a64"
+BBCE_NOTE_REVISED_COMMIT = "ba886b4cfa69b631df59f49e277e4a6c22832116"
 PATHWAYS_0922_PATH = ROOT / "notes/data/snap_pathways_20260922.csv"
 PATHWAYS_0922_META_PATH = PATHWAYS_0922_PATH.with_suffix(
     PATHWAYS_0922_PATH.suffix + ".meta.json"
@@ -762,6 +764,16 @@ def test_bbce_households_note_facts() -> None:
         assert links[f"policyengine-us #{number} ({topic})"] == (
             f"https://github.com/PolicyEngine/policyengine-us/pull/{number}"
         )
+    # The September 29 release note links this one under its date (the
+    # September 3 and September 22 notes' tests pin their links to it).
+    release_links = {e["label"]: e["href"] for e in _note(RELEASE_NOTE)["data"]}
+    assert (
+        release_links[
+            "Note on the SNAP households that qualify through BBCE "
+            f"({_month_day(note['date'])})"
+        ]
+        == f"/notes/{BBCE_NOTE}"
+    )
     # The facts recompute only while the note's release is the frozen one.
     if not _recompute_against_frozen_snapshot(note):
         return
@@ -907,7 +919,6 @@ def test_bbce_households_note_facts() -> None:
     reference_amount = 12 * minimum
     # March to December: months 3 to 12.
     assert eligible_months[arizona] == list(range(2, 12))
-    az_months = len(eligible_months[arizona])
     # BBCE leaves the benefit formula in place: in 2.15.17, snap_normal_allotment
     # pays the larger of the minimum and the maximum allotment less the
     # expected contribution (30% of net income) to every eligible household,
@@ -977,6 +988,12 @@ def test_bbce_households_note_facts() -> None:
     fy2027 = re.search(r"USDA published FY2027 on (\d{4}-\d{2}-\d{2})", hold["rule"])
     assert freeze is not None and fy2027 is not None
     assert freeze.group(1) < fy2027.group(1)
+    # The engine upgrade keeps that cutoff for the references it rebuilt.
+    assert (
+        f"law published before the {freeze.group(1)} reference freeze"
+        in upgrade["rule"]
+    )
+    assert freeze.group(1) < upgrade["date"]
     # Re-expressed for 2.15.17, as one of the references' modules (above),
     # the convention holds the minimum's published adjustment, with the
     # rest of the FY2027 schedule, from October to December 2026 only.
@@ -1025,12 +1042,14 @@ def test_bbce_households_note_facts() -> None:
         installed = version("policyengine-us")
     except PackageNotFoundError:
         installed = None
+    # The engine's minimum by fiscal year, read below when the installed
+    # engine is the references'.
+    engine_minimums: dict[int, int] | None = None
     if installed == engine:
         import yaml
 
-        snap_dir = Path(find_spec("policyengine_us").origin).parent / (
-            "parameters/gov/usda/snap"
-        )
+        engine_dir = Path(find_spec("policyengine_us").origin).parent
+        snap_dir = engine_dir / "parameters/gov/usda/snap"
 
         def _parameter(name: str) -> dict:
             return yaml.safe_load((snap_dir / name).read_text())
@@ -1040,13 +1059,26 @@ def test_bbce_households_note_facts() -> None:
         adjustment = _parameter("min_allotment/published_adjustment.yaml")[
             "CONTIGUOUS_US"
         ]
-        for fiscal_year, monthly in ((2026, minimum), (2027, minimum_from_october)):
-            start = date(fiscal_year - 1, 10, 1)
-            assert round(rate * one_person[start]) + adjustment.get(start, 0) == (
-                monthly
-            )
+        # The adjustment is 0 from 2015 until FY2027, so a fiscal year without
+        # its own entry takes 0.
+        assert [k for k in adjustment if k.year < 2026] == [date(2015, 10, 1)]
+        engine_minimums = {
+            fiscal_year: round(rate * one_person[date(fiscal_year - 1, 10, 1)])
+            + adjustment.get(date(fiscal_year - 1, 10, 1), 0)
+            for fiscal_year in (2024, 2025, 2026, 2027)
+        }
+        assert engine_minimums[2026] == minimum
+        assert engine_minimums[2027] == minimum_from_october
         assert one_person[date(2025, 10, 1)] == 298
         assert adjustment[date(2026, 10, 1)] == 1
+        # The engine rounds 8% of the one-person maximum to the dollar, as
+        # SNAP does (policyengine-us#9162).
+        min_allotment_source = (
+            engine_dir / "variables/gov/usda/snap/snap_min_allotment.py"
+        ).read_text()
+        assert "np.round(min_allotment.rate * relevant_max_allotment)" in (
+            min_allotment_source
+        )
     # None of the five is in a state with its own minimum or its own maximum.
     assert not {states[s] for s in households} & {"AK", "HI", "NJ", "MD", "DC"}
     pin(
@@ -1057,9 +1089,13 @@ def test_bbce_households_note_facts() -> None:
         "a month through September 2026 and ${minimumFromOctober} from October.",
         # PolicyBench scores every answer against the PolicyEngine reference
         # (the payload's groundTruth is the committed reference CSV), below.
+        # The freeze date is the law cutoff the references follow, as the
+        # convention's rule states it; the references themselves were rebuilt
+        # on the engine upgrade's date, after it.
         "PolicyBench grades answers against references from PolicyEngine, the "
         "open-source tax and benefit model, and the references follow law "
-        f"published before PolicyBench froze them on {_month_day(freeze.group(1))}.",
+        f"published before PolicyBench's {_month_day(freeze.group(1))} reference "
+        "freeze.",
         f"USDA published the ${{minimumFromOctober}} minimum on "
         f"{_month_day(fy2027.group(1))}, so the references keep "
         "${minimumMonthly} through December and put each household at that "
@@ -1105,13 +1141,16 @@ def test_bbce_households_note_facts() -> None:
     sizes = {s: int(by_id[s]["household_size"]) for s in households}
     assert set(sizes.values()) <= {1, 2}
     pin(
-        # 7 CFR 273.10(e)(2)(ii)(C): "all eligible one-person and two-person
-        # households shall receive minimum monthly allotments equal to the
-        # minimum benefit", so $0 for a year is an answer that the household
-        # qualifies in no month (the minimum checks above).
-        "Each of the {householdCount:words} has one or two people, so an answer "
-        "of $0 means the household does not qualify, and that answer could keep "
-        "someone who qualifies from applying."
+        # 7 CFR 273.10(e)(2)(ii)(C): "Except during an initial month, all
+        # eligible one-person and two-person households shall receive minimum
+        # monthly allotments equal to the minimum benefit". An initial month's
+        # prorated allotment can fall below it (273.10(e)(2)(ii)(B)); the
+        # references are full-year amounts with no proration, so $0 for the
+        # year is the answer for a household that qualifies in no month (the
+        # minimum checks above).
+        "Each of the {householdCount:words} has one or two people, so $0 is the "
+        "right answer only for a household that does not qualify, and an answer "
+        "of $0 could keep someone who qualifies from applying."
     )
     # The Texas resident with wages and financial assistance.
     texan = _person(scenarios[texas_id], "head")
@@ -1390,8 +1429,8 @@ def test_bbce_households_note_facts() -> None:
         "{bbceGrossLimitHigh}% starting with benefit month March 2026.",
         "None of these states tests net income for the non-cash benefit, and "
         f"only {texas} keeps an asset limit for it.",
-        "Each household has one or two people and gross income under its "
-        f"state's BBCE limit, the {names[arizona]} resident from March.",
+        "Each household's gross income is under its state's BBCE limit, the "
+        f"{names[arizona]} resident's from March.",
         # The single formula and the contributions above the maximum (above).
         "BBCE leaves SNAP's benefit formula in place, and at these incomes the "
         "formula pays nothing, so each household gets the minimum.",
@@ -1676,15 +1715,46 @@ def test_bbce_households_note_facts() -> None:
         f"{{overLimitTx:words}} for the {texas} resident.",
         "PolicyEngine puts both households under their states' limits, the "
         f"{names[arizona]} resident from March.",
-        # "One": the one Texas explanation in both groups (above).
-        "Another {netLimitOnly:words} cite a net income limit or test, as does "
-        f"one of the {{overLimitTx:words}} for the {texas} resident, though none "
-        "of these households' states applies a net income test under BBCE.",
+        # "Another": the net-only group, disjoint from the over-limit group
+        # (above). No state here tests net income under BBCE (above).
+        "Another {netLimitOnly:words} cite a net income limit or test, though "
+        "none of these households' states applies one under BBCE.",
         f"The last {{formulaOnly:words}}, from "
         f"{display['gemini-3-flash-preview']} and "
         f"{display['gemini-3.1-pro-preview']}, write that the {names[couple_id]} "
         "couple meets BBCE, then answer $0 because the benefit formula pays "
         "nothing, and neither applies the minimum.",
+    )
+    # The explanations that mention BBCE and answer above $0: those that match
+    # the reference, and those that apply the minimum at twelve times one
+    # monthly amount below this year's, $23, which every one of them writes
+    # (or its $276 a year) beside the word minimum. $23 is the minimum the
+    # engine gives for FY2024 and FY2025, through September 2025.
+    above_mentions = [
+        row for row in income_mentions if row["prediction"] not in ("", 0.0)
+    ]
+    assert len(income_mention_zeros) + len(above_mentions) == len(income_mentions)
+    income_hits = [row for row in above_mentions if row["within_1_dollar"]]
+    stale = [row for row in above_mentions if row["prediction"] < reference_amount]
+    assert not any(row["within_1_dollar"] for row in stale)
+    (stale_annual,) = {row["prediction"] for row in stale}
+    previous_minimum = stale_annual / 12
+    assert previous_minimum.is_integer() and previous_minimum < minimum
+    previous_minimum = int(previous_minimum)
+    for row in stale:
+        stale_text = explanation(row["scenario_id"], row["model"])
+        assert "minimum" in stale_text.lower(), row["model"]
+        assert (
+            f"${previous_minimum}" in stale_text
+            or f"${int(stale_annual)}" in stale_text
+        ), row["model"]
+    if engine_minimums is not None:
+        assert engine_minimums[2024] == engine_minimums[2025] == previous_minimum
+    pin(
+        "Of the {incomeBbceAbove0} that mention BBCE and answer above $0, "
+        "{incomeBbceHits:words} match the reference, and {staleMinimum:words} "
+        "apply the minimum at its amount through September 2025, "
+        "${previousMinimum} a month, and answer ${previousMinimumAnnual}."
     )
 
     # GPT-6 Astra gets the most, each hit citing its state's high gross limit
@@ -1964,11 +2034,10 @@ def test_bbce_households_note_facts() -> None:
         f"All {{nModels}} models answer $0 for the {names[arizona]} resident, "
         f"whose gross income falls between {names[arizona]}'s old and new BBCE "
         "limits.",
-        # The references put the resident at the minimum in each month from
-        # March (above) on the upgrade's engine, which encodes the raise.
+        # The references come from the upgrade's engine, which encodes the
+        # raise (the upgrade's record of the Arizona change, above).
         "PolicyBench's references use policyengine-us {engineVersion}, which "
-        "encodes the raise, and put the resident's amount at the minimum for "
-        "the {azMonths} months from March.",
+        "encodes the raise.",
         f"{', '.join(before_names[:-1])}, and {before_names[-1]} give "
         f"{names[arizona]}'s limit as {{azLimitBefore}}%, the limit before March.",
     )
@@ -2024,14 +2093,47 @@ def test_bbce_households_note_facts() -> None:
     assert float(worker_row["tanf_non_cash_gross_ratio_min"]) > high
     worker = _person(scenarios[worker_id], "head")
     assert worker["employment_income"] > 0 and worker["child_support_expense"] > 0
-    # The earlier version of this note, first published September 23, counted
-    # the worker among its households.
+    # The version of this note published September 23 counted the worker
+    # among its households; its next version, and every later one, did not.
     first = _git_json(BBCE_NOTE_FIRST_COMMIT, BBCE_NOTE_EARLIER_PATH)
+    revised = _git_json(BBCE_NOTE_REVISED_COMMIT, BBCE_NOTE_EARLIER_PATH)
     assert first["slug"] == BBCE_NOTE_EARLIER and first["date"] == "2026-09-23"
     assert first["facts"]["householdCount"] == len(full_year) + 1
-    assert f"/?country=us&scenario={worker_id}#scenarios" in {
-        entry["href"] for entry in first["data"]
-    }
+    assert revised["facts"]["householdCount"] == len(full_year)
+    worker_link = f"/?country=us&scenario={worker_id}#scenarios"
+    assert worker_link in {entry["href"] for entry in first["data"]}
+    assert worker_link not in {entry["href"] for entry in revised["data"]}
+    import subprocess
+
+    later_commits = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "rev-list",
+            f"{BBCE_NOTE_FIRST_COMMIT}..HEAD",
+            "--",
+            BBCE_NOTE_EARLIER_PATH,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    assert BBCE_NOTE_REVISED_COMMIT in later_commits
+    # Each later commit that holds a version (the October 5 commit deletes it).
+    held = 0
+    for commit in later_commits:
+        shown = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{commit}:{BBCE_NOTE_EARLIER_PATH}"],
+            capture_output=True,
+        )
+        if shown.returncode != 0:
+            continue
+        version_then = json.loads(shown.stdout)
+        assert version_then["facts"]["householdCount"] == len(full_year), commit
+        assert worker_link not in {e["href"] for e in version_then["data"]}, commit
+        held += 1
+    assert held >= 3
     # The second Texas household: its reference assumed hours of work the
     # prompt does not list, and PolicyBench excludes it.
     second_texan = snap_exclusions[second_texan_id]
@@ -2044,12 +2146,41 @@ def test_bbce_households_note_facts() -> None:
     assert payload["scenarios"][second_texan_id]["state"] == "TX"
     for prompt in payload["scenarios"][second_texan_id]["prompt"].values():
         assert "hours" not in _household_block(prompt)
-    # What the September 3 note said about receipt and the asset test.
+    # What the September 3 note said about receipt and the asset test, and
+    # the four states it named.
+    sept3_states = ["Connecticut", "Michigan", "Texas", "Wisconsin"]
     assert (
-        "confer SNAP eligibility on households receiving a TANF-funded non-cash benefit"
+        f"{', '.join(sept3_states[:-1])}, and {sept3_states[-1]} confer SNAP "
+        "eligibility on households receiving a TANF-funded non-cash benefit"
     ) in previous_text
-    assert "the net-income and asset tests waived" in previous_text
+    assert "and the net-income and asset tests waived." in previous_text
+    assert {names[s] for s in full_year} == set(sept3_states)
     texas_asset_limit = march["TX"]["asset_limit"]
+    # How PolicyEngine computed that note's amounts: its references' engine,
+    # 1.755.4, is the one the September 22 pathway recomputation ran, whose
+    # categorical eligibility programs read eligibility for the non-cash
+    # benefit; on it, each of the four full-year households reaches its
+    # $287.68 through that route, eligible for the non-cash benefit all year,
+    # with no TANF and no receipt input in its scenario (above).
+    meta_0922 = _load_json(PATHWAYS_0922_META_PATH)
+    assert (
+        previous["facts"]["referenceEngineVersion"]
+        == meta_0922["policyengine_us_version"]
+    )
+    assert meta_0922["bbce_parameters"]["snap_categorical_eligibility_programs"] == [
+        "ssi",
+        "is_tanf_non_cash_eligible",
+        "tanf",
+    ]
+    rows_0922 = {row["scenario_id"]: row for row in _read_csv(PATHWAYS_0922_PATH)}
+    for scenario_id in full_year:
+        row = rows_0922[scenario_id]
+        assert f"{float(row['snap_frozen']):.2f}" == previous_reference
+        assert abs(float(row["snap_frozen_engine"]) - float(row["snap_frozen"])) < 0.01
+        assert row["tanf_non_cash_eligible_months"] == "12"
+        assert float(row["tanf"]) == 0
+        for column in ("pathway_jan_sep", "pathway_oct_dec"):
+            assert row[column] in {"categorical_income", "categorical_both"}
     # Four of its six are this note's four full-year households.
     assert set(previous["facts"]["deniedScenarios"]) & set(households) == set(full_year)
     # The worker is over Michigan's BBCE limit (above), which is the high
@@ -2061,7 +2192,10 @@ def test_bbce_households_note_facts() -> None:
         "{fullYearCount:words} of them among the {householdCount:words} here, at "
         "${sept3Reference} each, an amount PolicyBench computed from "
         "PolicyEngine's unrounded minimum.",
-        "SNAP rounds the minimum to the nearest dollar (policyengine-us #9162).",
+        # r28's rule and policyengine-us#9162 (above), and 2.15.17's formula,
+        # read above when it is installed.
+        "SNAP rounds the minimum to the nearest dollar, and so does PolicyEngine "
+        "(policyengine-us #9162).",
         "One of the {sept3HouseholdCount:words}, a Michigan worker who pays "
         "child support, does not qualify.",
         # r33's rule: a state like Michigan counts the child support in gross
@@ -2072,17 +2206,20 @@ def test_bbce_households_note_facts() -> None:
         "computing net income, and once PolicyEngine does the same "
         "(policyengine-us #9586), the worker's gross income exceeds Michigan's "
         "{bbceGrossLimitHigh}% BBCE limit.",
-        "An earlier version of this note, first published "
-        f"{_month_day(first['date'])}, counted the worker among its households.",
+        f"The version of this note published {_month_day(first['date'])} "
+        "counted the worker among its households.",
         "PolicyBench no longer scores another of the "
         "{sept3HouseholdCount:words}, a second Texas household, whose "
         "reference assumed {assumedHours} hours of work a week that the prompt "
         "does not list.",
-        f"The {_month_day(previous['date'])} note also described BBCE as covering "
-        "households that receive the non-cash benefit, while PolicyEngine applies "
-        "it to every household eligible for that benefit.",
-        "It said these states waive the asset test, but "
-        f"{texas} keeps a ${{bbceAssetLimitTx}} asset limit.",
+        # Its text says receipt; its amounts came from eligibility (above).
+        f"The {_month_day(previous['date'])} note described BBCE as covering "
+        "households that receive the non-cash benefit, but PolicyEngine computed "
+        "its amounts by applying BBCE to every household eligible for that "
+        "benefit.",
+        f"It also said {', '.join(sept3_states[:-1])}, and {sept3_states[-1]} "
+        f"waive the asset test, but {texas} keeps a ${{bbceAssetLimitTx}} asset "
+        "limit.",
     )
 
     # The September 3 note links this one and points to it in its last
@@ -2202,6 +2339,11 @@ def test_bbce_households_note_facts() -> None:
         "overLimitTx": sum(s == texas_id for _, s in over_limit),
         "netLimitOnly": len(net_only),
         "formulaOnly": len(formula_only),
+        "incomeBbceAbove0": len(above_mentions),
+        "incomeBbceHits": len(income_hits),
+        "staleMinimum": len(stale),
+        "previousMinimum": previous_minimum,
+        "previousMinimumAnnual": _whole_or_cents(stale_annual),
         "astraHits": best,
         "sol61Hits": len(sol61_hits),
         "opusOn108": _whole_or_cents(opus[wisconsin_id]),
@@ -2211,7 +2353,6 @@ def test_bbce_households_note_facts() -> None:
         "sol6On030": _whole_or_cents(texas_answers["gpt-6-sol"]),
         "opusOn030": _whole_or_cents(texas_answers["claude-opus-5.5"]),
         "engineVersion": engine,
-        "azMonths": az_months,
         "sept3HouseholdCount": previous["facts"]["deniedCount"],
         "sept3Reference": previous_reference,
         "assumedHours": int(assumed_hours.group(1)),
@@ -2406,8 +2547,8 @@ def test_september_3_note_describes_the_later_release() -> None:
         "${laterReference} each, and scores a Michigan worker who pays child "
         "support at $0: once PolicyEngine counts that child support in gross "
         "income, as Michigan does (policyengine-us #9586), the worker does not "
-        "qualify. It no longer scores the amount of a Texas household whose "
-        "amount PolicyEngine computed with hours of work the prompt does not list."
+        "qualify. PolicyBench no longer scores a Texas household's SNAP amount, "
+        "which PolicyEngine computed with hours of work the prompt does not list."
     )
     assert not any(LATER_RELEASE in p for p in previous["paragraphs"][:-1])
     links = {entry["label"]: entry["href"] for entry in previous["data"]}
