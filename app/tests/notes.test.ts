@@ -55,7 +55,9 @@ describe("notes", () => {
     expect(markup).toContain("release dashboard-data-20260930");
     // Cents stay as written; whole-dollar facts get thousands separators.
     expect(markup).toContain("GPT-6 Sol answers $1,208.40");
-    expect(markup).toContain("six households at $287.68 each");
+    expect(markup).toContain(
+      "six households, four of them among the five here, at $287.68 each",
+    );
     expect(markup).toContain("$12,000 of financial assistance");
     expect(markup).toContain("hold $48,000 and $58,700 in savings");
     // Whole-number shares are not board rates, so they keep no decimal.
@@ -104,6 +106,9 @@ describe("notes", () => {
     );
     expect(markup).toContain(
       "$288 for 2026 for four households, and $240 for an Arizona resident who qualifies from March",
+    );
+    expect(markup).toContain(
+      "$24 a month through September 2026 and $25 from October",
     );
     expect(markup).toContain("GPT-6 Astra gets three of the five households right");
     expect(markup).toContain(
