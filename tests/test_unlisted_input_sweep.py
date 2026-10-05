@@ -1414,7 +1414,9 @@ def test_composed_reform_runs_the_fix_then_removes_local_taxes():
     composed, seen = sweep.compose_reform(FixReform, adapter=True)
     system = FakeReformSystem()
     composed.apply(system)
-    assert applied == ["fix"]
+    # A second pass sees the scoped lists; the record keeps what the fix left.
+    composed.apply(system)
+    assert applied == ["fix", "fix"]
     assert seen["listed"] == ["nyc_income_tax_before_refundable_credits"]
     aggregate = system.parameters.gov.states.household
     assert aggregate.state_income_tax_before_refundable_credits("2026-01-01") == [

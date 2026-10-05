@@ -1074,7 +1074,11 @@ def compose_reform(fix_reform, adapter: bool):
         def apply(self):
             if fix_reform is not None:
                 fix_reform.apply(self)
-            seen["listed"] = output_scope.all_listed_local_components(self.parameters)
+            # The engine can apply a reform more than once; a later pass sees the
+            # lists the adapter already scoped, so keep the first observation.
+            seen.setdefault(
+                "listed", output_scope.all_listed_local_components(self.parameters)
+            )
             if adapter:
                 self.modify_parameters(output_scope.remove_local_components)
 
