@@ -15,7 +15,7 @@
       "classification": "optional_employer_pass_through",
       "law_citation": "Minn. Stat. 268B.14, subds. 1, 3 and 5a",
       "law_url": "https://www.revisor.mn.gov/statutes/cite/268B.14",
-      "employee_share_rule_text": "Minnesota Paid Leave premiums \"accrue and become payable by each employer\" (Minn. Stat. 268B.14, subd. 1); the employer must pay at least 50 percent, and employees pay through wage deductions only \"the remaining portion, if any, of the premium not paid by the employer\" (subd. 3), so the employee share runs from 0 to 0.44% of wages at the employer's choice.",
+      "employee_share_rule_text": "Minnesota Paid Leave premiums \"accrue and become payable by each employer\" (Minn. Stat. 268B.14, subd. 1); the employer must pay at least 50 percent (small employers: at least a quarter of the full rate, subd. 5a), and employees pay through wage deductions only \"the remaining portion, if any, of the premium not paid by the employer\" (subd. 3), so the employee share runs from 0 to 0.44% of wages at the employer's choice.",
       "rate_2026": "0.88% total (0.66% for small employers); employee share at most 0.44% of wages up to the Social Security base",
       "benchmark_outputs": [
         "scenario_032"
@@ -72,7 +72,7 @@
       "law_citation": "M.G.L. c. 175M, s. 6(a), (c) and (d); 458 CMR 2.05(5)",
       "law_url": "https://malegislature.gov/Laws/GeneralLaws/PartI/TitleXXII/Chapter175M/Section6",
       "employee_share_rule_text": "Massachusetts PFML contributions are remitted by the employer (M.G.L. c. 175M, s. 6(a)), which may deduct up to 100 percent of the family and 40 percent of the medical contribution from wages (s. 6(c)) and may choose to deduct less (458 CMR 2.05(5)(c)).",
-      "rate_2026": "0.88% total (0.18% family, 0.70% medical); employee share at most 0.46% of wages up to the Social Security base. Acts 2026 c. 101 ss. 25-26 (approved 2026-06-12) swap the caps to 40% family and 100% medical; s. 45 applies them to taxable years beginning on or after 2026-01-01, while DFML (after the freeze) dates the change 2027-01-01. Under the literal s. 45 reading the 2026 cap would be 0.772%.",
+      "rate_2026": "0.88% total (0.18% family, 0.70% medical); employee share at most 0.46% of wages up to the Social Security base. Acts 2026 c. 101 (approved 2026-06-12) s. 25 strikes \"40\" in lines 22, 33 and 39 of s. 6 and s. 26 strikes \"100\" in lines 25, 33 and 43; s. 6 holds each figure exactly three times, in 6(c), 6(d) and 6(e), so the swap reaches the deduction caps (40% family, 100% medical). Its s. 45 applies ss. 25-26 \"for taxable years beginning on or after January 1, 2026\"; its s. 43(a) asks for guidance on \"the impact for employers and employees in calendar year 2027\"; the DFML rates page captured 2026-06-17, after approval, still showed 0.46%, and DFML later (after the freeze) dated the change 2027-01-01. Under the literal s. 45 reading the 2026 cap would be 0.772% ($1,351.02 for scenario_081).",
       "benchmark_outputs": [
         "scenario_081"
       ],
@@ -100,8 +100,8 @@
       "classification": "optional_employer_pass_through",
       "law_citation": "N.Y. Workers' Compensation Law ss. 209(3)-(4) and 210(1)",
       "law_url": "https://www.nysenate.gov/legislation/laws/WKC/209",
-      "employee_share_rule_text": "New York's covered employer must provide disability and Paid Family Leave coverage and pays its cost beyond what it collects (N.Y. Workers' Compensation Law s. 210(1)); the employer \"is authorized to collect\" employee contributions up to the statutory caps by payroll deduction (s. 209(4)), and the Workers' Compensation Board says an employer \"is allowed, but not required\" to collect them.",
-      "rate_2026": "PFL 0.432% of wages, at most $411.91; DBL 0.5% of wages, at most $0.60 a week",
+      "employee_share_rule_text": "New York's covered employer must provide disability and Paid Family Leave coverage; it pays the disability cost beyond what it collects (N.Y. Workers' Compensation Law s. 210(1)), no employer is required to fund Paid Family Leave (s. 209(3)(b)), and the employer \"is authorized to collect\" employee contributions up to the statutory caps by payroll deduction (s. 209(4)). The Workers' Compensation Board says an employer \"is allowed, but not required\" to collect them.",
+      "rate_2026": "PFL 0.432% of wages, at most $411.91; DBL 0.5% of wages, at most $0.60 a week ($31.20 over 52 weeks; a weekly payroll with 53 paydays in 2026 could reach $31.80)",
       "benchmark_outputs": [
         "scenario_082"
       ],
@@ -243,7 +243,7 @@
     }
   ],
   "programs_without_a_benchmark_household": {
-    "note": "No benchmark household lives in these states, so no reference depends on them. Each was researched once (verification/law_research.json, key OTHER) and not adversarially reviewed; payroll_mandatory_scope.py does not touch them.",
+    "note": "No benchmark household with wages lives in these states (two Washington households, scenario_002 and scenario_111, have no wages), so no reference depends on them. Each was researched once (verification/law_research.json, key OTHER) and not adversarially reviewed; payroll_mandatory_scope.py does not touch them.",
     "programs": [
       {
         "program": "Washington Paid Family and Medical Leave (PFML) premium, employee share",

@@ -15,12 +15,18 @@ engine counts the largest share the employer may deduct. Its Minnesota variable 
 "assuming the employer withholds the maximum permitted employee share"
 (variables/gov/states/mn/tax/payroll/paid_leave/mn_employee_paid_leave_contribution.py).
 
-This module removes those programs (``OPTIONAL``, classified from primary law in
-``../program_classification.json``) from the list behind ``employee_state_payroll_tax``,
-so the scored output again matches its definition. Only the list changes; no formula,
-rate or amount changes, and every mandatory employee contribution stays in. It mirrors
-the 2026-09-28 Maryland output-scope adapter
+This module removes the reviewed programs of that kind that reach a benchmark household
+(``OPTIONAL``, classified from primary law in ``../program_classification.json``) from
+the list behind ``employee_state_payroll_tax``, so the scored output reads "mandatory"
+as the amount the law requires of the employee. Only the list changes; no formula, rate
+or amount changes, and every mandatory employee contribution stays in. It has the form
+of the 2026-09-28 Maryland output-scope adapter
 (reference_audit/2026-09-28/fixes/latest_md_local_output_scope.py).
+
+It leaves in Delaware's, Maine's and Vermont's employee shares, which the same research
+classifies as optional pass-throughs, and Washington's paid leave share (mixed). No
+benchmark household earns wages in those states, and they were not adversarially
+reviewed, so an upstream change would need to settle them first.
 """
 
 from policyengine_core.reforms import Reform

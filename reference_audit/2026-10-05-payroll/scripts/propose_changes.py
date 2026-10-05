@@ -8,12 +8,15 @@ format a release would install:
     One entry per scored output the output-scope adapter moves: the frozen reference,
     the regenerated value (policyengine-us 2.15.17 + latest_final +
     fixes/payroll_mandatory_scope.py), and the program law. A release that adopts it
-    writes the values into the reference CSV and adds one ``output_scope`` revision to
-    the reference sidecar, as the Maryland adapter was recorded.
+    writes the values into the reference CSV and records the adapter in the reference
+    sidecar. The Maryland adapter is a ``fix_modules`` entry inside the single
+    ``engine_upgrade`` revision, and the freeze requires that revision to be last, so a
+    release must choose how to record this one (README, release checklist).
 ``proposed_exclusions.json``
     One ``reference_depends_on_unlisted_input`` record per such output, in the format of
-    the frozen run's ``reference_exclusions.json``. The unlisted input is whether the
-    employer deducts the employee share, which the law leaves to the employer.
+    the frozen run's ``reference_exclusions.json``. All four share one unlisted input:
+    whether the employer deducts the employee share, which the law leaves to the employer,
+    and so which reading of "mandatory employee state payroll taxes" applies.
 
 Both change published scores, so they wait for Max's ruling; ``decided_on`` is the date
 the proposal was drafted and a release sets it to the ruling's date.
@@ -42,6 +45,11 @@ ADAPTER = HERE / "fixes/payroll_mandatory_scope.py"
 DRAFTED_ON = "2026-10-05"
 ENGINE = "policyengine-us 2.15.17"
 OUTPUT = "payroll_tax"
+UNLISTED_INPUT = (
+    "whether the employer deducts the employee share of a state paid-leave or disability "
+    "premium that the law lets it deduct but does not require, which decides whether "
+    "that share is a mandatory employee state payroll tax"
+)
 STATUS = (
     f"proposed {DRAFTED_ON}; changes published scores, so it waits for Max's ruling "
     "(cos decision). decided_on is the draft date; a release sets it to the ruling's "
@@ -122,7 +130,6 @@ def main() -> None:
             program = program_for(leaf, programs)
             if program not in cited:
                 cited.append(program)
-        names = " and ".join(p["program"] for p in cited)
         law = "; ".join(p["law_citation"] for p in cited)
         removed_text = ", ".join(
             f"{leaf} {money(amount)}" for leaf, amount in sorted(removed.items())
@@ -163,12 +170,14 @@ def main() -> None:
                 "alternative_reading": (
                     f"The prompt defines payroll_tax as employee Social Security, "
                     f"Medicare and Additional Medicare Tax plus mandatory employee state "
-                    f"payroll taxes. {why} The reference counts the largest employee "
-                    f"share the employer may deduct ({removed_text}), as policyengine-us "
-                    f"assumes. Read as an employer premium that is not a mandatory "
-                    f"employee tax, or with an employer that does not deduct it, the "
-                    f"output is employee federal payroll tax alone, the alternative "
-                    f"value (policyengine-us 2.15.17 with latest_final and "
+                    f"payroll taxes, and says to exclude employer payroll taxes. {why} "
+                    f"The reference reads 'mandatory' as the employee share the statute "
+                    f"sets, withheld unless the employer elects to pay it, and counts "
+                    f"the largest share the employer may deduct ({removed_text}), as "
+                    f"policyengine-us assumes. Read as the amount the law requires of "
+                    f"the employee whatever the employer does, which is $0, the output "
+                    f"is employee federal payroll tax alone: the alternative value "
+                    f"(policyengine-us 2.15.17 with latest_final and "
                     f"payroll_mandatory_scope)."
                 ),
                 "frozen_value": float(row.final),
@@ -176,10 +185,7 @@ def main() -> None:
                 "engine_version": ENGINE,
                 "decided_on": DRAFTED_ON,
                 "decided_by": "developer",
-                "unlisted_input": (
-                    f"whether the employer deducts the employee share of {names} from "
-                    f"wages, which the law permits but does not require ({law})"
-                ),
+                "unlisted_input": UNLISTED_INPUT,
                 "note": (
                     f"Found {DRAFTED_ON} by classifying every state program in the "
                     f"payroll references from primary law "
@@ -187,8 +193,8 @@ def main() -> None:
                     f"and sweeping all 1,984 outputs with the programs classified as "
                     f"optional employer pass-through left out of employee state payroll "
                     f"tax; that moves this output alone in its household and no other "
-                    f"output. The frozen value has been the reference since the first "
-                    f"run (2026-06-15)."
+                    f"output. The law: {law}. The frozen value has been the reference "
+                    f"since the first run (references generated 2026-06-12)."
                 ),
             }
         )
@@ -205,9 +211,9 @@ def main() -> None:
                 **common,
                 "basis": (
                     "The benchmark's output definitions hold (reference_audit/2026-09-28 "
-                    "rule 3): an output-scope adapter restores the payroll_tax "
-                    "definition, as latest_md_local_output_scope.py restored the state "
-                    "income tax output's."
+                    "rule 3), reading 'mandatory employee state payroll taxes' as the "
+                    "amount the law requires of the employee. An output-scope adapter "
+                    "applies that reading, in the form of latest_md_local_output_scope.py."
                 ),
                 "regenerated": regenerated,
             },
@@ -220,10 +226,13 @@ def main() -> None:
             {
                 **common,
                 "basis": (
-                    "policybench/reference_exclusions.py: an output is excluded for every "
-                    "model when its reference depends on an engine input the prompt "
-                    "never listed and a careful reader could take the stated facts the "
-                    "other way."
+                    "A reference that turns on an input or definition the prompt never "
+                    "states is excluded (reference_audit/2026-09-22 rule 4; "
+                    "reference_audit/2026-09-28 rule 4). The input here is an "
+                    "employer-arrangement fact with no engine input, as in r24 (who paid "
+                    "for the coverage behind listed disability benefits) and r25 (whether "
+                    "the federal output includes the net investment income tax), both "
+                    "recorded as reference_depends_on_unlisted_input."
                 ),
                 "exclusions": excluded,
             },
