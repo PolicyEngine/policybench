@@ -96,6 +96,20 @@ describe("notes", () => {
     expect(note).toBeDefined();
     expect(note!.date).toBe("2026-10-05");
     expect(note!.release).toBe("dashboard-data-20260930");
+    const description = interpolateNoteText(note!, note!.paragraphs[0]);
+    expect(description.length).toBeLessThan(600);
+    expect(description).toEndWith(
+      "Of the 230 answers PolicyBench requests for these households, 190 come to $0 and seven match the reference.",
+    );
+    expect(note!.paragraphs[1]).toStartWith(
+      "PolicyBench grades answers against references from PolicyEngine",
+    );
+    expect(note!.paragraphs[1]).toContain(
+      "USDA published the ${minimumFromOctober} minimum",
+    );
+    expect(note!.paragraphs[2]).toStartWith(
+      "Each household qualifies only through broad-based categorical eligibility (BBCE).",
+    );
     const markup = renderToStaticMarkup(
       createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
     );
@@ -132,7 +146,7 @@ describe("notes", () => {
       createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "A later note, published October 5, corrects this one. From release dashboard-data-20260922c on, PolicyBench scores the SNAP amounts of four of these six households at $288 each, and scores a Michigan worker who pays child support at $0",
+      "A later note, published October 5, corrects this one. From release dashboard-data-20260922c on, PolicyBench scores the SNAP amounts of four of these six households at $288 each, and scores a Michigan worker who pays child support at $0: PolicyEngine counts that child support in gross income, as Michigan does (policyengine-us #9586), and the worker does not qualify.",
     );
     expect(markup).toContain(
       'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922c"',

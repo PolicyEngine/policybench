@@ -760,6 +760,7 @@ def test_bbce_households_note_facts() -> None:
     for number, topic in (
         ("9162", "SNAP minimum rounding"),
         ("9586", "SNAP child support treatment"),
+        ("9671", "SNAP farm rent"),
     ):
         assert links[f"policyengine-us #{number} ({topic})"] == (
             f"https://github.com/PolicyEngine/policyengine-us/pull/{number}"
@@ -1148,9 +1149,9 @@ def test_bbce_households_note_facts() -> None:
         # references are full-year amounts with no proration, so $0 for the
         # year is the answer for a household that qualifies in no month (the
         # minimum checks above).
-        "Each of the {householdCount:words} has one or two people, so $0 is the "
-        "right answer only for a household that does not qualify, and an answer "
-        "of $0 could keep someone who qualifies from applying."
+        "Each of the {householdCount:words} has one or two people, so an answer "
+        "of $0 says the household does not qualify, and that answer could keep "
+        "someone who qualifies from applying."
     )
     # The Texas resident with wages and financial assistance.
     texan = _person(scenarios[texas_id], "head")
@@ -1738,23 +1739,22 @@ def test_bbce_households_note_facts() -> None:
     stale = [row for row in above_mentions if row["prediction"] < reference_amount]
     assert not any(row["within_1_dollar"] for row in stale)
     (stale_annual,) = {row["prediction"] for row in stale}
-    previous_minimum = stale_annual / 12
-    assert previous_minimum.is_integer() and previous_minimum < minimum
-    previous_minimum = int(previous_minimum)
+    fy2025_minimum = stale_annual / 12
+    assert fy2025_minimum.is_integer() and fy2025_minimum < minimum
+    fy2025_minimum = int(fy2025_minimum)
     for row in stale:
         stale_text = explanation(row["scenario_id"], row["model"])
         assert "minimum" in stale_text.lower(), row["model"]
         assert (
-            f"${previous_minimum}" in stale_text
-            or f"${int(stale_annual)}" in stale_text
+            f"${fy2025_minimum}" in stale_text or f"${int(stale_annual)}" in stale_text
         ), row["model"]
     if engine_minimums is not None:
-        assert engine_minimums[2024] == engine_minimums[2025] == previous_minimum
+        assert engine_minimums[2024] == engine_minimums[2025] == fy2025_minimum
     pin(
         "Of the {incomeBbceAbove0} that mention BBCE and answer above $0, "
         "{incomeBbceHits:words} match the reference, and {staleMinimum:words} "
         "apply the minimum at its amount through September 2025, "
-        "${previousMinimum} a month, and answer ${previousMinimumAnnual}."
+        "${fy2025Minimum} a month, and answer ${fy2025MinimumAnnual}."
     )
 
     # GPT-6 Astra gets the most, each hit citing its state's high gross limit
@@ -2029,7 +2029,27 @@ def test_bbce_households_note_facts() -> None:
         "is 185% of the Federal Poverty Level"
     ) in explanation(arizona, "gemini-3-flash-preview")
     assert "encoded upstream after 1.755.4" in az_change["basis"]
-    before_names = [display[m] for m in cites_before]
+    arizona_over_models = {m for m, s in over_limit if s == arizona}
+    assert arizona_over_models == {
+        "gpt-6-astra",
+        "gpt-6.1-sol",
+        "gemini-3.5-flash",
+        "gemini-3.8-flash",
+    }
+    assert arizona_over_models & set(cites_before) == {
+        "gemini-3.5-flash",
+        "gemini-3.8-flash",
+    }
+    assert set(cites_before) - arizona_over_models == {"gemini-3-flash-preview"}
+    arizona_over_names = [
+        display[m]
+        for m in (
+            "gpt-6-astra",
+            "gpt-6.1-sol",
+            "gemini-3.5-flash",
+            "gemini-3.8-flash",
+        )
+    ]
     pin(
         f"All {{nModels}} models answer $0 for the {names[arizona]} resident, "
         f"whose gross income falls between {names[arizona]}'s old and new BBCE "
@@ -2038,7 +2058,10 @@ def test_bbce_households_note_facts() -> None:
         # raise (the upgrade's record of the Arizona change, above).
         "PolicyBench's references use policyengine-us {engineVersion}, which "
         "encodes the raise.",
-        f"{', '.join(before_names[:-1])}, and {before_names[-1]} give "
+        f"{', '.join(arizona_over_names[:-1])}, and {arizona_over_names[-1]} "
+        "write that the resident's income exceeds Arizona's categorical "
+        "eligibility limit; the two Gemini models, along with "
+        f"{display['gemini-3-flash-preview']}, give "
         f"{names[arizona]}'s limit as {{azLimitBefore}}%, the limit before March.",
     )
 
@@ -2146,6 +2169,34 @@ def test_bbce_households_note_facts() -> None:
     assert payload["scenarios"][second_texan_id]["state"] == "TX"
     for prompt in payload["scenarios"][second_texan_id]["prompt"].values():
         assert "hours" not in _household_block(prompt)
+        farm_rent_lines = [
+            line
+            for line in _household_block(prompt).splitlines()
+            if "farm rent" in line
+        ]
+        assert farm_rent_lines == ["- farm rent income: $1,920"]
+    assert "the models counted farm-rent income the rules exclude." in previous_text
+    for parameters in pathway_meta["snap_parameters"].values():
+        assert "rental_income" in parameters["unearned_income_sources"]
+        assert "farm_rent_income" not in parameters["unearned_income_sources"]
+    # eCFR 7 CFR 273.9(b)(2)(ii) counts rental income minus business costs
+    # as unearned income; (b)(1)(ii) treats rental income as self-employment
+    # income when property management averages at least 20 hours a week.
+    # Verified against the eCFR versioner XML for section 273.9:
+    # https://www.ecfr.gov/api/versioner/v1/full/2026-10-01/title-7.xml?part=273&section=273.9
+    # policyengine-us #9671 (merged October 3) adds farm rent to SNAP's
+    # unearned income after this release's engine, 2.15.17.
+    # The prompt does not name the source of its financial assistance, so
+    # these listed facts do not establish a gross-income consequence.
+    farm_rent_correction = (
+        "The September 3 note also says SNAP excludes that household's farm "
+        "rent, but SNAP counts rent, including farm rent, as unearned income "
+        "under 7 CFR 273.9(b)(2), or as self-employment income when the landlord "
+        "averages at least 20 hours a week managing the property "
+        "(policyengine-us #9671)."
+    )
+    pin(farm_rent_correction)
+    assert ("does not list. " + farm_rent_correction) in note["paragraphs"][-1]
     # What the September 3 note said about receipt and the asset test, and
     # the four states it named.
     sept3_states = ["Connecticut", "Michigan", "Texas", "Wisconsin"]
@@ -2203,8 +2254,8 @@ def test_bbce_households_note_facts() -> None:
         # policyengine-us#9586 does the same, and the worker's gross income is
         # then above the 200% limit in every month (above).
         "Michigan counts that child support in gross income and deducts it when "
-        "computing net income, and once PolicyEngine does the same "
-        "(policyengine-us #9586), the worker's gross income exceeds Michigan's "
+        "computing net income, as PolicyEngine does (policyengine-us #9586), "
+        "which puts the worker's gross income above Michigan's "
         "{bbceGrossLimitHigh}% BBCE limit.",
         f"The version of this note published {_month_day(first['date'])} "
         "counted the worker among its households.",
@@ -2215,7 +2266,7 @@ def test_bbce_households_note_facts() -> None:
         # Its text says receipt; its amounts came from eligibility (above).
         f"The {_month_day(previous['date'])} note described BBCE as covering "
         "households that receive the non-cash benefit, but PolicyEngine computed "
-        "its amounts by applying BBCE to every household eligible for that "
+        "that note's amounts by applying BBCE to every household eligible for that "
         "benefit.",
         f"It also said {', '.join(sept3_states[:-1])}, and {sept3_states[-1]} "
         f"waive the asset test, but {texas} keeps a ${{bbceAssetLimitTx}} asset "
@@ -2342,8 +2393,8 @@ def test_bbce_households_note_facts() -> None:
         "incomeBbceAbove0": len(above_mentions),
         "incomeBbceHits": len(income_hits),
         "staleMinimum": len(stale),
-        "previousMinimum": previous_minimum,
-        "previousMinimumAnnual": _whole_or_cents(stale_annual),
+        "fy2025Minimum": fy2025_minimum,
+        "fy2025MinimumAnnual": _whole_or_cents(stale_annual),
         "astraHits": best,
         "sol61Hits": len(sol61_hits),
         "opusOn108": _whole_or_cents(opus[wisconsin_id]),
@@ -2545,8 +2596,8 @@ def test_september_3_note_describes_the_later_release() -> None:
         f"{LATER_RELEASE} on, PolicyBench scores the SNAP amounts of "
         "{laterScoredCount:words} of these {deniedCount:words} households at "
         "${laterReference} each, and scores a Michigan worker who pays child "
-        "support at $0: once PolicyEngine counts that child support in gross "
-        "income, as Michigan does (policyengine-us #9586), the worker does not "
+        "support at $0: PolicyEngine counts that child support in gross "
+        "income, as Michigan does (policyengine-us #9586), and the worker does not "
         "qualify. PolicyBench no longer scores a Texas household's SNAP amount, "
         "which PolicyEngine computed with hours of work the prompt does not list."
     )
@@ -3529,8 +3580,8 @@ def test_release_20260929_note() -> None:
         "The Arizona household's income keeps it from qualifying for SNAP under "
         "the program's ordinary tests, so it qualifies only through broad-based "
         "categorical eligibility, and all {nModels} models answer $0 for it.",
-        "PolicyBench's October 5 note on such households counts it as a fifth "
-        "household held back by income, beside {bbceIncomeHeldCount:words} in "
+        "PolicyBench's October 5 note on such households counts it among five "
+        "held back by income, with {bbceIncomeHeldCount:words} in "
         "{bbceIncomeHeldStates}.",
         "That note's data list every model's answer for those five households "
         "and for the {bbceAssetHeldCount:words} held back by savings, including "
