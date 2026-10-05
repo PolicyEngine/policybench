@@ -162,8 +162,13 @@ The legacy household impact summary (`impact_summary_by_model.csv`) moves too. I
 - **Enrollment changes only weights.** `not_enrolled` sets `medicare_cost`, the impact weight of the 39 Medicare eligibility outputs, to 0. It changes no output.
 - **scenario_031's Medicaid annotations name the wrong mechanism.** They explain the reference (eligible, through California's optional senior-or-disabled pathway) by subtracting the Part B premium from income, and 43 row annotations fault models for not doing so.
   - On 2.15.17, `medicaid_optional_senior_or_disabled_countable_income` subtracts no premium. It applies SSI income rules with California's $230 monthly disregard: $23,853.47 less $2,760.00 is $21,093.47, under the $22,024.80 limit (138% of the 2026 poverty guideline).
-  - The values are the same under every reading here, so the reference is unaffected. The annotation text needs correcting; a separate task covers it.
-- **scenario_114's case notes.** The federal note lists "missing the Part B premium" among model errors. The Virginia note says the medical deduction includes the $2,000 of over-the-counter expenses, which the engine leaves out. A release adopting the records rewords both.
+  - The values are the same under every reading here, so the reference is unaffected. PolicyEngine/policybench#197 rewrites the case note, the reference explanation and the 43 rows to the engine's mechanism.
+- **scenario_114's annotations.** The session that made #197 checked them against the engine. Its row-by-row report and suggested wording are in a comment on this PR (PolicyEngine/policybench#193). This audit checked the counts and figures below.
+  - **Virginia case note.** Its error group (4) blames models for "leaving out the $2,000 over-the-counter expenses or adding the 0.5%-of-AGI charitable floor". The reference itself leaves out the over-the-counter expenses and applies the floor. What the short answers miss is the premium.
+  - **Virginia rows.** Six rows repeat the over-the-counter claim. About five more misstate the premium's role, among them the rows for GPT-6 Astra and GPT-6.1 Sol, whose answers match the value without the premium.
+  - **Federal case note.** It lists "missing the Part B premium" among model errors; that error rests on the unlisted premium. It also gives the SALT state income tax as $5,367.59 where the engine has $5,367.30, and six federal rows repeat that figure.
+
+  Excluded outputs stay in the published payload, so a release adopting the records rewords the rows as well as the notes.
 - **#191's README rounding.** With its records, #191 gives GPT-6 Sol's exact rate as 95.62% and the always-zero baseline as 70.40%. Its own outputs give 95.6146 and 70.3946, and this audit's #191-alone case reproduces both, so they round to 95.61% and 70.39%.
 
 ## What a release adopting the records must also do
@@ -175,7 +180,7 @@ Two sets of counts follow, one if d963 adopts #191's three records and one if it
    - scenario_114 Virginia: 45 rows;
    - scenario_114 federal: 45 rows, if the standalone record is used.
 
-   Reword the two case notes above.
+   Reword scenario_114's two case notes and the rows that repeat their errors (see "Related findings").
 3. **Pinned counts.** Each output carries 46 model rows, and none is an exact match.
 
    | Count | With #191 adopted | Without #191 |
