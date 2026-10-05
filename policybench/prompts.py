@@ -157,6 +157,9 @@ INPUT_LABEL_OVERRIDES = {
     ),
     "veterans_benefits": "veterans benefits",
     "weekly_hours_worked": "hours worked per week",
+    "hours_worked": "annual hours worked",
+    "current_education": "current education",
+    "date_of_birth": "date of birth",
     "workers_compensation": "workers' compensation",
     "capital_gains_before_response": "capital gains",
     "communication_consumption": "communication spending",
@@ -216,6 +219,51 @@ NON_MONETARY_NUMERIC_FIELDS = {
     "hours_worked",
     "num_vehicles",
     "weeks_unemployed",
+}
+
+# PE-UK reads ``is_disabled_for_benefits`` as an adult's limited capability for
+# work and work-related activity, and as a child's entitlement to the lower
+# rate disabled child addition. PE-UK treats every such adult as having held
+# the element before 6 April 2026 when a household is simulated on its own.
+UK_DISABILITY_LABELS = {
+    "adult": (
+        "has limited capability for work and work-related activity (LCWRA) "
+        "for Universal Credit, held since before 6 April 2026"
+    ),
+    "child": "is disabled (lower rate disabled child addition in Universal Credit)",
+}
+
+MONTH_NAMES = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
+
+
+def _format_yyyymmdd(value) -> str:
+    number = int(value)
+    year, month, day = number // 10000, number // 100 % 100, number % 100
+    return f"{day} {MONTH_NAMES[month - 1]} {year}"
+
+
+# PE-UK enrolment stages, described in the terms the qualifying-young-person
+# rules use (non-advanced versus advanced education).
+UK_EDUCATION_DESCRIPTIONS = {
+    "NOT_IN_EDUCATION": "not in education or training",
+    "UPPER_SECONDARY": "secondary school",
+    "POST_SECONDARY": (
+        "non-advanced education (school or college, below higher-education level)"
+    ),
+    "TERTIARY": "advanced (higher) education",
 }
 
 RATE_OR_RATIO_FIELD_SUFFIXES = (
@@ -298,6 +346,10 @@ def _format_input_line(field: str, value, country: str = "us") -> str:
         if value:
             return f"- {label}"
         return f"- {label}: no"
+    if field == "date_of_birth":
+        return f"- {label}: {_format_yyyymmdd(value)}"
+    if field == "current_education" and value in UK_EDUCATION_DESCRIPTIONS:
+        return f"- {label}: {UK_EDUCATION_DESCRIPTIONS[value]}"
     if isinstance(value, str):
         return f"- {label}: {value.replace('_', ' ').title()}"
     if field == "selected_marketplace_plan_benchmark_ratio":
@@ -330,6 +382,10 @@ def describe_person(person: Person, country: str = "us") -> str:
 
     for field, value in sorted(person.inputs.items()):
         if is_excluded_prompt_input_name(field):
+            continue
+        if country == "uk" and field == "is_disabled_for_benefits" and value:
+            role = "adult" if person.name.startswith("adult") else "child"
+            lines.append(f"- {UK_DISABILITY_LABELS[role]}")
             continue
         lines.append(_format_input_line(field, value, country=country))
 

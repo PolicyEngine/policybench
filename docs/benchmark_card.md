@@ -409,6 +409,34 @@ as a public UK transfer path for benchmarking, not as a replacement for enhanced
 Family Resources Survey (FRS) microdata or as a population-representative UK
 household sample.
 
+The UK path samples households from the public calibrated transfer dataset in
+`PolicyEngine/policyengine-uk-data` (`enhanced_cps_2025.h5`, pinned to commit
+`6b1f80e` and its sha256). Those records are PolicyEngine US households
+re-weighted to UK targets, not UK survey records, and they carry no State
+Pension: every pension-age person in the sample has none, and the prompt says
+so by listing none. Since October 2026 the path works as follows.
+
+- **Reference-period inputs.** The artifact stores the 2025 survey year.
+  PolicyEngine UK uprates stored incomes, rents and savings when it calculates
+  2026-27, so the prompt shows the uprated 2026-27 amounts the reference uses.
+- **References from the prompted facts.** Each UK reference is a PolicyEngine
+  UK household simulation of exactly the facts the prompt lists, one simulation
+  per household, as on the US path. Facts the source record holds and the
+  prompt omits (for example Universal Credit deductions, or the seeded draw
+  that marks some 2026 health-element claimants as new) cannot move a
+  reference. `calculate_uk_transfer_microsimulation_values` recomputes the
+  outputs from the full records as a cross-check.
+- **Derived facts stated.** Where PolicyEngine UK derives a fact that changes
+  an output, the prompt states it: each person's sex and date of birth (State
+  Pension age and the Pension Credit savings credit cutoff), the education
+  status of anyone aged 16 to 19 (qualifying young person rules), and an
+  adult's limited capability for work and work-related activity for Universal
+  Credit, held since before 6 April 2026.
+- **Engine-version guards.** Reference generation stops if the artifact stores
+  a variable the installed PolicyEngine UK does not define, or if a derived
+  fact the prompt states is renamed, so a model release cannot silently drop
+  an input from the reference while it still reaches the prompt.
+
 ## Naming discipline
 
 Public prose should prefer:

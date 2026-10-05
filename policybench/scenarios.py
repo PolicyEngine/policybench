@@ -331,6 +331,23 @@ UK_EXCLUDED_HOUSEHOLD_INPUTS = {
     "transport_consumption",
 }
 
+# Person facts PE-UK derives rather than stores. ``state_pension`` is derived
+# from the stored reported amount; ``current_education`` is imputed from age
+# when the data carries no enrolment (16-17 non-advanced, 18-19 higher
+# education), and decides qualifying-young-person status for Child Benefit and
+# Universal Credit, so the prompt has to state it. ``date_of_birth`` places
+# each person within their year of age (a seeded draw in microdata), which
+# decides State Pension age and the Pension Credit savings credit cutoff.
+UK_COMPUTED_PERSON_INPUTS = (
+    "state_pension",
+    "current_education",
+    "date_of_birth",
+)
+
+# Ages at which enrolment changes a qualifying-young-person or student rule.
+# Below 16 every person is a child; from 20 no one is a qualifying young person.
+UK_EDUCATION_PROMPT_AGES = range(16, 20)
+
 UK_NON_PROMPTABLE_SENTINELS = {
     "",
     "NONE",
@@ -342,10 +359,14 @@ UK_EMPLOYMENT_INCOME_COLUMNS = (
 )
 
 UK_TRANSFER_DATASET_FILENAME = "enhanced_cps_2025.h5"
+# Commit 6b1f80e (policyengine-uk-data#419, 2026-05-24) rebuilt the artifact
+# with PIP component categories. The earlier pin (9514dfb, 2026-04-26) stored
+# reported PIP amounts, which policyengine-uk stopped reading when
+# policyengine-uk#1656 moved that mapping into the data package.
 UK_TRANSFER_DATASET_SHA256 = (
-    "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
+    "c663daea31b6fb8300f5c4758ccdcd7a227835ad7de90655294392fb95543eec"
 )
-UK_TRANSFER_DATASET_PINNED_COMMIT = "9514dfb7ec607897c9f7122a2e073b922c9fd8b6"
+UK_TRANSFER_DATASET_PINNED_COMMIT = "6b1f80e0fdcd7ec149f347b4e0b2ae0081f0ff1b"
 UK_TRANSFER_DATASET_PINNED_URL = (
     "https://raw.githubusercontent.com/PolicyEngine/policyengine-uk-data/"
     f"{UK_TRANSFER_DATASET_PINNED_COMMIT}/policyengine_uk_data/storage/"
@@ -580,6 +601,43 @@ class Scenario:
             "spm_units": {"spm_unit": spm_unit_data},
             "families": {"family": {"members": all_names}},
             "households": {"household": household_data},
+        }
+
+    def to_pe_uk_situation(self, prefix: str = "") -> dict:
+        """Convert to a PolicyEngine-UK situation holding only prompted facts.
+
+        Each listed person, the region and the household inputs go in
+        unchanged; nothing else from the source record does, so the reference
+        is a function of the prompt. The benchmark keeps households with one
+        benefit unit, so every person joins that unit. ``prefix`` namespaces
+        entity keys when several scenarios share one simulation.
+        """
+        if self.country != "uk":
+            raise ValueError("to_pe_uk_situation is only supported for UK scenarios.")
+        people = {}
+        for person in self.all_people:
+            person_data = {
+                "age": self._yearize(person.age),
+                # The stored wage leaf; employment_income adds the (zero)
+                # labour-supply response to it, as in the microsimulation.
+                "employment_income_before_lsr": self._yearize(person.employment_income),
+            }
+            for key, value in person.inputs.items():
+                if key == "date_of_birth":
+                    value = int(value)
+                person_data[key] = self._yearize(value)
+            people[f"{prefix}{person.name}"] = person_data
+        members = list(people)
+        household_data = {
+            "members": members,
+            "region": self._yearize(self.state),
+        }
+        for key, value in self.household_inputs.items():
+            household_data[key] = self._yearize(value)
+        return {
+            "people": people,
+            "benunits": {f"{prefix}benunit": {"members": members}},
+            "households": {f"{prefix}household": household_data},
         }
 
     def marital_couple(self) -> tuple[str, str] | None:
@@ -871,8 +929,44 @@ def get_uk_dataset_path() -> Path:
     )
 
 
-def load_uk_transfer_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
-    """Load person and household frames from the local UK transfer artifact."""
+UK_REFERENCE_PERIOD_INPUT_ENTITIES = ("person", "household")
+
+
+def _uk_dataset_inputs_by_entity(
+    values: dict[str, Any], tax_benefit_system: Any
+) -> dict[str, list[str]]:
+    """Group the artifact's stored variables by PE-UK entity.
+
+    Every stored variable must be one the installed policyengine-uk defines.
+    A variable the engine no longer reads (as ``pip_dl_reported`` became
+    after policyengine-uk#1656) would otherwise drop out of the reference
+    silently while the stale value still reached the prompt.
+    """
+    unknown = sorted(key for key in values if key not in tax_benefit_system.variables)
+    if unknown:
+        raise ValueError(
+            "The UK transfer artifact stores variables the installed "
+            f"policyengine-uk does not define: {unknown}. Re-pin a transfer "
+            "artifact built for this model version."
+        )
+    grouped: dict[str, list[str]] = {}
+    for key in values:
+        entity = tax_benefit_system.variables[key].entity.key
+        grouped.setdefault(entity, []).append(key)
+    return grouped
+
+
+def load_uk_transfer_frames(
+    period: int = TAX_YEAR,
+) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+    """Load person and household frames from the local UK transfer artifact.
+
+    The artifact stores one survey year (2025). PE-UK uprates stored incomes,
+    rents and savings when a later year is calculated, so each stored variable
+    is read back from the simulation at the reference ``period``. The prompt
+    then shows the same amounts the reference calculation uses, rather than
+    the stored base-year amounts.
+    """
     from policybench.policyengine_runtime import (
         get_uk_single_year_dataset_class,
         make_uk_transfer_microsimulation,
@@ -884,18 +978,34 @@ def load_uk_transfer_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
     dataset = UKSingleYearDataset(file_path=str(dataset_path))
     values = dataset.load()
 
-    person_length = len(values["person_id"])
-    household_length = len(values["household_id"])
+    sim = make_uk_transfer_microsimulation(dataset_path)
+    period = str(period)
+    inputs_by_entity = _uk_dataset_inputs_by_entity(values, sim.tax_benefit_system)
 
-    person_values = {
-        key: value for key, value in values.items() if len(value) == person_length
-    }
-    household_values = {
-        key: value for key, value in values.items() if len(value) == household_length
-    }
+    unsupported = sorted(
+        variable
+        for entity, variables in inputs_by_entity.items()
+        if entity not in UK_REFERENCE_PERIOD_INPUT_ENTITIES
+        for variable in variables
+        if not variable.endswith("_id")
+    )
+    if unsupported:
+        raise ValueError(
+            "The UK transfer artifact stores benefit-unit inputs the prompt "
+            f"cannot show yet: {unsupported}."
+        )
 
-    person_df = pd.DataFrame(person_values)
-    household_df = pd.DataFrame(household_values)
+    frames: dict[str, dict[str, np.ndarray]] = {}
+    for entity in UK_REFERENCE_PERIOD_INPUT_ENTITIES:
+        frames[entity] = {
+            variable: np.asarray(
+                sim.calculate(variable, period, map_to=entity, unweighted=True)
+            )
+            for variable in inputs_by_entity.get(entity, [])
+        }
+
+    person_df = pd.DataFrame(frames["person"])
+    household_df = pd.DataFrame(frames["household"])
 
     person_df["person_id"] = pd.to_numeric(
         person_df["person_id"], errors="coerce"
@@ -910,16 +1020,12 @@ def load_uk_transfer_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
         pd.to_numeric(person_df["age"], errors="coerce").fillna(0).astype(int)
     )
 
-    sim = make_uk_transfer_microsimulation(dataset_path)
-    period = str(TAX_YEAR)
-    for variable in (
-        "state_pension",
-        "is_child_or_QYP",
-        "pip_dl_category",
-        "pip_m_category",
-    ):
+    for variable in UK_COMPUTED_PERSON_INPUTS:
         if variable not in sim.tax_benefit_system.variables:
-            continue
+            raise ValueError(
+                f"policyengine-uk no longer defines '{variable}', which the UK "
+                "transfer path prompts. Update UK_COMPUTED_PERSON_INPUTS."
+            )
         calculated = np.asarray(
             sim.calculate(
                 variable,
@@ -1352,9 +1458,12 @@ def _extract_uk_person_inputs(row: pd.Series) -> dict[str, Any]:
             in {
                 "age",
                 *UK_EMPLOYMENT_INCOME_COLUMNS,
-                "gender",
                 "marital_status",
             }
+        ):
+            continue
+        if col == "current_education" and int(row["age"]) not in (
+            UK_EDUCATION_PROMPT_AGES
         ):
             continue
         promptable = _uk_promptable_value(value)

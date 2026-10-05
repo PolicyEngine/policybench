@@ -9,6 +9,7 @@ import pandas as pd
 
 from policybench.config import DEFAULT_COUNTRY, TAX_YEAR, get_programs
 from policybench.policyengine_runtime import (
+    get_uk_situation_simulation_class,
     get_us_situation_simulation_class,
     make_uk_transfer_microsimulation,
 )
@@ -480,6 +481,59 @@ def _calculate_ground_truth_uk(
     programs: list[str],
     year: int,
 ) -> pd.DataFrame:
+    """Calculate UK references from the facts each prompt states.
+
+    The scenarios come from the transfer microdata, but the reference uses
+    only what the prompt lists, as on the US path. Values the source record
+    holds and the prompt omits cannot move a reference.
+
+    Each scenario runs in its own simulation. PE-UK assigns the 2026 Universal
+    Credit health element by a seeded draw over the benefit units in a
+    simulation, so sharing one simulation would make a household's reference
+    depend on its position among the others.
+    """
+    Simulation = get_uk_situation_simulation_class()
+    period = str(year)
+    rows = []
+    for scenario in scenarios:
+        sim = Simulation(situation=scenario.to_pe_uk_situation())
+        for variable in expand_programs_for_scenario(programs, scenario):
+            pe_variable = _pe_variable_for_output(variable, "uk")
+            entity_key = sim.tax_benefit_system.variables[pe_variable].entity.key
+            if entity_key not in {"person", "benunit", "household"}:
+                raise ValueError(
+                    f"Unsupported UK entity '{entity_key}' for benchmark variable "
+                    f"'{variable}'."
+                )
+            rows.append(
+                {
+                    "scenario_id": scenario.id,
+                    "variable": variable,
+                    "value": float(
+                        np.asarray(
+                            sim.calculate(pe_variable, period), dtype=float
+                        ).sum()
+                    ),
+                    "impact_weight": None,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def calculate_uk_transfer_microsimulation_values(
+    scenarios: list[Scenario],
+    programs: list[str] | None = None,
+    year: int = TAX_YEAR,
+) -> pd.DataFrame:
+    """Calculate UK outputs from the full transfer microdata records.
+
+    This was the scored UK reference before October 2026. It reads every
+    stored variable of each sampled household, including ones the prompt
+    omits, so it now serves as a cross-check: where it disagrees with the
+    scored reference, the source record holds a fact the prompt leaves out.
+    """
+    if programs is None:
+        programs = get_programs("uk")
     os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
     sim = make_uk_transfer_microsimulation(get_uk_dataset_path())
     period = str(year)

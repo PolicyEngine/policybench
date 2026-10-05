@@ -2,8 +2,11 @@
 
 import json
 
+import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 import policybench.scenarios as scenarios_module
 from policybench.scenarios import (
@@ -1256,3 +1259,221 @@ def test_unstated_or_zero_hours_keep_the_engine_default(hours):
     head = _hours_scenario(hours).to_pe_household()["people"]["head"]
     assert "hours_worked_last_week" not in head
     assert "weekly_hours_worked_before_lsr" not in head
+
+
+class _FakeUKVariable:
+    def __init__(self, entity_key: str):
+        self.entity = type("Entity", (), {"key": entity_key})()
+
+
+class _FakeUKTransferSimulation:
+    """Stored values are the 2025 survey year; 2026 values are uprated."""
+
+    STORED = {
+        "person_id": ("person", [1.0, 2.0]),
+        "person_household_id": ("person", [10.0, 10.0]),
+        "person_benunit_id": ("person", [20.0, 20.0]),
+        "age": ("person", [40.0, 17.0]),
+        "gender": ("person", ["FEMALE", "MALE"]),
+        "employment_income_before_lsr": ("person", [30_000.0, 0.0]),
+        "benunit_id": ("benunit", [20.0]),
+        "household_id": ("household", [10.0]),
+        "household_weight": ("household", [1.0]),
+        "region": ("household", ["NORTH_WEST"]),
+        "rent": ("household", [6_000.0]),
+    }
+    UPRATED = {"employment_income_before_lsr": 1.034, "rent": 1.02}
+    COMPUTED = {
+        "state_pension": [0.0, 0.0],
+        "current_education": ["NOT_IN_EDUCATION", "POST_SECONDARY"],
+        "date_of_birth": [19860601, 20090401],
+    }
+
+    def __init__(self, extra_stored=None, drop_computed=()):
+        stored = dict(self.STORED, **(extra_stored or {}))
+        self.stored = stored
+        variables = {
+            name: _FakeUKVariable(entity) for name, (entity, _) in stored.items()
+        }
+        for name in self.COMPUTED:
+            if name not in drop_computed:
+                variables[name] = _FakeUKVariable("person")
+        for name in extra_stored or {}:
+            if name.startswith("unknown_"):
+                variables.pop(name)
+        self.tax_benefit_system = type("TBS", (), {"variables": variables})()
+        self.periods = set()
+
+    def calculate(self, variable, period, map_to=None, unweighted=True):
+        self.periods.add(period)
+        if variable in self.COMPUTED:
+            return np.asarray(self.COMPUTED[variable])
+        values = np.asarray(self.stored[variable][1])
+        if period == "2026" and variable in self.UPRATED:
+            return values * self.UPRATED[variable]
+        return values
+
+
+def _patch_uk_transfer(monkeypatch, sim):
+    import policybench.policyengine_runtime as runtime
+
+    class FakeDataset:
+        time_period = 2025
+
+        def __init__(self, file_path):
+            self.file_path = file_path
+
+        def load(self):
+            return {
+                name: np.asarray(values) for name, (_, values) in sim.stored.items()
+            }
+
+    monkeypatch.setattr(scenarios_module, "get_uk_dataset_path", lambda: "fake.h5")
+    monkeypatch.setattr(
+        runtime, "get_uk_single_year_dataset_class", lambda: FakeDataset
+    )
+    monkeypatch.setattr(runtime, "make_uk_transfer_microsimulation", lambda path: sim)
+
+
+def test_load_uk_transfer_frames_prompts_reference_period_values(monkeypatch):
+    sim = _FakeUKTransferSimulation()
+    _patch_uk_transfer(monkeypatch, sim)
+
+    person_df, household_df, dataset_year = scenarios_module.load_uk_transfer_frames()
+
+    assert dataset_year == 2025
+    assert sim.periods == {"2026"}
+    # The prompt must show the uprated 2026-27 amounts the reference uses,
+    # not the stored 2025 survey values.
+    assert person_df["employment_income_before_lsr"].tolist() == pytest.approx(
+        [31_020.0, 0.0]
+    )
+    assert household_df["rent"].tolist() == pytest.approx([6_120.0])
+    assert person_df["current_education"].tolist() == [
+        "NOT_IN_EDUCATION",
+        "POST_SECONDARY",
+    ]
+    assert person_df["date_of_birth"].tolist() == [19860601, 20090401]
+
+
+def test_load_uk_transfer_frames_rejects_variables_the_engine_dropped(monkeypatch):
+    sim = _FakeUKTransferSimulation(
+        extra_stored={"unknown_pip_dl_reported": ("person", [0.0, 0.0])}
+    )
+    _patch_uk_transfer(monkeypatch, sim)
+
+    with pytest.raises(ValueError, match="does not define"):
+        scenarios_module.load_uk_transfer_frames()
+
+
+def test_load_uk_transfer_frames_rejects_renamed_computed_inputs(monkeypatch):
+    sim = _FakeUKTransferSimulation(drop_computed=("current_education",))
+    _patch_uk_transfer(monkeypatch, sim)
+
+    with pytest.raises(ValueError, match="no longer defines 'current_education'"):
+        scenarios_module.load_uk_transfer_frames()
+
+
+def test_load_uk_transfer_frames_rejects_benefit_unit_inputs(monkeypatch):
+    sim = _FakeUKTransferSimulation(extra_stored={"benunit_rent": ("benunit", [100.0])})
+    _patch_uk_transfer(monkeypatch, sim)
+
+    with pytest.raises(ValueError, match="benefit-unit inputs"):
+        scenarios_module.load_uk_transfer_frames()
+
+
+def test_uk_current_education_is_prompted_only_for_ages_16_to_19():
+    def person_row(age):
+        return pd.Series(
+            {
+                "person_id": 1,
+                "person_household_id": 1,
+                "person_benunit_id": 1,
+                "age": age,
+                "employment_income_before_lsr": 0.0,
+                "current_education": "POST_SECONDARY",
+            }
+        )
+
+    prompted = {
+        age: "current_education"
+        in scenarios_module._extract_uk_person_inputs(person_row(age))
+        for age in (15, 16, 19, 20)
+    }
+    assert prompted == {15: False, 16: True, 19: True, 20: False}
+
+
+uk_input_names = st.sampled_from(
+    [
+        "savings_interest_income",
+        "dividend_income",
+        "property_income",
+        "pip_dl_category",
+        "is_disabled_for_benefits",
+        "gender",
+        "date_of_birth",
+        "current_education",
+    ]
+)
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    adult_inputs=st.dictionaries(
+        uk_input_names, st.integers(min_value=1, max_value=10**6), max_size=5
+    ),
+    household_inputs=st.dictionaries(
+        st.sampled_from(
+            ["rent", "savings", "tenure_type", "mortgage_interest_repayment"]
+        ),
+        st.integers(min_value=1, max_value=10**6),
+        max_size=4,
+    ),
+    num_children=st.integers(min_value=0, max_value=3),
+    wage=st.floats(min_value=0, max_value=10**6, allow_nan=False),
+)
+def test_uk_situation_holds_exactly_the_prompted_facts(
+    adult_inputs, household_inputs, num_children, wage
+):
+    scenario = Scenario(
+        id="uk",
+        country="uk",
+        state="SCOTLAND",
+        filing_status=None,
+        adults=[
+            Person(name="adult1", age=40, employment_income=wage, inputs=adult_inputs)
+        ],
+        children=[
+            Person(name=f"child{i + 1}", age=5, employment_income=0.0)
+            for i in range(num_children)
+        ],
+        household_inputs=household_inputs,
+        year=2026,
+    )
+
+    situation = scenario.to_pe_uk_situation(prefix="s__")
+
+    people = situation["people"]
+    assert set(people) == {f"s__{p.name}" for p in scenario.all_people}
+    adult = people["s__adult1"]
+    assert set(adult) == {"age", "employment_income_before_lsr", *adult_inputs}
+    assert adult["employment_income_before_lsr"] == {"2026": wage}
+    for key, value in adult_inputs.items():
+        expected = int(value) if key == "date_of_birth" else value
+        assert adult[key] == {"2026": expected}
+    (benunit,) = situation["benunits"].values()
+    (household,) = situation["households"].values()
+    assert benunit["members"] == household["members"] == list(people)
+    assert set(household) == {"members", "region", *household_inputs}
+    assert household["region"] == {"2026": "SCOTLAND"}
+
+
+def test_uk_situation_rejects_us_scenarios():
+    scenario = Scenario(
+        id="us",
+        state="CA",
+        filing_status="single",
+        adults=[Person(name="adult1", age=40, employment_income=1.0)],
+    )
+    with pytest.raises(ValueError, match="only supported for UK"):
+        scenario.to_pe_uk_situation()
