@@ -78,6 +78,7 @@ Verify the dashboard with its bundled data prepared automatically:
 
 ```bash
 cd app
+bun install --frozen-lockfile
 bun run lint
 bun run test
 bun run build
@@ -90,6 +91,12 @@ For paid/public runs, follow the concrete
 The short version is: generate fixed reference-output manifests first, run
 Claude models serially, run non-Claude models in parallel, then do a final merge
 and export pass.
+
+Run these commands from a clone of the repository: they write under
+`results/local/`, and `analyze` also writes the dashboard payload to
+`app/src/data.json`. They call `policybench` as `uv tool install` puts it on
+your `PATH`; in a clone set up with `uv sync`, prefix each with `uv run`, as the
+runbook does.
 
 ```bash
 # Generate reference outputs for 100 sampled households using headline outputs
