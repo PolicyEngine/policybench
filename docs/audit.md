@@ -65,3 +65,92 @@ genuine model errors (`llm_error`) should survive to a scored snapshot —
 
 Re-running the script is safe: a case is skipped once it has a verdict, so
 interrupted runs resume and failures can be re-attempted by re-invoking.
+
+# Reference adversary
+
+The diagnosis judge above is built to explain misses, not to doubt references:
+its prompt says to treat the reference and its derivation as correct, labels
+engine facts authoritative, and allows doubt only through `reference_suspect`
+with a concrete contradiction. On 2026-10-05 that design missed reference issues
+a reading of the data found: Louisiana's 2026 standard deduction was
+PolicyEngine's own CPI computation rather than a published amount; the
+`payroll_tax` reference counted paid-leave employee shares that the employer
+may, but need not, pass on, though the output asks for "mandatory employee state
+payroll taxes"; and the income tax references left out a dependent's own return.
+The reference adversary is a separate pass whose only job is to attack the
+reference. Its verdicts never change a score.
+
+## Pipeline
+
+```bash
+# 1. Consensus trigger: scored cells where a cluster of models shares a wrong
+#    answer (>= 15 of the models, or >= 3 of the top 5).
+uv run policybench consensus-flags \
+  --payload paper/snapshot/20260501/runs/<run>/data.json.gz \
+  --output <dir>/consensus_flags.json
+
+# 2. One two-stage case per flagged cell, minus cells another audit owns.
+uv run policybench adversary-prepare \
+  --payload paper/snapshot/20260501/runs/<run>/data.json.gz \
+  --flags <dir>/consensus_flags.json \
+  --annotations-dir annotations/<run> \
+  --skip-cells <dir>/covered_elsewhere.json \
+  --adversary-dir <adv>
+
+# 3. Judge inside a Subfleet lane (subscription billing, never an API key).
+scripts/run_reference_adversary_claude.sh <adv>   # Claude lane
+scripts/run_reference_adversary_codex.sh <adv>    # Codex lane
+
+# 4. Verdict table and adjudication queue (one or more judges).
+uv run policybench adversary-collect \
+  --adversary-dir claude=<adv-claude> --adversary-dir codex=<adv-codex> \
+  --output-dir <out>
+```
+
+`consensus-flags` records its parameters in the report. `--prototype`
+reproduces the 2026-10-05 prototype (answers truncated to whole dollars,
+eligibility outputs never flagged): 41 of the frozen run's 1,928 scored cells.
+The defaults round answers to the nearest dollar, which merges answers such as
+13,387.65 and 13,388, and compare eligibility outputs by mismatch: 61 cells.
+
+## Two stages
+
+- **Stage 1, law first.** The judge sees the household prompt, the output's
+  definition from `benchmark_specs.json`, the consensus answer with each
+  member's model id, answer and explanation, and the reference value. It does
+  not see the engine derivation. It works the answer from primary law
+  (statutes, regulations, agency publications, forms and instructions), cites
+  each rule with its publication date and whether it predates the 2026-07-03
+  reference freeze, and says which answer the law supports. The Claude runner
+  gives it only web tools (no file access) and blocks PolicyBench and
+  PolicyEngine sites; the Codex runner works from an empty directory and
+  rejects a stage 1 whose log shows a read of derivation-bearing paths.
+- **Stage 2, reconcile.** A fresh call gets the frozen stage-1 JSON (bound by
+  its sha256) and only now the engine derivation. It returns a verdict:
+  `reference_holds`, `reference_wrong`, `definition_mismatch` or
+  `prompt_ambiguous`, with citations and a suggested adjudication.
+
+## Where verdicts go
+
+`adversary-collect` writes each judge's verdict table and
+`adversary_adjudication_queue.csv`: every case with a verdict other than
+`reference_holds`, in the case-notes schema with `reference_suspect=true`.
+`policybench.reference_adversary.apply_adversary_flags` sets those flags on a
+release's case notes, so `scripts/freeze_snapshot.py` refuses to freeze until
+each carries a developer `reference_verdict` (`policybench.adjudications`):
+the existing adjudication path. A change to a published reference or an
+exclusion still needs a release and the maintainer's ruling.
+
+## Definition and publication checks
+
+Two engine-side checks run with the reference venv (policyengine-us 2.15.17
+plus the reference conventions) and write under
+`reference_audit/2026-10-05-reference-adversary/verification/`:
+
+- `definition_conformance` lists the policyengine-us variables each output's
+  reference sums and tests them against the qualifiers in the output's
+  definition ("employee-side", "mandatory", "household", "excluding the ACA
+  PTC", "excluding local income and payroll taxes").
+- `publication_sources` lists every 2026 parameter value a scored reference
+  reads and reports whether its metadata cites a government publication dated
+  before the freeze, flagging computed or indexed values.

@@ -281,13 +281,8 @@ US/UK tax-and-benefit estimation benchmark. The models answered from \
 parametric knowledge with no tools; PolicyEngine's microsimulation is the \
 reference.
 
-The reference value and its derivation are generated directly from the \
-engine's computation trace, and the reference pipeline has survived an \
-adversarial review program: every wrong-reference hypothesis raised by \
-earlier audits was adjudicated against primary sources, and the few real \
-bugs found were fixed before this run. Treat the reference and its \
-derivation as correct. Your job is NOT to re-litigate the reference — it is \
-to explain each model's mistake decisively.
+Treat the reference and its derivation as correct. Your job is NOT to \
+re-litigate the reference — it is to explain each model's mistake decisively.
 
 For every wrong model, write a `diagnosis`: 1-3 definitive sentences naming \
 the exact rule, eligibility pathway, deduction, threshold, or computation \

@@ -582,6 +582,78 @@ def main():
         "(default: refuse and list the hedged cases for re-judging)",
     )
 
+    # Reference adversary: consensus trigger -> law-first judge -> adjudication
+    consensus_parser = subparsers.add_parser(
+        "consensus-flags",
+        help="Flag scored cells where a cluster of models shares a wrong answer",
+    )
+    consensus_parser.add_argument(
+        "--payload",
+        required=True,
+        help="Frozen run payload (data.json.gz) or a release dashboard-data.json",
+    )
+    consensus_parser.add_argument("--output", required=True, help="Report JSON path")
+    consensus_parser.add_argument(
+        "--prototype",
+        action="store_true",
+        help="Use the 2026-10-05 prototype's parameters (answers truncated to "
+        "whole dollars, eligibility outputs never flagged); explicit flags "
+        "still override",
+    )
+    consensus_parser.add_argument("--min-models", type=int, default=None)
+    consensus_parser.add_argument("--top-k", type=int, default=None)
+    consensus_parser.add_argument("--min-top", type=int, default=None)
+    consensus_parser.add_argument("--tolerance", type=float, default=None)
+    consensus_parser.add_argument(
+        "--answer-rounding",
+        choices=["nearest", "truncate", "cents"],
+        default=None,
+    )
+    consensus_parser.add_argument("--zero-cluster-min-models", type=int, default=None)
+    consensus_parser.add_argument(
+        "--binary-outputs",
+        choices=["mismatch", "skip"],
+        default=None,
+        help="Eligibility outputs: wrong when the flag differs (mismatch, the "
+        "default) or judged by the dollar tolerance and so never flagged (skip)",
+    )
+
+    adversary_prepare_parser = subparsers.add_parser(
+        "adversary-prepare",
+        help="Write two-stage reference-adversary prompts for consensus-flagged cells",
+    )
+    adversary_prepare_parser.add_argument("--payload", required=True)
+    adversary_prepare_parser.add_argument(
+        "--flags", required=True, help="consensus-flags report JSON"
+    )
+    adversary_prepare_parser.add_argument("--adversary-dir", required=True)
+    adversary_prepare_parser.add_argument(
+        "--annotations-dir",
+        default=None,
+        help="Frozen annotations holding us_case_reference_explanations.csv "
+        "(the stage-2 derivations); default: the payload's referenceExplanation",
+    )
+    adversary_prepare_parser.add_argument(
+        "--skip-cells",
+        default=None,
+        help="JSON list of {scenario_id, variable, covered_by} cells another "
+        "audit already covers; they get no adversary case",
+    )
+
+    adversary_collect_parser = subparsers.add_parser(
+        "adversary-collect",
+        help="Fold reference-adversary verdicts into a verdict table and an "
+        "adjudication queue (changes no score)",
+    )
+    adversary_collect_parser.add_argument(
+        "--adversary-dir",
+        action="append",
+        required=True,
+        metavar="LABEL=DIR",
+        help="One judge's adversary directory, optionally labeled (repeatable)",
+    )
+    adversary_collect_parser.add_argument("--output-dir", required=True)
+
     # Population weights
     weight_parser = subparsers.add_parser(
         "population-weights",
@@ -1333,6 +1405,110 @@ def main():
             f"to {output_dir}; {len(out['missing'])} cases missing verdicts; "
             f"{len(out['hedged'])} hedged; "
             f"{n_suspect} cases flag the PolicyEngine reference as suspect."
+        )
+
+    elif args.command == "consensus-flags":
+        from dataclasses import replace
+
+        from policybench.consensus import (
+            PROTOTYPE_PARAMS,
+            ConsensusParams,
+            consensus_report,
+            file_sha256,
+            load_us_payload,
+        )
+
+        params = PROTOTYPE_PARAMS if args.prototype else ConsensusParams()
+        overrides = {
+            name: getattr(args, name)
+            for name in (
+                "min_models",
+                "top_k",
+                "min_top",
+                "tolerance",
+                "answer_rounding",
+                "zero_cluster_min_models",
+                "binary_outputs",
+            )
+            if getattr(args, name) is not None
+        }
+        params = replace(params, **overrides)
+        payload_path = Path(args.payload)
+        report = consensus_report(
+            load_us_payload(payload_path),
+            params,
+            source=str(payload_path),
+            source_sha256=file_sha256(payload_path),
+        )
+        _ensure_parent_dir(args.output)
+        Path(args.output).write_text(json.dumps(report, indent=2) + "\n")
+        print(
+            f"Flagged {report['flagged_cells']} of {report['scored_cells']} scored "
+            f"cells ({report['models']} models) -> {args.output}"
+        )
+
+    elif args.command == "adversary-prepare":
+        from policybench.consensus import load_us_payload
+        from policybench.reference_adversary import (
+            build_adversary_cases,
+            load_derivations,
+            prepare_adversary,
+        )
+
+        flags = json.loads(Path(args.flags).read_text())["flags"]
+        skipped: dict[tuple[str, str], str] = {}
+        if args.skip_cells:
+            for cell in json.loads(Path(args.skip_cells).read_text()):
+                key = (str(cell["scenario_id"]), str(cell["variable"]))
+                skipped[key] = str(cell.get("covered_by", ""))
+        kept = [f for f in flags if (f["scenario_id"], f["variable"]) not in skipped]
+        derivations = (
+            load_derivations(Path(args.annotations_dir))
+            if args.annotations_dir
+            else None
+        )
+        cases = build_adversary_cases(
+            load_us_payload(Path(args.payload)), kept, derivations=derivations
+        )
+        prepare_adversary(Path(args.adversary_dir), cases)
+        print(
+            f"Prepared {len(cases)} adversary cases under {args.adversary_dir} "
+            f"({len(flags) - len(kept)} flagged cells skipped as covered elsewhere). "
+            "Run scripts/run_reference_adversary_claude.sh or "
+            "scripts/run_reference_adversary_codex.sh inside a Subfleet lane."
+        )
+
+    elif args.command == "adversary-collect":
+        from policybench.reference_adversary import (
+            adjudication_queue,
+            collect_adversary,
+            merge_judges,
+        )
+
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        by_judge = {}
+        for spec in args.adversary_dir:
+            label, _, directory = spec.rpartition("=")
+            label = label or Path(directory).name
+            out = collect_adversary(Path(directory))
+            by_judge[label] = out["verdicts"]
+            for key in ("verdicts", "missing", "inconsistent"):
+                out[key].to_csv(
+                    output_dir / f"adversary_{label}_{key}.csv", index=False
+                )
+            print(
+                f"{label}: {len(out['verdicts'])} verdicts, "
+                f"{len(out['missing'])} missing, "
+                f"{len(out['inconsistent'])} inconsistent"
+            )
+        merged = merge_judges(by_judge)
+        merged.to_csv(output_dir / "adversary_merged_verdicts.csv", index=False)
+        queue = adjudication_queue(merged)
+        queue.to_csv(output_dir / "adversary_adjudication_queue.csv", index=False)
+        print(
+            f"{len(queue)} of {len(merged)} cases go to developer adjudication "
+            f"(verdict other than reference_holds) -> {output_dir}"
         )
 
     elif args.command == "population-weights":

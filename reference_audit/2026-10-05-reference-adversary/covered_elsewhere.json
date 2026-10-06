@@ -1,0 +1,56 @@
+[
+  {
+    "scenario_id": "scenario_051",
+    "variable": "state_income_tax_before_refundable_credits",
+    "covered_by": "Louisiana 2026 standard deduction audit: https://github.com/PolicyEngine/policybench/pull/192",
+    "label": "#192 (Louisiana)"
+  },
+  {
+    "scenario_id": "scenario_077",
+    "variable": "state_income_tax_before_refundable_credits",
+    "covered_by": "Louisiana 2026 standard deduction audit: https://github.com/PolicyEngine/policybench/pull/192",
+    "label": "#192 (Louisiana)"
+  },
+  {
+    "scenario_id": "scenario_028",
+    "variable": "payroll_tax",
+    "covered_by": "State payroll components audit: https://github.com/PolicyEngine/policybench/pull/194 (cos d972)",
+    "label": "#194 (payroll, d972)"
+  },
+  {
+    "scenario_id": "scenario_032",
+    "variable": "payroll_tax",
+    "covered_by": "State payroll components audit: https://github.com/PolicyEngine/policybench/pull/194 (cos d972)",
+    "label": "#194 (payroll, d972)"
+  },
+  {
+    "scenario_id": "scenario_043",
+    "variable": "payroll_tax",
+    "covered_by": "State payroll components audit: https://github.com/PolicyEngine/policybench/pull/194 (cos d972)",
+    "label": "#194 (payroll, d972)"
+  },
+  {
+    "scenario_id": "scenario_081",
+    "variable": "payroll_tax",
+    "covered_by": "State payroll components audit: https://github.com/PolicyEngine/policybench/pull/194 (cos d972)",
+    "label": "#194 (payroll, d972)"
+  },
+  {
+    "scenario_id": "scenario_082",
+    "variable": "payroll_tax",
+    "covered_by": "State payroll components audit: https://github.com/PolicyEngine/policybench/pull/194 (cos d972)",
+    "label": "#194 (payroll, d972)"
+  },
+  {
+    "scenario_id": "scenario_123",
+    "variable": "payroll_tax",
+    "covered_by": "State payroll components audit: https://github.com/PolicyEngine/policybench/pull/194 (cos d972)",
+    "label": "#194 (payroll, d972)"
+  },
+  {
+    "scenario_id": "scenario_031",
+    "variable": "head_medicaid_eligible",
+    "covered_by": "scenario_031 Medicaid annotation rewrite (worktree part-b-annotation-031; PR https://github.com/PolicyEngine/policybench/pull/193 related findings)",
+    "label": "scenario_031 annotation session (#193)"
+  }
+]

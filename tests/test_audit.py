@@ -683,6 +683,18 @@ def test_prompt_treats_reference_as_verified_and_demands_diagnosis(
     assert "concrete contradiction" in prompt
 
 
+def test_prompt_makes_no_claim_that_earlier_bugs_were_fixed(country_dir: Path):
+    # The header once said "the few real bugs found were fixed before this run".
+    # The frozen run excludes outputs for 28 engine defects that upstream has not
+    # fixed, so the judge must not be told that. The reference-adversary pass
+    # (policybench.reference_adversary) is where the reference is attacked.
+    case = next(c for c in build_audit_cases(country_dir) if c.scenario_id == "s0")
+    prompt = render_case_prompt(case)
+    assert "were fixed before this run" not in prompt
+    assert "adversarial review program" not in prompt
+    assert "survived" not in prompt
+
+
 def test_grounding_lookup_renders_engine_facts_block(country_dir: Path):
     lookup = {("s0", "snap"): "- medicaid_category: SENIOR_OR_DISABLED\n- age: 67"}
     cases = build_audit_cases(country_dir, grounding_lookup=lookup)
