@@ -1,0 +1,49 @@
+{
+  "adjudications": 77,
+  "base_commit": "8b4c0ca146bb6f66deba6ce24009d49d70d92df2",
+  "base_sha256": "d1cae7456cf91ab6fa04644a4d5d570e359522386a7c52f9645d5923bfc11258",
+  "base_tag": "dashboard-data-20260930",
+  "changed_annotation_rows": {
+    "us_audit_row_annotations.csv": 376,
+    "us_case_notes.csv": 11,
+    "us_case_reference_explanations.csv": 9
+  },
+  "exclusions": 64,
+  "new_exclusions": [
+    [
+      "scenario_022",
+      "federal_income_tax_before_refundable_credits"
+    ],
+    [
+      "scenario_032",
+      "payroll_tax"
+    ],
+    [
+      "scenario_043",
+      "payroll_tax"
+    ],
+    [
+      "scenario_081",
+      "federal_income_tax_before_refundable_credits"
+    ],
+    [
+      "scenario_081",
+      "payroll_tax"
+    ],
+    [
+      "scenario_082",
+      "payroll_tax"
+    ],
+    [
+      "scenario_114",
+      "federal_income_tax_before_refundable_credits"
+    ],
+    [
+      "scenario_114",
+      "state_income_tax_before_refundable_credits"
+    ]
+  ],
+  "release_tag": "dashboard-data-20261006",
+  "rewrites_sha256": "f268f8274445e1581ebc1ab4a8af48521d14418052c9fe5684a3f6aec0320836",
+  "spec_sha256": "2211d4f6ba30e54401c97f2aed525222b3eccfdda32330c19c9a218764aabe24"
+}

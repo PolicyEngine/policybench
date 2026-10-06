@@ -1,0 +1,51 @@
+Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/results/local/release-batch/dashboard-data-20261006-resume-da8b4400/publish/tmpa6gac44_/us_full_run_20260612_policyengine_4_16_1_populace/data.json
+Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/results/local/release-batch/dashboard-data-20261006-resume-da8b4400/publish/tmpxu8syvri/us_full_run_20260612_policyengine_4_16_1_populace/data.json
+Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/results/local/release-batch/dashboard-data-20261006-resume-da8b4400/publish/tmp18m560b9/us_full_run_20260612_policyengine_4_16_1_populace/data.json
+ 1 gpt-6-sol                        95.003 -> 95.828 n=1920
+ 2 claude-opus-5.5                  93.697 -> 95.052 n=1920
+ 3 gpt-5.6-sol                      93.572 -> 94.433 n=1920
+ 4 claude-sonnet-5.5                92.081 -> 93.253 n=1920
+ 5 gpt-6-luna                       92.097 -> 93.021 n=1920
+ 6 gpt-6-astra                      91.674 -> 92.535 n=1920
+ 7 claude-fable-5.1                 90.828 -> 92.070 n=1920
+ 8 gpt-6.1-sol                      90.595 -> 91.263 n=1920
+ 9 kimi-k3                          90.435 -> 91.228 n=1920
+10 gpt-5.6-luna                     89.308 -> 90.279 n=1920
+11 ox-alpha                         88.494 -> 89.775 n=1920
+12 inkling                          88.220 -> 89.329 n=1920
+13 grok-4.7                         88.335 -> 89.297 n=1920
+14 gpt-5.5                          88.152 -> 89.102 n=1920
+15 gpt-5.6-terra                    87.695 -> 88.969 n=1920
+16 deepseek-v4.1-flash              87.055 -> 88.008 n=1920
+17 grok-4.6                         86.402 -> 87.519 n=1920
+18 gemini-3.8-flash                 85.946 -> 87.219 n=1920
+19 grok-4.5                         85.081 -> 86.293 n=1920
+20 claude-opus-5                    84.030 -> 85.223 n=1920
+21 claude-fable-5                   83.625 -> 84.892 n=1920
+22 deepseek-v4-pro-0813             83.372 -> 84.646 n=1920
+23 deepseek-v4-flash-0731           83.276 -> 84.519 n=1920
+24 gemini-3.7-flash                 83.118 -> 84.218 n=1920
+25 gemini-3.6-flash                 83.095 -> 84.206 n=1920
+26 gemini-3.5-flash-lite            81.959 -> 83.199 n=1920
+27 gemini-3.1-pro-preview           81.636 -> 82.766 n=1920
+28 glm-5.3                          81.090 -> 82.345 n=1920
+29 gemini-3-flash-preview           80.951 -> 82.236 n=1920
+30 claude-opus-4.7                  80.964 -> 82.163 n=1920
+31 grok-4.3                         80.622 -> 81.881 n=1920
+32 grok-build-0.1                   80.361 -> 81.619 n=1920
+33 claude-sonnet-4.6                80.276 -> 81.497 n=1920
+34 gemini-3.5-flash                 80.042 -> 81.335 n=1920
+35 gemini-3.1-flash-lite-preview    79.739 -> 80.941 n=1920
+36 deepseek-v4-pro                  79.751 -> 80.823 n=1920
+37 qwen-3.7-max                     77.386 -> 78.606 n=1920
+38 glm-5.2                          77.048 -> 78.009 n=1920
+39 claude-opus-4.8                  76.175 -> 77.379 n=1920
+40 minimax-m3                       75.746 -> 76.896 n=1920
+41 qwen3.8-max                      75.225 -> 76.410 n=1920
+42 claude-haiku-4.5                 74.660 -> 75.881 n=1920
+43 gpt-5.4-mini                     73.667 -> 74.749 n=1920
+44 claude-sonnet-5                  72.642 -> 73.794 n=1920
+45 kimi-k2.6                        67.404 -> 68.111 n=1920
+46 gpt-5.4-nano                     65.339 -> 66.536 n=1920
+Exported dashboard-data-20261006: 1780d2ec37f90b654265f8c7a191ba57f5ec5c4d28624bf9d2e2de8a48d2f871 (127218158 bytes)
+
