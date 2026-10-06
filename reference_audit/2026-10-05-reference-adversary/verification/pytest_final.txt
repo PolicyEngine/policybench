@@ -1,0 +1,11 @@
+# pytest, final, code at d28e81f7ad016255833316c223effdaf56e350e2, started 2026-10-06T19:59:58Z
+# OPENBLAS_NUM_THREADS=1 PYTHONPATH=. policybench-wt/adds0928-stage2/.venv/bin/python -m pytest tests/test_consensus.py tests/test_definition_conformance.py tests/test_publication_sources.py tests/test_reference_adversary.py tests/test_reference_adversary_runner.py tests/test_audit.py -q
+........................................................................ [ 19%]
+........................................................................ [ 39%]
+........................................................................ [ 59%]
+........................................................................ [ 79%]
+........................................................................ [ 99%]
+..                                                                       [100%]
+362 passed in 243.51s (0:04:03)
+exit 0
+# finished 2026-10-06T20:07:43Z; 5 test files this branch adds plus tests/test_audit.py, which it modifies

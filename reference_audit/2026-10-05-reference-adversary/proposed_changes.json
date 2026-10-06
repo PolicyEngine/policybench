@@ -1,6 +1,44 @@
 {
   "schema_version": 1,
-  "status": "proposed 2026-10-06; changes published scores, so each root cause waits for Max's ruling (cos decision). Each root cause offers alternatives; a release installs one of them, not both. decided_on is the draft date; a release sets it to the ruling's date.",
+  "status": {
+    "state": "ruled 2026-10-06",
+    "summary": "Proposed 2026-10-06; Max ruled 2026-10-06. The next release after dashboard-data-20261006 installs every root cause's exclusion records (variant exclude_all in verification/leaderboard_impact.json) and, under d994, excludes the two Louisiana cells this pass skipped. A later release replaces each CONFIRMED root cause's exclusion with a reference regenerated on a policyengine-us version that fixes the defect; the regeneration records' values are what that reference should reproduce. decided_on is the ruling's date, which is also the draft date.",
+    "rulings": [
+      {
+        "decision": "d1022",
+        "ruled_at": "2026-10-06T13:11",
+        "question": "PolicyBench: exclude the reference-adversary's confirmed cells in the next release after 20261006 (AZ 018, OH 025, CO 043, NY 082 engine defects; PA 123 dependent-return scope, 4 cells), regenerate the four defect cells once fixed policyengine-us versions land; NC 026 refuted",
+        "ruling": "Approved by Max 2026-10-06 in chat ('approve')",
+        "next_release": "exclude every exclusion record below, 8 cells (variant exclude_all), in the next release after dashboard-data-20261006",
+        "later_release": "regenerate the four CONFIRMED cells once policyengine-us versions that fix the defects land",
+        "root_causes": [
+          "az_standard_deduction_indexing",
+          "oh_medical_deduction_premiums",
+          "co_sales_tax_refund_surplus",
+          "ny_cdcc_606_c2",
+          "household_scope_dependent_returns"
+        ],
+        "unchanged": "scenario_026 child1/child2_medicaid_eligible: the adversary's reference_wrong was refuted (verification/independent/nc_026.md); both references stand"
+      },
+      {
+        "decision": "d994",
+        "ruled_at": "2026-10-06T13:11",
+        "question": "PolicyBench: PR #192's Louisiana documentation sentence, applied as written, changes five scored references held under the 2026-09-22 conventions (Idaho zero-rate threshold: scenario_076 -$13.46; SNAP FY2027 standard deduction for 4/5/6+ households: 008 +$9, 038 +$3, 109 +$6; Maryland's 2026 return deduction on the IRS's reading of 10-217(c): 068 -$2.375, the literal reading keeps $3,350). Adopt the sentence and regenerate those references in a follow-up release (and pick Maryland's reading), narrow the sentence so no hold moves, or keep the current convention letter?",
+        "ruling": "Exclude LA scenario_051 and scenario_077 state income tax; keep the published-amounts convention (no change to Idaho 076, SNAP 008/038/109, Maryland 068); v2 states indexed amounts in the prompt. Next release after 20261006. (Max 2026-10-06: approve)",
+        "cells": [
+          {
+            "scenario_id": "scenario_051",
+            "variable": "state_income_tax_before_refundable_credits"
+          },
+          {
+            "scenario_id": "scenario_077",
+            "variable": "state_income_tax_before_refundable_credits"
+          }
+        ],
+        "source": "PolicyEngine/policybench#192 (Louisiana 2026 standard deduction audit). Both cells were flagged here and skipped as covered elsewhere (covered_elsewhere.json), so this file carries no records for them."
+      }
+    ]
+  },
   "rules": "reference_audit/2026-09-28 rule 2 (a scored reference follows from the stated facts and from law published before the 2026-07-03 freeze) and rule 4 (an output whose reference turns on a fact the prompt does not state is excluded).",
   "root_causes": {
     "az_standard_deduction_indexing": {

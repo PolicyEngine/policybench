@@ -4,7 +4,8 @@ Verification (verification/independent/*.md) found four engine defects behind fo
 references and one definition-scope ambiguity behind four more. Each root cause gets an
 exclusion alternative and, where the law gives one value, a regeneration alternative.
 Nothing here changes a score: a release installs one alternative per root cause only after
-Max rules (cos decision).
+Max rules (cos decision). He ruled on 2026-10-06 (d1022, and d994 for the two Louisiana cells
+this pass skipped); `status` records both rulings.
 
 Values:
 - scenario_018: the engine's own counterfactual with the 2026 indexed deduction
@@ -36,6 +37,71 @@ DRAFTED = "2026-10-06"
 ENGINE = "policyengine-us 2.15.17"
 STATE_TAX = "state_income_tax_before_refundable_credits"
 FED_TAX = "federal_income_tax_before_refundable_credits"
+RULED = "2026-10-06"
+AFTER_RELEASE = "dashboard-data-20261006"
+CONFIRMED_CAUSES = [
+    "az_standard_deduction_indexing",
+    "oh_medical_deduction_premiums",
+    "co_sales_tax_refund_surplus",
+    "ny_cdcc_606_c2",
+]
+
+# Max's rulings, quoted from the cos decision log (~/chief-of-staff/state/decisions).
+RULINGS = [
+    {
+        "decision": "d1022",
+        "ruled_at": "2026-10-06T13:11",
+        "question": (
+            "PolicyBench: exclude the reference-adversary's confirmed cells in the next "
+            "release after 20261006 (AZ 018, OH 025, CO 043, NY 082 engine defects; PA 123 "
+            "dependent-return scope, 4 cells), regenerate the four defect cells once fixed "
+            "policyengine-us versions land; NC 026 refuted"
+        ),
+        "ruling": "Approved by Max 2026-10-06 in chat ('approve')",
+        "next_release": (
+            f"exclude every exclusion record below, 8 cells (variant exclude_all), in the "
+            f"next release after {AFTER_RELEASE}"
+        ),
+        "later_release": (
+            "regenerate the four CONFIRMED cells once policyengine-us versions that fix "
+            "the defects land"
+        ),
+        "root_causes": [*CONFIRMED_CAUSES, "household_scope_dependent_returns"],
+        "unchanged": (
+            "scenario_026 child1/child2_medicaid_eligible: the adversary's reference_wrong "
+            "was refuted (verification/independent/nc_026.md); both references stand"
+        ),
+    },
+    {
+        "decision": "d994",
+        "ruled_at": "2026-10-06T13:11",
+        "question": (
+            "PolicyBench: PR #192's Louisiana documentation sentence, applied as written, "
+            "changes five scored references held under the 2026-09-22 conventions (Idaho "
+            "zero-rate threshold: scenario_076 -$13.46; SNAP FY2027 standard deduction for "
+            "4/5/6+ households: 008 +$9, 038 +$3, 109 +$6; Maryland's 2026 return "
+            "deduction on the IRS's reading of 10-217(c): 068 -$2.375, the literal reading "
+            "keeps $3,350). Adopt the sentence and regenerate those references in a "
+            "follow-up release (and pick Maryland's reading), narrow the sentence so no "
+            "hold moves, or keep the current convention letter?"
+        ),
+        "ruling": (
+            "Exclude LA scenario_051 and scenario_077 state income tax; keep the "
+            "published-amounts convention (no change to Idaho 076, SNAP 008/038/109, "
+            "Maryland 068); v2 states indexed amounts in the prompt. Next release after "
+            "20261006. (Max 2026-10-06: approve)"
+        ),
+        "cells": [
+            {"scenario_id": "scenario_051", "variable": STATE_TAX},
+            {"scenario_id": "scenario_077", "variable": STATE_TAX},
+        ],
+        "source": (
+            "PolicyEngine/policybench#192 (Louisiana 2026 standard deduction audit). Both "
+            "cells were flagged here and skipped as covered elsewhere "
+            "(covered_elsewhere.json), so this file carries no records for them."
+        ),
+    },
+]
 
 # Upstream PolicyEngine/policyengine-us fix PRs.
 UPSTREAM = {
@@ -181,12 +247,20 @@ def main() -> None:
     scope = household_scope_values()
     out = {
         "schema_version": 1,
-        "status": (
-            f"proposed {DRAFTED}; changes published scores, so each root cause waits for Max's "
-            "ruling (cos decision). Each root cause offers alternatives; a release installs one "
-            "of them, not both. decided_on is the draft date; a release sets it to the ruling's "
-            "date."
-        ),
+        "status": {
+            "state": f"ruled {RULED}",
+            "summary": (
+                f"Proposed {DRAFTED}; Max ruled {RULED}. The next release after "
+                f"{AFTER_RELEASE} installs every root cause's exclusion records "
+                "(variant exclude_all in verification/leaderboard_impact.json) and, under "
+                "d994, excludes the two Louisiana cells this pass skipped. A later release "
+                "replaces each CONFIRMED root cause's exclusion with a reference regenerated "
+                "on a policyengine-us version that fixes the defect; the regeneration "
+                "records' values are what that reference should reproduce. decided_on is "
+                "the ruling's date, which is also the draft date."
+            ),
+            "rulings": RULINGS,
+        },
         "rules": (
             "reference_audit/2026-09-28 rule 2 (a scored reference follows from the stated facts "
             "and from law published before the 2026-07-03 freeze) and rule 4 (an output whose "
