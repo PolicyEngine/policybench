@@ -11,7 +11,7 @@
     "d974": "exclude scenario_114 Virginia income tax before refundable credits (Medicare Part B premium; PolicyEngine/policybench#193)",
     "d972": "exclude scenario_032, scenario_043, scenario_081 and scenario_082 payroll_tax (optional employer pass-through of a state paid-leave premium; PolicyEngine/policybench#194); do not regenerate",
     "d831": "date the model response window from the last answer (PolicyEngine/policybench#188)",
-    "louisiana": "keep scenario_051 and scenario_077 state income tax at the $12,835 deduction and add the README's documentation sentence (PolicyEngine/policybench#192)"
+    "louisiana": "keep scenario_051 and scenario_077 state income tax at the $12,835 deduction; ship wording-only case-note edits (PolicyEngine/policybench#192); hold the README documentation sentence under d994"
   },
   "proposals": [
     {
