@@ -12,12 +12,12 @@ This release applies Max's rulings of 2026-10-05 to release `dashboard-data-2026
 
 PR #197's rewrites of scenario_031's Medicaid annotations ship with this release's re-export.
 
-PR #192's documentation sentence is held. Applied as written, it would change scored references held under the 2026-09-22 conventions:
-- Idaho's zero-rate threshold;
-- SNAP's FY2027 standard deduction for households of four or more;
-- Maryland's 2026 return deduction, under one of its two readings.
+PR #192's documentation sentence is held under d994. Applied as written, it would change five scored references held under the 2026-09-22 conventions:
+- Idaho's zero-rate threshold (scenario_076);
+- SNAP's FY2027 standard deduction for households of four or more (scenario_008, scenario_038 and scenario_109);
+- Maryland's 2026 return deduction under the IRS reading (scenario_068).
 
-Changing them is a methodology call for Max (cos decision).
+This release retains the existing convention and every reference value. The wording-only Louisiana case-note rewrites ship; the held sentence requires a separate methodology decision.
 
 ## Inputs
 
@@ -29,13 +29,13 @@ Changing them is a methodology call for Max (cos decision).
   - the eight adjudications' subtypes and reasoning;
   - the judge-evidence waves.
 - `annotation_rewrites.json`: whole-field rewrites of annotation text, as in #197's `rewrites.json`. Each holds a row's whole old and whole new text. They are applied before the adjudications, which append their sentence to the excluded case notes.
-- The base: release 20260930's archived stage (`results/local/gpt61sol-stage/gpt61sol-v1`), which the driver only reads, and git at the base commit.
+- The base: release 20260930's archived stage (`results/local/release-batch/base-20260930`), which the driver only reads, and git at the base commit.
 
 ## Commands
 
 ```
 WT=$PWD; PY=$WT/.venv/bin/python; export OPENBLAS_NUM_THREADS=1
-$PY scripts/release_20261006.py prepare --base-stage results/local/gpt61sol-stage/gpt61sol-v1 --stage results/local/release-batch/dashboard-data-20261006
+$PY scripts/release_20261006.py prepare --base-stage results/local/release-batch/base-20260930 --stage results/local/release-batch/dashboard-data-20261006
 $PY scripts/release_20261006.py export --stage results/local/release-batch/dashboard-data-20261006
 $PY scripts/release_20261006.py freeze --stage results/local/release-batch/dashboard-data-20261006 --dry-run
 $PY scripts/release_20261006.py freeze --stage results/local/release-batch/dashboard-data-20261006

@@ -1,6 +1,6 @@
 # Louisiana's 2026 standard deduction, October 5, 2026
 
-This directory audits the 2026 Louisiana standard deduction behind two scored references in release `dashboard-data-20260930`. It changes no reference. It recommends keeping both, and drafts the documentation the release should carry. The ruling is Max's (cos decision, see the PR).
+This directory audits the 2026 Louisiana standard deduction behind two scored references in release `dashboard-data-20260930`. It changes no reference. Max ruled to keep both at the $12,835 deduction. Release `dashboard-data-20261006` ships the wording-only case-note rewrites below. The proposed benchmark-card and paper convention sentence remains held under d994.
 
 | Output | Reference | Models exact |
 |---|---:|---:|
@@ -66,15 +66,17 @@ Neither exclusion basis applies. The reference turns on no input the prompt omit
 
 ## Recommendation
 
-Keep both references. Carry two documentation changes in the next release:
+Keep both references. The original proposal below separated two documentation changes. Release `dashboard-data-20261006` ships only the case-note rewrites in item 2; item 1 remains held under d994.
 
-1. **Benchmark card and paper.** Replace the convention's second sentence with:
+1. **Benchmark card and paper — HELD (d994).** The proposed replacement for the convention's second sentence was:
 
    > Where a 2026 amount rests on a price-index projection, or on an index value or announcement published after the freeze, the reference takes the amount published before the freeze or, where none was, the last one published. Where a statute fixes a 2026 amount from index values published before the freeze, the reference applies the statute, whenever the government announces the result. Louisiana's 2026 standard deduction is $12,500 increased by the calendar-2025 CPI-U change (R.S. 47:294(B)); the December 2025 index, released 2026-01-13, gives $12,835, and the $12,838 the Department of Revenue announced on 2026-09-28 moves neither reference by more than $0.09. A withholding or estimated-tax amount the government labels provisional sets no return amount.
 
    Without the second sentence, the convention's letter misfires once policyengine-us encodes RIB 26-019: the engine would then carry an amount published after the freeze, and the reference would fall back to $12,875 or $12,500.
 
    The same sentence bears on the record's other holds. Maryland's 2026 return deduction is indexed under Tax-General §10-217(c) through IRC §1(f)(3), whose index month for 2026 is August 2025 (BLS release 2025-09-11; `../2026-09-22/verification/v5b_projection_mn_md_mi_mo_il.md`). It was held at 2025's $3,350 because no 2026 return amount was published before the freeze; that hold moves scenario_068's state income tax by $2.375. Under the sentence above, Maryland's amount would come from its statute too. Whether any Idaho or Michigan hold is in the same position is unchecked. Adopting the sentence therefore means re-examining those holds in the release that carries it. Keeping the convention's current letter instead leaves Louisiana unchanged today (its $12,835 is no projection) and defers the question until policyengine-us encodes $12,838.
+
+   The subsequent re-examination found that adopting this wording would change five scored references: scenario_076's Idaho income tax, SNAP for scenario_008, scenario_038 and scenario_109, and scenario_068's Maryland income tax under the IRS reading. Those changes are held under d994. The existing benchmark-card and paper convention remains in force for this release.
 2. **Case notes for the two outputs.** Replace "inflation-indexed ... $12,835" with the sourced chain:
 
    > R.S. 47:294(B) multiplies 2025's $12,500 by the CPI-U increase for calendar 2025. The December 2025 index, released January 13, 2026, puts that at 2.68% (the Legislative Fiscal Office's figure in the Louisiana Register of February 20, 2026), which gives $12,835. Before the freeze the Department of Revenue applied 2.7% to the retirement exemption, which the same words index (Louisiana Register, June 20, 2026); on September 28, 2026 it set the standard deduction at $12,838 the same way (RIB 26-019). That gives $820.26 (scenario_051) and $305.05 (scenario_077), within the tolerance. The $12,875 in the Department's 2026 withholding tables and estimated-tax worksheet was a provisional amount from CPI-U data available on December 1, 2025.

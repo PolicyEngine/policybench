@@ -4382,26 +4382,83 @@ def test_release_20261006_note() -> None:
         "Every other pair keeps its order.",
     )
 
-    # The next prompt contract: the draft pull request, which no code here
-    # runs, and the three facts the records name as unlisted.
+    # The next prompt contract: its reviewed immutable source, the three
+    # facts the records name as unlisted, and the gates for a later run.
+    # This evidence was retrieved from PR 173's head and verified against
+    # the complete document's SHA256 before it was recorded in the note.
     links = {entry["label"]: entry["href"] for entry in note["data"]}
     assert links["Draft prompt contract (policybench#173)"] == (
         "https://github.com/PolicyEngine/policybench/pull/173"
     )
     # The draft adds policybench.prompt_contract_v2, which this tree lacks.
     assert not (ROOT / "policybench/prompt_contract_v2.py").exists()
+    evidence = note["v2ContractEvidence"]
+    assert evidence["pullRequest"] == 173
+    assert evidence["commit"] == "41061fcaa1727a284e279fb763728dc3b36b8cbf"
+    assert evidence["path"] == "docs/prompt_contract_v2.md"
+    assert evidence["sha256"] == (
+        "c532a028b562a7358480ffd872501a70f6d04842df640747983cc667565a8dc6"
+    )
+    assert evidence["version"] == "2.1.0"
+    assert links["Draft v2 contract conventions (reviewed source)"] == (
+        "https://github.com/PolicyEngine/policybench/blob/"
+        f"{evidence['commit']}/{evidence['path']}"
+        "#october-5-calculation-conventions"
+    )
+    assert evidence["excerpts"] == {
+        "activation": (
+            "`policybench.prompt_contract_v2` adds an **opt-in, unactivated "
+            "household-fact\ncontract**"
+        ),
+        "salt": (
+            "For each supplied tax unit, state the annual input\n"
+            "`state_withheld_income_tax`, or follow the declared model's per-state "
+            "AGI-based\nwithholding estimate and treat that estimate as paid "
+            "during the year."
+        ),
+        "medicareEnrollment": (
+            "Every person's text states `takes_up_medicare_if_eligible`: enrollment "
+            "includes\nPart B and is assumed if eligible unless a supplied "
+            "boolean overrides it."
+        ),
+        "medicarePremium": (
+            "The annual enrollee payment `medicare_part_b_premium` is\n"
+            "employee after-tax spending. When absent, it follows the declared "
+            "model's\nstandard premium plus IRMAA, net of Medicare Savings "
+            "Program support, and is\npaid only while enrolled."
+        ),
+        "employerChoice": (
+            "For each person in MN Paid Leave, CO FAMLI, MA PFML, NY PFL/DBL, "
+            "DE Paid Leave,\nME PFML, VT child-care contribution, or WA PFML, "
+            "the prompt states whether\nthe employer withholds the employee share."
+        ),
+        "payrollScope": (
+            "The v2 payroll definition covers all listed people's employee-side "
+            "payroll\ntax, including dependent wages, mandatory state contributions, "
+            "and optional\nemployee shares that the employer chooses to withhold "
+            "under the stated\nconvention."
+        ),
+        "validation": (
+            "Before activation, adapt the reference builder to the stated "
+            "conventions and\nrun the complete sweep"
+        ),
+    }
     assert {by_key[k]["unlisted_input"].split(",")[0] for k in federal} == {SALT_INPUT}
     assert (
         "state in the payroll output's definition how these shares count, so a "
         "fresh run can score such households again"
     ) in payroll_readme
     pin(
-        "PolicyBench's next prompt contract, a draft in progress "
-        "(PolicyEngine/policybench#173) that no run uses yet, is to state each of "
-        "these facts, so that a later run can score these outputs again: the state "
-        "income tax a household paid during the year, its Medicare enrollment and "
-        "premiums, and whether its employer deducts the employee share of a state "
-        "paid-leave or disability premium."
+        "PolicyBench's next prompt contract remains an unactivated draft "
+        "(PolicyEngine/policybench#173).",
+        "It states the state income tax paid for each tax unit or a named "
+        "convention for estimating withholding; each person's Medicare Part B "
+        "enrollment and annual net premium; and whether each person's employer "
+        "withholds the employee share of state paid-leave or disability premiums.",
+        "Its payroll output definition counts optional employee shares only "
+        "when the employer withholds them.",
+        "A later run can score these outputs after its reference builder and "
+        "a fresh input sweep validate the stated conventions.",
     )
     assert (
         "whether its employer deducts the employee share of a state paid-leave or "
@@ -4560,7 +4617,7 @@ def test_release_20261006_note() -> None:
     for label, scenario_id in household_links.items():
         assert links[label] == f"/?country=us&scenario={scenario_id}#scenarios"
     assert not any(re.search(r"scenario_\d", label) for label in links)
-    assert len(links) == len(note["data"]) == 9 + len(household_links)
+    assert len(links) == len(note["data"]) == 10 + len(household_links)
 
 
 @cache
