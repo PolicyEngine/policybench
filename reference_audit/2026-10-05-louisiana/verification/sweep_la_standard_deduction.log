@@ -1,0 +1,30 @@
+policyengine-us 2.15.17; 100 households
+candidates (single; joint is 200%): engine=12835.0000, dec_dec_unrounded=12834.6351, annual_average=12828.9086, ldr_published=12875.0000, ldr_official=12838.0000, hold_2025=12500.0000
+baseline: 1984 outputs, 1928 scored, 0 scored outputs differ from the published reference
+
+engine (12835.0000): 0 outputs change, 0 by more than $1 (0 scored)
+
+dec_dec_unrounded (12834.6351): 2 outputs change, 0 by more than $1 (0 scored)
+ scenario_id state                                   variable   baseline  dec_dec_unrounded  dec_dec_unrounded_delta  excluded
+scenario_051    LA state_income_tax_before_refundable_credits 820.349976         820.360962                 0.010986     False
+scenario_077    LA state_income_tax_before_refundable_credits 305.135254         305.146210                 0.010956     False
+
+annual_average (12828.9086): 2 outputs change, 0 by more than $1 (0 scored)
+ scenario_id state                                   variable   baseline  annual_average  annual_average_delta  excluded
+scenario_051    LA state_income_tax_before_refundable_credits 820.349976      820.532715              0.182739     False
+scenario_077    LA state_income_tax_before_refundable_credits 305.135254      305.318024              0.182770     False
+
+ldr_published (12875.0000): 2 outputs change, 2 by more than $1 (2 scored)
+ scenario_id state                                   variable   baseline  ldr_published  ldr_published_delta  excluded
+scenario_051    LA state_income_tax_before_refundable_credits 820.349976     819.149963            -1.200012     False
+scenario_077    LA state_income_tax_before_refundable_credits 305.135254     303.935272            -1.199982     False
+
+ldr_official (12838.0000): 2 outputs change, 0 by more than $1 (0 scored)
+ scenario_id state                                   variable   baseline  ldr_official  ldr_official_delta  excluded
+scenario_051    LA state_income_tax_before_refundable_credits 820.349976    820.260010           -0.089966     False
+scenario_077    LA state_income_tax_before_refundable_credits 305.135254    305.045258           -0.089996     False
+
+hold_2025 (12500.0000): 2 outputs change, 2 by more than $1 (2 scored)
+ scenario_id state                                   variable   baseline  hold_2025  hold_2025_delta  excluded
+scenario_051    LA state_income_tax_before_refundable_credits 820.349976 830.399963        10.049988     False
+scenario_077    LA state_income_tax_before_refundable_credits 305.135254 315.185272        10.050018     False
