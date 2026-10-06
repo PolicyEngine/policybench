@@ -1,4 +1,4 @@
-"""Opt-in US household prompt contract 2.0.0; no evaluator or v1 integration.
+"""Opt-in US household prompt contract 2.1.0; no evaluator or v1 integration.
 
 This module renders supplied facts, not policy results. It uses no model registry,
 simulation, network, or v1 prompt helpers. Unknown inputs remain visible and block
@@ -20,7 +20,22 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from policybench.scenarios import Scenario
 
-CONTRACT_VERSION = "2.0.0"
+CONTRACT_VERSION = "2.1.0"
+
+# Explicit exceptions to the generic unlisted-zero rule. These names are also
+# used by the report-only sensitivity check; rendering an unknown is not coverage.
+STATED_CONVENTION_INPUTS = frozenset(
+    {
+        "state_withheld_income_tax",
+        "takes_up_medicare_if_eligible",
+        "medicare_part_b_premium",
+        "medical_expense_health_insurance_premiums",
+        "health_insurance_premiums_without_medicare_part_b",
+        "state_paid_leave_employee_share",
+        "hours_worked_last_week",
+        "weekly_hours_worked",
+    }
+)
 
 TASK_PREFACE = (
     "Estimate requested outputs under the declared PolicyEngine-US version and "
@@ -30,7 +45,7 @@ TASK_PREFACE = (
     "amounts are annual totals including overtime, and hourly rates are "
     "straight-time rates. Unlisted numeric inputs, including unlisted integer "
     "inputs, are zero and unlisted boolean inputs are false, except for the "
-    "explicitly listed unknown facts and the filing and take-up assumptions. "
+    "explicitly listed unknown facts and the named calculation conventions. "
     "Unknown facts and unknown provenance are never observed negatives. A "
     "supplied value with unknown provenance remains a supplied value, not an "
     "observation; an unknown value must not be replaced with zero or false. "
@@ -41,7 +56,8 @@ TASK_PREFACE = (
     "separately. SNAP receipt-based disability, tax-specific disability, and "
     "self-care conditions are separate facts. Medicare eligibility is evaluated "
     "on January 1; SSDI benefit months are measured as of that date. "
-    "Assume filing and full take-up of eligible requested benefits, plus "
+    "Assume filing and full take-up of eligible requested benefits (Medicare "
+    "enrollment can be explicitly overridden), plus "
     "eligible TANF/MOE noncash benefits used for SNAP categorical eligibility, "
     "and apply those computed benefits in downstream calculations. This "
     "exception permits computed receipt; it does not create substantive "
@@ -52,7 +68,14 @@ TASK_PREFACE = (
     "If neither weekly-hours input is supplied, this contract assumes 0 "
     "hours/week, not an observed zero. Do not derive hours from annual wages or "
     "an hourly rate. Supplied null hours remain unknown. These conventions are "
-    "declared assumptions, not verified engine behavior."
+    "declared assumptions, not verified engine behavior. "
+    "Every input read by a scored reference whose change by a plausible amount "
+    "moves that reference by more than $1 must be covered by a stated fact or "
+    "an explicit convention. A generic zero default does not cover a computed "
+    "engine estimate. Legacy sweep findings report gaps; they do not certify "
+    "readiness. Do not subtract employer-paid or employee after-tax premiums "
+    "from FICA wages. Employee pre-tax health premiums reduce income-tax and "
+    "FICA wages under the declared model."
 )
 
 # Explicit labels and types, independent of the mutable engine input registry.
@@ -78,6 +101,21 @@ _PERSON_MONEY_LABELS = {
     "employer_sponsored_insurance_premiums": (
         "Employer-paid insurance premiums (not included in stated wages)"
     ),
+    "pre_tax_health_insurance_premiums": "Employee pre-tax health insurance premiums",
+    "health_insurance_premiums_without_medicare_part_b": (
+        "Employee after-tax health insurance premiums excluding Part B"
+    ),
+    "health_insurance_premiums": (
+        "Employee after-tax health insurance premiums including Part B"
+    ),
+    "other_health_insurance_premiums": (
+        "Employee after-tax other health insurance premiums"
+    ),
+    "medicare_part_b_premium": "Employee after-tax annual Part B premium, net of MSP",
+    "medical_expense_health_insurance_premiums": (
+        "Employee after-tax medical-expense health insurance premium total"
+    ),
+    "financial_assistance": "Cash financial assistance from the named outside source",
     "social_security_disability": "Social Security disability income",
     "social_security_retirement": "Social Security retirement income",
     "social_security_dependents": "Social Security dependent benefits",
@@ -98,6 +136,28 @@ _PERSON_BOOL_LABELS = {
     "is_tax_unit_spouse": "Tax unit spouse",
     "is_unmarried_partner_of_household_head": "Unmarried partner of household head",
     "has_esi": "Has employer-sponsored insurance",
+    "takes_up_medicare_if_eligible": "Part B enrollment if Medicare-eligible",
+    "is_surviving_spouse": "Surviving spouse indicator (see deciding facts below)",
+    "dependent_child_lives_in_home": "Dependent child lives in the home",
+    "state_paid_leave_employee_share_withheld": "Employer withholds employee share",
+}
+_PERSON_TEXT_LABELS = {
+    "financial_assistance_source": "Source of cash financial assistance"
+}
+_TAX_UNIT_MONEY_LABELS = {
+    "state_withheld_income_tax": (
+        "Annual state income tax paid during the year for SALT"
+    ),
+}
+_OPTIONAL_PAYROLL_PROGRAMS = {
+    "MN": "MN Paid Leave",
+    "CO": "CO FAMLI",
+    "MA": "MA PFML",
+    "NY": "NY PFL/DBL",
+    "DE": "DE Paid Leave",
+    "ME": "ME PFML",
+    "VT": "VT child-care contribution",
+    "WA": "WA PFML",
 }
 _DURATION = "months_receiving_social_security_disability"
 _PROVENANCE_FIELDS = frozenset(_DISABILITY_LABELS) | {
@@ -109,7 +169,8 @@ _PERSON_FIELDS = (
     | _HOURS_LABELS.keys()
     | _PERSON_MONEY_LABELS.keys()
     | _PERSON_BOOL_LABELS.keys()
-    | {"age", "hourly_wage"}
+    | _PERSON_TEXT_LABELS.keys()
+    | {"age", "hourly_wage", "spouse_death_year"}
 )
 # The existing Scenario defaults are evidence for these explicit true-only
 # inputs; accepting false here would contradict this contract's fixed preamble.
@@ -229,9 +290,22 @@ class RenderedHouseholdContract:
 
 
 def contract_identity() -> str:
-    """Version plus SHA-256 of this module's exact source bytes (source installs)."""
-    digest = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    """Hash source bytes plus canonical v2 definitions, excluding mutable v1 text."""
+    source = Path(__file__).read_bytes()
+    definitions = json.dumps(v2_output_definitions(), sort_keys=True).encode("utf-8")
+    digest = hashlib.sha256(source + b"\n" + definitions).hexdigest()
     return f"policybench-us-household-prompt/{CONTRACT_VERSION}:sha256:{digest}"
+
+
+def v2_output_definitions() -> dict[str, str]:
+    """Read explicitly gated proposed wording without changing the v1 spec loader."""
+    data = json.loads(Path(__file__).with_name("benchmark_specs.json").read_text())
+    outputs = data["specs"]["policybench"]["countries"]["us"]
+    return {
+        item["id"]: item["v2_prompt"]
+        for item in outputs
+        if item.get("v2_prompt_contract") == CONTRACT_VERSION
+    }
 
 
 def _label(name: str) -> str:
@@ -245,6 +319,12 @@ def _label(name: str) -> str:
         return _PERSON_MONEY_LABELS[name]
     if name in _PERSON_BOOL_LABELS:
         return _PERSON_BOOL_LABELS[name]
+    if name in _PERSON_TEXT_LABELS:
+        return _PERSON_TEXT_LABELS[name]
+    if name in _TAX_UNIT_MONEY_LABELS:
+        return _TAX_UNIT_MONEY_LABELS[name]
+    if name == "spouse_death_year":
+        return "Spouse death year"
     if name == "hourly_wage":
         return "Straight-time hourly wage"
     if name == "age":
@@ -255,6 +335,13 @@ def _label(name: str) -> str:
 
 
 def _value_text(name: str, value: object, path: str) -> str:
+    if name in _PERSON_TEXT_LABELS:
+        return _text(value, path)
+    if name == "spouse_death_year":
+        year = _number(value, path, integer=True)
+        if not 1 <= year <= 9999:
+            raise ContractInputError(f"{path}: expected a calendar year")
+        return str(year)
     if name in _DISABILITY_LABELS or name in _PERSON_BOOL_LABELS:
         if type(value) is not bool:
             raise ContractInputError(f"{path}: expected boolean, without coercion")
@@ -276,12 +363,15 @@ def _value_text(name: str, value: object, path: str) -> str:
         if not 0 <= number <= 168:
             raise ContractInputError(f"{path}: hours must be between 0 and 168")
         return f"{_numeric_text(number)} hours/week"
-    if name in _PERSON_MONEY_LABELS or name == "hourly_wage":
+    if (
+        name in _PERSON_MONEY_LABELS
+        or name in _TAX_UNIT_MONEY_LABELS
+        or name == "hourly_wage"
+    ):
         number = _number(value, path)
         if (
-            name in ("employer_sponsored_insurance_premiums", "hourly_wage")
-            and number < 0
-        ):
+            "premiums" in name or name in ("medicare_part_b_premium", "hourly_wage")
+        ) and number < 0:
             raise ContractInputError(f"{path}: must be nonnegative")
         suffix = "/hour" if name == "hourly_wage" else ""
         return f"${_numeric_text(number)}{suffix}"
@@ -304,13 +394,19 @@ def _render_inputs(
         path = f"{prefix}.{name}"
         if name in _PERSON_FIELDS and entity != "person":
             raise ContractInputError(f"{path}: {name} is a person input")
+        if name in _TAX_UNIT_MONEY_LABELS and entity != "tax_unit":
+            raise ContractInputError(f"{path}: {name} is a tax_unit input")
         if name in _TAKEUP_ENTITIES and entity != _TAKEUP_ENTITIES[name]:
             raise ContractInputError(
                 f"{path}: incorrect entity for filing/take-up input"
             )
         supplied = name in inputs
         value = inputs.get(name)
-        supported = name in _PERSON_FIELDS or name in _TAKEUP_ENTITIES
+        supported = (
+            name in _PERSON_FIELDS
+            or name in _TAKEUP_ENTITIES
+            or name in _TAX_UNIT_MONEY_LABELS
+        )
         fact_provenance = provenance.get(name, FactProvenance("unknown"))
         if not supported:
             unsupported.add(path)
@@ -464,6 +560,82 @@ def render_household_contract(
                 "- Weekly hours: 0 hours/week (contract assumption; "
                 "no weekly-hours input supplied)"
             )
+        if "takes_up_medicare_if_eligible" not in inputs:
+            lines.append(
+                "- Part B enrollment [takes_up_medicare_if_eligible]: yes if eligible "
+                "(declared convention; includes Part B, not evidence of enrollment)"
+            )
+        if "medicare_part_b_premium" not in inputs:
+            lines.append(
+                "- Employee after-tax annual Part B premium [medicare_part_b_premium]: "
+                "declared-model standard premium plus IRMAA, net of Medicare Savings "
+                "Program support; paid only while enrolled (declared convention). "
+                "Unlisted two-year-prior IRMAA MAGI is $0."
+            )
+            if year == 2026 and policyengine_us_version == "2.15.17":
+                lines.append(
+                    "- 2026 Part B standard premium: $202.90/month, $2,434.80/year "
+                    "before IRMAA and Medicare Savings Program support "
+                    "(declared policyengine-us 2.15.17 convention)."
+                )
+        if "medical_expense_health_insurance_premiums" not in inputs:
+            lines.append(
+                "- Employee after-tax medical premium total "
+                "[medical_expense_health_insurance_premiums]: "
+                "nonzero health_insurance_premiums overrides the component sum; "
+                "otherwise health_insurance_premiums_without_medicare_part_b "
+                "(zero if absent) plus medicare_part_b_premium while enrolled. "
+                "A supplied zero total in health_insurance_premiums still uses "
+                "the component sum (declared convention; do not double-count)."
+            )
+        program = _OPTIONAL_PAYROLL_PROGRAMS.get(scenario.state)
+        if program:
+            choice = inputs.get("state_paid_leave_employee_share_withheld", True)
+            if choice is None:
+                description = "employer's withholding choice is unknown"
+            elif choice:
+                description = "employer withholds the full employee share"
+            else:
+                description = (
+                    "employer pays the employee share; no employee withholding"
+                )
+            lines.append(
+                f"- {program}: {description} "
+                "(declared convention when not supplied; use the declared model's "
+                "employee-share parameters; NY DBL uses 52 weeks/year)."
+            )
+        if inputs.get("is_surviving_spouse") is True:
+            if "spouse_death_year" not in inputs:
+                lines.append(
+                    f"- Spouse death year [spouse_death_year]: {year - 1} "
+                    "(declared convention; synthetic date, not an observed fact)."
+                )
+            elif (
+                inputs["spouse_death_year"] is not None
+                and inputs["spouse_death_year"] > year
+            ):
+                raise ContractInputError(
+                    f"{prefix}.spouse_death_year: future death year"
+                )
+            if "dependent_child_lives_in_home" not in inputs:
+                child_lives = "yes" if scenario.children else "no"
+                lines.append(
+                    "- Dependent child lives in the home "
+                    f"[dependent_child_lives_in_home]: {child_lives} "
+                    "(declared convention: listed children are dependent children "
+                    "living in the home). Apply the dated filing-status rules; "
+                    "the surviving spouse label alone does not establish "
+                    "qualifying surviving spouse status."
+                )
+        if (
+            "financial_assistance" in inputs
+            and "financial_assistance_source" not in inputs
+        ):
+            lines.append(
+                "- Source of financial assistance [financial_assistance_source]: "
+                "cash gifts from friends or relatives outside the household "
+                "(declared convention; count as SNAP unearned cash income)."
+            )
     for entity in ("tax_unit", "spm_unit", "household"):
         inputs = _mapping(getattr(scenario, f"{entity}_inputs"), entity)
         if inputs:
@@ -471,6 +643,26 @@ def render_household_contract(
             lines.extend(
                 _render_inputs(inputs, entity, entity, {}, unknown, unsupported)
             )
+        if entity == "tax_unit" and "state_withheld_income_tax" not in inputs:
+            lines.extend(
+                [
+                    "",
+                    "Tax-unit SALT payment convention:",
+                    "- Annual state income tax paid during the year "
+                    "[state_withheld_income_tax]: the declared model's per-state AGI "
+                    "withholding estimate, treated as paid; not the final state income "
+                    "tax liability (declared convention for each supplied tax unit). "
+                    "A supplied tax-unit value overrides this estimate. SALT chooses "
+                    "the larger of state_withheld_income_tax + local_income_tax and "
+                    "state_sales_tax + local_sales_tax, then adds real estate tax "
+                    "and applies the deduction cap. Montana's separate "
+                    "mt_withheld_income_tax reader still requires its own stated input "
+                    "or convention before scoring.",
+                ]
+            )
+    lines.extend(["", "Proposed v2 output definitions (not an output request):"])
+    for name, definition in sorted(v2_output_definitions().items()):
+        lines.append(f"- [{name}]: {definition}")
     lines.extend(
         [
             "",

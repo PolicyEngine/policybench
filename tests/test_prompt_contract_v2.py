@@ -500,8 +500,8 @@ def test_premium_payer_labels_and_medical_total_override(simple_single_scenario)
     )
     text = render(simple_single_scenario).text
     assert (
-        "Employee pre-tax health insurance premiums [pre_tax_health_insurance_premiums]: $1,200"
-        in text
+        "Employee pre-tax health insurance premiums "
+        "[pre_tax_health_insurance_premiums]: $1,200" in text
     )
     assert "Employee after-tax health insurance premiums excluding Part B" in text
     assert "Employee after-tax health insurance premiums including Part B" in text
@@ -570,3 +570,35 @@ def test_required_facts_rule_is_explicit(simple_single_scenario):
     assert "more than $1" in text
     assert "stated fact or an explicit convention" in text
     assert "Legacy sweep findings report gaps; they do not certify readiness" in text
+
+
+def test_common_scope_does_not_add_local_tax_to_other_outputs():
+    definitions = v2.v2_output_definitions()
+    for name, definition in definitions.items():
+        if name != "local_income_tax":
+            assert "explicitly applicable local wage" not in definition.lower()
+
+
+def test_all_frozen_insurance_premiums_have_payer_labels(frozen_scenarios):
+    for scenario in frozen_scenarios.values():
+        rendered = render(scenario)
+        for person in scenario.all_people:
+            for name in person.inputs:
+                if "insurance_premiums" in name:
+                    assert (
+                        f"person.{person.name}.{name}"
+                        not in rendered.unsupported_inputs
+                    )
+                    line = next(
+                        line
+                        for line in rendered.text.splitlines()
+                        if f"[{name}]" in line
+                    )
+                    assert any(
+                        payer in line
+                        for payer in (
+                            "Employer-paid",
+                            "Employee pre-tax",
+                            "Employee after-tax",
+                        )
+                    )
