@@ -132,3 +132,12 @@ administrative truth. It also writes `results/local/scenarios.csv`, and the eval
 commands reuse that manifest by default instead of regenerating households from
 the current source dataset. Prediction CSVs also get a `.meta.json` sidecar so
 resumes only happen against the exact same manifest, model set, and program set.
+
+## License
+
+PolicyBench is free and unencumbered software released into the public domain
+under the
+[Unlicense](https://github.com/PolicyEngine/policybench/blob/main/LICENSE).
+Third-party files keep their own licenses and terms: the Quarto web libraries
+under `app/public/paper/web/site_libs/` and the captured Vals.ai leaderboard in
+`paper/external/`.
