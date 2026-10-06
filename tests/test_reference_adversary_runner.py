@@ -126,6 +126,23 @@ with (here / "calls.jsonl").open("a") as calls:
         "env": dict(os.environ),
         "prompt": prompt,
     }) + "\\n")
+# The case this call judges, its start on the timeline, and an optional hold:
+# the held case's stage 1 waits until another case's first call has started.
+import re, time
+case = re.search(r"HOUSEHOLD (scenario_[0-9]+)", prompt).group(1)
+(here / f"started-{case}").touch()
+with (here / "timeline.jsonl").open("a") as timeline:
+    timeline.write(json.dumps({"case": case, "stage": stage, "event": "start",
+                               "t": time.time()}) + "\\n")
+hold = fake.get("hold") or {}
+if hold.get("case") == case and stage == 1:
+    deadline = time.time() + hold["timeout"]
+    while not (here / f"started-{hold['until_started']}").exists():
+        if time.time() > deadline:
+            break
+        time.sleep(0.1)
+    released = (here / f"started-{hold['until_started']}").exists()
+    (here / "hold.json").write_text(json.dumps({"released": released}))
 if fake.get("error_status"):
     print(json.dumps({"is_error": True, "api_error_status": fake["error_status"],
                       "result": "usage limit", "session_id": "x"}))
@@ -148,6 +165,9 @@ project.mkdir(parents=True, exist_ok=True)
 (project / f"{session}.jsonl").write_text(
     "".join(json.dumps(event) + "\\n" for event in events)
 )
+with (here / "timeline.jsonl").open("a") as timeline:
+    timeline.write(json.dumps({"case": case, "stage": stage, "event": "end",
+                               "t": time.time()}) + "\\n")
 print(json.dumps({"structured_output": answer, "session_id": session,
                   "modelUsage": {"claude-opus-5-5": {}},
                   "total_cost_usd": 0.0, "duration_ms": 5}))
@@ -450,6 +470,40 @@ def test_claude_runner_rejects_a_bad_stage1_and_never_runs_stage2(
     assert not (case_dir / "stage2_prompt.md").exists()
     assert [call["stage"] for call in _calls(bin_dir)] == [1]
     assert marker in (case_dir / "stage1.claude.log").read_text()
+
+
+def test_claude_runner_refills_a_slot_without_exceeding_the_parallel_cap(
+    tmp_path: Path,
+):
+    # scenario_001's stage 1 is held until scenario_003's first call starts.
+    # With AUDIT_PARALLEL=2 a batch runner would start scenario_003 only after
+    # scenario_001 finished, so the hold would run out; the rolling pool starts
+    # it as soon as scenario_002 finishes. The timeout only ends a wrong
+    # runner's wait, so it is long enough for a loaded machine.
+    cases = [*CASES, _case("scenario_003")]
+    adversary, bin_dir, env = _setup(
+        tmp_path,
+        "claude",
+        hold={"case": "scenario_001", "until_started": "scenario_003", "timeout": 600},
+    )
+    prepare_adversary(adversary, cases)
+    env["AUDIT_PARALLEL"] = "2"
+    result = _run("claude", adversary, env, tmp_path)
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "3/3 verdicts present" in result.stdout
+    assert json.loads((bin_dir / "hold.json").read_text()) == {"released": True}
+    events = [
+        json.loads(line)
+        for line in (bin_dir / "timeline.jsonl").read_text().splitlines()
+    ]
+    assert sorted((e["case"], e["stage"]) for e in events if e["event"] == "end") == [
+        (case.scenario_id, stage) for case in cases for stage in (1, 2)
+    ]
+    running = peak = 0
+    for event in sorted(events, key=lambda e: (e["t"], e["event"] == "start")):
+        running += 1 if event["event"] == "start" else -1
+        peak = max(peak, running)
+    assert peak == 2  # both slots used, never a third call
 
 
 def test_claude_runner_stops_when_the_login_cannot_judge(tmp_path: Path):

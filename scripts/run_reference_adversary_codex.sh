@@ -262,21 +262,19 @@ selected() {
 total=$(find "$CASES_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
 echo "reference adversary: $total cases | parallel=$PARALLEL effort=$EFFORT model=${MODEL:-default} runner=codex ($CLI_VERSION)"
 
-i=0
-pids=""
+# A rolling pool: at most PARALLEL cases run at once, and the next case
+# starts as soon as any running one finishes, so one slow case holds one slot
+# rather than a whole batch. bash 3.2 has no `wait -n`; `jobs -pr` lists the
+# running cases (a finished case it has not yet noticed only delays a start).
+running_cases() { jobs -pr | wc -l | tr -d ' '; }
 for case_dir in "$CASES_DIR"/*/; do
   [ -d "$case_dir" ] || continue
   case_dir="${case_dir%/}"
   selected "$(basename "$case_dir")" || continue
+  while [ "$(running_cases)" -ge "$PARALLEL" ]; do sleep 1; done
   judge_case "$case_dir" &
-  pids="$pids $!"
-  i=$((i + 1))
-  if [ $((i % PARALLEL)) -eq 0 ]; then
-    wait $pids 2>/dev/null
-    pids=""
-  fi
 done
-[ -n "$pids" ] && wait $pids 2>/dev/null
+wait
 
 done_count=0
 for case_dir in "$CASES_DIR"/*/; do
