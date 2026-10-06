@@ -48,16 +48,30 @@ information.
 
 ## Quick start
 
+PolicyBench is not published on PyPI, so install the command-line tool from
+GitHub. With [uv](https://docs.astral.sh/uv/):
+
 ```bash
-pip install policybench
+uv tool install --python 3.12 git+https://github.com/PolicyEngine/policybench
 policybench --help
 ```
 
-For repository development, clone the full Git repository before running tests:
+Or with pip, in a standard (not free-threaded) Python 3.11 to 3.14 virtual
+environment:
 
 ```bash
-pip install -e ".[dev]"
-pytest
+pip install git+https://github.com/PolicyEngine/policybench
+policybench --help
+```
+
+For repository development, clone the full Git repository and install the
+locked environment before running tests:
+
+```bash
+git clone https://github.com/PolicyEngine/policybench
+cd policybench
+uv sync --locked --extra dev --python 3.12
+uv run pytest
 ```
 
 Verify the dashboard with its bundled data prepared automatically:
