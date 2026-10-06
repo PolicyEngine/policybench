@@ -226,12 +226,11 @@ def test_every_release_rewrite_is_in_force():
     _require_frozen()
     rewrites = _committed_json(release.REWRITES_PATH)["rewrites"]
     record = _committed_json(release.ANNOTATIONS / release.ADJUDICATIONS)
-    excluded = {
-        release.key(e): e
-        for e in record["adjudications"]
-        if e.get("excluded_from_scoring")
-    }
-    from policybench.adjudications import adjudication_sentence
+    adjudicated = {release.key(e): e for e in record["adjudications"]}
+    from policybench.adjudications import (
+        _strip_adjudication_sentence,
+        adjudication_sentence,
+    )
 
     for item in rewrites:
         name = item["file"]
@@ -241,8 +240,11 @@ def test_every_release_rewrite_is_in_force():
         assert len(hits) == 1, item
         expected = item["new"]
         k = (item["scenario_id"], item["variable"])
-        if name == release.CASES and k in excluded:
-            expected = expected.rstrip() + adjudication_sentence(excluded[k])
+        if name == release.CASES and k in adjudicated:
+            # The adjudication's sentence closes the note, whatever the
+            # rewrite carried before it.
+            expected = _strip_adjudication_sentence(expected).rstrip()
+            expected += adjudication_sentence(adjudicated[k])
         assert hits[0][item["field"]] == expected, item
 
 

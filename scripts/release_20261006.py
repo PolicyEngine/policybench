@@ -157,8 +157,8 @@ DATE_CONVENTIONS_NEW = (
     "written up to the day each wave's release was committed (2026-09-05, "
     "2026-09-23 and 2026-09-30); the 2026-09-29 wave's reference sweep began "
     "on 2026-09-29 UTC, before its decisions were written. The 2026-10-05 "
-    "wave's decisions, Max's rulings of that day, were written on 2026-10-06 "
-    "UTC."
+    "wave's decisions follow Max's rulings of 2026-10-05 US Eastern time "
+    "(2026-10-06 UTC) and were written on 2026-10-06 UTC."
 )
 
 
