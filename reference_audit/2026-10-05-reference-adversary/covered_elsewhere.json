@@ -50,7 +50,7 @@
   {
     "scenario_id": "scenario_031",
     "variable": "head_medicaid_eligible",
-    "covered_by": "scenario_031 Medicaid annotation rewrite (worktree part-b-annotation-031; PR https://github.com/PolicyEngine/policybench/pull/193 related findings)",
-    "label": "scenario_031 annotation session (#193)"
+    "covered_by": "scenario_031 Medicaid annotation rewrite to the engine's California disregard: https://github.com/PolicyEngine/policybench/pull/197 (finding from the Medicare Part B audit, #193)",
+    "label": "#197 (scenario_031 annotations)"
   }
 ]

@@ -30,7 +30,7 @@ Default flags 61 of 1928 scored cells; the prototype flags 41.
 | 20 | scenario_029 head_medicaid_eligible | OK | 1 | 0 (19, 0) | 27 |  |  |
 | 21 | scenario_029 state_refundable_credits | OK | 40 | 0 (44, 5) | 2 | yes |  |
 | 22 | scenario_030 snap | TX | 288 | 0 (33, 2); 1,208 (3, 3) | 0 | yes |  |
-| 23 | scenario_031 head_medicaid_eligible | CA | 1 | 0 (43, 4) | 3 |  | scenario_031 annotation session (#193) |
+| 23 | scenario_031 head_medicaid_eligible | CA | 1 | 0 (43, 4) | 3 |  | #197 (scenario_031 annotations) |
 | 24 | scenario_032 free_school_meals_eligible | MN | 1 | 0 (23, 3) | 22 |  |  |
 | 25 | scenario_032 payroll_tax | MN | 2,346.10 | 2,219 (33, 4) | 6 | yes | #194 (payroll, d972) |
 | 26 | scenario_032 reduced_price_school_meals_eligible | MN | 0 | 1 (25, 3) | 20 |  |  |
