@@ -265,9 +265,9 @@ def main(argv: list[str] | None = None) -> None:
         manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
     # Read-only input paths are all in this checkout. Override defaults that
-    # captured the old audit directory when freeze_snapshot was imported.
+    # captured the old audit directory when freeze_snapshot was imported. The
+    # freezer dates the response window from the staged predictions.
     freezer.SNAPSHOT_DATE = date
-    freezer.MODEL_RESPONSE_DATE = f"2026-06-12 to {date}"
     freezer.SOURCE_RUN = source_run
     freezer.SOURCE_US = source_us
     freezer.SOURCE_ANNOTATIONS = staged_annotations
