@@ -482,7 +482,11 @@ def model_response_window(
             f"{predictions} has no {', '.join(sorted(missing))} column; "
             "cannot date the model response window"
         )
-    frame = pd.read_csv(predictions, usecols=columns, dtype="float64")
+    # round_trip keeps every recorded digit: the default parser can round a
+    # time just before UTC midnight up to midnight and so onto the next day.
+    frame = pd.read_csv(
+        predictions, usecols=columns, dtype="float64", float_precision="round_trip"
+    )
     completed = frame["request_completed_at"].dropna()
     if completed.empty:
         raise SystemExit(

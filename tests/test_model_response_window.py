@@ -10,6 +10,7 @@ configured window that disagrees.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -236,6 +237,47 @@ def test_the_freeze_refuses_a_release_date_window_before_any_write(
     with pytest.raises(SystemExit, match="not the release date"):
         freezer.main()
     assert freeze_inputs == []
+
+
+def test_a_csv_time_just_before_utc_midnight_stays_on_its_day(tmp_path):
+    """End to end through the CSV parser, not only ``_utc_date``: the last
+    double before 2027-02-01 00:00 UTC is a January 31 answer. pandas'
+    default float parser rounds it up to midnight."""
+    import math
+
+    completed = math.nextafter(utc(2027, 2, 1), -math.inf)
+    predictions = write_predictions(
+        tmp_path / "predictions.csv", [(completed - 60, completed)]
+    )
+    assert freezer.model_response_window(predictions, START) == (
+        "2026-06-12 to 2027-01-31"
+    )
+
+
+def test_the_real_manifest_builder_publishes_the_window_it_is_given(monkeypatch):
+    """The stubbed ``build_manifest`` above checks only the argument. Build
+    the manifest from the committed snapshot with a window no release has
+    used, and require it in ``model_response_date`` and in both notes that
+    state the window. The two blocks that read the local audit tree are
+    stubbed; nothing is written."""
+    monkeypatch.setattr(freezer, "developer_adjudications_block", lambda: {})
+    monkeypatch.setattr(freezer, "audit_judge_provenance", lambda: {})
+    manifest_path = freezer.SNAPSHOT_DIR / "manifest.json"
+    committed = json.loads(manifest_path.read_text())
+    run_files = committed["source_run_artifacts"][freezer.RUN_LABEL]["files"]
+    window = "2026-06-12 to 2026-07-03"
+    manifest = freezer.build_manifest(
+        run_files,
+        committed["committed_snapshot_artifacts"],
+        committed["audit_annotation_artifacts"]["files"],
+        window,
+    )
+    assert manifest["model_response_date"] == window
+    notes = " ".join(manifest["reproducibility_notes"])
+    assert "June 12 and July 3, 2026" in notes
+    assert f"recorded {window} response window" in notes
+    for stale in ("September 29", "September 30", "2026-09-29", "2026-09-30"):
+        assert stale not in notes, stale
 
 
 # --- Properties --------------------------------------------------------------
