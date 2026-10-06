@@ -59,26 +59,32 @@ describe("serving sensitivity", () => {
         wouldRank: rank,
       }),
     );
-    expect(rank).toBe(7);
-    expect(html).toContain("auto 91.5 · #7");
+    expect(rank).toBe(6);
+    expect(html).toContain("auto 92.8 · #6");
     expect(html).toContain("switches Claude&#x27;s extended thinking off");
-    expect(html).toContain("would rank #7");
-    expect(html).toContain("(+7.9 against its 83.6% on the unfiltered board)");
+    expect(html).toContain("would rank #6");
+    expect(html).toContain("(+7.9 against its 84.9% on the unfiltered board)");
     expect(html).toContain("sensitivity/claude-thinking-2026-08.md");
     expect(html).toContain("issues/139");
   });
 
   test("Fable 5.1 links its dated note and explains the JSON transport", () => {
     const sensitivity = servingSensitivityFor("claude-fable-5.1")!;
+    const board = rows.find((row) => row.model === "claude-fable-5.1")!;
+    const rank = wouldRank(sensitivity.autoExact, rows);
     const html = renderToStaticMarkup(
       createElement(ServingSensitivityChip, {
         modelLabel: "Claude Fable 5.1",
-        boardExact: 90.8,
+        boardExact: board.exact ?? board.score,
         sensitivity,
-        wouldRank: wouldRank(sensitivity.autoExact, rows),
+        wouldRank: rank,
       }),
     );
-    expect(html).toContain("auto 91.7 · #6");
+    // 93.037 ranks above GPT-6 Luna's 93.021 though both display as 93.0:
+    // the would-rank comes from the unrounded score.
+    expect(rank).toBe(5);
+    expect(html).toContain("auto 93.0 · #5");
+    expect(html).toContain("(+1.0 against its 92.1% on the unfiltered board)");
     expect(html).toContain("rejects forced tool calls");
     expect(html).toContain("compares transports");
     expect(html).toContain('href="/notes/2026-09-01-claude-fable-5-1-added"');
@@ -112,10 +118,10 @@ describe("serving sensitivity", () => {
     // 88.183 − 86.945 = 1.238 → +1.2; rounding first would have said +1.3.
     expect(formatDelta(88.183, 86.945)).toBe("+1.2");
     expect(formatDelta(88.2, 86.945)).toBe("+1.3");
-    // The pinned Fable 5.1 pair on the frozen board: 91.728 − 90.828 = 0.900.
+    // The pinned Fable 5.1 pair on the frozen board: 93.037 − 92.070 = 0.967.
     expect(
       formatDelta(fable51Summary.sensitivity.exact, fable51Summary.board.exact),
-    ).toBe("+0.9");
+    ).toBe("+1.0");
     expect(formatDelta(80.775, 80.8)).toBe("−0.0");
     const fable5 = Object.values(augustSummary.runs).find(
       (run) => run.model === "claude-fable-5",

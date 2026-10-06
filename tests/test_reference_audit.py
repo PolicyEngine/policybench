@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,11 @@ RUN_DIR = (
 # added r33 (release dashboard-data-20260922b excluded its output; from
 # dashboard-data-20260922c, after its fix merged, the output is regenerated).
 AUDIT_DATES = ("2026-09-22", "2026-09-24")
+# Records later audits added: the 2026-09-29 engine upgrade
+# (reference_audit/2026-09-28) and the 2026-10-05 audits of the state income
+# tax in SALT, the Medicare Part B premium and state payroll components
+# (reference_audit/2026-10-05, -medicare-part-b and -payroll).
+LATER_DATES = ("2026-09-29", "2026-10-05")
 R33 = "r33_snap_child_support_treatment"
 # policyengine-us#9586, squash-merged on 2026-09-24.
 R33_MERGE_COMMIT = "d9e801df417352b8246a4c292a19ec082a518790"
@@ -139,9 +145,29 @@ def test_sweep_rows_are_internally_consistent():
 
 
 def test_every_regeneration_names_a_committed_fix():
+    """Each revision's module is committed unchanged, and it regenerates
+    exactly the outputs its sweep moves that were scored when the wave
+    decided. A regenerated output stays scored at its regenerated value unless
+    the engine upgrade replaced the value or a record decided after the wave
+    excludes it: the 2026-10-05 SALT audit's scenario_022 federal income tax
+    (reference_audit/2026-10-05/README.md, step 3), whose record keeps the
+    regenerated value as its frozen reference."""
     causes = _causes()
     references = _references()
     excluded = {(e["scenario_id"], e["variable"]) for e in _exclusions()}
+    # Outputs the wave saw excluded, and those excluded only by a later record.
+    excluded_then = {
+        (e["scenario_id"], e["variable"])
+        for e in _exclusions()
+        if e["decided_on"] <= AUDIT_DATES[-1]
+    }
+    excluded_later = {
+        (e["scenario_id"], e["variable"]): e
+        for e in _exclusions()
+        if e["decided_on"] > AUDIT_DATES[-1]
+    }
+    assert set(excluded_later) == excluded - excluded_then
+    superseded_by_exclusion = set()
     swept = {}
     for row in _moves():
         if abs(row["recomputed"] - row["baseline"]) > 1e-6:
@@ -171,14 +197,28 @@ def test_every_regeneration_names_a_committed_fix():
                 # previous reference.
                 assert abs(superseded[key]["previous"] - change["regenerated"]) < 1e-6
                 continue
-            # A regenerated reference is scored and is the frozen CSV's value.
-            assert key not in excluded, key
+            # A regenerated reference is the frozen CSV's value.
             assert abs(references[key] - change["regenerated"]) < 1e-6, key
-        # Each source regenerates exactly the scored outputs its sweep moves.
+            if key in excluded_later:
+                # A later record excludes it at the regenerated value.
+                record = excluded_later[key]
+                assert record["decided_on"] in LATER_DATES, key
+                assert abs(record["frozen_value"] - change["regenerated"]) < 1e-6, key
+                superseded_by_exclusion.add(key)
+                continue
+            # Otherwise it is scored.
+            assert key not in excluded, key
+        # Each source regenerates exactly the outputs its sweep moves that were
+        # scored when the wave decided.
         moved = {
-            k for k in swept.get(source, {}) if k not in excluded or k in superseded
+            k
+            for k in swept.get(source, {})
+            if k not in excluded_then or k in superseded
         }
         assert moved == set(changed), source
+    scenario_022 = ("scenario_022", "federal_income_tax_before_refundable_credits")
+    assert superseded_by_exclusion == {scenario_022}
+    assert excluded_later[scenario_022]["decided_on"] == "2026-10-05"
 
 
 def test_every_convention_and_upstream_fix_has_a_revision():
@@ -273,7 +313,9 @@ def test_snap_net_income_procedures_move_no_scored_reference():
 
 def test_records_after_the_wave_carry_their_root_cause_date():
     """An exclusion or adjudication a later revision added (r33, 2026-09-24)
-    takes its root cause's decided_on; every other audit record is the wave's."""
+    takes its root cause's decided_on; every other audit record is the wave's.
+    A record a later audit added (2026-09-29 or 2026-10-05) carries that
+    audit's date, and so does its adjudication."""
     causes = _causes()
     adjudications = _load(
         ROOT
@@ -284,9 +326,17 @@ def test_records_after_the_wave_carry_their_root_cause_date():
     adjudicated_on = {
         (e["scenario_id"], e["variable"]): e["adjudicated_on"] for e in adjudications
     }
-    # Records dated 2026-09-29 belong to the 2026-09-29 engine upgrade.
+    # Records dated 2026-09-29 belong to the 2026-09-29 engine upgrade, and
+    # records dated 2026-10-05 to the 2026-10-05 audits: four and eight.
+    later = [e for e in _exclusions() if e["decided_on"] in LATER_DATES]
+    assert Counter(e["decided_on"] for e in later) == Counter(
+        {"2026-09-29": 4, "2026-10-05": 8}
+    )
+    for entry in later:
+        key = (entry["scenario_id"], entry["variable"])
+        assert adjudicated_on[key] == entry["decided_on"], key
     audit = [
-        e for e in _exclusions() if e["decided_on"] not in ("2026-09-05", "2026-09-29")
+        e for e in _exclusions() if e["decided_on"] not in ("2026-09-05", *LATER_DATES)
     ]
     assert audit
     for entry in audit:

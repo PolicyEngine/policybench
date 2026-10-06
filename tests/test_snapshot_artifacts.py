@@ -643,21 +643,25 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
-    # Release 20260930: release 20260929's counts plus GPT-6.1 Sol's 88 exact
-    # misses, every one annotated and classed llm_error (it parsed all 1,928
-    # scored outputs).
+    # Release 20261006: release 20260930's counts (annotated 7,860; exact
+    # misses 7,856; below full bounded score 9,967; unannotated 2,107;
+    # llm_error 7,208 and parse_contract_failure 652) less the rows on the
+    # eight outputs it excludes. On those outputs release 20260930 had 368
+    # scored rows (8 outputs x 46 models), all below full bounded score; 333
+    # had a legacy threshold score below 1, all exact misses and all
+    # annotated (325 llm_error, 8 parse_contract_failure), and 35 did not.
     expected_audit_counts = {
         "us": {
-            "annotated": 7_860,
-            "exact_misses": 7_856,
-            "annotated_exact_misses": 7_856,
+            "annotated": 7_527,
+            "exact_misses": 7_523,
+            "annotated_exact_misses": 7_523,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 9_967,
-            "unannotated_below_full_bounded_score": 2_107,
+            "below_full_bounded_score": 9_599,
+            "unannotated_below_full_bounded_score": 2_072,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 7_208, "parse_contract_failure": 652},
+        "us": {"llm_error": 6_883, "parse_contract_failure": 644},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -975,16 +979,6 @@ def test_frozen_predictions_and_usage_summary_agree_on_the_last_answer():
     assert window == f"{start} to {_utc_date(usage['last_request_at'].max())}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "Release dashboard-data-20260930 dated the window's end by its tag "
-        "(2026-09-30); the last answer is 2026-09-29 UTC. Whether to refreeze "
-        "now or at the next freeze is Max's call (cos decision d831). "
-        "Remove this mark with the freeze that corrects the manifest."
-    ),
-)
 def test_model_response_window_ends_on_the_last_frozen_answer():
     """The manifest's window ends on the UTC date of the last answer the frozen
     predictions record, not on the release date, and its reproducibility

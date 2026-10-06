@@ -66,6 +66,49 @@ SWEEP_TIMING = UPGRADE_VERIFICATION / "sweep_timing.json"
 # What each exclusion sweep re-run on the reference engine moves.
 RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
 
+# The 2026-10-05 review of release dashboard-data-20260930. Each of its three
+# audits recomputed every output on the reference engine under readings of an
+# input the prompt never states. Each entry names the sweep's CSV, the column
+# holding the reference system's own value (the sweep's baseline), and the
+# columns holding the readings and checks it ran. The records the review added
+# carry ``decided_on`` = REVIEW_DATE.
+REVIEW_DATE = "2026-10-05"
+REVIEW_SWEEPS: dict[str, tuple[Path, str, tuple[str, ...]]] = {
+    # State income tax in the federal SALT deduction
+    # (reference_audit/2026-10-05/README.md).
+    "salt_withholding": (
+        ROOT
+        / "reference_audit"
+        / "2026-10-05"
+        / "verification"
+        / "sweep_salt_withholding.csv",
+        "baseline",
+        ("liability", "net", "zero"),
+    ),
+    # Medicare enrollment and the Part B premium in medical expenses
+    # (reference_audit/2026-10-05-medicare-part-b/README.md).
+    "medicare_part_b": (
+        ROOT
+        / "reference_audit"
+        / "2026-10-05-medicare-part-b"
+        / "verification"
+        / "sweep_part_b.csv",
+        "baseline",
+        ("no_part_b", "not_enrolled", "not_enrolled_direct", "irmaa_from_2026_income"),
+    ),
+    # The optional employer pass-through of state paid-leave premiums
+    # (reference_audit/2026-10-05-payroll/README.md).
+    "payroll_optional_shares": (
+        ROOT
+        / "reference_audit"
+        / "2026-10-05-payroll"
+        / "verification"
+        / "sweep_payroll_scope.csv",
+        "final",
+        ("scoped",),
+    ),
+}
+
 NUMBER_WORDS = {
     0: "no",
     1: "one",
@@ -117,6 +160,42 @@ def partition_rerun_sweep_moves(
                 groups["scored_beyond_tolerance"].append(key)
             else:
                 groups["scored_within_tolerance"].append(key)
+    return groups
+
+
+def partition_review_sweep_moves(
+    moves: list[tuple[str, str, str, float, float]],
+    excluded_before: frozenset[tuple[str, str]] | set[tuple[str, str]],
+    excluded_now: frozenset[tuple[str, str]] | set[tuple[str, str]],
+) -> dict[str, list[tuple[str, str, str]]]:
+    """Split what the 2026-10-05 review's sweeps move.
+
+    Each move is (sweep, scenario_id, variable, baseline, recomputed) for one
+    reading or check whose value differs from the sweep's baseline. A move of
+    an output excluded before the review is ``excluded_before``; of an output
+    the review excluded, ``newly_excluded``; of an output still scored,
+    ``scored_beyond_tolerance`` or ``scored_within_tolerance``. Every move
+    lands in exactly one group, keyed (sweep, scenario_id, variable).
+    """
+    groups: dict[str, list[tuple[str, str, str]]] = {
+        "excluded_before": [],
+        "newly_excluded": [],
+        "scored_beyond_tolerance": [],
+        "scored_within_tolerance": [],
+    }
+    for sweep, scenario_id, variable, baseline, recomputed in moves:
+        output = (scenario_id, variable)
+        key = (sweep, scenario_id, variable)
+        if output in excluded_before:
+            groups["excluded_before"].append(key)
+        elif output in excluded_now:
+            groups["newly_excluded"].append(key)
+        elif moves_beyond_tolerance(variable, baseline, recomputed):
+            groups["scored_beyond_tolerance"].append(key)
+        else:
+            groups["scored_within_tolerance"].append(key)
+    if sum(len(group) for group in groups.values()) != len(moves):
+        raise AssertionError("review sweep partition lost or duplicated a move")
     return groups
 
 
@@ -1492,6 +1571,214 @@ class PaperResults:
     @property
     def rerun_sweep_new_excluded_count_word(self) -> str:
         return NUMBER_WORDS[len(self.rerun_sweep_new_excluded_outputs)]
+
+    # ----- the 2026-10-05 review of release dashboard-data-20260930 ----------
+    @property
+    def review_date(self) -> str:
+        return REVIEW_DATE
+
+    @cached_property
+    def review_exclusions(self) -> list[dict]:
+        """Exclusion records the 2026-10-05 review added."""
+        return [
+            entry
+            for entry in self.reference_exclusions
+            if entry.get("decided_on") == REVIEW_DATE
+        ]
+
+    @property
+    def review_exclusion_keys(self) -> frozenset[tuple[str, str]]:
+        return frozenset(exclusion_keys(self.review_exclusions))
+
+    @property
+    def excluded_before_review_keys(self) -> frozenset[tuple[str, str]]:
+        """Outputs excluded before the review: every record it did not add."""
+        return self._excluded_output_keys - self.review_exclusion_keys
+
+    @property
+    def review_new_exclusion_count(self) -> int:
+        return len(self.review_exclusions)
+
+    @property
+    def review_new_exclusion_count_word(self) -> str:
+        return NUMBER_WORDS[self.review_new_exclusion_count]
+
+    @property
+    def review_exclusion_engine_version(self) -> str:
+        """policyengine-us version the review's records were computed on."""
+        versions = {entry["engine_version"] for entry in self.review_exclusions}
+        if len(versions) != 1:
+            raise ValueError(f"review records mix engine versions: {versions}")
+        return versions.pop().removeprefix("policyengine-us ")
+
+    @property
+    def review_sweep_count(self) -> int:
+        return len(REVIEW_SWEEPS)
+
+    @property
+    def review_sweep_count_word(self) -> str:
+        return NUMBER_WORDS[self.review_sweep_count]
+
+    @cached_property
+    def review_sweep_rows(self) -> dict[str, pd.DataFrame]:
+        """Each review sweep's CSV: every output, its frozen reference, the
+        sweep's baseline and its value under each reading."""
+        return {name: pd.read_csv(path) for name, (path, _, _) in REVIEW_SWEEPS.items()}
+
+    def _review_sweep_moves(
+        self, sweep: str | None = None
+    ) -> list[tuple[str, str, str, float, float]]:
+        """(sweep, scenario_id, variable, baseline, recomputed) for every
+        reading or check that changes an output's value from the baseline."""
+        moves = []
+        for name, (_, baseline_column, readings) in REVIEW_SWEEPS.items():
+            if sweep is not None and name != sweep:
+                continue
+            frame = self.review_sweep_rows[name]
+            for row in frame.itertuples(index=False):
+                baseline = float(getattr(row, baseline_column))
+                for reading in readings:
+                    recomputed = float(getattr(row, reading))
+                    if recomputed != baseline:
+                        moves.append(
+                            (name, row.scenario_id, row.variable, baseline, recomputed)
+                        )
+        return moves
+
+    @cached_property
+    def review_sweep_partition(self) -> dict[str, list[tuple[str, str, str]]]:
+        return partition_review_sweep_moves(
+            self._review_sweep_moves(),
+            self.excluded_before_review_keys,
+            self._excluded_output_keys,
+        )
+
+    def review_sweep_moved_outputs(self, sweep: str) -> list[tuple[str, str]]:
+        """Outputs a review sweep moves beyond the exact-match tolerance under
+        any of its readings, against its own baseline."""
+        return sorted(
+            {
+                (scenario_id, variable)
+                for _, scenario_id, variable, baseline, recomputed in (
+                    self._review_sweep_moves(sweep)
+                )
+                if moves_beyond_tolerance(variable, baseline, recomputed)
+            }
+        )
+
+    def review_sweep_moved_count(self, sweep: str) -> int:
+        return len(self.review_sweep_moved_outputs(sweep))
+
+    def review_sweep_moved_count_word(self, sweep: str) -> str:
+        return NUMBER_WORDS[self.review_sweep_moved_count(sweep)]
+
+    def review_sweep_moved_household_count_word(self, sweep: str) -> str:
+        """Households whose outputs a review sweep moves beyond tolerance."""
+        households = {s for s, _ in self.review_sweep_moved_outputs(sweep)}
+        return NUMBER_WORDS[len(households)]
+
+    def review_sweep_newly_excluded_count(self, sweep: str) -> int:
+        """Outputs the sweep moves that were scored before the review."""
+        return sum(
+            output not in self.excluded_before_review_keys
+            for output in self.review_sweep_moved_outputs(sweep)
+        )
+
+    def review_sweep_newly_excluded_count_word(self, sweep: str) -> str:
+        return NUMBER_WORDS[self.review_sweep_newly_excluded_count(sweep)]
+
+    def review_sweep_already_excluded_count_word(self, sweep: str) -> str:
+        """Outputs the sweep moves that were already excluded."""
+        return NUMBER_WORDS[
+            self.review_sweep_moved_count(sweep)
+            - self.review_sweep_newly_excluded_count(sweep)
+        ]
+
+    @property
+    def review_newly_excluded_moved_outputs(self) -> list[tuple[str, str]]:
+        return sorted(
+            {(s, v) for _, s, v in self.review_sweep_partition["newly_excluded"]}
+        )
+
+    @property
+    def review_already_excluded_moved_outputs(self) -> list[tuple[str, str]]:
+        """Outputs excluded before the review that its sweeps also move."""
+        return sorted(
+            {(s, v) for _, s, v in self.review_sweep_partition["excluded_before"]}
+        )
+
+    @property
+    def review_already_excluded_moved_count_word(self) -> str:
+        return NUMBER_WORDS[len(self.review_already_excluded_moved_outputs)]
+
+    @property
+    def review_still_scored_moves_phrase(self) -> str:
+        """'no output that is still scored', or how many still-scored outputs
+        the review's sweeps move by any amount."""
+        moved = {
+            (s, v)
+            for group in ("scored_beyond_tolerance", "scored_within_tolerance")
+            for _, s, v in self.review_sweep_partition[group]
+        }
+        count = len(moved)
+        if count in (0, 1):
+            return f"{NUMBER_WORDS[count]} output that is still scored"
+        return f"{NUMBER_WORDS.get(count, str(count))} outputs that are still scored"
+
+    @property
+    def review_scored_before_count(self) -> int:
+        """References scored before the review, which every review sweep's
+        baseline reproduces (refuses a sweep whose baseline misses one, or
+        whose reference column is not the frozen reference)."""
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        frozen = pd.read_csv(run_dir / "reference_outputs.csv")
+        reference = {
+            (row.scenario_id, row.variable): float(row.value)
+            for row in frozen.itertuples(index=False)
+        }
+        scored_before = set(reference) - self.excluded_before_review_keys
+        for name, (_, baseline_column, _) in REVIEW_SWEEPS.items():
+            frame = self.review_sweep_rows[name]
+            rows = {
+                (row.scenario_id, row.variable): (
+                    float(row.reference),
+                    float(getattr(row, baseline_column)),
+                )
+                for row in frame.itertuples(index=False)
+            }
+            if set(rows) != set(reference):
+                raise ValueError(f"review sweep {name} does not cover every output")
+            for key in scored_before:
+                swept_reference, baseline = rows[key]
+                if swept_reference != reference[key] or baseline != reference[key]:
+                    raise ValueError(
+                        f"review sweep {name}'s baseline does not reproduce {key}"
+                    )
+        return len(scored_before)
+
+    @property
+    def review_scored_before_count_fmt(self) -> str:
+        return f"{self.review_scored_before_count:,}"
+
+    @cached_property
+    def review_adjudications(self) -> list[dict]:
+        """The developer adjudications the review recorded."""
+        annotation_dir = ROOT / self.manifest["audit_annotation_artifacts"]["path"]
+        record = json.loads((annotation_dir / "us_adjudications.json").read_text())
+        return [
+            entry
+            for entry in record["adjudications"]
+            if entry.get("adjudicated_on") == REVIEW_DATE
+        ]
+
+    @property
+    def review_judge_flagged_count(self) -> int:
+        """Review outputs a judge had flagged reference-suspect (the paper
+        says none had)."""
+        return sum(
+            bool(entry.get("judge_reference_suspect"))
+            for entry in self.review_adjudications
+        )
 
     @property
     def engine_upgrade_rechecked_count(self) -> int:

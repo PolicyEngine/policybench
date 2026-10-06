@@ -7,7 +7,7 @@ import gzip
 import json
 import re
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import cache
 from pathlib import Path
 
@@ -62,9 +62,19 @@ def _note(slug: str) -> dict:
     return _load_json(NOTES_DIR / f"{slug}.json")
 
 
+SNAPSHOT_DIR = ROOT / "paper/snapshot/20260501"
+
+
+@cache
+def _payload_at(root: Path) -> dict:
+    """The run payload of the snapshot tree under ``root`` (this checkout, or
+    a commit's snapshot from ``_snapshot_root``)."""
+    return read_run_payload(_in(root, RUN_DIR))
+
+
 @cache
 def _dashboard() -> dict:
-    return read_run_payload(RUN_DIR)
+    return _payload_at(ROOT)
 
 
 @cache
@@ -73,9 +83,59 @@ def _frozen_release() -> str:
     return manifest["published_dashboard_artifact"]["tag"]
 
 
+def _in(root: Path, path: Path) -> Path:
+    """A snapshot file as the tree under ``root`` holds it."""
+    assert path.is_relative_to(SNAPSHOT_DIR), path
+    return root / path.relative_to(ROOT)
+
+
+@cache
+def _snapshot_root(commit: str) -> Path:
+    """A scratch tree holding paper/snapshot/20260501 exactly as ``commit`` has
+    it, removed when the session exits. CI checks out full history."""
+    import atexit
+    import shutil
+    import subprocess
+    import tempfile
+
+    def git(*args: str) -> bytes:
+        shown = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True)
+        assert shown.returncode == 0, (
+            f"the snapshot at {commit[:8]} needs git history; fetch full "
+            "history. " + shown.stderr.decode()
+        )
+        return shown.stdout
+
+    snapshot = SNAPSHOT_DIR.relative_to(ROOT).as_posix()
+    listed = git("ls-tree", "-r", "--name-only", commit, snapshot)
+    root = Path(tempfile.mkdtemp(prefix=f"policybench-snapshot-{commit[:8]}-"))
+    atexit.register(shutil.rmtree, root, ignore_errors=True)
+    for name in listed.decode().splitlines():
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(git("show", f"{commit}:{name}"))
+    return root
+
+
+def _release_tag(root: Path) -> str:
+    """The tag the snapshot under ``root`` freezes, after checking that its
+    manifest pins the payload the tree holds."""
+    manifest = _load_json(_in(root, SNAPSHOT_DIR / "manifest.json"))
+    payload = run_payload_path(_in(root, RUN_DIR))
+    assert manifest["files"] == [
+        {
+            "path": payload.relative_to(_in(root, SNAPSHOT_DIR)).as_posix(),
+            "sha256": _sha256_file(payload),
+        }
+    ]
+    return manifest["published_dashboard_artifact"]["tag"]
+
+
 # A note keeps the release its facts were checked against. Facts of a note on
-# the frozen release are recomputed here; a note on a superseded release keeps
-# the facts verified when that release was frozen (git history holds the run).
+# the frozen release are recomputed from this checkout's snapshot. A note on a
+# superseded release whose freezing commit RELEASE_COMMITS names is recomputed
+# from the snapshot that commit holds; an older one keeps the facts verified
+# when its release was frozen (git history holds the run).
 SUPERSEDED_RELEASES = {
     "dashboard-data-20260901c": "2026-09-01",
     "dashboard-data-20260905c": "2026-09-05",
@@ -92,8 +152,37 @@ SUPERSEDED_RELEASES = {
     # same references and exclusions. Its note's facts are still recomputed,
     # from the snapshot its own commit holds (RELEASE_20260929_COMMIT).
     "dashboard-data-20260929": "2026-09-29",
+    # Superseded by dashboard-data-20261006, which stops scoring eight tax
+    # outputs on the same references, predictions and board snapshot. The
+    # October 5 BBCE note's facts are still recomputed, from the snapshot its
+    # commit holds (RELEASE_20260930_COMMIT).
+    "dashboard-data-20260930": "2026-09-30",
 }
 CURRENT_RELEASE_SNAPSHOT = "2026-09-30"
+# The commit that froze each superseded release whose notes' facts are
+# recomputed from git: the merges of #182 and #187.
+RELEASE_20260929_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
+RELEASE_20260930 = "dashboard-data-20260930"
+RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+RELEASE_COMMITS = {
+    "dashboard-data-20260929": RELEASE_20260929_COMMIT,
+    "dashboard-data-20260930": RELEASE_20260930_COMMIT,
+}
+
+
+def _release_root(release: str) -> Path:
+    """A tree holding paper/snapshot/20260501 as ``release`` froze it: the
+    snapshot of its commit when it is superseded, this checkout while it is
+    the frozen release. Checks that the tree's manifest names the release."""
+    if release in RELEASE_COMMITS:
+        root = _snapshot_root(RELEASE_COMMITS[release])
+    else:
+        assert release == _frozen_release(), (
+            f"{release} is superseded; add the commit that froze it to RELEASE_COMMITS"
+        )
+        root = ROOT
+    assert _release_tag(root) == release
+    return root
 
 
 @cache
@@ -107,8 +196,8 @@ def _snap_predictions() -> dict[str, list[dict[str, str]]]:
     return rows
 
 
-def _snap_references() -> dict[str, float]:
-    with REFERENCES_PATH.open(encoding="utf-8", newline="") as source:
+def _snap_references(path: Path = REFERENCES_PATH) -> dict[str, float]:
+    with path.open(encoding="utf-8", newline="") as source:
         return {
             row["scenario_id"]: float(row["value"])
             for row in csv.DictReader(source)
@@ -585,10 +674,15 @@ PREFACE_NO_INFERENCE = (
 PREFACE_SENTENCES = (PREFACE_UNLISTED_STATUS, PREFACE_TAKE_UP, PREFACE_NO_INFERENCE)
 STATE_NAMES = {
     "AZ": "Arizona",
+    "CA": "California",
+    "CO": "Colorado",
     "CT": "Connecticut",
+    "MA": "Massachusetts",
     "MI": "Michigan",
+    "MN": "Minnesota",
     "NC": "North Carolina",
     "NJ": "New Jersey",
+    "NY": "New York",
     "PA": "Pennsylvania",
     "TX": "Texas",
     "VA": "Virginia",
@@ -632,8 +726,10 @@ def _named_models(text: str, display_names: dict[str, str]) -> set[str]:
     }
 
 
-def _snap_output_references(variable: str) -> dict[str, float]:
-    with REFERENCES_PATH.open(encoding="utf-8", newline="") as source:
+def _snap_output_references(
+    variable: str, path: Path = REFERENCES_PATH
+) -> dict[str, float]:
+    with path.open(encoding="utf-8", newline="") as source:
         return {
             row["scenario_id"]: float(row["value"])
             for row in csv.DictReader(source)
@@ -694,26 +790,32 @@ def _check_committed_rows(
     meta_path: Path,
     households: list[str],
     patterns: dict[str, str],
-    release: str,
+    rows_release: str,
+    root: Path,
 ) -> None:
-    """The committed rows are the regenerated rows, from the committed payload
-    of the note's release and the committed pathway recomputation, with the
-    note's own mention patterns."""
+    """The committed rows are the regenerated rows, from the payload of the
+    snapshot under ``root`` and the committed pathway recomputation, with the
+    note's own mention patterns. The rows record the release they were built
+    on, ``rows_release``; when the tree is that release, its payload and its
+    manifest's asset are the ones the meta pins."""
     assert _read_csv(path) == [
         {key: str(value) for key, value in row.items()} for row in rows
     ]
     meta = _load_json(meta_path)
     assert meta["households"] == households
     assert meta["mention_patterns"] == patterns
-    assert meta["release"] == release == _frozen_release()
-    # The rows come from the committed run payload; the release asset is a
-    # different file carrying the same US payload, pinned by the manifest.
-    assert meta["run_payload_sha256"] == _sha256_file(run_payload_path(RUN_DIR))
-    manifest = _load_json(ROOT / "paper/snapshot/20260501/manifest.json")
-    assert (
-        meta["release_payload_sha256"]
-        == manifest["published_dashboard_artifact"]["sha256"]
-    )
+    assert meta["release"] == rows_release
+    if _release_tag(root) == rows_release:
+        # The rows come from the committed run payload; the release asset is
+        # a different file carrying the same US payload, pinned by the
+        # manifest.
+        run_payload = run_payload_path(_in(root, RUN_DIR))
+        assert meta["run_payload_sha256"] == _sha256_file(run_payload)
+        manifest = _load_json(_in(root, SNAPSHOT_DIR / "manifest.json"))
+        assert (
+            meta["release_payload_sha256"]
+            == manifest["published_dashboard_artifact"]["sha256"]
+        )
     assert meta["pathways"] == PATHWAYS_0930_PATH.relative_to(ROOT).as_posix()
     assert meta["pathways_sha256"] == _sha256_file(PATHWAYS_0930_PATH)
     assert meta["rows"] == len(rows)
@@ -727,19 +829,11 @@ def _months(row: dict[str, str], column: str) -> list[float]:
 
 
 def test_bbce_households_note_facts() -> None:
-    """The October 5 BBCE note: its facts recompute from the frozen snapshot
-    of its release and the committed pathway recomputation on the
-    references' engine, and every sentence is pinned beside its evidence."""
-    sys.path.insert(0, str(ROOT / "scripts"))
-    from bbce_households_20260930 import (
-        BBCE_PATTERN,
-        asset_households,
-        bbce_households,
-        build,
-    )
-
-    from policybench.paper_results import MODEL_DISPLAY_NAMES
-
+    """The October 5 BBCE note: its facts recompute from the snapshot of its
+    release, as the release's commit holds it, and the committed pathway
+    recomputation on the references' engine, and every sentence is pinned
+    beside its evidence. Its closing paragraph, on the later release, is
+    test_bbce_note_describes_the_later_release's."""
     note = _note(BBCE_NOTE)
     assert note["date"] == "2026-10-05"
     assert not (NOTES_DIR / f"{BBCE_NOTE_EARLIER}.json").exists()
@@ -775,24 +869,58 @@ def test_bbce_households_note_facts() -> None:
         ]
         == f"/notes/{BBCE_NOTE}"
     )
-    # The facts recompute only while the note's release is the frozen one.
-    if not _recompute_against_frozen_snapshot(note):
-        return
-    assert note["release"] == "dashboard-data-20260930"
-    assert note["boardSnapshot"] == CURRENT_RELEASE_SNAPSHOT
-    payload = _dashboard()
-    references = _snap_references()
-    exclusions = _load_json(EXCLUSIONS_PATH)["exclusions"]
+    # The note keeps release 20260930, and its facts recompute from that
+    # release's snapshot whatever release is frozen. The later release's
+    # facts are the closing paragraph's.
+    assert note["release"] == RELEASE_20260930
+    assert note["boardSnapshot"] == SUPERSEDED_RELEASES[note["release"]]
+    later = _later_facts(note)
+    assert {k: v for k, v in note["facts"].items() if k not in later} == (
+        _bbce_facts_at(note["release"])
+    )
+
+
+# The opening of a closing paragraph that describes a later release.
+LATER_RELEASE_OPENING = "A later release, "
+
+
+def _bbce_note_facts(note: dict, root: Path) -> dict:
+    """The BBCE note's facts, recomputed from the snapshot under ``root`` and
+    the committed pathway recomputation, with every sentence but the closing
+    later-release paragraph pinned beside its evidence. Every check holds on
+    any release whose references, predictions and SNAP exclusions are the
+    note's release's, so the later release's figures recompute here too."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from bbce_households_20260930 import (
+        BBCE_PATTERN,
+        asset_households,
+        bbce_households,
+        build,
+    )
+
+    from policybench.paper_results import MODEL_DISPLAY_NAMES
+
+    links = {entry["label"]: entry["href"] for entry in note["data"]}
+    blob = "https://github.com/PolicyEngine/policybench/blob/main/"
+    run_dir = _in(root, RUN_DIR)
+    references_path = _in(root, REFERENCES_PATH)
+    payload = _payload_at(root)
+    references = _snap_references(references_path)
+    exclusions = _load_json(_in(root, EXCLUSIONS_PATH))["exclusions"]
     snap_exclusions = {
         e["scenario_id"]: e for e in exclusions if e["variable"] == "snap"
     }
-    reference_meta = _load_json(REFERENCE_META_PATH)
+    reference_meta = _load_json(_in(root, REFERENCE_META_PATH))
     upgrade = next(
         r for r in reference_meta["revisions"] if r.get("kind") == "engine_upgrade"
     )
     engine = upgrade["engine_version"].removeprefix("policyengine-us ")
-    scenarios = _scenario_inputs()
-    text = " ".join(note["paragraphs"])
+    scenarios = _scenario_inputs(run_dir)
+    paragraphs = [
+        p for p in note["paragraphs"] if not p.startswith(LATER_RELEASE_OPENING)
+    ]
+    assert paragraphs == note["paragraphs"][: len(paragraphs)]
+    text = " ".join(paragraphs)
 
     # Every sentence of the note is pinned in full beside the evidence for it,
     # so a changed claim or a moved placeholder fails; the check at the end
@@ -821,8 +949,8 @@ def test_bbce_households_note_facts() -> None:
             abs(sum(_months(row, "monthly_snap")) - float(row["snap_recomputed"]))
             < 0.01
         )
-    assert pathway_meta["reference_csv_sha256"] == _sha256_file(REFERENCES_PATH)
-    assert pathway_meta["scenarios_sha256"] == _sha256_file(RUN_DIR / "scenarios.csv")
+    assert pathway_meta["reference_csv_sha256"] == _sha256_file(references_path)
+    assert pathway_meta["scenarios_sha256"] == _sha256_file(run_dir / "scenarios.csv")
     assert (
         pathway_meta["fix_module"] == "reference_audit/2026-09-28/fixes/latest_final.py"
     )
@@ -865,6 +993,7 @@ def test_bbce_households_note_facts() -> None:
             built_households,
             built_patterns,
             note["release"],
+            root,
         )
     rows, households, income_patterns = built[BBCE_ROWS_PATH]
     asset_rows, savings_households, asset_patterns = built[BBCE_ASSET_ROWS_PATH]
@@ -1375,8 +1504,8 @@ def test_bbce_households_note_facts() -> None:
     # Each household is eligible for the non-cash benefit in each month it
     # qualifies, under its state's gross limit then and over it otherwise,
     # and receives neither TANF cash nor SSI.
-    tanf_references = _snap_output_references("tanf")
-    ssi_references = _snap_output_references("ssi")
+    tanf_references = _snap_output_references("tanf", references_path)
+    ssi_references = _snap_output_references("ssi", references_path)
     for row in income_group:
         scenario_id = row["scenario_id"]
         months = eligible_months[scenario_id]
@@ -2222,7 +2351,7 @@ def test_bbce_households_note_facts() -> None:
         + farm_rent_correction
         + " "
         + farm_rent_engine
-    ) in note["paragraphs"][-1]
+    ) in next(p for p in paragraphs if p.startswith("This note corrects "))
     # What the September 3 note said about receipt and the asset test, and
     # the four states it named.
     sept3_states = ["Connecticut", "Michigan", "Texas", "Wisconsin"]
@@ -2438,7 +2567,7 @@ def test_bbce_households_note_facts() -> None:
         "assumedHours": int(assumed_hours.group(1)),
         "bbceAssetLimitTx": _whole_or_cents(texas_asset_limit),
     }
-    assert note["facts"] == derived
+    return derived
 
 
 @pytest.mark.slow
@@ -2733,10 +2862,9 @@ RELEASE_NOTE = "2026-09-29-claude-sonnet-5-5-debuts-fifth"
 ADDED_MODELS = ("claude-sonnet-5.5", "grok-4.7", "deepseek-v4.1-flash")
 # Release dashboard-data-20260929 was frozen by the merge of #182. Its note's
 # facts are recomputed from the snapshot that commit holds, read from git, so
-# they stay checked against their own release after a later one is frozen.
+# they stay checked against their own release after a later one is frozen
+# (RELEASE_20260929_COMMIT, with the other releases' commits, is above).
 RELEASE_20260929 = "dashboard-data-20260929"
-RELEASE_20260929_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
-SNAPSHOT_DIR = ROOT / "paper/snapshot/20260501"
 SERVING_CONFIG_PATH = SNAPSHOT_DIR / "model_serving_config.json"
 UPGRADE_README = ROOT / "reference_audit/2026-09-28/README.md"
 UPGRADE_CLUSTERS = ROOT / "reference_audit/2026-09-28/clusters.json"
@@ -2796,44 +2924,19 @@ UPGRADE_CHANGES = {
 }
 
 
-@cache
 def _snapshot_20260929_root() -> Path:
     """A scratch tree holding paper/snapshot/20260501 exactly as
-    RELEASE_20260929_COMMIT has it, removed when the session exits."""
-    import atexit
-    import shutil
-    import subprocess
-    import tempfile
-
-    def git(*args: str) -> bytes:
-        shown = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True)
-        assert shown.returncode == 0, (
-            f"release 20260929's snapshot needs git history at "
-            f"{RELEASE_20260929_COMMIT[:8]}; fetch full history. "
-            + shown.stderr.decode()
-        )
-        return shown.stdout
-
-    snapshot = SNAPSHOT_DIR.relative_to(ROOT).as_posix()
-    listed = git("ls-tree", "-r", "--name-only", RELEASE_20260929_COMMIT, snapshot)
-    root = Path(tempfile.mkdtemp(prefix="policybench-release-20260929-"))
-    atexit.register(shutil.rmtree, root, ignore_errors=True)
-    for name in listed.decode().splitlines():
-        target = root / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(git("show", f"{RELEASE_20260929_COMMIT}:{name}"))
-    return root
+    RELEASE_20260929_COMMIT has it."""
+    return _snapshot_root(RELEASE_20260929_COMMIT)
 
 
 def _at_20260929(path: Path) -> Path:
     """A snapshot file as release 20260929's commit holds it."""
-    assert path.is_relative_to(SNAPSHOT_DIR), path
-    return _snapshot_20260929_root() / path.relative_to(ROOT)
+    return _in(_snapshot_20260929_root(), path)
 
 
-@cache
 def _dashboard_20260929() -> dict:
-    return read_run_payload(_at_20260929(RUN_DIR))
+    return _payload_at(_snapshot_20260929_root())
 
 
 def _release_20260929_tag() -> str:
@@ -3699,3 +3802,818 @@ def test_bbce_rows_20260929_regenerate() -> None:
             meta["release_payload_sha256"]
             == manifest["published_dashboard_artifact"]["sha256"]
         )
+
+
+# ----- Release dashboard-data-20261006 --------------------------------------
+
+RELEASE_20261006 = "dashboard-data-20261006"
+EXCLUSIONS_NOTE = "2026-10-06-policybench-stops-scoring-eight-tax-outputs"
+# The rulings of 2026-10-05 the release applies, and the audits behind them.
+RELEASE_20261006_SPEC = ROOT / "docs/release_20261006/spec.json"
+SALT_AUDIT = ROOT / "reference_audit/2026-10-05"
+PART_B_AUDIT = ROOT / "reference_audit/2026-10-05-medicare-part-b"
+PAYROLL_AUDIT = ROOT / "reference_audit/2026-10-05-payroll"
+MEDICAID_031_AUDIT = ROOT / "reference_audit/2026-10-05-medicaid-031-annotations"
+FEDERAL_INCOME_TAX = "federal_income_tax_before_refundable_credits"
+STATE_INCOME_TAX = "state_income_tax_before_refundable_credits"
+# The unlisted inputs the eight records name, by the words they open with.
+SALT_INPUT = "state income tax withheld or paid during 2026"
+PART_B_INPUT = "Medicare enrollment and a Medicare Part B premium paid during 2026"
+PAYROLL_INPUT = (
+    "whether the employer deducts the employee share of a state paid-leave or "
+    "disability premium that the law lets it deduct but does not require"
+)
+# The words NotesContent.tsx renders for a `{key:words}` placeholder.
+NUMBER_WORDS = (
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+)
+
+
+def _no_tools_exact(payload: dict) -> dict[str, float]:
+    return {
+        row["model"]: row["exact"]
+        for row in payload["modelStats"]
+        if row["condition"] == "no_tools"
+    }
+
+
+def _new_exclusions() -> list[dict]:
+    """The records release 20261006 adds to release 20260930's, in the
+    record's order. Every earlier record is kept."""
+    then = _load_json(_in(_release_root(RELEASE_20260930), EXCLUSIONS_PATH))
+    now = _load_json(_in(_release_root(RELEASE_20261006), EXCLUSIONS_PATH))
+    earlier = {(e["scenario_id"], e["variable"]) for e in then["exclusions"]}
+    assert earlier <= {(e["scenario_id"], e["variable"]) for e in now["exclusions"]}
+    return [
+        e for e in now["exclusions"] if (e["scenario_id"], e["variable"]) not in earlier
+    ]
+
+
+def _readme(path: Path) -> str:
+    return re.sub(r"\s+", " ", (path / "README.md").read_text())
+
+
+def _list_with_and(items: list[str]) -> str:
+    """Items joined with a serial comma, as the October 6 note writes lists."""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + ", and " + items[-1]
+
+
+def _release_20261006_facts() -> dict:
+    """The October 6 release note's facts, recomputed from release 20261006's
+    snapshot and records, and from release 20260930's at its commit."""
+    from policybench.paper_results import MODEL_DISPLAY_NAMES
+
+    now_root = _release_root(RELEASE_20261006)
+    then_root = _release_root(RELEASE_20260930)
+    now, then = _payload_at(now_root), _payload_at(then_root)
+    new = _new_exclusions()
+    by_key = {(e["scenario_id"], e["variable"]): e for e in new}
+    states = {
+        e["scenario_id"]: now["scenarios"][e["scenario_id"]]["state"] for e in new
+    }
+    federal = [e for e in new if e["variable"] == FEDERAL_INCOME_TAX]
+    state_tax = [e for e in new if e["variable"] == STATE_INCOME_TAX]
+    payroll = [e for e in new if e["variable"] == "payroll_tax"]
+    assert len(federal) + len(state_tax) + len(payroll) == len(new)
+
+    def cents(value: float) -> int | str:
+        return _whole_or_cents(round(value, 2))
+
+    def matches(record: dict, value: float) -> list[str]:
+        cell = now["scenarioPredictions"][record["scenario_id"]][record["variable"]]
+        return sorted(
+            m for m, e in cell.items() if _matches(e.get("prediction"), value)
+        )
+
+    board = [r for r in now["modelStats"] if r["condition"] == "no_tools"]
+    previous_board = [r for r in then["modelStats"] if r["condition"] == "no_tools"]
+    after, before = _no_tools_exact(now), _no_tools_exact(then)
+    risers = _models_moving_up(before, after)
+    exclusions = _load_json(_in(now_root, EXCLUSIONS_PATH))["exclusions"]
+    classification = _load_json(PAYROLL_AUDIT / "program_classification.json")
+    payroll_ids = {e["scenario_id"] for e in payroll}
+    optional = [
+        p
+        for p in classification["programs"]
+        if p["classification"] == "optional_employer_pass_through"
+        and set(p["benchmark_outputs"]) & payroll_ids
+    ]
+    excluded_keys = {(e["scenario_id"], e["variable"]) for e in exclusions}
+    mandatory = sorted(
+        {
+            scenario_id
+            for p in classification["programs"]
+            if p["classification"] == "mandatory_employee_withholding"
+            for scenario_id in p["benchmark_outputs"]
+            if (scenario_id, "payroll_tax") not in excluded_keys
+        }
+    )
+    window = _load_json(_in(now_root, SNAPSHOT_DIR / "manifest.json"))[
+        "model_response_date"
+    ]
+    previous_window = _load_json(_in(then_root, SNAPSHOT_DIR / "manifest.json"))[
+        "model_response_date"
+    ]
+    start, end = window.split(" to ")
+    previous_start, previous_end = previous_window.split(" to ")
+    assert previous_start == start
+    (engine,) = {e["engine_version"].removeprefix("policyengine-us ") for e in new}
+    part_b = re.search(
+        r"the 2026 standard premium of \$202\.90 a month, \$([\d,]+\.\d\d)",
+        by_key[("scenario_114", STATE_INCOME_TAX)]["alternative_reading"],
+    )
+    assert part_b is not None
+    engine_values = _load_json(MEDICAID_031_AUDIT / "verification/engine_values.json")
+    parameters = engine_values["parameters"]
+    derived = {
+        "newExclusions": len(new),
+        "newHouseholds": len(states),
+        "scoredOutputs": board[0]["n"],
+        "totalOutputs": sum(1 for _ in open(_in(now_root, REFERENCES_PATH))) - 1,
+        "previousScoredOutputs": previous_board[0]["n"],
+        "excluded": len(exclusions),
+        "federalOutputs": len(federal),
+        "engineVersion": engine,
+        "va114Age": _person(
+            _scenario_inputs(_in(now_root, RUN_DIR))["scenario_114"], "head"
+        )["age"],
+        "partBPremium": part_b.group(1),
+        "payrollOutputs": len(payroll),
+        "optionalPrograms": _list_with_and([p["program"] for p in optional]),
+        "mandatoryScored": len(mandatory),
+        "mandatoryStates": _list_with_and(
+            sorted({STATE_NAMES[now["scenarios"][s]["state"]] for s in mandatory})
+        ),
+        "incomeTaxOutputs": len(federal) + len(state_tax),
+        "payrollHits": sum(len(matches(e, e["frozen_value"])) for e in payroll),
+        "payrollAltHits": sum(len(matches(e, e["alternative_value"])) for e in payroll),
+        "riseMin": round(min(after[m] - before[m] for m in after), 2),
+        "riseMax": round(max(after[m] - before[m] for m in after), 2),
+        "solExact": _display_one_decimal(after["gpt-6-sol"]),
+        "opusExact": _display_one_decimal(after["claude-opus-5.5"]),
+        "sol56Exact": _display_one_decimal(after["gpt-5.6-sol"]),
+        "sonnetExact": _display_one_decimal(after["claude-sonnet-5.5"]),
+        "lunaExact": _display_one_decimal(after["gpt-6-luna"]),
+        "responseStart": _month_day(start),
+        "responseEnd": _month_day(end),
+        "previousResponseEnd": _month_day(previous_end),
+        "medicaidDisregard": int(
+            parameters["senior_or_disabled.income.disregard.individual[CA] (monthly)"]
+        ),
+        "ssiExclusion": int(parameters["ssa.ssi.income.exclusions.general (monthly)"]),
+    }
+    for record in federal:
+        number = record["scenario_id"].removeprefix("scenario_")
+        derived[f"fed{number}Alt"] = cents(record["alternative_value"])
+        derived[f"fed{number}Ref"] = cents(record["frozen_value"])
+    (virginia,) = state_tax
+    number = virginia["scenario_id"].removeprefix("scenario_")
+    derived[f"va{number}Alt"] = cents(virginia["alternative_value"])
+    derived[f"va{number}Ref"] = cents(virginia["frozen_value"])
+    for record in payroll:
+        state = states[record["scenario_id"]].lower()
+        derived[f"{state}Alt"] = cents(record["alternative_value"])
+        derived[f"{state}Ref"] = cents(record["frozen_value"])
+        derived[f"{state}Hits"] = len(matches(record, record["frozen_value"]))
+    # The first riser is Claude Sonnet 5.5, which the note names; the others
+    # are named from the facts.
+    (first, first_passed), *others = risers
+    assert (first, first_passed) == ("claude-sonnet-5.5", ["gpt-6-luna"])
+    for ordinal, (riser, passed) in zip(("Two", "Three", "Four"), others, strict=True):
+        derived[f"riser{ordinal}"] = MODEL_DISPLAY_NAMES[riser]
+        derived[f"riser{ordinal}Passed"] = _and(
+            [MODEL_DISPLAY_NAMES[m] for m in passed]
+        )
+    return derived
+
+
+def test_release_20261006_note() -> None:
+    """The October 6 release note: its facts recompute from release 20261006's
+    snapshot and records and from release 20260930's at its commit, every
+    sentence is pinned beside the evidence for it, and every link resolves."""
+    from policybench.paper_results import MODEL_DISPLAY_NAMES
+
+    note = _note(EXCLUSIONS_NOTE)
+    facts = note["facts"]
+    assert note["release"] == RELEASE_20261006
+    assert facts == _release_20261006_facts()
+    text = " ".join(note["paragraphs"])
+    pinned: list[str] = []
+
+    def pin(*sentences: str) -> None:
+        for sentence in sentences:
+            assert text.count(sentence) == 1, sentence
+            pinned.append(sentence)
+
+    now_root = _release_root(RELEASE_20261006)
+    then_root = _release_root(RELEASE_20260930)
+    now, then = _payload_at(now_root), _payload_at(then_root)
+    spec = _load_json(RELEASE_20261006_SPEC)
+    new = _new_exclusions()
+    by_key = {(e["scenario_id"], e["variable"]): e for e in new}
+    states = {s: now["scenarios"][s]["state"] for s, _ in by_key}
+    names = {s: STATE_NAMES[state] for s, state in states.items()}
+    scenarios = _scenario_inputs(_in(now_root, RUN_DIR))
+
+    # The release: the rulings' eight records, decided that day on the
+    # references' engine, on the same references, predictions and board.
+    assert spec["release_tag"] == note["release"]
+    assert spec["base_tag"] == RELEASE_20260930
+    assert spec["base_commit"] == RELEASE_20260930_COMMIT
+    assert note["release"] == "dashboard-data-" + note["date"].replace("-", "")
+    assert sorted(by_key) == sorted(
+        tuple(output)
+        for proposal in spec["proposals"]
+        for output in proposal["outputs"]
+    )
+    reference_meta = _load_json(_in(now_root, REFERENCE_META_PATH))
+    engine = reference_meta["policyengine_bundles"]["us"]["model_version"]
+    for record in new:
+        assert record["decided_on"] == spec["decided_on"]
+        assert record["reason_code"] == "reference_depends_on_unlisted_input"
+        assert record["engine_version"] == f"policyengine-us {engine}"
+    for name in (REFERENCES_PATH, PREDICTIONS_PATH):
+        assert _sha256_file(_in(now_root, name)) == _sha256_file(_in(then_root, name))
+    assert set(_no_tools_exact(now)) == set(_no_tools_exact(then))
+    for root in (now_root, then_root):
+        manifest = _load_json(_in(root, SNAPSHOT_DIR / "manifest.json"))
+        assert manifest["snapshot_date"] == note["boardSnapshot"]
+    references = {
+        (row["scenario_id"], row["variable"]): float(row["value"])
+        for row in _read_csv(_in(now_root, REFERENCES_PATH))
+    }
+    for key, record in by_key.items():
+        assert record["frozen_value"] == references[key]
+        for entry in now["scenarioPredictions"][key[0]][key[1]].values():
+            assert entry["groundTruth"] == record["frozen_value"]
+            assert entry["scored"] is False
+        for entry in then["scenarioPredictions"][key[0]][key[1]].values():
+            assert entry["scored"] is True
+    # The exclusion rule the records apply.
+    rule = _load_json(_in(now_root, EXCLUSIONS_PATH))["rule"]
+    assert rule.startswith(
+        "An output is excluded from scoring for every model when its reference "
+        "depends on an input or definition that the certified household data "
+        "never carried and the prompt therefore never stated"
+    )
+
+    # Which outputs, in which households.
+    federal = [k for k in by_key if k[1] == FEDERAL_INCOME_TAX]
+    state_tax = [k for k in by_key if k[1] == STATE_INCOME_TAX]
+    payroll = [k for k in by_key if k[1] == "payroll_tax"]
+    federal_ids = [s for s, _ in sorted(federal)]
+    payroll_ids = [s for s, _ in sorted(payroll)]
+    assert [states[s] for s in federal_ids] == ["CA", "MA", "VA"]
+    assert state_tax == [("scenario_114", STATE_INCOME_TAX)]
+    assert states["scenario_114"] == "VA"
+    shared = [s for s in payroll_ids if s in federal_ids]
+    payroll_others = [names[s] for s in payroll_ids if s not in federal_ids]
+    assert [names[s] for s in shared] == ["Massachusetts"]
+    title_word = NUMBER_WORDS[facts["newExclusions"]]
+    assert note["title"] == (
+        f"PolicyBench stops scoring {title_word} tax outputs whose references turn "
+        "on facts the prompts never state"
+    )
+    assert note["slug"] == (
+        f"{note['date']}-policybench-stops-scoring-{title_word}-tax-outputs"
+    )
+    pin(
+        "PolicyBench stops scoring {newExclusions:words} tax outputs, in "
+        "{newHouseholds:words} households, whose references turn on facts the "
+        "prompts never state.",
+        "The {newExclusions:words} are federal income tax for households in "
+        f"{_list_with_and([names[s] for s in federal_ids])}; the "
+        f"{names['scenario_114']} household's state income tax; and payroll tax "
+        f"for the {names[shared[0]]} household and households in "
+        f"{_list_with_and(payroll_others)}.",
+        "Every model is now scored on {scoredOutputs} of its {totalOutputs} "
+        "requested outputs, down from {previousScoredOutputs}, and PolicyBench "
+        "excludes {excluded}.",
+    )
+    assert facts["scoredOutputs"] + facts["excluded"] == facts["totalOutputs"]
+    assert facts["previousScoredOutputs"] - facts["scoredOutputs"] == len(new)
+
+    # The state income tax in SALT: the records, and the audit's statement
+    # of the engine's mechanism and of the law.
+    salt = _readme(SALT_AUDIT)
+    assert (
+        "These files hold for policyengine-us 2.15.17, the version that built the "
+        "published references" in salt
+    )
+    assert (
+        "Under 26 U.S.C. 164(a)(3) and (b)(5), a household deducts the state "
+        "income tax it paid during the year"
+    ) in salt
+    for key in federal:
+        record = by_key[key]
+        state = names[key[0]]
+        reading = record["alternative_reading"]
+        assert record["unlisted_input"].startswith(SALT_INPUT)
+        assert "a formula estimate on federal AGI" in record["unlisted_input"]
+        assert reading.startswith(
+            "The prompt lists no state income tax withheld or paid during 2026. "
+        )
+        assert (
+            "The reference fills the state income tax part of the federal state "
+            "and local tax deduction (26 U.S.C. 164(a)(3), (b)(5)) with "
+            f"policyengine-us's formula estimate of {state} income tax withheld"
+        ) in reading
+        assert (
+            f"Read as the household paying its 2026 {state} income tax during the "
+            "year, the deduction takes that liability and the output is the "
+            "alternative value."
+        ) in reading
+        assert "the household itemizes under both" in record["note"]
+        for prompt in now["scenarios"][key[0]]["prompt"].values():
+            assert not re.search(
+                r"withh|income tax", _household_block(prompt), re.IGNORECASE
+            )
+    pin(
+        "The {federalOutputs:words} federal outputs depend on the state income "
+        "tax each household paid during 2026, which the federal deduction for "
+        "state and local taxes counts and no prompt lists.",
+        "policyengine-us {engineVersion}, which built the references, fills that "
+        "amount with its own estimate of state income tax withheld, a formula on "
+        "federal adjusted gross income.",
+        "If each household paid its 2026 state income tax as the engine computes "
+        "it, the outputs are ${fed022Alt} in California, ${fed081Alt} in "
+        "Massachusetts, and ${fed114Alt} in Virginia, against references of "
+        "${fed022Ref}, ${fed081Ref}, and ${fed114Ref}.",
+    )
+    assert [names[s] for s in federal_ids] == [
+        "California",
+        "Massachusetts",
+        "Virginia",
+    ]
+
+    # The Medicare Part B premium in the Virginia household.
+    virginia = by_key[("scenario_114", STATE_INCOME_TAX)]
+    virginia_federal = by_key[("scenario_114", FEDERAL_INCOME_TAX)]
+    head = _person(scenarios["scenario_114"], "head")
+    assert head["age"] == facts["va114Age"] >= 65
+    assert virginia["unlisted_input"].startswith(PART_B_INPUT)
+    assert (
+        "policyengine-us treats every Medicare-eligible person as enrolled"
+        in virginia["unlisted_input"]
+    )
+    reading = virginia["alternative_reading"]
+    assert reading.startswith(
+        "The prompt lists no Medicare enrollment and no Medicare Part B premium"
+    )
+    assert (
+        f"policyengine-us treats the head (age {head['age']}, so Medicare-eligible) "
+        "as enrolled because takes_up_medicare_if_eligible defaults to true"
+    ) in reading
+    assert "The household itemizes" in reading
+    assert (
+        "Virginia's itemized deductions, which start from the federal itemized "
+        "deductions (va_itemized_deductions), carry it too."
+    ) in reading
+    assert (
+        f"Read with no Part B premium paid, the deduction falls by "
+        f"${facts['partBPremium']} and the output is the alternative value."
+    ) in reading
+    # The premium is $202.90 a month for 2026, as the engine models it for
+    # scenario_031's head too.
+    assert facts["partBPremium"] == f"{12 * 202.90:,.2f}"
+    medicaid_values = _load_json(MEDICAID_031_AUDIT / "verification/engine_values.json")
+    assert (
+        f"{medicaid_values['readings']['modeled']['medicare_part_b_premium']:,.2f}"
+        == facts["partBPremium"]
+    )
+    # Without the premium, both tax outputs are higher, and the federal
+    # record names the premium beside the state income tax in SALT.
+    assert virginia["alternative_value"] > virginia["frozen_value"]
+    assert virginia_federal["unlisted_input"].startswith(SALT_INPUT)
+    assert "; also " + PART_B_INPUT in virginia_federal["unlisted_input"]
+    without_premium = re.search(
+        r"Without it the output is \$([\d,]+\.\d\d) under the withholding estimate",
+        virginia_federal["note"],
+    )
+    assert without_premium is not None
+    assert (
+        float(without_premium.group(1).replace(",", ""))
+        > (virginia_federal["frozen_value"])
+    )
+    for prompt in now["scenarios"]["scenario_114"]["prompt"].values():
+        assert not re.search(
+            r"medicare|part b|premium", _household_block(prompt), re.IGNORECASE
+        )
+    pin(
+        "The Virginia household's head is {va114Age}, and the prompt lists no "
+        "Medicare enrollment or premium.",
+        "policyengine-us treats everyone eligible for Medicare as enrolled and "
+        "counts the standard Part B premium, ${partBPremium} for 2026, as a "
+        "medical expense.",
+        "The household itemizes, and Virginia's itemized deductions start from "
+        "the federal ones, so the premium lowers its Virginia income tax: without "
+        "it, that output is ${va114Alt} rather than the reference's ${va114Ref}.",
+        "The premium lowers the household's federal income tax too, and that "
+        "output's exclusion record names both unstated facts.",
+    )
+
+    # The payroll outputs: the programs, classified from primary law, and the
+    # records' readings.
+    classification = _load_json(PAYROLL_AUDIT / "program_classification.json")
+    assert classification["test"].startswith(
+        "Who owes the contribution under the statute. "
+        "mandatory_employee_withholding: the statute puts the contribution on the "
+        "worker and requires the employer to withhold it."
+    )
+    payroll_readme = _readme(PAYROLL_AUDIT)
+    assert (
+        "find that the premium is the employer's and that the law requires no "
+        "amount of the employee: the employee pays only what the employer chooses "
+        "to deduct, from $0 up to a cap. The frozen references count the cap."
+    ) in payroll_readme
+    optional = [
+        p
+        for p in classification["programs"]
+        if p["classification"] == "optional_employer_pass_through"
+        and set(p["benchmark_outputs"]) & set(payroll_ids)
+    ]
+    assert sorted(s for p in optional for s in p["benchmark_outputs"]) == payroll_ids
+    assert [p["key"] for p in optional] == [states[s] for s in payroll_ids]
+    payroll_line = (
+        "- payroll_tax: annual household employee-side payroll tax: employee "
+        "Social Security tax, employee Medicare tax, Additional Medicare Tax, and "
+        "mandatory employee state payroll taxes."
+    )
+    for key in payroll:
+        record = by_key[key]
+        assert record["unlisted_input"] == PAYROLL_INPUT + (
+            ", which decides whether that share is a mandatory employee state "
+            "payroll tax"
+        )
+        assert (
+            "counts the largest share the employer may deduct"
+            in (record["alternative_reading"])
+        )
+        assert (
+            "Read as the amount the law requires of the employee whatever the "
+            "employer does, which is $0, the output is employee federal payroll "
+            "tax alone: the alternative value"
+        ) in record["alternative_reading"]
+        for prompt in now["scenarios"][key[0]]["prompt"].values():
+            assert payroll_line in prompt
+    # The payroll outputs PolicyBench still scores with a state contribution
+    # the law requires of the worker; New Jersey's is excluded for an engine
+    # defect.
+    excluded_keys = {
+        (e["scenario_id"], e["variable"])
+        for e in _load_json(_in(now_root, EXCLUSIONS_PATH))["exclusions"]
+    }
+    mandatory = [
+        p
+        for p in classification["programs"]
+        if p["classification"] == "mandatory_employee_withholding"
+    ]
+    unscored = [
+        s
+        for p in mandatory
+        for s in p["benchmark_outputs"]
+        if (s, "payroll_tax") in excluded_keys
+    ]
+    assert unscored == ["scenario_008"]
+    assert now["scenarios"]["scenario_008"]["state"] == "NJ"
+    pin(
+        "The {payrollOutputs:words} payroll outputs count an employee share of a "
+        "state paid-leave or disability premium: {optionalPrograms}.",
+        "In each of these states the premium is the employer's, and the employer "
+        "may deduct up to a set share of it from wages but need not, so the law "
+        "requires no amount of the employee.",
+        "The prompts ask for mandatory employee state payroll taxes, and the "
+        "references count the largest share the employer may deduct, without the "
+        "prompts saying whether it does.",
+        "Without that share, the outputs are ${mnAlt} in Minnesota, ${coAlt} in "
+        "Colorado, ${maAlt} in Massachusetts, and ${nyAlt} in New York, against "
+        "references of ${mnRef}, ${coRef}, ${maRef}, and ${nyRef}.",
+        "PolicyBench still scores the payroll outputs of {mandatoryScored:words} "
+        "households in {mandatoryStates}, where the law puts the contribution on "
+        "the worker and requires the employer to withhold it.",
+    )
+    assert [names[s] for s in payroll_ids] == [
+        "Minnesota",
+        "Colorado",
+        "Massachusetts",
+        "New York",
+    ]
+
+    # The answers on the eight outputs. A model's answer matches within $1,
+    # the payload's own exact score.
+    for key, record in by_key.items():
+        cell = now["scenarioPredictions"][key[0]][key[1]]
+        assert len(cell) == len(_no_tools_exact(now))
+        frozen = {
+            m
+            for m, e in cell.items()
+            if _matches(e.get("prediction"), record["frozen_value"])
+        }
+        alternative = {
+            m
+            for m, e in cell.items()
+            if _matches(e.get("prediction"), record["alternative_value"])
+        }
+        assert frozen == {m for m, e in cell.items() if e["exact"] == 100}
+        assert not frozen & alternative
+        if key[1] != "payroll_tax":
+            assert not frozen, key
+    pin(
+        "No model's answer is within $1 of the reference on any of the "
+        "{incomeTaxOutputs:words} income tax outputs.",
+        "On the {payrollOutputs:words} payroll outputs, {payrollHits} answers match "
+        "the reference within $1: {mnHits:words} for Minnesota, {coHits} for "
+        "Colorado, {maHits:words} for Massachusetts, and {nyHits:words} for New "
+        "York.",
+        "Another {payrollAltHits} match the amount without the state share.",
+    )
+    assert facts["payrollHits"] == sum(
+        facts[f"{states[s].lower()}Hits"] for s in payroll_ids
+    )
+
+    # The board: every model rises; the order at the top, and every pair whose
+    # order changes.
+    after, before = _no_tools_exact(now), _no_tools_exact(then)
+    board = [r for r in now["modelStats"] if r["condition"] == "no_tools"]
+    previous_board = [r for r in then["modelStats"] if r["condition"] == "no_tools"]
+    assert all(after[m] > before[m] for m in after)
+
+    def rank_now(model: str) -> int:
+        return _rank(after[model], board)
+
+    def rank_then(model: str) -> int:
+        return _rank(before[model], previous_board)
+
+    for model, place in (("gpt-6-sol", 1), ("claude-opus-5.5", 2), ("gpt-5.6-sol", 3)):
+        assert rank_now(model) == rank_then(model) == place
+    assert (rank_then("gpt-6-luna"), rank_then("claude-sonnet-5.5")) == (4, 5)
+    assert (rank_now("claude-sonnet-5.5"), rank_now("gpt-6-luna")) == (4, 5)
+    assert ORDINALS[rank_now("claude-sonnet-5.5")] == "fourth"
+    risers = _models_moving_up(before, after)
+    assert len(risers) == 4
+    for riser, passed in risers:
+        # Each riser passes one model, the one just above it before.
+        assert len(passed) == 1
+        assert rank_now(riser) == rank_then(passed[0])
+        assert rank_now(passed[0]) == rank_then(riser)
+    pin(
+        # The headline the board ranks by, as the September 29 note states it.
+        "Every model's exact rate, its share of answers within $1 weighted by "
+        "household impact, rises by {riseMin} to {riseMax} points.",
+        "GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 "
+        "({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%).",
+        "Claude Sonnet 5.5 ({sonnetExact}%) passes GPT-6 Luna ({lunaExact}%) for "
+        "fourth.",
+        "Further down, {riserTwo} moves above {riserTwoPassed}, {riserThree} above "
+        "{riserThreePassed}, and {riserFour} above {riserFourPassed}.",
+        "Every other pair keeps its order.",
+    )
+
+    # The next prompt contract: the draft pull request, which no code here
+    # runs, and the three facts the records name as unlisted.
+    links = {entry["label"]: entry["href"] for entry in note["data"]}
+    assert links["Draft prompt contract (policybench#173)"] == (
+        "https://github.com/PolicyEngine/policybench/pull/173"
+    )
+    # The draft adds policybench.prompt_contract_v2, which this tree lacks.
+    assert not (ROOT / "policybench/prompt_contract_v2.py").exists()
+    assert {by_key[k]["unlisted_input"].split(",")[0] for k in federal} == {SALT_INPUT}
+    assert (
+        "state in the payroll output's definition how these shares count, so a "
+        "fresh run can score such households again"
+    ) in payroll_readme
+    pin(
+        "PolicyBench's next prompt contract, a draft in progress "
+        "(PolicyEngine/policybench#173) that no run uses yet, is to state each of "
+        "these facts, so that a later run can score these outputs again: the state "
+        "income tax a household paid during the year, its Medicare enrollment and "
+        "premiums, and whether its employer deducts the employee share of a state "
+        "paid-leave or disability premium."
+    )
+    assert (
+        "whether its employer deducts the employee share of a state paid-leave or "
+        "disability premium"
+    ) in PAYROLL_INPUT.replace("the employer", "its employer")
+
+    # The corrections. The model response window ends on the UTC date of the
+    # last answer, which release 20260930 dated with its own snapshot date.
+    import pandas as pd
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from freeze_snapshot import model_response_window
+
+    manifest = _load_json(_in(now_root, SNAPSHOT_DIR / "manifest.json"))
+    previous_manifest = _load_json(_in(then_root, SNAPSHOT_DIR / "manifest.json"))
+    completed = pd.read_csv(
+        _in(now_root, PREDICTIONS_PATH),
+        usecols=["request_completed_at"],
+        dtype="float64",
+        float_precision="round_trip",
+    )["request_completed_at"].dropna()
+    last_answer = datetime.fromtimestamp(completed.max(), tz=timezone.utc).date()
+    start = manifest["model_response_date"].split(" to ")[0]
+    assert manifest["model_response_date"] == (f"{start} to {last_answer.isoformat()}")
+    assert manifest["model_response_date"] == model_response_window(
+        _in(now_root, PREDICTIONS_PATH), spec["model_response_start"]
+    )
+    previous_end = previous_manifest["model_response_date"].split(" to ")[1]
+    assert previous_end == previous_manifest["snapshot_date"] > last_answer.isoformat()
+    assert RELEASE_20260930.endswith(previous_end.replace("-", ""))
+    assert last_answer.year == date.fromisoformat(start).year == 2026
+    # The paper page states the same window.
+    assert _load_json(ROOT / "app/src/paperSnapshot.json")["responseWindow"] == (
+        f"{facts['responseStart']} and {facts['responseEnd']}, {last_answer.year}"
+    )
+    # scenario_031's Medicaid text: the ledger's rewrites are the payload's
+    # text now and were the previous release's, on a cell whose scores are
+    # the same.
+    medicaid = ("scenario_031", "head_medicaid_eligible")
+    assert now["scenarios"][medicaid[0]]["state"] == "CA"
+    assert _person(scenarios[medicaid[0]], "head")["age"] >= 65
+    cell_now = now["scenarioPredictions"][medicaid[0]][medicaid[1]]
+    cell_then = then["scenarioPredictions"][medicaid[0]][medicaid[1]]
+    text_fields = {"annotation", "caseAnnotation", "referenceExplanation"}
+    for model, entry in cell_now.items():
+        assert {k: v for k, v in entry.items() if k not in text_fields} == {
+            k: v for k, v in cell_then[model].items() if k not in text_fields
+        }
+    payload_field = {
+        "case_annotation": "caseAnnotation",
+        "explanation": "referenceExplanation",
+        "annotation": "annotation",
+    }
+    rewrites = _load_json(MEDICAID_031_AUDIT / "rewrites.json")["rewrites"]
+    assert len(rewrites) == 45
+    for item in rewrites:
+        assert (item["scenario_id"], item["variable"]) == medicaid
+        field = payload_field[item["field"]]
+        # A case-level text rides on every cell that carries the field: the
+        # annotated rows for the case note, every row for the reference
+        # explanation.
+        carried = {m for m, entry in cell_now.items() if field in entry}
+        assert carried == {m for m, entry in cell_then.items() if field in entry}
+        models = [item["model"]] if "model" in item else sorted(carried)
+        assert models
+        for model in models:
+            assert cell_now[model][field] == item["new"], (model, field)
+            assert cell_then[model][field] == item["old"], (model, field)
+    case_now = next(e for e in cell_now.values() if "caseAnnotation" in e)[
+        "caseAnnotation"
+    ]
+    case_then = next(e for e in cell_then.values() if "caseAnnotation" in e)[
+        "caseAnnotation"
+    ]
+    assert (
+        "In place of SSI's $20 monthly general income exclusion, the engine applies "
+        "California's $230 monthly disregard"
+    ) in case_now
+    assert (
+        "Countable income is gross income minus health insurance premiums, "
+        "including the Medicare Part B standard premium"
+    ) in case_then
+    # The engine's values: the disregard replaces SSI's exclusion and brings
+    # countable income under the limit, which SSI's exclusion alone does not;
+    # the premium does not enter it.
+    summary = medicaid_values["summary"]
+    assert summary["disregard_annual"] == 12 * facts["medicaidDisregard"]
+    assert summary["countable_income"] < summary["income_limit"]
+    assert summary["gross_less_ssi_general_exclusion_only"] > summary["income_limit"]
+    readings = medicaid_values["readings"]
+    countable = "medicaid_optional_senior_or_disabled_countable_income"
+    assert readings["no_part_b"][countable] == readings["modeled"][countable]
+    assert "It applies California's $230 monthly income disregard instead." in (
+        _readme(MEDICAID_031_AUDIT)
+    )
+    pin(
+        "Two corrections in this release move no score.",
+        "PolicyBench now reports that it collected model responses from "
+        "{responseStart} to {responseEnd}, 2026, ending on the UTC date of the "
+        f"last answer; release {RELEASE_20260930} gave {{previousResponseEnd}}, "
+        "the date of that release.",
+        "The audit text for a California household head's Medicaid eligibility "
+        "now explains the head's income test as the engine applies it: "
+        "California's ${medicaidDisregard} monthly income disregard, which takes "
+        "the place of SSI's ${ssiExclusion} general income exclusion, brings "
+        "countable income under the limit.",
+        "The earlier text said the engine subtracts a Medicare Part B premium from "
+        "income, which it does not.",
+    )
+
+    # The models the prose names, and no sentence left unpinned.
+    display = {m: MODEL_DISPLAY_NAMES[m] for m in after}
+    assert _named_models(text, display) == {
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-5.6-sol",
+        "claude-sonnet-5.5",
+        "gpt-6-luna",
+    }
+    unpinned = text
+    for sentence in pinned:
+        unpinned = unpinned.replace(sentence, "", 1)
+    assert not unpinned.strip(), unpinned
+
+    # The links: each household by description, each record and audit, the
+    # release and the one before it.
+    blob = "https://github.com/PolicyEngine/policybench/blob/main/"
+    for href in links.values():
+        if href.startswith("/notes/"):
+            assert (NOTES_DIR / f"{href.removeprefix('/notes/')}.json").is_file()
+        if href.startswith(blob):
+            assert (ROOT / href.removeprefix(blob)).is_file(), href
+    tag = "https://github.com/PolicyEngine/policybench/releases/tag/"
+    assert links["Dashboard data release"] == tag + note["release"]
+    assert links[f"Previous release {RELEASE_20260930}"] == tag + RELEASE_20260930
+    for label, path in (
+        ("Exclusion record", EXCLUSIONS_PATH),
+        ("Developer adjudications", ADJUDICATIONS_PATH),
+        ("Audit of the state income tax in the federal deduction", SALT_AUDIT),
+        ("Audit of the Medicare Part B premium", PART_B_AUDIT),
+        ("Audit of the state payroll contributions", PAYROLL_AUDIT),
+        ("Correction of the Medicaid audit text", MEDICAID_031_AUDIT),
+    ):
+        target = path / "README.md" if path.is_dir() else path
+        assert links[label] == blob + target.relative_to(ROOT).as_posix()
+    household_links = {
+        f"{names['scenario_022']} household (federal income tax)": "scenario_022",
+        f"{names['scenario_081']} household": "scenario_081",
+        f"{names['scenario_114']} household": "scenario_114",
+        f"{names['scenario_032']} household": "scenario_032",
+        f"{names['scenario_043']} household": "scenario_043",
+        f"{names['scenario_082']} household": "scenario_082",
+        "California household head (Medicaid eligibility)": medicaid[0],
+    }
+    assert sorted(set(household_links.values()) - {medicaid[0]}) == sorted(states)
+    for label, scenario_id in household_links.items():
+        assert links[label] == f"/?country=us&scenario={scenario_id}#scenarios"
+    assert not any(re.search(r"scenario_\d", label) for label in links)
+    assert len(links) == len(note["data"]) == 9 + len(household_links)
+
+
+@cache
+def _bbce_facts_at(release: str) -> dict:
+    """The BBCE note's facts recomputed on ``release``'s snapshot."""
+    return _bbce_note_facts(_note(BBCE_NOTE), _release_root(release))
+
+
+def test_bbce_note_describes_the_later_release() -> None:
+    """The October 5 BBCE note keeps release 20260930's facts and closes with
+    the one that moves on release 20261006. Recomputed on release 20261006,
+    every other fact of the note is the same, and the release changes no
+    SNAP reference or answer."""
+    note = _note(BBCE_NOTE)
+    assert note["release"] == RELEASE_20260930
+    assert note["paragraphs"][-1] == (
+        f"{LATER_RELEASE_OPENING}{RELEASE_20261006}, stops scoring "
+        "{laterExclusions:words} tax outputs and changes no SNAP reference or "
+        "answer. On it, GPT-6 Luna is #{laterLunaRank} on PolicyBench, below "
+        "Claude Sonnet 5.5, and every other figure in this note stays the same."
+    )
+    assert not any(RELEASE_20261006 in p for p in note["paragraphs"][:-1])
+    links = {entry["label"]: entry["href"] for entry in note["data"]}
+    assert links[f"Later release {RELEASE_20261006}"] == (
+        "https://github.com/PolicyEngine/policybench/releases/tag/" + RELEASE_20261006
+    )
+    later_note = _note(EXCLUSIONS_NOTE)
+    assert (
+        links[f"Release note for {RELEASE_20261006} ({_month_day(later_note['date'])})"]
+        == f"/notes/{EXCLUSIONS_NOTE}"
+    )
+
+    then = _bbce_facts_at(RELEASE_20260930)
+    later = _bbce_facts_at(RELEASE_20261006)
+    assert {key for key in then if later[key] != then[key]} == {"lunaRank"}
+    assert _later_facts(note) == {
+        "laterExclusions": len(_new_exclusions()),
+        "laterLunaRank": later["lunaRank"],
+    }
+    assert later_note["facts"]["newExclusions"] == len(_new_exclusions())
+    # The new tax exclusions are the only change, and none is a SNAP output.
+    assert not [e for e in _new_exclusions() if e["variable"] == "snap"]
+    now = _payload_at(_release_root(RELEASE_20261006))
+    previous = _payload_at(_release_root(RELEASE_20260930))
+    fields = ("prediction", "groundTruth", "scored", "exact", "explanation")
+    for scenario_id, variables in now["scenarioPredictions"].items():
+        for model, entry in variables["snap"].items():
+            before = previous["scenarioPredictions"][scenario_id]["snap"][model]
+            assert {k: entry.get(k) for k in fields} == {
+                k: before.get(k) for k in fields
+            }, (scenario_id, model)
+    # GPT-6 Luna falls one place, below Claude Sonnet 5.5.
+    board = [r for r in now["modelStats"] if r["condition"] == "no_tools"]
+    exact = _no_tools_exact(now)
+    assert later["lunaRank"] == then["lunaRank"] + 1
+    assert _rank(exact["claude-sonnet-5.5"], board) == later["lunaRank"] - 1

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import copy
 import csv
+import functools
 import hashlib
 import json
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -31,7 +33,16 @@ SLUG = "gpt61sol"
 # The run files the committed input pins name (driver.PINNED_INPUTS).
 PINNED = ("predictions.csv", "run_state.json")
 BUNDLE = Path("publish") / RUN
-COMMITTED_ADJUDICATIONS = driver.ANNOTATIONS / "us_adjudications.json"
+# The #187 squash on main, whose tree holds release 20260930: what this freeze
+# committed. Later releases rewrite the working tree's snapshot and
+# annotations, so the tests read this release's committed files from git here
+# (CI checks out full history), as the freeze reads release 20260929's from
+# BASE_COMMIT.
+RELEASE_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+REPO = Path(__file__).resolve().parents[1]
+SNAPSHOT_DIR = Path("paper/snapshot/20260501")
+ADJUDICATIONS_PATH = Path("annotations") / RUN / "us_adjudications.json"
+
 # The synthetic stage's one judged case, an incumbent-only case kept from the
 # seed, and the audit evidence the receipt must bind for it.
 KEPT = "us__scenario_000__snap"
@@ -43,6 +54,37 @@ ANNOTATION_CSVS = [
     BUNDLE / "annotations" / name
     for name in ("us_audit_row_annotations.csv", "us_case_notes.csv")
 ]
+
+
+@functools.cache
+def release_blob(path: Path) -> bytes:
+    """A repository file as committed at RELEASE_COMMIT."""
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "show", f"{RELEASE_COMMIT}:{path.as_posix()}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        pytest.fail(
+            f"cannot read {path} at release commit {RELEASE_COMMIT[:12]}; fetch "
+            f"full history (git fetch --unshallow): {result.stderr.decode().strip()}"
+        )
+    return result.stdout
+
+
+def release_references(directory: Path) -> Path:
+    """Write the five reference files release 20260930 committed into
+    ``directory``, and return it. They are release 20260929's pinned bytes
+    (test_finish_gpt61sol.py checks this)."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for name in driver.REFERENCE_FILES:
+        (directory / name).write_bytes(release_blob(SNAPSHOT_DIR / "runs" / RUN / name))
+    return directory
+
+
+def committed_record() -> dict:
+    """The adjudication record release 20260930 committed, as its commit holds
+    it: release 20260929's restated where GPT-6.1 Sol re-opened a case."""
+    return json.loads(release_blob(ADJUDICATIONS_PATH))
 
 
 SOL = "gpt-6.1-sol"
@@ -375,14 +417,13 @@ def staged_board(freeze_preflight, monkeypatch, rebuilds, exports):
     # judged case is kept, so its verdict must stay the seed's.
     seed = driver.seed_digest(stage / "audit")
     monkeypatch.setattr(driver, "load_seed", lambda stage: seed)
-    snapshot = release.ROOT / "paper/snapshot/20260501"
+    snapshot = release.ROOT / SNAPSHOT_DIR
     frozen = snapshot / "runs" / RUN
     frozen.mkdir(parents=True)
-    source = driver.ROOT / "paper/snapshot/20260501"
+    # The snapshot release 20260930 committed, from RELEASE_COMMIT.
     for name in ("manifest.json", "model_serving_config.json"):
-        shutil.copyfile(source / name, snapshot / name)
-    for name in driver.REFERENCE_FILES:
-        shutil.copyfile(driver.SNAPSHOT / name, frozen / name)
+        (snapshot / name).write_bytes(release_blob(SNAPSHOT_DIR / name))
+    release_references(frozen)
     # The incumbents' rows are release 20260929's, as export leaves them.
     stats = driver.base_payload_from_commit()["countries"]["us"]["modelStats"]
     stats += [{"model": SOL, "condition": "no_tools", "exact": 61.5, "score": 74.2}]
@@ -452,8 +493,7 @@ def test_the_freeze_refuses_a_provenance_record_export_did_not_bind(
     record edited afterwards, one the receipt does not bind or binds under
     another path, or a missing one, is refused before any workspace mutation."""
     stage, rebind = staged_board
-    for name in driver.REFERENCE_FILES:
-        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    release_references(stage / BUNDLE / "us")
     rebind()
     receipt = json.loads((stage / "release-ready.json").read_text())
     if defect == "edited":
@@ -537,8 +577,7 @@ def test_the_freeze_refuses_a_payload_edited_after_export(staged_board, edit, dr
     hash updated to match, is refused before any workspace mutation: the
     payload export builds from the bound bundle is not the staged one."""
     stage, rebind = staged_board
-    for name in driver.REFERENCE_FILES:
-        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    release_references(stage / BUNDLE / "us")
     payload = stage / "data-board46.json"
     board = json.loads(payload.read_text())
     paths = PAYLOAD_EDITS[edit](board)
@@ -561,8 +600,7 @@ def test_the_rebuild_reads_a_scratch_copy_of_the_bound_bundle(
     payload rebuilds, carrying Fable 5's usage as export does, and the
     freeze goes on to its next gate."""
     stage, rebind = staged_board
-    for name in driver.REFERENCE_FILES:
-        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    release_references(stage / BUNDLE / "us")
     rebind()
 
     def next_gate(stage):
@@ -646,8 +684,7 @@ def test_the_freeze_refuses_a_verdict_edited_after_export(
     entry re-hashed, must still be refused before any workspace mutation; so
     must a verdict the seed does not carry that is bound to no prompt."""
     stage, rebind = staged_board
-    for name in driver.REFERENCE_FILES:
-        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    release_references(stage / BUNDLE / "us")
     case = stage / "audit/cases" / KEPT
     if defect == "edited_kept":
         verdict = json.loads((case / "verdict.json").read_text())
@@ -817,14 +854,14 @@ def _publish_annotations(stage: Path) -> None:
 
 @pytest.fixture
 def annotated_board(staged_board, monkeypatch):
-    """The synthetic stage with 20260929's references and the annotations
-    triage publishes, past every gate up to the annotation gate; the next
-    gate, the incumbents' predictions, stops the freeze. The kept case is
-    decided by no adjudication. The record gate reads the committed record's
-    69 cases, which the synthetic audit lacks; it is tested on its own."""
+    """The synthetic stage with the references release 20260930 committed
+    (20260929's pinned bytes) and the annotations triage publishes, past every
+    gate up to the annotation gate; the next gate, the incumbents'
+    predictions, stops the freeze. The kept case is decided by no
+    adjudication. The record gate reads the committed record's 69 cases,
+    which the synthetic audit lacks; it is tested on its own."""
     stage, rebind = staged_board
-    for name in driver.REFERENCE_FILES:
-        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
+    release_references(stage / BUNDLE / "us")
     monkeypatch.setattr(release, "verify_adjudication_record", lambda *a, **k: 0)
     _publish_annotations(stage)
 
@@ -896,9 +933,8 @@ def test_the_freeze_refuses_a_revised_staged_reference_before_mutation(staged_bo
 
 def test_the_freeze_refuses_a_dropped_adjudication_before_mutation(staged_board):
     stage, rebind = staged_board
-    for name in driver.REFERENCE_FILES:
-        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
-    record = json.loads(COMMITTED_ADJUDICATIONS.read_text())
+    release_references(stage / BUNDLE / "us")
+    record = committed_record()
     record["adjudications"].pop(0)
     (stage / BUNDLE / "annotations/us_adjudications.json").write_text(
         driver.record_text(record)
@@ -919,9 +955,8 @@ def test_the_freeze_baseline_is_release_20260929_in_git_not_the_working_tree(
 
     stage, rebind = staged_board
     monkeypatch.setattr(freezer, "ANNOTATIONS_DEST", release.ROOT / "annotations" / RUN)
-    for name in driver.REFERENCE_FILES:
-        shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
-    record = json.loads(COMMITTED_ADJUDICATIONS.read_text())
+    release_references(stage / BUNDLE / "us")
+    record = committed_record()
     record["adjudications"].pop(0)
     staged = stage / BUNDLE / "annotations/us_adjudications.json"
     staged.write_text(driver.record_text(record))
@@ -939,15 +974,11 @@ def test_the_freeze_baseline_is_release_20260929_in_git_not_the_working_tree(
 
 @pytest.fixture
 def references(tmp_path):
-    staged = tmp_path / "staged"
-    frozen = tmp_path / "frozen"
-    for directory in (staged, frozen):
-        directory.mkdir()
-        for name in driver.REFERENCE_FILES:
-            shutil.copyfile(driver.SNAPSHOT / name, directory / name)
-    manifest = json.loads(
-        (driver.ROOT / "paper/snapshot/20260501/manifest.json").read_text()
-    )
+    """The references and the manifest release 20260930 committed, from
+    RELEASE_COMMIT, as the staged, committed and manifest-pinned copies."""
+    staged = release_references(tmp_path / "staged")
+    frozen = release_references(tmp_path / "frozen")
+    manifest = json.loads(release_blob(SNAPSHOT_DIR / "manifest.json"))
     return staged, frozen, manifest
 
 
@@ -978,9 +1009,7 @@ def adjudications(tmp_path):
     """Release 20260929's record, from git at BASE_COMMIT: the baseline every
     staged record is checked against, before and after this release's freeze."""
     staged = tmp_path / "us_adjudications.json"
-    staged.write_bytes(
-        driver.base_commit_blob(COMMITTED_ADJUDICATIONS.relative_to(driver.ROOT))
-    )
+    staged.write_bytes(driver.base_commit_blob(ADJUDICATIONS_PATH))
     record = json.loads(staged.read_text())
     return staged, record
 
@@ -994,8 +1023,11 @@ def _case(entry):
 
 
 def _verify(staged, rejudged=frozenset(), amendments=()):
+    """The record gate on ``staged``, the references release 20260930
+    committed (20260929's pinned bytes) standing in for the staged ones."""
+    source_us = release_references(staged.parent / "release-references")
     return release.verify_adjudication_record(
-        staged, driver.SNAPSHOT, frozenset(rejudged), list(amendments)
+        staged, source_us, frozenset(rejudged), list(amendments)
     )
 
 
@@ -1006,20 +1038,22 @@ def test_the_committed_record_is_release_20260929s_restated_where_reopened(
     where GPT-6.1 Sol re-opened a case (the cases the committed judge
     provenance record lists), only in judge fields and by the committed
     wording amendments, and with no decision added."""
-    reopened = frozenset(
-        entry["case_id"]
-        for entry in json.loads(driver.JUDGE_PROVENANCE.read_text())["verdicts"]
-    )
+    # All three as RELEASE_COMMIT holds them: a later release rewrites the
+    # working tree's record.
+    provenance = json.loads(release_blob(Path(driver.JUDGE_PROVENANCE_PATH)))
+    reopened = frozenset(entry["case_id"] for entry in provenance["verdicts"])
     stage = tmp_path / "stage"
     stage.mkdir()
-    shutil.copyfile(
-        driver.ANNOTATIONS / f"us_{driver.AMENDMENTS}", stage / driver.AMENDMENTS
+    (stage / driver.AMENDMENTS).write_bytes(
+        release_blob(ADJUDICATIONS_PATH.with_name(f"us_{driver.AMENDMENTS}"))
     )
     amendments = driver.load_amendments(stage, reopened)
     assert len(amendments) == 394
-    assert _verify(COMMITTED_ADJUDICATIONS, reopened, amendments) == 0
-    committed = json.loads(COMMITTED_ADJUDICATIONS.read_text())["adjudications"]
-    assert committed != driver.base_adjudications()
+    committed = tmp_path / "committed" / "us_adjudications.json"
+    committed.parent.mkdir()
+    committed.write_bytes(release_blob(ADJUDICATIONS_PATH))
+    assert _verify(committed, reopened, amendments) == 0
+    assert committed_record()["adjudications"] != driver.base_adjudications()
 
 
 def test_an_unchanged_adjudication_record_passes(adjudications):
@@ -1103,7 +1137,7 @@ def test_a_new_exclusion_is_refused(adjudications):
 
 
 def test_the_committed_record_is_in_the_form_the_gate_requires():
-    text = COMMITTED_ADJUDICATIONS.read_text()
+    text = release_blob(ADJUDICATIONS_PATH).decode()
     driver.verify_record_form(text, driver.base_adjudication_record())
     assert text == driver.record_text(json.loads(text))
 
@@ -1354,8 +1388,9 @@ def test_a_listed_wording_amendment_is_allowed_and_nothing_else(adjudications):
     # Unlisted, the same change is refused.
     with pytest.raises(SystemExit, match="change recorded decisions"):
         _verify(staged, {_case(entry)})
-    # Listed but not applied, it is refused too: the list is exact.
-    shutil.copyfile(COMMITTED_ADJUDICATIONS, staged)
+    # Listed but not applied, it is refused too: the list is exact. The record
+    # goes back to the fixture's, release 20260929's, which lacks the change.
+    staged.write_bytes(driver.base_commit_blob(ADJUDICATIONS_PATH))
     with pytest.raises(SystemExit, match="change recorded decisions"):
         _verify(staged, {_case(entry)}, [amendment])
     # Any other change beside it is still refused.

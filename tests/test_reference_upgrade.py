@@ -69,6 +69,18 @@ def _exclusions() -> dict[tuple[str, str], dict]:
     return {(e["scenario_id"], e["variable"]): e for e in records}
 
 
+def _later_exclusions() -> dict[tuple[str, str], dict]:
+    """Records decided after the upgrade: the 2026-10-05 audits' eight
+    (reference_audit/2026-10-05, -medicare-part-b and -payroll). The upgrade's
+    sweep and its publication check scored these outputs; each record is
+    computed on the reference engine, and its frozen value is the reference."""
+    return {
+        key: record
+        for key, record in _exclusions().items()
+        if record["decided_on"] > UPGRADE_DATE
+    }
+
+
 def test_engine_and_provenance_name_the_recorded_release():
     upgrade = _upgrade()
     assert upgrade["engine_version"] == f"policyengine-us {ENGINE}"
@@ -92,20 +104,32 @@ def test_every_module_the_revision_names_is_committed_unchanged():
 
 
 def test_the_sweep_table_is_the_committed_reference():
+    """sweep_moves.csv marks the outputs excluded when the upgrade decided; an
+    output a later record excludes was scored then, and its record keeps the
+    reference engine's value."""
     references = _references()
     sweep = _sweep()
     exclusions = _exclusions()
+    later = _later_exclusions()
     assert set(sweep) == set(references) and len(sweep) == 1984
+    # 64 records less the 2026-10-05 audits' eight.
+    assert len(later) == 8 and len(exclusions) - len(later) == 56
+    assert sum(row["excluded"] == "True" for row in sweep.values()) == 56
     for key, row in sweep.items():
         assert abs(float(row["reference"]) - references[key]) < 1e-6, key
-        assert (row["excluded"] == "True") == (key in exclusions), key
         record = exclusions.get(key)
-        if record is None or record["decided_on"] == "2026-09-29":
-            # Scored, or excluded in this wave: the engine value is the reference.
+        excluded_then = record is not None and key not in later
+        assert (row["excluded"] == "True") == excluded_then, key
+        if record is None or record["decided_on"] >= UPGRADE_DATE:
+            # Scored, or excluded in this wave or later: the engine value is
+            # the reference.
             assert abs(float(row["final"]) - references[key]) < 1e-3, key
         else:
             # Excluded earlier: keeps the value its record was decided on.
             assert abs(float(row["board_20260922c"]) - references[key]) < 1e-6, key
+    for key, record in later.items():
+        assert record["engine_version"] == f"policyengine-us {ENGINE}", key
+        assert record["frozen_value"] == references[key], key
 
 
 def test_every_changed_reference_is_listed_and_reviewed():
@@ -355,10 +379,16 @@ def test_the_publication_release_recomputes_every_scored_reference():
     assert {row["engine"] for row in rows.values()} == {VERIFICATION_ENGINE}
     assert {row["fix"] for row in rows.values()} == {"latest_final"}
     scored = set(references) - set(exclusions)
-    # 1,984 outputs less 56 exclusions: the 52 of release 20260922c, the
-    # three the upgrade added and the one the audit excluded on review.
-    assert len(scored) == 1928
-    for key in scored:
+    # 1,984 outputs less 64 exclusions: the 52 of release 20260922c, the
+    # three the upgrade added, the one the audit excluded on review, and the
+    # eight the 2026-10-05 audits added.
+    assert len(scored) == 1920
+    # The check ran before the 2026-10-05 records: it covers the 1,928 outputs
+    # scored then, which include those eight.
+    later = _later_exclusions()
+    scored_then = scored | set(later)
+    assert len(later) == 8 and len(scored_then) == 1928
+    for key in scored_then:
         assert float(rows[key]["recomputed"]) == references[key], key
     # The sweep's frozen column is the committed reference, so its "moved"
     # outputs are excluded ones: the 19 the upgrade rechecked, each at the

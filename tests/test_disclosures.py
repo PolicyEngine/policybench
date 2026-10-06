@@ -264,13 +264,17 @@ def test_current_board_copy_makes_no_identical_request_claim():
 
 def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     counts = _audit_counts_from_frozen_files()
-    # Release 20260929's counts plus GPT-6.1 Sol's 88 exact misses.
+    # Release 20261006: release 20260930's counts (7,860 annotated, 7,856
+    # exact misses, 2,107 unannotated) less the 368 scored rows on the eight
+    # outputs it excludes: 333 annotated exact misses and 35 unannotated rows
+    # below full bounded score. The app's summarizeAuditUniverse recomputes
+    # the same counts from the payload (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 7_860,
-        "exact_misses": 7_856,
-        "annotated_exact_misses": 7_856,
+        "annotated": 7_527,
+        "exact_misses": 7_523,
+        "annotated_exact_misses": 7_523,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 2_107,
+        "unannotated_below_full_bounded_score": 2_072,
     }
 
     for path in (

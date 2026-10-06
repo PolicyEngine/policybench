@@ -1,8 +1,17 @@
 """Checks for data-driven manuscript values."""
 
+import csv
+import functools
+import gzip
+import io
+import json
 import re
+import subprocess
+import sys
+import tempfile
 from collections import Counter
 from copy import deepcopy
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -14,11 +23,15 @@ from policybench.config import MODELS, PRICE_OVERRIDES_PER_1M
 from policybench.paper_results import (
     MODEL_DISPLAY_NAMES,
     MODEL_RELEASE_DATES,
+    REVIEW_DATE,
+    REVIEW_SWEEPS,
     ROOT,
     SNAPSHOT_DIR,
     PaperResults,
+    partition_review_sweep_moves,
     r,
 )
+from policybench.reference_exclusions import load_reference_exclusions
 
 
 def test_frozen_roster_has_46_display_names_and_release_dates():
@@ -67,38 +80,43 @@ def test_app_release_dates_mirror_the_paper_registry():
 
 
 def test_parse_contract_failure_counts_come_from_frozen_dashboard():
+    # Release 20260930's 652 (Kimi K2.6 390, GLM-5.2 133) less the eight on
+    # the outputs the 2026-10-05 review excluded (seven Kimi K2.6, one GLM-5.2;
+    # test_the_review_moves_the_paper_counts_by_its_eight_outputs_alone).
     assert r.parse_contract_failure_counts == Counter(
         {
-            "kimi-k2.6": 390,
-            "glm-5.2": 133,
+            "kimi-k2.6": 383,
+            "glm-5.2": 132,
             "glm-5.3": 71,
             "kimi-k3": 58,
         }
     )
-    assert r.parse_contract_failure_count == 652
-    assert r.parse_contract_failure_count_fmt == "652"
-    # 652 of the 46-model board's 88,688 scored answers (0.8% of 20260929's
-    # 86,760): GPT-6.1 Sol parsed all 1,928.
+    assert r.parse_contract_failure_count == 644
+    assert r.parse_contract_failure_count_fmt == "644"
+    # 644 of the 46-model board's 88,320 scored answers (46 x 1,920).
+    assert r.n_canonical_rows == 88_320
     assert r.parse_contract_failure_pct_fmt == "0.7"
 
 
 def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
-    # Release 20260929's counts plus GPT-6.1 Sol's 88 exact misses.
-    assert r.audit_annotated_row_count == 7_860
-    assert r.audit_annotated_row_count_fmt == "7,860"
+    # Release 20260930's counts (7,860 annotated, 7,856 misses, 2,107
+    # unannotated) less the 333 annotated misses and the 35 exact hits on the
+    # eight outputs the 2026-10-05 review excluded.
+    assert r.audit_annotated_row_count == 7_527
+    assert r.audit_annotated_row_count_fmt == "7,527"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 7_856
-    assert r.exact_match_miss_count_fmt == "7,856"
-    assert r.annotated_exact_miss_count == 7_856
-    assert r.annotated_exact_miss_count_fmt == "7,856"
+    assert r.exact_match_miss_count == 7_523
+    assert r.exact_match_miss_count_fmt == "7,523"
+    assert r.annotated_exact_miss_count == 7_523
+    assert r.annotated_exact_miss_count_fmt == "7,523"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
-    assert r.unannotated_below_full_bounded_score_count == 2_107
-    assert r.unannotated_below_full_bounded_score_count_fmt == "2,107"
+    assert r.unannotated_below_full_bounded_score_count == 2_072
+    assert r.unannotated_below_full_bounded_score_count_fmt == "2,072"
 
 
 def test_contract_violations_are_counted_both_ways():
-    """652 scored rows never parsed a number (rows on excluded outputs are outside
+    """644 scored rows never parsed a number (rows on excluded outputs are outside
     every count); 60 more parsed a number but carry no explanation.
     The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
@@ -107,7 +125,7 @@ def test_contract_violations_are_counted_both_ways():
         "claude-haiku-4.5": 1,
     }
     assert r.explanation_missing_count_fmt == "60"
-    assert r.contract_violation_count_fmt == "712"
+    assert r.contract_violation_count_fmt == "704"
     assert r.explanation_missing_breakdown_fmt == (
         "Grok 4.3 (55), Kimi K2.6 (4), and Claude Haiku 4.5 (1)"
     )
@@ -324,10 +342,13 @@ def test_joint_credit_table_orders_ties_deterministically():
 
 
 def test_excluded_outputs_are_outside_the_scored_audit_universe():
-    assert r.excluded_output_count == 56
-    assert r.excluded_output_phrase == "56 outputs"
-    assert r.excluded_output_households_phrase == "39 households"
-    assert r.unlisted_input_exclusion_count == 28
+    # Release 20260930's 56 outputs in 39 households plus the 2026-10-05
+    # review's eight (in scenario_022, 032, 043, 081, 082 and 114; 022, 081
+    # and 082 already had one).
+    assert r.excluded_output_count == 64
+    assert r.excluded_output_phrase == "64 outputs"
+    assert r.excluded_output_households_phrase == "42 households"
+    assert r.unlisted_input_exclusion_count == 36
     assert r.engine_defect_exclusion_count == 28
     assert r.engine_defect_root_cause_count == 11
     assert r.snap_engine_defect_exclusion_count == 1
@@ -355,12 +376,29 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
         ]
         == 3
     )
-    assert r.scored_outputs_per_model_fmt == "1,928"
+    # The 2026-10-05 review's three inputs (the records' own text): the state
+    # income tax in SALT alone for 022 and 081, with the Part B premium for
+    # 114's federal output, the Part B premium alone for 114's Virginia
+    # output, and the employer's deduction for the four payroll outputs.
+    by_input = r.excluded_outputs_by_input
+    salt = next(k for k in by_input if k.startswith("state income tax withheld"))
+    part_b = next(k for k in by_input if k.startswith("Medicare enrollment"))
+    payroll = next(k for k in by_input if k.startswith("whether the employer deducts"))
+    assert by_input[salt] == 2
+    assert by_input[f"{salt}; also {part_b}"] == 1
+    assert by_input[part_b] == 1
+    assert by_input[payroll] == 4
+    assert r.scored_outputs_per_model_fmt == "1,920"
     assert r.total_outputs_per_model_fmt == "1,984"
-    # Release 20260929's 2,065 plus GPT-6.1 Sol's 46 rows on excluded outputs.
-    assert r.excluded_output_annotation_row_count == 2111
-    # Release 20260929's 802 plus GPT-6.1 Sol's 18.
-    assert r.prompt_ambiguity_row_count == 820
+    # Release 20260930's 2,111 rows on excluded outputs plus the 333 annotated
+    # rows on the review's eight outputs.
+    assert r.excluded_output_annotation_row_count == 2444
+    # Release 20260930's 820 plus the review's 325 relabeled llm_error rows
+    # (135 SALT, 45 Part B, 145 payroll); its eight parse failures stay.
+    assert r.prompt_ambiguity_row_count == 1145
+    assert (
+        r.excluded_output_annotation_row_count - r.excluded_descriptive_row_count == 63
+    )
     # No scored row carries a descriptive class; every excluded-output row
     # carries its exclusion's class unless it never parsed.
     scored_sources = {
@@ -379,7 +417,7 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
             "parse_contract_failure",
         }
     for stats in r.model_stats:
-        assert stats["n"] == 1928
+        assert stats["n"] == 1920
 
 
 def test_engine_upgrade_counts_come_from_the_reference_sidecar():
@@ -406,12 +444,13 @@ def test_engine_upgrade_counts_come_from_the_reference_sidecar():
         == 9
     )
     # Excluded outputs keep the values they were decided on: 52 on 1.755.4,
-    # and on 2.15.17 the three this upgrade added plus the audit's
-    # (final_actions.json audit_exclusions: scenario_023 head Medicaid).
-    assert r.excluded_outputs_by_engine_version == {"1.755.4": 52, "2.15.17": 4}
+    # and on 2.15.17 the three this upgrade added, the audit's
+    # (final_actions.json audit_exclusions: scenario_023 head Medicaid) and
+    # the 2026-10-05 review's eight.
+    assert r.excluded_outputs_by_engine_version == {"1.755.4": 52, "2.15.17": 12}
     assert r.excluded_outputs_on_previous_engine_count == 52
-    assert r.excluded_outputs_on_reference_engine_count == 4
-    assert r.excluded_output_count == 56
+    assert r.excluded_outputs_on_reference_engine_count == 12
+    assert r.excluded_output_count == 64
     # Four scored references move beyond the exact-match tolerance: 008 NJ
     # and 082 NY refundable credits, 013 AZ SNAP and 028 PA reduced-price
     # meals (a 0/1 flag, so any change counts).
@@ -548,3 +587,332 @@ def test_engine_upgrade_partition_is_exact_and_disjoint(revision):
             moved = abs(change["regenerated"] - change["previous"])
             limit = 1 if change["variable"] in _AMOUNT_OUTPUTS else 0
             assert (moved > limit) == (name == "scored_changes")
+
+
+# --- The 2026-10-05 review of release dashboard-data-20260930 -----------------
+
+# Release dashboard-data-20260930's commit (#187), the base the review read and
+# the next release builds on (docs/release_20261006/spec.json). CI checks out
+# full history.
+BASE_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+
+
+def _git_blob(path: str) -> bytes:
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{BASE_COMMIT}:{path}"],
+        capture_output=True,
+    )
+    assert result.returncode == 0, (
+        f"cannot read {path} at {BASE_COMMIT[:12]} (fetch full history): "
+        f"{result.stderr.decode().strip()}"
+    )
+    return result.stdout
+
+
+@functools.cache
+def _release_20260930() -> PaperResults:
+    """PaperResults over release 20260930's own committed artifacts, read from
+    git at its commit: manifest, payload, exclusion record and annotations."""
+    base = PaperResults()
+    run = f"paper/snapshot/20260501/runs/{r.us_run_label}"
+    base.manifest = json.loads(_git_blob("paper/snapshot/20260501/manifest.json"))
+    base.dashboard = json.loads(gzip.decompress(_git_blob(f"{run}/data.json.gz")))
+    with tempfile.TemporaryDirectory() as scratch:
+        record = Path(scratch) / "reference_exclusions.json"
+        record.write_bytes(_git_blob(f"{run}/reference_exclusions.json"))
+        base.reference_exclusions = load_reference_exclusions(record)
+    annotation_dir = base.manifest["audit_annotation_artifacts"]["path"]
+    rows = _git_blob(f"{annotation_dir}/us_audit_row_annotations.csv").decode()
+    base._audit_rows = list(csv.DictReader(io.StringIO(rows)))
+    return base
+
+
+def test_release_20260930s_own_counts_rebuild_from_git():
+    """The counts these tests pinned for release 20260930, recomputed from its
+    committed artifacts rather than from the working tree."""
+    base = _release_20260930()
+    assert base.manifest["published_dashboard_artifact"]["tag"] == (
+        "dashboard-data-20260930"
+    )
+    assert base.excluded_output_count == 56
+    assert base.excluded_output_households_phrase == "39 households"
+    assert base.unlisted_input_exclusion_count == 28
+    assert base.engine_defect_exclusion_count == 28
+    assert base.excluded_outputs_by_engine_version == {"1.755.4": 52, "2.15.17": 4}
+    assert {row["n"] for row in base.model_stats} == {1928}
+    assert base.audit_annotated_row_count == 7_860
+    assert base.exact_match_miss_count == 7_856
+    assert base.annotated_exact_miss_count == 7_856
+    assert base.annotated_exact_hit_count == 4
+    assert base.unannotated_below_full_bounded_score_count == 2_107
+    assert base.parse_contract_failure_counts == Counter(
+        {"kimi-k2.6": 390, "glm-5.2": 133, "glm-5.3": 71, "kimi-k3": 58}
+    )
+    assert base.excluded_output_annotation_row_count == 2_111
+    assert base.prompt_ambiguity_row_count == 820
+    assert base.audit_developer_adjudications["cases"] == 69
+    assert base.model_response_date == "2026-06-12 to 2026-09-30"
+
+
+def test_the_review_moves_the_paper_counts_by_its_eight_outputs_alone():
+    """Differential: each count the paper renders is release 20260930's,
+    computed from its own committed files, moved by exactly the rows on the
+    outputs the review excluded."""
+    base = _release_20260930()
+    review = r.review_exclusion_keys
+    assert len(review) == 8
+    assert r._excluded_output_keys == base._excluded_output_keys | review
+    assert not base._excluded_output_keys & review
+
+    def on_review(rows):
+        return [row for row in rows if (row["scenario_id"], row["variable"]) in review]
+
+    # The base scored those rows; the payload keeps them, unscored.
+    base_rows = on_review(base._scored_prediction_rows)
+    assert len(base_rows) == 8 * r.n_models
+    assert all(row["scored"] is False for row in on_review(r._scenario_prediction_rows))
+    misses = {r._prediction_row_key(row) for row in base_rows if row["exact"] < 100}
+    hits_below_full = {
+        r._prediction_row_key(row)
+        for row in base_rows
+        if row["exact"] == 100 and row["boundedScore"] < 100
+    }
+    annotated = {r._prediction_row_key(row) for row in on_review(base._audit_rows)}
+    assert annotated == misses
+
+    assert r.audit_annotated_row_count == base.audit_annotated_row_count - len(
+        annotated
+    )
+    assert r.exact_match_miss_count == base.exact_match_miss_count - len(misses)
+    assert r.annotated_exact_hit_count == base.annotated_exact_hit_count
+    assert r.unannotated_below_full_bounded_score_count == (
+        base.unannotated_below_full_bounded_score_count - len(hits_below_full)
+    )
+    parse_failures = Counter(
+        row["model"]
+        for row in base_rows
+        if row.get("failureSource") == "parse_contract_failure"
+    )
+    assert r.parse_contract_failure_counts == (
+        base.parse_contract_failure_counts - parse_failures
+    )
+    assert sum(parse_failures.values()) == 8
+    assert r.excluded_output_annotation_row_count == (
+        base.excluded_output_annotation_row_count + len(annotated)
+    )
+    # Every annotated miss on the eight is relabeled to the exclusion's class
+    # except the answers that never parsed.
+    assert r.prompt_ambiguity_row_count == (
+        base.prompt_ambiguity_row_count + len(annotated) - 8
+    )
+    assert r.excluded_output_count == base.excluded_output_count + 8
+    assert r.unlisted_input_exclusion_count == base.unlisted_input_exclusion_count + 8
+    assert r.engine_defect_exclusion_count == base.engine_defect_exclusion_count
+    assert r.audit_developer_adjudications["cases"] == (
+        base.audit_developer_adjudications["cases"] + len(r.review_adjudications)
+    )
+    assert r.n_scored_outputs == base.n_scored_outputs - 8
+
+
+def test_the_review_sweeps_move_exactly_the_records_the_review_added():
+    """The review's records are what its sweeps moved: every output a sweep
+    moves beyond the tolerance is one of its eight records or was already
+    excluded, and no still-scored output moves by any amount."""
+    assert r.review_date == REVIEW_DATE == "2026-10-05"
+    assert r.review_sweep_count == len(REVIEW_SWEEPS) == 3
+    assert r.review_sweep_count_word == "three"
+    assert r.review_new_exclusion_count == len(r.review_adjudications) == 8
+    assert r.review_new_exclusion_count_word == "eight"
+    assert r.review_exclusion_engine_version == r.policyengine_us_version
+    assert set(r.review_newly_excluded_moved_outputs) == r.review_exclusion_keys
+    assert r.review_sweep_partition["scored_beyond_tolerance"] == []
+    assert r.review_sweep_partition["scored_within_tolerance"] == []
+    assert r.review_still_scored_moves_phrase == "no output that is still scored"
+    federal = "federal_income_tax_before_refundable_credits"
+    assert r.review_already_excluded_moved_outputs == [
+        ("scenario_078", federal),
+        ("scenario_120", federal),
+    ]
+    assert r.review_already_excluded_moved_count_word == "two"
+    assert r.review_sweep_moved_outputs("salt_withholding") == [
+        ("scenario_022", federal),
+        ("scenario_078", federal),
+        ("scenario_081", federal),
+        ("scenario_114", federal),
+        ("scenario_120", federal),
+    ]
+    assert r.review_sweep_moved_count_word("salt_withholding") == "five"
+    assert r.review_sweep_newly_excluded_count_word("salt_withholding") == "three"
+    assert r.review_sweep_already_excluded_count_word("salt_withholding") == "two"
+    assert r.review_sweep_moved_outputs("medicare_part_b") == [
+        ("scenario_114", federal),
+        ("scenario_114", "state_income_tax_before_refundable_credits"),
+    ]
+    assert r.review_sweep_moved_household_count_word("medicare_part_b") == "one"
+    assert r.review_sweep_moved_outputs("payroll_optional_shares") == [
+        (f"scenario_{n}", "payroll_tax") for n in ("032", "043", "081", "082")
+    ]
+    assert r.review_sweep_moved_count_word("payroll_optional_shares") == "four"
+    assert r.review_sweep_newly_excluded_count_word("payroll_optional_shares") == (
+        "four"
+    )
+
+
+def test_the_review_swept_release_20260930s_references_and_exclusions():
+    """Each sweep covers every output, carries release 20260930's exclusions
+    and references, and its baseline reproduces every reference that release
+    scored (the paper's count)."""
+    base = _release_20260930()
+    assert r.excluded_before_review_keys == base._excluded_output_keys
+    assert r.review_scored_before_count == 1_984 - 56 == 1_928
+    assert r.review_scored_before_count_fmt == "1,928"
+    for name, frame in r.review_sweep_rows.items():
+        assert len(frame) == 1_984, name
+        recorded = {
+            (row.scenario_id, row.variable)
+            for row in frame.itertuples(index=False)
+            if row.excluded
+        }
+        assert recorded == base._excluded_output_keys, name
+
+
+def test_the_review_records_quote_their_sweeps_values():
+    """Each record's frozen value is the sweep's reference, and its
+    alternative is a value one of its sweeps computed for that output."""
+    values: dict[tuple[str, str], list[float]] = {}
+    references: dict[tuple[str, str], float] = {}
+    for name, (_, baseline, readings) in REVIEW_SWEEPS.items():
+        for row in r.review_sweep_rows[name].itertuples(index=False):
+            key = (row.scenario_id, row.variable)
+            references[key] = float(row.reference)
+            values.setdefault(key, []).extend(
+                float(getattr(row, reading)) for reading in readings
+            )
+    for record in r.review_exclusions:
+        key = (record["scenario_id"], record["variable"])
+        assert record["frozen_value"] == pytest.approx(references[key], abs=0.005)
+        assert any(
+            record["alternative_value"] == pytest.approx(value, abs=0.005)
+            for value in values[key]
+        ), key
+        assert record["reason_code"] == "reference_depends_on_unlisted_input"
+
+
+def test_no_judge_had_flagged_the_reviews_outputs():
+    """The paper says no judge flagged the eight: each adjudication keeps a
+    judge verdict of a model error with no reference-suspect flag."""
+    assert r.review_judge_flagged_count == 0
+    assert {(e["scenario_id"], e["variable"]) for e in r.review_adjudications} == (
+        r.review_exclusion_keys
+    )
+    for entry in r.review_adjudications:
+        assert entry["judge_failure_source"] == "llm_error"
+        assert entry["judge_reference_suspect"] is False
+        assert entry["excluded_from_scoring"] is True
+    # The manifest's tally of judge-flagged cases does not move.
+    base = _release_20260930()
+    assert r.audit_flagged_by_verdict == base.audit_flagged_by_verdict
+
+
+def test_marylands_withholding_estimate_moves_only_an_excluded_federal_output():
+    """The paper: policyengine-us reads Maryland's withholding allowance only
+    in its withholding estimate, and the one Maryland federal output that
+    estimate moves is excluded (reference_audit/2026-10-05)."""
+    frame = r.review_sweep_rows["salt_withholding"]
+    _, baseline, readings = REVIEW_SWEEPS["salt_withholding"]
+    maryland = frame[frame["state"] == "MD"]
+    moved = {
+        (row.scenario_id, row.variable)
+        for row in maryland.itertuples(index=False)
+        if any(getattr(row, reading) != getattr(row, baseline) for reading in readings)
+    }
+    assert moved == {("scenario_078", "federal_income_tax_before_refundable_credits")}
+    assert moved <= r.excluded_before_review_keys
+    paper = re.sub(r"\s+", " ", (ROOT / "paper/index.qmd").read_text())
+    assert "the one Maryland federal output that estimate moves is excluded" in paper
+    assert (
+        "which reaches federal tax through the state and local tax deduction."
+        not in (paper)
+    )
+
+
+def test_the_paper_dates_the_response_window_from_the_last_answer():
+    """Differential: the window the paper's snapshot table prints (the
+    manifest's) is the one scripts/freeze_snapshot.py computes from the frozen
+    predictions, ending on the last answer's UTC date, not the release's."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import freeze_snapshot
+
+    start, end = r.model_response_date.split(" to ")
+    predictions = SNAPSHOT_DIR / "runs" / r.us_run_label / "predictions.csv.gz"
+    assert freeze_snapshot.model_response_window(predictions, start) == (
+        r.model_response_date
+    )
+    assert end == "2026-09-29"
+    assert r.snapshot_date == "2026-09-30"
+    assert _release_20260930().model_response_date.endswith(r.snapshot_date)
+
+
+def _review_moves():
+    outputs = st.tuples(
+        st.integers(min_value=0, max_value=12).map(lambda n: f"scenario_{n:03d}"),
+        st.sampled_from(_AMOUNT_OUTPUTS + _FLAG_OUTPUTS),
+    )
+
+    @st.composite
+    def build(draw):
+        moves = []
+        for scenario_id, variable in draw(st.lists(outputs, max_size=30)):
+            if variable in _FLAG_OUTPUTS:
+                baseline = draw(st.sampled_from((0.0, 1.0)))
+                recomputed = 1.0 - baseline
+            else:
+                baseline = draw(st.floats(0, 1e5, allow_nan=False))
+                recomputed = baseline + draw(
+                    st.one_of(
+                        st.floats(-2, 2, allow_nan=False), st.floats(-1e4, 1e4)
+                    ).filter(lambda d: d != 0)
+                )
+            sweep = draw(st.sampled_from(sorted(REVIEW_SWEEPS)))
+            moves.append((sweep, scenario_id, variable, baseline, recomputed))
+        before = draw(st.sets(outputs, max_size=6))
+        added = draw(st.sets(outputs, max_size=6))
+        return moves, before, before | added
+
+    return build()
+
+
+@settings(max_examples=300, deadline=None)
+@given(_review_moves())
+def test_review_sweep_partition_is_exact_and_disjoint(case):
+    """Invariant: every move lands in exactly one group; a move of an output
+    excluded before is excluded_before, of an output the review excluded
+    newly_excluded, and of a still-scored output scored beyond or within the
+    exact-match tolerance by the size of the move."""
+    from policybench.paper_results import moves_beyond_tolerance
+
+    moves, before, now = case
+    partition = partition_review_sweep_moves(moves, before, now)
+    assert set(partition) == {
+        "excluded_before",
+        "newly_excluded",
+        "scored_beyond_tolerance",
+        "scored_within_tolerance",
+    }
+    placed = Counter(key for group in partition.values() for key in group)
+    assert placed == Counter((m[0], m[1], m[2]) for m in moves)
+    # The same output can move within the tolerance under one reading and
+    # beyond it under another, so each move is placed on its own.
+    expected = {name: Counter() for name in partition}
+    for sweep, scenario_id, variable, baseline, recomputed in moves:
+        output = (scenario_id, variable)
+        if output in before:
+            name = "excluded_before"
+        elif output in now:
+            name = "newly_excluded"
+        elif moves_beyond_tolerance(variable, baseline, recomputed):
+            name = "scored_beyond_tolerance"
+        else:
+            name = "scored_within_tolerance"
+        expected[name][(sweep, scenario_id, variable)] += 1
+    assert {name: Counter(keys) for name, keys in partition.items()} == expected
