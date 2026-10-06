@@ -363,7 +363,7 @@ Both are recorded in `proposed_changes.json` `status`.
 ## Open items
 
 - **Engine fixes.** The four policyengine-us fixes and their PR links in `proposed_changes.json` are pending; another lane owns them under d1022. Each of the four confirmed verification files gives a fix specification and YAML tests with hand-computed expectations.
-- **Household scope for future runs.** The methodology choice for future runs is queued for Max, because the definitions admit both readings:
+- **Household scope for future runs.** The methodology choice for future runs is queued for Max as d1029, because the definitions admit both readings:
   - either state the scope in both income tax definitions and filter out households whose dependents must file;
   - or build the dependent's own return as a second tax unit.
 - **scenario_093's dependency status.** A 27-year-old with $45,000 of wages is a qualifying child only if permanently and totally disabled (26 U.S.C. 152(c)(3)(B)), and the prompt's general disability flag does not settle that. Its two income tax cells are excluded under d1022, but the verifier did not examine the scenario's other outputs.
