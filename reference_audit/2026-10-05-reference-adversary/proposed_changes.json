@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "status": "proposed 2026-10-06; changes published scores, so each root cause waits for Max's ruling (cos decision). Each root cause offers alternatives; a release installs one of them, not both. decided_on is the draft date; a release sets it to the ruling's date.",
+  "rules": "reference_audit/2026-09-28 rule 2 (a scored reference follows from the stated facts and from law published before the 2026-07-03 freeze) and rule 4 (an output whose reference turns on a fact the prompt does not state is excluded).",
+  "root_causes": {
+    "az_standard_deduction_indexing": {
+      "verdict": "CONFIRMED",
+      "evidence": "verification/independent/az_018.md",
+      "exclusions": [
+        {
+          "scenario_id": "scenario_018",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen_value": 1146.05224609375,
+          "alternative_value": 1137.302246,
+          "engine_version": "policyengine-us 2.15.17",
+          "decided_on": "2026-10-06",
+          "decided_by": "developer",
+          "law": "A.R.S. 43-1041(A)(1) and (H), as amended by Laws 2026, Ch. 140 (HB 4168, approved 2026-06-13); 26 U.S.C. 63(c)(7)(B); Rev. Proc. 2025-32 s. 4.14",
+          "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_018__state_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/az_018.md). Alternative value: engine counterfactual: policyengine-us 2.15.17 with latest_final and az_standard_deduction = 16,100 (verification/probes/az_standard_deduction_scenario_018.json).",
+          "reason_code": "reference_engine_defect",
+          "root_cause": "az_standard_deduction_indexing",
+          "alternative_reading": "HB 4168 set the single standard deduction at $15,750 'subject to subsection H', and subsection H requires the department to adjust it 'in the same manner in which the federal basic standard deduction is adjusted for inflation pursuant to section 63'. The federal basic standard deduction starts from the same $15,750 and is $16,100 for 2026 (Rev. Proc. 2025-32), so Arizona's 2026 single deduction is $16,100.",
+          "defect": "policyengine-us puts the Arizona standard deduction's uprating on the parent parameter node, which policyengine-core does not propagate to the filing-status children, so the 2025 amount ($15,750 single) carries into 2026 unindexed",
+          "upstream": "to be filed"
+        }
+      ],
+      "regenerations": [
+        {
+          "scenario_id": "scenario_018",
+          "variable": "state_income_tax_before_refundable_credits",
+          "state": "AZ",
+          "frozen_value": 1146.05224609375,
+          "regenerated_value": 1137.302246,
+          "cause": "az_standard_deduction_indexing",
+          "basis": "HB 4168 set the single standard deduction at $15,750 'subject to subsection H', and subsection H requires the department to adjust it 'in the same manner in which the federal basic standard deduction is adjusted for inflation pursuant to section 63'. The federal basic standard deduction starts from the same $15,750 and is $16,100 for 2026 (Rev. Proc. 2025-32), so Arizona's 2026 single deduction is $16,100.",
+          "law": "A.R.S. 43-1041(A)(1) and (H), as amended by Laws 2026, Ch. 140 (HB 4168, approved 2026-06-13); 26 U.S.C. 63(c)(7)(B); Rev. Proc. 2025-32 s. 4.14",
+          "engine_version": "policyengine-us 2.15.17",
+          "value_source": "engine counterfactual: policyengine-us 2.15.17 with latest_final and az_standard_deduction = 16,100 (verification/probes/az_standard_deduction_scenario_018.json)",
+          "upstream": "to be filed"
+        }
+      ]
+    },
+    "oh_medical_deduction_premiums": {
+      "verdict": "CONFIRMED",
+      "evidence": "verification/independent/oh_025.md",
+      "exclusions": [
+        {
+          "scenario_id": "scenario_025",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen_value": 1921.57275390625,
+          "alternative_value": 1916.604,
+          "engine_version": "policyengine-us 2.15.17",
+          "decided_on": "2026-10-06",
+          "decided_by": "developer",
+          "law": "R.C. 5747.01(A)(10)(b)-(c) (effective 2026-03-05); 26 U.S.C. 213(d)(1)(D); Ohio IT 1040 instructions, unreimbursed medical and health care expense worksheet line 3",
+          "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_025__state_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/oh_025.md). Alternative value: hand computation from the engine's Ohio AGI, exemptions, rate schedule and retirement income credit (verification/independent/oh_025.md section 4).",
+          "reason_code": "reference_engine_defect",
+          "root_cause": "oh_medical_deduction_premiums",
+          "alternative_reading": "R.C. 5747.01(A)(10)(b) deducts unreimbursed medical care above 7.5% of federal AGI, and (A)(10)(c) defines medical care by IRC 213(d), which includes insurance premiums. The head's $6,500 of after-tax non-employer premiums plus $800 of other medical expenses ($7,300) exceed 7.5% of federal AGI ($7,119.40) by $180.60.",
+          "defect": "policyengine-us counts health insurance premiums toward Ohio's 7.5%-of-federal-AGI medical deduction only when the person is Medicare-eligible AND has no employer-paid plan, where Ohio's worksheet line 3 reads 'Medicare or an employer-paid health care plan', so a non-Medicare filer with employer coverage gets no premium credit",
+          "upstream": "to be filed"
+        }
+      ],
+      "regenerations": [
+        {
+          "scenario_id": "scenario_025",
+          "variable": "state_income_tax_before_refundable_credits",
+          "state": "OH",
+          "frozen_value": 1921.57275390625,
+          "regenerated_value": 1916.604,
+          "cause": "oh_medical_deduction_premiums",
+          "basis": "R.C. 5747.01(A)(10)(b) deducts unreimbursed medical care above 7.5% of federal AGI, and (A)(10)(c) defines medical care by IRC 213(d), which includes insurance premiums. The head's $6,500 of after-tax non-employer premiums plus $800 of other medical expenses ($7,300) exceed 7.5% of federal AGI ($7,119.40) by $180.60.",
+          "law": "R.C. 5747.01(A)(10)(b)-(c) (effective 2026-03-05); 26 U.S.C. 213(d)(1)(D); Ohio IT 1040 instructions, unreimbursed medical and health care expense worksheet line 3",
+          "engine_version": "policyengine-us 2.15.17",
+          "value_source": "hand computation from the engine's Ohio AGI, exemptions, rate schedule and retirement income credit (verification/independent/oh_025.md section 4)",
+          "upstream": "to be filed"
+        }
+      ]
+    },
+    "co_sales_tax_refund_surplus": {
+      "verdict": "CONFIRMED",
+      "evidence": "verification/independent/co_043.md",
+      "exclusions": [
+        {
+          "scenario_id": "scenario_043",
+          "variable": "state_refundable_credits",
+          "frozen_value": 19.0,
+          "alternative_value": 0.0,
+          "engine_version": "policyengine-us 2.15.17",
+          "decided_on": "2026-10-06",
+          "decided_by": "developer",
+          "law": "C.R.S. 39-22-2003(2), 39-22-2002(2)(a), 39-3-209; Colorado Legislative Council Staff forecasts of December 2025, March 2026 and June 2026 (tax year 2026 refund table $0 in every tier); OSPB forecast of 2026-06-18",
+          "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_043__state_refundable_credits) and verified independently on 2026-10-06 (verification/independent/co_043.md). Alternative value: law: no tax year 2026 sales tax refund; the household has no other Colorado refundable credit (verification/independent/co_043.md section 5).",
+          "reason_code": "reference_engine_defect",
+          "root_cause": "co_sales_tax_refund_surplus",
+          "alternative_reading": "C.R.S. 39-22-2003(2) allows the refund for a tax year only 'if there were excess state revenues for the fiscal year ending in that tax year'. Every forecast published before the freeze put FY 2025-26 below the Referendum C cap and published a tax year 2026 refund table of $0 in every tier; the State Controller certified the shortfall on 2026-09-08.",
+          "defect": "policyengine-us pays Colorado's six-tier state sales tax refund without the statute's condition that the fiscal year ending in the tax year had excess state revenues, carrying the tax year 2025 table into 2026",
+          "upstream": "to be filed"
+        }
+      ],
+      "regenerations": [
+        {
+          "scenario_id": "scenario_043",
+          "variable": "state_refundable_credits",
+          "state": "CO",
+          "frozen_value": 19.0,
+          "regenerated_value": 0.0,
+          "cause": "co_sales_tax_refund_surplus",
+          "basis": "C.R.S. 39-22-2003(2) allows the refund for a tax year only 'if there were excess state revenues for the fiscal year ending in that tax year'. Every forecast published before the freeze put FY 2025-26 below the Referendum C cap and published a tax year 2026 refund table of $0 in every tier; the State Controller certified the shortfall on 2026-09-08.",
+          "law": "C.R.S. 39-22-2003(2), 39-22-2002(2)(a), 39-3-209; Colorado Legislative Council Staff forecasts of December 2025, March 2026 and June 2026 (tax year 2026 refund table $0 in every tier); OSPB forecast of 2026-06-18",
+          "engine_version": "policyengine-us 2.15.17",
+          "value_source": "law: no tax year 2026 sales tax refund; the household has no other Colorado refundable credit (verification/independent/co_043.md section 5)",
+          "upstream": "to be filed"
+        }
+      ]
+    },
+    "ny_cdcc_606_c2": {
+      "verdict": "CONFIRMED",
+      "evidence": "verification/independent/ny_082.md",
+      "exclusions": [
+        {
+          "scenario_id": "scenario_082",
+          "variable": "state_refundable_credits",
+          "frozen_value": 667.0,
+          "alternative_value": 1187.611,
+          "engine_version": "policyengine-us 2.15.17",
+          "decided_on": "2026-10-06",
+          "decided_by": "developer",
+          "law": "N.Y. Tax Law 606(c)(1) and 606(c-2), as amended and added by L.2026, ch. 59, Part A (S.9009-C/A.10009-C, signed 2026-05-28)",
+          "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_082__state_refundable_credits) and verified independently on 2026-10-06 (verification/independent/ny_082.md). Alternative value: hand computation from the engine's New York AGI and Empire State child credit (verification/independent/ny_082.md section 3).",
+          "reason_code": "reference_engine_defect",
+          "root_cause": "ny_cdcc_606_c2",
+          "alternative_reading": "Tax Law 606(c-2) gives, for tax years beginning on or after 2026-01-01, a refundable credit of the applicable percentage (55%, less 0.00025 percentage points per dollar of New York AGI above $15,000, floor 4%) of qualifying expenses up to $3,000 for one child. At New York AGI of $117,585.15 that is 29.3537% of $3,000 = $880.61, plus the $307 Empire State child credit.",
+          "defect": "policyengine-us computes New York's 2026 child and dependent care credit with the pre-2026 formula (a percentage of the federal credit), which L.2026 ch. 59 limited to tax years beginning before 2026 and replaced with the refundable 606(c-2) credit on qualifying expenses",
+          "upstream": "to be filed"
+        }
+      ],
+      "regenerations": [
+        {
+          "scenario_id": "scenario_082",
+          "variable": "state_refundable_credits",
+          "state": "NY",
+          "frozen_value": 667.0,
+          "regenerated_value": 1187.611,
+          "cause": "ny_cdcc_606_c2",
+          "basis": "Tax Law 606(c-2) gives, for tax years beginning on or after 2026-01-01, a refundable credit of the applicable percentage (55%, less 0.00025 percentage points per dollar of New York AGI above $15,000, floor 4%) of qualifying expenses up to $3,000 for one child. At New York AGI of $117,585.15 that is 29.3537% of $3,000 = $880.61, plus the $307 Empire State child credit.",
+          "law": "N.Y. Tax Law 606(c)(1) and 606(c-2), as amended and added by L.2026, ch. 59, Part A (S.9009-C/A.10009-C, signed 2026-05-28)",
+          "engine_version": "policyengine-us 2.15.17",
+          "value_source": "hand computation from the engine's New York AGI and Empire State child credit (verification/independent/ny_082.md section 3)",
+          "upstream": "to be filed"
+        }
+      ]
+    },
+    "household_scope_dependent_returns": {
+      "verdict": "AMBIGUOUS",
+      "evidence": "verification/independent/pa_123.md; verification/definition_conformance.md (household scope)",
+      "exclusions": [
+        {
+          "scenario_id": "scenario_123",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen_value": 3070.061279296875,
+          "alternative_value": 4451.561279296875,
+          "engine_version": "policyengine-us 2.15.17",
+          "decided_on": "2026-10-06",
+          "decided_by": "developer",
+          "law": "72 P.S. 7302(a); 2025 PA-40 instructions p. 3 (a minor with PA income over $33 must file); 26 U.S.C. 73(a); RSMo 143.011",
+          "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_123__state_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/pa_123.md; verification/definition_conformance.md (household scope)). Alternative value: head and spouse return plus the child's own PA-40 ($1,381.50), verification/definition_conformance.json.",
+          "reason_code": "reference_depends_on_unlisted_input",
+          "root_cause": "household_scope_dependent_returns",
+          "unlisted_input": "whether the income tax outputs cover only the head and spouse's return or every return the household's members must file; the definitions name no return, and a dependent here must file their own",
+          "alternative_reading": "A dependent with $45,000 of wages must file their own federal and state return. The engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one 'Tax unit' block, and the request asks for quantities 'for this household' and says to assume filing when required. Careful readers split both ways (pa_123.md section 3)."
+        },
+        {
+          "scenario_id": "scenario_123",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen_value": 5200.240234375,
+          "alternative_value": 8420.240234375,
+          "engine_version": "policyengine-us 2.15.17",
+          "decided_on": "2026-10-06",
+          "decided_by": "developer",
+          "law": "72 P.S. 7302(a); 2025 PA-40 instructions p. 3 (a minor with PA income over $33 must file); 26 U.S.C. 73(a); RSMo 143.011",
+          "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_123__federal_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/pa_123.md; verification/definition_conformance.md (household scope)). Alternative value: head and spouse return plus the child's own federal return ($3,220.00), verification/definition_conformance.json.",
+          "reason_code": "reference_depends_on_unlisted_input",
+          "root_cause": "household_scope_dependent_returns",
+          "unlisted_input": "whether the income tax outputs cover only the head and spouse's return or every return the household's members must file; the definitions name no return, and a dependent here must file their own",
+          "alternative_reading": "A dependent with $45,000 of wages must file their own federal and state return. The engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one 'Tax unit' block, and the request asks for quantities 'for this household' and says to assume filing when required. Careful readers split both ways (pa_123.md section 3)."
+        },
+        {
+          "scenario_id": "scenario_093",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen_value": 3388.24560546875,
+          "alternative_value": 4528.07861328125,
+          "engine_version": "policyengine-us 2.15.17",
+          "decided_on": "2026-10-06",
+          "decided_by": "developer",
+          "law": "72 P.S. 7302(a); 2025 PA-40 instructions p. 3 (a minor with PA income over $33 must file); 26 U.S.C. 73(a); RSMo 143.011",
+          "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_093__state_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/pa_123.md; verification/definition_conformance.md (household scope)). Alternative value: head and spouse return plus the dependent's own MO-1040, verification/definition_conformance.json.",
+          "reason_code": "reference_depends_on_unlisted_input",
+          "root_cause": "household_scope_dependent_returns",
+          "unlisted_input": "whether the income tax outputs cover only the head and spouse's return or every return the household's members must file; the definitions name no return, and a dependent here must file their own",
+          "alternative_reading": "A dependent with $45,000 of wages must file their own federal and state return. The engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one 'Tax unit' block, and the request asks for quantities 'for this household' and says to assume filing when required. Careful readers split both ways (pa_123.md section 3)."
+        },
+        {
+          "scenario_id": "scenario_093",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen_value": 8628.990234375,
+          "alternative_value": 11848.990234375,
+          "engine_version": "policyengine-us 2.15.17",
+          "decided_on": "2026-10-06",
+          "decided_by": "developer",
+          "law": "72 P.S. 7302(a); 2025 PA-40 instructions p. 3 (a minor with PA income over $33 must file); 26 U.S.C. 73(a); RSMo 143.011",
+          "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_093__federal_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/pa_123.md; verification/definition_conformance.md (household scope)). Alternative value: head and spouse return plus the dependent's own federal return ($3,220.00), verification/definition_conformance.json.",
+          "reason_code": "reference_depends_on_unlisted_input",
+          "root_cause": "household_scope_dependent_returns",
+          "unlisted_input": "whether the income tax outputs cover only the head and spouse's return or every return the household's members must file; the definitions name no return, and a dependent here must file their own",
+          "alternative_reading": "A dependent with $45,000 of wages must file their own federal and state return. The engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one 'Tax unit' block, and the request asks for quantities 'for this household' and says to assume filing when required. Careful readers split both ways (pa_123.md section 3)."
+        }
+      ],
+      "regenerations": []
+    }
+  }
+}
