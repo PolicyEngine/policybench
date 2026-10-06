@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from policybench import prompt_contract_v2 as v2
 from policybench.prompt_contract_v2 import (
     CONTRACT_VERSION,
     ContractInputError,
@@ -42,7 +43,7 @@ def frozen_scenarios():
 
 def render(scenario, **kwargs):
     return render_household_contract(
-        scenario, policyengine_us_version="1.755.4", **kwargs
+        scenario, policyengine_us_version="2.15.17", **kwargs
     )
 
 
@@ -407,9 +408,9 @@ def test_stable_order_and_contract_identity(frozen_scenarios):
     original = render(scenario)
     scenario.adults[0].inputs = dict(reversed(list(scenario.adults[0].inputs.items())))
     assert render(scenario) == original
-    assert CONTRACT_VERSION == "2.0.0"
+    assert CONTRACT_VERSION == "2.1.0"
     assert original.contract_id.startswith(
-        "policybench-us-household-prompt/2.0.0:sha256:"
+        "policybench-us-household-prompt/2.1.0:sha256:"
     )
     assert original.text + "\n" == GOLDEN.read_text()
 
@@ -423,3 +424,149 @@ def test_render_never_calls_scenario_engine_conversion(
     monkeypatch.setattr(Scenario, "to_pe_household", forbidden)
     monkeypatch.setattr(Scenario, "marital_units", forbidden)
     render(simple_single_scenario)
+
+
+def test_salt_paid_input_and_explicit_withholding_convention(simple_single_scenario):
+    text = render(simple_single_scenario).text
+    assert "[state_withheld_income_tax]" in text
+    assert "state income tax paid during the year" in text
+    assert "per-state AGI withholding estimate" in text
+    assert "not the final state income tax liability" in text
+    simple_single_scenario.tax_unit_inputs["state_withheld_income_tax"] = 3210.125
+    result = render(simple_single_scenario)
+    assert "[state_withheld_income_tax]: $3,210.125" in result.text
+    assert "tax_unit.state_withheld_income_tax" not in result.unsupported_inputs
+    assert simple_single_scenario.tax_unit_inputs == {
+        "state_withheld_income_tax": 3210.125
+    }
+
+
+def test_salt_known_field_on_wrong_entity_fails(simple_single_scenario):
+    simple_single_scenario.adults[0].inputs["state_withheld_income_tax"] = 123
+    with pytest.raises(ContractInputError, match="tax_unit input"):
+        render(simple_single_scenario)
+
+
+def test_medicare_convention_and_explicit_enrollment_and_premium(
+    simple_single_scenario,
+):
+    person = simple_single_scenario.adults[0]
+    person.age = 69
+    text = render(simple_single_scenario).text
+    assert "[takes_up_medicare_if_eligible]: yes if eligible" in text
+    assert "[medicare_part_b_premium]" in text
+    assert "IRMAA" in text and "Medicare Savings Program" in text
+    assert "[medical_expense_health_insurance_premiums]" in text
+    person.inputs.update(takes_up_medicare_if_eligible=False, medicare_part_b_premium=0)
+    result = render(simple_single_scenario)
+    assert "[takes_up_medicare_if_eligible]: no" in result.text
+    assert "[medicare_part_b_premium]: $0" in result.text
+    assert not any("medicare_part_b" in path for path in result.unsupported_inputs)
+
+
+@pytest.mark.parametrize(
+    "state,program",
+    [
+        ("MN", "MN Paid Leave"),
+        ("CO", "CO FAMLI"),
+        ("MA", "MA PFML"),
+        ("NY", "NY PFL/DBL"),
+        ("DE", "DE Paid Leave"),
+        ("ME", "ME PFML"),
+        ("VT", "VT child-care contribution"),
+        ("WA", "WA PFML"),
+    ],
+)
+def test_optional_employee_share_is_a_stated_employer_choice(
+    simple_single_scenario, state, program
+):
+    simple_single_scenario.state = state
+    text = render(simple_single_scenario).text
+    assert program in text
+    assert "employer withholds the full employee share" in text
+    simple_single_scenario.adults[0].inputs[
+        "state_paid_leave_employee_share_withheld"
+    ] = False
+    text = render(simple_single_scenario).text
+    assert "employer pays the employee share" in text
+
+
+def test_premium_payer_labels_and_medical_total_override(simple_single_scenario):
+    simple_single_scenario.adults[0].inputs.update(
+        employer_sponsored_insurance_premiums=8000,
+        pre_tax_health_insurance_premiums=1200,
+        health_insurance_premiums_without_medicare_part_b=600,
+        health_insurance_premiums=3034.8,
+    )
+    text = render(simple_single_scenario).text
+    assert (
+        "Employee pre-tax health insurance premiums [pre_tax_health_insurance_premiums]: $1,200"
+        in text
+    )
+    assert "Employee after-tax health insurance premiums excluding Part B" in text
+    assert "Employee after-tax health insurance premiums including Part B" in text
+    assert (
+        "Do not subtract employer-paid or employee after-tax premiums from FICA wages"
+        in text
+    )
+    assert "nonzero health_insurance_premiums overrides the component sum" in text
+
+
+def test_loaded_surviving_spouse_and_cash_source(frozen_scenarios):
+    text = render(frozen_scenarios["scenario_000"]).text
+    assert "Spouse death year [spouse_death_year]: 2025" in text
+    assert (
+        "Dependent child lives in the home [dependent_child_lives_in_home]: no" in text
+    )
+    assert "declared convention" in text
+    text = render(frozen_scenarios["scenario_030"]).text
+    assert "cash gifts from friends or relatives outside the household" in text
+    assert "[financial_assistance]" in text
+
+
+def test_loaded_facts_allow_supplied_details_without_inference(simple_single_scenario):
+    simple_single_scenario.adults[0].inputs.update(
+        is_surviving_spouse=True,
+        spouse_death_year=2024,
+        dependent_child_lives_in_home=True,
+        financial_assistance=1500,
+        financial_assistance_source="cash gift from a sister outside the household",
+    )
+    text = render(simple_single_scenario).text
+    assert "[spouse_death_year]: 2024" in text
+    assert "[dependent_child_lives_in_home]: yes" in text
+    assert "cash gift from a sister outside the household" in text
+
+
+def test_v2_output_wording_is_gated_and_has_common_income_tax_scope():
+    raw = json.loads((ROOT / "policybench/benchmark_specs.json").read_text())
+    definitions = v2.v2_output_definitions()
+    scope = "Do not add a dependent's separate income tax return"
+    ids = {
+        "federal_income_tax_before_refundable_credits",
+        "federal_refundable_credits",
+        "state_income_tax_before_refundable_credits",
+        "state_refundable_credits",
+        "local_income_tax",
+    }
+    for entry in raw["specs"]["policybench"]["countries"]["us"]:
+        if entry["id"] in ids:
+            assert scope in definitions[entry["id"]]
+            assert scope not in entry["prompt"]
+        if entry["id"] == "payroll_tax":
+            assert (
+                "employee shares the employer chooses to withhold"
+                in definitions[entry["id"]]
+            )
+            assert (
+                "employee shares the employer chooses to withhold"
+                not in entry["prompt"]
+            )
+
+
+def test_required_facts_rule_is_explicit(simple_single_scenario):
+    text = render(simple_single_scenario).text
+    assert "Every input read by a scored reference" in text
+    assert "more than $1" in text
+    assert "stated fact or an explicit convention" in text
+    assert "Legacy sweep findings report gaps; they do not certify readiness" in text
