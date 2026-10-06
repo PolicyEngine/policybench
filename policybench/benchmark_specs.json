@@ -14,9 +14,7 @@
                         "role": "tax",
                         "output_set": "headline",
                         "aggregation": "sum",
-                        "net_income_sign": -1,
-                        "v2_prompt_contract": "2.1.0",
-                        "v2_prompt": "federal individual income tax after nonrefundable credits and before refundable credits. This subtracts nonrefundable credits actually used, including CDCC and the nonrefundable portion of CTC or other credits when applicable; it does not subtract EITC or refundable portions of credits such as refundable CTC. Do not add a dependent's separate income tax return. Retain dependent-related provisions on the specified tax-unit return."
+                        "net_income_sign": -1
                     },
                     {
                         "id": "federal_refundable_credits",
@@ -27,9 +25,7 @@
                         "role": "credit",
                         "output_set": "headline",
                         "aggregation": "sum",
-                        "net_income_sign": 1,
-                        "v2_prompt_contract": "2.1.0",
-                        "v2_prompt": "total refundable federal income tax credits, including EITC and refundable portions of credits such as refundable CTC when applicable; exclude the ACA Premium Tax Credit. Do not add a dependent's separate income tax return. Retain dependent-related provisions on the specified tax-unit return."
+                        "net_income_sign": 1
                     },
                     {
                         "id": "payroll_tax",
@@ -40,9 +36,7 @@
                         "role": "tax",
                         "output_set": "headline",
                         "aggregation": "sum",
-                        "net_income_sign": -1,
-                        "v2_prompt_contract": "2.1.0",
-                        "v2_prompt": "annual household employee-side payroll tax across all listed people, including dependent wages: employee Social Security tax, employee Medicare tax, Additional Medicare Tax, mandatory employee state payroll taxes, and employee shares the employer chooses to withhold under the stated state paid-leave/disability contribution convention. Exclude shares paid by the employer, employer payroll taxes, FUTA, employer unemployment-insurance taxes, and self-employment tax"
+                        "net_income_sign": -1
                     },
                     {
                         "id": "self_employment_tax",
@@ -64,9 +58,7 @@
                         "role": "tax",
                         "output_set": "headline",
                         "aggregation": "sum",
-                        "net_income_sign": -1,
-                        "v2_prompt_contract": "2.1.0",
-                        "v2_prompt": "state individual income tax after nonrefundable credits and before refundable credits, excluding local income and payroll taxes. Do not add a dependent's separate income tax return. Retain dependent-related provisions on the specified tax-unit return."
+                        "net_income_sign": -1
                     },
                     {
                         "id": "state_refundable_credits",
@@ -77,9 +69,7 @@
                         "role": "credit",
                         "output_set": "headline",
                         "aggregation": "sum",
-                        "net_income_sign": 1,
-                        "v2_prompt_contract": "2.1.0",
-                        "v2_prompt": "total refundable state individual income tax credits. Do not add a dependent's separate income tax return. Retain dependent-related provisions on the specified tax-unit return."
+                        "net_income_sign": 1
                     },
                     {
                         "id": "local_income_tax",
@@ -90,9 +80,7 @@
                         "role": "tax",
                         "output_set": "headline",
                         "aggregation": "sum",
-                        "net_income_sign": -1,
-                        "v2_prompt_contract": "2.1.0",
-                        "v2_prompt": "annual local income, wage, and earnings tax liability in the separate local-income-tax output: NYC income tax, Philadelphia wage tax, Kansas City earnings tax, and St. Louis earnings tax where applicable. Do not add a dependent's separate income tax return. Retain dependent-related provisions on the specified tax-unit return. Explicitly applicable local wage or earnings taxes may include any listed person's taxable wages or earnings."
+                        "net_income_sign": -1
                     },
                     {
                         "id": "snap",

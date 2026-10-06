@@ -602,3 +602,72 @@ def test_all_frozen_insurance_premiums_have_payer_labels(frozen_scenarios):
                             "Employee after-tax",
                         )
                     )
+
+
+def test_v1_spec_bytes_and_resume_fingerprint_are_preserved():
+    from policybench.eval_no_tools import _package_file_sha256
+
+    assert _package_file_sha256("benchmark_specs.json") == (
+        "ce233f8cbb0549b33469b5929fc6df3cd5d064c727529afafe26ff2da7970cc5"
+    )
+
+
+def test_sales_tax_estimates_have_named_conventions(simple_single_scenario):
+    text = render(simple_single_scenario).text
+    assert "[state_sales_tax]" in text and "2025 IRS optional sales-tax table" in text
+    assert "[local_sales_tax]" in text and "20% of state_sales_tax" in text
+
+
+def test_pre_response_hours_are_explicit_and_accept_an_override(simple_single_scenario):
+    text = render(simple_single_scenario).text
+    assert "[weekly_hours_worked_before_lsr]: 0 hours/week" in text
+    simple_single_scenario.adults[0].inputs["weekly_hours_worked_before_lsr"] = 30
+    text = render(simple_single_scenario).text
+    assert "[weekly_hours_worked_before_lsr]: 30 hours/week" in text
+    assert "[weekly_hours_worked_before_lsr]: 0" not in text
+
+
+def test_all_three_hours_inputs_must_agree(simple_single_scenario):
+    simple_single_scenario.adults[0].inputs.update(
+        hours_worked_last_week=30,
+        weekly_hours_worked=30,
+        weekly_hours_worked_before_lsr=20,
+    )
+    with pytest.raises(ContractInputError, match="conflicting weekly-hours"):
+        render(simple_single_scenario)
+
+
+def test_joint_survivor_convention_does_not_kill_the_listed_spouse(frozen_scenarios):
+    text = render(frozen_scenarios["scenario_111"]).text
+    assert "prior deceased spouse" in text
+    assert "current listed spouse is living" in text
+
+
+@pytest.mark.parametrize("name", ["financial_assistance", "state_withheld_income_tax"])
+def test_negative_paid_amounts_rejected(simple_single_scenario, name):
+    inputs = (
+        simple_single_scenario.tax_unit_inputs
+        if name == "state_withheld_income_tax"
+        else simple_single_scenario.adults[0].inputs
+    )
+    inputs[name] = -1
+    with pytest.raises(ContractInputError, match="nonnegative"):
+        render(simple_single_scenario)
+
+
+def test_payroll_choice_in_state_without_optional_program_is_rejected(
+    simple_single_scenario,
+):
+    simple_single_scenario.adults[0].inputs[
+        "state_paid_leave_employee_share_withheld"
+    ] = True
+    with pytest.raises(ContractInputError, match="no optional employee-share program"):
+        render(simple_single_scenario)
+
+
+def test_future_death_year_is_rejected_without_survivor_indicator(
+    simple_single_scenario,
+):
+    simple_single_scenario.adults[0].inputs["spouse_death_year"] = 2027
+    with pytest.raises(ContractInputError, match="future death year"):
+        render(simple_single_scenario)

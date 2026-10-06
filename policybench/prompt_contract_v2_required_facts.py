@@ -133,6 +133,27 @@ def replay_recorded_sweep(
     return report
 
 
+def _person_fact_text(text: str, person_name: str) -> str:
+    """Select one person's bullet facts, stopping at the next entity header."""
+    lines = text.splitlines()
+    try:
+        start = lines.index(f"Person {person_name}:") + 1
+    except ValueError:
+        return ""
+    facts = []
+    for line in lines[start:]:
+        if line and not line.startswith("- "):
+            break
+        facts.append(line)
+    return "\n".join(facts)
+
+
+def _has_fact_marker(text: str, name: str) -> bool:
+    # A marker in another fact's value or a disclaimer is not a statement of
+    # this input. Match the actual bullet label, before its value begins.
+    return re.search(rf"(?m)^- [^\[\]\n]*\[{re.escape(name)}\]: ", text) is not None
+
+
 def _input_is_stated(
     name: str,
     entity: str,
@@ -165,29 +186,38 @@ def _input_is_stated(
         # convention. Merely placing the input name in the convention registry
         # cannot turn a supplied unknown into a stated fact.
         if any(
-            source in person.inputs
-            and (
-                person.inputs[source] is None
-                or f"person.{person.name}.{source}" in blocked
-            )
+            f"person.{person.name}.{source}" in blocked
+            or (source in person.inputs and person.inputs[source] is None)
             for person in people
             for source in source_names
         ):
             return False
-        if name in conventions:
-            return True
         return bool(people) and all(
-            any(source in person.inputs for source in source_names) for person in people
+            (
+                name in conventions
+                and _has_fact_marker(
+                    _person_fact_text(rendered.text, person.name), name
+                )
+            )
+            or any(
+                source in person.inputs
+                and _has_fact_marker(
+                    _person_fact_text(rendered.text, person.name), source
+                )
+                for source in source_names
+            )
+            for person in people
         )
     values = getattr(scenario, f"{entity}_inputs")
-    if name in values and (values[name] is None or f"{entity}.{name}" in blocked):
+    if f"{entity}.{name}" in blocked or (name in values and values[name] is None):
         return False
-    if name in conventions:
+    if name in conventions and _has_fact_marker(rendered.text, name):
         return True
     return (
         name in values
         and values[name] is not None
         and f"{entity}.{name}" not in blocked
+        and _has_fact_marker(rendered.text, name)
     )
 
 
@@ -201,8 +231,11 @@ def report_required_facts(
     """List remaining individually moving inputs; keep compound readings distinct.
 
     Unsupported raw labels and unknown values/provenance never establish a fact.
-    A named convention counts only when supplied in ``stated_convention_inputs``;
-    the generic unlisted-zero rule cannot certify an engine estimate. Compound
+    A named convention counts only when supplied in ``stated_convention_inputs``
+    and its exact ``[name]`` fact marker appears in this household's text. Person
+    inputs require that marker within every affected person's own section; another
+    person's convention never covers them. The generic unlisted-zero rule cannot
+    certify an engine estimate. Compound
     literal readings can override newly stated conventions too, so their residual
     inputs are reported separately, without assigning their full move to each.
     """
@@ -246,10 +279,9 @@ def report_required_facts(
                     )
                 }
             )
-            if missing:
-                compound.append(
-                    {"output": [sid, move["variable"]], "unstated_inputs": missing}
-                )
+            compound.append(
+                {"output": [sid, move["variable"]], "unstated_inputs": missing}
+            )
             continue
         estimate = estimates[estimate_id]
         names = estimate["engine_inputs"] or [estimate_id]

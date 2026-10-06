@@ -22,6 +22,57 @@ if TYPE_CHECKING:
 
 CONTRACT_VERSION = "2.1.0"
 
+# Proposed wording from the published spec, isolated from its v1 byte fingerprint.
+_V2_OUTPUT_DEFINITIONS = {
+    "federal_income_tax_before_refundable_credits": "federal individual income tax "
+    "after nonrefundable credits and "
+    "before refundable credits. This "
+    "subtracts nonrefundable credits "
+    "actually used, including CDCC and "
+    "the nonrefundable portion of CTC "
+    "or other credits when applicable; "
+    "it does not subtract EITC or "
+    "refundable portions of credits "
+    "such as refundable CTC. Do not add "
+    "a dependent's separate income tax "
+    "return. Retain dependent-related "
+    "provisions on the specified "
+    "tax-unit return.",
+    "federal_refundable_credits": "total refundable federal income tax credits, "
+    "including EITC and refundable portions of credits "
+    "such as refundable CTC when applicable; exclude the "
+    "ACA Premium Tax Credit. Do not add a dependent's "
+    "separate income tax return. Retain dependent-related "
+    "provisions on the specified tax-unit return.",
+    "local_income_tax": "annual local income, wage, and earnings tax liability in the "
+    "separate local-income-tax output: NYC income tax, Philadelphia "
+    "wage tax, Kansas City earnings tax, and St. Louis earnings tax "
+    "where applicable. Do not add a dependent's separate income tax "
+    "return. Retain dependent-related provisions on the specified "
+    "tax-unit return. Explicitly applicable local wage or earnings "
+    "taxes include any listed person's taxable wages or earnings.",
+    "payroll_tax": "annual household employee-side payroll tax across all listed "
+    "people, including dependent wages: employee Social Security tax, "
+    "employee Medicare tax, Additional Medicare Tax, mandatory employee "
+    "state payroll taxes, and employee shares the employer chooses to "
+    "withhold under the stated state paid-leave/disability contribution "
+    "convention. Exclude shares paid by the employer, employer payroll "
+    "taxes, FUTA, employer unemployment-insurance taxes, and "
+    "self-employment tax",
+    "state_income_tax_before_refundable_credits": "state individual income tax after "
+    "nonrefundable credits and before "
+    "refundable credits, excluding local "
+    "income and payroll taxes. Do not add "
+    "a dependent's separate income tax "
+    "return. Retain dependent-related "
+    "provisions on the specified tax-unit "
+    "return.",
+    "state_refundable_credits": "total refundable state individual income tax credits. "
+    "Do not add a dependent's separate income tax return. "
+    "Retain dependent-related provisions on the specified "
+    "tax-unit return.",
+}
+
 # Explicit exceptions to the generic unlisted-zero rule. These names are also
 # used by the report-only sensitivity check; rendering an unknown is not coverage.
 STATED_CONVENTION_INPUTS = frozenset(
@@ -34,6 +85,9 @@ STATED_CONVENTION_INPUTS = frozenset(
         "state_paid_leave_employee_share",
         "hours_worked_last_week",
         "weekly_hours_worked",
+        "weekly_hours_worked_before_lsr",
+        "state_sales_tax",
+        "local_sales_tax",
     }
 )
 
@@ -65,7 +119,7 @@ TASK_PREFACE = (
     "payments and histories are supplied inputs only. Infer no other income, "
     "expenses, assets, receipt, rent, or coverage. The SSI output includes "
     "federal SSI only; state supplements require a separate requested output. "
-    "If neither weekly-hours input is supplied, this contract assumes 0 "
+    "If no weekly-hours input is supplied, this contract assumes 0 "
     "hours/week, not an observed zero. Do not derive hours from annual wages or "
     "an hourly rate. Supplied null hours remain unknown. These conventions are "
     "declared assumptions, not verified engine behavior. "
@@ -95,6 +149,7 @@ _DISABILITY_LABELS = {
 _HOURS_LABELS = {
     "hours_worked_last_week": "Usual weekly hours worked",
     "weekly_hours_worked": "Weekly hours worked",
+    "weekly_hours_worked_before_lsr": "Usual weekly hours before labor-supply response",
 }
 _PERSON_MONEY_LABELS = {
     "employment_income": "Gross wages and salaries",
@@ -148,6 +203,8 @@ _TAX_UNIT_MONEY_LABELS = {
     "state_withheld_income_tax": (
         "Annual state income tax paid during the year for SALT"
     ),
+    "state_sales_tax": "Annual state sales tax paid for SALT",
+    "local_sales_tax": "Annual local sales tax paid for SALT",
 }
 _OPTIONAL_PAYROLL_PROGRAMS = {
     "MN": "MN Paid Leave",
@@ -298,14 +355,8 @@ def contract_identity() -> str:
 
 
 def v2_output_definitions() -> dict[str, str]:
-    """Read explicitly gated proposed wording without changing the v1 spec loader."""
-    data = json.loads(Path(__file__).with_name("benchmark_specs.json").read_text())
-    outputs = data["specs"]["policybench"]["countries"]["us"]
-    return {
-        item["id"]: item["v2_prompt"]
-        for item in outputs
-        if item.get("v2_prompt_contract") == CONTRACT_VERSION
-    }
+    """Return opt-in proposed wording; never read or alter the published v1 spec."""
+    return dict(_V2_OUTPUT_DEFINITIONS)
 
 
 def _label(name: str) -> str:
@@ -370,7 +421,10 @@ def _value_text(name: str, value: object, path: str) -> str:
     ):
         number = _number(value, path)
         if (
-            "premiums" in name or name in ("medicare_part_b_premium", "hourly_wage")
+            "premiums" in name
+            or name
+            in ("medicare_part_b_premium", "hourly_wage", "financial_assistance")
+            or name in _TAX_UNIT_MONEY_LABELS
         ) and number < 0:
             raise ContractInputError(f"{path}: must be nonnegative")
         suffix = "/hour" if name == "hourly_wage" else ""
@@ -542,8 +596,24 @@ def render_household_contract(
         )
         inputs.update(age=person.age, employment_income=person.employment_income)
         hours = [inputs[name] for name in _HOURS_LABELS if name in inputs]
-        if len(hours) == 2 and hours[0] != hours[1]:
+        if len(hours) > 1 and any(value != hours[0] for value in hours[1:]):
             raise ContractInputError(f"{prefix}: conflicting weekly-hours inputs")
+        if (
+            "spouse_death_year" in inputs
+            and inputs["spouse_death_year"] is not None
+            and _number(
+                inputs["spouse_death_year"], f"{prefix}.spouse_death_year", integer=True
+            )
+            > year
+        ):
+            raise ContractInputError(f"{prefix}.spouse_death_year: future death year")
+        if (
+            "state_paid_leave_employee_share_withheld" in inputs
+            and scenario.state not in _OPTIONAL_PAYROLL_PROGRAMS
+        ):
+            raise ContractInputError(
+                f"{prefix}: no optional employee-share program in {scenario.state}"
+            )
         lines.extend(["", f"Person {person.name}:"])
         lines.extend(
             _render_inputs(
@@ -560,6 +630,24 @@ def render_household_contract(
                 "- Weekly hours: 0 hours/week (contract assumption; "
                 "no weekly-hours input supplied)"
             )
+            lines.append(
+                "- Usual weekly hours before labor-supply response "
+                "[weekly_hours_worked_before_lsr]: 0 hours/week (declared convention)."
+            )
+        elif (
+            "hours_worked_last_week" in inputs
+            and "weekly_hours_worked_before_lsr" not in inputs
+        ):
+            supplied_hours = inputs["hours_worked_last_week"]
+            if supplied_hours is not None:
+                lines.append(
+                    "- Usual weekly hours before labor-supply response "
+                    "[weekly_hours_worked_before_lsr]: "
+                    f"{_numeric_text(supplied_hours)} "
+                    "hours/week (declared alias of supplied hours_worked_last_week)."
+                )
+            else:
+                unknown.add(f"{prefix}.weekly_hours_worked_before_lsr")
         if "takes_up_medicare_if_eligible" not in inputs:
             lines.append(
                 "- Part B enrollment [takes_up_medicare_if_eligible]: yes if eligible "
@@ -600,23 +688,31 @@ def render_household_contract(
                     "employer pays the employee share; no employee withholding"
                 )
             lines.append(
-                f"- {program}: {description} "
+                "- Employer contribution choice [state_paid_leave_employee_share]: "
+                f"{program}: {description} "
                 "(declared convention when not supplied; use the declared model's "
                 "employee-share parameters; NY DBL uses 52 weeks/year)."
             )
         if inputs.get("is_surviving_spouse") is True:
-            if "spouse_death_year" not in inputs:
+            remarried = scenario.filing_status == "joint" or any(
+                member.inputs.get("is_tax_unit_spouse") is True for member in people
+            )
+            if remarried:
                 lines.append(
-                    f"- Spouse death year [spouse_death_year]: {year - 1} "
-                    "(declared convention; synthetic date, not an observed fact)."
+                    "- The surviving spouse indicator concerns a prior deceased spouse;"
+                    " "
+                    "the current listed spouse is living (declared convention). "
+                    "Apply remarriage/current joint-filing rules."
                 )
-            elif (
-                inputs["spouse_death_year"] is not None
-                and inputs["spouse_death_year"] > year
-            ):
-                raise ContractInputError(
-                    f"{prefix}.spouse_death_year: future death year"
+            if "spouse_death_year" not in inputs:
+                death_year = year - 1 if year > 1 else "unknown"
+                lines.append(
+                    f"- Spouse death year [spouse_death_year]: {death_year} "
+                    "(declared convention for the prior deceased spouse; "
+                    "synthetic date, not an observed fact)."
                 )
+                if year == 1:
+                    unknown.add(f"{prefix}.spouse_death_year")
             if "dependent_child_lives_in_home" not in inputs:
                 child_lives = "yes" if scenario.children else "no"
                 lines.append(
@@ -660,6 +756,21 @@ def render_household_contract(
                     "or convention before scoring.",
                 ]
             )
+        if entity == "tax_unit":
+            if "state_sales_tax" not in inputs:
+                lines.append(
+                    "- Annual state sales tax paid [state_sales_tax]: use the 2025 IRS "
+                    "optional sales-tax table with the declared reference's household "
+                    "income/size rules; hold published 2025 cells without uprating "
+                    "for 2026, as latest_c_irs_sales_tax_2025 does "
+                    "(declared convention)."
+                )
+            if "local_sales_tax" not in inputs:
+                lines.append(
+                    "- Annual local sales tax paid [local_sales_tax]: 0 in CT, DC, IN, "
+                    "KY, MA, MD, ME, MI, NJ and RI; otherwise 20% of state_sales_tax "
+                    "(declared reference-model proxy, not observed spending)."
+                )
     lines.extend(["", "Proposed v2 output definitions (not an output request):"])
     for name, definition in sorted(v2_output_definitions().items()):
         lines.append(f"- [{name}]: {definition}")

@@ -5,9 +5,9 @@ contract** for the prompt slice of [issue 165](https://github.com/PolicyEngine/p
 including the October 5 audit decisions **d963, d972, and d974**.
 It renders existing `Scenario` objects without importing an engine, discovering
 inputs, calculating outcomes, or calling a model. No existing evaluator imports
-this module. Proposed v2 output wording has separate, version-gated keys in
-`benchmark_specs.json`; the published v1 wording, schemas, references, board,
-and cost path remain unchanged.
+this module. Proposed v2 output wording lives in this v2-only module;
+`benchmark_specs.json` remains byte-for-byte unchanged. The published v1
+wording, spec hash, schemas, references, board, and cost path remain unchanged.
 
 This slice does not complete issue 165 or create a v2 benchmark board. In
 particular, proposed definitions are not a requested-output list. It supplies
@@ -21,14 +21,15 @@ v1 evaluator or treat its output as a certified evaluation request.
 The version is `2.1.0`. `contract_identity()` returns:
 
 ```text
-policybench-us-household-prompt/2.1.0:sha256:0d1cf7d3fc7e6125d2c921424b66f85b160711bde67cba046a3c8d409f732a45
+policybench-us-household-prompt/2.1.0:sha256:1c0fb8c5beea03bdcf9327c513d240d65c6c38683b395a7b356e32f736b423da
 ```
 
 The SHA-256 covers the **exact UTF-8 source bytes of the module**, a newline,
-and the canonical JSON of the proposed output definitions selected by
-`v2_prompt_contract == "2.1.0"` in `benchmark_specs.json`. Changes to the v1
-`prompt` keys do not change this identity. A source installation including
-that spec file is required; bytecode-only distributions are unsupported.
+and the canonical JSON of the proposed output definitions returned by
+`v2_output_definitions()`. Those definitions are literal constants in the
+v2 module, scoped to version 2.1.0; the renderer does not load the published
+`benchmark_specs.json`. A source installation is required; bytecode-only
+distributions are unsupported.
 This identity does not cover a model runtime, dataset, requested outputs,
 or the caller's per-person facts. There are no mutable v1 helper or
 runtime-registry dependencies. Record the rendered text separately for each
@@ -128,9 +129,9 @@ Other supported person facts are:
   `disability_benefits`, `self_employment_income`, `bank_account_assets`,
   `stock_assets`, `pre_subsidy_rent`, `real_estate_taxes`,
   `home_mortgage_interest`, and `tip_income`. Signed monetary inputs retain their
-  sign; premiums must be nonnegative. Every premium label identifies the
-  payer and tax treatment, as described below. Tips remain included in stated
-  wages.
+  sign; premiums and financial assistance must be nonnegative. Every premium
+  label identifies the payer and tax treatment, as described below. Tips remain
+  included in stated wages.
 - Boolean `is_tax_unit_head`, `is_tax_unit_spouse`,
   `is_unmarried_partner_of_household_head`, `has_esi`,
   `takes_up_medicare_if_eligible`, `is_surviving_spouse`,
@@ -138,10 +139,12 @@ Other supported person facts are:
   `state_paid_leave_employee_share_withheld`. These are supplied facts;
   no couple or engine unit mapping is inferred.
 - Single-line text `financial_assistance_source` and integer
-  `spouse_death_year`. They make the deciding facts explicit rather than
-  treating a loaded label as a legal conclusion.
-- Tax-unit annual dollars `state_withheld_income_tax`. The name of the engine
-  input is retained; the renderer does not substitute state tax liability.
+  `spouse_death_year`, which cannot be later than the scenario year. They make
+  the deciding facts explicit rather than treating a loaded label as a legal
+  conclusion.
+- Tax-unit nonnegative annual dollars `state_withheld_income_tax`,
+  `state_sales_tax`, and `local_sales_tax`. The names of the engine inputs
+  are retained; the renderer does not substitute state tax liability.
 - Nonnegative finite `hourly_wage` in dollars/hour, and the weekly-hours fields
   below. Optional supported inputs may be null, which means unknown.
 
@@ -173,13 +176,20 @@ convention**, not a verified description of the published reference engine.
   exception below. False, null, numeric, and string overrides of the remaining
   take-up inputs conflict with the preamble and raise an error. Additional
   take-up names are unsupported and remain explicitly marked.
-- `hours_worked_last_week` and `weekly_hours_worked` accept finite numbers from
-  0 to 168 hours/week. Both names are printed without aliasing. If both are
-  supplied, their values must agree; null and a numeric value conflict. When
-  neither is supplied, each person's text states the **0 hours/week contract
-  assumption**. Null is unknown, not zero. Hours never come from wages divided
-  by an hourly rate. A future adapter must check which input the selected engine
-  reads; this renderer does not create or modify any engine input.
+- `hours_worked_last_week`, `weekly_hours_worked`, and
+  `weekly_hours_worked_before_lsr` accept finite numbers from
+  0 to 168 hours/week. Each supplied name is printed without aliasing. If more
+  than one is supplied, their values must agree; null and a numeric value
+  conflict. When none is supplied, each person's text states the **0 hours/week
+  contract assumption**. Null is unknown, not zero. Hours never come from wages divided
+  by an hourly rate. The convention explicitly names the swept engine reader
+  `weekly_hours_worked_before_lsr`. A supplied `hours_worked_last_week` gets an
+  explicit same-value alias to that reader, following the existing scenario
+  adapter. Supplying `weekly_hours_worked` alone does not create that alias:
+  it includes behavioral-response hours in the engine and needs an adapter
+  decision before use as the base input. This fixed-hours slice requires
+  agreement among supplied names and has no separate behavioral-response
+  schema. This renderer does not create or modify any engine input.
 - Facts remain constant throughout the year, with no income volatility or
   status changes. Medicare eligibility and SSDI duration use January 1. This
   slice accepts no separate duration date/start-date schema; any such extra input
@@ -205,7 +215,22 @@ distinct from final state income tax liability. A supplied tax-unit amount
 overrides the estimate. The audited policyengine-us 2.15.17 federal SALT reader
 chooses the larger of `state_withheld_income_tax + local_income_tax` and
 `state_sales_tax + local_sales_tax`, then adds real estate taxes and applies
-the deduction cap. Montana's separate person-level `mt_withheld_income_tax`
+the deduction cap. If not supplied, `state_sales_tax` follows the reference's
+IRS optional sales-tax-table convention: use the 2025 table data pinned by
+[`r19_irs_sales_tax_2025.json`](../reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json),
+with the reference's state, engine income-bracket, and tax-unit-size lookup
+(size clipped to 1–6). The reference holds all 5,814 published 2025 table cells
+unchanged for 2026 through
+[`latest_c_irs_sales_tax_2025.py`](../reference_audit/2026-09-28/fixes/latest_c_irs_sales_tax_2025.py);
+the raw engine's later-year uprating is not the reference convention. This is a
+declared reference convention for the scenario year, not a claim that this is
+a subsequently published table for that year. `local_sales_tax` defaults to
+zero in CT, DC, IN, KY, MA, MD, ME, MI, NJ, and RI, and 20% of that state-table
+amount elsewhere, unless a tax-unit amount is supplied. This follows the
+audited [local-sales-tax reader](https://github.com/PolicyEngine/policyengine-us/blob/79be99f67132c4e5215b19bcf0108222fb67d989/policyengine_us/variables/gov/local/tax/sales/local_sales_tax.py)
+as a declared proxy rather than an observed local rate. Thus
+both computed sales-tax inputs are named exceptions to the generic zero rule.
+Montana's separate person-level `mt_withheld_income_tax`
 reader requires its own stated input or convention before that reference can
 be scored; the tax-unit convention does not cover it.
 
@@ -219,7 +244,19 @@ employee after-tax spending. When absent, it follows the declared model's
 standard premium plus IRMAA, net of Medicare Savings Program support, and is
 paid only while enrolled. For year 2026 with declared version 2.15.17, the
 rendering additionally states the $202.90 monthly / $2,434.80 annual standard
-premium before IRMAA and support. Unlisted two-year-prior IRMAA MAGI is $0.
+premium before IRMAA and support. The frozen single-year fixtures' unlisted
+two-year-prior IRMAA MAGI is $0 under the declared convention.
+
+The audited
+[gross Part B premium reader](https://github.com/PolicyEngine/policyengine-us/blob/79be99f67132c4e5215b19bcf0108222fb67d989/policyengine_us/variables/gov/hhs/medicare/eligibility/part_b/gross_medicare_part_b_premium.py)
+uses tax-unit `medicare_irmaa_magi_two_years_prior`.
+Its [lagged-MAGI formula](https://github.com/PolicyEngine/policyengine-us/blob/79be99f67132c4e5215b19bcf0108222fb67d989/policyengine_us/variables/gov/hhs/medicare/eligibility/medicare_irmaa_magi_two_years_prior.py)
+adds adjusted gross income and tax-exempt interest from two years before the
+benefit year, rather than current income. Missing a direct lagged-MAGI override
+does not universally mean zero: prior-year facts can produce it. The
+[October 5 Medicare audit](https://github.com/PolicyEngine/policybench/blob/65ca4af9d1395d61d06f9d106bf134b81c6b52dd/reference_audit/2026-10-05-medicare-part-b/README.md)
+finds these frozen 2026 fixtures supply no 2024 income, which is why their
+lagged input is zero.
 
 The medical-expense reader `medical_expense_health_insurance_premiums` uses
 a nonzero direct `health_insurance_premiums` total instead of the component
@@ -236,7 +273,9 @@ from those wages. `pre_tax_health_insurance_premiums` means employee pre-tax
 payroll withholding and reduces income-tax and FICA wages under the declared
 model. Direct out-of-pocket, non-Medicare, Medicare, and medical-expense
 premium labels mean employee after-tax spending under this convention and
-do not reduce FICA wages.
+do not reduce FICA wages. `other_health_insurance_premiums` is likewise
+employee after-tax spending; it is not added directly to the medical-expense
+aggregate described above.
 
 **Employer withholding choice (d972; [PR 194](https://github.com/PolicyEngine/policybench/pull/194)).**
 For each person in MN Paid Leave, CO FAMLI, MA PFML, NY PFL/DBL, DE Paid Leave,
@@ -245,7 +284,8 @@ the employer withholds the employee share. The declared convention is full
 employee-share withholding unless
 `state_paid_leave_employee_share_withheld` supplies another choice. `False`
 means the employer pays that share and the payroll output excludes it; null
-means the choice is unknown. Amounts follow the declared model's
+means the choice is unknown. Supplying this choice in a state outside the
+listed convention raises an error. Amounts follow the declared model's
 employee-share parameters, including its 52-weeks-per-year annualization of
 NY DBL. This states a reference convention rather than claiming every model
 parameter is the legal maximum; PR 194 records a Massachusetts cap ambiguity
@@ -255,7 +295,9 @@ in that audit retain the employee-side payroll scope.
 **Loaded household labels.** When `is_surviving_spouse` is true, state the
 spouse's death year and whether a dependent child lives in the home. Missing
 death year uses the synthetic convention of the previous calendar year;
-listed children are assumed dependent children living in the home. These are
+for a joint filer or someone with a living tax-unit spouse, that date refers
+to a prior spouse and the currently listed spouse remains alive.
+Listed children are assumed dependent children living in the home. These are
 declared assumptions, not observations of the frozen data. Apply the dated
 filing rules; the label alone establishes no qualifying-surviving-spouse
 status. Scenario 000 has no listed child, so its convention explicitly says
@@ -268,10 +310,12 @@ source and countability explicit; it does not invent an observed donor.
 
 ## Proposed v2 output scope
 
-`v2_output_definitions()` reads only definitions carrying the matching
-`v2_prompt_contract` version. The renderer displays those definitions as
-proposals, not an output request. Existing spec loading continues to read
-the original `prompt` keys, so v1 payloads retain their published wording.
+`v2_output_definitions()` returns proposed definitions scoped to this v2
+module and contract version. Their base wording comes from the output
+definitions in `benchmark_specs.json`, with the explicit extensions below.
+The renderer displays them as proposals, not an output request. The published
+spec file remains byte-for-byte unchanged, preserving the v1 spec hash and
+resume metadata as well as its wording. No v1 evaluator imports the v2 module.
 
 The v2 payroll definition covers all listed people's employee-side payroll
 tax, including dependent wages, mandatory state contributions, and optional
@@ -314,29 +358,40 @@ fresh release sweep must include.
 `tests/test_prompt_contract_v2_required_facts.py` runs that logic and prints
 remaining unstated, individually moving inputs in
 `test_legacy_required_fact_report_lists_gaps_without_gating`. It reports
-legacy gaps without requiring zero gaps. Compound readings can change
-multiple inputs and override new v2 conventions, so their residual inputs are
-reported separately and need a fresh run under the proposed reference builder.
+legacy gaps without requiring zero gaps. Named convention coverage requires
+the actual convention marker in the relevant entity or affected person's
+section of the rendered text, with supplied nulls taking precedence as
+unknown. Another person's convention cannot cover that person's missing
+input; membership in a global registry alone is insufficient. Compound
+readings can change multiple inputs and override new
+v2 conventions, so they still need a fresh run under the proposed reference
+builder even when every original input is now covered.
 
 The current replay has 70 moving rows. Its remaining individually moving inputs
 are `county` (2 outputs), `meets_ssi_disability_criteria` (4),
 `months_receiving_social_security_disability` (5),
 `first_home_mortgage_origination_year` and
-`second_home_mortgage_origination_year` (one shared output), and
-`weekly_hours_worked_before_lsr` (2). All 13 distinct affected outputs are already
-excluded from legacy scoring; none is a scored residual. These counts describe
-outputs, not newly discovered people or proven legal effects. `local_sales_tax`
-also remains in three compound-reading rows, which simultaneously change
-now-stated conventions; the replay does not assign their whole movement to
-that one input. A fresh sweep under v2 conventions must resolve those rows.
+`second_home_mortgage_origination_year` (one shared output). All 12 distinct
+affected outputs are already excluded from legacy scoring; none is a scored
+residual. These counts describe
+outputs, not newly discovered people or proven legal effects. The stated hours
+convention now covers `weekly_hours_worked_before_lsr`, and the sales-tax
+convention covers `local_sales_tax`. Four original compound-reading rows
+change multiple inputs, including now-stated conventions; the replay does
+not assign their whole movement to any one input. A fresh sweep under v2
+conventions must validate those rows.
 
 Before activation, adapt the reference builder to the stated conventions and
 run the complete sweep through `unlisted_input_sweep.add_arguments(parser)`
 and `unlisted_input_sweep.run(args)`, including its registered engine-estimate
 inputs and plausible readings. Extend that registry for other reference-read
-inputs rather than treating it as an exhaustive discovery mechanism. Its CLI
-is deliberately not registered in the published
-v1 path. Resolve or exclude every scored move, validate baseline agreement,
+inputs rather than treating it as an exhaustive discovery mechanism. In
+particular, add the employer-withholding choice to the registry and reference
+adapter; #194's separately recorded payroll reading currently supplements
+that gap in the replay. The checked-in `latest_final.py` fix reconstructs
+legacy references and must be adapted to v2 conventions before that release
+run. The sweep CLI is deliberately not registered in the published v1 path.
+Resolve or exclude every scored move, validate baseline agreement,
 and record the new evidence. Merely rendering all households or replaying
 legacy evidence is insufficient to activate a board.
 
@@ -384,8 +439,11 @@ fact text did not change. No published v1 file or board artifact changed.
 d972, and d974. Added named SALT, Medicare, and employer-withholding conventions;
 premium payer/tax labels; dependent-return scope; spouse-death/child and cash
 assistance source facts; and the required-facts rule with PR 196's report-only
-legacy sweep replay. Proposed definitions are version-gated, and their canonical
-JSON now contributes to the contract identity. Updated the golden rendering and
+legacy sweep replay. Proposed definitions are contained in the v2 module,
+and their canonical JSON now contributes to the contract identity. Independent
+review caught that adding keys to the shared spec would change the v1 spec
+hash and resume metadata; the final change leaves that file byte-for-byte
+unchanged. Updated the golden rendering and
 rendered all 100 frozen fixtures. PR 173 remains a draft; benchmark activation is
 Max's decision. No published v1 prompt, reference, exclusion, board, or payload
 was changed.

@@ -4,12 +4,14 @@ import csv
 import hashlib
 import json
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from policybench.prompt_contract_v2 import FactProvenance, render_household_contract
 from policybench.prompt_contract_v2_required_facts import (
+    _input_is_stated,
     replay_recorded_sweep,
     report_required_facts,
 )
@@ -105,6 +107,35 @@ def test_legacy_required_fact_report_lists_gaps_without_gating(audit_evidence):
     # This assertion establishes evidence coverage, never a zero-gap release gate.
     assert report["households"] == 100
     assert report["outputs"] == 1984
+    assert len(sweep.moves) == 70
+    residual_counts = {
+        entry["estimate"]: entry["output_count"] for entry in report["remaining"]
+    }
+    assert residual_counts == {
+        "county": 2,
+        "meets_ssi_disability_criteria": 4,
+        "months_receiving_social_security_disability": 5,
+        "mortgage_origination_year": 1,
+    }
+    assert (
+        len(
+            {
+                tuple(output)
+                for entry in report["remaining"]
+                for output in entry["outputs"]
+            }
+        )
+        == 12
+    )
+    assert all(entry["scored_output_count"] == 0 for entry in report["remaining"])
+    compound = report["compound_readings_requiring_rerun"]
+    assert {tuple(entry["output"]) for entry in compound} == {
+        ("scenario_022", "federal_income_tax_before_refundable_credits"),
+        ("scenario_114", "federal_income_tax_before_refundable_credits"),
+        ("scenario_114", "state_income_tax_before_refundable_credits"),
+        ("scenario_120", "federal_income_tax_before_refundable_credits"),
+    }
+    assert all(entry["unstated_inputs"] == [] for entry in compound)
     print(json.dumps(report, indent=2, sort_keys=True))
 
 
@@ -127,6 +158,145 @@ def test_global_conventions_cover_only_named_estimates(audit_evidence):
     assert "county" in remaining
     assert "meets_ssi_disability_criteria" in remaining
     assert "months_receiving_social_security_disability" in remaining
+
+
+def test_report_accepts_and_lists_a_scored_gap_without_gating(audit_evidence):
+    from policybench.prompt_contract_v2 import STATED_CONVENTION_INPUTS
+
+    fixture, scenarios, references, exclusions, rendered = audit_evidence
+    exclusions = dict(exclusions)
+    exclusions.pop(("scenario_118", "snap"))
+    sweep = replay_recorded_sweep(fixture, scenarios, references, exclusions)
+    report = report_required_facts(
+        sweep, fixture, scenarios, rendered, STATED_CONVENTION_INPUTS
+    )
+    county = next(
+        entry for entry in report["remaining"] if entry["estimate"] == "county"
+    )
+    assert county["scored_output_count"] == 1
+    assert ["scenario_118", "snap"] in county["outputs"]
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        "state_withheld_income_tax",
+        "[state_withheld_income_tax_suffix]",
+        "[prefix_state_withheld_income_tax]",
+        "[state_withheld_income_tax ]",
+    ],
+)
+def test_convention_requires_its_exact_rendered_marker(audit_evidence, replacement):
+    _, scenarios, _, _, rendered = audit_evidence
+    scenario = scenarios["scenario_022"]
+    contract = rendered[scenario.id]
+    marker = "[state_withheld_income_tax]"
+    assert marker in contract.text
+    unmarked = replace(contract, text=contract.text.replace(marker, replacement))
+    assert not _input_is_stated(
+        "state_withheld_income_tax",
+        "tax_unit",
+        scenario,
+        unmarked,
+        {"state_withheld_income_tax"},
+        "tax_unit.state_withheld_income_tax=0",
+    )
+    assert _input_is_stated(
+        "state_withheld_income_tax",
+        "tax_unit",
+        scenario,
+        contract,
+        {"state_withheld_income_tax"},
+        "tax_unit.state_withheld_income_tax=0",
+    )
+
+
+def test_paid_leave_convention_is_not_covered_for_a_nonapplicable_state(audit_evidence):
+    scenario = deepcopy(audit_evidence[1]["scenario_032"])
+    scenario.state = "NJ"
+    contract = render_household_contract(scenario, policyengine_us_version="2.15.17")
+    assert "[state_paid_leave_employee_share]" not in contract.text
+    assert not _input_is_stated(
+        "state_paid_leave_employee_share",
+        "person",
+        scenario,
+        contract,
+        {"state_paid_leave_employee_share"},
+        "employer.state_paid_leave_employee_share=False",
+    )
+
+
+def test_supplied_supported_fact_also_requires_its_rendered_marker(audit_evidence):
+    scenario = deepcopy(audit_evidence[1]["scenario_022"])
+    scenario.tax_unit_inputs["state_withheld_income_tax"] = 1000
+    contract = render_household_contract(scenario, policyengine_us_version="2.15.17")
+    marker = "[state_withheld_income_tax]"
+    assert marker in contract.text
+    unmarked = replace(contract, text=contract.text.replace(marker, "unmarked input"))
+    assert not _input_is_stated(
+        "state_withheld_income_tax",
+        "tax_unit",
+        scenario,
+        unmarked,
+        {"state_withheld_income_tax"},
+        "tax_unit.state_withheld_income_tax=0",
+    )
+
+
+def test_another_persons_convention_does_not_cover_an_unknown_alias(audit_evidence):
+    scenario = deepcopy(audit_evidence[1]["scenario_032"])
+    person = scenario.adults[0]
+    person.inputs["hours_worked_last_week"] = None
+    contract = render_household_contract(scenario, policyengine_us_version="2.15.17")
+    assert (
+        f"person.{person.name}.weekly_hours_worked_before_lsr" in contract.unknown_facts
+    )
+    assert "[weekly_hours_worked_before_lsr]" in contract.text
+    assert not _input_is_stated(
+        "weekly_hours_worked_before_lsr",
+        "person",
+        scenario,
+        contract,
+        {"weekly_hours_worked_before_lsr"},
+        f"{person.name}.weekly_hours_worked_before_lsr=40",
+    )
+
+
+@pytest.mark.parametrize("hours", [30, None])
+def test_other_persons_marker_does_not_cover_unmapped_weekly_hours(
+    audit_evidence, hours
+):
+    scenario = deepcopy(audit_evidence[1]["scenario_032"])
+    person = scenario.adults[0]
+    person.inputs.pop("hours_worked_last_week", None)
+    person.inputs["weekly_hours_worked"] = hours
+    contract = render_household_contract(scenario, policyengine_us_version="2.15.17")
+    # The spouse's absent-hours convention supplies this marker; the head's
+    # differently named weekly input does not state the swept before-LSR input.
+    assert "[weekly_hours_worked_before_lsr]" in contract.text
+    assert not _input_is_stated(
+        "weekly_hours_worked_before_lsr",
+        "person",
+        scenario,
+        contract,
+        {"weekly_hours_worked_before_lsr"},
+        f"{person.name}.weekly_hours_worked_before_lsr=40",
+    )
+
+
+def test_compound_evidence_requires_rerun_even_when_all_inputs_are_convention_covered(
+    audit_evidence,
+):
+    from policybench.prompt_contract_v2 import STATED_CONVENTION_INPUTS
+
+    fixture, scenarios, references, exclusions, rendered = audit_evidence
+    sweep = replay_recorded_sweep(fixture, scenarios, references, exclusions)
+    report = report_required_facts(
+        sweep, fixture, scenarios, rendered, STATED_CONVENTION_INPUTS
+    )
+    assert ["scenario_120", "federal_income_tax_before_refundable_credits"] in [
+        entry["output"] for entry in report["compound_readings_requiring_rerun"]
+    ]
 
 
 @pytest.mark.parametrize(
