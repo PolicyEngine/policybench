@@ -1,4 +1,4 @@
-Household prompt contract: policybench-us-household-prompt/2.1.0:sha256:1c0fb8c5beea03bdcf9327c513d240d65c6c38683b395a7b356e32f736b423da
+Household prompt contract: policybench-us-household-prompt/2.1.0:sha256:57a244e80b09866b07e6c7b01fc1530610eb6f326b091f8b00c3e8fb7b25b2df
 Status: opt-in, unactivated household-fact slice; not a complete evaluation contract.
 Declared calculation version: policyengine-us 2.15.17 (caller-supplied; not verified).
 
@@ -39,7 +39,7 @@ Person head:
 - Weekly hours: 0 hours/week (contract assumption; no weekly-hours input supplied)
 - Usual weekly hours before labor-supply response [weekly_hours_worked_before_lsr]: 0 hours/week (declared convention).
 - Part B enrollment [takes_up_medicare_if_eligible]: yes if eligible (declared convention; includes Part B, not evidence of enrollment)
-- Employee after-tax annual Part B premium [medicare_part_b_premium]: declared-model standard premium plus IRMAA, net of Medicare Savings Program support; paid only while enrolled (declared convention). Unlisted two-year-prior IRMAA MAGI is $0.
+- Employee after-tax annual Part B premium [medicare_part_b_premium]: declared-model standard premium plus IRMAA, net of Medicare Savings Program support; paid only while enrolled (declared convention). Unlisted two-year-prior IRMAA MAGI is $0 (declared convention; no prior-year income is supplied).
 - 2026 Part B standard premium: $202.90/month, $2,434.80/year before IRMAA and Medicare Savings Program support (declared policyengine-us 2.15.17 convention).
 - Employee after-tax medical premium total [medical_expense_health_insurance_premiums]: nonzero health_insurance_premiums overrides the component sum; otherwise health_insurance_premiums_without_medicare_part_b (zero if absent) plus medicare_part_b_premium while enrolled. A supplied zero total in health_insurance_premiums still uses the component sum (declared convention; do not double-count).
 

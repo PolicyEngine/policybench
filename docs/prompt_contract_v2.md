@@ -21,7 +21,7 @@ v1 evaluator or treat its output as a certified evaluation request.
 The version is `2.1.0`. `contract_identity()` returns:
 
 ```text
-policybench-us-household-prompt/2.1.0:sha256:1c0fb8c5beea03bdcf9327c513d240d65c6c38683b395a7b356e32f736b423da
+policybench-us-household-prompt/2.1.0:sha256:57a244e80b09866b07e6c7b01fc1530610eb6f326b091f8b00c3e8fb7b25b2df
 ```
 
 The SHA-256 covers the **exact UTF-8 source bytes of the module**, a newline,
@@ -185,9 +185,11 @@ convention**, not a verified description of the published reference engine.
   by an hourly rate. The convention explicitly names the swept engine reader
   `weekly_hours_worked_before_lsr`. A supplied `hours_worked_last_week` gets an
   explicit same-value alias to that reader, following the existing scenario
-  adapter. Supplying `weekly_hours_worked` alone does not create that alias:
-  it includes behavioral-response hours in the engine and needs an adapter
-  decision before use as the base input. This fixed-hours slice requires
+  adapter. Supplying `weekly_hours_worked` alone explicitly renders the
+  before-response reader `weekly_hours_worked_before_lsr` as unknown and adds
+  its path to `unknown_facts`. The supplied field includes behavioral-response
+  hours in the engine; the renderer cannot establish the base input from it.
+  This fixed-hours slice requires
   agreement among supplied names and has no separate behavioral-response
   schema. This renderer does not create or modify any engine input.
 - Facts remain constant throughout the year, with no income volatility or
@@ -215,8 +217,9 @@ distinct from final state income tax liability. A supplied tax-unit amount
 overrides the estimate. The audited policyengine-us 2.15.17 federal SALT reader
 chooses the larger of `state_withheld_income_tax + local_income_tax` and
 `state_sales_tax + local_sales_tax`, then adds real estate taxes and applies
-the deduction cap. If not supplied, `state_sales_tax` follows the reference's
-IRS optional sales-tax-table convention: use the 2025 table data pinned by
+the deduction cap. For year 2026 and declared policyengine-us version 2.15.17,
+an absent `state_sales_tax` follows the reference's IRS optional
+sales-tax-table convention: use the 2025 table data pinned by
 [`r19_irs_sales_tax_2025.json`](../reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json),
 with the reference's state, engine income-bracket, and tax-unit-size lookup
 (size clipped to 1–6). The reference holds all 5,814 published 2025 table cells
@@ -230,6 +233,11 @@ amount elsewhere, unless a tax-unit amount is supplied. This follows the
 audited [local-sales-tax reader](https://github.com/PolicyEngine/policyengine-us/blob/79be99f67132c4e5215b19bcf0108222fb67d989/policyengine_us/variables/gov/local/tax/sales/local_sales_tax.py)
 as a declared proxy rather than an observed local rate. Thus
 both computed sales-tax inputs are named exceptions to the generic zero rule.
+For another scenario year or declared model version, an absent state sales-tax
+amount is rendered as unknown; this slice has no verified sales-table
+convention for that context. A local amount derived as 20% is unknown when its
+state base is unknown. Supplied state/local amounts and the declared
+zero-local-jurisdiction convention remain supported.
 Montana's separate person-level `mt_withheld_income_tax`
 reader requires its own stated input or convention before that reference can
 be scored; the tax-unit convention does not cover it.
@@ -244,8 +252,9 @@ employee after-tax spending. When absent, it follows the declared model's
 standard premium plus IRMAA, net of Medicare Savings Program support, and is
 paid only while enrolled. For year 2026 with declared version 2.15.17, the
 rendering additionally states the $202.90 monthly / $2,434.80 annual standard
-premium before IRMAA and support. The frozen single-year fixtures' unlisted
-two-year-prior IRMAA MAGI is $0 under the declared convention.
+premium before IRMAA and support. The rendering labels unlisted two-year-prior
+IRMAA MAGI as $0 under a declared convention because no prior-year income is
+supplied; this is not an observed amount.
 
 The audited
 [gross Part B premium reader](https://github.com/PolicyEngine/policyengine-us/blob/79be99f67132c4e5215b19bcf0108222fb67d989/policyengine_us/variables/gov/hhs/medicare/eligibility/part_b/gross_medicare_part_b_premium.py)
@@ -386,9 +395,13 @@ run the complete sweep through `unlisted_input_sweep.add_arguments(parser)`
 and `unlisted_input_sweep.run(args)`, including its registered engine-estimate
 inputs and plausible readings. Extend that registry for other reference-read
 inputs rather than treating it as an exhaustive discovery mechanism. In
-particular, add the employer-withholding choice to the registry and reference
-adapter; #194's separately recorded payroll reading currently supplements
-that gap in the replay. The checked-in `latest_final.py` fix reconstructs
+particular, register `state_sales_tax`, `mt_withheld_income_tax`, and
+`medicare_irmaa_magi_two_years_prior`, with plausible readings of their own:
+the existing `local_sales_tax` estimate cannot detect a state-table mismatch
+or cover Montana's separate withholding reader or lagged MAGI. Also register
+the employer-withholding choice and support it in the reference adapter;
+#194's separately recorded payroll reading currently supplements that gap
+in the replay. The checked-in `latest_final.py` fix reconstructs
 legacy references and must be adapted to v2 conventions before that release
 run. The sweep CLI is deliberately not registered in the published v1 path.
 Resolve or exclude every scored move, validate baseline agreement,

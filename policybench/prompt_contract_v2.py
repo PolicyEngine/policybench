@@ -81,10 +81,7 @@ STATED_CONVENTION_INPUTS = frozenset(
         "takes_up_medicare_if_eligible",
         "medicare_part_b_premium",
         "medical_expense_health_insurance_premiums",
-        "health_insurance_premiums_without_medicare_part_b",
         "state_paid_leave_employee_share",
-        "hours_worked_last_week",
-        "weekly_hours_worked",
         "weekly_hours_worked_before_lsr",
         "state_sales_tax",
         "local_sales_tax",
@@ -634,11 +631,8 @@ def render_household_contract(
                 "- Usual weekly hours before labor-supply response "
                 "[weekly_hours_worked_before_lsr]: 0 hours/week (declared convention)."
             )
-        elif (
-            "hours_worked_last_week" in inputs
-            and "weekly_hours_worked_before_lsr" not in inputs
-        ):
-            supplied_hours = inputs["hours_worked_last_week"]
+        elif "weekly_hours_worked_before_lsr" not in inputs:
+            supplied_hours = inputs.get("hours_worked_last_week")
             if supplied_hours is not None:
                 lines.append(
                     "- Usual weekly hours before labor-supply response "
@@ -648,6 +642,12 @@ def render_household_contract(
                 )
             else:
                 unknown.add(f"{prefix}.weekly_hours_worked_before_lsr")
+                lines.append(
+                    "- Usual weekly hours before labor-supply response "
+                    "[weekly_hours_worked_before_lsr]: unknown "
+                    "(no non-null hours_worked_last_week or direct before-response "
+                    "input; weekly_hours_worked alone does not establish it)."
+                )
         if "takes_up_medicare_if_eligible" not in inputs:
             lines.append(
                 "- Part B enrollment [takes_up_medicare_if_eligible]: yes if eligible "
@@ -658,7 +658,8 @@ def render_household_contract(
                 "- Employee after-tax annual Part B premium [medicare_part_b_premium]: "
                 "declared-model standard premium plus IRMAA, net of Medicare Savings "
                 "Program support; paid only while enrolled (declared convention). "
-                "Unlisted two-year-prior IRMAA MAGI is $0."
+                "Unlisted two-year-prior IRMAA MAGI is $0 "
+                "(declared convention; no prior-year income is supplied)."
             )
             if year == 2026 and policyengine_us_version == "2.15.17":
                 lines.append(
@@ -694,6 +695,8 @@ def render_household_contract(
                 "employee-share parameters; NY DBL uses 52 weeks/year)."
             )
         if inputs.get("is_surviving_spouse") is True:
+            # This slice represents one supplied tax unit. A future multi-unit
+            # adapter must scope the spouse check to this person's tax unit.
             remarried = scenario.filing_status == "joint" or any(
                 member.inputs.get("is_tax_unit_spouse") is True for member in people
             )
@@ -757,20 +760,56 @@ def render_household_contract(
                 ]
             )
         if entity == "tax_unit":
+            audited_sales_context = (
+                year == 2026 and policyengine_us_version == "2.15.17"
+            )
+            state_sales_known = (
+                inputs["state_sales_tax"] is not None
+                if "state_sales_tax" in inputs
+                else audited_sales_context
+            )
             if "state_sales_tax" not in inputs:
-                lines.append(
-                    "- Annual state sales tax paid [state_sales_tax]: use the 2025 IRS "
-                    "optional sales-tax table with the declared reference's household "
-                    "income/size rules; hold published 2025 cells without uprating "
-                    "for 2026, as latest_c_irs_sales_tax_2025 does "
-                    "(declared convention)."
-                )
+                if audited_sales_context:
+                    lines.append(
+                        "- Annual state sales tax paid [state_sales_tax]: use the "
+                        "2025 IRS optional sales-tax table with the declared "
+                        "reference's household income/size rules; hold published "
+                        "2025 cells without uprating for 2026, as "
+                        "latest_c_irs_sales_tax_2025 does (declared convention)."
+                    )
+                else:
+                    unknown.add("tax_unit.state_sales_tax")
+                    lines.append(
+                        "- Annual state sales tax paid [state_sales_tax]: unknown "
+                        "(no supplied amount or audited table convention for this "
+                        "year and declared model version)."
+                    )
             if "local_sales_tax" not in inputs:
-                lines.append(
-                    "- Annual local sales tax paid [local_sales_tax]: 0 in CT, DC, IN, "
-                    "KY, MA, MD, ME, MI, NJ and RI; otherwise 20% of state_sales_tax "
-                    "(declared reference-model proxy, not observed spending)."
-                )
+                if state_sales_known or scenario.state in {
+                    "CT",
+                    "DC",
+                    "IN",
+                    "KY",
+                    "MA",
+                    "MD",
+                    "ME",
+                    "MI",
+                    "NJ",
+                    "RI",
+                }:
+                    lines.append(
+                        "- Annual local sales tax paid [local_sales_tax]: 0 in CT, "
+                        "DC, IN, KY, MA, MD, ME, MI, NJ and RI; otherwise 20% of "
+                        "state_sales_tax (declared reference-model proxy, not "
+                        "observed spending)."
+                    )
+                else:
+                    unknown.add("tax_unit.local_sales_tax")
+                    lines.append(
+                        "- Annual local sales tax paid [local_sales_tax]: unknown "
+                        "(state_sales_tax is unknown, so its 20% local proxy "
+                        "cannot be evaluated)."
+                    )
     lines.extend(["", "Proposed v2 output definitions (not an output request):"])
     for name, definition in sorted(v2_output_definitions().items()):
         lines.append(f"- [{name}]: {definition}")

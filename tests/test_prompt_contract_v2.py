@@ -671,3 +671,82 @@ def test_future_death_year_is_rejected_without_survivor_indicator(
     simple_single_scenario.adults[0].inputs["spouse_death_year"] = 2027
     with pytest.raises(ContractInputError, match="future death year"):
         render(simple_single_scenario)
+
+
+@pytest.mark.parametrize(
+    "year,version", [(2025, "2.15.17"), (2027, "2.15.17"), (2026, "2.15.18")]
+)
+def test_sales_tax_convention_requires_audited_year_and_version(
+    simple_single_scenario, year, version
+):
+    simple_single_scenario.year = year
+    result = render_household_contract(
+        simple_single_scenario, policyengine_us_version=version
+    )
+    assert "tax_unit.state_sales_tax" in result.unknown_facts
+    assert "tax_unit.local_sales_tax" in result.unknown_facts
+    assert "[state_sales_tax]: unknown" in result.text
+    assert "[local_sales_tax]: unknown" in result.text
+    assert "hold published 2025 cells" not in result.text
+
+
+def test_sales_tax_unknown_state_amount_keeps_zero_local_jurisdiction_known(
+    simple_single_scenario,
+):
+    simple_single_scenario.year = 2027
+    simple_single_scenario.state = "MA"
+    result = render(simple_single_scenario)
+    assert "tax_unit.state_sales_tax" in result.unknown_facts
+    assert "tax_unit.local_sales_tax" not in result.unknown_facts
+    assert "[local_sales_tax]: 0" in result.text
+
+
+def test_sales_tax_supplied_amounts_override_unknown_context(simple_single_scenario):
+    simple_single_scenario.year = 2027
+    simple_single_scenario.tax_unit_inputs.update(
+        state_sales_tax=500, local_sales_tax=75
+    )
+    result = render(simple_single_scenario)
+    assert "[state_sales_tax]: $500" in result.text
+    assert "[local_sales_tax]: $75" in result.text
+    assert "tax_unit.state_sales_tax" not in result.unknown_facts
+    assert "tax_unit.local_sales_tax" not in result.unknown_facts
+
+
+def test_sales_tax_supplied_state_amount_resolves_local_proxy(simple_single_scenario):
+    simple_single_scenario.year = 2027
+    simple_single_scenario.tax_unit_inputs["state_sales_tax"] = 500
+    result = render(simple_single_scenario)
+    assert "tax_unit.state_sales_tax" not in result.unknown_facts
+    assert "tax_unit.local_sales_tax" not in result.unknown_facts
+    assert "20% of state_sales_tax" in result.text
+
+
+def test_sales_tax_null_state_amount_leaves_local_proxy_unknown(simple_single_scenario):
+    simple_single_scenario.tax_unit_inputs["state_sales_tax"] = None
+    result = render(simple_single_scenario)
+    assert "tax_unit.state_sales_tax" in result.unknown_facts
+    assert "tax_unit.local_sales_tax" in result.unknown_facts
+    assert "[local_sales_tax]: unknown" in result.text
+
+
+@pytest.mark.parametrize("hours", [30, None])
+def test_after_response_hours_alone_expose_unknown_pre_response_hours(
+    simple_single_scenario, hours
+):
+    person = simple_single_scenario.adults[0]
+    person.inputs["weekly_hours_worked"] = hours
+    result = render(simple_single_scenario)
+    assert (
+        f"person.{person.name}.weekly_hours_worked_before_lsr" in result.unknown_facts
+    )
+    assert "[weekly_hours_worked_before_lsr]: unknown" in result.text
+    assert "[weekly_hours_worked_before_lsr]: 0" not in result.text
+
+
+def test_irmaa_zero_is_explicitly_a_no_prior_income_convention(simple_single_scenario):
+    text = render(simple_single_scenario).text
+    assert (
+        "Unlisted two-year-prior IRMAA MAGI is $0 "
+        "(declared convention; no prior-year income is supplied)."
+    ) in text
