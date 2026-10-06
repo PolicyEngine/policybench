@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 606(c)(1)",
+      "pre_freeze": true,
+      "published": "2026-05-28",
+      "quote": "For taxable years beginning before January first, two thousand twenty-six, a taxpayer shall be allowed a credit as provided herein equal to the applicable percentage of the credit allowable under section twenty-one",
+      "source": "New York Tax Law \u00a7 606(c)(1) as amended by L.2026, ch.59, Part A",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "\u00a7 606(c-2)(1)",
+      "pre_freeze": true,
+      "published": "2026-05-28",
+      "quote": "For taxable years beginning on or after January first, two thousand twenty-six, an eligible taxpayer shall be allowed a credit as provided herein to enable the eligible taxpayer to be gainfully employed or a full-time student",
+      "source": "New York Tax Law \u00a7 606(c-2) (New York state child and dependent care credit)",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "\u00a7 606(c-2)(2)-(3)",
+      "pre_freeze": true,
+      "published": "2026-05-28",
+      "quote": "twenty-five hundred thousandths of a percentage point for each dollar ... the product of the eligible taxpayer's qualifying expenses...and the applicable percentage ... three thousand dollars, in the case of an eligible taxpayer with one qualifying individual",
+      "source": "New York Tax Law \u00a7 606(c-2) applicable percentage, credit amount and expense cap",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "\u00a7 606(c-2)",
+      "pre_freeze": true,
+      "published": "2026-05-28",
+      "quote": "If the amount of the credit allowed under this subsection for any taxable year shall exceed the eligible taxpayer's tax for such year, the excess shall be treated as an overpayment of tax to be credited or refunded",
+      "source": "New York Tax Law \u00a7 606(c-2) refundability",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "Part A",
+      "pre_freeze": true,
+      "published": "2026-05-28",
+      "quote": "fifty-five percent ... reduced by twenty-five hundred thousandths of a percentage point for each dollar ... four percent",
+      "source": "NY Senate Bill S9009-C (2025-2026), signed as Chapter 59 of 2026",
+      "url": "https://www.nysenate.gov/legislation/bills/2025/S9009/amendment/C"
+    },
+    {
+      "pinpoint": "\u00a7 606(c-1)(1-a)(B),(C)",
+      "pre_freeze": true,
+      "published": "2025-05-09",
+      "quote": "For taxable years beginning on and after January first, two thousand twenty-six, and before January first, two thousand twenty-eight, a resident taxpayer shall be allowed a credit",
+      "source": "New York Tax Law \u00a7 606(c-1)(1-a) (Empire State child credit)",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "New York's child and dependent care credit is $360: 60% of the federal credit (20% of $3,000). This is the pre-2026 \u00a7 606(c)(1) computation, which L.2026 ch.59 limited to tax years beginning before 2026-01-01 and replaced with the \u00a7 606(c-2) credit on qualifying expenses.",
+  "independent_answer": 1187.6,
+  "reference_value": 667,
+  "stage1_error": "",
+  "suggested_adjudication": "engine_defect",
+  "summary": "Under the law in force for 2026, this household gets about $1,188 in refundable NY credits. The first part is the Empire State Child Credit of $307: $1,000 for a child aged three or younger, less 42 \u00d7 $16.50 for federal AGI above $75,000. The second part is the new refundable NY child and dependent care credit of about $881 under Tax Law \u00a7 606(c-2), added by L.2026 ch.59 Part A and signed 2026-05-28: $3,000 of expenses \u00d7 (55% \u2212 0.00025 points per dollar of NY AGI above $15,000) \u2248 29.35%. The engine's ESCC is correct. For child care, though, it applied the old \u00a7 606(c) credit (60% of the federal credit, $360), which by its own terms now covers only tax years beginning before 2026. So the $667 reference rests on a repealed rule.",
+  "verdict": "reference_wrong"
+}

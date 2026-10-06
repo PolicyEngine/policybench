@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7426(a)(1)",
+      "pre_freeze": true,
+      "published": "current codification (in force before 2026)",
+      "quote": "has attained age 65, and",
+      "source": "42 U.S. Code \u00a7 426 (Social Security Act \u00a7226), Entitlement to hospital insurance benefits",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "\u00a7426(b)(1)-(2)(A)",
+      "pre_freeze": true,
+      "published": "current codification (in force before 2026)",
+      "quote": "has not attained age 65, and ... is entitled to, and has for 24 calendar months been entitled to",
+      "source": "42 U.S. Code \u00a7 426 (Social Security Act \u00a7226), Entitlement to hospital insurance benefits",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "\u00a7426(e)",
+      "pre_freeze": true,
+      "published": "current codification (in force before 2026)",
+      "quote": "the term 'age 60' in sections 402(e)(1)(B)(ii) ... shall be deemed to read 'age 65'",
+      "source": "42 U.S. Code \u00a7 426 (Social Security Act \u00a7226), Entitlement to hospital insurance benefits",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "\u00a7406.12(a)",
+      "pre_freeze": true,
+      "published": "current CFR (in force before 2026)",
+      "quote": "An individual under age 65 is entitled to hospital insurance benefits if, for 25 months, he or she has been\u2014",
+      "source": "42 CFR \u00a7 406.12, Individual under age 65 who is entitled to social security or railroad retirement disability benefits",
+      "url": "https://www.law.cornell.edu/cfr/text/42/406.12"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 1,
+  "engine_step_at_issue": "",
+  "independent_answer": 0,
+  "reference_value": 0,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Under SSA \u00a7226 (42 U.S.C. 426), Head is entitled to Medicare at age 65 or older. Someone under 65 qualifies only after 24 calendar months of entitlement to disability-based Social Security benefits (SSDI, disabled adult child, or disabled widow(er)), or with ESRD or ALS. Head is 61 and flagged as disabled, but the prompt lists no disability benefits, no 24-month entitlement period, and no ESRD or ALS, and it says to treat unlisted statuses as false and not to infer benefit receipt. That gives 0, the engine's value. The derivation narrative wrongly says there is \"no indication of qualifying disability,\" but the result still matches the law, because being disabled does not by itself create Medicare entitlement. The 19-model consensus of 1 treats the disability flag alone as enough, which the statute does not support.",
+  "verdict": "reference_holds"
+}

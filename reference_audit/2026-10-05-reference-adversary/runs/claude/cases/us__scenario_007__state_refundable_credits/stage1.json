@@ -1,0 +1,50 @@
+{
+  "ambiguity": "A second reading would count only the part of the credit paid out beyond tax liability, not the part used to offset tax. That reading is not a natural meaning of 'total refundable credits'. It could give a value below $155, but the models' $0 answers rest on legal mistakes (that the credit is nonrefundable, repealed or phased out), not on this reading. The 'PolicyEngine rules' wording does not appear in this output's definition.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7 63-3024A(1)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "For tax year 2025 and each year thereafter, the credit is one hundred fifty-five dollars ($155).",
+      "source": "Idaho Code \u00a7 63-3024A, Food tax credits and refunds (as amended 2025, ch. 56, \u00a7 1 \u2014 HB 231)",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "\u00a7 63-3024A(1) (refund of unused credit)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "If taxes due are less than the total credit allowed, the taxpayer shall be paid a refund equal to the balance of the unused credit.",
+      "source": "Idaho Code \u00a7 63-3024A, Food tax credits and refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "\u00a7 63-3024A (food stamp proration)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "the credit or refund allowed under this section shall be in proportion to the number of months of the year in which no assistance was received",
+      "source": "Idaho Code \u00a7 63-3024A, Food tax credits and refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "Credit amount section",
+      "pre_freeze": true,
+      "published": "2026-02-19",
+      "quote": "For most Idaho residents it's $155 per person or up to $250 if you submit receipts for sales tax paid for food.",
+      "source": "Idaho State Tax Commission, Idaho Food Tax Credit",
+      "url": "https://tax.idaho.gov/taxes/income-tax/individual-income/popular-credits-and-deductions/idaho-grocery-credit/"
+    },
+    {
+      "pinpoint": "Bill history",
+      "pre_freeze": true,
+      "published": "2026-02-09",
+      "quote": "Reported Printed; Filed in the Office of the Chief Clerk",
+      "source": "Idaho Legislature, House Bill 605 (2026) bill status",
+      "url": "https://legislature.idaho.gov/sessioninfo/2026/legislation/H0605/"
+    }
+  ],
+  "computation": "1) Idaho Code 63-3024A(1) gives each resident individual a food tax credit (formerly the 'grocery credit') for the taxpayer, spouse and each dependent claimed. For tax year 2025 and each year after, it is $155 per person. HB 231 (2025) raised it from $120 and dropped the separate higher amount for people 65 or older. 2) The credit is refundable: 'If taxes due are less than the total credit allowed, the taxpayer shall be paid a refund equal to the balance of the unused credit.' 3) The household is one Idaho resident filer (head, age 56) with no spouse or dependents, so the credit is 1 \u00d7 $155 = $155. 4) The credit is prorated for months with food stamp (SNAP) receipt or incarceration. Neither applies. Nothing about incarceration is listed. The head is not SNAP-eligible: gross income is about $54,849 a year (SSDI $19,285 + pensions $35,564), about $4,571 a month. Net income after the standard, medical and shelter deductions is roughly $3,600 a month, far above the 100% FPL net limit of about $1,305. Bank assets of $71,500 also exceed Idaho's SNAP asset limit. So no SNAP and no proration. 5) No 2026 change applies. 2026 HB 605 would only have raised the credit for seniors. Its last action was printing and filing (Feb. 9, 2026), so it did not pass, and the head is 56 regardless. 6) No other Idaho refundable individual credit applies: Idaho's child tax credit is nonrefundable, and there are no children. Total refundable state credits = $155. Whether the $155 offsets tax or is paid as a refund, it is still a refundable credit.",
+  "confidence": "high",
+  "definition_reading": "'Total refundable state individual income tax credits' for Idaho covers the refundable food tax credit under Idaho Code 63-3024A. It is $155 per person, and here it covers only the single resident filer. It is counted in full whether it offsets tax or is refunded, because by statute the whole credit is refundable.",
+  "independent_answer": 155,
+  "law_supports": "reference"
+}

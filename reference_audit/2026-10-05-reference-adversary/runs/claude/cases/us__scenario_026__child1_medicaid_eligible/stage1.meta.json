@@ -1,0 +1,103 @@
+{
+  "blinding": "tools",
+  "cost_usd": 2.9225775999999994,
+  "duration_ms": 491448,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:46:18.381980+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "af3c07aeb23144f52957ae2409576639c44cad366375bcaa6e61cd2d3da7d5b2",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "2f6ac7806c6579f34c7da1a238cedcf8480d1667d6a855091740e32d693f2102",
+  "session_id": "f5c3338f-67a7-4d57-bbc3-d4e6c578aa44",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://medicaid.ncdhhs.gov/nc-health-choice-move-medicaid-qa-fact-sheet/download?attachment=",
+      "https://www.federalregister.gov/documents/2026/01/15/2026-00755/annual-update-of-the-hhs-poverty-guidelines",
+      "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines",
+      "https://public-inspection.federalregister.gov/2026-00755.pdf",
+      "https://medicaid.ncdhhs.gov/nc-health-choice-move-medicaid-provider-playbook-fact-sheet/download?attachment=",
+      "https://www.nctreasurer.gov/documents/files/slgfdcompliancesupplements/93767-2026/open",
+      "https://medicaid.ncdhhs.gov/eligibility",
+      "https://medicaid.ncdhhs.gov/eligibility",
+      "https://medicaid.ncdhhs.gov/beneficiaries/get-started/eligibility-medicaid-or-health-choice/medicaid-income-and-resources",
+      "https://policies.ncdhhs.gov/wp-content/uploads/03-23.pdf",
+      "https://medicaid.ncdhhs.gov/23-0009-proposed-amendment-cms-mchip-expansion/download",
+      "https://www.medicaid.gov/medicaid/national-medicaid-chip-program-information/medicaid-childrens-health-insurance-program-basic-health-program-eligibility-levels",
+      "https://policies.ncdhhs.gov/divisional-a-m/health-benefits-nc-medicaid/family-and-childrens-medicaid/fcm-policies-manuals/",
+      "https://policies.ncdhhs.gov/document/ma-3321-magi-medicaid-income-limits/",
+      "https://policies.ncdhhs.gov/wp-content/uploads/MA-3321-MAGI-Income-2.pdf",
+      "https://policies.ncdhhs.gov/wp-content/uploads/MA-3321-MAGI-Income-1.pdf",
+      "https://economicbenefits.nc.gov/FN_A/FN_A/server/general/projects/Integrated%20Eligibility%20Manual/Integrated_Eligibility_Policy/4000_Integrated_Income/4200_Medicaid_NCHC_Income_limits/4200.20_MAGI_Medicaid___NCHC_Income_Limits.htm",
+      "https://www.ecfr.gov/current/title-42/chapter-IV/subchapter-C/part-435/subpart-G/section-435.603",
+      "https://www.law.cornell.edu/cfr/text/42/435.603",
+      "https://www.medicaid.gov/chip-spa/2023-09-18/153066",
+      "https://www.medicaid.gov/CHIP/Downloads/NC-23-0008-0010.pdf",
+      "https://www.ncdhhs.gov/news/press-releases/2023/01/30/children-nc-health-choice-program-moving-nc-medicaid-april-1",
+      "https://www.nctreasurer.gov/documents/files/slgfdcompliancesupplements/93767-2024/open",
+      "https://medicaid.ncdhhs.gov/nc-health-choice-move-medicaid",
+      "https://www.medicaid.gov/medicaid-spa/2023-07-31/151086",
+      "https://www.medicaid.gov/CHIP/Downloads/NC-23-0017.pdf",
+      "https://www.law.cornell.edu/cfr/text/42/435.229",
+      "https://www.law.cornell.edu/cfr/text/42/457.310",
+      "https://www.law.cornell.edu/cfr/text/42/435.4",
+      "https://www.ncleg.net/enactedlegislation/statutes/html/bysection/chapter_108a/gs_108a-70.21.html",
+      "https://www.ncleg.gov/EnactedLegislation/SessionLaws/HTML/2021-2022/SL2022-74.html",
+      "https://canons.sog.unc.edu/2022/10/2022-public-health-legislative-update/",
+      "https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/BySection/Chapter_108A/GS_108A-54.3A.html",
+      "https://www.medicaid.gov/medicaid/spa/downloads/NC-23-0009.pdf",
+      "https://policies.ncdhhs.gov/document/change-notice-for-manual-no-03-23-2023-federal-poverty-level-fpl-changes-and-the-removal-of-ma-3255-north-carolina-health-choice-nchc-policy/"
+    ],
+    "searches": [
+      "2026 HHS poverty guidelines Federal Register household of 5",
+      "NC Medicaid children ages 6 through 18 income limit 211% FPL NC Health Choice moved to Medicaid April 2023",
+      "NC Family and Children's Medicaid manual MIC-N 6-18 133% 211% \"creditable\" OR \"health insurance\" eligibility",
+      "medicaid.ncdhhs.gov \"Medicaid for Infants and Children\" 211% ages 6-18 \"other health insurance\"",
+      "North Carolina NC Health Choice transition Medicaid State Plan Amendment optional targeted low-income children 435.229 uninsured 2023",
+      "policies.ncdhhs.gov MA-3XXX MIC children age 6 through 18 133% 211% FPL change notice health insurance April 2023",
+      "\"MA-3230\" OR \"MA-3220\" North Carolina \"Medicaid for Infants and Children\" MIC-1 manual",
+      "North Carolina MAGI Medicaid income limits effective April 1 2026 MIC 211% family size 5",
+      "North Carolina SPA 23-0009 M-CHIP expansion children 6-18 211% optional targeted low-income children",
+      "NC Health Choice move to Medicaid children with other health insurance eligible \"creditable coverage\" no longer required",
+      "\"NC Health Choice\" Medicaid transition FAQ children \"other health insurance\" eligible Medicaid 2023 county DSS",
+      "North Carolina Medicaid children 133% to 211% \"health insurance\" \"CHIP\" uninsured \"MIC\" ePASS eligibility manual MA-3XXX 2023 change notice NCHC",
+      "North Carolina Medicaid \"MIC-1\" \"MIC-N\" children with health insurance 6-18 above 133% classification M-CHIP federal match",
+      "North Carolina Medicaid state plan \"Optional Targeted Low Income Children\" 211 percent NC-23",
+      "\"NC-23-0017\" CHIP SPA North Carolina uninsured children 6 through 18 133% 211% Medicaid expansion",
+      "North Carolina Medicaid children ages 6-18 between 133% and 211% FPL must be uninsured M-CHIP \"uninsured\" 2024 OR 2025",
+      "\"93.767\" North Carolina compliance supplement \"be uninsured\" \"133%\" \"211%\" eligibility criteria children",
+      "Session Law 2022-74 section 9D.15 NC Health Choice transition Medicaid children \"211%\" text",
+      "\"NC-23-0009\" North Carolina Medicaid SPA approval letter \"targeted low-income\" children 211 percent",
+      "NC DHHS change notice 2023 MIC \"ages 6 through 18\" \"211%\" \"health insurance\" OR \"uninsured\" Family and Children's Medicaid manual NC Health Choice eliminated"
+    ]
+  }
+}

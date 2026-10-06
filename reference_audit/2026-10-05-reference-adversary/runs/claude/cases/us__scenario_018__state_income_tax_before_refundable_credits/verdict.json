@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a743-1041(A)(1) and (H)",
+      "pre_freeze": true,
+      "published": "2026-06-13",
+      "quote": "For each taxable year beginning from and after December 31, 2019, the department shall adjust the dollar amounts prescribed by subsection A, paragraphs 1, 2 and 3 of this section for inflation in the same manner in which the federal basic standard deduction is adjusted for inflation pursuant to section 63 of the internal revenue code.",
+      "source": "Arizona Revised Statutes 43-1041 (standard deduction), as amended by Laws 2026, Ch. 140 (HB 4168)",
+      "url": "https://www.azleg.gov/ars/43/01041.htm"
+    },
+    {
+      "pinpoint": "amendment to \u00a743-1041(A)(1); \u00a743-1022 vehicle loan interest subtraction",
+      "pre_freeze": true,
+      "published": "2026-06-13",
+      "quote": "In the case of a single person or a married person filing separately, the standard deduction is $12,200 $15,750, subject to subsection H of this section.",
+      "source": "Laws 2026, Chapter 140 (HB 4168), 57th Legislature, 2nd Regular Session",
+      "url": "https://www.azleg.gov/legtext/57leg/2R/laws/0140.htm"
+    },
+    {
+      "pinpoint": "Standard deduction; retroactivity",
+      "pre_freeze": true,
+      "published": "2026-06-23",
+      "quote": "Increases the standard deduction as follows: Single person or married filing separately $15,750; Head of household $23,625; Married filing jointly $31,500.",
+      "source": "Arizona State Senate Fact Sheet for SB1861/HB4168 (as enacted)",
+      "url": "https://www.azleg.gov/legtext/57leg/2R/summary/S.1861-4168ATT_ASENACTED.DOCX.htm"
+    },
+    {
+      "pinpoint": "Standard deduction paragraph",
+      "pre_freeze": true,
+      "published": "2025-10-09",
+      "quote": "For single taxpayers and married individuals filing separately, the standard deduction rises to $16,100 for tax year 2026",
+      "source": "IRS News Release IR-2025-103, IRS releases tax inflation adjustments for tax year 2026",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill"
+    },
+    {
+      "pinpoint": "\u00a763(c)(7)(B)(ii)",
+      "pre_freeze": true,
+      "published": "2025-07-04",
+      "quote": "In the case of a taxable year beginning after 2025, the $23,625 and $15,750 amounts in subparagraph (A) shall each be increased by an amount equal to\u2014 (I) such dollar amount, multiplied by (II) the cost-of-living adjustment",
+      "source": "26 U.S.C. \u00a763(c)(7) (as amended by P.L. 119-21)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/63"
+    },
+    {
+      "pinpoint": "Page notice",
+      "pre_freeze": true,
+      "published": "2023-01-01",
+      "quote": "For tax year 2023 and beyond, there are no optional or X&Y tax tables to post due to Arizona's flat tax rate of 2.5%.",
+      "source": "Arizona Department of Revenue, Form 140 - Optional Tax Tables page",
+      "url": "https://azdor.gov/forms/individual/form-140-optional-tax-tables"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 1137.3,
+  "engine_step_at_issue": "Arizona deductions of $15,750 subtracted from AGI $61,592.09 (standard deduction taken at the unindexed 2025 statutory amount rather than the 2026 inflation-adjusted amount required by A.R.S. 43-1041(H))",
+  "independent_answer": 1137.3,
+  "reference_value": 1146.05,
+  "stage1_error": "",
+  "suggested_adjudication": "engine_defect",
+  "summary": "Arizona taxes at a flat 2.5% starting from federal AGI of $61,592. HB 4168 (Laws 2026, ch. 140, signed 2026-06-13) set the single standard deduction at $15,750, retroactive to tax year 2025. It kept subsection H, which says the department \"shall adjust\" that amount for inflation in the same way the federal basic standard deduction is adjusted. Indexed that way, the 2026 deduction is $16,100, the federal amount the IRS published on 2025-10-09. That gives taxable income of $45,492 and tax of $1,137.30. The engine applied the unindexed 2025 amount of $15,750, which produced $1,146.05. That is an engine defect. Stage 1 and the 12-model consensus both reached $1,137.30.",
+  "verdict": "reference_wrong"
+}

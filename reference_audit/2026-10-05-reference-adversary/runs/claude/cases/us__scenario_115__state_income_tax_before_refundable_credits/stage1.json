@@ -1,0 +1,66 @@
+{
+  "ambiguity": "The prompt does not say who issued the bonds behind the 'tax-exempt interest income'. If it is interest on obligations of Alabama or its political subdivisions, \u00a7 40-18-14 excludes it. Alabama AGI would then be $0 and the answer would be $0 (the consensus value). The reference treats it as ordinary federally exempt municipal interest with no Alabama-issuer fact listed, so it is included, giving $4.68. The consensus explanations mostly rest on legal errors rather than this reading: they claim Alabama exempts all federally tax-exempt interest, or that the standard deduction plus exemption is at least $4,734 when it is actually $3,000 + $1,500 = $4,500.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7 40-18-14 (gross income definition; exclusions for U.S. and Alabama obligation interest)",
+      "pre_freeze": true,
+      "published": "unknown (codified statute, in force before 2026)",
+      "quote": "Interest on obligations of the State of Alabama and any county, municipality, or other political subdivision thereof.",
+      "source": "Code of Alabama 1975, \u00a7 40-18-14 (gross income; exclusions)",
+      "url": "https://law.onecle.com/alabama/title-40/40-18-14.html"
+    },
+    {
+      "pinpoint": "r. 810-3-14-.02 (interest on obligations)",
+      "pre_freeze": true,
+      "published": "2000-06-07",
+      "quote": "It should be noted that interest on obligations of other states and political subdivisions thereof is taxable.",
+      "source": "Ala. Admin. Code r. 810-3-14-.02, Exclusions From Gross Income (Alabama Department of Revenue)",
+      "url": "https://www.law.cornell.edu/regulations/alabama/Ala-Admin-Code-r-810-3-14-.02"
+    },
+    {
+      "pinpoint": "FAQ answer",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "State, county, and municipal interest income from loans and securities that is exempt for federal income tax purposes.",
+      "source": "Alabama Department of Revenue FAQ, 'What types of interest income is taxable?'",
+      "url": "https://www.revenue.alabama.gov/faqs/what-types-of-interest-income-is-taxable/"
+    },
+    {
+      "pinpoint": "list of exempt income",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "Federal Social Security benefits",
+      "source": "Alabama Department of Revenue, Income Exempt from Alabama Income Taxation",
+      "url": "https://www.revenue.alabama.gov/individual-corporate/income-exempt-from-alabama-income-taxation/"
+    },
+    {
+      "pinpoint": "tax rates and personal exemption",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "2 percent on first $500 of taxable income, 4 percent on next $2,500, 5 percent on all over $3,000",
+      "source": "Alabama Department of Revenue, Individual Income Tax page",
+      "url": "https://revenue.alabama.gov/individual-corporate/faq/individual-income-tax/"
+    },
+    {
+      "pinpoint": "Standard deduction schedule, Single; personal exemption",
+      "pre_freeze": true,
+      "published": "2022-10-17",
+      "quote": "Over $0 but not over $25,999.99 = $3,000 ... Single or Married Filing Separate ... $1,500",
+      "source": "USDA National Finance Center, TAXES 22-24, Alabama State Income Tax Withholding",
+      "url": "https://www.nfc.usda.gov/Publications/HR_Payroll/Taxes/Bulletins/2022/TAXES-22-24.htm?taxmap=true"
+    },
+    {
+      "pinpoint": "notice text",
+      "pre_freeze": true,
+      "published": "2022-05-05",
+      "quote": "increased the standard deduction for single, head of family, and married filing separately taxpayers by $500",
+      "source": "Alabama Department of Revenue, NOTICE: 2022 Withholding Tax Tables and Instructions Updated (Act 2022-292)",
+      "url": "https://www.revenue.alabama.gov/notice-2022-withholding-tax-tables-and-instructions-updated/"
+    }
+  ],
+  "computation": "1. Federal AGI: Social Security is $18,708. Provisional income is $4,734 tax-exempt interest + half of SS ($9,354) = $14,088. That is below the $25,000 single base, so no SS is taxable federally. Federal AGI = $0 and federal income tax = $0, so Alabama's deduction for federal income tax is $0.\n2. Social Security: Alabama exempts federal Social Security benefits entirely (ADOR list of exempt income), so the $18,708 is excluded.\n3. Tax-exempt interest: Ala. Code \u00a7 40-18-14 defines gross income as income 'from any source whatever'. It excludes only interest on US obligations and on obligations of the State of Alabama and its political subdivisions. Ala. Admin. Code r. 810-3-14-.02 says 'interest on obligations of other states and political subdivisions thereof is taxable', and the ADOR FAQ says federally exempt state and municipal interest is taxable. The prompt calls the $4,734 'tax-exempt interest income', meaning federally exempt. It does not say the issuer is Alabama, and unlisted facts are treated as false. So the interest is not excludable as Alabama-obligation interest and is included. Alabama AGI = $4,734.\n4. Age-65 retirement exclusion: the $6,000 exclusion under Act 2022-292 / \u00a7 40-18-19 covers retirement income from qualified plans only. It does not cover interest. Alabama has no extra standard deduction for age or disability.\n5. Deductions: the single standard deduction is $3,000 for AGI under about $26,000 (Act 2022-292, which added $500; AGI $4,734 is far below the phase-down). Itemizing would give less: medical expenses of $150 do not exceed 4% of AGI ($189.36), OTC costs are not deductible, and $297 of employee business expenses minus the 2% floor ($94.68) is about $202. So the $3,000 standard deduction applies.\n6. Personal exemption (single): $1,500. There are no dependents.\n7. Taxable income = 4,734 \u2212 3,000 \u2212 1,500 = $234.\n8. Rates (single): 2% on the first $500, 4% on the next $2,500, 5% above that. Tax = 0.02 \u00d7 234 = $4.68.\n9. Nonrefundable credits: no Alabama nonrefundable credit applies (no tax paid to another state, and so on). Result: $4.68.\n2026 amounts: Alabama's standard deduction, personal exemption and brackets are fixed in statute and not indexed. They have stayed the same since Act 2022-292. The 2025 bill to raise the standard deduction for tax years after 2025 (HB389) died in chamber. ADOR published a January 2026 withholding booklet (whbooklet_0126), but it would not parse. The amounts above therefore come from the 2022 USDA NFC bulletin and the ADOR 2022 notice, and they apply to 2026 as published before the freeze.",
+  "confidence": "medium",
+  "definition_reading": "The output is Alabama individual income tax for the single filer (the head, the only person in the tax unit), after Alabama nonrefundable credits and before refundable credits. There are no local taxes in Alabama for this household. Alabama computes its own gross income: Social Security is excluded, and federally tax-exempt interest is included unless it comes from US or Alabama obligations. Tax is computed on taxable income after the standard deduction and personal exemption.",
+  "independent_answer": 4.68,
+  "law_supports": "reference"
+}

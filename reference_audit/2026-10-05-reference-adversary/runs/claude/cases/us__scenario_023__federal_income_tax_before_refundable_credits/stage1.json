@@ -1,0 +1,82 @@
+{
+  "ambiguity": "One second reading is to treat the $8,089 employer-sponsored insurance premiums as employee salary-reduction contributions through a \u00a7125 cafeteria plan, excluded from wages. AGI would then be $14,446, below the $16,100 standard deduction, and the answer would be $0. The prompt never says the premiums are employee-paid or pre-tax, and it tells the models not to infer unlisted facts, so I don't treat this as the intended reading. The consensus $0 mostly rests on a Saver's Credit that ignores the \u00a725B(d)(2) distribution reduction, or on an AOTC with no qualified expenses. Neither is a reasonable reading of the law. A smaller difference: the IRS Tax Table gives $643 rather than the formula's $643.50.",
+  "citations": [
+    {
+      "pinpoint": "\u00a725B(d)(2)(A)-(B)",
+      "pre_freeze": true,
+      "published": "current code (provision in force since 2001/2006)",
+      "quote": "The qualified retirement savings contributions determined under paragraph (1) shall be reduced (but not below zero) by the aggregate distributions received by the individual during the testing period from any entity of a type to which contributions under paragraph (1) may be made.",
+      "source": "26 U.S. Code \u00a7 25B (Saver's Credit)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/25B"
+    },
+    {
+      "pinpoint": "\u00a725B(c)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "The term 'eligible individual' means any individual if such individual has attained the age of 18 as of the close of the taxable year.",
+      "source": "26 U.S. Code \u00a7 25B",
+      "url": "https://www.law.cornell.edu/uscode/text/26/25B"
+    },
+    {
+      "pinpoint": "Reducing eligible contributions; Full-time student",
+      "pre_freeze": true,
+      "published": "2026-01 (2025 edition)",
+      "quote": "Eligible contributions are reduced by distributions received ... during the testing period from an IRA, a qualified plan, a 403(b) plan, or a similar arrangement.",
+      "source": "IRS Publication 590-A (2025), Retirement Savings Contributions Credit",
+      "url": "https://www.irs.gov/publications/p590a"
+    },
+    {
+      "pinpoint": "\u00a74.01 Table 3; \u00a74.14(1)",
+      "pre_freeze": true,
+      "published": "2025-11-03",
+      "quote": "Not over $12,400: 10% of the taxable income",
+      "source": "Rev. Proc. 2025-32, Internal Revenue Bulletin 2025-45",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "Standard deduction paragraph",
+      "pre_freeze": true,
+      "published": "2025-10-09",
+      "quote": "For single taxpayers and married individuals filing separately, the standard deduction rises to $16,100 for tax year 2026",
+      "source": "IRS newsroom: IRS releases tax inflation adjustments for tax year 2026 (Rev. Proc. 2025-32)",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill"
+    },
+    {
+      "pinpoint": "\u00a725A(b)(1)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "100 percent of so much of the qualified tuition and related expenses paid by the taxpayer during the taxable year...as does not exceed $2,000",
+      "source": "26 U.S. Code \u00a7 25A (American Opportunity Credit)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/25A"
+    },
+    {
+      "pinpoint": "\u00a722(c)(2)(B), \u00a722(d)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "the initial amount shall not exceed the disability income for the taxable year",
+      "source": "26 U.S. Code \u00a7 22 (Credit for the elderly and permanently and totally disabled)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/22"
+    },
+    {
+      "pinpoint": "IRA deduction phase-out ranges",
+      "pre_freeze": true,
+      "published": "2025-11-13",
+      "quote": "For single taxpayers covered by a workplace retirement plan, the phase-out range is increased to between $81,000 and $91,000",
+      "source": "IRS IR-2025-111: 401(k) limit increases to $24,500 for 2026 (Notice 2025-67)",
+      "url": "https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500"
+    },
+    {
+      "pinpoint": "\u00a772(t)(2)(A)(iii)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "attributable to the employee's being disabled within the meaning of subsection (m)(7)",
+      "source": "26 U.S. Code \u00a7 72",
+      "url": "https://www.law.cornell.edu/uscode/text/26/72"
+    }
+  ],
+  "computation": "Filing status is single (one adult, no dependents).\n1) Wages: $17,443 gross, minus the $2,778 traditional 401(k) elective deferral, which is excluded from gross income. The $490 Roth 401(k) deferral stays in income. Taxable wages = $14,665.\n2) Add the $8,000 taxable 403(b) distribution (\u00a772 / \u00a7403(b)). Gross income = $22,665.\n3) Traditional IRA deduction under \u00a7219 is $130 in full. The head is an active plan participant, but AGI is far below the 2026 single phase-out of $81,000\u2013$91,000 (IR-2025-111 / Notice 2025-67). AGI = $22,535.\n4) The 2026 single standard deduction is $16,100 (Rev. Proc. 2025-32 \u00a74.14(1), published Oct\u2013Nov 2025, before the freeze). Itemizing loses: deductible medical is about $1,100 against a 7.5% AGI floor of about $1,690. Over-the-counter items without a prescription don't count. Even treating the $8,089 ESI premiums as after-tax, itemized deductions come to about $7.5k, still below $16,100. None of the OBBBA senior, tip, overtime or car-loan deductions apply. Taxable income = $6,435.\n5) Tax under Rev. Proc. 2025-32 Table 3 (10% up to $12,400) is 10% \u00d7 $6,435 = $643.50. The Tax Table row for $6,400\u20136,450 gives $643.\n6) Nonrefundable credits:\n   (a) Saver's Credit (\u00a725B). The head is eligible (age 18+, not a dependent). Half-time enrollment does not make the head a \u00a7152(f)(2) full-time student, and full-time status isn't listed, so it is false. Qualified contributions are $2,778 + $490 + $130 + $201 = $3,599. Under \u00a725B(d)(2)(A) these are reduced by distributions received in the testing period, which includes the tax year, from any entity of a type that can receive contributions. The 2026 403(b) distribution of $8,000 is includible in income and is not an excepted distribution under \u00a725B(d)(2)(C). The reduced contributions are max(0, $3,599 \u2212 $8,000) = 0, so the credit is $0.\n   (b) AOTC (\u00a725A). The credit is a percentage of qualified tuition and related expenses paid. None are listed, so they are 0 and the credit is $0, even though the student, 1098-T and EIN conditions are flagged.\n   (c) \u00a722 elderly/disabled credit. Under age 65 the credit is capped at disability income, which isn't listed. On top of that, the \u00a722(d) reduction of (22,535 \u2212 7,500)/2 = $7,517.50 exceeds the $5,000 initial amount. The credit is $0.\n   (d) No CDCC or CTC (no dependents).\n7) Tax after nonrefundable credits = $643.50. The \u00a772(t) 10% early-distribution tax does not apply because of the disability exception in \u00a772(t)(2)(A)(iii) (the head is disabled). It is also a separate additional tax, not regular income tax.\nThe engine's $643.43 matches this to within $0.07, which is likely rounding of the indexed amounts.",
+  "confidence": "high",
+  "definition_reading": "The household is one single-filer tax unit, the Head. The output is regular federal income tax on taxable income minus the nonrefundable credits actually allowed (Form 1040 line 18 minus line 21). The candidate credits are the Saver's Credit, the nonrefundable AOTC, the \u00a722 credit, CDCC and CTC, and each comes to $0 here. The \u00a772(t) additional tax is outside the definition and would be $0 anyway because of the disability exception.",
+  "independent_answer": 643.5,
+  "law_supports": "reference"
+}

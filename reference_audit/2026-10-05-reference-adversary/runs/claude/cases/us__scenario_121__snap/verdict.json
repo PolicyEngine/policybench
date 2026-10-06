@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Definition of 'Elderly or disabled member', paras (1), (2), (5)",
+      "pre_freeze": true,
+      "published": "current CFR (in force 2026)",
+      "quote": "(1) Is 60 years of age or older; (2) Receives supplemental security income benefits under title XVI of the Social Security Act or disability or blindness payments under titles I, II, X, XIV, or XVI of the Social Security Act",
+      "source": "7 CFR 271.2 (SNAP definitions)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/271.2"
+    },
+    {
+      "pinpoint": "\u00a7 273.9(a) introductory text and (a)(1)(i)",
+      "pre_freeze": true,
+      "published": "current CFR (in force 2026)",
+      "quote": "Households which do not contain an elderly or disabled member shall meet both the net income eligibility standards and the gross income eligibility standards for SNAP.",
+      "source": "7 CFR 273.9 (Income and deductions)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.9"
+    },
+    {
+      "pinpoint": "\u00a7 273.9(a)(1)(i)",
+      "pre_freeze": true,
+      "published": "current CFR (in force 2026)",
+      "quote": "The income eligibility standards for the 48 contiguous States and the District of Columbia, Guam and the Virgin Islands shall be 130 percent of the Federal income poverty levels",
+      "source": "7 CFR 273.9 (Income and deductions)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.9"
+    },
+    {
+      "pinpoint": "Income eligibility standards and maximum allotments, 48 States & DC, household size 1",
+      "pre_freeze": true,
+      "published": "2025-08-13 (effective 2025-10-01)",
+      "quote": "household of 1 person has a gross monthly income limit of $1,696 ... maximum allotment for a single-person household in the 48 contiguous states is $298 per month",
+      "source": "USDA FNS, SNAP FY 2026 Cost-of-Living Adjustments memo (dated 2025-08-13; the PDF could not be read, so figures are from search results and SC secondary summaries)",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    },
+    {
+      "pinpoint": "2026 monthly SGA, non-blind",
+      "pre_freeze": true,
+      "published": "2025-10 (effective 2026-01-01)",
+      "quote": "For non-blind individuals, the monthly SGA amount for 2026 is $1,690.",
+      "source": "Social Security Administration, Substantial Gainful Activity (ssa.gov returned 403; amount from search-result text)",
+      "url": "https://www.ssa.gov/oact/cola/sga.html"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 3576,
+  "engine_step_at_issue": "",
+  "independent_answer": 0,
+  "reference_value": 0,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Under 7 CFR 271.2 and 7 U.S.C. 2012(j), a 53-year-old counts as a disabled member only if they receive certain listed benefits: SSI, Social Security Act Title I/II/X/XIV/XVI disability payments, permanent governmental disability retirement, VA total disability, and similar. A general \"is disabled\" flag plus unnamed \"disability benefits\" does not meet that test. The prompt also says not to infer unlisted benefit receipt. Head's wages of about $2,139 a month are above the 2026 SSDI earnings limit of $1,690, so Social Security disability is implausible. That leaves Head subject to the gross income test. Gross income of $3,325.75 a month exceeds the FY2026 limit of $1,696 for one person (7 CFR 273.9(a)), so SNAP is $0, which matches the engine. The consensus of $3,576 assumes Head is SNAP-disabled. Even then it needs the $8,389 employer insurance premiums counted as out-of-pocket, or the $2,200 premiums counted twice, to bring net income to zero.",
+  "verdict": "reference_holds"
+}

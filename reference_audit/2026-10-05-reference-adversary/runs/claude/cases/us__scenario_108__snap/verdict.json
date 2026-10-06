@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "8.1.1 table, household size 1; effective Oct 1, 2025\u2013Sep 30, 2026",
+      "pre_freeze": true,
+      "published": "2025-12-10",
+      "quote": "The minimum allotment for one- and two-person assistance groups is $24.",
+      "source": "FoodShare Wisconsin Handbook (WI DHS), 8.1.1 Income Limits",
+      "url": "https://www.emhandbooks.wisconsin.gov/fsh/policy_files/8/81/8.1.1.htm"
+    },
+    {
+      "pinpoint": "4.2.1, BBCE at or below 200% FPL",
+      "pre_freeze": false,
+      "published": "2026-08-12",
+      "quote": "Most food units are considered broad-based categorically eligible if their gross monthly income is at or below 200% FPL",
+      "source": "FoodShare Wisconsin Handbook (WI DHS), 4.2.1 Categorical and Broad-Based Categorical Eligibility",
+      "url": "https://www.emhandbooks.wisconsin.gov/fsh/policy_files/4/42/4.2.1.htm"
+    },
+    {
+      "pinpoint": "4.2.1, EBD food units over 200% FPL",
+      "pre_freeze": true,
+      "published": "2023-08-14",
+      "quote": "Food units that include an elderly, blind or disabled (EBD) member with gross income over 200% of the FPL must be tested for FoodShare using the regular SNAP rules.",
+      "source": "FoodShare Wisconsin Handbook (WI DHS), 23-02 Version of 4.2.1 Categorical Eligibility",
+      "url": "https://www.emhandbooks.wisconsin.gov/fsh/history/23-02/23-02_4.2.1.htm"
+    },
+    {
+      "pinpoint": "\u00a7273.10(e)(2)(ii)(C)",
+      "pre_freeze": true,
+      "published": "current regulation",
+      "quote": "Except during an initial month, all eligible one-person and two-person households shall receive minimum monthly allotments equal to the minimum benefit.",
+      "source": "7 CFR 273.10 Determining household eligibility and benefit levels",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "7.1.1.4 Minimum Allotment (Release 26-01)",
+      "pre_freeze": true,
+      "published": "2026-04-15",
+      "quote": "Categorically eligible assistance groups that include one or two persons are eligible for a minimum $24 allotment, except for the initial prorated benefit which cannot be less than $10.",
+      "source": "FoodShare Wisconsin Handbook (WI DHS), 7.1.1 Allotments",
+      "url": "https://www.emhandbooks.wisconsin.gov/fsh/policy_files/7/7.1.1.htm"
+    },
+    {
+      "pinpoint": "Minimum benefit, 48 States and DC; memo dated August 21, 2026",
+      "pre_freeze": false,
+      "published": "2026-08-21",
+      "quote": "The minimum benefit for the 48 States and D.C. will increase to $25.",
+      "source": "USDA FNS, SNAP \u2014 Fiscal Year 2027 Cost-of-Living Adjustments (memo)",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 288,
+  "reference_value": 288,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The household is one person, age 85 and disabled, with monthly gross income of $2,581.83. That is just under Wisconsin's FY2026 200% FPL limit of $2,610, so the household is broad-based categorically eligible and no net income test applies. Net income is roughly $2,000\u2013$2,200 a month, so 30% of it is far above the $298 one-person maximum and the computed benefit is $0. As an eligible one-person household it gets the $24 minimum instead: $24 \u00d7 12 = $288. The engine reaches the same result. Its net income ($2,036) differs from stage 1's ($2,214), but either figure gives the minimum benefit. The FY2027 $25 minimum comes from a USDA memo dated 2026-08-21, after the freeze, so $24 is the correct amount for Oct\u2013Dec under frozen law. The consensus answer of $0 applies only the regular elderly/disabled 100% FPL net income test and misses Wisconsin's broad-based categorical eligibility (BBCE).",
+  "verdict": "reference_holds"
+}

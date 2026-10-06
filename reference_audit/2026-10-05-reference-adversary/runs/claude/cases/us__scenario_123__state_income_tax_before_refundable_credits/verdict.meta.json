@@ -1,0 +1,52 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.2609882,
+  "duration_ms": 55989,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T04:03:36.502241+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "a87eff2ace40df2d51a0f450aa39f6cae5beddecfcbe66c5f3200fd04e1ef2ee",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "c9e3a42d541d097f6b214e6f6b55d7deb6a5045d903070ec3ebcf0c8093d68ae",
+  "session_id": "5cb5ac08-11d6-4ee3-94dd-c69d4186e0bf",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "cdcc175685b42c8881b0f8c37f8e98108ef046862250c5c96c09d343811f819e",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.pa.gov/agencies/revenue/forms-and-publications/pa-personal-income-tax-guide/tax-forgiveness",
+      "https://codes.findlaw.com/pa/title-72-ps-taxation-and-fiscal-affairs/pa-st-sect-72-7302/",
+      "https://codes.findlaw.com/pa/title-72-ps-taxation-and-fiscal-affairs/pa-st-sect-72-7331/"
+    ],
+    "searches": []
+  }
+}

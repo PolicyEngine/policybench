@@ -1,0 +1,76 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.5683035999999997,
+  "duration_ms": 319683,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:10:08.307276+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "0aaa919e1a1a98e07bd07da3b349e1ace349dc9261be006f772d6f31815af892",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "955147413cb58124610b3e0846be52883c3fdb9ebf2d124f9f2270f522930123",
+  "session_id": "00458fb6-adad-4625-ac50-2c784d65c364",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/personal-income-tax/working-pennsylvanians-tax-credit",
+      "https://www.palegis.us/legislation/bills/text/HTM/2025/0/HB0416/PN2576",
+      "https://www.palegis.us/statutes/unconsolidated/law-information/view-statute?ActNum=0045.&SessInd=0&SessYr=2025&txtType=HTM",
+      "https://www.palegis.us/statutes/unconsolidated/law-information/view-statute?ActNum=0045.&SessInd=0&SessYr=2025&txtType=PDF",
+      "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit/earned-income-and-earned-income-tax-credit-eitc-tables",
+      "https://www.irs.gov/irb/2025-45_IRB",
+      "https://revenue-pa.custhelp.com/app/answers/detail/a_id/4256/~/working-pennsylvanians-tax-credit-(wptc)",
+      "https://www.palegis.us/legislation/bills/text/PDF/2025/0/HB0416/PN2576",
+      "https://www.palegis.us/legislation/bills/text/HTM/2025/0/HB0416/PN2576",
+      "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/1929/0/0176..HTM",
+      "https://www.senatorhughes.com/wp-content/uploads/2026/02/WorkingPennsylvaniaTaxCredit.pdf",
+      "https://www.pa.gov/agencies/revenue/newsroom/with-tax-season-underway,-shapiro-administration-encourages-pennsylvanians-to-claim-new-tax-credit-for-working-pennsylvanians",
+      "https://pennpolicy.org/research_publication/wptc-strengthening-household-budgets/",
+      "https://uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section32&num=0&edition=prelim",
+      "https://www.law.cornell.edu/uscode/text/26/32",
+      "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/2025/0/0045..HTM",
+      "https://www.law.cornell.edu/uscode/text/26/32",
+      "https://www.irs.gov/publications/p596"
+    ],
+    "searches": [
+      "Pennsylvania Working Pennsylvanians Tax Credit 10% federal earned income tax credit refundable Act 2025",
+      "\"Working Pennsylvanians tax credit\" Tax Reform Code Act of 2025 section \"earned income tax credit\" \"10%\" legis.state.pa.us",
+      "palegis.us Act 2025 Tax Reform Code \"working Pennsylvanians tax credit\" Article XVII",
+      "Rev. Proc. 2025-32 earned income credit 2026 three or more qualifying children maximum credit $8,231 phaseout amount",
+      "irs.gov irb \"Rev. Proc. 2025-32\" \"Earned Income Credit\" \"Threshold Phaseout Amount\" 23,890",
+      "\"working Pennsylvanians tax credit\" \"equal to 10%\" OR \"ten percent\" \"federal earned income tax credit\" \"refund\" Article XVI-W.2 section text",
+      "\"Section 1603-W.2\" OR \"Section 1602-W.2\" OR \"1601-W.2\" working Pennsylvanians tax credit",
+      "Fiscal Code \"1603-W.2\" \"tax credit\" \"federal earned income tax credit\" \"10%\" qualified taxpayer \"shall be equal to\""
+    ]
+  }
+}

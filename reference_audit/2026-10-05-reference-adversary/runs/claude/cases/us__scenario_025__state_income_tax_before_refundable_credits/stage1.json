@@ -1,0 +1,66 @@
+{
+  "ambiguity": "The only open question is the Ohio medical-expense deduction, worth about $5.\n\n- If the head's $6,500 of premiums are treated as paid pre-tax, or not counted as medical care, there is no deduction. Ohio taxable income is then $91,125 and the tax is $332 + $1,789.56 \u2212 $200 = $1,921.56, which matches the reference exactly.\n- If the $21,208 of employer-sponsored insurance premiums were read as paid by the employee after tax, the deduction would be about $21,389. Ohio modified AGI would drop below $80,000, so the exemption would be $2,150 each, and the tax would be about $1,319.63. I consider that reading unlikely.\n- Counting the $50 of over-the-counter spending as medical care gives $1,915.22.\n\nUnder no reading is the consensus $1,589.56 correct, because it leaves out the $332 base that the statute sets for 2026.",
+  "citations": [
+    {
+      "pinpoint": "Division (A), schedule for taxable years beginning in 2026 and thereafter",
+      "pre_freeze": true,
+      "published": "2025-09-30",
+      "quote": "For taxable years beginning in 2026 and thereafter, $332.00 plus 2.75% of the amount in excess of $26,050",
+      "source": "Ohio Revised Code 5747.02",
+      "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.02"
+    },
+    {
+      "pinpoint": "Divisions (A), (B), (C)",
+      "pre_freeze": true,
+      "published": "2025-09-30",
+      "quote": "For taxable years beginning in 2020 and thereafter, the personal exemption amounts prescribed in division (A) of this section shall be adjusted each year in the manner prescribed in division (C) of this section.",
+      "source": "Ohio Revised Code 5747.025",
+      "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.025"
+    },
+    {
+      "pinpoint": "Personal exemptions paragraph",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "For 2025 and 2026, personal exemptions are not subject to inflation indexing.",
+      "source": "EY Tax News: Ohio legislation lowers top personal tax rate retroactive to January 1, 2025, implements flat tax in 2026 (summarizing H.B. 96)",
+      "url": "https://taxnews.ey.com/news/2025-1744-ohio-legislation-lowers-top-personal-tax-rate-retroactive-to-january-1-2025-implements-flat-tax-in-2026"
+    },
+    {
+      "pinpoint": "Division (B)",
+      "pre_freeze": true,
+      "published": "2019-10-17",
+      "quote": "A credit shall be allowed against a taxpayer's aggregate tax liability under section 5747.02 of the Revised Code for taxpayers who received retirement income during the taxable year and whose modified adjusted gross income for the taxable year, less applicable exemptions under section 5747.025 of the Revised Code, as shown on an individual or joint annual return is less than one hundred thousand dollars.",
+      "source": "Ohio Revised Code 5747.055",
+      "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.055"
+    },
+    {
+      "pinpoint": "Division (E)(1), joint filing credit",
+      "pre_freeze": true,
+      "published": "2025-09-30",
+      "quote": "each of whom had adjusted gross income of at least five hundred dollars, exclusive of interest, dividends and distributions, royalties, rent, and capital gains",
+      "source": "Ohio Revised Code 5747.05",
+      "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.05"
+    },
+    {
+      "pinpoint": "Division (A)(10)(a)-(c)",
+      "pre_freeze": true,
+      "published": "2026-03-05",
+      "quote": "Deduct, to the extent not otherwise deducted or excluded in computing federal or Ohio adjusted gross income during the taxable year, the amount the taxpayer paid during the taxable year, not compensated for by any insurance or otherwise, for medical care of the taxpayer, the taxpayer's spouse, and dependents, to the extent the expenses exceed seven and one-half per cent of the taxpayer's federal adjusted gross income.",
+      "source": "Ohio Revised Code 5747.01",
+      "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.01"
+    },
+    {
+      "pinpoint": "Subsections (b) and (d)(1)(D)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "for insurance (including amounts paid as premiums under part B of title XVIII of the Social Security Act, relating to supplementary medical insurance for the aged) covering medical care referred to in subparagraphs (A) and (B)",
+      "source": "26 U.S. Code 213",
+      "url": "https://www.law.cornell.edu/uscode/text/26/213"
+    }
+  ],
+  "computation": "1. Federal AGI (IRC 61/62): the spouse's wages of $62,725 plus taxable pension of $32,200 = $94,925. No above-the-line adjustments are listed. Federal below-AGI deductions do not reach Ohio, because Ohio starts from federal AGI (R.C. 5747.01(A)).\n\n2. Ohio medical-expense deduction (R.C. 5747.01(A)(10)):\n- The premium-only deduction in (A)(10)(a) is barred because both spouses can join an employer-subsidized plan.\n- (A)(10)(b) separately allows medical care paid and not reimbursed, above 7.5% of federal AGI. Under (A)(10)(c), \"medical care\" means IRC 213, and 213(d)(1)(D) includes insurance premiums.\n- The head paid $6,500 of \"other\" health insurance premiums. No pre-tax treatment is listed, so they count as after-tax. Add $800 of other medical expenses. I excluded the $50 of over-the-counter spending under IRC 213(b) (non-prescribed drugs do not count).\n- I treated the $21,208 of employer-sponsored insurance premiums as not paid by the taxpayer, because the listed household premium total excluding Medicare Part B ($6,500) leaves it out.\n- 7.5% \u00d7 $94,925 = $7,119.375. Deduction = $7,300 \u2212 $7,119.375 = $180.625.\n- Ohio AGI = $94,744.375.\n\n3. Personal exemptions (R.C. 5747.025): Ohio modified AGI is above $80,000 and below $500,000. The statutory base is $1,850, raised by earlier indexing to $1,900. HB 96 suspended indexing for 2025 and 2026, so the amount stays $1,900. Two exemptions = $3,800. Ohio taxable income = $90,944.375.\n\n4. Rate schedule (R.C. 5747.02(A), 2026 and later): \"$332.00 plus 2.75% of the amount in excess of $26,050\".\n- $332 + 0.0275 \u00d7 ($90,944.375 \u2212 $26,050) = $332 + $1,784.595 = $2,116.595.\n- The consensus leaves out the statutory $332 base. That accounts for its whole $332 gap from the reference.\n\n5. Nonrefundable credits:\n- Retirement income credit (R.C. 5747.055(B)): $200, because pension income is above $8,000 and modified AGI less exemptions ($90,944) is below $100,000.\n- Joint filing credit (R.C. 5747.05(E)): none, because the head has no income of their own (each spouse needs at least $500).\n- $20 exemption credit: none, because income less exemptions is above $30,000.\n- No senior credit (both are under 65) and no other credits.\n\n6. Tax = $2,116.595 \u2212 $200 = $1,916.60. Using whole-dollar form rounding (deduction $181, taxable $90,944) gives $1,916.59.\n\n7. Without the medical deduction: taxable income is $91,125, giving $332 + $1,789.5625 \u2212 $200 = $1,921.56. That equals the reference ($1,921.57).\n\nAll 2026 amounts used were enacted before 2026-07-03 (HB 96, effective 2025-09-30). That includes the $332 base, the 2.75% rate, the $26,050 threshold and the indexing suspension that keeps the exemption at $1,900. Ohio's 2026 forms were not available. I could not read the 2025 Ohio booklet (the PDF would not parse). The $1,900 figure for 2025 comes from secondary sources plus the statutory indexing history.",
+  "confidence": "medium",
+  "definition_reading": "The number is the Ohio individual income tax on the married couple's joint return. It is the R.C. 5747.02 tax, less nonrefundable credits (here the $200 retirement income credit), and before any refundable credits. School district income tax and municipal taxes are excluded. There is one tax unit, filing jointly.",
+  "independent_answer": 1916.6,
+  "law_supports": "neither"
+}

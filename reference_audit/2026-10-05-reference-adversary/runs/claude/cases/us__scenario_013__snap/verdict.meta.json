@@ -1,0 +1,72 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.8820828000000001,
+  "duration_ms": 179670,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:24:26.492895+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "a764b4b66410b85959fb9a39e51df5af52c960fb2fc25c5dc3a81c75f365d5af",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "84f7a062e306230421bbcd17a88ceec7872cd23259a075bdc3942554fc2123f2",
+  "session_id": "0bad25ec-fb11-4f82-9bf5-fd385b586317",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "f9076b33f75ee8b7b08e357761a2a7139c3849bc1f0996134b4569b4cd37556e",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://dbmefaapolicy.azdes.gov/FAA6/NA_Expanded_Categorical_Eligibility_Standard.html",
+      "https://www.fns.usda.gov/snap/broad-based-categorical-eligibility",
+      "https://fns-prod.azureedge.us/snap/broad-based-categorical-eligibility",
+      "https://dbmefaapolicy.azdes.gov/Archived_Policy/What'sChanged.html",
+      "https://dbmefaapolicy.azdes.gov/FAA6/NA_Income_Standards.html",
+      "https://fns-prod.azureedge.us/snap/allotment/cola/fy26",
+      "https://www.law.cornell.edu/cfr/text/7/273.2",
+      "https://www.ecfr.gov/api/renderer/v1/content/enforced/current/title-7?part=273&section=273.2",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://www.law.cornell.edu/cfr/text/7/273.2",
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-273/subpart-B/section-273.2",
+      "https://www.govinfo.gov/content/pkg/CFR-2025-title7-vol4/xml/CFR-2025-title7-vol4-sec273-2.xml",
+      "https://www.law.cornell.edu/uscode/text/7/2017",
+      "https://www.law.cornell.edu/uscode/text/7/2014",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf",
+      "https://health.alaska.gov/media/apzdxrwr/snap-fy-2027-cola-memo.pdf"
+    ],
+    "searches": [
+      "Arizona SNAP expanded categorical eligibility 200% federal poverty level March 2026",
+      "dbmefaapolicy.azdes.gov expanded categorical eligibility 200% change log effective March 1, 2026",
+      "Arizona DES SNAP nutrition assistance income limit increase 200 percent poverty 2026",
+      "SNAP FY 2026 cost-of-living adjustments minimum benefit $24 maximum allotment $298 household of one",
+      "SNAP FY 2027 cost-of-living adjustments memo minimum benefit maximum allotment household of one"
+    ]
+  }
+}

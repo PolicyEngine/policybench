@@ -1,0 +1,34 @@
+{
+  "ambiguity": "There is a second reading: the flag could mean the federal NSLP/SBP certification tier, meaning whether the household's income (\u2264130% of the poverty guidelines) or categorical status qualifies it as 'free' under 7 CFR 245. The 'reduced-price meals do not count' wording points toward that tier framing. On that reading the household's roughly $166.7k income makes it 'paid', and the answer is 0, the consensus answer. A smaller fact question also exists: the prompt never says the 9-year-old attends a public school. If school enrollment were treated as an unlisted status and therefore false, the answer would also be 0. But age 9 is compulsory school age, and the models did not rely on that point.",
+  "citations": [
+    {
+      "pinpoint": "\u00a749501.5(a)",
+      "pre_freeze": true,
+      "published": "Current as of 2026-01-01 (operative from school year 2022-23)",
+      "quote": "shall make available a nutritionally adequate breakfast and a nutritionally adequate lunch free of charge and with adequate time to eat ... a maximum of one free breakfast meal and one free lunch meal",
+      "source": "California Education Code \u00a749501.5 (via FindLaw codes mirror)",
+      "url": "https://codes.findlaw.com/ca/education-code/edc-sect-49501-5/"
+    },
+    {
+      "pinpoint": "Universal Meals requirements paragraph",
+      "pre_freeze": null,
+      "published": "Page last reviewed 2026-09-16; the underlying statute has been operative since 2022-23",
+      "quote": "provide two meals free of charge (breakfast and lunch) during each school day to students requesting a meal, regardless of their free or reduced-price meal eligibility",
+      "source": "California Department of Education, California Universal Meals",
+      "url": "https://www.cde.ca.gov/ls/nu/sn/cauniversalmeals.asp"
+    },
+    {
+      "pinpoint": "Guidelines text, July 1, 2026\u2013June 30, 2027",
+      "pre_freeze": true,
+      "published": "2026-04-09",
+      "quote": "The Department's guidelines for free meals and milk, and reduced price meals were obtained by multiplying the year 2026 Federal income poverty guidelines by 1.30 and 1.85, respectively",
+      "source": "USDA Food and Nutrition Service, Child Nutrition Programs: Income Eligibility Guidelines (Federal Register Doc. 2026-06842)",
+      "url": "https://www.federalregister.gov/documents/full_text/xml/2026/04/09/2026-06842.xml"
+    }
+  ],
+  "computation": "1) Federal income test (NSLP/SBP). Free meals require household income at or below 130% of the poverty guidelines. Reduced-price meals require income at or below 185%. Source: Child Nutrition Programs Income Eligibility Guidelines, 91 FR, published 2026-04-09, covering 7/1/2026\u20136/30/2027. This household has $165,000 in wages plus about $1,694 of interest, dividends and net capital gain, for about $166.7k. That is far above both cutoffs for a family of 4 (130% of the 2026 guideline is roughly $43k). No categorical eligibility applies: SNAP, TANF and foster status are not listed and are treated as false. So on the federal means test, the children fall in the 'paid' category and are not certified free. This is the consensus reasoning.\n2) California state law. Education Code \u00a749501.5(a) has applied since the 2022-23 school year and was current as of 2026-01-01. It requires every school district, county office and charter school serving TK\u201312 to provide a free breakfast and a free lunch each school day to any pupil who requests one, regardless of federal free or reduced-price eligibility. Both school years that overlap tax year 2026 (2025-26 and 2026-27) are covered.\n3) Applying it to this household. Child 1 is 9, which is compulsory school age in grades 3\u20134. The prompt lists no private or home school, so I assume a CA public school. That child is therefore entitled to two free meals every school day. Child 2 is 4 and may also be TK-eligible, but one child is enough. The household gets positive annual free school meal support, and the support is free meals, not reduced-price ones. The answer is 1.\n4) Amounts. No 2026 amount is decisive. The 2026-27 federal guidelines were published 2026-04-09, before the freeze, and income is far above them in any case. The CA universal-meal mandate depends on no income threshold.",
+  "confidence": "high",
+  "definition_reading": "I read the output as asking whether the household's children receive free (not reduced-price) school meals during 2026. Under California's Universal Meals Program (Ed Code \u00a749501.5), the 9-year-old, as a public-school pupil, gets a free breakfast and a free lunch every school day whatever the family's income. So the household has positive free school meal support, and the flag is 1. The federal 130%/185% income test does not decide the answer for a CA public-school student.",
+  "independent_answer": 1,
+  "law_supports": "reference"
+}

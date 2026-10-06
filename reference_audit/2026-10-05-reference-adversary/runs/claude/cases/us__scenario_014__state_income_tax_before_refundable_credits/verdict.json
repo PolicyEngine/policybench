@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Effective date; Tax Rate Schedule for single/joint filers, top bracket",
+      "pre_freeze": true,
+      "published": "2026 (pre-2026-06-12)",
+      "quote": "Effective June 12, 2026, W. Va. Code \u00a7 11-21-4j will be codified to reflect a 5% income tax cut for all West Virginians retroactive to January 1, 2026. ... Over $60,000: $1,950.50 plus 4.58% of excess over $60,000",
+      "source": "West Virginia Tax Division, 2026 West Virginia Income Tax Rate Cut",
+      "url": "https://tax.wv.gov/Individuals/Pages/PersonalIncomeTaxReductionBill.aspx"
+    },
+    {
+      "pinpoint": "\u00a711-21-4j(a)",
+      "pre_freeze": true,
+      "published": "2026-03-31 (signed); effective 2026-06-12",
+      "quote": "For taxable years beginning on and after January 1, 2026 ... Over $60,000 $1,950.50 plus 4.58% of excess over $60,000",
+      "source": "West Virginia Legislature, Enrolled Committee Substitute for Senate Bill 392 (2026 Regular Session), W. Va. Code \u00a711-21-4j",
+      "url": "https://www.wvlegislature.gov/bill_status/bills_text.cfm?billdoc=sb392+sub1+enr.htm&yr=2026&sesstype=RS&i=392"
+    },
+    {
+      "pinpoint": "\u00a711-21-16(a)",
+      "pre_freeze": true,
+      "published": "in force for 2026",
+      "quote": "with respect to any taxable year beginning on or after January 1, 1987, said exemption shall be $2,000.",
+      "source": "W. Va. Code \u00a711-21-16",
+      "url": "https://code.wvlegislature.gov/11-21-16/"
+    },
+    {
+      "pinpoint": "\u00a75301(a)(1)",
+      "pre_freeze": true,
+      "published": "in force for 2026",
+      "quote": "such payments made to, or on account of, a beneficiary shall be exempt from taxation",
+      "source": "38 U.S.C. \u00a75301",
+      "url": "https://www.law.cornell.edu/uscode/text/38/5301"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 3255.03,
+  "engine_step_at_issue": "",
+  "independent_answer": 3092.19,
+  "reference_value": 3092.19,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The law gives a single joint return with WV taxable income of $84,928: the spouse's $88,928 of wages less two $2,000 exemptions. The VA benefits are federally exempt, so they never enter AGI. SB 392 enacted W. Va. Code \u00a711-21-4j, which cuts rates for tax year 2026 and was effective before the freeze. Under its schedule the tax is $1,950.50 + 4.58% \u00d7 $24,928 = $3,092.19. The engine applied exactly these steps; its $88,927.65 AGI is float rounding. The consensus figure of $3,255.03 uses the superseded 2025 rates (2.22% to 4.82%).",
+  "verdict": "reference_holds"
+}
