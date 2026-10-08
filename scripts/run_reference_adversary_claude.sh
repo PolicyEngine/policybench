@@ -35,11 +35,15 @@
 # judge can read no file. WebFetch is denied on each blocked domain
 # (BLOCKED_DOMAINS: policybench.org, policyengine.org, github.com,
 # raw.githubusercontent.com and their www hosts) by a WebFetch(domain:...)
-# rule. After each call, `finalize` audits the session transcript: an output
-# is rejected ("[contaminated]") if the judge called any other tool, got
-# content from a blocked URL or any URL naming PolicyEngine or PolicyBench (a
-# fetch the deny rule refused returned nothing and is only recorded), searched
-# for them, or saw a user message other than its prompt; and rejected
+# rule. WebSearch has no such rule, so its results (links and the search
+# tool's summary of them) reach the judge; the prompt asks it to pass the
+# blocked domains as blocked_domains on every search. After each call,
+# `finalize` audits the session transcript: an output is rejected
+# ("[contaminated]") if the judge called any other tool, got content from a
+# blocked URL or any URL naming PolicyEngine or PolicyBench (a fetch the deny
+# rule refused returned nothing and is only recorded), searched for them, got
+# a search result that lists such a URL or names either, or saw a user
+# message other than its prompt; and rejected
 # ("[invalid]") unless it satisfies the stage's schema, cites no blocked
 # source, and is the judge's one accepted StructuredOutput answer.
 #

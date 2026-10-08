@@ -218,7 +218,9 @@ def rejudge_flags(original_audit: dict) -> dict:
     cells = {manifest[case_id] for case_id in original_audit["flagged_cases"]}
     flags = json.loads(FLAGS.read_text())
     flags["flags"] = [
-        flag for flag in flags["flags"] if (flag["scenario_id"], flag["variable"]) in cells
+        flag
+        for flag in flags["flags"]
+        if (flag["scenario_id"], flag["variable"]) in cells
     ]
     flags["flagged_cells"] = len(flags["flags"])
     flags["rejudge_note"] = (
@@ -313,6 +315,15 @@ def render(report: dict) -> str:
 
 def main() -> None:
     original = audit_run(ORIGINAL)
+    # The flags come first: adversary-prepare builds runs/claude-rejudge from them.
+    REJUDGE_FLAGS.write_text(json.dumps(rejudge_flags(original), indent=2))
+    if not (REJUDGE / "cases").is_dir():
+        print(
+            f"wrote {REJUDGE_FLAGS.relative_to(HERE)}: "
+            f"{len(original['flagged_cases'])} cells; runs/claude-rejudge not "
+            "judged yet, so no comparison"
+        )
+        return
     rejudge = audit_run(REJUDGE)
     rejudged = compare(original)
     if {row["case_id"] for row in rejudged} != set(original["flagged_cases"]):
@@ -322,7 +333,9 @@ def main() -> None:
     for row in rejudged:
         changed = row["stage1_prompt_changed_lines"]
         if len(changed) != 2 or "blocked_domains" not in changed[1]:
-            raise SystemExit(f"{row['case_id']}: stage 1 prompt changed beyond the source rule")
+            raise SystemExit(
+                f"{row['case_id']}: stage 1 prompt changed beyond the source rule"
+            )
     report = {
         "runs": {"claude": original, "claude-rejudge": rejudge},
         "rejudged": rejudged,
@@ -330,7 +343,6 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "search_exposure.json").write_text(json.dumps(report, indent=2) + "\n")
     (OUT / "search_exposure.md").write_text(render(report))
-    REJUDGE_FLAGS.write_text(json.dumps(rejudge_flags(original), indent=2))
     print(
         f"runs/claude: {original['flagged_transcripts']} of {original['transcripts']} "
         f"transcripts flagged in {len(original['flagged_cases'])} cases; "

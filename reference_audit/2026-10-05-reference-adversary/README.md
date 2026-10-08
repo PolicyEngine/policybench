@@ -6,6 +6,7 @@ The frozen run is `paper/snapshot/20260501/runs/us_full_run_20260612_policyengin
 
 - 61 cells were flagged. 9 belong to other audits, so 52 were run.
 - The adversary's verdicts: 45 `reference_holds`, 6 `reference_wrong` and 1 `definition_mismatch`.
+- In 10 cases, web search results listing PolicyEngine and GitHub pages reached the judge, which the run's audit did not check. Those 10 were re-judged. The prompt asked the search tool to exclude those domains, and an audit read every result. No result from a blocked source reached the judge, and every verdict stayed the same.
 - An independent agent checked each of the 7 that did not hold:
   - CONFIRMED: four engine defects behind four references (Arizona 018, Ohio 025, Colorado 043, New York 082).
   - AMBIGUOUS: a definition-scope question (Pennsylvania 123), which reaches four cells across two scenarios.
@@ -19,11 +20,15 @@ This PR adds evidence and tooling only. It changes no reference, exclusion recor
 PolicyBench's diagnosis judge (`docs/audit.md`) explains why models miss. Its prompt treats the reference and its derivation as correct, so it is not built to find a wrong reference. The reference adversary is a separate pass, and it never changes a score.
 
 1. **Consensus trigger** (`policybench consensus-flags`, `policybench/consensus.py`). Each model's prediction is rounded to a key, and models sharing a key form a cluster. A cluster is wrong when its key differs from the reference by more than the tolerance, or, on an eligibility output, when its key is not the reference. A wrong cluster flags its cell when it has at least `min_models` members, or at least `min_top` of the `top_k` best models. A wrong cluster at zero needs `zero_cluster_min_models` members either way.
-2. **Cases** (`policybench adversary-prepare`). There is one two-stage case per flagged cell, minus the cells listed in `covered_elsewhere.json`. Each case freezes the engine's derivation of the reference, and each of the 52 derivations states the payload's reference value: 42 as an amount, and 10 eligibility outputs in words.
+2. **Cases** (`policybench adversary-prepare`). There is one two-stage case per flagged cell, minus the cells listed in `covered_elsewhere.json`. Each case freezes the engine's derivation of the reference, and each of the 52 derivations states the payload's reference value: 35 as an amount, and 17 eligibility outputs in words.
 3. **Stage 1, law first.** The judge sees the household prompt, the output's definition, the reference value and each consensus member's model, answer and explanation, but not the engine derivation. It works the answer from statutes, regulations, forms and agency publications. It dates each rule against the 2026-07-03 freeze and says which answer the law supports.
 4. **Stage 2, reconcile.** A fresh call gets the frozen stage 1 output (bound by its sha256) and, only now, the derivation. It returns `reference_holds`, `reference_wrong`, `definition_mismatch` or `prompt_ambiguous`, with citations and a suggested adjudication.
-5. **Blinding** (`scripts/run_reference_adversary_claude.sh`). Each call runs from an empty directory outside any repository, in safe mode, with exactly two tools, WebSearch and WebFetch. WebFetch is denied on policybench.org, policyengine.org, github.com and raw.githubusercontent.com. After each call the runner audits the transcript. It rejects an output if the judge used another tool, got content from a blocked URL or one naming PolicyEngine or PolicyBench, searched for either, saw any user message but its prompt, cited a blocked source, or failed the stage's schema.
-6. **Collection** (`policybench adversary-collect`). This writes the verdict tables and the adjudication queue, which lists every case other than `reference_holds`.
+5. **Blinding** (`scripts/run_reference_adversary_claude.sh`). Each call runs from an empty directory outside any repository, in safe mode, with exactly two tools, WebSearch and WebFetch.
+   - WebFetch is denied on policybench.org, policyengine.org, github.com and raw.githubusercontent.com.
+   - WebSearch has no deny rule, so its results reach the judge. The prompt now asks the judge to pass those domains as `blocked_domains` on every search.
+   - After each call the runner audits the transcript. It rejects an output if the judge used another tool, got content from a blocked URL or one naming PolicyEngine or PolicyBench, searched for either, saw any user message but its prompt, cited a blocked source, or failed the stage's schema.
+   - It also rejects an output when a search result lists a blocked URL or names PolicyEngine or PolicyBench. The run below predates this check; see [Search results from blocked sources](#search-results-from-blocked-sources).
+6. **Collection** (`policybench adversary-collect`). This writes the verdict tables and the adjudication queue. The queue lists every case other than `reference_holds`, and every case with an inconsistent verdict. The command fails when a case has no usable verdict, unless `--allow-missing` is given.
 7. **Independent verification.** A separate agent rechecked every non-holding verdict against primary law and the engine source (`verification/independent/`). The machine was overloaded, so no verifier ran a simulation. Engine values come from the frozen probes (`verification/probes/`, written by `scripts/engine_probe.py`) and from reading the source.
 8. **Engine-side checks** (`policybench/definition_conformance.py`, `policybench/publication_sources.py`). These run on the reference system and are summarized below.
 
@@ -67,16 +72,55 @@ Before choosing the skips, the pass checked #191, #193 and #196. None of the cel
 | `reference_wrong` | 6 |
 | `definition_mismatch` | 1 |
 | `prompt_ambiguous` | 0 |
-| contaminated or invalid | 0 |
+| contaminated or invalid | 0 under the audit at run time; 13 outputs in 10 cases under the current audit, all re-judged (next section) |
 
-The adversary rated 40 verdicts high confidence and 12 medium.
+The counts are the same with the 10 re-judged cases' outputs in place of the originals.
 
-Stage 1 sided with the reference in 42 cases, with the consensus in 6, with neither in 2, and found both readings defensible in 2. Stage 2 overruled a stage-1 finding twice, both times keeping the reference:
+The adversary rated 40 verdicts high confidence and 12 medium (39 and 13 with the re-judged outputs).
+
+Stage 1 sided with the reference in 42 cases, with the consensus in 6, with neither in 2, and found both readings defensible in 2. With the re-judged outputs, those are 41, 6, 3 and 2. Stage 2 overruled a stage-1 finding twice, both times keeping the reference:
 
 - scenario_023 state income tax: stage 1 had used California amounts published after the freeze.
 - scenario_026 child3: stage 1 had missed North Carolina's 42 CFR 435.218 election.
 
-`verification/verdict_table.md` has every verdict with its citations. `runs/collected/` has the machine-readable tables, and `runs/claude/cases/<case>/` has each case's prompts, outputs, sidecars and transcripts.
+The re-judge adds a third, scenario_013 SNAP, described in the next section.
+
+`verification/verdict_table.md` has every verdict of the original run with its citations. `runs/collected/` has the machine-readable tables, and `runs/claude/cases/<case>/` has each case's prompts, outputs, sidecars and transcripts.
+
+## Search results from blocked sources
+
+`verification/search_exposure.md` and `.json`, from `scripts/search_exposure.py`.
+
+**What the review found.**
+
+- The runner denies the blocked domains to WebFetch only. WebSearch has no deny rule, so the search tool's results, a list of links and its written summary of them, reach the judge.
+- The run's transcript audit read each search's query, but not its results.
+- The code review of this PR found results listing policyengine.org and github.com/PolicyEngine pages in the run's transcripts.
+- The audit now reads every search result. Run over the original transcripts, it flags 13 of 104, in 10 cases. They contain 28 searches whose results exposed a blocked source (a search can expose more than one):
+
+  | Blocked source | Searches |
+  |---|---:|
+  | github.com/TheAxiomFoundation (rulespec-us issues) | 15 |
+  | github.com/PolicyEngine (policyengine-us and policyengine-taxsim issues, one pull request) | 12 |
+  | result text naming PolicyEngine | 12 |
+  | www.policyengine.org | 1 |
+  | another GitHub account | 1 |
+
+**The re-judge** (`runs/claude-rejudge/`).
+
+- On 2026-10-06, from 21:12 to 22:58 UTC, a separate lane re-judged the 10 flagged cases. Their flags are `runs/rejudge_flags.json`.
+- The cases, derivations and schemas are those of `runs/claude`. Each stage-1 prompt differs in one line, the source rule, which now asks for `blocked_domains` on every search.
+- 160 of the 175 searches passed it, and the current audit flags none of the 20 transcripts.
+- `adversary-collect` (`runs/collected-rejudge/`) finds 10 verdicts, none missing or inconsistent, and queues Colorado 043.
+
+**Outcome.** Every verdict is unchanged, including Colorado 043's `reference_wrong` (high). Confidence moved in three cases: scenario_030 and scenario_079 SNAP from high to medium, and scenario_115 from medium to high. One stage 1 moved, scenario_013 SNAP (Arizona):
+
+- The reference is $240: the $24 minimum benefit for March to December. It rests on the derivation's statement that from March 2026 Arizona's expanded categorical eligibility reaches gross income up to 200% of the poverty guideline. The household's gross income is above the earlier 185% limit and below 200%.
+- All 46 models answered $0.
+- The original stage 1 dated the change to March 1, 2026 "from search-index text attributed to the DES change log". It noted that it could not open the DES manual. Its searches had returned github.com/TheAxiomFoundation/rulespec-us/issues/1460.
+- Re-judged blind, stage 1 could not date the change, because the DES manual returned 403 errors. It applied 200% to all twelve months and found $288, which supports neither the reference nor the consensus.
+- Stage 2 held the $240 reference (medium). It took the March start from the engine's derivation. A secondary source it cites, DB101, lists the 185% limit for October 2025 through September 2026.
+- No run confirmed the effective date from a primary source; see open items.
 
 ## The seven non-holding verdicts
 
@@ -107,7 +151,7 @@ Stage 1 sided with the reference in 42 cases, with the consensus in 6, with neit
 **Engine.**
 
 - `parameters/gov/states/az/tax/income/deductions/standard/amount.yaml` puts `uprating: gov.irs.uprating` on the parent node, with no `propagate_metadata_to_children`.
-- policyengine-core 3.32.8 uprates only leaf parameters whose own metadata carries `uprating` (`uprate_parameters.py:198-208`). The filing-status leaves therefore end at 2025's $15,750, and the probe reads `value_2026 = 15750`.
+- policyengine-core 3.32.8 uprates only leaf parameters whose own metadata carries `uprating` (`uprate_parameters.py:198-208`). The filing-status leaves therefore end at their 2025 values ($15,750 single), and the probe reads `value_2026 = 15750`.
 - The YAML itself says the parent uprating "remains inactive pending selective propagation in PolicyEngine/policyengine-core#537".
 - The engine's own HB 4168 integration test asserts the unindexed 2026 amount, so the fix must update it.
 - The counterfactual probe with $16,100 gives $1,137.302246 (`verification/probes/az_standard_deduction_scenario_018.json`).
@@ -257,9 +301,9 @@ The root cause is a gap in scenario generation and definition scope, not an engi
 Three things stand out:
 
 - **The household-scope exclusion drives the rank changes.** It removes four cells that almost every model missed. gpt-6-luna matched one of them, the scenario_093 federal reference, so it gains least (+0.40 pp) and drops below claude-sonnet-5.5.
-- **The 1/5/10% tolerance and score ranks shift more.**
+- **Score ranks shift more than exact ranks, and within-1% ranks less.**
   - Under `exclude_all`, 18 models move one or two score ranks; gpt-5.6-sol goes from 6 to 4 and claude-sonnet-5.5 from 4 to 6.
-  - claude-opus-4.8 and minimax-m3 swap places 39 and 40 within 1%.
+  - Within 1%, only claude-opus-4.8 and minimax-m3 move, swapping places 39 and 40.
 - **The always-zero baseline rises** from 69.98% to 70.47% exact under `exclude_all`.
 
 The next release adds d994's two Louisiana exclusions, whose impact is #192's to compute. The release computes the combined impact when it freezes.
@@ -332,7 +376,8 @@ The scan first recomputed all 1,984 outputs, and no scored reference differed by
 
 - Run 1 used the committed batch runner and judged four cases. It was stopped at 02:23 UTC to switch to the rolling pool (commit f25e5a01); no call was interrupted.
 - Run 2 judged the rest and finished at 04:08 UTC on 2026-10-06.
-- Results: no call was refused with 401, 403 or 429, and no output was rejected as contaminated or invalid.
+- Results: no call was refused with 401, 403 or 429, and the audit as it then stood rejected no output as contaminated or invalid.
+- The re-judge (`runs/claude-rejudge.run1.log`) ran on Subfleet lane claude-10, account max@farness.ai, by OAuth token, three cases at a time, with the same CLI, model and effort. It made 20 calls, and all were accepted.
 
 **Cost.**
 
@@ -343,7 +388,7 @@ The scan first recomputed all 1,984 outputs, and no scored reference differed by
 | Cost reported by the CLI | **$91.22**. This is the CLI's API-price estimate; the calls billed a subscription login. |
 | Judge-hours | **5.25** (the sum of the CLI's per-call durations) |
 
-The independent verifications and probes ran outside the judge runs, so they are not in these counts.
+The re-judge's 20 calls add $24.82 and 4.70 judge-hours (`runs/run_record.json` `rejudge`). The independent verifications and probes ran outside the judge runs, so they are not in these counts.
 
 ## Rulings
 
@@ -351,18 +396,27 @@ Both are recorded in `proposed_changes.json` `status`.
 
 - **d1022 (Max, 2026-10-06, "approve").**
   - The next release after dashboard-data-20261006 excludes the eight cells: the four confirmed defect cells (AZ 018, OH 025, CO 043, NY 082) and the four household-scope cells (PA 123 and MO 093, state and federal).
-  - Once policyengine-us versions that fix the defects land, a later release replaces each defect cell's exclusion with a reference regenerated on the fixed engine. This file's regeneration values are what those references should reproduce.
+  - Once fixed policyengine-us versions land, the four defect cells are regenerated.
   - NC 026 is refuted and stays as published.
-  - Another lane is opening the four engine fixes, so each record's `upstream` still reads "to be filed".
 - **d994 (Max, 2026-10-06, "approve").**
   - Exclude Louisiana scenario_051 and scenario_077 state income tax.
   - Keep the published-amounts convention: no change to Idaho 076, SNAP 008/038/109 or Maryland 068.
   - The ruling adds that v2 states indexed amounts in the prompt, and applies from the next release after 20261006.
   - This pass skipped both cells, which belong to #192, so `proposed_changes.json` carries the ruling but no records for them.
 
+The pass's own expectations are not part of either ruling (`status.not_ruled`). A reference regenerated on a fixed policyengine-us should reproduce its regeneration record's `regenerated_value` within the $1 exact-match tolerance. The upstream engine fixes are opened separately, so each record's `upstream` still reads "to be filed".
+
 ## Open items
 
-- **Engine fixes.** The four policyengine-us fixes and their PR links in `proposed_changes.json` are pending; another lane owns them under d1022. Each of the four confirmed verification files gives a fix specification and YAML tests with hand-computed expectations.
+- **Engine fixes.** As of 2026-10-08 these are open, unmerged policyengine-us pull requests:
+  - Arizona: #9928.
+  - Colorado: #9946.
+  - New York: #9948.
+  - Ohio: #9925 fixes the double count the verifier found, but no pull request yet carries the premiums fix behind scenario_025.
+
+  Each of the four confirmed verification files gives a fix specification and YAML tests with hand-computed expectations.
+- **scenario_013 SNAP's effective date.** The $240 reference holds only if Arizona's 200% limit took effect in March 2026, and no run confirmed that date from a primary source (see [Search results from blocked sources](#search-results-from-blocked-sources)). An independent check of the DES manual's revision history would settle it.
+- **Codex runner blinding.** Codex's event log records a search's query but not its results, so the Codex runner cannot make the Claude runner's search-result check. The prompt's `blocked_domains` request is its only guard.
 - **Household scope for future runs.** The methodology choice for future runs is queued for Max as d1029, because the definitions admit both readings:
   - either state the scope in both income tax definitions and filter out households whose dependents must file;
   - or build the dependent's own return as a second tax unit.
@@ -376,9 +430,11 @@ Both are recorded in `proposed_changes.json` `status`.
 | `consensus_flags.json`, `consensus_flags_prototype.json` | Flag reports at the default and prototype parameters |
 | `covered_elsewhere.json` | The 9 cells skipped and the audit that owns each |
 | `runs/claude/` | The 52 cases: prompts, frozen derivations, stage 1 and verdict JSON, sidecars, transcripts |
-| `runs/claude.run1.log`, `runs/claude.run2.log`, `runs/run_record.json` | Runner logs and the run record |
-| `runs/collected/` | `adversary-collect` output: verdicts, adjudication queue, missing and inconsistent lists (both empty) |
+| `runs/claude-rejudge/`, `runs/rejudge_flags.json` | The 10 re-judged cases, in the same layout, and the flags they were prepared from |
+| `runs/claude.run1.log`, `runs/claude.run2.log`, `runs/claude-rejudge.run1.log`, `runs/run_record.json` | Runner logs and the run record |
+| `runs/collected/`, `runs/collected-rejudge/` | `adversary-collect` output for each: verdicts, adjudication queue, missing and inconsistent lists (all empty) |
 | `verification/flags_table.md`, `verdict_table.md`, `verdict_counts.json` | Rendered flags and verdicts |
+| `verification/search_exposure.*` | Search results from blocked sources in every transcript, and the re-judge against the original |
 | `verification/independent/` | Independent verification of the 7 non-holding verdicts |
 | `verification/probes/` | Engine probes on policyengine-us 2.15.17 plus `latest_final` |
 | `verification/definition_conformance.*`, `publication_sources.*` | The two engine-side checks |
@@ -405,6 +461,21 @@ AUDIT_PYTHON=<2.15.17 venv>/bin/python \
 uv run policybench adversary-collect \
   --adversary-dir claude=reference_audit/2026-10-05-reference-adversary/runs/claude \
   --output-dir reference_audit/2026-10-05-reference-adversary/runs/collected
+# the re-judge: flags for the cases whose search results reached a blocked
+# source, then the same steps into runs/claude-rejudge
+uv run python reference_audit/2026-10-05-reference-adversary/scripts/search_exposure.py
+uv run policybench adversary-prepare --payload <run>/data.json.gz \
+  --flags reference_audit/2026-10-05-reference-adversary/runs/rejudge_flags.json \
+  --annotations-dir annotations/<run> \
+  --adversary-dir reference_audit/2026-10-05-reference-adversary/runs/claude-rejudge
+AUDIT_PYTHON=<2.15.17 venv>/bin/python \
+  scripts/run_reference_adversary_claude.sh reference_audit/2026-10-05-reference-adversary/runs/claude-rejudge
+uv run policybench adversary-collect \
+  --adversary-dir claude=reference_audit/2026-10-05-reference-adversary/runs/claude-rejudge \
+  --output-dir reference_audit/2026-10-05-reference-adversary/runs/collected-rejudge
+uv run python reference_audit/2026-10-05-reference-adversary/scripts/search_exposure.py
 ```
+
+Preparing `runs/claude` today reproduces its `cases.jsonl` and derivations byte for byte. Each stage-1 prompt then differs from the committed one in one line, because the source rule now asks for `blocked_domains`. The re-judge's preparation reproduces `runs/claude-rejudge`'s inputs byte for byte.
 
 The scripts in `scripts/` regenerate the verification files; each script's docstring gives its command. `definition_conformance.py`, `publication_sources.py`, `engine_probe.py` and `leaderboard_impact.py` need the policyengine-us 2.15.17 environment.

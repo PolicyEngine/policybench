@@ -111,7 +111,9 @@ uv run policybench adversary-collect \
 reproduces the 2026-10-05 prototype (answers truncated to whole dollars,
 eligibility outputs never flagged): 41 of the frozen run's 1,928 scored cells.
 The defaults round answers to the nearest dollar, which merges answers such as
-13,387.65 and 13,388, and compare eligibility outputs by mismatch: 61 cells.
+13,387.65 and 13,388, and compare eligibility outputs by mismatch: 61 cells. A
+model whose own answer is within the tolerance of an amount reference counts as
+exact and never toward a wrong cluster, even when its rounded key misses.
 
 ## Two stages
 
@@ -121,10 +123,19 @@ The defaults round answers to the nearest dollar, which merges answers such as
   not see the engine derivation. It works the answer from primary law
   (statutes, regulations, agency publications, forms and instructions), cites
   each rule with its publication date and whether it predates the 2026-07-03
-  reference freeze, and says which answer the law supports. The Claude runner
-  gives it only web tools (no file access) and blocks PolicyBench and
-  PolicyEngine sites; the Codex runner works from an empty directory and
-  rejects a stage 1 whose log shows a read of derivation-bearing paths.
+  reference freeze, and says which answer the law supports.
+  - The Claude runner gives it only web tools (no file access) and denies
+    WebFetch on the PolicyBench, PolicyEngine and GitHub domains
+    (`BLOCKED_DOMAINS`). WebSearch has no deny rule, so its results reach the
+    judge. The prompt asks the judge to pass those domains as
+    `blocked_domains` on every search. The transcript audit rejects an output
+    whose search results list a blocked URL or name PolicyEngine or
+    PolicyBench.
+  - The Codex runner works from an empty directory and rejects a stage 1
+    whose log shows a read of derivation-bearing paths. Codex's event log
+    records a search's query but not its results, so this runner cannot
+    check what a search returned; the prompt's request is its only guard
+    there.
 - **Stage 2, reconcile.** A fresh call gets the frozen stage-1 JSON (bound by
   its sha256) and only now the engine derivation. It returns a verdict:
   `reference_holds`, `reference_wrong`, `definition_mismatch` or
@@ -133,8 +144,17 @@ The defaults round answers to the nearest dollar, which merges answers such as
 ## Where verdicts go
 
 `adversary-collect` writes each judge's verdict table and
-`adversary_adjudication_queue.csv`: every case with a verdict other than
-`reference_holds`, in the case-notes schema with `reference_suspect=true`.
+`adversary_adjudication_queue.csv`, in the case-notes schema with
+`reference_suspect=true`. The queue holds every case with a verdict other than
+`reference_holds`. It also holds every case whose verdict is inconsistent, such
+as a holding verdict that drops stage 1's finding for the consensus without
+naming a stage-1 error. Its rules:
+
+- A verdict counts only with a sidecar bound to the current stage 1.
+- A case without one is listed as missing, and the command then exits
+  non-zero unless `--allow-missing` is given.
+- Each `--adversary-dir` needs its own label (`LABEL=DIR`). A repeated label
+  is refused, because one judge's verdicts would overwrite another's.
 `policybench.reference_adversary.apply_adversary_flags` sets those flags on a
 release's case notes, so `scripts/freeze_snapshot.py` refuses to freeze until
 each carries a developer `reference_verdict` (`policybench.adjudications`):
