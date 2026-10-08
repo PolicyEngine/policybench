@@ -2,7 +2,7 @@
   "schema_version": 1,
   "status": {
     "state": "ruled 2026-10-06",
-    "summary": "Proposed 2026-10-06; Max ruled 2026-10-06. The next release after dashboard-data-20261006 installs every root cause's exclusion records (variant exclude_all in verification/leaderboard_impact.json) and, under d994, excludes the two Louisiana cells this pass skipped. A later release replaces each CONFIRMED root cause's exclusion with a reference regenerated on a policyengine-us version that fixes the defect; the regeneration records' values are what that reference should reproduce. decided_on is the ruling's date, which is also the draft date.",
+    "summary": "Proposed 2026-10-06; Max ruled 2026-10-06. Under d1022 the next release after dashboard-data-20261006 installs every root cause's exclusion records (variant exclude_all in verification/leaderboard_impact.json), and the four CONFIRMED cells are regenerated once fixed policyengine-us versions land. Under d994 the same release excludes the two Louisiana cells this pass skipped. decided_on is the ruling's date, which is also the draft date; each record names its ruling in decision.",
     "rulings": [
       {
         "decision": "d1022",
@@ -10,7 +10,7 @@
         "question": "PolicyBench: exclude the reference-adversary's confirmed cells in the next release after 20261006 (AZ 018, OH 025, CO 043, NY 082 engine defects; PA 123 dependent-return scope, 4 cells), regenerate the four defect cells once fixed policyengine-us versions land; NC 026 refuted",
         "ruling": "Approved by Max 2026-10-06 in chat ('approve')",
         "next_release": "exclude every exclusion record below, 8 cells (variant exclude_all), in the next release after dashboard-data-20261006",
-        "later_release": "regenerate the four CONFIRMED cells once policyengine-us versions that fix the defects land",
+        "later_release": "regenerate the four defect cells once fixed policyengine-us versions land",
         "root_causes": [
           "az_standard_deduction_indexing",
           "oh_medical_deduction_premiums",
@@ -37,7 +37,8 @@
         ],
         "source": "PolicyEngine/policybench#192 (Louisiana 2026 standard deduction audit). Both cells were flagged here and skipped as covered elsewhere (covered_elsewhere.json), so this file carries no records for them."
       }
-    ]
+    ],
+    "not_ruled": "The pass's own expectations, not part of either ruling: a reference regenerated on a fixed policyengine-us should reproduce its regeneration record's regenerated_value to within the $1 exact-match tolerance; and the upstream engine fixes are being opened separately, so each record's upstream still reads 'to be filed', as 24 engine-defect records of the published exclusion record do."
   },
   "rules": "reference_audit/2026-09-28 rule 2 (a scored reference follows from the stated facts and from law published before the 2026-07-03 freeze) and rule 4 (an output whose reference turns on a fact the prompt does not state is excluded).",
   "root_causes": {
@@ -53,6 +54,7 @@
           "engine_version": "policyengine-us 2.15.17",
           "decided_on": "2026-10-06",
           "decided_by": "developer",
+          "decision": "d1022",
           "law": "A.R.S. 43-1041(A)(1) and (H), as amended by Laws 2026, Ch. 140 (HB 4168, approved 2026-06-13); 26 U.S.C. 63(c)(7)(B); Rev. Proc. 2025-32 s. 4.14",
           "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_018__state_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/az_018.md). Alternative value: engine counterfactual: policyengine-us 2.15.17 with latest_final and az_standard_deduction = 16,100 (verification/probes/az_standard_deduction_scenario_018.json).",
           "reason_code": "reference_engine_defect",
@@ -74,7 +76,8 @@
           "law": "A.R.S. 43-1041(A)(1) and (H), as amended by Laws 2026, Ch. 140 (HB 4168, approved 2026-06-13); 26 U.S.C. 63(c)(7)(B); Rev. Proc. 2025-32 s. 4.14",
           "engine_version": "policyengine-us 2.15.17",
           "value_source": "engine counterfactual: policyengine-us 2.15.17 with latest_final and az_standard_deduction = 16,100 (verification/probes/az_standard_deduction_scenario_018.json)",
-          "upstream": "to be filed"
+          "upstream": "to be filed",
+          "decision": "d1022"
         }
       ]
     },
@@ -90,6 +93,7 @@
           "engine_version": "policyengine-us 2.15.17",
           "decided_on": "2026-10-06",
           "decided_by": "developer",
+          "decision": "d1022",
           "law": "R.C. 5747.01(A)(10)(b)-(c) (effective 2026-03-05); 26 U.S.C. 213(d)(1)(D); Ohio IT 1040 instructions, unreimbursed medical and health care expense worksheet line 3",
           "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_025__state_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/oh_025.md). Alternative value: hand computation from the engine's Ohio AGI, exemptions, rate schedule and retirement income credit (verification/independent/oh_025.md section 4).",
           "reason_code": "reference_engine_defect",
@@ -111,7 +115,8 @@
           "law": "R.C. 5747.01(A)(10)(b)-(c) (effective 2026-03-05); 26 U.S.C. 213(d)(1)(D); Ohio IT 1040 instructions, unreimbursed medical and health care expense worksheet line 3",
           "engine_version": "policyengine-us 2.15.17",
           "value_source": "hand computation from the engine's Ohio AGI, exemptions, rate schedule and retirement income credit (verification/independent/oh_025.md section 4)",
-          "upstream": "to be filed"
+          "upstream": "to be filed",
+          "decision": "d1022"
         }
       ]
     },
@@ -127,11 +132,12 @@
           "engine_version": "policyengine-us 2.15.17",
           "decided_on": "2026-10-06",
           "decided_by": "developer",
+          "decision": "d1022",
           "law": "C.R.S. 39-22-2003(2), 39-22-2002(2)(a), 39-3-209; Colorado Legislative Council Staff forecasts of December 2025, March 2026 and June 2026 (tax year 2026 refund table $0 in every tier); OSPB forecast of 2026-06-18",
           "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_043__state_refundable_credits) and verified independently on 2026-10-06 (verification/independent/co_043.md). Alternative value: law: no tax year 2026 sales tax refund; the household has no other Colorado refundable credit (verification/independent/co_043.md section 5).",
           "reason_code": "reference_engine_defect",
           "root_cause": "co_sales_tax_refund_surplus",
-          "alternative_reading": "C.R.S. 39-22-2003(2) allows the refund for a tax year only 'if there were excess state revenues for the fiscal year ending in that tax year'. Every forecast published before the freeze put FY 2025-26 below the Referendum C cap and published a tax year 2026 refund table of $0 in every tier; the State Controller certified the shortfall on 2026-09-08.",
+          "alternative_reading": "C.R.S. 39-22-2003(2) allows the refund for a tax year only 'if there were excess state revenues for the fiscal year ending in that tax year'. Each Legislative Council Staff forecast before the freeze (December 2025, March and June 2026) published a tax year 2026 refund table of $0 in every tier, OSPB's June 2026 outlook put FY 2025-26 $15.3 million below the cap and anticipated no refunds, and no pre-freeze official source described a tax year 2026 six-tier refund; the State Controller certified a $175.9 million shortfall on 2026-09-08.",
           "defect": "policyengine-us pays Colorado's six-tier state sales tax refund without the statute's condition that the fiscal year ending in the tax year had excess state revenues, carrying the tax year 2025 table into 2026",
           "upstream": "to be filed"
         }
@@ -144,11 +150,12 @@
           "frozen_value": 19.0,
           "regenerated_value": 0.0,
           "cause": "co_sales_tax_refund_surplus",
-          "basis": "C.R.S. 39-22-2003(2) allows the refund for a tax year only 'if there were excess state revenues for the fiscal year ending in that tax year'. Every forecast published before the freeze put FY 2025-26 below the Referendum C cap and published a tax year 2026 refund table of $0 in every tier; the State Controller certified the shortfall on 2026-09-08.",
+          "basis": "C.R.S. 39-22-2003(2) allows the refund for a tax year only 'if there were excess state revenues for the fiscal year ending in that tax year'. Each Legislative Council Staff forecast before the freeze (December 2025, March and June 2026) published a tax year 2026 refund table of $0 in every tier, OSPB's June 2026 outlook put FY 2025-26 $15.3 million below the cap and anticipated no refunds, and no pre-freeze official source described a tax year 2026 six-tier refund; the State Controller certified a $175.9 million shortfall on 2026-09-08.",
           "law": "C.R.S. 39-22-2003(2), 39-22-2002(2)(a), 39-3-209; Colorado Legislative Council Staff forecasts of December 2025, March 2026 and June 2026 (tax year 2026 refund table $0 in every tier); OSPB forecast of 2026-06-18",
           "engine_version": "policyengine-us 2.15.17",
           "value_source": "law: no tax year 2026 sales tax refund; the household has no other Colorado refundable credit (verification/independent/co_043.md section 5)",
-          "upstream": "to be filed"
+          "upstream": "to be filed",
+          "decision": "d1022"
         }
       ]
     },
@@ -164,6 +171,7 @@
           "engine_version": "policyengine-us 2.15.17",
           "decided_on": "2026-10-06",
           "decided_by": "developer",
+          "decision": "d1022",
           "law": "N.Y. Tax Law 606(c)(1) and 606(c-2), as amended and added by L.2026, ch. 59, Part A (S.9009-C/A.10009-C, signed 2026-05-28)",
           "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_082__state_refundable_credits) and verified independently on 2026-10-06 (verification/independent/ny_082.md). Alternative value: hand computation from the engine's New York AGI and Empire State child credit (verification/independent/ny_082.md section 3).",
           "reason_code": "reference_engine_defect",
@@ -185,7 +193,8 @@
           "law": "N.Y. Tax Law 606(c)(1) and 606(c-2), as amended and added by L.2026, ch. 59, Part A (S.9009-C/A.10009-C, signed 2026-05-28)",
           "engine_version": "policyengine-us 2.15.17",
           "value_source": "hand computation from the engine's New York AGI and Empire State child credit (verification/independent/ny_082.md section 3)",
-          "upstream": "to be filed"
+          "upstream": "to be filed",
+          "decision": "d1022"
         }
       ]
     },
@@ -201,6 +210,7 @@
           "engine_version": "policyengine-us 2.15.17",
           "decided_on": "2026-10-06",
           "decided_by": "developer",
+          "decision": "d1022",
           "law": "72 P.S. 7302(a); 2025 PA-40 instructions p. 3 (a minor with PA income over $33 must file); 26 U.S.C. 73(a); RSMo 143.011",
           "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_123__state_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/pa_123.md; verification/definition_conformance.md (household scope)). Alternative value: head and spouse return plus the child's own PA-40 ($1,381.50), verification/definition_conformance.json.",
           "reason_code": "reference_depends_on_unlisted_input",
@@ -216,6 +226,7 @@
           "engine_version": "policyengine-us 2.15.17",
           "decided_on": "2026-10-06",
           "decided_by": "developer",
+          "decision": "d1022",
           "law": "72 P.S. 7302(a); 2025 PA-40 instructions p. 3 (a minor with PA income over $33 must file); 26 U.S.C. 73(a); RSMo 143.011",
           "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_123__federal_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/pa_123.md; verification/definition_conformance.md (household scope)). Alternative value: head and spouse return plus the child's own federal return ($3,220.00), verification/definition_conformance.json.",
           "reason_code": "reference_depends_on_unlisted_input",
@@ -231,6 +242,7 @@
           "engine_version": "policyengine-us 2.15.17",
           "decided_on": "2026-10-06",
           "decided_by": "developer",
+          "decision": "d1022",
           "law": "72 P.S. 7302(a); 2025 PA-40 instructions p. 3 (a minor with PA income over $33 must file); 26 U.S.C. 73(a); RSMo 143.011",
           "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_093__state_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/pa_123.md; verification/definition_conformance.md (household scope)). Alternative value: head and spouse return plus the dependent's own MO-1040, verification/definition_conformance.json.",
           "reason_code": "reference_depends_on_unlisted_input",
@@ -246,6 +258,7 @@
           "engine_version": "policyengine-us 2.15.17",
           "decided_on": "2026-10-06",
           "decided_by": "developer",
+          "decision": "d1022",
           "law": "72 P.S. 7302(a); 2025 PA-40 instructions p. 3 (a minor with PA income over $33 must file); 26 U.S.C. 73(a); RSMo 143.011",
           "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_093__federal_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/pa_123.md; verification/definition_conformance.md (household scope)). Alternative value: head and spouse return plus the dependent's own federal return ($3,220.00), verification/definition_conformance.json.",
           "reason_code": "reference_depends_on_unlisted_input",

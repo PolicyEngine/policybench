@@ -1,0 +1,53 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.1647582,
+  "duration_ms": 68168,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T22:44:25.100142+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "d26b83a12d0c1f5f259c7637225992bda8b6212b67eae19ae652de0b2cf9313e",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "0d177f734015864f3977fe323109f0d7342b6b9695957b2fa4ac45750855b4c3",
+  "session_id": "6b2dead5-07f0-46fa-85f6-e649816b24c5",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "e4473b1b2122f214adf8b7583acaa4a574018d6794c20bcb421bba6241b856d6",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://law.lis.virginia.gov/vacode/58.1-339.8/",
+      "https://www.tax.virginia.gov/low-income-individuals-credit"
+    ],
+    "searches": [
+      "Virginia 58.1-339.8 refundable credit 20 percent federal earned income credit taxable years 2026"
+    ]
+  }
+}

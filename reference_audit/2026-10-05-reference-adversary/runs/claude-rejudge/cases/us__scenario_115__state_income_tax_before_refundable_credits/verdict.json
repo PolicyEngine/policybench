@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "interest on obligations of the United States, Alabama, and other states",
+      "pre_freeze": true,
+      "published": "2000-06-07",
+      "quote": "It should be noted that interest on obligations of other states and political subdivisions thereof is taxable.",
+      "source": "Alabama Administrative Code r. 810-3-14-.02, Exclusions From Gross Income (Alabama Department of Revenue)",
+      "url": "https://www.law.cornell.edu/regulations/alabama/Ala-Admin-Code-r-810-3-14-.02"
+    },
+    {
+      "pinpoint": "rates for single persons",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "Two percent of taxable income not in excess of five hundred dollars ($500).",
+      "source": "Code of Alabama 1975 \u00a740-18-5 (individual income tax rates)",
+      "url": "https://law.onecle.com/alabama/title-40/40-18-5.html"
+    },
+    {
+      "pinpoint": "standard deduction, single filers",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "The standard deduction for single taxpayers with adjusted gross income of less than twenty-five thousand five hundred dollars ($25,500) shall be three thousand dollars ($3,000).",
+      "source": "Code of Alabama 1975 \u00a740-18-15 (Deductions for Individuals Generally), 2025 Code",
+      "url": "https://law.justia.com/codes/alabama/title-40/chapter-18/article-1/section-40-18-15/"
+    },
+    {
+      "pinpoint": "personal exemption",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "Taxpayers using the Single and Married Filing Separately filing statuses are entitled to a $1,500 personal exemption.",
+      "source": "Alabama Department of Revenue, Income Tax Questions FAQ",
+      "url": "https://www.revenue.alabama.gov/faq-categories/income-tax-questions/"
+    },
+    {
+      "pinpoint": "list of exempt income",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "Federal Social Security benefits",
+      "source": "Alabama Department of Revenue, Income Exempt from Alabama Income Taxation",
+      "url": "https://www.revenue.alabama.gov/individual-corporate/income-exempt-from-alabama-income-taxation/"
+    },
+    {
+      "pinpoint": "2026 overtime deduction; no other rate, deduction or exemption change",
+      "pre_freeze": true,
+      "published": "2026-04",
+      "quote": "provides an income tax deduction for qualified overtime compensation, up to $1,000",
+      "source": "Office of the Governor of Alabama, Governor Ivey Signs Bill to Provide Tax Relief (HB 527)",
+      "url": "https://governor.alabama.gov/newsroom/2026/04/governor-ivey-signs-bill-to-provide-tax-relief-to-hardworking-alabamians/"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 4.68,
+  "reference_value": 4.68,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Alabama taxes interest on other states' bonds even though that interest is federally tax-exempt. It exempts only interest on U.S. obligations and on Alabama or Alabama local obligations, plus Social Security. The prompt does not say the bonds are Alabama obligations, and it tells models to treat unlisted facts as false, so the $4,734 is Alabama AGI. Subtracting the $3,000 single standard deduction (AGI under $26,000) and the $1,500 personal exemption leaves $234, taxed at 2% = $4.68. The engine took the same path. It also built an itemized medical figure from about $2,585 of medical costs, apparently an imputed Medicare Part B premium plus the $150. That figure plus the employee business expense deduction is still below $3,000, so the standard deduction applies and the result is unchanged. The 0 consensus rests on the mistaken idea that Alabama exempts all federally tax-exempt interest, or on overstated deductions (Alabama has no extra 65+ standard deduction).",
+  "verdict": "reference_holds"
+}

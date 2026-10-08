@@ -1,0 +1,90 @@
+{
+  "ambiguity": "The input labels \"financial assistance\" and \"educational assistance\" do not say what kind of income they are. (a) If the educational assistance were counted as well, for example because the head is not stated to be enrolled and 7 CFR 273.9(c)(3) ties the exclusion to enrollment, gross income would be $2,500/mo. That exceeds the 165% FPIL of $2,152, the household is ineligible, and the answer is $0, the consensus value. Texas TWH A-1322.1, however, exempts educational assistance \"regardless of the source\". (b) If the financial assistance were treated as non-countable, such as a loan or vendor payment, the benefit would be $298 \u2212 30% \u00d7 $657.67 \u2192 $100/mo, or about $1,208/yr (cluster 2). (c) Using the post-freeze FY2027 minimum of $25 for Oct\u2013Dec would give $291.",
+  "citations": [
+    {
+      "pinpoint": "B-471",
+      "pre_freeze": true,
+      "published": "2015-10-01",
+      "quote": "meets the resource criteria to be authorized to receive TANF Non-cash (TANF-NC) services ... has gross income less than or equal to 165 percent of the Federal Poverty Income Limit (FPIL) for its size.",
+      "source": "Texas Works Handbook, B-471 Eligibility Criteria (Texas HHSC)",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/b-470-categorically-eligible-households"
+    },
+    {
+      "pinpoint": "B-472 (Revision 26-1)",
+      "pre_freeze": true,
+      "published": "2026-01-01",
+      "quote": "Categorically eligible households are not subject to the resource and gross or net income limits.",
+      "source": "Texas Works Handbook, B-472 Special Treatment for Households Meeting Categorical Eligibility Criteria",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/b-470-categorically-eligible-households"
+    },
+    {
+      "pinpoint": "A-1322.1 (Revision 15-4)",
+      "pre_freeze": true,
+      "published": "2015-10-01",
+      "quote": "Educational assistance, including educational loans, scholarships, fellowships, grant monies, and work study, are exempt, regardless of the source.",
+      "source": "Texas Works Handbook, A-1322.1 Educational Assistance",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/a-1320-types-income"
+    },
+    {
+      "pinpoint": "A-1326.1 (Revision 18-1), SNAP",
+      "pre_freeze": true,
+      "published": "2018-01-01",
+      "quote": "$300 or less per household in a federal fiscal quarter",
+      "source": "Texas Works Handbook, A-1326.1 Cash Gifts and Contributions",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/a-1320-types-income"
+    },
+    {
+      "pinpoint": "A-1341 net income test",
+      "pre_freeze": true,
+      "published": "2021-07-01",
+      "quote": "This test applies to all households, except categorically eligible households.",
+      "source": "Texas Works Handbook, A-1341 Income Limits",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/a-1340-income-limits"
+    },
+    {
+      "pinpoint": "\u00a7273.9(a)",
+      "pre_freeze": true,
+      "published": "current text (provision long-standing)",
+      "quote": "Households which are categorically eligible as defined in \u00a7 273.2(j)(2) or 273.2(j)(4) do not have to meet either the gross or net income eligibility standards.",
+      "source": "7 CFR 273.9 Income and deductions",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.9"
+    },
+    {
+      "pinpoint": "\u00a7273.10(e)(2)(ii)(C)",
+      "pre_freeze": true,
+      "published": "current text (provision long-standing)",
+      "quote": "all eligible one-person and two-person households shall receive minimum monthly allotments equal to the minimum benefit.",
+      "source": "7 CFR 273.10 Determining household eligibility and benefit levels",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "\u00a72017(a)",
+      "pre_freeze": true,
+      "published": "current text",
+      "quote": "for households of one and two persons the minimum allotment shall be 8 percent of the cost of the thrifty food plan for a household containing 1 member",
+      "source": "7 U.S.C. 2017(a) (Food and Nutrition Act of 2008 \u00a78(a))",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2017"
+    },
+    {
+      "pinpoint": "Appendix A, effective October 2025",
+      "pre_freeze": true,
+      "published": "2025-10-01",
+      "quote": "One and Two Person households that are categorically eligible will be eligible for at least $24, even if the tables do not show a benefit amount at their net income levels.",
+      "source": "Georgia DFCS SNAP Manual, Appendix A SNAP Income Limits (FY2026 federal parameters)",
+      "url": "https://pamms.dhs.ga.gov/dfcs/snap/appendix-a-food-stamp-income-limits/"
+    },
+    {
+      "pinpoint": "C-1431 (Revision 26-4)",
+      "pre_freeze": false,
+      "published": "2026-10-01",
+      "quote": "The shaded portions on the SNAP Allotment Chart (PDF) show monthly, not prorated, allotments available to categorically eligible households. This can be $1 or more.",
+      "source": "Texas Works Handbook, C-1430 SNAP Allotment Charts",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/c-1430-snap-allotment-charts"
+    }
+  ],
+  "computation": "One-person SNAP household. The pregnant head counts alone, because an unborn child is not a SNAP household member. Texas, using FY2026 parameters (Oct 1, 2025 \u2013 Sep 30, 2026), which were the latest published before the 2026-07-03 freeze.\n1) Income. Wages are $13,000/12 = $1,083.33/mo of earned income. Under Texas Works Handbook (TWH) A-1326.1, cash gifts and contributions count as unearned income for SNAP, so the $12,000 of financial assistance is $1,000/mo unearned. Under TWH A-1322.1, educational assistance is exempt \"regardless of the source\", so the $5,000 is excluded. Gross income is $2,083.33/mo.\n2) Eligibility through Texas broad-based categorical eligibility (TWH B-471). The household meets the TANF non-cash resource criteria, since $190 in the bank is under the $5,000 limit. Gross income must be at or below 165% of the federal poverty income limit (FPIL); for one person in FY2026 that is $2,152. $2,083.33 \u2264 $2,152, so the household is categorically eligible. Under TWH B-472 and 7 CFR 273.9(a), categorically eligible households are not subject to the 130% gross ($1,696) or 100% net ($1,305) income tests. No IPV or other disqualification is listed. The head is pregnant and works 35 hours a week, so no work rule bars her.\n3) Net income (7 CFR 273.10(e)(1)). The 20% earned income deduction is $216.67. The standard deduction for 1\u20133 persons is $209 for FY2026. There is no medical deduction because the head is not elderly or disabled (7 CFR 273.9(d)(3)). There is no shelter deduction because no rent or utilities are listed. Net income is $2,083.33 \u2212 $216.67 \u2212 $209 = $1,657.67.\n4) Formula benefit. 30% of $1,657.67 is $497.30, rounded up to $498. $298 \u2212 $498 < 0, so the formula gives $0.\n5) Minimum benefit. Under 7 U.S.C. 2017(a) and 7 CFR 273.10(e)(2)(ii)(C), eligible one- and two-person households receive the minimum benefit. That is 8% of $298 = $23.84, rounded to $24 for FY2026. State manuals confirm this applies to categorically eligible households even when the tables show no benefit at their net income. Texas C-1431 shades allotments of \"$1 or more\" available to categorically eligible households. The monthly benefit is $24.\n6) Annual: $24 \u00d7 12 = $288.\nNotes:\n- FY2027 values took effect Oct 1, 2026: a $25 minimum and a $217 standard deduction. They were published after the freeze (Texas chart Revision 26-4). Applying them for Oct\u2013Dec would give 9 \u00d7 $24 + 3 \u00d7 $25 = $291. Under the frozen law, $288.\n- If the financial assistance came from a nonprofit based on need, only $300/quarter would be excluded. Gross income would still be \u2264 $2,152 and the benefit would still be the $24 minimum.\n- The consensus answer of $0 mostly relied on the 130% gross test, which Texas broad-based categorical eligibility displaces. Or it counted the educational assistance, which Texas exempts.",
+  "confidence": "medium",
+  "definition_reading": "I read the output as the annual SNAP allotment for the single SNAP household made up of the pregnant head (household size 1) in Texas for calendar 2026. FY2026 federal parameters are used, as published before the freeze: $298 maximum, $209 standard deduction, $24 minimum, and $2,152 as the 165% FPIL for one person. The listed \"financial assistance\" is treated as countable cash contributions, and the \"educational assistance\" as exempt educational assistance.",
+  "independent_answer": 288,
+  "law_supports": "reference"
+}

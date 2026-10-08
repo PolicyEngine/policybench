@@ -63,8 +63,7 @@ RULINGS = [
             f"next release after {AFTER_RELEASE}"
         ),
         "later_release": (
-            "regenerate the four CONFIRMED cells once policyengine-us versions that fix "
-            "the defects land"
+            "regenerate the four defect cells once fixed policyengine-us versions land"
         ),
         "root_causes": [*CONFIRMED_CAUSES, "household_scope_dependent_returns"],
         "unchanged": (
@@ -149,7 +148,7 @@ ROOT_CAUSES = {
         "evidence": "verification/independent/co_043.md",
         "law": "C.R.S. 39-22-2003(2), 39-22-2002(2)(a), 39-3-209; Colorado Legislative Council Staff forecasts of December 2025, March 2026 and June 2026 (tax year 2026 refund table $0 in every tier); OSPB forecast of 2026-06-18",
         "defect": "policyengine-us pays Colorado's six-tier state sales tax refund without the statute's condition that the fiscal year ending in the tax year had excess state revenues, carrying the tax year 2025 table into 2026",
-        "basis": "C.R.S. 39-22-2003(2) allows the refund for a tax year only 'if there were excess state revenues for the fiscal year ending in that tax year'. Every forecast published before the freeze put FY 2025-26 below the Referendum C cap and published a tax year 2026 refund table of $0 in every tier; the State Controller certified the shortfall on 2026-09-08.",
+        "basis": "C.R.S. 39-22-2003(2) allows the refund for a tax year only 'if there were excess state revenues for the fiscal year ending in that tax year'. Each Legislative Council Staff forecast before the freeze (December 2025, March and June 2026) published a tax year 2026 refund table of $0 in every tier, OSPB's June 2026 outlook put FY 2025-26 $15.3 million below the cap and anticipated no refunds, and no pre-freeze official source described a tax year 2026 six-tier refund; the State Controller certified a $175.9 million shortfall on 2026-09-08.",
         "cells": [
             {
                 "scenario_id": "scenario_043",
@@ -250,16 +249,23 @@ def main() -> None:
         "status": {
             "state": f"ruled {RULED}",
             "summary": (
-                f"Proposed {DRAFTED}; Max ruled {RULED}. The next release after "
-                f"{AFTER_RELEASE} installs every root cause's exclusion records "
-                "(variant exclude_all in verification/leaderboard_impact.json) and, under "
-                "d994, excludes the two Louisiana cells this pass skipped. A later release "
-                "replaces each CONFIRMED root cause's exclusion with a reference regenerated "
-                "on a policyengine-us version that fixes the defect; the regeneration "
-                "records' values are what that reference should reproduce. decided_on is "
-                "the ruling's date, which is also the draft date."
+                f"Proposed {DRAFTED}; Max ruled {RULED}. Under d1022 the next release "
+                f"after {AFTER_RELEASE} installs every root cause's exclusion records "
+                "(variant exclude_all in verification/leaderboard_impact.json), and the "
+                "four CONFIRMED cells are regenerated once fixed policyengine-us versions "
+                "land. Under d994 the same release excludes the two Louisiana cells this "
+                "pass skipped. decided_on is the ruling's date, which is also the draft "
+                "date; each record names its ruling in decision."
             ),
             "rulings": RULINGS,
+            "not_ruled": (
+                "The pass's own expectations, not part of either ruling: a reference "
+                "regenerated on a fixed policyengine-us should reproduce its regeneration "
+                "record's regenerated_value to within the $1 exact-match tolerance; and "
+                "the upstream engine fixes are being opened separately, so each record's "
+                "upstream still reads 'to be filed', as 24 engine-defect records of the "
+                "published exclusion record do."
+            ),
         },
         "rules": (
             "reference_audit/2026-09-28 rule 2 (a scored reference follows from the stated facts "
@@ -287,6 +293,7 @@ def main() -> None:
                 "engine_version": ENGINE,
                 "decided_on": DRAFTED,
                 "decided_by": "developer",
+                "decision": "d1022",
                 "law": spec["law"],
                 "note": (
                     "Found 2026-10-05 by the reference adversary (runs/claude/cases/"
@@ -317,6 +324,7 @@ def main() -> None:
                         "engine_version": ENGINE,
                         "value_source": cell["value_source"],
                         "upstream": UPSTREAM[cause],
+                        "decision": "d1022",
                     }
                 )
             else:

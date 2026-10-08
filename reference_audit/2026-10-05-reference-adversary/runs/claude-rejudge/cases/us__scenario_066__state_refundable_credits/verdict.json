@@ -1,0 +1,37 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 58.1-339.8, subdivision 3",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "For taxable years beginning on and after January 1, 2025 but before January 1, 2027, any individual or married individuals filing jointly may claim a refundable credit against tax in an amount equal to 20 percent of the credit claimed by the individual or married individuals for federal individual income taxes",
+      "source": "Code of Virginia \u00a7 58.1-339.8 (Income tax credit for low-income taxpayers)",
+      "url": "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-339.8/"
+    },
+    {
+      "pinpoint": "Refundable EITC description",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "An income tax credit equal to 20% of your federal Earned Income Tax Credit. The credit is refundable, so it can be more than the total amount of your tax.",
+      "source": "Virginia Tax, Virginia Earned Income Tax Credit (EITC) & Credit for Low Income Individuals",
+      "url": "https://www.tax.virginia.gov/low-income-individuals-credit"
+    },
+    {
+      "pinpoint": "\u00a7 32(b)(1) table, no qualifying children; \u00a7 32(c)(1)(A)(ii)",
+      "pre_freeze": true,
+      "published": "2024 edition",
+      "quote": "No qualifying children 7.65 7.65",
+      "source": "26 U.S.C. \u00a7 32 (Earned income)",
+      "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title26/pdf/USCODE-2024-title26-subtitleA-chap1-subchapA-partIV-subpartC-sec32.pdf"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 7.96,
+  "reference_value": 7.96,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Va. Code \u00a7 58.1-339.8(3) lets a filer claim a refundable credit for taxable years 2025 and 2026. The credit equals 20% of the federal \u00a7 32 EITC and is taken in place of the nonrefundable low-income credit and the nonrefundable EITC. The head is 40 and has no children, so the federal EITC is 7.65% \u00d7 $520 = $39.78, which gives $7.96 for Virginia. The engine's steps match this, and stage 1 reached the same figure. The consensus answer of $0 rests on the wrong belief that the credit is nonrefundable or has expired. The only open point is rounding: the IRS lookup table gives an EITC of $40, which would make the Virginia credit $8.00.",
+  "verdict": "reference_holds"
+}

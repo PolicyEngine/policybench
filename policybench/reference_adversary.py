@@ -50,6 +50,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import sys
 from dataclasses import asdict, dataclass
@@ -300,6 +301,40 @@ def blocked_url(url: str) -> bool:
     return any(
         host == domain or host.endswith(f".{domain}") for domain in BLOCKED_DOMAINS
     )
+
+
+_URL = re.compile(r"https?://[^\s\"'<>()\[\]{}\\]+", re.IGNORECASE)
+
+
+def _result_text(content: Any) -> str:
+    """The text of a tool result's content: a string or a list of blocks."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            _result_text(block.get("text", block.get("content")))
+            if isinstance(block, dict)
+            else str(block)
+            for block in content
+        )
+    return "" if content is None else json.dumps(content)
+
+
+def blocked_search_result(text: str) -> list[str]:
+    """What in a search result reaches for the engine or the benchmark.
+
+    Each URL the result lists on a blocked domain or naming either (in order,
+    without repeats), and "text names <name>" when the result's text names one
+    outside such a URL. Empty for a clean result.
+    """
+    found: list[str] = []
+    for url in _URL.findall(text or ""):
+        url = url.rstrip(".,;:")
+        if blocked_url(url) and url not in found:
+            found.append(url)
+    remainder = _URL.sub(" ", text or "").lower()
+    found.extend(f"text names {name}" for name in BLOCKED_NAMES if name in remainder)
+    return found
 
 
 def blocked_citation_errors(document: Any) -> list[str]:
@@ -640,8 +675,11 @@ _SOURCE_RULES = f"""\
 Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, \
 policybench.org, their GitHub repositories, their documentation, their \
 package source, or any calculator built on them. Do not fetch anything from \
-these domains: {_DOMAINS}. Do not rely on any calculator or estimate built by \
-an AI model. A citation of any of these sources voids your answer."""
+these domains: {_DOMAINS}. When your search tool accepts domains to exclude \
+(blocked_domains), pass all of these domains on every search, so that no \
+result comes from them: a search whose results list or name PolicyEngine or \
+PolicyBench voids your answer. Do not rely on any calculator or estimate \
+built by an AI model. A citation of any of these sources voids your answer."""
 
 _STAGE1_HEADER = f"""\
 You are a reference adversary for a US tax-and-benefit benchmark. Each \
@@ -1083,8 +1121,10 @@ def collect_adversary(adversary_dir: Path | str) -> dict[str, pd.DataFrame]:
     stage 1; ``citations`` is the verdict's citations as a JSON string and
     ``judge_model`` comes from the verdict's bound sidecar ("unknown"
     without one). ``missing`` lists cases with no such verdict and why: no
-    verdict, an invalid one, no valid stage 1, or a verdict whose sidecar or
-    stage-2 prompt was built on another stage 1. ``inconsistent`` lists one
+    verdict, an invalid one, no valid stage 1, a verdict with no bound
+    sidecar, or a verdict whose sidecar or stage-2 prompt was built on another
+    stage 1 (the sidecar must name the current stage 1's sha256, so a verdict
+    is never taken as bound by default). ``inconsistent`` lists one
     row per problem :func:`verdict_problems` finds, and a stage 1 and verdict
     from different runners; those cases stay in ``verdicts`` too.
     """
@@ -1127,7 +1167,12 @@ def collect_adversary(adversary_dir: Path | str) -> dict[str, pd.DataFrame]:
             )
             continue
         meta = bound_sidecar(case_dir / VERDICT_FILE, case_dir / VERDICT_META)
-        if meta and meta.get("stage1_sha256") not in (None, stage1_sha):
+        if not meta:
+            missing.append(
+                {**key, "reason": "the verdict has no sidecar bound to it"}
+            )
+            continue
+        if meta.get("stage1_sha256") != stage1_sha:
             missing.append(
                 {**key, "reason": "the verdict was judged on another stage 1"}
             )
@@ -1273,12 +1318,18 @@ def _hypothesis(judge: str, verdict: str, summary: Any, step: Any) -> str:
     return text
 
 
-def adjudication_queue(verdicts: pd.DataFrame) -> pd.DataFrame:
+def adjudication_queue(
+    verdicts: pd.DataFrame, inconsistent: pd.DataFrame | None = None
+) -> pd.DataFrame:
     """Cases for developer adjudication, in the case-notes schema.
 
     Takes a ``collect_adversary`` verdict table (a case is queued when its
     verdict is not ``reference_holds``) or a ``merge_judges`` table (queued
-    when any judge's verdict is not). Each queued case carries
+    when any judge's verdict is not). A case with a row in ``inconsistent``
+    (``collect_adversary``'s table, optionally with a ``judge`` column) is
+    queued whatever its verdicts, with the problems in its hypothesis: a
+    ``reference_holds`` that, say, silently drops stage 1's finding for the
+    consensus is exactly what the two stages exist to catch. Each queued case carries
     ``reference_suspect`` true, a ``reference_bug_hypothesis`` naming each
     judge's verdict, summary and engine step, ``reference_suspect_source``
     "reference_adversary", the judges' verdicts as JSON and the suggested
@@ -1290,10 +1341,19 @@ def adjudication_queue(verdicts: pd.DataFrame) -> pd.DataFrame:
     merged = "verdict" not in verdicts.columns
     if merged and "verdicts" not in verdicts.columns:
         raise ValueError("expected a collect_adversary or merge_judges table")
+    problems: dict[str, list[str]] = {}
+    if inconsistent is not None:
+        for row in inconsistent.to_dict("records"):
+            judge = _clean(row.get("judge"))
+            problem = _clean(row.get("problem"))
+            problems.setdefault(str(row["case_id"]), []).append(
+                f"{judge}: {problem}" if judge else problem
+            )
     for record in verdicts.to_dict("records"):
+        flagged = problems.get(str(record["case_id"]), [])
         if merged:
             by_judge = json.loads(record["verdicts"])
-            if all(v == "reference_holds" for v in by_judge.values()):
+            if not flagged and all(v == "reference_holds" for v in by_judge.values()):
                 continue
             hypotheses = [
                 _hypothesis(
@@ -1316,7 +1376,7 @@ def adjudication_queue(verdicts: pd.DataFrame) -> pd.DataFrame:
             )
             adversary_verdicts = by_judge
         else:
-            if record["verdict"] == "reference_holds":
+            if not flagged and record["verdict"] == "reference_holds":
                 continue
             judge = _clean(record.get("judge_model")) or "unknown"
             hypotheses = [
@@ -1335,7 +1395,10 @@ def adjudication_queue(verdicts: pd.DataFrame) -> pd.DataFrame:
                 "scenario_id": record["scenario_id"],
                 "variable": record["variable"],
                 "reference_suspect": True,
-                "reference_bug_hypothesis": " | ".join(hypotheses),
+                "reference_bug_hypothesis": " | ".join(
+                    hypotheses
+                    + [f"Inconsistent verdict: {problem}" for problem in flagged]
+                ),
                 "reference_suspect_source": SUSPECT_SOURCE,
                 "adversary_verdicts": json.dumps(adversary_verdicts, sort_keys=True),
                 "suggested_adjudication": suggested,
@@ -1506,9 +1569,12 @@ def claude_transcript_audit(
     Problems: a tool call other than WebSearch, WebFetch or StructuredOutput;
     a fetch of a blocked URL that returned content (a fetch the runner's deny
     rule refused, whose result is an error, returned nothing and is recorded
-    as a denied attempt instead); a search naming the engine or the benchmark
-    (WebSearch has no deny rule, so its results reached the judge); a user
-    text message other than the judged prompt (Claude Code's own
+    as a denied attempt instead); a search naming the engine or the benchmark;
+    a search whose result reached the judge listing a URL on a blocked domain
+    or naming the engine or the benchmark, or whose text names them (WebSearch
+    has no deny rule, so its results reach the judge; the prompt asks for
+    blocked_domains on every search, and this check enforces the outcome); a
+    user text message other than the judged prompt (Claude Code's own
     StructuredOutput nudge aside). Returns the problems, the web activity for
     the sidecar, and the inputs of the StructuredOutput calls the schema
     accepted (calls whose result was not an error).
@@ -1520,6 +1586,8 @@ def claude_transcript_audit(
         "denied_fetches": [],
     }
     blocked_fetches: list[tuple[str, str]] = []
+    searches: list[tuple[str, str]] = []
+    results: dict[str, str] = {}
     texts: list[str] = []
     calls: list[dict] = []
     refused: set[str] = set()
@@ -1549,8 +1617,13 @@ def claude_transcript_audit(
                         continue
                     if part.get("type") == "text":
                         texts.append(str(part.get("text", "")))
-                    if part.get("type") == "tool_result" and part.get("is_error"):
-                        refused.add(str(part.get("tool_use_id")))
+                    if part.get("type") == "tool_result":
+                        call_id = str(part.get("tool_use_id"))
+                        results[call_id] = results.get(call_id, "") + _result_text(
+                            part.get("content")
+                        )
+                        if part.get("is_error"):
+                            refused.add(call_id)
         if not isinstance(content, list):
             continue
         for part in content:
@@ -1571,10 +1644,17 @@ def claude_transcript_audit(
             elif name == "WebSearch":
                 query = str(payload.get("query") or "")
                 activity["searches"].append(query)
+                searches.append((str(part.get("id")), query))
                 if any(n in query.lower() for n in BLOCKED_NAMES):
                     problems.append(f"the judge searched for the engine: {query}")
             else:
                 problems.append(f"the judge called a tool it was not given: {name}")
+    for call_id, query in searches:
+        exposed = blocked_search_result(results.get(call_id, ""))
+        if exposed:
+            problems.append(
+                f"a search returned a blocked source: {query} -> {', '.join(exposed)}"
+            )
     for call_id, url in blocked_fetches:
         if call_id in refused:
             activity["denied_fetches"].append(url)
@@ -1856,6 +1936,15 @@ def check_login(
         if method == "oauth_token" and not declared:
             raise ValueError(
                 "a token login reports no account; set AUDIT_ACCOUNT to the lane's"
+            )
+        if (
+            method == "oauth_token"
+            and desktop.get("loggedIn") is True
+            and declared.strip().lower()
+            == str(desktop.get("email") or "").strip().lower()
+        ):
+            raise ValueError(
+                f"AUDIT_ACCOUNT ({declared}) is the desktop login's account"
             )
         if same_account:
             raise ValueError(f"the login is the desktop login's account ({email})")

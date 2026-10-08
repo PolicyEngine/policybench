@@ -209,18 +209,28 @@ def _oracle(payload: dict, params: ConsensusParams) -> set[tuple[str, str, float
                 continue
             reference = entries[0]["groundTruth"]
             keyed = {}
+            raw = {}
             for model, entry in cell.items():
                 value = entry["prediction"]
                 if entry["parsed"] and value is not None and math.isfinite(value):
                     keyed[model] = _oracle_key(value, params.answer_rounding)
+                    raw[model] = value
             binary = _binary(variable, params)
             for key in set(keyed.values()):
-                members = [model for model, other in keyed.items() if other == key]
-                n_top = sum(model in members for model in top)
                 if binary and key == reference:
                     continue
                 if not binary and abs(key - reference) <= params.tolerance:
                     continue
+                # An amount answer within the tolerance is exact, whatever its key.
+                members = [
+                    model
+                    for model, other in keyed.items()
+                    if other == key
+                    and (binary or abs(raw[model] - reference) > params.tolerance)
+                ]
+                if not members:
+                    continue
+                n_top = sum(model in members for model in top)
                 if len(members) < params.min_models and n_top < params.min_top:
                     continue
                 if key == 0 and len(members) < params.zero_cluster_min_models:
@@ -271,6 +281,9 @@ def check_flag_invariants(
                 assert abs(cluster["answer"] - flag["reference"]) > params.tolerance
             for model, prediction in cluster["predictions"].items():
                 assert prediction == cell[model]["prediction"]
+                # No member of a wrong cluster also counts as exact.
+                if not _binary(flag["variable"], params):
+                    assert abs(prediction - flag["reference"]) > params.tolerance
                 assert (
                     _oracle_key(prediction, params.answer_rounding)
                     == (cluster["answer"])
@@ -511,6 +524,22 @@ def test_rounding_decides_whether_close_answers_merge(rounding, flagged):
         assert cluster["predictions"] == {"a": 13387.65, "b": 13388.0}
         assert flags[0]["trigger"] == ["min_models"]
         assert flags[0]["models_exact"] == 1
+
+
+def test_an_exact_answer_never_counts_toward_a_wrong_cluster():
+    # Reference 13,387.65: 13,388.6 rounds to the key 13,389, which misses by
+    # 1.35, but the answer itself is within the $1 tolerance, so it is exact
+    # and leaves the cluster. 13,389.2 misses by 1.55 and stays.
+    answers = {"a": 13388.6, "b": 13388.6, "c": 13389.2}
+    payload = make_payload(
+        ["a", "b", "c"], {("scenario_081", "payroll_tax"): (13387.65, True, answers)}
+    )
+    assert consensus_flags(payload, ConsensusParams(min_models=2, min_top=3)) == []
+    (flag,) = consensus_flags(payload, ConsensusParams(min_models=1, min_top=3))
+    (cluster,) = flag["clusters"]
+    assert cluster["answer"] == 13389.0
+    assert cluster["models"] == ["c"]
+    assert flag["models_exact"] == 2
 
 
 def test_unusable_predictions_join_no_cluster():

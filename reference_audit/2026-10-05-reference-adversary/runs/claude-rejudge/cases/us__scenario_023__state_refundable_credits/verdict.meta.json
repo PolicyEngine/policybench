@@ -1,0 +1,54 @@
+{
+  "blinding": "tools",
+  "cost_usd": 2.4942534,
+  "duration_ms": 501901,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T21:47:14.322074+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "1c73ffb597893cedf677816f20935e4635d95f1f366341c7efff39c5b5fd8c40",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "dda19e70240db575ceb3c110eb4fb6ffee296d608f38f633296c9b6b3db49eca",
+  "session_id": "fb784af8-e147-4fd9-b9a3-7b1110bbe61e",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "39f4d4adc7b81437eff27f1dbc6f3dc04846bdff95636f45afec7fdeeae6d657",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ftb.ca.gov/forms/2025/2025-3514-booklet.html",
+      "https://www.ftb.ca.gov/forms/2025/2025-3514-booklet.pdf"
+    ],
+    "searches": [
+      "2025 California EITC table no qualifying children 22,500 22,550 FTB 3514",
+      "California earned income tax credit 2026 tax year maximum credit no qualifying children income limit indexed",
+      "Budget Act of 2026 California earned income tax credit adjustment factor 85 percent 2026 taxable year"
+    ]
+  }
+}

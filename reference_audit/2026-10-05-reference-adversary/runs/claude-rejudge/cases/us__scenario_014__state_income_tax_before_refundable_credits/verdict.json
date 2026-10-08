@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a711-21-4j(e) applicability clause and rate table for single, head of household and married filing jointly",
+      "pre_freeze": true,
+      "published": "2026-03-14",
+      "quote": "shall apply for all taxable years beginning on and after January 1, 2026 ... Over $60,000 ... $1,950.50 plus 4.58% of excess over $60,000",
+      "source": "West Virginia Legislature, Enrolled Committee Substitute for SB 392 (2026 Regular Session), adding W. Va. Code \u00a711-21-4j",
+      "url": "https://www.wvlegislature.gov/bill_status/bills_text.cfm?billdoc=sb392+sub1+enr.htm&yr=2026&sesstype=RS&i=392"
+    },
+    {
+      "pinpoint": "\u00a711-21-16(a)",
+      "pre_freeze": true,
+      "published": "",
+      "quote": "said exemption shall be $2,000",
+      "source": "W. Va. Code \u00a711-21-16 (Personal exemptions)",
+      "url": "https://code.wvlegislature.gov/11-21-16/"
+    },
+    {
+      "pinpoint": "\u00a711-21-12(a)",
+      "pre_freeze": true,
+      "published": "",
+      "quote": "his or her federal adjusted gross income as defined in the laws of the United States for the taxable year with the modifications specified in this section",
+      "source": "W. Va. Code \u00a711-21-12 (West Virginia adjusted gross income of resident individual)",
+      "url": "https://code.wvlegislature.gov/11-21-12/"
+    },
+    {
+      "pinpoint": "\u00a75301(a)(1)",
+      "pre_freeze": true,
+      "published": "",
+      "quote": "such payments made to, or on account of, a beneficiary shall be exempt from taxation",
+      "source": "38 U.S.C. \u00a75301",
+      "url": "https://www.law.cornell.edu/uscode/text/38/5301"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 3255.03,
+  "engine_step_at_issue": "",
+  "independent_answer": 3092.2,
+  "reference_value": 3092.19,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "I agree with the engine and with stage 1. The veterans benefits are exempt from tax, so West Virginia AGI is the spouse's $88,928 of wages. Subtracting two $2,000 personal exemptions leaves $84,928 of taxable income. Enrolled SB 392 adds W. Va. Code \u00a711-21-4j, which applies to taxable years beginning on or after January 1, 2026; it passed March 14, 2026, before the freeze. Under it, the tax is $1,950.50 + 4.58% \u00d7 $24,928 \u2248 $3,092.20. No nonrefundable credits apply. The engine reached $3,092.19 by the same steps; it carried AGI as $88,927.65, a $0.35 float artifact worth about one cent of tax. The models' $3,255.03 used the 2025 \u00a711-21-4i rates (2.22% to 4.82%), which SB 392 replaced for 2026.",
+  "verdict": "reference_holds"
+}

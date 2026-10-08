@@ -10,9 +10,12 @@
 #   policybench adversary-collect --adversary-dir codex=<dir> --output-dir <out>
 #
 # Run it inside a Subfleet lane, so that every judge call bills to the lane's
-# ChatGPT subscription. Never with an API key: OPENAI_API_KEY and
-# CODEX_API_KEY are removed from every codex call's environment, and the
-# runner refuses to start unless `codex login status` reports a ChatGPT login.
+# ChatGPT subscription. Never with an API key: every codex call gets an
+# allowlisted environment (PATH, HOME, user, locale, temp dir and CODEX_HOME),
+# so no API key, base URL or provider switch reaches it, and the runner
+# refuses to start unless `codex login status` reports a ChatGPT login. It
+# also refuses a Codex home that holds an AGENTS.md, whose instructions could
+# reach the judge outside the audited tool events.
 # Give each judge its own adversary directory: stage 1 and the verdict of a
 # case must come from the same runner.
 #
@@ -52,6 +55,12 @@
 # PolicyBench, or if it used any other tool (an MCP call, a sub-agent, a file
 # change). Both stages are audited. An output is rejected ("[invalid]") unless
 # it satisfies the stage's schema and cites no blocked source.
+#
+# Limits, unlike the Claude runner: Codex's event log records a web search's
+# query but not its results, so a search result that lists a PolicyEngine or
+# GitHub page cannot be detected (the prompt asks the judge to exclude those
+# domains); and a call the provider refuses fails only its own case, so a
+# refused lane fails every remaining call before the run ends.
 #
 # Provenance: beside stage1.json and verdict.json the runner writes
 # stage1.meta.json and verdict.meta.json with the runner, the stage, the model
@@ -137,8 +146,18 @@ CASES_DIR="$ADV_DIR/cases"
 SCHEMA1="$ADV_DIR/schema_stage1.json"
 SCHEMAV="$ADV_DIR/schema_verdict.json"
 
-# Never an API key (see the header).
-codex_child() { env -u OPENAI_API_KEY -u CODEX_API_KEY "$CODEX_BIN" "$@"; }
+# Never an API key (see the header): only these variables reach codex.
+CODEX_ENV=()
+for var in PATH HOME USER LOGNAME LANG LC_ALL TMPDIR CODEX_HOME; do
+  eval "value=\${$var-}"
+  [ -n "$value" ] && CODEX_ENV+=("$var=$value")
+done
+codex_child() { env -i "${CODEX_ENV[@]}" "$CODEX_BIN" "$@"; }
+CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
+[ -e "$CODEX_HOME_DIR/AGENTS.md" ] && {
+  echo "$CODEX_HOME_DIR/AGENTS.md exists: its instructions could reach the judge; use a lane home without one" >&2
+  exit 1
+}
 LOGIN=$(cd / && codex_child login status </dev/null 2>&1 | head -n 1)
 case "$LOGIN" in
   "Logged in using ChatGPT"*) ;;
