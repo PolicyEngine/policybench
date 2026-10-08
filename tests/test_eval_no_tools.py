@@ -3041,6 +3041,52 @@ def test_claude_haiku_5_5_override_reconstructs_token_costs(
     assert reconstructed.is_estimated is False
 
 
+def test_local_claude_registration_works_without_the_remote_cost_map():
+    """With litellm's remote cost map off (LITELLM_LOCAL_MODEL_COST_MAP), its
+    bundled backup lacks the newest Claude ids, and importing eval_no_tools
+    must register each at the configured override prices. The parametrized
+    test above reads the already-loaded map, which the remote fetch can fill,
+    so it cannot fail when a local entry is missing; this one runs a fresh
+    interpreter where only the local registration can supply the entry."""
+    import subprocess
+    import sys
+
+    code = """
+import json, os
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+import litellm
+from policybench.config import MODELS, PRICE_OVERRIDES_PER_1M
+newest = ("claude-haiku-5-5", "claude-sonnet-5-5")
+missing = [m for m in newest if m in litellm.model_cost]
+import policybench.eval_no_tools as harness
+out = {"bundled_already": missing, "models": {}}
+for display in harness._LOCAL_CLAUDE_MODELS:
+    entry = litellm.model_cost.get(MODELS[display])
+    prices = PRICE_OVERRIDES_PER_1M[display]
+    out["models"][display] = entry is not None and all(
+        abs(entry[key] - prices[name] / 1e6) < 1e-15
+        for key, name in (
+            ("input_cost_per_token", "input"),
+            ("output_cost_per_token", "output"),
+            ("cache_read_input_token_cost", "cache_read"),
+            ("cache_creation_input_token_cost", "cache_write"),
+        )
+    ) and entry["litellm_provider"] == "anthropic"
+print("RESULT " + json.dumps(out))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=300
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    line = next(row for row in result.stdout.splitlines() if row.startswith("RESULT "))
+    out = json.loads(line.removeprefix("RESULT "))
+    # The premise: the bundled backup does not carry these ids, so the entries
+    # checked below can only come from the local registration.
+    assert out["bundled_already"] == []
+    assert "claude-haiku-5.5" in out["models"]
+    assert all(out["models"].values()), out["models"]
+
+
 def test_claude_haiku_5_5_reasons_by_default_but_not_under_the_forced_tool():
     """Haiku 5.5 thinks when the request omits the thinking parameter, so it
     is a thinking-default Claude: provider-default thinking, the thinking
