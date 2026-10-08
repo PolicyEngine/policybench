@@ -1,36 +1,36 @@
 bun install v1.3.12 (700fc117)
 
-Checked 1035 installs across 1020 packages (no changes) [761.00ms]
+Checked 1035 installs across 1020 packages (no changes) [446.00ms]
 $ eslint . --max-warnings=0
 $ bun scripts/prepare-data.ts
 prepare-data: frozen serving configuration -> /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/src/model-serving-config.json
-prepare-data: [1.1] 127.2MB payload from /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/.cache/dashboard-data-1780d2ec37f90b65.json (cached) -> 23.8MB bundled summary + lazy explanations (us 34.2MB)
+prepare-data: [1.1] 127.2MB payload from /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/.cache/dashboard-data-f03441f64316997d.json (cached) -> 23.8MB bundled summary + lazy explanations (us 34.2MB)
 prepare-data: [1.0] 36.3MB payload from /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/.cache/dashboard-data-72d4b524fb6df8b3.json (cached) -> 6.9MB bundled summary + lazy explanations (us 12.1MB)
 bun test v1.3.12 (700fc117)
 
  170 pass
  0 fail
- 5164 expect() calls
-Ran 170 tests across 23 files. [4.76s]
+ 5228 expect() calls
+Ran 170 tests across 23 files. [2.45s]
 $ bun run prepare-data && next build
 $ bun scripts/prepare-data.ts
 prepare-data: frozen serving configuration -> /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/src/model-serving-config.json
-prepare-data: [1.1] 127.2MB payload from /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/.cache/dashboard-data-1780d2ec37f90b65.json (cached) -> 23.8MB bundled summary + lazy explanations (us 34.2MB)
+prepare-data: [1.1] 127.2MB payload from /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/.cache/dashboard-data-f03441f64316997d.json (cached) -> 23.8MB bundled summary + lazy explanations (us 34.2MB)
 prepare-data: [1.0] 36.3MB payload from /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/.cache/dashboard-data-72d4b524fb6df8b3.json (cached) -> 6.9MB bundled summary + lazy explanations (us 12.1MB)
 ▲ Next.js 16.2.6 (Turbopack)
 
   Creating an optimized production build ...
-(node:51808) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:1821) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✓ Compiled successfully in 29.2s
+✓ Compiled successfully in 11.3s
   Running TypeScript ...
-  Finished TypeScript in 21.6s ...
+  Finished TypeScript in 15.3s ...
   Collecting page data using 11 workers ...
   Generating static pages using 11 workers (0/62) ...
   Generating static pages using 11 workers (15/62) 
   Generating static pages using 11 workers (30/62) 
   Generating static pages using 11 workers (46/62) 
-✓ Generating static pages using 11 workers (62/62) in 1798ms
+✓ Generating static pages using 11 workers (62/62) in 1152ms
   Finalizing page optimization ...
 
 Route (app)
