@@ -12,19 +12,19 @@ This release applies Max's rulings of 2026-10-05 to release `dashboard-data-2026
 
 PR #197's rewrites of scenario_031's Medicaid annotations ship with this release's re-export.
 
-PR #192's documentation sentence is held under d994. Applied as written, it would change five scored references held under the 2026-09-22 conventions:
+PR #192's documentation sentence was held under d994 when this release was built. Applied as written, it would change five scored references held under the 2026-09-22 conventions:
 - Idaho's zero-rate threshold (scenario_076);
 - SNAP's FY2027 standard deduction for households of four or more (scenario_008, scenario_038 and scenario_109);
 - Maryland's 2026 return deduction under the IRS reading (scenario_068).
 
-This release retains the existing convention and every reference value. The wording-only Louisiana case-note rewrites ship; the held sentence requires a separate methodology decision.
+This release retains the existing convention and every reference value, and the wording-only Louisiana case-note rewrites ship. Max ruled d994 on 2026-10-06, after the release was built: the convention stays as written, so the sentence is not adopted and the five references keep their values, and both Louisiana outputs are excluded in the release after this one (`reference_audit/2026-10-05-louisiana/README.md`).
 
 ## Inputs
 
 - `spec.json`. It holds:
   - the base (tag, commit 8b4c0ca1, payload sha256 and bytes);
   - the three proposal files and the outputs each ruling names;
-  - four edits to records, each with its source;
+  - five edits to records, each with its source;
   - the rule and derivation text;
   - the eight adjudications' subtypes and reasoning;
   - the judge-evidence waves.
@@ -80,7 +80,7 @@ $PY scripts/freeze_snapshot.py --rendered-only
 
 ## Invariants (tests/test_release_20261006.py)
 
-1. The frozen exclusion record is `build_exclusions(release 20260930's record, spec)`, byte for byte: the base records unchanged except the four edits, plus the eight ruled records before the audit's trailing scenario_023 record.
+1. The frozen exclusion record is `build_exclusions(release 20260930's record, spec)`, byte for byte: the base records unchanged except the five edits, plus the eight ruled records before the audit's trailing scenario_023 record.
 2. The adjudication record is release 20260930's plus eight entries. Each keeps the judge verdict the evidence file binds, and its reference basis is its record's unlisted input.
 3. The committed annotation files rebuild byte for byte from release 20260930's: #197's ledger, then the release rewrites, then every adjudication.
 4. References and predictions are release 20260930's.

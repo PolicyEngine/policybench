@@ -1680,7 +1680,7 @@
       "group": "payroll",
       "reason": "Old text calls the PFML share 'the mandatory Massachusetts Paid Family and Medical Leave (PFML) employee contribution'; the employer remits it and may deduct less or none. Old text frames leaving PFML out or treating it as employer-only as the error, and its list of wrong rates omits 0.24% and 0.38%.",
       "old": "The reference has three parts: employee Social Security of 6.2% x $175,002 = $10,850.12 (the wages are below the 2026 wage base), employee Medicare of 1.45% x $175,002 = $2,537.53 with no Additional Medicare Tax, and the mandatory Massachusetts Paid Family and Medical Leave (PFML) employee contribution of 0.46% x $175,002 = $805.01. Most wrong models stopped at SS plus Medicare ($13,387.65) because they left out MA PFML or treated it as employer-only. Others included PFML at a wrong employee rate (0.256%, 0.318%, 0.375%, 0.44%, 0.532%, 0.55% or 0.604%). A third group shrank the FICA base to $167,613 by subtracting the $7,389 employer-sponsored insurance premiums, but the payroll tax base here is the full $175,002.",
-      "new": "The reference has three parts: employee Social Security of 6.2% × $175,002 = $10,850.12 (the wages are below the 2026 wage base), employee Medicare of 1.45% × $175,002 = $2,537.53 with no Additional Medicare Tax, and $805.01 of Massachusetts Paid Family and Medical Leave (PFML), 0.46% × $175,002. The employer remits PFML contributions and may deduct up to 0.46% of wages from the employee (all of the 0.18% family rate and 40% of the 0.70% medical rate) or deduct less or none. The reference counts the most the employer may deduct; the prompt does not say what this employer does, and counting only what the law requires of the employee gives federal tax alone, $13,387.65. Nine models matched the reference. Of the other 37, nine answered federal tax alone, saying Massachusetts has no employee payroll tax or none is mandatory, assuming PFML is not modeled, leaving it out without a reason, or not mentioning it. Thirteen more left PFML out and made another error, most often a total that does not match the model's own figures; others used an outdated Social Security wage base, a 2.9% Medicare rate, Additional Medicare Tax on wages under $200,000, or a FICA base cut to $167,613 by subtracting the $7,389 of employer-sponsored insurance premiums, which the engine does not subtract. Thirteen included PFML at other amounts, at stated rates from 0.24% to 0.604% or as estimates without a rate, two of them on the $167,613 base. One returned $0 with no reasoning, and one returned no value."
+      "new": "The reference has three parts: employee Social Security of 6.2% × $175,002 = $10,850.12 (the wages are below the 2026 wage base), employee Medicare of 1.45% × $175,002 = $2,537.53 with no Additional Medicare Tax, and $805.01 of Massachusetts Paid Family and Medical Leave (PFML), 0.46% × $175,002. The employer remits PFML contributions and, under the Department of Family and Medical Leave's published 2026 rates, may deduct up to 0.46% of wages from the employee (all of the 0.18% family rate and 40% of the 0.70% medical rate) or deduct less or none. The reference counts the most Massachusetts's published 2026 rates let the employer deduct; the prompt does not say what this employer does, and counting only what the law requires of the employee gives federal tax alone, $13,387.65. Nine models matched the reference. Of the other 37, nine answered federal tax alone, saying Massachusetts has no employee payroll tax or none is mandatory, assuming PFML is not modeled, leaving it out without a reason, or not mentioning it. Thirteen more left PFML out and made another error, most often a total that does not match the model's own figures; others used an outdated Social Security wage base, a 2.9% Medicare rate, Additional Medicare Tax on wages under $200,000, or a FICA base cut to $167,613 by subtracting the $7,389 of employer-sponsored insurance premiums, which the engine does not subtract. Thirteen included PFML at other amounts, at stated rates from 0.24% to 0.604% or as estimates without a rate, two of them on the $167,613 base. One returned $0 with no reasoning, and one returned no value."
     },
     {
       "file": "us_case_notes.csv",
@@ -2511,7 +2511,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "It correctly computed the MA PFML employee contribution as 0.46% x $175,002 = $805.01. It then dropped that contribution, assuming PolicyEngine counts only SS and Medicare. It also submitted $13,268.70, which does not match even its own $13,387.65 subtotal; the correct total adds the $805.01 to reach $14,192.66.",
-      "new": "It computed a Massachusetts PFML employee share of 0.46% × $175,002 = $805.01, then dropped it, assuming a PolicyEngine-style payroll tax counts only Social Security and Medicare when state payroll tax is not modeled. It then submitted $13,268.70, which does not match even its own $13,387.65 subtotal. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It computed a Massachusetts PFML employee share of 0.46% × $175,002 = $805.01, then dropped it, assuming a PolicyEngine-style payroll tax counts only Social Security and Medicare when state payroll tax is not modeled. It then submitted $13,268.70, which does not match even its own $13,387.65 subtotal. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2522,7 +2522,7 @@
       "group": "payroll",
       "reason": "calls the optional employee share mandatory; faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It computed SS ($10,850.12) and Medicare ($2,537.53) correctly. It left out the mandatory MA PFML employee contribution of 0.46% of wages ($805.01), which the payroll_tax definition includes as a mandatory employee state payroll tax.",
-      "new": "It computed Social Security ($10,850.12) and Medicare ($2,537.53) and stopped at $13,387.65, federal tax alone, without mentioning Massachusetts PFML. The reference adds $805.01 (0.46% of $175,002), the most the employer may deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
+      "new": "It computed Social Security ($10,850.12) and Medicare ($2,537.53) and stopped at $13,387.65, federal tax alone, without mentioning Massachusetts PFML. The reference adds $805.01 (0.46% of $175,002), the most Massachusetts's published 2026 rates let the employer deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2533,7 +2533,7 @@
       "group": "payroll",
       "reason": "faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It said Massachusetts has no separate mandatory employee payroll tax, missing the PFML employee contribution of 0.46% x $175,002 = $805.01. It also capped SS at the outdated $168,600 wage base, even though the full $175,002 is below the 2026 base. It then submitted $13,383.41, which matches neither of its own subtotals.",
-      "new": "It said Massachusetts has no separate mandatory employee payroll tax beyond federal taxes and did not count PFML. It capped Social Security at an outdated $168,600 wage base, though the engine taxes the full $175,002, and then submitted $13,383.41, which matches neither of its own subtotals. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It said Massachusetts has no separate mandatory employee payroll tax beyond federal taxes and did not count PFML. It capped Social Security at an outdated $168,600 wage base, though the engine taxes the full $175,002, and then submitted $13,383.41, which matches neither of its own subtotals. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2544,7 +2544,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "It estimated the MA PFML employee contribution at about $0 by treating the medical share as employer-paid. The actual employee rate is 0.46% of wages, which gives $805.01. It also submitted $12,321.73, which contradicts its own $13,387.65 subtotal of SS plus Medicare on full wages.",
-      "new": "It estimated the Massachusetts PFML employee contribution at about $0 and submitted $12,321.73, which contradicts its own $13,387.65 subtotal of Social Security and Medicare on full wages. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It estimated the Massachusetts PFML employee contribution at about $0 and submitted $12,321.73, which contradicts its own $13,387.65 subtotal of Social Security and Medicare on full wages. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2555,7 +2555,7 @@
       "group": "payroll",
       "reason": "faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It set MA PFML to 0 because it had no rate, omitting the 0.46% employee contribution of $805.01. It then submitted $12,717.62, which is not the $13,387.65 sum of the SS and Medicare figures it had just computed.",
-      "new": "It set Massachusetts PFML to 0 for lack of a rate, then submitted $12,717.62, which is not the $13,387.65 sum of the Social Security and Medicare figures it had just computed. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It set Massachusetts PFML to 0 for lack of a rate, then submitted $12,717.62, which is not the $13,387.65 sum of the Social Security and Medicare figures it had just computed. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2566,7 +2566,7 @@
       "group": "payroll",
       "reason": "faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It explicitly set the MA PFML employee contribution to about $0 instead of 0.46% x $175,002 = $805.01. It also rounded SS plus Medicare down to $13,385 rather than $13,387.65.",
-      "new": "It set Massachusetts PFML to about $0, wrote a total of about $13,388 and submitted $13,385, below the $13,387.65 of Social Security and Medicare. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It set Massachusetts PFML to about $0, wrote a total of about $13,388 and submitted $13,385, below the $13,387.65 of Social Security and Medicare. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2577,7 +2577,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer; faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It identified the MA PFML employee contribution of about $805 at 0.46%, then excluded it on the assumption that the model leaves it out. The payroll_tax definition covers mandatory employee state payroll taxes, so the $805.01 belongs in the $14,192.66 total.",
-      "new": "It computed Social Security ($10,850.12) and Medicare ($2,537.53), named the Massachusetts PFML employee contribution (about $805 at 0.46%) and left it out, assuming the reference model does not include it, answering $13,387.65, federal tax alone. The engine does include it: the reference adds $805.01 (0.46% of $175,002), the most the employer may deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
+      "new": "It computed Social Security ($10,850.12) and Medicare ($2,537.53), named the Massachusetts PFML employee contribution (about $805 at 0.46%) and left it out, assuming the reference model does not include it, answering $13,387.65, federal tax alone. The engine does include it: the reference adds $805.01 (0.46% of $175,002), the most Massachusetts's published 2026 rates let the employer deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2588,7 +2588,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "It first reached the correct $14,192.66 using the 0.46% PFML employee rate. It then switched to 0.604%, built on an inverted split: employees paying all of a 0.42% medical portion plus 40% of a 0.46% family portion. The MA employee share is 0.46% of wages, so its PFML came out at $1,057.01 instead of $805.01.",
-      "new": "It first reached $14,192.66, the reference, with a 0.46% PFML employee rate, then switched to 0.604%: all of a 0.42% medical portion plus 40% of a 0.46% family portion. The engine uses 2026 rates of 0.18% family and 0.70% medical and counts all of the family rate and 40% of the medical, 0.46% of wages, the most the employer may deduct; its PFML came out at $1,057.01 against the reference's $805.01."
+      "new": "It first reached $14,192.66, the reference, with a 0.46% PFML employee rate, then switched to 0.604%: all of a 0.42% medical portion plus 40% of a 0.46% family portion. The engine uses 2026 rates of 0.18% family and 0.70% medical and counts all of the family rate and 40% of the medical, 0.46% of wages, the most Massachusetts's published 2026 rates let the employer deduct; its PFML came out at $1,057.01 against the reference's $805.01."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2599,7 +2599,7 @@
       "group": "payroll",
       "reason": "calls the optional employee share mandatory; faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It treated MA PFML as employer-side only and excluded it, missing the mandatory employee contribution of 0.46% x $175,002 = $805.01. It then submitted $12,318.65, which contradicts its own $13,387.65 sum of SS and Medicare.",
-      "new": "It treated Massachusetts PFML as employer-side only and left it out, then submitted $12,318.65, which contradicts its own $13,387.65 sum of Social Security and Medicare. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It treated Massachusetts PFML as employer-side only and left it out, then submitted $12,318.65, which contradicts its own $13,387.65 sum of Social Security and Medicare. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2610,7 +2610,7 @@
       "group": "payroll",
       "reason": "calls the optional employee share mandatory; faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It stated outright that it did not include the MA PFML contribution. That dropped the mandatory 0.46% employee contribution ($805.01) from an otherwise correct SS plus Medicare total of $13,387.65.",
-      "new": "It said outright that it did not include any Massachusetts PFML contribution and answered $13,387.65, Social Security plus Medicare. The reference adds $805.01 (0.46% of $175,002), the most the employer may deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
+      "new": "It said outright that it did not include any Massachusetts PFML contribution and answered $13,387.65, Social Security plus Medicare. The reference adds $805.01 (0.46% of $175,002), the most Massachusetts's published 2026 rates let the employer deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2621,7 +2621,7 @@
       "group": "payroll",
       "reason": "calls the optional employee share mandatory; faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It asserted that Massachusetts has no employee state payroll tax, overlooking the mandatory PFML employee contribution of 0.46% of wages ($805.01) that brings the total to $14,192.66.",
-      "new": "It said Massachusetts has no employee state payroll tax and answered $13,387.65, Social Security plus Medicare. The reference adds $805.01 (0.46% of $175,002), the most the employer may deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
+      "new": "It said Massachusetts has no employee state payroll tax and answered $13,387.65, Social Security plus Medicare. The reference adds $805.01 (0.46% of $175,002), the most Massachusetts's published 2026 rates let the employer deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2632,7 +2632,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "It correctly included MA PFML but applied a 0.38% employee rate instead of 0.46%. That understated PFML at about $665 versus $805.01, and it then rounded the total to $14,053.",
-      "new": "It included a Massachusetts PFML employee share at 0.38% of wages, about $665, and rounded the total to $14,053. The reference counts the most the employer may deduct, 0.46% of $175,002 = $805.01, for $14,192.66."
+      "new": "It included a Massachusetts PFML employee share at 0.38% of wages, about $665, and rounded the total to $14,053. The reference counts the most Massachusetts's published 2026 rates let the employer deduct, 0.46% of $175,002 = $805.01, for $14,192.66."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2643,7 +2643,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "It included MA PFML at an estimated 0.318% of wages ($556.51). The employee rate is 0.46% ($805.01), so the total fell $248.50 short.",
-      "new": "It included Massachusetts PFML at an estimated 0.318% of wages ($556.51), for $13,944.16. The reference counts the most the employer may deduct, 0.46% of $175,002 = $805.01, so the total is $248.50 under it."
+      "new": "It included Massachusetts PFML at an estimated 0.318% of wages ($556.51), for $13,944.16. The reference counts the most Massachusetts's published 2026 rates let the employer deduct, 0.46% of $175,002 = $805.01, so the total is $248.50 under it."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2654,7 +2654,7 @@
       "group": "payroll",
       "reason": "faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It counted only 6.2% SS plus 1.45% Medicare and omitted the 0.46% MA PFML employee contribution ($805.01). Its $11,843 does not even equal 7.65% x $175,002 = $13,387.65, the result of the formula it described.",
-      "new": "It counted only 6.2% Social Security plus 1.45% Medicare and did not mention Massachusetts PFML. Its $11,843 does not even equal 7.65% × $175,002 = $13,387.65, the result of the formula it described. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It counted only 6.2% Social Security plus 1.45% Medicare and did not mention Massachusetts PFML. Its $11,843 does not even equal 7.65% × $175,002 = $13,387.65, the result of the formula it described. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2665,7 +2665,7 @@
       "group": "payroll",
       "reason": "faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It reduced FICA wages to $167,613 by subtracting the $7,389 ESI premiums as pre-tax, when the payroll tax base is the full $175,002. It also omitted the 0.46% MA PFML employee contribution ($805.01) entirely.",
-      "new": "It reduced FICA wages to $167,613 by subtracting the $7,389 employer-sponsored insurance premiums as pre-tax, when the engine's payroll tax base is the full $175,002, and it did not mention Massachusetts PFML. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It reduced FICA wages to $167,613 by subtracting the $7,389 employer-sponsored insurance premiums as pre-tax, when the engine's payroll tax base is the full $175,002, and it did not mention Massachusetts PFML. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2676,7 +2676,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "It named the right three components (SS, Medicare and MA PFML), but its $13,444 total is only $56 above SS plus Medicare on full wages ($13,387.65). That means it counted about $56 of PFML instead of the $805.01 produced by the 0.46% employee rate.",
-      "new": "It named Social Security, Medicare and Massachusetts PFML contributions, but its $13,444 total is only about $56 above Social Security plus Medicare on full wages ($13,387.65), so on full wages it counted about $56 of PFML. The reference counts the most the employer may deduct, 0.46% of $175,002 = $805.01, for $14,192.66."
+      "new": "It named Social Security, Medicare and Massachusetts PFML contributions, but its $13,444 total is only about $56 above Social Security plus Medicare on full wages ($13,387.65), so on full wages it counted about $56 of PFML. The reference counts the most Massachusetts's published 2026 rates let the employer deduct, 0.46% of $175,002 = $805.01, for $14,192.66."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2687,7 +2687,7 @@
       "group": "payroll",
       "reason": "calls the optional employee share mandatory; faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It stopped at SS plus Medicare ($13,387.65) and never added the mandatory 0.46% MA PFML employee contribution of $805.01.",
-      "new": "It stopped at Social Security plus Medicare, $13,387.65, without mentioning Massachusetts PFML. The reference adds $805.01 (0.46% of $175,002), the most the employer may deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
+      "new": "It stopped at Social Security plus Medicare, $13,387.65, without mentioning Massachusetts PFML. The reference adds $805.01 (0.46% of $175,002), the most Massachusetts's published 2026 rates let the employer deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2698,7 +2698,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "It built a 0.532% PFML employee rate by taking 40% of the entire 0.88% combined rate (0.352%) as the medical share and adding the 0.18% family share. The employee's 40% applies only to the 0.70% medical portion, giving 0.28% + 0.18% = 0.46%. It therefore overstated PFML at $931 instead of $805.01.",
-      "new": "It built a 0.532% PFML employee rate by taking 40% of the entire 0.88% combined rate (0.352%) as the medical share and adding the 0.18% family share. The engine counts 40% of only the 0.70% medical rate plus the 0.18% family rate, 0.28% + 0.18% = 0.46%, the most the employer may deduct; its PFML came out at $931 against the reference's $805.01."
+      "new": "It built a 0.532% PFML employee rate by taking 40% of the entire 0.88% combined rate (0.352%) as the medical share and adding the 0.18% family share. The engine counts 40% of only the 0.70% medical rate plus the 0.18% family rate, 0.28% + 0.18% = 0.46%, the most Massachusetts's published 2026 rates let the employer deduct; its PFML came out at $931 against the reference's $805.01."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2709,7 +2709,7 @@
       "group": "payroll",
       "reason": "faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It asserted that Massachusetts has no mandatory employee payroll tax and omitted the PFML employee contribution of 0.46% x $175,002 = $805.01.",
-      "new": "It said Massachusetts has no mandatory employee payroll tax and answered $13,387.65, Social Security plus Medicare. The reference adds $805.01 (0.46% of $175,002), the most the employer may deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
+      "new": "It said Massachusetts has no mandatory employee payroll tax and answered $13,387.65, Social Security plus Medicare. The reference adds $805.01 (0.46% of $175,002), the most Massachusetts's published 2026 rates let the employer deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2720,7 +2720,7 @@
       "group": "payroll",
       "reason": "calls the optional employee share mandatory; faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It counted only SS and Medicare, which it also mis-added as $13,389.37 instead of $13,387.65. It omitted the mandatory MA PFML employee contribution of $805.01 at 0.46% of wages.",
-      "new": "It counted only Social Security and Medicare, submitting $13,389.37 rather than the $13,387.65 they come to, and did not mention Massachusetts PFML. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It counted only Social Security and Medicare, submitting $13,389.37 rather than the $13,387.65 they come to, and did not mention Massachusetts PFML. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2731,7 +2731,7 @@
       "group": "payroll",
       "reason": "faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It wrongly claimed the wages exceed the $200,000 Additional Medicare Tax threshold ($175,002 does not). It also submitted $5,420, less than half the $10,850.12 SS tax alone, and omitted the $805.01 MA PFML contribution.",
-      "new": "It wrongly claimed the wages exceed the $200,000 Additional Medicare Tax threshold ($175,002 does not) and submitted $5,420, less than half the $10,850.12 of Social Security tax alone, without mentioning Massachusetts PFML. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It wrongly claimed the wages exceed the $200,000 Additional Medicare Tax threshold ($175,002 does not) and submitted $5,420, less than half the $10,850.12 of Social Security tax alone, without mentioning Massachusetts PFML. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2742,7 +2742,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "Its SS plus Medicare total of $13,387.65 is correct, but it estimated MA PFML at $962.51, which is 0.55% of wages. The employee rate is 0.46%, giving $805.01.",
-      "new": "Its Social Security plus Medicare total of $13,387.65 matches the engine, but it estimated Massachusetts PFML withholding at $962.51, which is 0.55% of wages. The reference counts the most the employer may deduct, 0.46% of $175,002 = $805.01, for $14,192.66."
+      "new": "Its Social Security plus Medicare total of $13,387.65 matches the engine, but it estimated Massachusetts PFML withholding at $962.51, which is 0.55% of wages. The reference counts the most Massachusetts's published 2026 rates let the employer deduct, 0.46% of $175,002 = $805.01, for $14,192.66."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2753,7 +2753,7 @@
       "group": "payroll",
       "reason": "calls the optional employee share mandatory; faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It counted only 6.2% SS and 1.45% Medicare (about $13,388) and omitted the mandatory MA PFML employee contribution of 0.46% of wages ($805.01).",
-      "new": "It counted only 6.2% Social Security and 1.45% Medicare, about $13,388, without mentioning Massachusetts PFML. The reference adds $805.01 (0.46% of $175,002), the most the employer may deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
+      "new": "It counted only 6.2% Social Security and 1.45% Medicare, about $13,388, without mentioning Massachusetts PFML. The reference adds $805.01 (0.46% of $175,002), the most Massachusetts's published 2026 rates let the employer deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2764,7 +2764,7 @@
       "group": "payroll",
       "reason": "faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It applied the combined 2.9% employer-plus-employee Medicare rate instead of the 1.45% employee rate, doubling Medicare to about $5,075. It also omitted the 0.46% MA PFML employee contribution ($805.01).",
-      "new": "It applied the combined 2.9% employer-plus-employee Medicare rate instead of the 1.45% employee rate, doubling Medicare to about $5,075, and did not mention Massachusetts PFML. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It applied the combined 2.9% employer-plus-employee Medicare rate instead of the 1.45% employee rate, doubling Medicare to about $5,075, and did not mention Massachusetts PFML. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2773,9 +2773,9 @@
       "model": "grok-4.5",
       "field": "annotation",
       "group": "payroll",
-      "reason": "calls 0.46% 'the employee rate', presenting the most the employer may deduct as the employee's rate (the same wording rewritten on gemini-3-flash-preview and gpt-5.6-terra); presents the largest deductible share as the household's actual contribution or the correct answer",
+      "reason": "calls 0.46% 'the employee rate', presenting the most Massachusetts's published 2026 rates let the employer deduct as the employee's rate (the same wording rewritten on gemini-3-flash-preview and gpt-5.6-terra); presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "It included MA PFML at 0.318% of wages ($556) instead of the 0.46% employee rate ($805.01), and it rounded the components to whole dollars.",
-      "new": "It included Massachusetts PFML at 0.318% of wages ($556) and rounded the components to whole dollars, for $13,944. The reference counts the most the employer may deduct, 0.46% of $175,002 = $805.01, for $14,192.66."
+      "new": "It included Massachusetts PFML at 0.318% of wages ($556) and rounded the components to whole dollars, for $13,944. The reference counts the most Massachusetts's published 2026 rates let the employer deduct, 0.46% of $175,002 = $805.01, for $14,192.66."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2786,7 +2786,7 @@
       "group": "payroll",
       "reason": "calls the optional employee share mandatory; faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It assumed there is no state payroll tax and applied only 7.65% FICA. That omitted the mandatory MA PFML employee contribution of 0.46% x $175,002 = $805.01.",
-      "new": "It assumed there is no state payroll tax and applied only 7.65% FICA, rounded to $13,388. The reference adds $805.01 (0.46% of $175,002), the most the employer may deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
+      "new": "It assumed there is no state payroll tax and applied only 7.65% FICA, rounded to $13,388. The reference adds $805.01 (0.46% of $175,002), the most Massachusetts's published 2026 rates let the employer deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2797,7 +2797,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "It returned no payroll_tax value and no explanation. The correct derivation is SS $10,850.12 + Medicare $2,537.53 + MA PFML $805.01 = $14,192.66.",
-      "new": "It returned no payroll_tax value and no explanation. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It returned no payroll_tax value and no explanation. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2808,7 +2808,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer",
       "old": "It returned $0 with no reasoning, as though the head owed no employee payroll tax at all. On $175,002 of wages the correct derivation gives SS $10,850.12 + Medicare $2,537.53 + MA PFML $805.01 = $14,192.66.",
-      "new": "It returned $0 with no reasoning, as though the head owed no employee payroll tax at all. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It returned $0 with no reasoning, as though the head owed no employee payroll tax at all. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2819,7 +2819,7 @@
       "group": "payroll",
       "reason": "faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It stated that Massachusetts levies no mandatory employee payroll tax and stopped at $13,387.65. That omitted the PFML employee contribution of 0.46% x $175,002 = $805.01.",
-      "new": "It said Massachusetts levies no mandatory employee payroll tax modeled here and stopped at $13,387.65. The reference adds $805.01 (0.46% of $175,002), the most the employer may deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
+      "new": "It said Massachusetts levies no mandatory employee payroll tax modeled here and stopped at $13,387.65. The reference adds $805.01 (0.46% of $175,002), the most Massachusetts's published 2026 rates let the employer deduct for Massachusetts PFML. The law lets the employer deduct less or none, and the prompt does not say what it does; counting only what the law requires of the employee gives federal tax alone, $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2830,7 +2830,7 @@
       "group": "payroll",
       "reason": "faults the model for leaving out a share the law lets the employer pay itself",
       "old": "It asserted that Massachusetts has no mandatory state payroll tax, missing the 0.46% PFML employee contribution ($805.01). It then submitted an unexplained $14,525.24 that contradicts its own $13,387.65 subtotal.",
-      "new": "It said no mandatory state payroll taxes apply in Massachusetts, totaled $13,387.65, and then submitted an unexplained $14,525.24 that contradicts that total. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It said no mandatory state payroll taxes apply in Massachusetts, totaled $13,387.65, and then submitted an unexplained $14,525.24 that contradicts that total. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",
@@ -2841,7 +2841,7 @@
       "group": "payroll",
       "reason": "presents the largest deductible share as the household's actual contribution or the correct answer; faults the model for leaving out a share the law lets the employer pay itself",
       "old": "Its listed components (SS, Medicare and Additional Medicare Tax) leave out the MA PFML employee contribution. By its own formula the total is 7.65% x $175,002 = $13,387.65 with no Additional Medicare Tax, not $13,922. The correct total adds $805.01 of PFML at 0.46% to reach $14,192.66.",
-      "new": "It listed Social Security, Medicare and Additional Medicare Tax, not Massachusetts PFML, and submitted $13,922. By its own formula the total is 7.65% × $175,002 = $13,387.65 with no Additional Medicare Tax. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most the employer may deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
+      "new": "It listed Social Security, Medicare and Additional Medicare Tax, not Massachusetts PFML, and submitted $13,922. By its own formula the total is 7.65% × $175,002 = $13,387.65 with no Additional Medicare Tax. The reference is $10,850.12 Social Security + $2,537.53 Medicare + $805.01 PFML = $14,192.66, counting the most Massachusetts's published 2026 rates let the employer deduct for PFML (0.46% of $175,002); the law lets the employer deduct less or none, and without that share the total is $13,387.65."
     },
     {
       "file": "us_audit_row_annotations.csv",

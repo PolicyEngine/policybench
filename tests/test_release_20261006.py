@@ -496,3 +496,26 @@ def test_annotation_scope_refuses_a_change_to_another_output():
     )
     with pytest.raises(SystemExit):
         release.verify_annotation_scope(files, staged, set(), {("s1", "v")})
+
+
+def test_verify_payload_refuses_a_dropped_cell_or_household():
+    """The cell comparison walks the staged payload's own keys, so a cell or a
+    household missing from it would otherwise go unchecked: its scores and
+    exclusion list can stay consistent without it. Equal payloads pass; a
+    payload that drops an excluded cell, or a whole household, is refused."""
+    import copy
+
+    base = release.base_payload(SPEC)
+    release.verify_payload(base, base, SPEC, set(), set())
+
+    excluded = base["countries"]["us"]["referenceExclusions"][0]
+    scenario, variable = excluded["scenarioId"], excluded["variable"]
+    without_cell = copy.deepcopy(base)
+    del without_cell["countries"]["us"]["scenarioPredictions"][scenario][variable]
+    with pytest.raises(SystemExit, match=f"{scenario}'s outputs changed"):
+        release.verify_payload(without_cell, base, SPEC, set(), set())
+
+    without_household = copy.deepcopy(base)
+    del without_household["countries"]["us"]["scenarioPredictions"][scenario]
+    with pytest.raises(SystemExit, match="the payload's households changed"):
+        release.verify_payload(without_household, base, SPEC, set(), set())

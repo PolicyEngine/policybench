@@ -4258,10 +4258,16 @@ def test_release_20261006_note() -> None:
             ", which decides whether that share is a mandatory employee state "
             "payroll tax"
         )
-        assert (
-            "counts the largest share the employer may deduct"
-            in (record["alternative_reading"])
+        # Massachusetts's record names the published rates: a literal reading
+        # of Acts 2026 c. 101 would let the employer deduct more in 2026
+        # (reference_audit/2026-10-05-payroll/README.md).
+        largest = (
+            "counts the largest share Massachusetts's published 2026 rates let "
+            "the employer deduct"
+            if key[0] == "scenario_081"
+            else "counts the largest share the employer may deduct"
         )
+        assert largest in record["alternative_reading"]
         assert (
             "Read as the amount the law requires of the employee whatever the "
             "employer does, which is $0, the output is employee federal payroll "
@@ -4296,8 +4302,8 @@ def test_release_20261006_note() -> None:
         "may deduct up to a set share of it from wages but need not, so the law "
         "requires no amount of the employee.",
         "The prompts ask for mandatory employee state payroll taxes, and the "
-        "references count the largest share the employer may deduct, without the "
-        "prompts saying whether it does.",
+        "references count the largest share each state's published 2026 rates let "
+        "the employer deduct, without the prompts saying whether it does.",
         "Without that share, the outputs are ${mnAlt} in Minnesota, ${coAlt} in "
         "Colorado, ${maAlt} in Massachusetts, and ${nyAlt} in New York, against "
         "references of ${mnRef}, ${coRef}, ${maRef}, and ${nyRef}.",

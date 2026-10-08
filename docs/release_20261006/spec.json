@@ -101,6 +101,14 @@
         "note_to_append"
       ],
       "source": "reference_audit/2026-10-05/README.md, release step 6"
+    },
+    {
+      "scenario_id": "scenario_081",
+      "variable": "payroll_tax",
+      "field": "alternative_reading",
+      "replace": "counts the largest share the employer may deduct (ma_employee_paid_leave_contribution $805.01)",
+      "with": "counts the largest share Massachusetts's published 2026 rates let the employer deduct (ma_employee_paid_leave_contribution $805.01)",
+      "source": "reference_audit/2026-10-05-payroll/README.md, 'Massachusetts, Acts 2026 c. 101': a literal reading of the act's s. 45 would let a large employer deduct up to 0.772% ($1,351.02) for 2026, while the Department's rates page kept the 0.46% maximum, so the record names the published rates (independent review of the release, 2026-10-08)"
     }
   ],
   "rule": {
@@ -140,7 +148,7 @@
       "scenario_id": "scenario_081",
       "variable": "payroll_tax",
       "adjudicated_failure_subtype": "state_local_rule",
-      "reasoning": "The frozen reference is 14,192.66; the alternative is 13,387.65. The prompt counts mandatory employee state payroll taxes; Massachusetts PFML contributions are the employer's, which may deduct the employee share from wages but need not (M.G.L. c. 175M, s. 6(a) and (c); 458 CMR 2.05(5)), and policyengine-us 2.15.17 counts the largest share the employer may deduct ($805.01); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json)."
+      "reasoning": "The frozen reference is 14,192.66; the alternative is 13,387.65. The prompt counts mandatory employee state payroll taxes; Massachusetts PFML contributions are the employer's, which may deduct the employee share from wages but need not (M.G.L. c. 175M, s. 6(a) and (c); 458 CMR 2.05(5)), and policyengine-us 2.15.17 counts the largest share Massachusetts's published 2026 rates let the employer deduct ($805.01); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json)."
     },
     {
       "scenario_id": "scenario_082",

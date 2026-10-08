@@ -840,7 +840,15 @@ def verify_payload(
         now_excluded - base_excluded == new_keys and base_excluded <= now_excluded,
         "the payload's exclusions are not the base's plus the ruled outputs",
     )
+    require(
+        set(now["scenarioPredictions"]) == set(before["scenarioPredictions"]),
+        "the payload's households changed",
+    )
     for scenario, cells in now["scenarioPredictions"].items():
+        require(
+            set(cells) == set(before["scenarioPredictions"][scenario]),
+            f"{scenario}'s outputs changed",
+        )
         for variable, cell in cells.items():
             old = before["scenarioPredictions"][scenario][variable]
             output = (scenario, variable)
