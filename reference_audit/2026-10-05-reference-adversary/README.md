@@ -439,7 +439,7 @@ The pass's own expectations are not part of either ruling (`status.not_ruled`). 
 | `verification/probes/` | Engine probes on policyengine-us 2.15.17 plus `latest_final` |
 | `verification/definition_conformance.*`, `publication_sources.*` | The two engine-side checks |
 | `verification/leaderboard_impact*` | Leaderboard impact of each alternative |
-| `verification/pytest_*.txt` | Test runs: after the rebase, the rolling-pool change, and the final run (362 passed) |
+| `verification/pytest_*.txt` | Test runs: after the rebase, the rolling-pool change, and the final run (376 passed) |
 | `proposed_changes.json` | Exclusion and regeneration records per root cause, and the rulings |
 | `scripts/` | The scripts that wrote the files above |
 
