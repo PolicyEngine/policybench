@@ -285,8 +285,8 @@ def input_pins_record(runs_root: Path) -> dict:
     finished run files, read from the run directory under ``runs_root``."""
     return {
         "note": (
-            "The sha256 of GPT-6.1 Sol's supervised run files as the run "
-            "finished, written by scripts/finish_gpt61sol.py --step pin-inputs "
+            "The sha256 of Claude Haiku 5.5's supervised run files as the run "
+            "finished, written by scripts/finish_haiku55.py --step pin-inputs "
             "from the run directory. prepare copies them into the stage's "
             "inputs/<slug>/; export and the freeze refuse a staged copy that "
             "is not these bytes, and read this file as committed at HEAD."
