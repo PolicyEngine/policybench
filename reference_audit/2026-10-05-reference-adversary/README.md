@@ -387,7 +387,7 @@ Both are recorded in `proposed_changes.json` `status`.
 | `proposed_changes.json` | Exclusion and regeneration records per root cause, and the rulings |
 | `scripts/` | The scripts that wrote the files above |
 
-The code is in `policybench/consensus.py`, `reference_adversary.py`, `definition_conformance.py` and `publication_sources.py`, with CLI commands in `policybench/cli.py`. The runners are `scripts/run_reference_adversary_{claude,codex}.sh`, and `docs/audit.md` has the pipeline. `policybench/audit.py` drops the diagnosis judge's claim that earlier audits' bugs "were fixed before this run", because the frozen run still excludes outputs for 28 unfixed engine defects. Tests are in `tests/test_consensus.py`, `test_reference_adversary.py`, `test_reference_adversary_runner.py`, `test_definition_conformance.py`, `test_publication_sources.py` and `test_audit.py`.
+The code is in `policybench/consensus.py`, `reference_adversary.py`, `definition_conformance.py` and `publication_sources.py`, with CLI commands in `policybench/cli.py`. The runners are `scripts/run_reference_adversary_{claude,codex}.sh`, and `docs/audit.md` has the pipeline. The diagnosis judge's prompt still claims that earlier audits' bugs "were fixed before this run", which the frozen run's 28 unfixed engine-defect exclusions contradict. Removing it changes every judge prompt and breaks byte-identical carry-over of existing verdicts, so it waits for a versioned judge template, which a separate PR adds. Tests are in `tests/test_consensus.py`, `test_reference_adversary.py`, `test_reference_adversary_runner.py`, `test_definition_conformance.py`, `test_publication_sources.py` and `test_audit.py`.
 
 ## Reproduce
 
