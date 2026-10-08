@@ -97,6 +97,7 @@ _LOCAL_CLAUDE_MODELS = (
     "claude-fable-5.1",
     "claude-opus-5.5",
     "claude-sonnet-5.5",
+    "claude-haiku-5.5",
 )
 for _display_id in _LOCAL_CLAUDE_MODELS:
     _model_id = MODELS[_display_id]
@@ -200,8 +201,10 @@ CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
 # cannot disable it, and Sonnet 5 defaults to adaptive thinking when the
 # request omits the thinking param (ours do — models run at their API
 # defaults); so does Sonnet 5.5 (a thinking block on a request with no thinking
-# param at its 2026-09-28 onboarding). Hard single outputs can think for
-# minutes, so they get a longer timeout than the rest of the Claude family.
+# param at its 2026-09-28 onboarding), and so does Haiku 5.5 (119 of 123
+# output tokens were thinking on the same probe at its 2026-10-08
+# onboarding). Hard single outputs can think for minutes, so they get a longer
+# timeout than the rest of the Claude family.
 THINKING_DEFAULT_CLAUDE_MODELS = (
     "claude-fable-5",
     "claude-fable-5-1",
@@ -209,6 +212,7 @@ THINKING_DEFAULT_CLAUDE_MODELS = (
     "claude-opus-5",
     "claude-opus-5-5",
     "claude-sonnet-5-5",
+    "claude-haiku-5-5",
 )
 THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
     "POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS", 300

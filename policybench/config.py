@@ -54,6 +54,7 @@ MODELS = {
     "claude-sonnet-5.5": "claude-sonnet-5-5",
     "claude-sonnet-5": "claude-sonnet-5",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
+    "claude-haiku-5.5": "claude-haiku-5-5",
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
     "grok-4.3": "xai/grok-4.3",
     "grok-4.5": "xai/grok-4.5",
@@ -211,8 +212,12 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     },
     "claude-sonnet-5": {"input": 3.0, "output": 15.0},
     # claude-sonnet-5-5: $2 / $10 per 1M input/output tokens, $2.50
-    # five-minute cache writes and $0.20 cache reads (platform.claude.com/docs
-    # /en/about-claude/pricing, read 2026-09-28). No footnote marks the row as
+    # five-minute cache writes (platform.claude.com/docs/en/about-claude
+    # /pricing, read 2026-09-28) and $0.10 cache reads (the same page, read
+    # 2026-10-08: footnote 2 prices Sonnet 5.5 and Opus 5.5 cache hits at 0.05x
+    # base input; the entry read $0.20 until 2026-10-08, and the 2026-09-28
+    # board run billed no cache tokens, so no recorded cost used it). No
+    # footnote marks the row as
     # introductory, so this is the standard rate. (Footnote 3 on the same page
     # now makes $2 / $10 Sonnet 5's standard price as well; the claude-sonnet-5
     # entry above keeps $3 / $15 and is not changed here.) The Models API lists
@@ -221,8 +226,22 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     "claude-sonnet-5.5": {
         "input": 2.0,
         "output": 10.0,
-        "cache_read": 0.20,
+        "cache_read": 0.10,
         "cache_write": 2.50,
+    },
+    # claude-haiku-5-5: $0.10 / $0.50 per 1M input/output tokens, $0.125
+    # five-minute cache writes and $0.01 cache reads: the pricing page's rates
+    # for prompts up to 100,000 tokens (platform.claude.com/docs/en/about-claude
+    # /pricing, read 2026-10-08). Prompts over 100,000 tokens pay $0.50 / $2.50;
+    # every PolicyBench prompt is far below that line. No footnote marks the
+    # row as introductory. The Models API lists the id with created_at
+    # 2026-10-07. litellm's bundled map lacks the id; eval_no_tools registers
+    # it locally, as for Sonnet 5.5.
+    "claude-haiku-5.5": {
+        "input": 0.10,
+        "output": 0.50,
+        "cache_read": 0.01,
+        "cache_write": 0.125,
     },
     # Open-weight additions, per-1M USD from the OpenRouter live model list
     # (https://openrouter.ai/api/v1/models, retrieved 2026-07-05). DeepSeek
