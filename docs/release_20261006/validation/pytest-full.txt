@@ -1,0 +1,60 @@
+........................................................................ [  4%]
+........................................................................ [  8%]
+........................................................................ [ 13%]
+........................................................................ [ 17%]
+....................................................................F... [ 21%]
+........................................................................ [ 26%]
+........................................................................ [ 30%]
+...........................................s............................ [ 34%]
+........................................................................ [ 39%]
+........................................................................ [ 43%]
+....s.s................................................................. [ 47%]
+........................................................................ [ 52%]
+........................................................................ [ 56%]
+........................................................................ [ 60%]
+..........................................................s............. [ 65%]
+........................................................................ [ 69%]
+........................................................................ [ 73%]
+........................................................................ [ 78%]
+........................................................................ [ 82%]
+..................................................sss...ss.............. [ 86%]
+........................................................................ [ 91%]
+........................................................................ [ 95%]
+........................................................................ [ 99%]
+.....                                                                    [100%]
+=================================== FAILURES ===================================
+_ test_local_claude_models_resolve_without_remote_cost_map[claude-sonnet-5-5] __
+tests/test_eval_no_tools.py:2560: in test_local_claude_models_resolve_without_remote_cost_map
+    assert entry["cache_read_input_token_cost"] == pytest.approx(
+E   assert 1e-07 == 2.00000000000...e-07 ± 1.0e-12
+E     
+E     comparison failed
+E     Obtained: 1e-07
+E     Expected: 2.0000000000000002e-07 ± 1.0e-12
+=============================== warnings summary ===============================
+tests/test_ground_truth.py::TestGroundTruth::test_eitc_zero_for_50k_single
+tests/test_ground_truth.py::TestGroundTruth::test_eitc_positive_for_low_income_family
+tests/test_ground_truth.py::TestGroundTruth::test_income_tax_reconciles_from_compact_tax_components
+tests/test_ground_truth.py::TestGroundTruth::test_household_structure_drives_filing_status_ground_truth
+tests/test_ground_truth.py::TestGroundTruth::test_household_net_income_reasonable
+tests/test_ground_truth.py::TestGroundTruth::test_calculate_ground_truth_dataframe
+tests/test_ground_truth.py::TestGroundTruth::test_us_vectorized_ground_truth_matches_scalar_reference
+tests/test_ground_truth.py::TestGroundTruth::test_us_vectorized_ground_truth_matches_scalar_reference
+  /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/.venv/lib/python3.12/site-packages/policyengine_us/variables/gov/irs/income/taxable_income/adjusted_gross_income/irs_gross_income/unemployment_insurance/taxable_unemployment_insurance.py:22: RuntimeWarning: invalid value encountered in divide
+    share = where(tax_unit_uc > 0, person_uc / tax_unit_uc, 0)
+
+tests/test_snapshot_artifacts.py::test_snapshot_deviation_audit_annotations_are_complete_and_final
+tests/test_snapshot_artifacts.py::test_snapshot_audit_annotations_have_no_orphan_rows
+  /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/policybench/annotation_validation.py:245: DtypeWarning: Columns (0: cost_is_estimated) have mixed types. Specify dtype option on import or set low_memory=False.
+    predictions = pd.read_csv(country_dir / "predictions.csv.gz")
+
+tests/test_snapshot_artifacts.py::test_frozen_impact_summaries_score_the_scored_reference
+  /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/tests/test_snapshot_artifacts.py:1092: DtypeWarning: Columns (0: cost_is_estimated) have mixed types. Specify dtype option on import or set low_memory=False.
+    predictions = pd.read_csv(run_dir / "predictions.csv.gz")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_eval_no_tools.py::test_local_claude_models_resolve_without_remote_cost_map[claude-sonnet-5-5]
+1 failed, 1651 passed, 9 skipped, 11 warnings in 730.40s (0:12:10)
+.venv/bin/python -m pytest -q --tb=short -p no:cacheprovider  426.67s user 80.84s system 68% cpu 12:21.95 total
+PYTEST_EXIT=1

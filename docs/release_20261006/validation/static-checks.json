@@ -1,0 +1,11 @@
+{
+  "step": "pre-freeze static checks",
+  "head": "b959edbec053676d9f9e2970ac4cf24e8a5b7efd",
+  "python": "3.12.14",
+  "bun": "1.3.12",
+  "checks": {
+    "ruff check .": 0,
+    "ruff format --check .": 0,
+    "bun run lint": 0
+  }
+}

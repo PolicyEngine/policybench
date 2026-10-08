@@ -2,6 +2,8 @@
 
 This directory audits the 2026 Louisiana standard deduction behind two scored references in release `dashboard-data-20260930`. It changes no reference. Max ruled to keep both at the $12,835 deduction. Release `dashboard-data-20261006` ships the wording-only case-note rewrites below. The proposed benchmark-card and paper convention sentence remains held under d994.
 
+**Update, d994 (ruled 2026-10-06, after this release was built).** Max kept the published-amounts convention as written, so the held sentence is not adopted and Idaho's scenario_076, SNAP's scenario_008, scenario_038 and scenario_109, and Maryland's scenario_068 keep their references. He also ruled to exclude both Louisiana references from scoring, because no Louisiana publication stated the $12,835 deduction before the freeze. Release `dashboard-data-20261006` still scores both at $12,835; the exclusions ship in the release after it. Version 2's prompt states indexed amounts.
+
 | Output | Reference | Models exact |
 |---|---:|---:|
 | scenario_051 state income tax before refundable credits (single, Louisiana AGI $40,180) | $820.35 | 0 of 46 |

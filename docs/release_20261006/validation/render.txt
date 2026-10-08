@@ -1,0 +1,164 @@
+Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/paper/figures/manifest.json
+
+Starting python3 kernel...Done
+
+Executing 'index.quarto_ipynb_1'
+  Cell 1/16: ''............................Done
+  Cell 2/16: 'tbl-snapshot'................Done
+  Cell 3/16: ''............................Done
+  Cell 4/16: 'tbl-scope-rationale'.........Done
+  Cell 5/16: 'tbl-reference-review'........Done
+  Cell 6/16: 'tbl-deviation-audit'.........Done
+  Cell 7/16: 'tbl-us-top'..................Done
+  Cell 8/16: 'tbl-us-cost-latency'.........Done
+  Cell 9/16: 'tbl-baselines'...............Done
+  Cell 10/16: 'tbl-sensitivity'.............Done
+  Cell 11/16: 'tbl-weighting-sensitivity'...Done
+  Cell 12/16: 'tbl-us-hardest'..............Done
+  Cell 13/16: 'tbl-us-positive'.............Done
+  Cell 14/16: 'open-weight-lag'.............Done
+  Cell 15/16: 'tbl-fed-state'...............Done
+  Cell 16/16: 'tbl-parse-repair-summary'....Done
+
+[1m[34mRendering qmd embeds [index.qmd][39m[22m
+[1m[34mRendering output notebook [index.qmd][39m[22m
+[1m[34mRendering HTML preview [index.qmd][39m[22m
+[1mpandoc [22m
+  to: html
+  output-file: >-
+    /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/paper/index.html
+  standalone: true
+  wrap: none
+  default-image-extension: png
+  toc: true
+  toc-depth: 3
+  css:
+    - pe-tokens.css
+    - policybench-theme.css
+  variables: {}
+  
+[1mmetadata[22m
+  document-css: false
+  lang: en
+  manuscript:
+    article: index.qmd
+    notebooks:
+      - notebook: index.qmd
+        title: Article Notebook
+        order: 9999
+      - notebook: snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/analysis/report.md
+    mecaFile: index-meca.zip
+  engines:
+    - path: /Users/maxghenis/.local/opt/quarto-1.9.36/share/extension-subtrees/julia-engine/_extensions/julia-engine/julia-engine.js
+  notebook-preview-options:
+    back: true
+  theme: none
+  title-block-style: manuscript
+  lightbox: auto
+  title: PolicyBench
+  subtitle: Benchmarking no-tool tax-and-benefit estimation in frontier language models
+  bibliography:
+    - references.bib
+  jupyter: python3
+  author:
+    - name: Max Ghenis
+      affiliations:
+        - name: PolicyEngine
+        - name: Axiom Foundation
+  google-scholar: true
+  toc-location: left
+  clear-hidden-classes: none
+  remove-hidden: all
+  unroll-markdown-cells: true
+  
+Output created: out/web/index.html
+
+
+Starting python3 kernel...Done
+
+Executing 'index.quarto_ipynb_1'
+  Cell 1/16: ''............................Done
+  Cell 2/16: 'tbl-snapshot'................Done
+  Cell 3/16: ''............................Done
+  Cell 4/16: 'tbl-scope-rationale'.........Done
+  Cell 5/16: 'tbl-reference-review'........Done
+  Cell 6/16: 'tbl-deviation-audit'.........Done
+  Cell 7/16: 'tbl-us-top'..................Done
+  Cell 8/16: 'tbl-us-cost-latency'.........Done
+  Cell 9/16: 'tbl-baselines'...............Done
+  Cell 10/16: 'tbl-sensitivity'.............Done
+  Cell 11/16: 'tbl-weighting-sensitivity'...Done
+  Cell 12/16: 'tbl-us-hardest'..............Done
+  Cell 13/16: 'tbl-us-positive'.............Done
+  Cell 14/16: 'open-weight-lag'.............Done
+  Cell 15/16: 'tbl-fed-state'...............Done
+  Cell 16/16: 'tbl-parse-repair-summary'....Done
+
+[1mpandoc [22m
+  to: latex
+  output-file: index.tex
+  standalone: true
+  shift-heading-level-by: -1
+  pdf-engine: lualatex
+  variables:
+    graphics: true
+    tables: true
+  default-image-extension: pdf
+  toc: true
+  number-sections: true
+  
+[1mmetadata[22m
+  documentclass: scrartcl
+  classoption:
+    - DIV=11
+    - numbers=noendperiod
+  papersize: letter
+  header-includes:
+    - \KOMAoption{captions}{tableheading}
+    - \usepackage{tgpagella}
+    - \usepackage[scaled=0.94]{helvet}
+    - \usepackage[scaled=0.9]{inconsolata}
+  block-headings: true
+  manuscript:
+    article: index.qmd
+    notebooks:
+      - notebook: index.qmd
+        title: Article Notebook
+        order: 9999
+      - notebook: snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/analysis/report.md
+      - notebook: out/web/index.qmd
+    mecaFile: index-meca.zip
+  engines:
+    - path: /Users/maxghenis/.local/opt/quarto-1.9.36/share/extension-subtrees/julia-engine/_extensions/julia-engine/julia-engine.js
+  notebook-preview-options:
+    back: true
+  theme: cosmo
+  title-block-style: manuscript
+  lightbox: auto
+  title: PolicyBench
+  subtitle: Benchmarking no-tool tax-and-benefit estimation in frontier language models
+  bibliography:
+    - references.bib
+  jupyter: python3
+  author: Max Ghenis\thanks{PolicyEngine and Axiom Foundation.}
+  google-scholar: true
+  clear-hidden-classes: none
+  remove-hidden: all
+  unroll-markdown-cells: true
+  
+[1m[34m
+Rendering PDF[39m[22m
+[1m[34mrunning lualatex - 1[39m[22m
+  This is LuaHBTeX, Version 1.24.0 (TeX Live 2026) 
+   restricted system commands enabled.
+  
+[1m[34mrunning lualatex - 2[39m[22m
+  This is LuaHBTeX, Version 1.24.0 (TeX Live 2026) 
+   restricted system commands enabled.
+  
+
+Output created: out/pdf/index.pdf
+
+Rendered paper assets into app/public/paper
+.venv/bin/python paper/render_paper.py  45.31s user 4.27s system 29% cpu 2:48.33 total
+RENDER_EXIT=0
