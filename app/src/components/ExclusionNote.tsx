@@ -76,7 +76,7 @@ export default function ExclusionNote({
             <span className="font-[family-name:var(--font-mono)]">
               {formatValue(exclusion.frozenValue, isBinary, currencySymbol)}
             </span>{" "}
-            used the engine&rsquo;s projection.
+            used the engine&rsquo;s own figure.
           </p>
           <p className="mt-2 text-xs text-text-muted leading-relaxed">
             {exclusion.law ? `Law: ${exclusion.law}. ` : ""}

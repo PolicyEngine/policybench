@@ -51,7 +51,7 @@
     },
     {
       "path": "reference_audit/2026-10-05-louisiana/proposed_exclusions.json",
-      "sha256": "06ac24d88c7ddd061fdb47c5cb9f04e989443b077e247549db69a9208c0d312e",
+      "sha256": "69d56da5a5391f88546d40ab824bc54f0f9434fcdd3c3b733893902796685eb2",
       "records": "exclusions",
       "outputs": [
         [
@@ -107,7 +107,7 @@
       "adjudicated_failure_source": "reference_later_law",
       "reference_verdict": "later_law",
       "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "reasoning": "The frozen reference is 820.35; the value under the published figure is 820.26. The reference rests on a 2026 Louisiana standard deduction of $12,835, which policyengine-us computed from published CPI-U under R.S. 47:294(B) but which no Louisiana publication stated before the 2026-07-03 freeze; Louisiana's first 2026 return amount, $12,838, came in Revenue Information Bulletin 26-019 on 2026-09-28. Excluded under d994 (Max, 2026-10-06), which keeps the published-amounts convention for every other reference (reference_audit/2026-10-05-louisiana)."
+      "reasoning": "The frozen reference is 820.35; the value under the published figure is 820.26. The reference rests on a 2026 Louisiana standard deduction of $12,835, which policyengine-us computed from published CPI-U under R.S. 47:294(B) but which no Louisiana publication stated before the 2026-07-03 freeze; Louisiana's first 2026 return amount, $12,838, came in Revenue Information Bulletin 26-019 on 2026-09-28. Excluded under decision d994, which keeps the published-amounts convention for every other reference (reference_audit/2026-10-05-louisiana)."
     },
     {
       "scenario_id": "scenario_077",
@@ -115,7 +115,7 @@
       "adjudicated_failure_source": "reference_later_law",
       "reference_verdict": "later_law",
       "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "reasoning": "The frozen reference is 305.14; the value under the published figure is 305.05. The reference rests on a 2026 Louisiana standard deduction of $12,835, which policyengine-us computed from published CPI-U under R.S. 47:294(B) but which no Louisiana publication stated before the 2026-07-03 freeze; Louisiana's first 2026 return amount, $12,838, came in Revenue Information Bulletin 26-019 on 2026-09-28. Excluded under d994 (Max, 2026-10-06), which keeps the published-amounts convention for every other reference (reference_audit/2026-10-05-louisiana)."
+      "reasoning": "The frozen reference is 305.14; the value under the published figure is 305.05. The reference rests on a 2026 Louisiana standard deduction of $12,835, which policyengine-us computed from published CPI-U under R.S. 47:294(B) but which no Louisiana publication stated before the 2026-07-03 freeze; Louisiana's first 2026 return amount, $12,838, came in Revenue Information Bulletin 26-019 on 2026-09-28. Excluded under decision d994, which keeps the published-amounts convention for every other reference (reference_audit/2026-10-05-louisiana)."
     },
     {
       "scenario_id": "scenario_082",
@@ -131,7 +131,7 @@
       "adjudicated_failure_source": "prompt_ambiguity",
       "reference_verdict": "unlisted_input",
       "adjudicated_failure_subtype": "household_unit_or_filing_status",
-      "reasoning": "The frozen reference is 8,628.99; the alternative is 11,848.99. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under d1022 until d1029 settles the scope for version 2."
+      "reasoning": "The frozen reference is 8,628.99; the alternative is 11,848.99. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under decision d1022 until decision d1029 settles the scope for version 2."
     },
     {
       "scenario_id": "scenario_093",
@@ -139,7 +139,7 @@
       "adjudicated_failure_source": "prompt_ambiguity",
       "reference_verdict": "unlisted_input",
       "adjudicated_failure_subtype": "household_unit_or_filing_status",
-      "reasoning": "The frozen reference is 3,388.25; the alternative is 4,528.08. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under d1022 until d1029 settles the scope for version 2."
+      "reasoning": "The frozen reference is 3,388.25; the alternative is 4,528.08. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under decision d1022 until decision d1029 settles the scope for version 2."
     },
     {
       "scenario_id": "scenario_123",
@@ -147,7 +147,7 @@
       "adjudicated_failure_source": "prompt_ambiguity",
       "reference_verdict": "unlisted_input",
       "adjudicated_failure_subtype": "household_unit_or_filing_status",
-      "reasoning": "The frozen reference is 5,200.24; the alternative is 8,420.24. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under d1022 until d1029 settles the scope for version 2."
+      "reasoning": "The frozen reference is 5,200.24; the alternative is 8,420.24. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under decision d1022 until decision d1029 settles the scope for version 2."
     },
     {
       "scenario_id": "scenario_123",
@@ -155,7 +155,7 @@
       "adjudicated_failure_source": "prompt_ambiguity",
       "reference_verdict": "unlisted_input",
       "adjudicated_failure_subtype": "household_unit_or_filing_status",
-      "reasoning": "The frozen reference is 3,070.06; the alternative is 4,451.56. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under d1022 until d1029 settles the scope for version 2."
+      "reasoning": "The frozen reference is 3,070.06; the alternative is 4,451.56. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under decision d1022 until decision d1029 settles the scope for version 2."
     }
   ],
   "snapshot_date": "2026-10-09"
