@@ -39,6 +39,13 @@ BASE_MODELS = 46
 BASE_OUTPUTS = 1984
 BASE_EXCLUSIONS = 64
 BASE_SCORED = BASE_OUTPUTS - BASE_EXCLUSIONS
+# Max's rulings of 2026-10-06 (d1022, d994), installed by --step
+# install-exclusions and adjudicated by --step adjudicate-exclusions, as
+# docs/haiku55/spec.json lists them.
+SPEC_PATH = Path("docs/haiku55/spec.json")
+NEW_EXCLUSIONS = 10
+RELEASE_EXCLUSIONS = BASE_EXCLUSIONS + NEW_EXCLUSIONS
+RELEASE_SCORED = BASE_OUTPUTS - RELEASE_EXCLUSIONS
 MODELS = {"haiku55": "claude-haiku-5.5"}
 BOARD_MODELS = BASE_MODELS + len(MODELS)
 REFERENCE_FILES = (
@@ -228,14 +235,19 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n")
 
 
-def verify_reference_pins(directory: Path, label: str) -> None:
-    """Every reference file in ``directory`` must equal its 20260929 pin."""
+def verify_reference_pins(
+    directory: Path, label: str, exclusions_sha256: str | None = None
+) -> None:
+    """Every reference file in ``directory`` must equal its 20261006 pin; the
+    exclusion record may instead be the release's (``exclusions_sha256``)."""
     for name, pin in BASE_REFERENCE_SHA256.items():
+        if name == "reference_exclusions.json" and exclusions_sha256 is not None:
+            pin = exclusions_sha256
         path = directory / name
         require(
             path.is_file() and digest(path) == pin,
-            f"{label} {name} does not match its pin; this release has no "
-            "reference revision",
+            f"{label} {name} does not match its pin; this release revises no "
+            "reference value",
         )
 
 
@@ -670,6 +682,323 @@ def base_adjudications() -> list[dict]:
     return parse_adjudications(base_adjudication_record(), f"{BASE_COMMIT[:12]}:{path}")
 
 
+# --- The release's ten exclusions (d1022, d994) ------------------------------
+
+EXCLUSION_REASON_CODES = {
+    "reference_engine_defect": ("reference_engine_defect", "engine_defect"),
+    "reference_depends_on_unlisted_input": ("prompt_ambiguity", "unlisted_input"),
+    "reference_law_published_after_freeze": ("reference_later_law", "later_law"),
+}
+DATE_CONVENTIONS_BASE = (
+    "adjudicated_on names the audit wave that made the decision (2026-09-05, "
+    "2026-09-22, 2026-09-29 or 2026-10-05)."
+)
+DATE_CONVENTIONS_WAVES = (
+    "adjudicated_on names the audit wave that made the decision (2026-09-05, "
+    "2026-09-22, 2026-09-29, 2026-10-05 or 2026-10-06)."
+)
+DATE_CONVENTIONS_ANCHOR = "and were written on 2026-10-06 UTC."
+
+
+def load_spec() -> dict:
+    return json.loads((ROOT / SPEC_PATH).read_text())
+
+
+def spec_key(item: dict) -> tuple[str, str]:
+    return item["scenario_id"], item["variable"]
+
+
+def spec_records(spec: dict) -> list[dict]:
+    """The ruled records, exactly the outputs each proposal names, in
+    (scenario_id, variable) order; each proposal file must be the bytes the
+    spec pins."""
+    import copy
+
+    records = []
+    for proposal in spec["proposals"]:
+        path = ROOT / proposal["path"]
+        require(
+            digest(path) == proposal["sha256"],
+            f"{proposal['path']} is not the file the spec pins",
+        )
+        doc = json.loads(path.read_text())
+        if proposal["records"] == "root_causes.*.exclusions":
+            found = [
+                record
+                for cause in doc["root_causes"].values()
+                for record in cause["exclusions"]
+            ]
+        else:
+            require(proposal["records"] == "exclusions", "unknown record pointer")
+            found = doc["exclusions"]
+        named = sorted(tuple(output) for output in proposal["outputs"])
+        chosen = [record for record in found if spec_key(record) in set(named)]
+        require(
+            sorted(spec_key(record) for record in chosen) == named,
+            f"{proposal['path']} does not hold exactly the ruled outputs {named}",
+        )
+        records.extend(copy.deepcopy(chosen))
+    keys = [spec_key(record) for record in records]
+    require(len(set(keys)) == len(keys), f"two ruled records share an output: {keys}")
+    require(len(records) == NEW_EXCLUSIONS, f"expected {NEW_EXCLUSIONS} records")
+    for record in records:
+        require(
+            record["reason_code"] in EXCLUSION_REASON_CODES
+            and record["decided_on"] == spec["decided_on"]
+            and record["decided_by"] == "developer"
+            and record["engine_version"] == "policyengine-us 2.15.17",
+            f"{spec_key(record)} is not a {spec['decided_on']} developer record on "
+            "policyengine-us 2.15.17",
+        )
+    return sorted(records, key=spec_key)
+
+
+def base_exclusion_record() -> dict:
+    """Release 20261006's exclusion record, read from BASE_COMMIT and pinned."""
+    blob = base_commit_blob((SNAPSHOT / "reference_exclusions.json").relative_to(ROOT))
+    require(
+        hashlib.sha256(blob).hexdigest()
+        == BASE_REFERENCE_SHA256["reference_exclusions.json"],
+        "release 20261006's exclusion record does not match its pin",
+    )
+    return json.loads(blob)
+
+
+def build_release_exclusions(base: dict, spec: dict) -> dict:
+    """Release 20261006's record plus the ten ruled records.
+
+    The new records go after the earlier waves' and before the audit's
+    trailing scenario_023 record (tests/test_reference_upgrade.py requires that
+    tail); the derivation's new sentence goes before the 2026-09-29 marker, as
+    release 20261006's did. Every earlier record keeps its bytes.
+    """
+    import copy
+    import tempfile
+
+    from policybench.reference_exclusions import load_reference_exclusions
+
+    doc = copy.deepcopy(base)
+    tail = doc["exclusions"][-1]
+    require(
+        spec_key(tail) == ("scenario_023", "head_medicaid_eligible"),
+        "release 20261006's record does not end with the audit's scenario_023 record",
+    )
+    new = spec_records(spec)
+    existing = {spec_key(record) for record in doc["exclusions"]}
+    require(
+        not existing & {spec_key(record) for record in new},
+        "a ruled output is already excluded",
+    )
+    doc["exclusions"] = doc["exclusions"][:-1] + new + [tail]
+    insert = spec["derivation_insert"]
+    require(
+        doc["derivation"].count(insert["before"]) == 1,
+        "the derivation does not hold its 2026-09-29 marker exactly once",
+    )
+    doc["derivation"] = doc["derivation"].replace(
+        insert["before"], insert["text"] + insert["before"]
+    )
+    with tempfile.TemporaryDirectory() as scratch:
+        # The loader is the record's one validator: reason codes, required
+        # fields, numeric values that differ, and no output listed twice.
+        (Path(scratch) / "reference_exclusions.json").write_text(exclusions_text(doc))
+        loaded = load_reference_exclusions(Path(scratch))
+    require(len(loaded) == RELEASE_EXCLUSIONS, "wrong exclusion count")
+    return doc
+
+
+def exclusions_text(doc: dict) -> str:
+    """The exclusion record as the reference builder spells it."""
+    return json.dumps(doc, indent=2) + "\n"
+
+
+def release_exclusions_sha256() -> str:
+    return hashlib.sha256(
+        exclusions_text(
+            build_release_exclusions(base_exclusion_record(), load_spec())
+        ).encode()
+    ).hexdigest()
+
+
+def install_exclusions(args) -> None:
+    """Write the release's exclusion record into the stage and rebind it.
+
+    Prepare staged release 20261006's record (pinned); this step replaces it
+    in the stage's scoring source and bundle with build_release_exclusions'
+    bytes and records the change in stage.json, so every later step's input
+    check binds the installed record. Judge prompts do not render exclusions.
+    """
+    stage = args.stage_dir
+    receipt_path = stage / "stage.json"
+    receipt = json.loads(receipt_path.read_text())
+    bound = f"publish/{RUN_NAME}/us/reference_exclusions.json"
+    require(bound in receipt["files"], "stage.json does not bind the exclusions")
+    text = exclusions_text(
+        build_release_exclusions(base_exclusion_record(), load_spec())
+    )
+    installed = hashlib.sha256(text.encode()).hexdigest()
+    previous = receipt.get("exclusions_installed")
+    if previous is None:
+        require(
+            receipt["files"][bound]
+            == BASE_REFERENCE_SHA256["reference_exclusions.json"],
+            "the stage's exclusion record is not release 20261006's",
+        )
+    for target in (stage / "scoring", stage / "publish" / RUN_NAME / "us"):
+        (target / "reference_exclusions.json").write_text(text)
+    receipt["files"][bound] = installed
+    receipt["exclusions_installed"] = {
+        "base_sha256": BASE_REFERENCE_SHA256["reference_exclusions.json"],
+        "sha256": installed,
+        "spec_sha256": digest(ROOT / SPEC_PATH),
+        "records": RELEASE_EXCLUSIONS,
+    }
+    write_json(receipt_path, receipt)
+    print(
+        f"Installed {RELEASE_EXCLUSIONS} exclusions ({NEW_EXCLUSIONS} new): {installed}"
+    )
+
+
+def exclusion_entry(
+    base: dict | None, item: dict, record: dict, case_dir: Path
+) -> dict:
+    """The adjudication of one ruled output.
+
+    A new entry carries the case's bound Opus 5.5 verdict (in this release's
+    audit tree) as its judge fields, in release 20261006's entry order. An
+    output that already has a decision (scenario_051's 2026-09-22
+    regeneration) keeps its judge fields, which the restate script set, and
+    takes the ruling's decision fields in their places; its reasoning keeps the
+    earlier decision's history ahead of the ruling's text.
+    """
+    from date_adds0928_judge_verdicts import _judge
+    from release_20261006 import ENTRY_FIELDS, bound_verdict
+
+    source, verdict_kind = EXCLUSION_REASON_CODES[record["reason_code"]]
+    basis = {
+        "engine_defect": record.get("law"),
+        "unlisted_input": record.get("unlisted_input"),
+        "later_law": record.get("published"),
+    }[verdict_kind]
+    decision = {
+        "adjudicated_failure_source": source,
+        "adjudicated_failure_subtype": item["adjudicated_failure_subtype"],
+        "adjudicated_on": load_spec()["decided_on"],
+        "adjudicator": "developer",
+        "excluded_from_scoring": True,
+        "reference_verdict": verdict_kind,
+        "reference_basis": basis,
+    }
+    require(
+        item["adjudicated_failure_source"] == source
+        and item["reference_verdict"] == verdict_kind,
+        f"{spec_key(item)}: the spec's classes do not match the record's reason",
+    )
+    if base is None:
+        verdict, meta = bound_verdict(case_dir)
+        entry = {
+            "country": "us",
+            "scenario_id": item["scenario_id"],
+            "variable": item["variable"],
+            "judge_model": _judge(meta),
+            "judge_failure_source": verdict["case_failure_source"],
+            "judge_failure_subtype": verdict["case_failure_subtype"],
+            **decision,
+            "judge_reference_suspect": bool(verdict.get("reference_suspect")),
+            "reasoning": item["reasoning"],
+            "judged_on_utc": meta["judged_at_utc"][:10],
+        }
+        entry = {name: entry[name] for name in ENTRY_FIELDS}
+        require(list(entry) == list(ENTRY_FIELDS), "entry fields out of order")
+        return entry
+    entry = {}
+    for name, value in base.items():
+        entry[name] = decision.get(name, value)
+        if name == "adjudicator" and "excluded_from_scoring" not in base:
+            # In release 20261006's entry order, the flag follows the adjudicator.
+            entry["excluded_from_scoring"] = True
+    require(
+        set(decision) <= set(entry), f"{spec_key(item)}: a decision field is missing"
+    )
+    entry["reasoning"] = base["reasoning"] + " " + item["reasoning"]
+    return entry
+
+
+def exclusion_adjudications(record: dict, entries: list[dict], cases_dir: Path) -> dict:
+    """``record`` (the staged adjudication record) with the ruled outputs
+    decided: an existing entry is restated in place, a new one appended in the
+    spec's order, and the date conventions name the 2026-10-06 wave."""
+    import copy
+
+    spec = load_spec()
+    records = {spec_key(r): r for r in spec_records(spec)}
+    require(
+        set(records) == {spec_key(item) for item in spec["adjudications"]},
+        "the spec's adjudications and records name different outputs",
+    )
+    restated = {spec_key(item) for item in spec.get("restated_adjudications", [])}
+    out = copy.deepcopy(record)
+    by_key = {
+        spec_key(entry): index for index, entry in enumerate(out["adjudications"])
+    }
+    require(
+        set(by_key) & set(records) == restated,
+        "existing decisions on ruled outputs differ from the spec's restated list: "
+        f"{sorted(set(by_key) & set(records))}",
+    )
+    appended = []
+    for item in spec["adjudications"]:
+        k = spec_key(item)
+        case_dir = cases_dir / f"us__{k[0]}__{k[1]}"
+        if k in by_key:
+            out["adjudications"][by_key[k]] = exclusion_entry(
+                out["adjudications"][by_key[k]], item, records[k], case_dir
+            )
+        else:
+            appended.append(exclusion_entry(None, item, records[k], case_dir))
+    out["adjudications"] = out["adjudications"] + appended
+    out["date_conventions"] = release_date_conventions(out["date_conventions"])
+    return out
+
+
+def release_date_conventions(conventions: str) -> str:
+    """Release 20261006's date conventions with the 2026-10-06 wave named; the
+    one definition the adjudicate step writes and the record gate expects."""
+    require(
+        conventions.count(DATE_CONVENTIONS_BASE) == 1
+        and conventions.count(DATE_CONVENTIONS_ANCHOR) == 1,
+        "the record's date conventions are not release 20261006's",
+    )
+    written = load_spec()["adjudications_written_on"]
+    conventions = conventions.replace(DATE_CONVENTIONS_BASE, DATE_CONVENTIONS_WAVES)
+    return conventions.replace(
+        DATE_CONVENTIONS_ANCHOR,
+        DATE_CONVENTIONS_ANCHOR
+        + " The 2026-10-06 wave's decisions follow Max's rulings of 2026-10-06 "
+        f"(17:11 UTC) and were written on {written} UTC.",
+    )
+
+
+def adjudicate_exclusions(args) -> None:
+    """Decide the ruled outputs in the staged record (after judge and restate)."""
+    from policybench.adjudications import parse_adjudications
+
+    path = args.stage_dir / "publish" / RUN_NAME / "annotations" / ADJUDICATIONS
+    record = json.loads(path.read_text())
+    keys = {spec_key(item) for item in load_spec()["adjudications"]}
+    require(
+        not any(
+            entry.get("excluded_from_scoring") and spec_key(entry) in keys
+            for entry in record["adjudications"]
+        ),
+        "the ruled outputs are already decided in the staged record",
+    )
+    staged = exclusion_adjudications(record, [], args.stage_dir / "audit" / "cases")
+    parse_adjudications(staged, path)
+    path.write_text(record_text(staged))
+    print(f"Decided {NEW_EXCLUSIONS} ruled outputs in {path}")
+
+
 def record_text(record: dict) -> str:
     """An adjudication record as the committed file spells it."""
     return json.dumps(record, indent=2, ensure_ascii=False) + "\n"
@@ -690,11 +1019,15 @@ def verify_record_form(text: str, base: dict) -> None:
         "keys or other bytes the entry gate cannot see); write it with "
         "json.dumps(indent=2, ensure_ascii=False)",
     )
+    expected = {k: v for k, v in base.items() if k != "adjudications"}
+    expected["date_conventions"] = release_date_conventions(
+        expected["date_conventions"]
+    )
     require(
         record_text({k: v for k, v in record.items() if k != "adjudications"})
-        == record_text({k: v for k, v in base.items() if k != "adjudications"}),
+        == record_text(expected),
         "the staged adjudication record changes its note, schema or date "
-        "conventions; only entries may change",
+        "conventions beyond naming the 2026-10-06 wave; only entries may change",
     )
 
 
@@ -849,11 +1182,57 @@ def _record_amendments(amendments: list[dict]) -> dict[str, list[dict]]:
     return grouped
 
 
+def ruled_adjudication_problems(
+    before: dict[str, dict], after: dict[str, dict], cases_dir: Path
+) -> list[str]:
+    """Where the staged decisions on the ten ruled outputs are not exactly what
+    exclusion_entry builds: a new one from its case's bound verdict, and
+    scenario_051's from its release 20261006 entry with the judge fields the
+    restate script gave it."""
+    from restate_gpt61sol_adjudications import JUDGE_FIELDS
+
+    spec = load_spec()
+    records = {spec_key(r): r for r in spec_records(spec)}
+    problems = []
+    for item in spec["adjudications"]:
+        k = spec_key(item)
+        case = f"us__{k[0]}__{k[1]}"
+        if case not in after:
+            problems.append(f"{case}: no staged decision")
+            continue
+        base = before.get(case)
+        if base is not None:
+            # The staged entry before the ruling: release 20261006's decision
+            # fields and reasoning, with the judge fields the restate script
+            # wrote. Outside the judge fields it must be 20261006's entry.
+            staged = after[case]
+            pre = {
+                name: base.get(name, value)
+                for name, value in staged.items()
+                if name in base or name in JUDGE_FIELDS
+            }
+
+            def outside_judge(entry: dict) -> list:
+                return [[n, v] for n, v in entry.items() if n not in JUDGE_FIELDS]
+
+            if outside_judge(pre) != outside_judge(base):
+                problems.append(f"{case}: fields moved outside the ruling")
+                continue
+            base = pre
+        expected = exclusion_entry(base, item, records[k], cases_dir / case)
+        if json.dumps(after[case], ensure_ascii=False) != json.dumps(
+            expected, ensure_ascii=False
+        ):
+            problems.append(f"{case}: differs from the ruling's entry")
+    return problems
+
+
 def verify_adjudication_changes(
     base: list[dict],
     staged: list[dict],
     rejudged: frozenset[str],
     amendments: list[dict],
+    cases_dir: Path,
 ) -> int:
     """A staged record differs from 20260929's only where it has a reason to.
 
@@ -878,6 +1257,14 @@ def verify_adjudication_changes(
 
     before = {case_id(entry): entry for entry in base}
     after = {case_id(entry): entry for entry in staged}
+    ruled = ruled_adjudication_problems(before, after, cases_dir)
+    require(not ruled, f"Staged adjudications of the ruled outputs: {ruled[:8]}")
+    ruled_cases = {
+        f"us__{k[0]}__{k[1]}"
+        for k in (spec_key(item) for item in load_spec()["adjudications"])
+    }
+    before = {case: entry for case, entry in before.items() if case not in ruled_cases}
+    after = {case: entry for case, entry in after.items() if case not in ruled_cases}
     dropped = sorted(set(before) - set(after))
     require(not dropped, f"Staged adjudications drop recorded decisions: {dropped}")
     new = sorted(set(after) - set(before))
@@ -948,7 +1335,7 @@ def stage_adjudications(
     text = record_text(record)
     verify_record_form(text, base_record)
     entries = parse_adjudications(json.loads(text), path)
-    verify_adjudication_changes(base, entries, rejudged, amendments)
+    verify_adjudication_changes(base, entries, rejudged, amendments, cases_dir)
     verify_restatements(base, entries, rejudged, cases_dir)
     verify_adjudications_keep_judge_verdicts(entries, cases_dir)
     if applied:
@@ -2064,8 +2451,30 @@ def build_payload(
             row = next(s for s in stats if s["model"] == model)
             for key in keys:
                 row[key] = previous[model][key]
-        drift = incumbent_drift(stats, previous)
-        require(not drift, f"incumbent modelStats drift: {drift}")
+        scored = {row["model"]: row["n"] for row in stats}
+        require(
+            set(scored.values()) == {RELEASE_SCORED},
+            f"every model must be scored on {RELEASE_SCORED} outputs: {scored}",
+        )
+        # The scope check: with release 20261006's exclusion record put back,
+        # every incumbent's modelStats is release 20261006's byte for byte, so
+        # every incumbent change comes from the ten ruled records.
+        import tempfile
+
+        from release_20261006 import export_payload
+
+        with tempfile.TemporaryDirectory() as scratch:
+            record = Path(scratch) / "reference_exclusions.json"
+            record.write_text(exclusions_text(base_exclusion_record()))
+            scoped = export_payload(bundle, live, record)
+        scoped_stats = scoped["countries"]["us"]["modelStats"]
+        require(len(scoped_stats) == BOARD_MODELS, "scope export lost a model")
+        drift = incumbent_drift(scoped_stats, previous)
+        require(
+            not drift,
+            "with release 20261006's exclusion record, incumbent modelStats "
+            f"drift: {drift}",
+        )
     errors = validate_dashboard_payload(payload, require_failure_annotations=not early)
     require(not errors, f"payload validation failed: {errors[:8]}")
     if partial:
@@ -2079,7 +2488,9 @@ def export(args, bundle, live) -> dict:
     """Export into scratch, preserve incumbent statistics, and gate release."""
     if not args.partial:
         verify_reference_pins(SNAPSHOT, "committed reference")
-        verify_reference_pins(bundle / "us", "staged reference")
+        verify_reference_pins(
+            bundle / "us", "staged reference", release_exclusions_sha256()
+        )
     if not args.early:
         verify_new_model_inputs(args.stage_dir)
         verify_judge_provenance(
@@ -2180,7 +2591,16 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--step",
-        choices=("pin-inputs", "prepare", "bind-seed", "judge", "triage", "export"),
+        choices=(
+            "pin-inputs",
+            "prepare",
+            "bind-seed",
+            "install-exclusions",
+            "judge",
+            "adjudicate-exclusions",
+            "triage",
+            "export",
+        ),
         default="prepare",
         help="pin-inputs writes the finished run's file hashes to "
         f"{INPUT_PINS_PATH} (no stage); bind-seed binds the audit seed in the "
@@ -2258,8 +2678,19 @@ def main(argv=None) -> None:
                 f"staged input changed: {name}; prepare a new stage",
             )
         (stage / "release-ready.json").unlink(missing_ok=True)
+        if args.step in ("triage", "export", "adjudicate-exclusions"):
+            installed = receipt.get("exclusions_installed") or {}
+            require(
+                installed.get("sha256") == release_exclusions_sha256(),
+                "the stage's exclusions are not the release's; run "
+                "--step install-exclusions",
+            )
         if args.step == "bind-seed":
             bind_seed(args)
+        elif args.step == "install-exclusions":
+            install_exclusions(args)
+        elif args.step == "adjudicate-exclusions":
+            adjudicate_exclusions(args)
         elif args.step == "judge":
             judge(args, bundle)
         elif args.step == "triage":
