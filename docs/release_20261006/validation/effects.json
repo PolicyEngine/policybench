@@ -4,7 +4,7 @@
   "summary_csv": "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/analysis/summary_by_model.csv",
   "old_csv_sha256": "fe929fc5d4c01f74c4a199a68701e92001a64eee84b83131eaa22ef1d4ffb851",
   "new_csv_sha256": "1b7640f3c0c7e7376c1bed0567dcc034866822a06e998658f4595ef74e5acabf",
-  "payload_sha256": "1780d2ec37f90b654265f8c7a191ba57f5ec5c4d28624bf9d2e2de8a48d2f871",
+  "payload_sha256": "f03441f64316997de843e82c27272442c794148a121c25e1343fbddbe38574a0",
   "all_expected_effects_reproduced": true,
   "change_min": 0.6678742593199019,
   "change_max": 1.3542788161743147,
