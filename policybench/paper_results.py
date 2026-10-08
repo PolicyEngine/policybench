@@ -1747,6 +1747,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # September 28, 2026"); Models API created_at 2026-09-28
     # (api.anthropic.com/v1/models, read 2026-09-28)
     "claude-sonnet-5.5": "2026-09-28",
+    # platform.claude.com/docs/en/models/haiku-5-5/overview ("Released
+    # October 7, 2026"); Models API created_at 2026-10-07
+    # (api.anthropic.com/v1/models, read 2026-10-08)
+    "claude-haiku-5.5": "2026-10-07",
     # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
     "claude-fable-5": "2026-06-09",
     # announced and available 2026-07-24 (fortune.com, bloomberg.com,
