@@ -63,11 +63,11 @@ ANNOTATION_FILES = (
 )
 JUDGE_MODEL = "claude-opus-5-5"
 ADJUDICATIONS = "us_adjudications.json"
-# Stage files export binds: the cases GPT-6.1 Sol re-opened, and the
+# Stage files export binds: the cases Claude Haiku 5.5 re-opened, and the
 # wording-only amendments a developer lists for them.
 PROMPT_CHANGES = "prompt-changes.json"
 AMENDMENTS = "wording-amendments.json"
-# The published record of how each new verdict (a case GPT-6.1 Sol re-opened)
+# The published record of how each new verdict (a case Claude Haiku 5.5 re-opened)
 # was judged. Export requires it to describe the staged verdicts and binds its
 # bytes in the receipt.
 JUDGE_PROVENANCE_PATH = "docs/haiku55/judge_provenance.json"
@@ -530,7 +530,7 @@ def validate_keys(frame, reference, model: str) -> None:
 
 
 def live_pointer() -> dict:
-    """The committed dashboard pointer (release 20260929 until the freeze)."""
+    """The committed dashboard pointer (release 20261006 until the freeze)."""
     return json.loads((ROOT / "app/src/data.artifact.json").read_text())
 
 
@@ -580,7 +580,7 @@ def resolve_base(args):
         require(
             csv_digest(args.base_predictions)
             == csv_digest(SNAPSHOT / "predictions.csv.gz"),
-            "base predictions differ from committed 20260929 snapshot",
+            "base predictions differ from committed 20261006 snapshot",
         )
     print("Reading pinned base predictions", flush=True)
     # Rehearsals do not need repeated raw provider transcripts for incumbents.
@@ -615,7 +615,7 @@ def resolve_base(args):
 
 
 def base_commit_blob(path: Path) -> bytes:
-    """A file as committed at BASE_COMMIT, whose tree holds release 20260929.
+    """A file as committed at BASE_COMMIT, whose tree holds release 20261006.
 
     The checkout must hold that commit: a shallow clone (CI's default) does
     not, so the CI test job checks out full history.
@@ -633,7 +633,7 @@ def base_commit_blob(path: Path) -> bytes:
 
 
 def verify_base_predictions(snapshot: Path) -> None:
-    """The snapshot's predictions are release 20260929's.
+    """The snapshot's predictions are release 20261006's.
 
     The pin is that release's own: the snapshot manifest as committed at
     BASE_COMMIT, not the working tree's, which could be edited together with
@@ -645,12 +645,12 @@ def verify_base_predictions(snapshot: Path) -> None:
     pin = manifest["source_run_artifacts"][RUN_NAME]["files"]["predictions.csv.gz"]
     require(
         digest(snapshot / "predictions.csv.gz") == pin,
-        "committed base predictions fail release 20260929's manifest hash",
+        "committed base predictions fail release 20261006's manifest hash",
     )
 
 
 def base_payload_from_commit() -> dict:
-    """Release 20260929's payload, read from BASE_COMMIT and checked."""
+    """Release 20261006's payload, read from BASE_COMMIT and checked."""
     blob = base_commit_blob((SNAPSHOT / "data.json.gz").relative_to(ROOT))
     live = {"countries": {"us": json.loads(gzip.decompress(blob))}}
     require(
@@ -665,7 +665,7 @@ def base_payload_from_commit() -> dict:
 
 
 def base_adjudication_record() -> dict:
-    """Release 20260929's adjudication record file, read from BASE_COMMIT.
+    """Release 20261006's adjudication record file, read from BASE_COMMIT.
 
     The working-tree copy is not a baseline: the freeze overwrites it, and a
     freeze that stops partway would leave the staged record in its place.
@@ -675,7 +675,7 @@ def base_adjudication_record() -> dict:
 
 
 def base_adjudications() -> list[dict]:
-    """Release 20260929's adjudication entries, read from BASE_COMMIT."""
+    """Release 20261006's adjudication entries, read from BASE_COMMIT."""
     from policybench.adjudications import parse_adjudications
 
     path = Path("annotations") / RUN_NAME / ADJUDICATIONS
@@ -1006,7 +1006,7 @@ def record_text(record: dict) -> str:
 
 def verify_record_form(text: str, base: dict) -> None:
     """The staged record's bytes are exactly its parsed content, and its top
-    level other than the entries is release 20260929's.
+    level other than the entries is release 20261006's.
 
     Duplicate keys, or any other bytes a parser drops, would ship in the
     frozen file unseen by the entry gate; so would a rewritten note or date
@@ -1036,10 +1036,10 @@ def verify_restatements(
 ) -> None:
     """A re-opened entry's judge fields must be the restate script's.
 
-    Where they differ from 20260929's, the entry must name the case's current
+    Where they differ from 20261006's, the entry must name the case's current
     Opus 5.5 verdict (bound by its sidecar) as its judge, date it by that
-    sidecar's UTC day, and keep 20260929's judge_previous with exactly one
-    item appended: the replaced verdict, which is the one 20260929's entry
+    sidecar's UTC day, and keep 20261006's judge_previous with exactly one
+    item appended: the replaced verdict, which is the one 20261006's entry
     names (its judge, classes, flag and day are its seed verdict's, as the
     sha256-bound sidecar records it). A new entry must name the current judge
     too.
@@ -1070,11 +1070,11 @@ def verify_restatements(
             previous = original.get("judge_previous", [])
             restated = entry.get("judge_previous", [])
             if len(restated) != len(previous) + 1 or restated[:-1] != previous:
-                problems.append("judge_previous is not 20260929's plus one item")
+                problems.append("judge_previous is not 20261006's plus one item")
             elif restated[-1] != named_item(original):
                 problems.append(
                     "the appended judge_previous item is not the verdict "
-                    "20260929's entry names"
+                    "20261006's entry names"
                 )
             if (
                 entry.get("judge_rejudged_on") != day
@@ -1090,7 +1090,7 @@ def verify_restatements(
 
 
 def rejudged_cases(stage: Path) -> frozenset[str]:
-    """The cases GPT-6.1 Sol re-opened: prompt-changes.json's changed and added.
+    """The cases Claude Haiku 5.5 re-opened: prompt-changes.json's changed and added.
 
     load_seed re-derives prompt-changes.json from the stage's prompts and the
     seed stage.json binds, so the lists cannot drift from the stage.
@@ -1118,7 +1118,7 @@ AMENDABLE_FIELDS = {
 def load_amendments(stage: Path, rejudged: frozenset[str]) -> list[dict]:
     """The stage's wording-only amendments, each checked for shape and scope.
 
-    Each names a case GPT-6.1 Sol re-opened, a wording field, the exact old
+    Each names a case Claude Haiku 5.5 re-opened, a wording field, the exact old
     text, the new text and the reason; a row annotation also names its model.
     An absent file lists none.
     """
@@ -1234,9 +1234,9 @@ def verify_adjudication_changes(
     amendments: list[dict],
     cases_dir: Path,
 ) -> int:
-    """A staged record differs from 20260929's only where it has a reason to.
+    """A staged record differs from 20261006's only where it has a reason to.
 
-    Only a case GPT-6.1 Sol re-opened (``rejudged``) may change, and only in
+    Only a case Claude Haiku 5.5 re-opened (``rejudged``) may change, and only in
     its judge fields (the restate script's JUDGE_FIELDS) and in the reasoning
     wording the listed amendments change, exactly as they say. Every other
     field of every committed entry keeps its value and its place, key order
@@ -1270,7 +1270,7 @@ def verify_adjudication_changes(
     new = sorted(set(after) - set(before))
     require(
         set(new) <= rejudged,
-        "Staged adjudications add decisions on cases GPT-6.1 Sol did not "
+        "Staged adjudications add decisions on cases Claude Haiku 5.5 did not "
         f"re-open: {sorted(set(new) - rejudged)[:8]}",
     )
     require(
@@ -1308,7 +1308,7 @@ def stage_adjudications(
 ) -> list[dict]:
     """The staged record, with its listed reasoning amendments applied.
 
-    Checked in memory against release 20260929's record (from git) and the
+    Checked in memory against release 20261006's record (from git) and the
     stage's verdicts; written back only when an amendment was not applied yet.
     """
     from freeze_snapshot import verify_adjudications_keep_judge_verdicts
@@ -1382,13 +1382,13 @@ def annotation_csv_text(frame) -> str:
 
 
 def resolve_live_base(args) -> dict:
-    """The 20260929 payload an export compares the incumbents against.
+    """The 20261006 payload an export compares the incumbents against.
 
     Before the freeze the live pointer and the committed snapshot are
-    20260929's, and resolve_base checks all of them. After the freeze they are
+    20261006's, and resolve_base checks all of them. After the freeze they are
     this release's own, so a re-export (after a fix to the staged annotations)
-    reads the 20260929 run payload from BASE_COMMIT instead and checks that it
-    rewraps to the 20260929 release asset (BASE_SHA256). Any other pointer is
+    reads the 20261006 run payload from BASE_COMMIT instead and checks that it
+    rewraps to the 20261006 release asset (BASE_SHA256). Any other pointer is
     refused.
     """
     pointer = live_pointer()
@@ -1614,7 +1614,7 @@ def seed_digest(audit: Path) -> dict[str, dict[str, str]]:
 
 
 def seed_digest_text(seed: dict[str, dict[str, str]]) -> str:
-    """The seed digest as docs/gpt61sol/seed_digest.csv spells it."""
+    """The seed digest as docs/haiku55/seed_digest.csv spells it."""
     rows = [
         f"{case},{item['prompt_sha256']},{item['verdict_sha256']}\n"
         for case, item in sorted(seed.items())
@@ -1623,11 +1623,11 @@ def seed_digest_text(seed: dict[str, dict[str, str]]) -> str:
 
 
 def verify_seed(seed: dict[str, dict[str, str]]) -> None:
-    """The seed must be the 20260929 audit the committed digest records."""
+    """The seed must be the 20261006 audit the committed digest records."""
     require(
         hashlib.sha256(seed_digest_text(seed).encode()).hexdigest()
         == SEED_DIGEST_SHA256,
-        "the audit seed is not release 20260929's (see docs/gpt61sol/"
+        "the audit seed is not release 20261006's (see docs/haiku55/"
         "seed_digest.csv): its cases, prompts or verdicts differ",
     )
 
@@ -1645,7 +1645,7 @@ def load_seed(stage: Path) -> dict[str, dict[str, str]]:
     require(
         "seed" in receipt,
         "stage.json does not bind the audit seed; run --step bind-seed "
-        "--audit-seed <the 20260929 audit>",
+        "--audit-seed <the 20261006 audit>",
     )
     verify_seed(receipt["seed"])
     verify_prompt_changes(stage, receipt["seed"])
@@ -1656,7 +1656,7 @@ def verify_prompt_changes(stage: Path, seed: dict[str, dict[str, str]]) -> None:
     """prompt-changes.json must be what the stage's prompts say against the seed.
 
     A case whose prompt is the seed's is kept, one whose prompt differs is
-    changed and one the seed lacks is added; GPT-6.1 Sol must be among the
+    changed and one the seed lacks is added; Claude Haiku 5.5 must be among the
     wrong models of every changed or added case, and no seed case may vanish
     (check_prompt_changes, as prepare applies it). The staged predictions
     must agree (verify_reopened_by_predictions).
@@ -1681,7 +1681,7 @@ def verify_prompt_changes(stage: Path, seed: dict[str, dict[str, str]]) -> None:
 
 
 def verify_reopened_by_predictions(stage: Path, derived: dict[str, list]) -> None:
-    """The manifest's claim that GPT-6.1 Sol re-opened a case must hold.
+    """The manifest's claim that Claude Haiku 5.5 re-opened a case must hold.
 
     cases.jsonl is editable, so re-score the staged predictions against the
     staged references with wrong_prediction_rows, the rule prepare_audit
@@ -1940,7 +1940,7 @@ def validate_verdicts(
     seed verdict over: the verdict must be the seed's, byte for byte, and any
     prompt_sha256 its sidecar records must match. Every other verdict is new
     and must record the sha256 of the prompt it judged. A verdict naming
-    GPT-6.1 Sol also needs bound Opus 5.5 provenance. Returns the pending
+    Claude Haiku 5.5 also needs bound Opus 5.5 provenance. Returns the pending
     cases; ``remove_invalid`` sets their verdicts aside. A carried-over verdict
     that fails is refused outright: a re-judge cannot restore it.
     """
@@ -2176,7 +2176,7 @@ def verify_judge_provenance(
 ) -> None:
     """The published judge provenance must describe the staged new verdicts.
 
-    The record (JUDGE_PROVENANCE) lists every case GPT-6.1 Sol re-opened, each
+    The record (JUDGE_PROVENANCE) lists every case Claude Haiku 5.5 re-opened, each
     once, with its verdict's and prompt's sha256, its group and whether its
     judge ran isolated, and its sidecar's judge_effort, judge_model_reported,
     judged_at_utc and judge_account_declared (JUDGE_SIDECAR_FIELDS), an
@@ -2522,7 +2522,7 @@ def export(args, bundle, live) -> dict:
             bundle / "us" / name for name in (*REFERENCE_FILES, "predictions.csv")
         ]
         pinned += [p for p in (args.stage_dir / "inputs").rglob("*") if p.is_file()]
-        # The cases GPT-6.1 Sol re-opened, the listed wording amendments and the
+        # The cases Claude Haiku 5.5 re-opened, the listed wording amendments and the
         # seed binding decide what the adjudication and verdict gates allow;
         # stage.json and model-provenance.json hold the prepare-time hashes.
         pinned += [
@@ -2635,7 +2635,7 @@ def main(argv=None) -> None:
     receipt_path = stage / "stage.json"
     if args.step == "prepare":
         runs = discover_new_models(args.runs_root)
-        print("All copied run states qualify; resolving 20260929 base", flush=True)
+        print("All copied run states qualify; resolving 20261006 base", flush=True)
         base, reference, live = resolve_base(args)
         print("Base verified; folding copied additions", flush=True)
         stage.mkdir(parents=True, exist_ok=True)
