@@ -20,7 +20,6 @@ Executing 'index.quarto_ipynb_1'
   Cell 15/16: 'tbl-fed-state'...............Done
   Cell 16/16: 'tbl-parse-repair-summary'....Done
 
-[1m[34mRendering qmd embeds [index.qmd][39m[22m
 [1m[34mRendering output notebook [index.qmd][39m[22m
 [1m[34mRendering HTML preview [index.qmd][39m[22m
 [1mpandoc [22m
@@ -160,5 +159,5 @@ Rendering PDF[39m[22m
 Output created: out/pdf/index.pdf
 
 Rendered paper assets into app/public/paper
-.venv/bin/python paper/render_paper.py  45.31s user 4.27s system 29% cpu 2:48.33 total
+.venv/bin/python paper/render_paper.py  45.60s user 6.30s system 70% cpu 1:13.58 total
 RENDER_EXIT=0

@@ -44,6 +44,6 @@
     ]
   ],
   "release_tag": "dashboard-data-20261006",
-  "rewrites_sha256": "f268f8274445e1581ebc1ab4a8af48521d14418052c9fe5684a3f6aec0320836",
-  "spec_sha256": "2211d4f6ba30e54401c97f2aed525222b3eccfdda32330c19c9a218764aabe24"
+  "rewrites_sha256": "b4081cc7b8b460f693190c1b106aaff83d0804fa301242893b46dc060ee676e2",
+  "spec_sha256": "c79eee1d8a92f4135e328bbe5b2f79293350e232fa7b6e9eacdbd963bb95c215"
 }

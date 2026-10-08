@@ -1,6 +1,6 @@
-Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/results/local/release-batch/dashboard-data-20261006-resume-da8b4400/publish/tmpa6gac44_/us_full_run_20260612_policyengine_4_16_1_populace/data.json
-Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/results/local/release-batch/dashboard-data-20261006-resume-da8b4400/publish/tmpxu8syvri/us_full_run_20260612_policyengine_4_16_1_populace/data.json
-Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/results/local/release-batch/dashboard-data-20261006-resume-da8b4400/publish/tmp18m560b9/us_full_run_20260612_policyengine_4_16_1_populace/data.json
+Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/results/local/release-batch/dashboard-data-20261006-r2/publish/tmpzh7kajb6/us_full_run_20260612_policyengine_4_16_1_populace/data.json
+Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/results/local/release-batch/dashboard-data-20261006-r2/publish/tmpoi877cz3/us_full_run_20260612_policyengine_4_16_1_populace/data.json
+Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/results/local/release-batch/dashboard-data-20261006-r2/publish/tmp_9tduqle/us_full_run_20260612_policyengine_4_16_1_populace/data.json
  1 gpt-6-sol                        95.003 -> 95.828 n=1920
  2 claude-opus-5.5                  93.697 -> 95.052 n=1920
  3 gpt-5.6-sol                      93.572 -> 94.433 n=1920
@@ -47,4 +47,4 @@ Wrote /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/resu
 44 claude-sonnet-5                  72.642 -> 73.794 n=1920
 45 kimi-k2.6                        67.404 -> 68.111 n=1920
 46 gpt-5.4-nano                     65.339 -> 66.536 n=1920
-Exported dashboard-data-20261006: 1780d2ec37f90b654265f8c7a191ba57f5ec5c4d28624bf9d2e2de8a48d2f871 (127218158 bytes)
+Exported dashboard-data-20261006: f03441f64316997de843e82c27272442c794148a121c25e1343fbddbe38574a0 (127224818 bytes)
