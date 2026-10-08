@@ -332,7 +332,14 @@ def main() -> None:
         "--only", nargs="*", help="score only these variants (default: all)"
     )
     args = parser.parse_args()
-    scratch = Path(args.scratch)
+    scratch = Path(args.scratch).resolve()
+    # stage() deletes and rewrites scratch/<variant>; never inside the repository.
+    if scratch == ROOT.resolve() or scratch.is_relative_to(ROOT.resolve()):
+        parser.error(f"--scratch must be outside the repository ({ROOT})")
+    plan = variants()
+    unknown = sorted(set(args.only or ()) - set(plan))
+    if unknown:
+        parser.error(f"unknown variant(s) {unknown}; choose from {sorted(plan)}")
 
     base_dir = stage(scratch / "published", None)
     base = analyze(base_dir)
@@ -341,7 +348,6 @@ def main() -> None:
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     summary: dict = {"published_reproduced": True, "proposals": PROPOSALS.name}
-    plan = variants()
     if args.only:
         plan = {name: plan[name] for name in args.only}
     for name, records in plan.items():

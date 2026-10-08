@@ -24,6 +24,10 @@ The rule, over scored cells only:
    ``"mismatch"`` (the default) calls a cluster wrong when its key is not the
    reference, and ``"skip"`` applies the dollar tolerance and so never flags
    one, as the prototype did. The models-exact count follows the same test.
+   A member whose own raw answer is within the tolerance of an amount
+   reference counts as exact and leaves the wrong cluster (reference
+   13,387.65 and an answer of 13,388.6: the key 13,389 misses by 1.35, but
+   the answer by 0.95), so no model is both exact and in a wrong cluster.
 3. A wrong cluster triggers when it has at least ``min_models`` members
    (``"min_models"``) or at least ``min_top`` of the ``top_k`` best models by
    the payload's ``modelStats`` order (``"min_top"``).
@@ -276,6 +280,15 @@ def _scan(payload: dict, params: ConsensusParams) -> tuple[int, list[dict]]:
             for units, members in groups.items():
                 answer = units / scale
                 if not _misses(answer, reference, binary, params.tolerance):
+                    continue
+                # A member whose own answer matches the reference counts as
+                # exact, so it never also counts toward a wrong cluster.
+                members = [
+                    model
+                    for model in members
+                    if _misses(compared[model], reference, binary, params.tolerance)
+                ]
+                if not members:
                     continue
                 top = sorted(
                     (model for model in members if model in top_rank),

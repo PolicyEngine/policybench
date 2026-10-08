@@ -30,6 +30,7 @@ from policybench.reference_adversary import (
     _case_id,
     adjudication_queue,
     apply_adversary_flags,
+    blocked_search_result,
     blocked_url,
     build_adversary_cases,
     canonical_json,
@@ -702,15 +703,35 @@ def test_collect_reports_verdicts_with_provenance(tmp_path: Path, cases):
     assert out["inconsistent"].empty
 
 
-def test_collect_counts_a_stale_sidecar_as_no_provenance(tmp_path: Path, cases):
+@pytest.mark.parametrize(
+    "damage, reason",
+    [
+        # A sidecar for another output binds nothing.
+        (lambda meta: {**meta, "output_sha256": "0" * 64}, "no sidecar bound"),
+        # A bound sidecar that names no stage 1 does not show the binding.
+        (
+            lambda meta: {k: v for k, v in meta.items() if k != "stage1_sha256"},
+            "another stage 1",
+        ),
+        (lambda meta: None, "no sidecar bound"),
+    ],
+)
+def test_collect_needs_a_sidecar_binding_the_verdict_to_its_stage1(
+    tmp_path: Path, cases, damage, reason
+):
+    """A verdict is never taken as bound to the current stage 1 by default."""
     adversary = tmp_path / "adv"
     prepare_adversary(adversary, cases)
     case_dir = _judged(adversary, cases[0].case_id)
-    meta = json.loads((case_dir / "verdict.meta.json").read_text())
-    meta["output_sha256"] = "0" * 64
-    (case_dir / "verdict.meta.json").write_text(json.dumps(meta))
-    (row,) = collect_adversary(adversary)["verdicts"].to_dict("records")
-    assert row["judge_model"] == "unknown"
+    meta = damage(json.loads((case_dir / "verdict.meta.json").read_text()))
+    if meta is None:
+        (case_dir / "verdict.meta.json").unlink()
+    else:
+        (case_dir / "verdict.meta.json").write_text(json.dumps(meta))
+    out = collect_adversary(adversary)
+    assert out["verdicts"].empty
+    missing = out["missing"].set_index("case_id")["reason"]
+    assert reason in missing[cases[0].case_id]
 
 
 @pytest.mark.parametrize(
@@ -936,6 +957,42 @@ def test_queue_holds_every_non_holding_verdict_in_the_case_notes_schema():
         "unlisted_input",
     ]
     assert adjudication_queue(verdicts.iloc[[1]]).empty
+
+
+def test_queue_holds_an_inconsistent_hold_too():
+    """A reference_holds verdict that collect flags as inconsistent (here,
+    holding the reference without naming the error in stage 1's finding for
+    the consensus) is queued with its problem, for one judge or merged."""
+    holds = {
+        "scenario_id": "s2",
+        "variable": TAX,
+        "verdict": "reference_holds",
+        "suggested_adjudication": "affirmed",
+        "engine_step_at_issue": "",
+    }
+    verdicts = _frame([holds])
+    problem = "verdict holds the reference without naming a stage-1 error"
+    inconsistent = pd.DataFrame(
+        [
+            {
+                "case_id": f"us__s2__{TAX}",
+                "scenario_id": "s2",
+                "variable": TAX,
+                "problem": problem,
+            }
+        ]
+    )
+    assert adjudication_queue(verdicts, inconsistent.iloc[0:0]).empty
+    (row,) = adjudication_queue(verdicts, inconsistent).to_dict("records")
+    assert row["scenario_id"] == "s2" and row["reference_suspect"] is True
+    assert row["reference_bug_hypothesis"].endswith(f"Inconsistent verdict: {problem}")
+    merged = merge_judges({"claude": verdicts})
+    (row,) = adjudication_queue(merged, inconsistent.assign(judge="claude")).to_dict(
+        "records"
+    )
+    assert row["reference_bug_hypothesis"].endswith(
+        f"Inconsistent verdict: claude: {problem}"
+    )
 
 
 def _case_notes() -> pd.DataFrame:
@@ -1264,7 +1321,13 @@ def test_codex_audit_greps_lines_that_are_not_events():
     assert problems == ["line 1: non-event output names 'data.json'"]
 
 
-def _transcript(prompt: str, *parts: dict, refused: tuple[str, ...] = ()) -> str:
+def _transcript(
+    prompt: str,
+    *parts: dict,
+    refused: tuple[str, ...] = (),
+    results: dict | None = None,
+) -> str:
+    results = results or {}
     events = [{"type": "user", "message": {"role": "user", "content": prompt}}]
     for part in parts:
         events.append(
@@ -1279,7 +1342,7 @@ def _transcript(prompt: str, *parts: dict, refused: tuple[str, ...] = ()) -> str
                         {
                             "type": "tool_result",
                             "tool_use_id": part["id"],
-                            "content": "ok",
+                            "content": results.get(part["id"], "ok"),
                             "is_error": part["id"] in refused,
                         }
                     ],
@@ -1340,6 +1403,86 @@ def test_claude_audit_catches_contamination(part, prompt, problem):
     assert any(problem in p for p in problems), problems
 
 
+SEARCH = "Colorado sales tax refund 2026"
+
+
+@pytest.mark.parametrize(
+    "content, exposed",
+    [
+        # Claude Code's WebSearch result: a JSON list of links, then a summary.
+        (
+            'Links: [{"title":"C.R.S. 39-22-2003","url":"https://colorado.public.'
+            'law/statutes/crs_39-22-2003"},{"title":"Calculator","url":"https://'
+            'www.policyengine.org/us/co-refund"}]\n\nThe refund needs a surplus.',
+            "https://www.policyengine.org/us/co-refund",
+        ),
+        # A blocked domain whatever the repository.
+        (
+            [
+                {
+                    "type": "text",
+                    "text": "See https://github.com/someone/rules/issues/1.",
+                }
+            ],
+            "https://github.com/someone/rules/issues/1",
+        ),
+        # A URL naming the engine on another host.
+        (
+            "https://example.org/policyengine-estimates and more",
+            "https://example.org/policyengine-estimates",
+        ),
+        # The summary names the engine with no URL.
+        ("PolicyEngine puts the 2026 refund at $19.", "text names policyengine"),
+    ],
+)
+def test_claude_audit_rejects_a_search_whose_result_reaches_a_blocked_source(
+    content, exposed
+):
+    search = _use("1", "WebSearch", query=SEARCH)
+    transcript = _transcript("p", search, results={"1": content})
+    problems, activity, _ = claude_transcript_audit(transcript, "p")
+    assert problems == [f"a search returned a blocked source: {SEARCH} -> {exposed}"]
+    assert activity["searches"] == [SEARCH]
+
+
+def test_claude_audit_passes_a_clean_search_result():
+    content = (
+        'Links: [{"title":"C.R.S. 39-22-2003","url":"https://colorado.public.law/'
+        'statutes/crs_39-22-2003"}]\n\nThe refund needs excess state revenues.'
+    )
+    search = _use("1", "WebSearch", query=SEARCH, blocked_domains=["github.com"])
+    transcript = _transcript("p", search, results={"1": content})
+    assert claude_transcript_audit(transcript, "p")[0] == []
+
+
+def test_blocked_search_result_lists_each_source_once_in_order():
+    text = (
+        "https://github.com/a/b, https://www.policyengine.org/x. "
+        "https://github.com/a/b and PolicyBench too; https://irs.gov/p17"
+    )
+    assert blocked_search_result(text) == [
+        "https://github.com/a/b",
+        "https://www.policyengine.org/x",
+        "text names policybench",
+    ]
+    assert blocked_search_result("") == []
+
+
+def test_prompts_ask_for_blocked_domains_on_every_search(tmp_path: Path, cases):
+    adversary = tmp_path / "adv"
+    prepare_adversary(adversary, cases)
+    case_dir = _judged(adversary, cases[0].case_id)
+    for prompt in (
+        render_stage1_prompt(cases[0]),
+        (case_dir / "stage2_prompt.md").read_text(),
+    ):
+        assert "(blocked_domains), pass all of these domains on every search" in (
+            " ".join(prompt.split())
+        )
+        for domain in BLOCKED_DOMAINS:
+            assert domain in prompt
+
+
 def test_check_login_mirrors_the_audit_runner_rule(tmp_path: Path):
     lane = json.dumps(
         {"loggedIn": True, "authMethod": "oauth_token", "apiProvider": "firstParty"}
@@ -1367,6 +1510,11 @@ def test_check_login_mirrors_the_audit_runner_rule(tmp_path: Path):
     )
     with pytest.raises(ValueError, match="desktop login's account"):
         check_login(desktop, desktop, token=False, declared="", **common)
+    # A token login reports no email, so the declared account is what can be
+    # compared: a lane token for the desktop's own account is refused.
+    with pytest.raises(ValueError, match="is the desktop login's account"):
+        check_login(lane, desktop, token=True, declared=" Max@Example.org", **common)
+    assert check_login(lane, desktop, token=True, declared="lane@x", **common)
 
 
 # --- Command line ----------------------------------------------------------------
@@ -1398,6 +1546,58 @@ def test_main_validate_and_render_stage2(tmp_path: Path, cases, capsys):
         == 0
     )
     assert (case_dir / "stage2_prompt.md").is_file()
+
+
+def _collect_cli(*argv: str) -> None:
+    import sys
+    from unittest import mock
+
+    from policybench import cli
+
+    with mock.patch.object(sys, "argv", ["policybench", "adversary-collect", *argv]):
+        cli.main()
+
+
+def test_collect_cli_refuses_a_repeated_judge_label(tmp_path: Path, cases):
+    for judge in ("claude", "codex"):
+        prepare_adversary(tmp_path / judge / "adv", cases)
+    out = tmp_path / "out"
+    with pytest.raises(SystemExit, match="adv given more than once"):
+        _collect_cli(
+            "--adversary-dir",
+            str(tmp_path / "claude" / "adv"),
+            "--adversary-dir",
+            str(tmp_path / "codex" / "adv"),
+            "--output-dir",
+            str(out),
+        )
+    assert not out.exists()
+
+
+def test_collect_cli_fails_on_missing_verdicts_unless_allowed(tmp_path: Path, cases):
+    adversary = tmp_path / "adv"
+    prepare_adversary(adversary, cases)
+    _judged(
+        adversary,
+        cases[0].case_id,
+        verdict=_verdict(
+            verdict="reference_holds",
+            suggested_adjudication="affirmed",
+            engine_step_at_issue="",
+        ),
+    )
+    out = tmp_path / "out"
+    args = ("--adversary-dir", f"claude={adversary}", "--output-dir", str(out))
+    with pytest.raises(SystemExit, match="1 case\\(s\\) have no usable verdict"):
+        _collect_cli(*args)
+    # The tables are written either way, and the inconsistent hold is queued.
+    queue = pd.read_csv(out / "adversary_adjudication_queue.csv")
+    assert queue["scenario_id"].tolist() == [cases[0].scenario_id]
+    assert queue["variable"].tolist() == [cases[0].variable]
+    assert "Inconsistent verdict: claude: " in queue["reference_bug_hypothesis"][0]
+    _collect_cli(*args, "--allow-missing")
+    missing = pd.read_csv(out / "adversary_claude_missing.csv")
+    assert missing["case_id"].tolist() == [cases[1].case_id]
 
 
 # --- What the module never touches -----------------------------------------------

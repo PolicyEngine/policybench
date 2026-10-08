@@ -653,6 +653,12 @@ def main():
         help="One judge's adversary directory, optionally labeled (repeatable)",
     )
     adversary_collect_parser.add_argument("--output-dir", required=True)
+    adversary_collect_parser.add_argument(
+        "--allow-missing",
+        action="store_true",
+        help="Exit 0 even when a case has no usable verdict (by default such "
+        "a case fails the command after the tables are written)",
+    )
 
     # Population weights
     weight_parser = subparsers.add_parser(
@@ -1479,20 +1485,37 @@ def main():
         )
 
     elif args.command == "adversary-collect":
+        import pandas as pd
+
         from policybench.reference_adversary import (
             adjudication_queue,
             collect_adversary,
             merge_judges,
         )
 
+        specs = []
+        for spec in args.adversary_dir:
+            label, _, directory = spec.rpartition("=")
+            specs.append((label or Path(directory).name, directory))
+        labels = [label for label, _ in specs]
+        repeated = sorted({label for label in labels if labels.count(label) > 1})
+        if repeated:
+            # A repeated label would overwrite one judge's verdicts and files
+            # with another's, dropping its cases from the queue.
+            raise SystemExit(
+                f"adversary-collect: judge label(s) {', '.join(repeated)} given "
+                "more than once; label each directory (LABEL=DIR) uniquely"
+            )
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         by_judge = {}
-        for spec in args.adversary_dir:
-            label, _, directory = spec.rpartition("=")
-            label = label or Path(directory).name
+        inconsistent = []
+        missing = 0
+        for label, directory in specs:
             out = collect_adversary(Path(directory))
             by_judge[label] = out["verdicts"]
+            inconsistent.append(out["inconsistent"].assign(judge=label))
+            missing += len(out["missing"])
             for key in ("verdicts", "missing", "inconsistent"):
                 out[key].to_csv(
                     output_dir / f"adversary_{label}_{key}.csv", index=False
@@ -1504,12 +1527,19 @@ def main():
             )
         merged = merge_judges(by_judge)
         merged.to_csv(output_dir / "adversary_merged_verdicts.csv", index=False)
-        queue = adjudication_queue(merged)
+        queue = adjudication_queue(merged, pd.concat(inconsistent, ignore_index=True))
         queue.to_csv(output_dir / "adversary_adjudication_queue.csv", index=False)
         print(
             f"{len(queue)} of {len(merged)} cases go to developer adjudication "
-            f"(verdict other than reference_holds) -> {output_dir}"
+            f"(a verdict other than reference_holds, or an inconsistent one) "
+            f"-> {output_dir}"
         )
+        if missing and not args.allow_missing:
+            raise SystemExit(
+                f"adversary-collect: {missing} case(s) have no usable verdict "
+                "(see adversary_<label>_missing.csv); re-run the judge, or pass "
+                "--allow-missing to accept an incomplete collection"
+            )
 
     elif args.command == "population-weights":
         from policybench.config import TAX_YEAR
