@@ -1,0 +1,71 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.0959710000000003,
+  "duration_ms": 380140,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T22:39:52.828332+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "afa9a9fe70b1306e0824193746b82a43a3c752563cca5474c0c1a46642a0b1a1",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "b6d88ce220bf8c0a1f848a7bcf9e5cb3cc3a65b9b69f5a86500000528de16be7",
+  "session_id": "7f2cef8a-e812-4e10-8dd8-866c5db26653",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-273/subpart-D/section-273.10",
+      "https://www.fns.usda.gov/snap/allotment/cola",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://www.govregs.com/regulations/expand/title7_chapterII_part273_subpartD_section273.10",
+      "http://services.dpw.state.pa.us/oimpolicymanuals/snap/512_Categorical_Eligibility/512_3_Issuing_Benefits.htm",
+      "http://www.laws9.com/cfr/text/7/273/10",
+      "https://www.govinfo.gov/content/pkg/CFR-2025-title7-vol4/xml/CFR-2025-title7-vol4-sec273-10.xml",
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/EXF/BP/Public/BEM/550.pdf",
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/exf/BP/Public/BEM/213.pdf",
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/ex/RF/Public/RFT/250.pdf"
+    ],
+    "searches": [
+      "SNAP FY 2026 cost-of-living adjustments maximum allotment minimum benefit $24 standard deduction $209",
+      "7 CFR 273.10(e)(2)(iii) minimum benefit \"one- and two-person households\" categorically eligible net income",
+      "\"273.10\" \"shall receive minimum monthly allotments equal to the minimum benefit\" \"8 percent of the maximum allotment for a household of one\"",
+      "Michigan BEM 213 or BEM 550 FAP categorical eligibility 200% gross income SDV group minimum benefit one and two person",
+      "BEM 550 \"One and two member\" categorical FAP groups \"minimum benefit\" \"200 percent\"",
+      "Michigan BEM 554 FAP allowable expenses medical expenses SDV \"health insurance premiums\" standard medical deduction $165",
+      "7 CFR 271.2 \"elderly or disabled member\" \"disability or blindness payments under titles I, II\"",
+      "SNAP FY 2027 cost-of-living adjustment maximum allotment one person minimum benefit October 1, 2026 USDA memo",
+      "Michigan BEM 554 \"SMD\" \"$165\" SDV \"actual medical expenses\" more than the SMD option to verify",
+      "\"Fiscal Year 2027\" SNAP cost-of-living adjustments \"minimum benefit\" \"$25\" 48 States memo August 2026",
+      "7 U.S.C. 2017(a) \"minimum allotment\" \"8 percent of the cost of the thrifty food plan for a household containing 1 member\"",
+      "Michigan BPB 2024-005 FAP asset limit $15,000 effective 2024"
+    ]
+  }
+}

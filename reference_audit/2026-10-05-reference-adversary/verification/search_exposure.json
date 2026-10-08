@@ -1,0 +1,787 @@
+{
+  "runs": {
+    "claude": {
+      "adversary_dir": "runs/claude",
+      "transcripts": 104,
+      "searches": 517,
+      "searches_with_blocked_domains": 0,
+      "searches_with_every_blocked_domain": 0,
+      "flagged_transcripts": 13,
+      "flagged_cases": [
+        "us__scenario_013__snap",
+        "us__scenario_014__state_income_tax_before_refundable_credits",
+        "us__scenario_023__state_refundable_credits",
+        "us__scenario_030__snap",
+        "us__scenario_043__state_refundable_credits",
+        "us__scenario_045__state_refundable_credits",
+        "us__scenario_066__state_refundable_credits",
+        "us__scenario_073__snap",
+        "us__scenario_079__snap",
+        "us__scenario_115__state_income_tax_before_refundable_credits"
+      ],
+      "exposed_searches": 28,
+      "exposed_searches_by_source": {
+        "github.com/PolicyEngine": 12,
+        "github.com/TheAxiomFoundation": 15,
+        "github.com/capable78638974979473297813001-pixel": 1,
+        "text names policyengine": 12,
+        "www.policyengine.org": 1
+      },
+      "flagged": [
+        {
+          "case_id": "us__scenario_013__snap",
+          "stage": "stage1",
+          "exposed_searches": [
+            {
+              "query": "\"NA Expanded Categorical Eligibility Standard (200%\" FPL",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1460"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            },
+            {
+              "query": "Arizona Nutrition Assistance expanded categorical eligibility 200% \"March 1, 2026\" OR \"March 2026\"",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1460"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            },
+            {
+              "query": "\"185% of Federal Poverty Level (Expanded Categorical Eligibility)\" Arizona CNAP archived",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1460"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            },
+            {
+              "query": "\"Expanded categorically eligible\" \"200% of the current\" FPL AZTECS budgetary unit",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1460"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_013__snap",
+          "stage": "stage2",
+          "exposed_searches": [
+            {
+              "query": "Arizona SNAP expanded categorical eligibility 200% federal poverty level March 2026",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1460"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            },
+            {
+              "query": "dbmefaapolicy.azdes.gov expanded categorical eligibility 200% change log effective March 1, 2026",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1460"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_014__state_income_tax_before_refundable_credits",
+          "stage": "stage1",
+          "exposed_searches": [
+            {
+              "query": "wvlegislature.gov SB 392 2026 enrolled personal income tax rates 11-21-4",
+              "exposed": [
+                "https://www.policyengine.org/us/wv-sb392-tax-cut",
+                "https://www.policyengine.org/us/bill-tracker/WV/wv-sb392"
+              ],
+              "sources": [
+                "www.policyengine.org"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_023__state_refundable_credits",
+          "stage": "stage1",
+          "exposed_searches": [
+            {
+              "query": "FTB 3514 instructions \"California AGI\" line 16 \"Is line\" earned income look up table smaller amount CalEITC worksheet",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-us/issues/9816",
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1307",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            },
+            {
+              "query": "CalEITC worksheet \"Enter your California AGI\" \"Is line 4 less than\"",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1307",
+                "https://github.com/PolicyEngine/policyengine-us/issues/9816",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            },
+            {
+              "query": "\"2025\" CalEITC table no qualifying children \"22,501\" \"22,550\"",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1328",
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1307",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            },
+            {
+              "query": "CalEITC no qualifying children phaseout percentage recalculated 2022 \"0.92%\" OR \"1.08%\" OR \"1.07\" credit percentage 5.43%",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1328",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            },
+            {
+              "query": "2025 California Earned Income Tax Credit Booklet worksheet \"line 3\" \"less than $4,661\"",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1307",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_023__state_refundable_credits",
+          "stage": "stage2",
+          "exposed_searches": [
+            {
+              "query": "2025 CalEITC table no qualifying children 22,501 22,550 credit FTB 3514",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1307",
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1328",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_030__snap",
+          "stage": "stage1",
+          "exposed_searches": [
+            {
+              "query": "fns.usda.gov SNAP FY2026 COLA memo PDF \"minimum allotment\" 48 states standard deduction 209",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1394"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_043__state_refundable_credits",
+          "stage": "stage1",
+          "exposed_searches": [
+            {
+              "query": "Colorado TABOR state sales tax refund tax year 2025 amounts by adjusted gross income single filers",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1274",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_043__state_refundable_credits",
+          "stage": "stage2",
+          "exposed_searches": [
+            {
+              "query": "Colorado 2025 tax year state sales tax refund amounts single filer $19 AGI $52,000",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1274",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_045__state_refundable_credits",
+          "stage": "stage1",
+          "exposed_searches": [
+            {
+              "query": "MI-1040CR total household resources \"health insurance premiums\" deduct line instructions 2025",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-us/pull/9790",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_066__state_refundable_credits",
+          "stage": "stage1",
+          "exposed_searches": [
+            {
+              "query": "Virginia refundable earned income tax credit 20 percent 2026 Form 760 instructions",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-taxsim/issues/1212",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_073__snap",
+          "stage": "stage2",
+          "exposed_searches": [
+            {
+              "query": "fns.usda.gov SNAP FY 2027 COLA memo minimum benefit 48 States",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1394"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_079__snap",
+          "stage": "stage1",
+          "exposed_searches": [
+            {
+              "query": "Arizona SNAP \"standard medical deduction\" amount 2025 2026",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1461"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            },
+            {
+              "query": "FNS SNAP FY 2026 COLA memo maximum allotments $546 two person standard deduction $209",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1394",
+                "https://github.com/PolicyEngine/policyengine-us/issues/9483",
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1393",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "github.com/TheAxiomFoundation",
+                "text names policyengine"
+              ]
+            },
+            {
+              "query": "Arizona DES FAA5 \"standard medical deduction\" $145 nutrition assistance",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1461"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            },
+            {
+              "query": "SNAP State Options Report standard medical deduction states Arizona fns.usda.gov",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1461"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            },
+            {
+              "query": "\"State Options Report\" SNAP 17th edition \"standard medical deduction\" Arizona amount",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1461"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            },
+            {
+              "query": "des.az.gov nutrition assistance medical expense deduction \"$145\" \"$180\"",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1461"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            },
+            {
+              "query": "dbmefaapolicy.azdes.gov \"Standard Medical Deduction\" NA medical expenses",
+              "exposed": [
+                "https://github.com/TheAxiomFoundation/rulespec-us/issues/1461"
+              ],
+              "sources": [
+                "github.com/TheAxiomFoundation"
+              ]
+            }
+          ],
+          "other_problems": []
+        },
+        {
+          "case_id": "us__scenario_115__state_income_tax_before_refundable_credits",
+          "stage": "stage1",
+          "exposed_searches": [
+            {
+              "query": "Alabama age 65 retirement income exclusion $6,000 Act 2022-292 section 40-18-19 definition retirement income",
+              "exposed": [
+                "https://github.com/PolicyEngine/policyengine-us/issues/9552",
+                "text names policyengine"
+              ],
+              "sources": [
+                "github.com/PolicyEngine",
+                "text names policyengine"
+              ]
+            },
+            {
+              "query": "nfc.usda.gov TAXES Alabama State Income Tax Withholding 2026 bulletin",
+              "exposed": [
+                "https://github.com/capable78638974979473297813001-pixel/payroll-tax-engine-/issues/67",
+                "https://github.com/capable78638974979473297813001-pixel/payroll-tax-engine-/issues/45"
+              ],
+              "sources": [
+                "github.com/capable78638974979473297813001-pixel"
+              ]
+            }
+          ],
+          "other_problems": []
+        }
+      ]
+    },
+    "claude-rejudge": {
+      "adversary_dir": "runs/claude-rejudge",
+      "transcripts": 20,
+      "searches": 175,
+      "searches_with_blocked_domains": 160,
+      "searches_with_every_blocked_domain": 160,
+      "flagged_transcripts": 0,
+      "flagged_cases": [],
+      "exposed_searches": 0,
+      "exposed_searches_by_source": {},
+      "flagged": []
+    }
+  },
+  "rejudged": [
+    {
+      "case_id": "us__scenario_013__snap",
+      "original_exposed_stages": [
+        "stage1",
+        "stage2"
+      ],
+      "stage1_prompt_changed_lines": [
+        "-5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer.",
+        "+5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. When your search tool accepts domains to exclude (blocked_domains), pass all of these domains on every search, so that no result comes from them: a search whose results list or name PolicyEngine or PolicyBench voids your answer. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer."
+      ],
+      "stage1": {
+        "original": {
+          "law_supports": "reference",
+          "independent_answer": 240,
+          "confidence": "medium"
+        },
+        "rejudge": {
+          "law_supports": "neither",
+          "independent_answer": 288,
+          "confidence": "medium"
+        }
+      },
+      "verdict": {
+        "original": {
+          "verdict": "reference_holds",
+          "confidence": "medium",
+          "suggested_adjudication": "affirmed"
+        },
+        "rejudge": {
+          "verdict": "reference_holds",
+          "confidence": "medium",
+          "suggested_adjudication": "affirmed"
+        }
+      },
+      "verdict_unchanged": true,
+      "stage1_law_supports_unchanged": false
+    },
+    {
+      "case_id": "us__scenario_014__state_income_tax_before_refundable_credits",
+      "original_exposed_stages": [
+        "stage1"
+      ],
+      "stage1_prompt_changed_lines": [
+        "-5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer.",
+        "+5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. When your search tool accepts domains to exclude (blocked_domains), pass all of these domains on every search, so that no result comes from them: a search whose results list or name PolicyEngine or PolicyBench voids your answer. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer."
+      ],
+      "stage1": {
+        "original": {
+          "law_supports": "reference",
+          "independent_answer": 3092.2,
+          "confidence": "high"
+        },
+        "rejudge": {
+          "law_supports": "reference",
+          "independent_answer": 3092.2,
+          "confidence": "high"
+        }
+      },
+      "verdict": {
+        "original": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        },
+        "rejudge": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        }
+      },
+      "verdict_unchanged": true,
+      "stage1_law_supports_unchanged": true
+    },
+    {
+      "case_id": "us__scenario_023__state_refundable_credits",
+      "original_exposed_stages": [
+        "stage1",
+        "stage2"
+      ],
+      "stage1_prompt_changed_lines": [
+        "-5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer.",
+        "+5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. When your search tool accepts domains to exclude (blocked_domains), pass all of these domains on every search, so that no result comes from them: a search whose results list or name PolicyEngine or PolicyBench voids your answer. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer."
+      ],
+      "stage1": {
+        "original": {
+          "law_supports": "reference",
+          "independent_answer": 95,
+          "confidence": "medium"
+        },
+        "rejudge": {
+          "law_supports": "reference",
+          "independent_answer": 95,
+          "confidence": "medium"
+        }
+      },
+      "verdict": {
+        "original": {
+          "verdict": "reference_holds",
+          "confidence": "medium",
+          "suggested_adjudication": "affirmed"
+        },
+        "rejudge": {
+          "verdict": "reference_holds",
+          "confidence": "medium",
+          "suggested_adjudication": "affirmed"
+        }
+      },
+      "verdict_unchanged": true,
+      "stage1_law_supports_unchanged": true
+    },
+    {
+      "case_id": "us__scenario_030__snap",
+      "original_exposed_stages": [
+        "stage1"
+      ],
+      "stage1_prompt_changed_lines": [
+        "-5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer.",
+        "+5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. When your search tool accepts domains to exclude (blocked_domains), pass all of these domains on every search, so that no result comes from them: a search whose results list or name PolicyEngine or PolicyBench voids your answer. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer."
+      ],
+      "stage1": {
+        "original": {
+          "law_supports": "reference",
+          "independent_answer": 288,
+          "confidence": "high"
+        },
+        "rejudge": {
+          "law_supports": "reference",
+          "independent_answer": 288,
+          "confidence": "medium"
+        }
+      },
+      "verdict": {
+        "original": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        },
+        "rejudge": {
+          "verdict": "reference_holds",
+          "confidence": "medium",
+          "suggested_adjudication": "affirmed"
+        }
+      },
+      "verdict_unchanged": true,
+      "stage1_law_supports_unchanged": true
+    },
+    {
+      "case_id": "us__scenario_043__state_refundable_credits",
+      "original_exposed_stages": [
+        "stage1",
+        "stage2"
+      ],
+      "stage1_prompt_changed_lines": [
+        "-5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer.",
+        "+5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. When your search tool accepts domains to exclude (blocked_domains), pass all of these domains on every search, so that no result comes from them: a search whose results list or name PolicyEngine or PolicyBench voids your answer. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer."
+      ],
+      "stage1": {
+        "original": {
+          "law_supports": "consensus",
+          "independent_answer": 0,
+          "confidence": "high"
+        },
+        "rejudge": {
+          "law_supports": "consensus",
+          "independent_answer": 0,
+          "confidence": "high"
+        }
+      },
+      "verdict": {
+        "original": {
+          "verdict": "reference_wrong",
+          "confidence": "high",
+          "suggested_adjudication": "engine_defect"
+        },
+        "rejudge": {
+          "verdict": "reference_wrong",
+          "confidence": "high",
+          "suggested_adjudication": "engine_defect"
+        }
+      },
+      "verdict_unchanged": true,
+      "stage1_law_supports_unchanged": true
+    },
+    {
+      "case_id": "us__scenario_045__state_refundable_credits",
+      "original_exposed_stages": [
+        "stage1"
+      ],
+      "stage1_prompt_changed_lines": [
+        "-5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer.",
+        "+5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. When your search tool accepts domains to exclude (blocked_domains), pass all of these domains on every search, so that no result comes from them: a search whose results list or name PolicyEngine or PolicyBench voids your answer. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer."
+      ],
+      "stage1": {
+        "original": {
+          "law_supports": "reference",
+          "independent_answer": 760.78,
+          "confidence": "high"
+        },
+        "rejudge": {
+          "law_supports": "reference",
+          "independent_answer": 760.78,
+          "confidence": "high"
+        }
+      },
+      "verdict": {
+        "original": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        },
+        "rejudge": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        }
+      },
+      "verdict_unchanged": true,
+      "stage1_law_supports_unchanged": true
+    },
+    {
+      "case_id": "us__scenario_066__state_refundable_credits",
+      "original_exposed_stages": [
+        "stage1"
+      ],
+      "stage1_prompt_changed_lines": [
+        "-5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer.",
+        "+5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. When your search tool accepts domains to exclude (blocked_domains), pass all of these domains on every search, so that no result comes from them: a search whose results list or name PolicyEngine or PolicyBench voids your answer. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer."
+      ],
+      "stage1": {
+        "original": {
+          "law_supports": "reference",
+          "independent_answer": 8,
+          "confidence": "high"
+        },
+        "rejudge": {
+          "law_supports": "reference",
+          "independent_answer": 7.96,
+          "confidence": "high"
+        }
+      },
+      "verdict": {
+        "original": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        },
+        "rejudge": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        }
+      },
+      "verdict_unchanged": true,
+      "stage1_law_supports_unchanged": true
+    },
+    {
+      "case_id": "us__scenario_073__snap",
+      "original_exposed_stages": [
+        "stage2"
+      ],
+      "stage1_prompt_changed_lines": [
+        "-5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer.",
+        "+5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. When your search tool accepts domains to exclude (blocked_domains), pass all of these domains on every search, so that no result comes from them: a search whose results list or name PolicyEngine or PolicyBench voids your answer. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer."
+      ],
+      "stage1": {
+        "original": {
+          "law_supports": "reference",
+          "independent_answer": 288,
+          "confidence": "high"
+        },
+        "rejudge": {
+          "law_supports": "reference",
+          "independent_answer": 288,
+          "confidence": "high"
+        }
+      },
+      "verdict": {
+        "original": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        },
+        "rejudge": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        }
+      },
+      "verdict_unchanged": true,
+      "stage1_law_supports_unchanged": true
+    },
+    {
+      "case_id": "us__scenario_079__snap",
+      "original_exposed_stages": [
+        "stage1"
+      ],
+      "stage1_prompt_changed_lines": [
+        "-5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer.",
+        "+5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. When your search tool accepts domains to exclude (blocked_domains), pass all of these domains on every search, so that no result comes from them: a search whose results list or name PolicyEngine or PolicyBench voids your answer. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer."
+      ],
+      "stage1": {
+        "original": {
+          "law_supports": "reference",
+          "independent_answer": 2376,
+          "confidence": "high"
+        },
+        "rejudge": {
+          "law_supports": "reference",
+          "independent_answer": 2376,
+          "confidence": "medium"
+        }
+      },
+      "verdict": {
+        "original": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        },
+        "rejudge": {
+          "verdict": "reference_holds",
+          "confidence": "medium",
+          "suggested_adjudication": "affirmed"
+        }
+      },
+      "verdict_unchanged": true,
+      "stage1_law_supports_unchanged": true
+    },
+    {
+      "case_id": "us__scenario_115__state_income_tax_before_refundable_credits",
+      "original_exposed_stages": [
+        "stage1"
+      ],
+      "stage1_prompt_changed_lines": [
+        "-5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer.",
+        "+5. Do not consult PolicyEngine or PolicyBench in any form: not policyengine.org, policybench.org, their GitHub repositories, their documentation, their package source, or any calculator built on them. Do not fetch anything from these domains: policybench.org, www.policybench.org, policyengine.org, www.policyengine.org, github.com, raw.githubusercontent.com. When your search tool accepts domains to exclude (blocked_domains), pass all of these domains on every search, so that no result comes from them: a search whose results list or name PolicyEngine or PolicyBench voids your answer. Do not rely on any calculator or estimate built by an AI model. A citation of any of these sources voids your answer."
+      ],
+      "stage1": {
+        "original": {
+          "law_supports": "reference",
+          "independent_answer": 4.68,
+          "confidence": "medium"
+        },
+        "rejudge": {
+          "law_supports": "reference",
+          "independent_answer": 4.68,
+          "confidence": "high"
+        }
+      },
+      "verdict": {
+        "original": {
+          "verdict": "reference_holds",
+          "confidence": "medium",
+          "suggested_adjudication": "affirmed"
+        },
+        "rejudge": {
+          "verdict": "reference_holds",
+          "confidence": "high",
+          "suggested_adjudication": "affirmed"
+        }
+      },
+      "verdict_unchanged": true,
+      "stage1_law_supports_unchanged": true
+    }
+  ]
+}

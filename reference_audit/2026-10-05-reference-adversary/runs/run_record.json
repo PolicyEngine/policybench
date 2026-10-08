@@ -46,5 +46,45 @@
     }
   ],
   "stops": "none: no call was refused with 401, 403 or 429",
-  "rejected_outputs": "none: no output was contaminated or invalid"
+  "rejected_outputs": "none: no output was contaminated or invalid",
+  "rejudge": {
+    "why": "The code review of PR #200 found WebSearch results listing PolicyEngine and GitHub pages in run 2's transcripts: the runner denies the blocked domains to WebFetch only, and the transcript audit then read a search's query but not its results. Under the audit that now reads results, 13 of the 104 accepted outputs, in 10 cases, would have been rejected (verification/search_exposure.md). Those 10 cases were re-judged.",
+    "adversary_dir": "runs/claude-rejudge",
+    "flags": "runs/rejudge_flags.json: consensus_flags.json restricted to the 10 cells (written by scripts/search_exposure.py)",
+    "inputs": "The same cases.jsonl rows, derivations and schemas as runs/claude. Each stage-1 prompt differs in one line, the source rule, which now asks the judge to pass every blocked domain as blocked_domains on each search.",
+    "runner": "scripts/run_reference_adversary_claude.sh",
+    "settings": {
+      "AUDIT_PARALLEL": 3,
+      "AUDIT_MODEL": "opus",
+      "AUDIT_EFFORT": "xhigh",
+      "claude_cli": "2.1.284 (Claude Code)"
+    },
+    "login": {
+      "lane": "Subfleet lane claude-10, declared account max@farness.ai",
+      "CLAUDE_CONFIG_DIR": "~/.claude-judge-lanes/claude-10 (not ~/.claude)",
+      "AUDIT_ACCOUNT": "max@farness.ai",
+      "check_login": {
+        "account": null,
+        "method": "oauth_token",
+        "org": null
+      },
+      "desktop_login_used": false,
+      "api_key_used": false
+    },
+    "log": "runs/claude-rejudge.run1.log",
+    "started_utc": "2026-10-06T21:12:01Z",
+    "finished_utc": "2026-10-06T22:58:41Z",
+    "result": "reference adversary complete: 10/10 verdicts present; 20 judge calls, all ok",
+    "accepted_sidecars": {
+      "accepted_outputs": 20,
+      "reported_cost_usd": 24.82,
+      "judge_hours": 4.7,
+      "models_reported": {
+        "claude-haiku-4-5-20251001": 19,
+        "claude-opus-5-5": 20
+      }
+    },
+    "audit": "0 of the 20 transcripts flagged by the current audit; 160 of 175 searches passed blocked_domains",
+    "outcome": "Verdict unchanged in 10 of 10 cases (runs/collected-rejudge, verification/search_exposure.md). Stage 1 changed in one case: us__scenario_013__snap now finds $288 (law supports neither), and stage 2 still holds the $240 reference."
+  }
 }

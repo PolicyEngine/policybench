@@ -1,0 +1,89 @@
+{
+  "blinding": "tools",
+  "cost_usd": 2.4560638000000012,
+  "duration_ms": 1507500,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T21:37:45.673119+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "39f4d4adc7b81437eff27f1dbc6f3dc04846bdff95636f45afec7fdeeae6d657",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "ffb9baa4858c3b89ace98ee348e27c5ebd630120c7d820f91808c3848d6ccfd6",
+  "session_id": "b1f29506-094a-4d39-a287-ed030ab9cf3a",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ftb.ca.gov/forms/2025/2025-3514-booklet.html",
+      "https://www.ftb.ca.gov/forms/2025/2025-3514-booklet.pdf",
+      "https://ftb.ca.gov/forms/2025/2025-3514-booklet.html",
+      "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=RTC&sectionNum=17052",
+      "https://california.public.law/codes/ca_rev_and_tax_code_section_17052",
+      "https://law.justia.com/codes/california/code-rtc/division-2/part-10/chapter-2/section-17052/",
+      "https://codes.findlaw.com/ca/revenue-and-taxation-code/rtc-sect-17052/",
+      "https://reedcorp.tax/helpful-guides/ca-form-540-line-by-line/caleitc/",
+      "https://taxsim.nber.org/historical_state_tax_forms/CA/2024/",
+      "https://taxsim.nber.org/historical_state_tax_forms/CA/2025/",
+      "https://taxsim.nber.org/historical_state_tax_forms/CA/2024/2024-3514-booklet.pdf",
+      "https://california.public.law/codes/ca_rev_and_tax_code_section_17052",
+      "https://arev.assembly.ca.gov/sites/arev.assembly.ca.gov/files/LAO%20CalEITC%20Handout.pdf",
+      "https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=202520260AB398",
+      "https://law.onecle.com/california/taxation/17052.html",
+      "https://codes.findlaw.com/ca/revenue-and-taxation-code/rtc-sect-17052/",
+      "https://codes.findlaw.com/ca/revenue-and-taxation-code/rtc-sect-17052/",
+      "https://codes.findlaw.com/ca/revenue-and-taxation-code/rtc-sect-17052/",
+      "https://taxsim.nber.org/historical_state_tax_forms/CA/2023/",
+      "https://taxsim.nber.org/historical_state_tax_forms/CA/2022/",
+      "https://taxsim.nber.org/historical_state_tax_forms/CA/2025/2025-3514.pdf",
+      "https://codes.findlaw.com/ca/revenue-and-taxation-code/rtc-sect-17052/",
+      "https://www.dir.ca.gov/oprl/CPI/PresentCCPIchange.PDF",
+      "https://ca.db101.org/ca/programs/work_benefits/eitc/program2.htm",
+      "https://www.law.cornell.edu/uscode/text/26/32",
+      "https://www.govinfo.gov/content/pkg/USCODE-2023-title26/html/USCODE-2023-title26-subtitleA-chap1-subchapA-partIV-subpartC-sec32.htm"
+    ],
+    "searches": [
+      "FTB 3514 2025 instructions California earned income tax credit worksheet no qualifying children",
+      "Revenue and Taxation Code 17052 earned income tax credit \"phaseout amount\" \"earned income amount\" text",
+      "\"California Earned Income Tax Credit Worksheet\" 2025 \"$4,661\" line 3",
+      "FTB 3514 instructions worksheet \"If you have no qualifying children, is the amount on line 3 less than\"",
+      "CalEITC phase-out structure kink \"no qualifying children\" credit phases out steeply then gradually $30,000 LAO",
+      "\"17052\" California earned income credit \"two hundred dollars ($200)\" phaseout \"thirty thousand dollars\"",
+      "FTB 3514 2025 worksheet Part II \"federal AGI\" \"line 3\" \"smaller of\" California earned income tax credit table",
+      "2025 California EITC table \"22,501\" OR \"22,500\" \"22,550\" no qualifying children credit",
+      "California 2026 tax year inflation adjustment CalEITC maximum income 2026 Franchise Tax Board indexing",
+      "FTB \"2026\" California inflation rate \"June 2025\" \"June 2026\" tax rates and exemptions indexed",
+      "\"2026\" California \"inflation rate\" \"3.4\" CCPI \"June 2025 to June 2026\" standard deduction $5,900",
+      "\"Budget Act of 2026\" \"earned income tax credit adjustment factor\" 85 percent 2026 taxable year",
+      "California Budget Act \"earned income tax credit adjustment factor\" \"85 percent\" Section 17052",
+      "2026-27 California budget CalEITC Young Child Tax Credit changes 2026 tax year enacted June 2026",
+      "California Unemployment Insurance Code 13009 wages exclusion 401(k) elective deferral PIT wages \"not subject to PIT withholding\""
+    ]
+  }
+}

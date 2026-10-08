@@ -1,0 +1,84 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.5960900000000002,
+  "duration_ms": 1521004,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T22:44:53.756424+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "e5a1765e4c26df8c8f0464a630769eee12033460834957bd307889c675d02c33",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "5ca725c6afc90725095c941df6c70d7de9a92b8acd2b126f8bbd1a3c47a48951",
+  "session_id": "9544ad0f-0e56-4c1c-9752-a61e9de45f03",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "80d512033c2c9c6ec67c343adfd925e5237a59468528b7c4b11547befaba5d2a",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://fns-prod.azureedge.us/sites/default/files/resource-files/BBCE-States-Chart-June2026.pdf",
+      "https://dbmefaapolicy.azdes.gov/FAA6/NA_Income_Standards.html",
+      "https://dbmefaapolicy.azdes.gov/FAA6/NA_Expanded_Categorical_Eligibility_Standard.html",
+      "https://www.fna.usda.gov/snap/broad-based-categorical-eligibility",
+      "https://www.snapscreener.com/guides/arizona",
+      "https://daycarecalc.com/snap-eligibility/arizona",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-273/subpart-D/section-273.10",
+      "https://web.archive.org/web/2026/https://dbmefaapolicy.azdes.gov/FAA6/NA_Expanded_Categorical_Eligibility_Standard.html"
+    ],
+    "searches": [
+      "Arizona SNAP expanded categorical eligibility 200% federal poverty level 2026 effective",
+      "Arizona DES Nutrition Assistance gross income limit 200% March 2026",
+      "FNS Broad-Based Categorical Eligibility states chart Arizona 185% 200%",
+      "Arizona nutrition assistance income limit increase 185% to 200% poverty DES news",
+      "dbmefaapolicy.azdes.gov expanded categorical eligibility ECE gross income 200",
+      "\"Arizona\" SNAP \"200%\" categorical eligibility \"March 1, 2026\" OR \"March 2026\"",
+      "Arizona DES policy manual \"200% of Federal Poverty Level (Expanded Categorical Eligibility)\"",
+      "CNAP Manual archived \"185% of Federal Poverty Level\" Expanded Categorical Eligibility effective through",
+      "Arizona Hobbs SNAP eligibility expanded 200 percent poverty level 2026 Department of Economic Security",
+      "\"BBCE\" states chart 2025 Arizona \"No limit on assets\" \"185%\"",
+      "des.az.gov Nutrition Assistance income eligibility guidelines gross monthly income 2,608 one person",
+      "Arizona SB1071 2025 nutrition assistance categorical eligibility",
+      "DB101 Arizona Nutrition Assistance eligibility gross income 200% federal poverty level 2026",
+      "\"Expanded Categorical Eligibility\" Arizona 200% FPL \"effective\" 2026 CNAP manual revision NA gross income standard",
+      "CNAP manual \"What's Changed\" 2026 expanded categorical eligibility 200%",
+      "\".04 NA Expanded Categorical Eligibility Standard (200%\"",
+      "Arizona nutrition assistance \"2,608\" gross income one person 200%",
+      "Arizona food stamps more families eligible income limit raised 200% poverty 2026 news",
+      "dbmefaapolicy.azdes.gov Archived_Policy Revision \"10-01-25 through\" OR \"03-01-26\" OR \"through 02-28-26\"",
+      "USDA FNS \"Broad-Based Categorical Eligibility\" chart January 2026 OR October 2025 Arizona gross income limit",
+      "\"What's Changed\" CNAP manual Arizona March 2026 Nutrition Assistance expanded categorical 200 percent",
+      "Arizona \"Nutrition Assistance\" \"200%\" \"effective March 1, 2026\" OR \"effective 03/01/2026\" OR \"beginning March 2026\"",
+      "des.az.gov change report nutrition assistance report gross monthly income more than percent Federal Poverty Level",
+      "FAA-1826A Arizona Department of Economic Security nutrition assistance gross monthly income \"185%\" OR \"200%\" report changes",
+      "des.az.gov/na Nutrition Assistance \"your income is equal to or less than\" Federal Poverty Level family size"
+    ]
+  }
+}
