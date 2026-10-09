@@ -118,7 +118,7 @@ def _indiana_county(cell: Cell, engine: str, date: str) -> dict:
                 "and Indiana's county income taxes (IC 6-3.6) differ by county. "
                 f"{engine} computes Indiana county tax (in_county_tax) in "
                 "local_income_tax at the rate of the county it assigns a household "
-                "with no stated county (Adams County on policyengine-us 2.36.0). "
+                f"with no stated county (Adams County on {engine}). "
                 f"Read without a county, as {PREVIOUS_ENGINE} did, the household "
                 "owes no county tax."
             ),
