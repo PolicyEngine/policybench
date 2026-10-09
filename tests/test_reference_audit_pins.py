@@ -454,20 +454,40 @@ def _never(name: str):
     return call
 
 
-@pytest.mark.parametrize("audit", IMPACT)
-def test_a_refused_input_stops_the_impact_script_before_it_scores(
-    tmp_path, monkeypatch, audit
+@pytest.mark.parametrize(
+    ("audit", "path"),
+    [(audit, path) for audit in IMPACT for path in IMPACT[audit].inputs],
+)
+def test_any_refused_input_stops_the_impact_script_before_it_scores(
+    tmp_path, monkeypatch, audit, path
 ):
     impact = MODULES[_impact_script(audit)]
-    path = f"{RUN_PATH}/data.json.gz"
-    monkeypatch.setitem(impact.INPUTS, path, (AUDIT_COMMIT, FROZEN_SHA256))
+    commit, _ = impact.INPUTS[path]
+    monkeypatch.setitem(impact.INPUTS, path, (commit, "0" * 64))
     for name in ("analyze", "always_zero", "stage"):
         if hasattr(impact, name):
             monkeypatch.setattr(impact, name, _never(name))
     out = tmp_path / "out"
     _impact_argv(monkeypatch, audit, tmp_path / "scratch", out)
-    with pytest.raises(SystemExit, match=f"not the pinned {FROZEN_SHA256}"):
+    with pytest.raises(SystemExit, match=f"{re.escape(path)} has sha256 .* not the"):
         impact.main()
+    assert not out.exists()
+
+
+@pytest.mark.parametrize(
+    ("script", "path"),
+    [(script, path) for script in DIRECT for path in DIRECT[script].inputs],
+)
+def test_any_refused_input_stops_the_direct_script_before_it_writes(
+    tmp_path, monkeypatch, script, path
+):
+    module = MODULES[script]
+    commit, _ = module.INPUTS[path]
+    monkeypatch.setitem(module.INPUTS, path, (commit, "0" * 64))
+    out = tmp_path / "out"
+    _argv(monkeypatch, script, out)
+    with pytest.raises(SystemExit, match=f"{re.escape(path)} has sha256 .* not the"):
+        module.main()
     assert not out.exists()
 
 
