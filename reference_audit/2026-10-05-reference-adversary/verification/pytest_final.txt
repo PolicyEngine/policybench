@@ -1,40 +1,40 @@
-# pytest, final, code at b46c4a50fdfbcc5dc2ef689a5edb90d612985b19 (the round-2 review's fixes, merged with main at ed4f89a6)
-# Each of the six files ran on its own, one after another, so no single command outlived a 10-minute limit on a loaded machine (load average 23-44):
+# pytest, final, code at bc5925efd37ff8b8ca771d8478a761f4024e9dc8 (the round-3 review's fixes)
+# Each of the six files ran on its own, one after another, on a loaded machine (load average 69-355):
 # OPENBLAS_NUM_THREADS=1 PYTHONPATH=. policybench-wt/adds0928-stage2/.venv/bin/python -m pytest <file> -q -p no:cacheprovider
 
 ## tests/test_consensus.py
 .........................................................                [100%]
-57 passed in 171.01s (0:02:51)
+57 passed in 564.55s (0:09:24)
 exit 0
 
 ## tests/test_definition_conformance.py
 ................................................................         [100%]
-64 passed in 23.03s
+64 passed in 34.48s
 exit 0
 
 ## tests/test_publication_sources.py
 ........................................................................ [ 64%]
 .......................................                                  [100%]
-111 passed in 69.66s (0:01:09)
+111 passed in 167.07s (0:02:47)
 exit 0
 
 ## tests/test_audit.py
 .........................                                                [100%]
-25 passed in 21.28s
+25 passed in 89.25s (0:01:29)
 exit 0
 
 ## tests/test_reference_adversary.py
-........................................................................ [ 69%]
-...............................                                          [100%]
-103 passed in 94.42s (0:01:34)
+........................................................................ [ 67%]
+...................................                                      [100%]
+107 passed in 314.97s (0:05:14)
 exit 0
 
 ## tests/test_reference_adversary_runner.py
-...................                                                      [100%]
-19 passed in 750.95s (0:12:30)
+......................                                                   [100%]
+22 passed in 3506.93s (0:58:26)
 exit 0
 
-# 57 + 64 + 111 + 25 + 103 + 19 = 379 passed, 0 failed, across the 5 adversary test files this branch adds plus tests/test_audit.py, run 2026-10-09T00:18:18Z to 00:43:02Z.
+# 57 + 64 + 111 + 25 + 107 + 22 = 386 passed, 0 failed, across the 5 adversary test files this branch adds plus tests/test_audit.py, run 2026-10-09T12:18:17Z to 13:51:13Z.
 # ruff check . and ruff format --check . (ruff 0.15.2, the locked version):
 All checks passed!
 129 files already formatted
