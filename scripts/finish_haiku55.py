@@ -3953,10 +3953,10 @@ def builder_claim_problems(
             continue
         key = spec_key(item)
         record = base.get(key) or baseline.ruled.get(key)
-        if record is not None and json.dumps(item.get("removed_record")) != (
+        if record is not None and json.dumps(item.get("record")) != (
             json.dumps(record)
         ):
-            problems.append(f"{key}: the revision's removed_record is not the record")
+            problems.append(f"{key}: the revision's record is not the removed record")
         # The builder writes a value that moved by no more than 1e-6 as it was.
         if key in values and not _same(item.get("regenerated"), values[key], 1e-6):
             problems.append(f"{key}: the revision's regenerated value is not the CSV's")

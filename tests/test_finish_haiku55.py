@@ -5022,7 +5022,7 @@ def write_build(
                     },
                 ),
                 "regenerated": float(v),
-                "removed_record": records[k],
+                "record": records[k],
             }
             for k, v in sorted(regenerated.items())
         ],
@@ -5144,6 +5144,42 @@ def test_the_upgrade_constants_name_release_20261006s_files():
     meta = json.loads(base_blob(SNAPSHOT_PATH / META_NAME))
     assert last_revision(meta)["kind"] == "engine_upgrade"
     assert last_revision(meta)["engine_version"] == driver.BASE_ENGINE
+
+
+# A real build_references_upgrade.py build, its narratives and its actions, on
+# policyengine-us 2.37.2 (local only): the driver's gates read what the real
+# builder writes, not only the mock build above.
+REHEARSAL = REPO / "results/local/rehearsal-2372"
+
+
+def test_a_real_builders_build_passes_the_drivers_gates():
+    """Differential: the builder and the driver agree on the build's shape.
+    The 2026-10-09 rehearsal regenerates the four d1022 cells, WI 064 and VA 039
+    state, newly excludes the two Indiana county outputs, and the spec decides
+    those two."""
+    build = REHEARSAL / "build"
+    if not (build / META_NAME).is_file():
+        pytest.skip("needs the local 2.37.2 rehearsal build")
+    upgrade = driver.load_build(
+        build,
+        REHEARSAL / driver.EXPLANATIONS_NAME,
+        REHEARSAL / driver.ACTIONS_NAME,
+    )
+    assert upgrade.engine_version == "policyengine-us 2.37.2"
+    assert upgrade.regenerated_ruled == driver.spec_regenerated(driver.load_spec())
+    assert upgrade.regenerated_base == {
+        ("scenario_064", "federal_income_tax_before_refundable_credits"),
+        ("scenario_064", "state_income_tax_before_refundable_credits"),
+        ("scenario_039", "state_income_tax_before_refundable_credits"),
+    }
+    assert upgrade.added == {
+        ("scenario_015", "local_income_tax"),
+        ("scenario_067", "local_income_tax"),
+    }
+    assert upgrade.records == 69 and upgrade.scored_outputs == 1915
+    added = driver.upgrade_decisions(upgrade)
+    assert [driver.spec_key(item) for item, _ in added] == sorted(upgrade.added)
+    assert driver.upgrade_wave(added) == upgrade.revision["date"]
 
 
 def test_a_build_on_release_20261006_passes_every_gate(upgrade_spec, tmp_path):
