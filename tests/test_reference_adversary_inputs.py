@@ -530,12 +530,18 @@ def test_definition_conformance_refuses_another_law_table(tmp_path, monkeypatch)
         conformance.stage_inputs(tmp_path / "inputs")
 
 
-def test_build_proposals_never_writes_the_committed_records(monkeypatch, capsys):
+def test_build_proposals_never_writes_the_committed_records(
+    tmp_path, monkeypatch, capsys
+):
     committed = (AUDIT / "proposed_changes.json").read_bytes()
     monkeypatch.setattr(proposals, "build", _never("build"))
+    link = tmp_path / "link.json"
+    link.symlink_to(AUDIT / "proposed_changes.json")
     for target in (
         AUDIT / "proposed_changes.json",
         SCRIPTS / ".." / "proposed_changes.json",
+        Path(os.path.relpath(AUDIT / "proposed_changes.json")),
+        link,
     ):
         monkeypatch.setattr(sys, "argv", ["build_proposals", "--out", str(target)])
         with pytest.raises(SystemExit):
@@ -673,31 +679,68 @@ def _run(script: str, tmp_path: Path, *args: str) -> None:
     assert result.returncode == 0, result.stderr[-4000:]
 
 
+LINE = re.compile(
+    rb'^(?P<head>\s*"(?P<key>[a-z_0-9]+)": )(?P<value>.*?)(?P<tail>,?\n)$'
+)
+
+
 def _identical_but(regenerated: Path, committed: Path, volatile: set[str]) -> dict:
-    """Require the files byte for byte, except the one line carrying each key in
-    ``volatile``; return the regenerated value of each of those keys."""
+    """Require the files byte for byte, except the value on the one line that
+    carries each key in ``volatile``; return each such regenerated value.
+
+    The committed file must carry each volatile key on exactly one line, and the
+    regenerated file must carry the same key, indentation and punctuation on the
+    same line, so only that one JSON value may differ.
+    """
     new = regenerated.read_bytes().splitlines(keepends=True)
     old = committed.read_bytes().splitlines(keepends=True)
     assert len(new) == len(old), regenerated.name
-    line = re.compile(rb'^\s*"(?P<key>[a-z_0-9]+)": (?P<value>.*?),?\n$')
-    values = {}
+    values, allowed = {}, set()
     for key in volatile:
         lines = [
             i
             for i, text in enumerate(old)
-            if re.match(rb'^\s*"' + key.encode() + rb'": ', text)
+            if (match := LINE.match(text)) and match["key"].decode() == key
         ]
-        assert len(lines) == 1, (committed.name, key)
-        values[key] = json.loads(line.match(new[lines[0]])["value"])
-    differing = [i for i, (a, b) in enumerate(zip(new, old)) if a != b]
+        assert len(lines) == 1, (committed.name, key, lines)
+        (index,) = lines
+        before, after = LINE.match(old[index]), LINE.match(new[index])
+        assert after is not None, (regenerated.name, new[index][:120])
+        assert (after["head"], after["tail"]) == (before["head"], before["tail"])
+        values[key] = json.loads(after["value"])
+        allowed.add(index)
     unexpected = [
-        (i + 1, old[i][:120], new[i][:120])
-        for i in differing
-        if (match := line.match(old[i])) is None
-        or match["key"].decode() not in volatile
+        (i + 1, b[:120], a[:120])
+        for i, (a, b) in enumerate(zip(new, old))
+        if a != b and i not in allowed
     ]
     assert not unexpected, (regenerated.name, unexpected[:5])
     return values
+
+
+def test_only_the_named_values_may_differ(tmp_path):
+    """The comparison is not vacuous: a changed value elsewhere, a moved key or a
+    changed key name on the volatile line all fail it."""
+    committed = tmp_path / "committed.json"
+    committed.write_text('{\n "a": 1,\n "seconds": 2.5,\n "z": [1]\n}\n')
+    cases = {
+        '{\n "a": 1,\n "seconds": 9.1,\n "z": [1]\n}\n': True,
+        '{\n "a": 2,\n "seconds": 2.5,\n "z": [1]\n}\n': False,
+        '{\n "a": 1,\n "minutes": 2.5,\n "z": [1]\n}\n': False,
+        '{\n "a": 1,\n  "seconds": 2.5,\n "z": [1]\n}\n': False,
+        '{\n "a": 1,\n "seconds": 2.5,\n "z": [2]\n}\n': False,
+        '{\n "a": 1,\n "seconds": 2.5\n}\n': False,
+    }
+    for text, passes in cases.items():
+        regenerated = tmp_path / "regenerated.json"
+        regenerated.write_text(text)
+        if passes:
+            assert _identical_but(regenerated, committed, {"seconds"}) == {
+                "seconds": 9.1
+            }
+        else:
+            with pytest.raises(AssertionError):
+                _identical_but(regenerated, committed, {"seconds"})
 
 
 @pytest.mark.slow
