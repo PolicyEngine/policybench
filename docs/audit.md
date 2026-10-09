@@ -132,7 +132,9 @@ exact and never toward a wrong cluster, even when its rounded key misses.
     whose search results list a blocked URL or name PolicyEngine or
     PolicyBench.
   - The Codex runner works from an empty directory and rejects a stage 1
-    whose log shows a read of derivation-bearing paths. Codex's event log
+    whose log shows a read of derivation-bearing paths. It refuses a Codex
+    home holding `AGENTS.override.md` or `AGENTS.md`, whose instructions
+    Codex would load outside the audited events. Codex's event log
     records a search's query but not its results, so this runner cannot
     check what a search returned; the prompt's request is its only guard
     there.
@@ -154,7 +156,13 @@ naming a stage-1 error. Its rules:
 - A case without one is listed as missing, and the command then exits
   non-zero unless `--allow-missing` is given.
 - Each `--adversary-dir` needs its own label (`LABEL=DIR`). A repeated label
-  is refused, because one judge's verdicts would overwrite another's.
+  is refused, because one judge's verdicts would overwrite another's. The
+  label is letters, digits, `.`, `_` or `-`, and the directory is everything
+  after the first `=`, so a directory may contain `=`. A bare `DIR` is
+  labeled with its last path component.
+- A directory without `cases.jsonl` is refused, so a mistyped path cannot
+  pass as a judge with no cases.
+
 `policybench.reference_adversary.apply_adversary_flags` sets those flags on a
 release's case notes, so `scripts/freeze_snapshot.py` refuses to freeze until
 each carries a developer `reference_verdict` (`policybench.adjudications`):
