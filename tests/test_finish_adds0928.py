@@ -6,6 +6,7 @@ import copy
 import csv
 import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +19,56 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import finish_adds0928 as driver  # noqa: E402
 
 from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
+
+# The merge of PR #182 on main, whose tree holds release 20260929: the release
+# this driver built. Later releases rewrite the working tree's snapshot, so a
+# test that checks this driver against what its release committed reads that
+# release from git here (CI checks out full history).
+RELEASE_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
+REPO = Path(__file__).resolve().parents[1]
+
+
+def release_blob(path: Path) -> bytes:
+    """A repository file as committed at RELEASE_COMMIT."""
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "show", f"{RELEASE_COMMIT}:{path.as_posix()}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        pytest.fail(
+            f"cannot read {path} at release commit {RELEASE_COMMIT[:12]}; fetch "
+            f"full history (git fetch --unshallow): {result.stderr.decode().strip()}"
+        )
+    return result.stdout
+
+
+@pytest.fixture
+def release_checkout(tmp_path, monkeypatch):
+    """The driver reads a scratch ROOT holding what release 20260929 committed.
+
+    Its live pointer, its snapshot's five reference files and the wave's
+    final_actions.json are RELEASE_COMMIT's. The driver's own base_commit_blob
+    still reads the 22c base from git at BASE_COMMIT in this checkout.
+    """
+    root = tmp_path / "release-20260929"
+    snapshot = root / driver.SNAPSHOT.relative_to(driver.ROOT)
+    actions = root / driver.AUDIT_ACTIONS.relative_to(driver.ROOT)
+    paths = [root / "app/src/data.artifact.json", actions]
+    for path in paths + [snapshot / name for name in driver.REFERENCE_FILES]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(release_blob(path.relative_to(root)))
+    read_base = driver.base_commit_blob
+
+    def base_commit_blob(path: Path) -> bytes:
+        with pytest.MonkeyPatch.context() as checkout:
+            checkout.setattr(driver, "ROOT", REPO)
+            return read_base(path)
+
+    monkeypatch.setattr(driver, "ROOT", root)
+    monkeypatch.setattr(driver, "SNAPSHOT", snapshot)
+    monkeypatch.setattr(driver, "AUDIT_ACTIONS", actions)
+    monkeypatch.setattr(driver, "base_commit_blob", base_commit_blob)
+    return root
 
 
 @pytest.fixture
@@ -447,8 +498,10 @@ def test_export_uses_scratch_only_and_partial_never_gets_release_receipt(
 
 
 def test_strict_export_recombines_to_freeze_bytes_and_binds_evidence(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, release_checkout
 ):
+    """On release 20260929's committed snapshot (release_checkout), a strict
+    export writes the freeze's bytes and binds the staged evidence."""
     import policybench.dashboard_schema
     import policybench.full_run_export
 
@@ -468,7 +521,8 @@ def test_strict_export_recombines_to_freeze_bytes_and_binds_evidence(
     for path in evidence:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"Evidence: {path.name}\n")
-    # The export gates the staged exclusion record, so stage the committed one.
+    # The export gates the staged exclusion record, so stage the committed one:
+    # release 20260929's, from the release checkout.
     (bundle / "us/reference_exclusions.json").write_bytes(
         (driver.SNAPSHOT / "reference_exclusions.json").read_bytes()
     )
@@ -878,15 +932,17 @@ def _superseded(pointer: dict) -> bool:
     return True
 
 
-def test_a_re_export_after_the_freeze_gates_on_the_22c_asset(monkeypatch):
+def test_a_re_export_after_the_freeze_gates_on_the_22c_asset(monkeypatch, request):
     """After the freeze the live pointer names this release, so a re-export
     reads the 22c payload from git and checks it against the 22c asset's
-    sha256; any other pointer is refused."""
+    sha256; any other pointer is refused. Once a later release is live, the
+    re-export refuses, and the checks run on release 20260929's committed
+    checkout (release_checkout)."""
     pointer = json.loads((driver.ROOT / "app/src/data.artifact.json").read_text())
     if pointer["tag"] == driver.BASE_TAG:
         pytest.skip("this checkout is still at the 22c base")
     if _superseded(pointer):
-        return
+        request.getfixturevalue("release_checkout")
     live = driver.resolve_live_base(SimpleNamespace())
     stats = live["countries"]["us"]["modelStats"]
     assert len(stats) == 42
@@ -1064,15 +1120,19 @@ def test_resolve_base_checks_the_exclusion_set_first(
         driver.resolve_base(args)
 
 
-def test_a_re_export_after_the_freeze_gates_the_committed_exclusions(monkeypatch):
+def test_a_re_export_after_the_freeze_gates_the_committed_exclusions(
+    monkeypatch, request
+):
     """After the freeze, resolve_live_base checks the committed record: the 22c
     exclusions, the revision's three and final_actions.json's audit exclusion.
-    Dropping the audit's list makes the committed record fail the gate."""
+    Dropping the audit's list makes the committed record fail the gate. Once a
+    later release is live, the re-export refuses, and the checks run on
+    release 20260929's committed checkout (release_checkout)."""
     pointer = json.loads((driver.ROOT / "app/src/data.artifact.json").read_text())
     if pointer["tag"] == driver.BASE_TAG:
         pytest.skip("this checkout is still at the 22c base")
     if _superseded(pointer):
-        return
+        request.getfixturevalue("release_checkout")
     added = driver.check_exclusions(driver.reference_revision(), driver.SNAPSHOT)
     assert ("scenario_023", "head_medicaid_eligible") in added
     assert len(added) == 4
@@ -1085,7 +1145,6 @@ def test_a_re_export_after_the_freeze_gates_the_committed_exclusions(monkeypatch
 # pass. Registering each with monkeypatch restores it after the test.
 FREEZER_ASSIGNED = (
     "SNAPSHOT_DATE",
-    "MODEL_RESPONSE_DATE",
     "SOURCE_RUN",
     "SOURCE_US",
     "SOURCE_ANNOTATIONS",

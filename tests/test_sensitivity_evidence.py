@@ -23,6 +23,7 @@ from policybench.spec import output_group_id
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "sensitivity" / "data"
 SUMMARY = json.loads((DATA / "claude-fable-5-1-thinking.json").read_text())
+AUGUST = json.loads((DATA / "claude-thinking-2026-08.json").read_text())
 DOC = ROOT / "sensitivity" / "claude-thinking-2026-08.md"
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 RUN_DIR = SNAPSHOT_DIR / "runs" / "us_full_run_20260612_policyengine_4_16_1_populace"
@@ -71,26 +72,41 @@ def test_doc_table_row_matches_the_summary():
 
 
 def test_doc_table_ranks_match_the_frozen_46_model_board():
+    """Each doc row's scores are its summary's, rounded for display, and its
+    ranks are the board's: the board row's own, and where the unrounded
+    sensitivity score would place (as app/src/lib/wouldRank.ts ranks it). A
+    rank taken from the rounded display value is off by a place whenever
+    rounding carries the score past a board row's score."""
     text = DOC.read_text()
     assert "on the 46-model board (2026-09-30)" in text
     rows = read_run_payload(RUN_DIR)["modelStats"]
     assert len(rows) == 46
     board_by_model = {row["model"]: row for row in rows}
+    blocks = {SUMMARY["model"]: SUMMARY}
+    blocks.update({block["model"]: block for block in AUGUST["runs"].values()})
+    assert set(blocks) == set(SENSITIVITY_ROWS.values())
 
     for label, model in SENSITIVITY_ROWS.items():
         pattern = (
-            rf"^\| {re.escape(label)} \| [\d.]+ \(#(\d+)\) \| "
-            rf"\*\*([\d.]+)\*\* \| [^|]+ \| \**#(\d+)\** \|"
+            rf"^\| {re.escape(label)} \| ([\d.]+) \(#(\d+)\) \| "
+            rf"\*\*([\d.]+)\*\* \| \+([\d.]+) \| \**#(\d+)\** \|"
         )
         match = re.search(pattern, text, re.M)
         assert match, f"{label} sensitivity row missing from the doc"
-        board_rank, sensitivity_exact, would_rank = match.groups()
-        assert int(board_rank) == _would_rank(board_by_model[model]["exact"], rows)
-        assert int(would_rank) == _would_rank(float(sensitivity_exact), rows)
-
-    assert SUMMARY["sensitivity"]["would_rank"] == _would_rank(
-        SUMMARY["sensitivity"]["exact"], rows
-    )
+        board_exact, board_rank, sensitivity_exact, delta, would_rank = match.groups()
+        block = blocks[model]
+        board = board_by_model[model]["exact"]
+        assert round(board, 3) == block["board"]["exact"], label
+        assert float(board_exact) == round(board, 1), label
+        assert float(sensitivity_exact) == round(block["sensitivity"]["exact"], 1), (
+            label
+        )
+        assert float(delta) == round(block["delta_exact"], 1), label
+        assert int(board_rank) == _would_rank(board, rows), label
+        assert int(would_rank) == _would_rank(block["sensitivity"]["exact"], rows), (
+            label
+        )
+        assert int(would_rank) == block["sensitivity"]["would_rank"], label
 
 
 def test_exact_score_recomputes_from_committed_predictions():
@@ -135,9 +151,6 @@ def test_board_row_in_summary_matches_the_frozen_snapshot():
     assert round(row["exact"], 3) == SUMMARY["board"]["exact"]
     assert round(row["within1pct"], 3) == SUMMARY["board"]["within1pct"]
     assert round(row["score"], 3) == SUMMARY["board"]["score"]
-
-
-AUGUST = json.loads((DATA / "claude-thinking-2026-08.json").read_text())
 
 
 def _scored_inputs():

@@ -51,8 +51,13 @@ describe("notes", () => {
       "Most models answer $0 for households that qualify for SNAP under their states&#x27; higher income limits",
     );
     expect(markup).toContain("release dashboard-data-20260922");
-    // The BBCE note is on the frozen release.
+    // The BBCE note keeps release dashboard-data-20260930; the October 6
+    // release note is on the frozen release.
     expect(markup).toContain("release dashboard-data-20260930");
+    expect(markup).toContain(
+      "PolicyBench stops scoring eight tax outputs whose references turn on facts the prompts never state",
+    );
+    expect(markup).toContain("release dashboard-data-20261006");
     // Cents stay as written; whole-dollar facts get thousands separators.
     expect(markup).toContain("GPT-6 Sol answers $1,208.40");
     expect(markup).toContain(
@@ -72,7 +77,16 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
+  test("the newest note is the release note for dashboard-data-20261006", () => {
+    expect(notes[0].slug).toBe(
+      "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
+    );
+    expect(notes[0].release).toBe("dashboard-data-20261006");
+    expect(notes[0].boardSnapshot).toBe("2026-09-30");
+  });
+
   test("a words placeholder spells out whole numbers under ten", () => {
+    // Any note serves as the template; its facts and paragraphs are replaced.
     const note = {
       ...notes[0],
       facts: { small: 4, large: 12, zero: 0, cents: "4.50" },
@@ -135,6 +149,76 @@ describe("notes", () => {
     expect(markup).not.toContain("updated this note");
     expect(markup).toContain(">policyengine-us #9586 (SNAP child support treatment)</a>");
     expect(markup).not.toContain("scenario_045");
+    expect(markup).not.toMatch(/>scenario_\d+<\/a>/);
+  });
+
+  test("the BBCE note closes with the later release", () => {
+    const note = notes.find(
+      (entry) => entry.slug === "2026-10-05-five-snap-households-bbce",
+    );
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
+    );
+    // Its numbers stay release dashboard-data-20260930's.
+    expect(markup).toContain("GPT-5.6 Sol and GPT-6 Luna, #3 and #4 on PolicyBench");
+    expect(markup).toContain(
+      "A later release, dashboard-data-20261006, stops scoring eight tax outputs and changes no SNAP reference or answer. On it, GPT-6 Luna is #5 on PolicyBench, below Claude Sonnet 5.5, and every other figure in this note stays the same.",
+    );
+    expect(markup).toContain(
+      'href="/notes/2026-10-06-policybench-stops-scoring-eight-tax-outputs"',
+    );
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261006"',
+    );
+  });
+
+  test("the October 6 release note renders its figures", () => {
+    const note = notes.find(
+      (entry) =>
+        entry.slug === "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
+    );
+    expect(note).toBeDefined();
+    expect(note!.date).toBe("2026-10-06");
+    const description = interpolateNoteText(note!, note!.paragraphs[0]);
+    expect(description.length).toBeLessThan(600);
+    expect(description).toStartWith(
+      "PolicyBench stops scoring eight tax outputs, in six households, whose references turn on facts the prompts never state.",
+    );
+    expect(description).toEndWith(
+      "Every model is now scored on 1,920 of its 1,984 requested outputs, down from 1,928, and PolicyBench excludes 64.",
+    );
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
+    );
+    // Cents stay as written.
+    expect(markup).toContain(
+      "the outputs are $11,895.23 in California, $26,991.31 in Massachusetts, and $11,137.31 in Virginia, against references of $11,113.57, $26,932.27, and $10,729.61.",
+    );
+    expect(markup).toContain("the standard Part B premium, $2,434.80 for 2026");
+    expect(markup).toContain(
+      "35 answers match the reference within $1: six for Minnesota, 16 for Colorado, nine for Massachusetts, and four for New York. Another 82 match",
+    );
+    // Rises are not board rates, so they keep their two decimals; board
+    // rates keep one decimal, a whole one too.
+    expect(markup).toContain("rises by 0.67 to 1.35 points");
+    expect(markup).toContain("GPT-6 Sol still leads at 95.8%, ahead of Claude Opus 5.5 (95.1%)");
+    expect(markup).toContain(
+      "Claude Sonnet 5.5 (93.3%) passes GPT-6 Luna (93.0%) for fourth.",
+    );
+    expect(markup).toContain(
+      "Inkling moves above Grok 4.7, Gemini 3 Flash Preview above Claude Opus 4.7, and Gemini 3.1 Flash Lite Preview above DeepSeek V4 Pro.",
+    );
+    expect(markup).toContain(
+      "from June 12 to September 29, 2026, ending on the UTC date of the last answer",
+    );
+    expect(markup).toContain("California&#x27;s $230 monthly income disregard");
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/pull/173"',
+    );
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260930"',
+    );
+    expect(markup).toContain(">Virginia household</a>");
     expect(markup).not.toMatch(/>scenario_\d+<\/a>/);
   });
 

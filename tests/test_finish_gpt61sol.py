@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import functools
 import gzip
 import hashlib
 import json
@@ -47,6 +48,50 @@ GROUNDING = Path(
 )
 # The supervised runs root holding GPT-6.1 Sol's finished run.
 RUNS = Path("/Users/maxghenis/PolicyEngine/policybench/results/local/adds202609")
+# The #187 squash on main, whose tree holds release 20260930: the release this
+# driver built. Later releases rewrite the working tree's snapshot and
+# annotations, so a test that checks this driver against what its release
+# committed reads that release from git here (CI checks out full history), as
+# the driver reads release 20260929 from BASE_COMMIT.
+RELEASE_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+REPO = Path(__file__).resolve().parents[1]
+SNAPSHOT_PATH = Path("paper/snapshot/20260501/runs") / driver.RUN_NAME
+ADJUDICATIONS_PATH = Path("annotations") / driver.RUN_NAME / driver.ADJUDICATIONS
+
+
+@functools.cache
+def release_blob(path: Path) -> bytes:
+    """A repository file as committed at RELEASE_COMMIT."""
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "show", f"{RELEASE_COMMIT}:{path.as_posix()}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        pytest.fail(
+            f"cannot read {path} at release commit {RELEASE_COMMIT[:12]}; fetch "
+            f"full history (git fetch --unshallow): {result.stderr.decode().strip()}"
+        )
+    return result.stdout
+
+
+def release_references(directory: Path) -> Path:
+    """Write the five reference files release 20260930 committed into
+    ``directory``, and return it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for name in driver.REFERENCE_FILES:
+        (directory / name).write_bytes(release_blob(SNAPSHOT_PATH / name))
+    return directory
+
+
+def release_adjudications() -> list[dict]:
+    """The adjudication entries release 20260930 committed: the record its
+    freeze wrote."""
+    from policybench.adjudications import parse_adjudications
+
+    return parse_adjudications(
+        json.loads(release_blob(ADJUDICATIONS_PATH)),
+        f"{RELEASE_COMMIT[:12]}:{ADJUDICATIONS_PATH}",
+    )
 
 
 def test_the_addition_is_gpt61sol_alone_on_a_46_model_board():
@@ -397,51 +442,59 @@ def test_resume_refuses_changed_staged_inputs(workspace):
 # --- Reference pins ------------------------------------------------------------
 
 
-def test_the_committed_references_match_their_pins():
-    driver.verify_reference_pins(driver.SNAPSHOT, "committed reference")
+def test_the_committed_references_match_their_pins(tmp_path):
+    """The references release 20260930 committed, read from RELEASE_COMMIT,
+    are release 20260929's pinned bytes: the release has no reference
+    revision."""
+    snapshot = release_references(tmp_path / "snapshot")
+    driver.verify_reference_pins(snapshot, "committed reference")
     for name, pin in driver.BASE_REFERENCE_SHA256.items():
-        raw = (driver.SNAPSHOT / name).read_bytes()
+        raw = (snapshot / name).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == pin
     from policybench.reference_exclusions import (
         load_reference_exclusions,
         split_reference,
     )
 
-    exclusions = load_reference_exclusions(driver.SNAPSHOT)
+    exclusions = load_reference_exclusions(snapshot)
     assert len(exclusions) == driver.BASE_EXCLUSIONS
     reasons = [e["reason_code"] for e in exclusions]
     assert reasons.count("reference_engine_defect") == 28
     assert reasons.count("reference_depends_on_unlisted_input") == 28
-    reference = pd.read_csv(driver.SNAPSHOT / "reference_outputs.csv")
+    reference = pd.read_csv(snapshot / "reference_outputs.csv")
     assert len(reference) == driver.BASE_OUTPUTS
     assert reference.scenario_id.nunique() == 100
     assert len(split_reference(reference, exclusions)[0]) == driver.BASE_SCORED
 
 
-def test_the_committed_adjudications_exclude_exactly_the_scoring_exclusions():
-    """Triage requires this of the staged copy, which prepare takes from here."""
-    from policybench.adjudications import excluded_case_keys, load_adjudications
+def test_the_committed_adjudications_exclude_exactly_the_scoring_exclusions(
+    tmp_path,
+):
+    """Triage requires this of the staged copy, which prepare took from
+    release 20260929's record; the record release 20260930 committed keeps
+    it. Both are read from git, against the references release 20260930
+    committed."""
+    from policybench.adjudications import excluded_case_keys
     from policybench.reference_exclusions import (
         exclusion_keys,
         load_reference_exclusions,
     )
 
-    decisions = load_adjudications(driver.ANNOTATIONS / "us_adjudications.json")
-    assert excluded_case_keys(decisions) == exclusion_keys(
-        load_reference_exclusions(driver.SNAPSHOT)
+    excluded = exclusion_keys(
+        load_reference_exclusions(release_references(tmp_path / "snapshot"))
     )
-    # Excluded on review of release 20260929, apart from any engine change.
-    assert ("scenario_023", "head_medicaid_eligible") in excluded_case_keys(decisions)
+    for decisions in (driver.base_adjudications(), release_adjudications()):
+        assert excluded_case_keys(decisions) == excluded
+        # Excluded on review of release 20260929, apart from any engine change.
+        assert ("scenario_023", "head_medicaid_eligible") in excluded_case_keys(
+            decisions
+        )
 
 
 @pytest.fixture
 def pinned_copy(tmp_path):
-    """A copy of the five committed reference files."""
-    directory = tmp_path / "references"
-    directory.mkdir()
-    for name in driver.REFERENCE_FILES:
-        shutil.copyfile(driver.SNAPSHOT / name, directory / name)
-    return directory
+    """A copy of the five reference files release 20260930 committed."""
+    return release_references(tmp_path / "references")
 
 
 @pytest.mark.parametrize("name", driver.REFERENCE_FILES)
@@ -483,6 +536,17 @@ def test_the_base_commit_holds_release_20260929():
     for name, pin in driver.BASE_REFERENCE_SHA256.items():
         raw = driver.base_commit_blob(driver.SNAPSHOT.relative_to(driver.ROOT) / name)
         assert hashlib.sha256(raw).hexdigest() == pin
+
+
+def test_the_release_commit_holds_this_drivers_release():
+    """The tests read what this driver's release committed from RELEASE_COMMIT:
+    its live pointer names RELEASE_TAG, and its snapshot path is the driver's."""
+    pointer = json.loads(release_blob(Path("app/src/data.artifact.json")))
+    assert pointer["tag"] == driver.RELEASE_TAG
+    assert SNAPSHOT_PATH == driver.SNAPSHOT.relative_to(driver.ROOT)
+    assert ADJUDICATIONS_PATH == (
+        driver.ANNOTATIONS / driver.ADJUDICATIONS
+    ).relative_to(driver.ROOT)
 
 
 def test_the_base_predictions_pin_is_the_release_commits_not_the_working_trees(
@@ -1241,11 +1305,10 @@ def test_the_committed_seed_digest_is_the_pinned_one():
 
 def test_every_committed_adjudication_decides_a_case_the_seed_judged():
     """Runs anywhere: a recorded decision rules on a judge verdict, so its case
-    is one of the seed's judged cases."""
-    from policybench.adjudications import load_adjudications
-
+    is one of the seed's judged cases. The record is the one release 20260930
+    committed, read from RELEASE_COMMIT."""
     seed = _committed_seed_digest()
-    decisions = load_adjudications(driver.ANNOTATIONS / "us_adjudications.json")
+    decisions = release_adjudications()
     assert {driver.case_id(entry) for entry in decisions} <= set(seed)
 
 
@@ -1282,8 +1345,9 @@ def test_the_committed_adjudications_keep_the_seed_judge_verdicts(tmp_path):
     )
     verify_adjudications_keep_judge_verdicts(load_adjudications(base), SEED / "cases")
     if STAGE_CASES.is_dir():
-        decisions = load_adjudications(driver.ANNOTATIONS / "us_adjudications.json")
-        verify_adjudications_keep_judge_verdicts(decisions, STAGE_CASES)
+        # This release's record as RELEASE_COMMIT holds it, not the working
+        # tree's, which a later release rewrites.
+        verify_adjudications_keep_judge_verdicts(release_adjudications(), STAGE_CASES)
     case = SEED / "cases/us__scenario_023__head_medicaid_eligible"
     meta = json.loads((case / "verdict.meta.json").read_text())
     assert meta["prompt_sha256"] == driver.digest(case / "prompt.md")
@@ -1726,9 +1790,12 @@ def exporting(tmp_path, monkeypatch):
 
     stage = tmp_path / "stage"
     bundle = stage / "publish" / driver.RUN_NAME
-    for name in driver.REFERENCE_FILES:
-        (bundle / "us").mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(driver.SNAPSHOT / name, bundle / "us" / name)
+    # The references release 20260930 committed, from RELEASE_COMMIT: the
+    # committed snapshot export checks, and the staged bundle's copies.
+    monkeypatch.setattr(
+        driver, "SNAPSHOT", release_references(tmp_path / "committed-snapshot")
+    )
+    release_references(bundle / "us")
     exported = {}
     gate_calls = []
 

@@ -1,9 +1,9 @@
 {
   "asset": "dashboard-data.json",
-  "bytes": 126109700,
+  "bytes": 127225036,
   "repo": "PolicyEngine/policybench",
-  "sha256": "d1cae7456cf91ab6fa04644a4d5d570e359522386a7c52f9645d5923bfc11258",
-  "tag": "dashboard-data-20260930",
-  "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20260930/dashboard-data.json",
+  "sha256": "aa34e5c9ea926848dc7af460a98f17021bc42dae54a8015c9988a85e79a5d462",
+  "tag": "dashboard-data-20261006",
+  "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20261006/dashboard-data.json",
   "version": 1
 }

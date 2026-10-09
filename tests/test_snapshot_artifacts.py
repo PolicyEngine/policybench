@@ -643,21 +643,25 @@ def test_snapshot_copied_artifacts_match_source_runs():
 
 
 def test_snapshot_deviation_audit_annotations_are_complete_and_final():
-    # Release 20260930: release 20260929's counts plus GPT-6.1 Sol's 88 exact
-    # misses, every one annotated and classed llm_error (it parsed all 1,928
-    # scored outputs).
+    # Release 20261006: release 20260930's counts (annotated 7,860; exact
+    # misses 7,856; below full bounded score 9,967; unannotated 2,107;
+    # llm_error 7,208 and parse_contract_failure 652) less the rows on the
+    # eight outputs it excludes. On those outputs release 20260930 had 368
+    # scored rows (8 outputs x 46 models), all below full bounded score; 333
+    # had a legacy threshold score below 1, all exact misses and all
+    # annotated (325 llm_error, 8 parse_contract_failure), and 35 did not.
     expected_audit_counts = {
         "us": {
-            "annotated": 7_860,
-            "exact_misses": 7_856,
-            "annotated_exact_misses": 7_856,
+            "annotated": 7_527,
+            "exact_misses": 7_523,
+            "annotated_exact_misses": 7_523,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 9_967,
-            "unannotated_below_full_bounded_score": 2_107,
+            "below_full_bounded_score": 9_599,
+            "unannotated_below_full_bounded_score": 2_072,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 7_208, "parse_contract_failure": 652},
+        "us": {"llm_error": 6_883, "parse_contract_failure": 644},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -954,6 +958,52 @@ def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
     assert refresh["date"] == generated[:10]
     assert refresh["snapshot_date"] == manifest["snapshot_date"]
     assert refresh["date"] <= refresh["snapshot_date"]
+
+
+def _frozen_run_dir(manifest: dict) -> Path:
+    run_label = manifest["source_run_labels"]["us"]
+    return ROOT / manifest["source_run_artifacts"][run_label]["path"]
+
+
+def test_frozen_predictions_and_usage_summary_agree_on_the_last_answer():
+    """Two computations of the last answer agree: the freezer's window, from
+    the frozen predictions, and the frozen usage summary's latest
+    last_request_at, which policybench.analysis aggregates per model."""
+    from scripts.freeze_snapshot import _utc_date, model_response_window
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    run_dir = _frozen_run_dir(manifest)
+    start = manifest["model_response_date"].split(" to ")[0]
+    window = model_response_window(run_dir / "predictions.csv.gz", start)
+    usage = pd.read_csv(run_dir / "analysis" / "usage_summary.csv")
+    assert window == f"{start} to {_utc_date(usage['last_request_at'].max())}"
+
+
+def test_model_response_window_ends_on_the_last_frozen_answer():
+    """The manifest's window ends on the UTC date of the last answer the frozen
+    predictions record, not on the release date, and its reproducibility
+    notes state the same window."""
+    from scripts.freeze_snapshot import _response_window_phrase, model_response_window
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    start = manifest["model_response_date"].split(" to ")[0]
+    window = model_response_window(
+        _frozen_run_dir(manifest) / "predictions.csv.gz", start
+    )
+    assert manifest["model_response_date"] == window
+    notes = " ".join(manifest["reproducibility_notes"])
+    assert f"between {_response_window_phrase(window)}, as models" in notes
+    assert f"recorded {window} response window" in notes
+
+
+def test_rendered_paper_states_the_manifest_response_window():
+    """The rendered manuscript's snapshot table names the manifest's window, so
+    a manifest corrected without a re-render fails here."""
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    web = ROOT / manifest["rendered_paper_artifacts"]["web"]["path"]
+    page = (web / "index.html").read_text()
+    cells = re.findall(r"<td>Model response date</td>\s*<td>([^<]*)</td>", page)
+    assert cells == [manifest["model_response_date"]]
 
 
 def test_app_copy_of_serving_configuration_matches_the_frozen_file():

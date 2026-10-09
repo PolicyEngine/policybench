@@ -152,11 +152,26 @@ def test_frozen_snapshot_carries_the_exclusion_record():
     # 52 through release 20260922c; the 2026-09-29 engine upgrade added three
     # unlisted-input records (taxability of a state and local tax refund), and
     # the audit excluded one more on review (scenario_023's head Medicaid
-    # eligibility, which turns on the SSA disability definition).
-    assert len(exclusions) == 56
+    # eligibility, which turns on the SSA disability definition). The
+    # 2026-10-05 audits added eight unlisted-input records: three federal
+    # income tax outputs whose SALT deduction takes the engine's estimate of
+    # state income tax withheld (reference_audit/2026-10-05), scenario_114's
+    # Virginia income tax, whose itemized deductions start from a federal
+    # medical deduction that counts a modeled Medicare Part B premium
+    # (reference_audit/2026-10-05-medicare-part-b), and four
+    # payroll tax outputs that count an employee share of a state paid-leave
+    # or disability premium the employer may but need not deduct
+    # (reference_audit/2026-10-05-payroll).
+    assert len(exclusions) == 64
     reasons = Counter(e["reason_code"] for e in exclusions)
     assert reasons == Counter(
-        {"reference_engine_defect": 28, "reference_depends_on_unlisted_input": 28}
+        {"reference_engine_defect": 28, "reference_depends_on_unlisted_input": 36}
+    )
+    assert Counter(e["engine_version"] for e in exclusions) == Counter(
+        {"policyengine-us 1.755.4": 52, "policyengine-us 2.15.17": 12}
+    )
+    assert Counter(e["decided_on"] for e in exclusions) == Counter(
+        {"2026-09-05": 11, "2026-09-22": 41, "2026-09-29": 4, "2026-10-05": 8}
     )
     inputs = {
         e["unlisted_input"]
@@ -167,6 +182,27 @@ def test_frozen_snapshot_carries_the_exclusion_record():
         "meets_ssi_disability_criteria",
         "months_receiving_social_security_disability",
     } <= inputs
+    october = {
+        (e["scenario_id"], e["variable"]): e
+        for e in exclusions
+        if e["decided_on"] == "2026-10-05"
+    }
+    assert set(october) == {
+        ("scenario_022", "federal_income_tax_before_refundable_credits"),
+        ("scenario_081", "federal_income_tax_before_refundable_credits"),
+        ("scenario_114", "federal_income_tax_before_refundable_credits"),
+        ("scenario_114", "state_income_tax_before_refundable_credits"),
+        ("scenario_032", "payroll_tax"),
+        ("scenario_043", "payroll_tax"),
+        ("scenario_081", "payroll_tax"),
+        ("scenario_082", "payroll_tax"),
+    }
+    assert {e["reason_code"] for e in october.values()} == {
+        "reference_depends_on_unlisted_input"
+    }
+    assert {e["engine_version"] for e in october.values()} == {
+        "policyengine-us 2.15.17"
+    }
     reference = pd.read_csv(RUN_DIR / "reference_outputs.csv")
     assert len(scored) == len(reference) - len(exclusions)
     verify_exclusions_against_reference(reference, exclusions)

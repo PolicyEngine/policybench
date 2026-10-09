@@ -1,0 +1,13 @@
+{
+  "quarto_version": "1.9.36",
+  "original_quarto_js_sha256": "149a99b27f92f244418b45585ec7bcf60e9670c5a01dd90c0b723232b7b74e9c",
+  "workspace_quarto_js_sha256": "2a0cff3131f6c64933bd0183255b1f324a2cbff51b813f0af3f847dc083797f7",
+  "changes": [
+    "darwinUserDataDir: workspace state path",
+    "darwinUserCacheDir: workspace state path"
+  ],
+  "original_notebook_py_sha256": "ebd38b30307dc66342b6a3c33557a6c5b1d776fe21e51007bd292e6dfae10f69",
+  "workspace_notebook_py_sha256": "bb216d1d42d2d9ae160562023c9171c0c89ef060123613dbe731d7fc3d821308",
+  "kernel_startup_timeout_seconds": 600,
+  "cell_execution_or_render_options_changed": false
+}

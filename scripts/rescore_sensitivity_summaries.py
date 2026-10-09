@@ -50,6 +50,7 @@ NUMBER_WORDS = {
     51: "fifty-one",
     55: "fifty-five",
     56: "fifty-six",
+    64: "sixty-four",
     66: "sixty-six",
 }
 
