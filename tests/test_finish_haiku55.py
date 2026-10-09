@@ -3491,16 +3491,19 @@ def scope(monkeypatch):
     import policybench.dashboard_schema
     import policybench.full_run_export
 
-    state = SimpleNamespace(stats=None, scoped=None, calls=[], gates=[], references=[])
+    state = SimpleNamespace(
+        stats=None, scoped=None, calls=[], gates=[], references=[], scope_gates=[]
+    )
 
     def export_full_run(run_dir, **kwargs):
         state.calls.append(("export_full_run", Path(run_dir), kwargs))
         return {"countries": {"us": {"modelStats": copy.deepcopy(state.stats)}}}
 
-    def export_payload(bundle, base, exclusions=None):
+    def export_payload(bundle, base, exclusions=None, *, require_failure_annotations=True):
         state.calls.append(
             ("export_payload", Path(bundle), base, Path(exclusions).read_bytes())
         )
+        state.scope_gates.append(require_failure_annotations)
         # The reference files the scope export reads, where the bundle has them.
         state.references.append(
             {
@@ -7015,6 +7018,9 @@ def test_the_upgrade_scope_check_puts_back_the_base_references_and_record(
         upgrade=upgrade_bundle.upgrade,
     )
     assert {row["n"] for row in payload["countries"]["us"]["modelStats"]} == {1912}
+    # The scope export relaxes only the annotation requirement; the release's
+    # own payload keeps it.
+    assert scope.scope_gates == [False] and scope.gates[-1] is True
     (references,) = scope.references
     assert references == {
         name: base_blob(SNAPSHOT_PATH / name) for name in driver.REFERENCE_FILES

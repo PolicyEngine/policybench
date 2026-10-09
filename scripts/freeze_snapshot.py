@@ -144,6 +144,9 @@ EXCLUSIONS_NAME = "reference_exclusions.json"
 # The publish bundle omits this immutable reference-generation sidecar. Reuse
 # the committed copy after checking the manifest's CSV and sidecar pins.
 REFERENCE_META_SOURCE = RUN_DEST / "reference_outputs.csv.meta.json"
+# An in-process release driver may bind a verified replacement build before
+# freezing it. None retains the committed manifest's reference pins.
+REFERENCE_PINS: dict[str, str] | None = None
 
 # Supervised-run state is the strongest available evidence for the treatment a
 # board row actually received. Older supervisor state files predate treatment
@@ -1001,8 +1004,11 @@ def freeze_run() -> dict[str, str]:
         )
 
     publish_reference = SOURCE_US / "reference_outputs.csv"
-    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
-    reference_pins = manifest["source_run_artifacts"][RUN_LABEL]["files"]
+    if REFERENCE_PINS is None:
+        manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+        reference_pins = manifest["source_run_artifacts"][RUN_LABEL]["files"]
+    else:
+        reference_pins = REFERENCE_PINS
     reference_digest = reference_pins["reference_outputs.csv"]
     if sha256_file(publish_reference) != reference_digest:
         raise SystemExit(
@@ -1016,7 +1022,11 @@ def freeze_run() -> dict[str, str]:
     ):
         raise SystemExit("Reference metadata differs from the committed manifest pin.")
     reference_policyengine_bundles(
-        RUN_DEST / "reference_outputs.csv",
+        (
+            RUN_DEST / "reference_outputs.csv"
+            if REFERENCE_PINS is None
+            else publish_reference
+        ),
         "us",
         require_digest=True,
         manifest_reference_sha256=reference_digest,
@@ -1481,6 +1491,17 @@ OUTPUT_SCOPE_ADAPTERS = ("latest_md_local_output_scope.py",)
 # The scenario builder's alias the upgrade records: stated usual weekly hours
 # also reach the input SNAP's work rules read.
 STATED_HOURS_INPUT = "weekly_hours_worked_before_lsr"
+# The later builder pins the same household construction, composing the
+# inherited conventions through latest_final.py and pinning its sales-tax
+# table alongside the modules.
+UPGRADE_SUPPORT_MODULES = {"latest_final.py", "r19_irs_sales_tax_2025.json"}
+UPGRADE_BUILDER = (
+    "reference_audit/2026-10-09-engine-upgrade/scripts/"
+    "build_references_upgrade.py; households from "
+    "policybench.scenarios.Scenario.to_pe_household through "
+    "reference_audit/2026-09-28/scripts/sweep.py build_situation, as in the "
+    "2026-09-29 upgrade"
+)
 
 
 def read_reference_engine_setup() -> dict[str, int]:
@@ -1492,20 +1513,50 @@ def read_reference_engine_setup() -> dict[str, int]:
     the record.
     """
     meta = json.loads(REFERENCE_META_SOURCE.read_text())
+    if not isinstance(meta, dict):
+        raise SystemExit("the reference sidecar must be an object")
+    revisions = meta.get("revisions", [])
+    if not isinstance(revisions, list) or any(
+        not isinstance(revision, dict) for revision in revisions
+    ):
+        raise SystemExit("the reference sidecar revisions must be a list of objects")
     upgrades = [
-        r for r in meta.get("revisions", []) if r.get("kind") == "engine_upgrade"
+        revision for revision in revisions if revision.get("kind") == "engine_upgrade"
     ]
-    if len(upgrades) != 1 or meta["revisions"][-1] is not upgrades[0]:
-        raise SystemExit(
-            "the reference sidecar needs one final engine_upgrade revision"
-        )
-    upgrade = upgrades[0]
-    modules = [entry["module"] for entry in upgrade["fix_modules"]]
+    if not upgrades or revisions[-1] is not upgrades[-1]:
+        raise SystemExit("the reference sidecar needs a final engine_upgrade revision")
+    upgrade = upgrades[-1]
+    fix_modules = upgrade.get("fix_modules")
+    if not isinstance(fix_modules, list):
+        raise SystemExit("engine_upgrade fix_modules must be a list of module objects")
+    for index, entry in enumerate(fix_modules):
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("module"), str)
+            or not entry["module"].strip()
+        ):
+            raise SystemExit(
+                f"engine_upgrade fix_modules[{index}] needs a nonempty string module"
+            )
+    modules = [entry["module"] for entry in fix_modules]
     conventions = [m for m in modules if m.startswith(CONVENTION_MODULE_PREFIX)]
     others = sorted(set(modules) - set(conventions))
-    if others != sorted({CONVENTIONS_COMPOSER, *OUTPUT_SCOPE_ADAPTERS}):
+    expected = {CONVENTIONS_COMPOSER, *OUTPUT_SCOPE_ADAPTERS}
+    if others not in (sorted(expected), sorted(expected | UPGRADE_SUPPORT_MODULES)):
         raise SystemExit(f"unexpected engine_upgrade fix_modules: {others}")
-    if STATED_HOURS_INPUT not in upgrade.get("builder", ""):
+    builder = upgrade.get("builder", "")
+    if not isinstance(builder, str):
+        raise SystemExit("the engine_upgrade builder note must be a string")
+    inherited_builder = (
+        builder == UPGRADE_BUILDER
+        and set(others) == expected | UPGRADE_SUPPORT_MODULES
+        and any(
+            isinstance(previous.get("builder"), str)
+            and STATED_HOURS_INPUT in previous["builder"]
+            for previous in upgrades[:-1]
+        )
+    )
+    if STATED_HOURS_INPUT not in builder and not inherited_builder:
         raise SystemExit("the engine_upgrade builder note names no stated-hours alias")
     return {
         "convention_count": len(conventions),

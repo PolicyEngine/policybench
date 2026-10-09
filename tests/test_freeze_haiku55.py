@@ -19,6 +19,7 @@ import re
 import shutil
 import sys
 import types
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,7 @@ import freeze_haiku55 as release  # noqa: E402
 import freeze_snapshot as freezer  # noqa: E402
 
 from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
+from tests import test_finish_haiku55 as mock_builds  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 RUN = driver.RUN_NAME
@@ -172,6 +174,7 @@ CONFIGURED = (
     "SOURCE_US",
     "SOURCE_ANNOTATIONS",
     "REFERENCE_META_SOURCE",
+    "REFERENCE_PINS",
     "PUBLISHED_DASHBOARD_SOURCE",
     "PUBLISHED_DASHBOARD_ARTIFACT",
     "RUN_STATE_EVIDENCE",
@@ -553,20 +556,19 @@ def test_a_tag_that_is_not_a_dated_release_is_refused(freeze_preflight):
         release.main(["--stage-dir", str(stage), "--tag", "latest", "--dry-run"])
 
 
-def test_the_freeze_refuses_a_stage_with_an_engine_upgrade(freeze_preflight):
-    """finish_haiku55.py --step install-references moves the stage's
-    references to a newer engine; this freeze builds only on release
-    20261006's references, so it refuses before reading or writing anything."""
-    stage, _, _ = freeze_preflight
-    assert not release.engine_upgrade_installed(stage)  # stage.json is not JSON
+def test_the_freeze_refuses_an_unbound_MOCK_engine_upgrade(freeze_preflight):
+    """MOCK: an engine name alone does not bind an installed build."""
+    stage, _, receipt = freeze_preflight
+    assert not release.engine_upgrade_installed(stage)
     assert not release.engine_upgrade_installed(stage / "absent")
     (stage / "stage.json").write_text(
         json.dumps({"references_installed": {"engine_version": "MOCK 2.37.1"}})
     )
+    rewrite_receipt(stage, receipt)
     assert release.engine_upgrade_installed(stage)
     before = workspace_files()
     for dry_run in ([], ["--dry-run"]):
-        with pytest.raises(SystemExit, match="engine upgrade of the references"):
+        with pytest.raises(SystemExit, match="does not bind the installed build"):
             release.main(["--stage-dir", str(stage), *dry_run])
     assert workspace_files() == before
 
@@ -949,6 +951,9 @@ def staged_board(freeze_preflight, monkeypatch, rebuilds, exports):
     for name in ("manifest.json", "model_serving_config.json"):
         (snapshot / name).write_bytes(base_blob(SNAPSHOT_DIR / name))
     base_references(release.ROOT / FROZEN_RUN)
+    (snapshot / "us_reference_outputs.csv").write_bytes(
+        base_blob(FROZEN_RUN / "reference_outputs.csv")
+    )
     # prepare copies the committed reference explanations; no step writes them.
     (stage / BUNDLE / "annotations" / EXPLANATIONS).write_bytes(
         base_blob(ANNOTATIONS_DIR / EXPLANATIONS)
@@ -1666,6 +1671,11 @@ def _fake_freezer_main(calls: list, defects: set):
         (run / "reference_outputs.csv.meta.json").write_bytes(
             freezer.REFERENCE_META_SOURCE.read_bytes()
         )
+        if freezer.REFERENCE_PINS is not None:
+            freezer.copy_exact(
+                freezer.SOURCE_US / "reference_outputs.csv",
+                freezer.SNAPSHOT_DIR / "us_reference_outputs.csv",
+            )
         if "base_exclusions" in defects:
             (run / EXCLUSIONS).write_bytes(base_blob(FROZEN_RUN / EXCLUSIONS))
         freezer.gzip_deterministic(
@@ -1690,6 +1700,11 @@ def _fake_freezer_main(calls: list, defects: set):
         )
         manifest["snapshot_date"] = freezer.SNAPSHOT_DATE
         manifest["reference_output_refresh"]["snapshot_date"] = freezer.SNAPSHOT_DATE
+        if freezer.REFERENCE_PINS is not None:
+            manifest["reference_output_refresh"] = freezer.read_reference_refresh()
+            manifest["committed_snapshot_artifacts"]["us_reference_outputs.csv"] = (
+                freezer.REFERENCE_PINS["reference_outputs.csv"]
+            )
         manifest["scope"]["models"] = 46 if "models_46" in defects else 47
         manifest["model_response_date"] = window
         records = json.loads((run / EXCLUSIONS).read_text())["exclusions"]
@@ -1703,6 +1718,8 @@ def _fake_freezer_main(calls: list, defects: set):
             {key: pointer[key] for key in ("tag", "asset", "url", "sha256", "bytes")}
         )
         files = manifest["source_run_artifacts"][RUN]["files"]
+        if freezer.REFERENCE_PINS is not None:
+            files.update(freezer.REFERENCE_PINS)
         files[EXCLUSIONS] = freezer.sha256_file(run / EXCLUSIONS)
         files["predictions.csv.gz"] = freezer.sha256_file(run / "predictions.csv.gz")
         committed = manifest["committed_snapshot_artifacts"]
@@ -1710,6 +1727,8 @@ def _fake_freezer_main(calls: list, defects: set):
         audit = manifest["audit_annotation_artifacts"]["files"]
         for name in (ADJUDICATIONS, ROWS, NOTES):
             audit[name] = freezer.sha256_file(destination / name)
+        if freezer.REFERENCE_PINS is not None:
+            audit[EXPLANATIONS] = freezer.sha256_file(destination / EXPLANATIONS)
         if "outside" in defects:
             manifest["population_weight_artifact"]["sha256"] = "0" * 64
         if "pinned_reference" in defects:
@@ -2101,6 +2120,979 @@ def test_the_manifest_paths_the_release_may_change():
     after = copy.deepcopy(before)
     after["a_new_block"] = {}
     assert release.manifest_problems(before, after) == [("a_new_block",)]
+
+
+# --- MOCK installed engine upgrades -----------------------------------------------
+
+
+def _install_MOCK_build(
+    stage: Path, receipt: dict, build, *, with_inherited_setup: bool = True
+) -> driver.Upgrade:
+    """MOCK: reproduce install-references' file and stage.json bindings.
+
+    The synthetic audit is intentionally smaller than the committed board, so
+    rendering a real install is unsuitable here. The build itself is gated
+    against the real release 20261006 by load_build, without replacing it.
+    """
+    # MOCK values/narratives retain the inherited convention setup; the real
+    # freezer still validates the sidecar's setup note before its first write.
+    inherited = json.loads(base_blob(FROZEN_RUN / driver.META_NAME))["revisions"][-1]
+    if with_inherited_setup:
+        mock_builds.edit_json(
+            build.built / driver.META_NAME,
+            lambda meta: meta["revisions"][-1].update(
+                fix_modules=inherited["fix_modules"], builder=inherited["builder"]
+            ),
+        )
+    upgrade = mock_builds.load(build)
+    copy_dir = stage / driver.BUILD_COPY
+    copy_dir.mkdir(exist_ok=True)
+    for name in driver.BUILD_COPY_FILES:
+        source = {
+            driver.EXPLANATIONS_NAME: build.explanations,
+            driver.ACTIONS_NAME: build.actions,
+        }.get(name, build.built / name)
+        shutil.copyfile(source, copy_dir / name)
+        receipt["files"][str(Path(driver.BUILD_COPY) / name)] = sha(copy_dir / name)
+    prepared = json.loads((stage / "stage.json").read_text())
+    for target in (stage / "scoring", stage / BUNDLE / "us"):
+        target.mkdir(exist_ok=True)
+        for name in driver.UPGRADED_FILES:
+            shutil.copyfile(copy_dir / name, target / name)
+    for name in ("scenarios.csv", "scenarios.csv.meta.json"):
+        shutil.copyfile(stage / BUNDLE / "us" / name, stage / "scoring" / name)
+    shutil.copyfile(
+        copy_dir / EXPLANATIONS, stage / BUNDLE / "annotations" / EXPLANATIONS
+    )
+    for name in driver.UPGRADED_FILES:
+        prepared["files"][str(BUNDLE / "us" / name)] = upgrade.sha256[name]
+    prepared["files"][str(BUNDLE / "annotations" / EXPLANATIONS)] = upgrade.sha256[
+        EXPLANATIONS
+    ]
+    prepared["references_installed"] = driver.references_record(upgrade, None)
+    driver.bind_build_exclusions(stage, prepared, upgrade)
+    record = driver.exclusion_adjudications(
+        driver.base_adjudication_record(),
+        stage / "audit/cases",
+        upgrade.regenerated_ruled,
+    )
+    record, dropped = driver.drop_regenerated_adjudications(record, upgrade)
+    prepared["adjudications_dropped"] = dropped
+    (stage / "stage.json").write_text(json.dumps(prepared))
+    (stage / BUNDLE / "annotations" / ADJUDICATIONS).write_text(
+        driver.record_text(record)
+    )
+    rewrite_receipt(stage, receipt)
+    return upgrade
+
+
+@pytest.fixture
+def MOCK_upgraded_board(frozen_board, exports, spec, tmp_path):
+    """MOCK: a releasable upgraded board, four ruled defects and WI_042 fixed.
+
+    It newly excludes nothing, so the spec's upgrade_adjudications (the real
+    build's Indiana county decisions) and its triage decisions are left out.
+    WI_042 is a committed decision whose drop must be bound and checked.
+    """
+    spec["regenerated_by_upgrade"] = mock_builds.upgrade_spec_dict()[
+        "regenerated_by_upgrade"
+    ]
+    spec.pop("upgrade_adjudications", None)
+    spec.pop("triage_adjudications", None)
+    build = mock_builds.real_build(
+        tmp_path / "MOCK-build",
+        regenerated={**mock_builds.MOCK_REGENERATED_RULED, mock_builds.WI_042: 0.0},
+        added={},
+    )
+    stage = frozen_board.stage
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    upgrade = _install_MOCK_build(stage, receipt, build)
+    records = json.loads(upgrade.exclusions_text)["exclusions"]
+    payload = stage / "data-board47.json"
+    board = json.loads(payload.read_text())
+    for target in (board, exports["release"]):
+        country = target["countries"]["us"]
+        country["referenceExclusions"] = [
+            {"scenarioId": r["scenario_id"], "variable": r["variable"]} for r in records
+        ]
+        for row in country["modelStats"]:
+            row["n"] = upgrade.scored_outputs
+    payload.write_text(json.dumps(board))
+
+    def rebind():
+        receipt["payload_sha256"] = sha(payload)
+        rewrite_receipt(stage, receipt)
+
+    rebind()
+    frozen_board.upgrade = upgrade
+    frozen_board.build = build
+    frozen_board.receipt = receipt
+    frozen_board.rebind = rebind
+    frozen_board.record = json.loads(
+        (stage / BUNDLE / "annotations" / ADJUDICATIONS).read_text()
+    )
+    return frozen_board
+
+
+def test_MOCK_installed_upgrade_is_gated_and_accepted(MOCK_upgraded_board):
+    """MOCK: retained build, installed copies and dropped decisions all agree."""
+    board = MOCK_upgraded_board
+    assert release.verify_upgrade(board.stage, board.receipt) == board.upgrade
+    assert board.upgrade.records == 69 and board.upgrade.scored_outputs == 1915
+    assert board.upgrade.regenerated_base == {mock_builds.WI_042}
+    assert board.upgrade.regenerated_ruled == set(mock_builds.MOCK_REGENERATED_RULED)
+
+
+@pytest.mark.parametrize("name", driver.BUILD_COPY_FILES)
+def test_MOCK_export_must_bind_every_installed_build_file(MOCK_upgraded_board, name):
+    """MOCK: stage.json's build pins cannot replace each export receipt entry."""
+    board = MOCK_upgraded_board
+    del board.receipt["files"][str(Path(driver.BUILD_COPY) / name)]
+    with pytest.raises(SystemExit, match="does not bind the installed build"):
+        release.verify_upgrade(board.stage, board.receipt)
+
+
+@pytest.mark.parametrize("name", driver.BUILD_COPY_FILES)
+def test_MOCK_export_must_bind_the_installed_build_bytes(MOCK_upgraded_board, name):
+    """MOCK: an entry with another digest is not an export binding."""
+    board = MOCK_upgraded_board
+    board.receipt["files"][str(Path(driver.BUILD_COPY) / name)] = "0" * 64
+    with pytest.raises(SystemExit, match="does not bind the installed build's bytes"):
+        release.verify_upgrade(board.stage, board.receipt)
+
+
+@examples(30)
+@given(
+    name=st.sampled_from(driver.BUILD_COPY_FILES),
+    position=st.integers(min_value=0, max_value=10**6),
+    delta=st.integers(min_value=1, max_value=255),
+)
+def test_MOCK_any_single_byte_change_in_the_installed_build_is_refused(
+    MOCK_upgraded_board, name, position, delta
+):
+    """MOCK: every nonzero one-byte mutation breaks the retained build pin."""
+    board = MOCK_upgraded_board
+    path = board.stage / driver.BUILD_COPY / name
+    original = path.read_bytes()
+    edited = bytearray(original)
+    edited[position % len(edited)] ^= delta
+    path.write_bytes(edited)
+    try:
+        with pytest.raises(SystemExit, match="installed build's.*changed"):
+            release.verify_upgrade(board.stage, board.receipt)
+    finally:
+        path.write_bytes(original)
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("engine_version", "MOCK other engine"),
+        ("records", 74),
+        ("changed", []),
+        ("regenerated_base", []),
+        ("added", [["MOCK", "snap"]]),
+        ("spec_sha256", "0" * 64),
+        ("superseded", None),
+        ("superseded", ["MOCK malformed"]),
+    ],
+)
+def test_MOCK_installed_build_receipt_must_be_the_drivers_record(
+    MOCK_upgraded_board, field, value
+):
+    """MOCK: a re-hashed stage.json must still describe the gated build."""
+    board = MOCK_upgraded_board
+    _record_installed(
+        board.stage, lambda r: r["references_installed"].update({field: value})
+    )
+    with pytest.raises(
+        SystemExit, match="installed build.*records|installed build's record"
+    ):
+        release.verify_upgrade(board.stage, board.receipt)
+
+
+@pytest.mark.parametrize("defect", ["absent", "extra", "duplicate", "rewritten"])
+def test_MOCK_dropped_decisions_must_be_exactly_the_regenerated_base_records(
+    MOCK_upgraded_board, defect
+):
+    """MOCK: each recorded drop must be release 20261006's actual decision."""
+    board = MOCK_upgraded_board
+
+    def edit(record):
+        dropped = record["adjudications_dropped"]
+        if defect == "absent":
+            del record["adjudications_dropped"]
+        elif defect == "extra":
+            dropped.append({"case_id": "us__MOCK_extra__snap", "entry": {}})
+        elif defect == "duplicate":
+            dropped.append(copy.deepcopy(dropped[0]))
+        else:
+            dropped[0]["entry"]["reasoning"] += " MOCK rewrite."
+
+    _record_installed(board.stage, edit)
+    with pytest.raises(SystemExit, match="dropped adjudications|dropped decisions"):
+        release.verify_upgrade(board.stage, board.receipt)
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_MOCK_changed_installed_build_is_refused_before_any_write(
+    MOCK_upgraded_board, dry_run
+):
+    """MOCK: changing a retained trace is refused before workspace mutation."""
+    board = MOCK_upgraded_board
+    (board.stage / driver.BUILD_COPY / mock_builds.TRACES_NAME).write_text(
+        "MOCK changed\n"
+    )
+    before = workspace_files()
+    with pytest.raises(
+        SystemExit, match="Staged evidence changed|installed build's.*changed"
+    ):
+        release.main(["--stage-dir", str(board.stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before and board.calls == []
+
+
+@pytest.mark.parametrize("target", ["scoring", "bundle", "explanations"])
+def test_MOCK_installed_build_copies_must_still_match(MOCK_upgraded_board, target):
+    """MOCK: scoring, publication and explanations cannot diverge from the build."""
+    board = MOCK_upgraded_board
+    path = {
+        "scoring": board.stage / "scoring/reference_outputs.csv",
+        "bundle": board.stage / BUNDLE / "us/reference_outputs.csv",
+        "explanations": board.stage / BUNDLE / "annotations" / EXPLANATIONS,
+    }[target]
+    path.write_bytes(path.read_bytes() + b" ")
+    with pytest.raises(SystemExit, match="not the installed build's"):
+        release.verify_upgrade(board.stage, board.receipt)
+
+
+@pytest.mark.parametrize("name", ["scenarios.csv", "scenarios.csv.meta.json"])
+@pytest.mark.parametrize("defect", ["edited", "missing"])
+def test_MOCK_scoring_scenarios_stay_pinned_to_release_20261006(
+    MOCK_upgraded_board, name, defect
+):
+    """MOCK: an upgrade never revises the stage's household draw or its sidecar."""
+    board = MOCK_upgraded_board
+    path = board.stage / "scoring" / name
+    if defect == "missing":
+        path.unlink()
+    else:
+        path.write_bytes(path.read_bytes() + b" ")
+    with pytest.raises(SystemExit, match="scoring.*scenarios.*release 20261006"):
+        release.verify_upgrade(board.stage, board.receipt)
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "missing_bundle_field",
+        "zero_conventions",
+        "13_conventions",
+        "unlisted_module",
+        "empty_regeneration_timestamp",
+    ],
+)
+def test_MOCK_unsupported_manifest_sidecar_is_refused_before_any_write(
+    MOCK_upgraded_board, tmp_path, defect
+):
+    """MOCK: a gated build must also support the freezer's truthful manifest note."""
+    board = MOCK_upgraded_board
+    build = mock_builds.real_build(
+        tmp_path / f"MOCK-{defect}",
+        regenerated={**mock_builds.MOCK_REGENERATED_RULED, mock_builds.WI_042: 0.0},
+        added={},
+    )
+    inherited = json.loads(base_blob(FROZEN_RUN / driver.META_NAME))["revisions"][-1]
+
+    def edit(meta):
+        revision = meta["revisions"][-1]
+        revision.update(
+            fix_modules=copy.deepcopy(inherited["fix_modules"]),
+            builder=inherited["builder"],
+        )
+        if defect == "missing_bundle_field":
+            meta["policyengine_bundles"]["us"].pop("policyengine_version")
+        elif defect == "empty_regeneration_timestamp":
+            meta["regenerated_at_utc"] = ""
+        elif defect == "unlisted_module":
+            revision["fix_modules"].append(
+                {"module": "MOCK_unknown.py", "sha256": "0" * 64}
+            )
+        else:
+            other = [
+                item
+                for item in revision["fix_modules"]
+                if not item["module"].startswith(freezer.CONVENTION_MODULE_PREFIX)
+            ]
+            count = 0 if defect == "zero_conventions" else 13
+            revision["fix_modules"] = other + [
+                {"module": f"latest_c_MOCK_{i}.py", "sha256": "0" * 64}
+                for i in range(count)
+            ]
+
+    mock_builds.edit_json(build.built / driver.META_NAME, edit)
+    _install_MOCK_build(board.stage, board.receipt, build, with_inherited_setup=False)
+    before = workspace_files()
+    with pytest.raises(SystemExit, match="metadata|convention|fix_modules|timestamp"):
+        release.main(["--stage-dir", str(board.stage)])
+    assert workspace_files() == before and board.calls == []
+
+
+def test_MOCK_committed_top_level_reference_change_is_refused_before_any_write(
+    MOCK_upgraded_board,
+):
+    """MOCK: the top-level snapshot reference must also be baseline or installed."""
+    board = MOCK_upgraded_board
+    path = release.ROOT / SNAPSHOT_DIR / "us_reference_outputs.csv"
+    path.write_bytes(path.read_bytes() + b" ")
+    before = workspace_files()
+    with pytest.raises(SystemExit, match="Committed us_reference_outputs.csv changed"):
+        release.main(["--stage-dir", str(board.stage)])
+    assert workspace_files() == before and board.calls == []
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("source", "MOCK wrong"),
+        ("engine_version", "MOCK wrong"),
+        ("records", 74),
+        ("spec_sha256", "0" * 64),
+    ],
+)
+def test_MOCK_exclusion_install_receipt_must_match_the_build(
+    MOCK_upgraded_board, field, value
+):
+    """MOCK: install-references binds the exclusion count, source and engine."""
+    board = MOCK_upgraded_board
+    _record_installed(
+        board.stage, lambda r: r["exclusions_installed"].update({field: value})
+    )
+    with pytest.raises(SystemExit, match="stage.json does not record"):
+        release.verify_installed_exclusions(
+            board.stage, board.receipt, board.upgrade.exclusions_text, board.upgrade
+        )
+
+
+def test_MOCK_explanations_are_the_builds_bytes(MOCK_upgraded_board):
+    """MOCK: unchanged baseline explanations fail even when their hash is rebound."""
+    board = MOCK_upgraded_board
+    annotations = board.stage / BUNDLE / "annotations"
+    release.verify_explanations(annotations, board.upgrade, stage=board.stage)
+    (annotations / EXPLANATIONS).write_bytes(base_blob(ANNOTATIONS_DIR / EXPLANATIONS))
+    with pytest.raises(
+        SystemExit, match=f"Staged {EXPLANATIONS}.*installed engine upgrade"
+    ):
+        release.verify_explanations(annotations, board.upgrade, stage=board.stage)
+
+
+@pytest.mark.parametrize("defect", ["missing", "edited"])
+def test_MOCK_explanation_build_must_exist_and_match_its_pin(
+    MOCK_upgraded_board, defect
+):
+    """MOCK: inferring stage from the annotation path still checks retained bytes."""
+    board = MOCK_upgraded_board
+    annotations = board.stage / BUNDLE / "annotations"
+    release.verify_explanations(annotations, board.upgrade)
+    built = board.stage / driver.BUILD_COPY / EXPLANATIONS
+    if defect == "missing":
+        built.unlink()
+    else:
+        built.write_bytes(built.read_bytes() + b" ")
+    with pytest.raises(SystemExit, match="installed build's.*changed"):
+        release.verify_explanations(annotations, board.upgrade)
+
+
+@pytest.mark.parametrize("defect", ["record_bytes", "receipt_pin"])
+def test_MOCK_installed_exclusion_gate_checks_its_bytes_and_export_binding(
+    MOCK_upgraded_board, defect
+):
+    """MOCK: the exclusion file is strictly the installed build's recorded bytes."""
+    board = MOCK_upgraded_board
+    if defect == "record_bytes":
+        path = board.stage / BUNDLE / "us" / EXCLUSIONS
+        path.write_bytes(path.read_bytes() + b" ")
+    else:
+        board.receipt["files"][str(BUNDLE / "us" / EXCLUSIONS)] = "0" * 64
+    with pytest.raises(
+        SystemExit, match="not the installed engine upgrade|does not bind the installed"
+    ):
+        release.verify_installed_exclusions(
+            board.stage, board.receipt, board.upgrade.exclusions_text, board.upgrade
+        )
+
+
+def test_MOCK_upgrade_without_regenerated_base_records_requires_an_empty_drop_log(
+    MOCK_upgraded_board, tmp_path
+):
+    """MOCK: no regenerated base decision still requires an explicit empty log."""
+    board = MOCK_upgraded_board
+    build = mock_builds.real_build(tmp_path / "MOCK-no-base-drops", added={})
+    upgrade = _install_MOCK_build(board.stage, board.receipt, build)
+    assert not upgrade.regenerated_base
+    assert release.verify_upgrade(board.stage, board.receipt) == upgrade
+    _record_installed(board.stage, lambda record: record.pop("adjudications_dropped"))
+    with pytest.raises(SystemExit, match="records no dropped adjudications"):
+        release.verify_upgrade(board.stage, board.receipt)
+
+
+def test_MOCK_payload_counts_and_exclusion_order_follow_the_build(MOCK_upgraded_board):
+    """MOCK: exactly 69 ordered exclusions leave 1,915 outputs for every model."""
+    upgrade = MOCK_upgraded_board.upgrade
+    records = json.loads(upgrade.exclusions_text)["exclusions"]
+    country = _payload_country(records, upgrade.scored_outputs)
+    release.verify_scored_outputs(country, records, upgrade)
+    country["modelStats"][0]["n"] = driver.RELEASE_SCORED
+    with pytest.raises(SystemExit, match="scored on 1915"):
+        release.verify_scored_outputs(country, records, upgrade)
+    country["modelStats"][0]["n"] = upgrade.scored_outputs
+    country["referenceExclusions"].reverse()
+    with pytest.raises(SystemExit, match="their order"):
+        release.verify_scored_outputs(country, records, upgrade)
+    with pytest.raises(SystemExit, match="exclusion record does not count"):
+        release.verify_scored_outputs(
+            _payload_country(records[:-1], upgrade.scored_outputs),
+            records[:-1],
+            upgrade,
+        )
+
+
+@pytest.mark.parametrize("name", driver.REFERENCE_FILES)
+@pytest.mark.parametrize("location", ["stage", "committed", "manifest"])
+def test_MOCK_reference_gates_keep_every_stage_committed_and_manifest_pin(
+    MOCK_upgraded_board, name, location
+):
+    """MOCK: all five pins are checked, including unchanged scenario sidecars."""
+    board = MOCK_upgraded_board
+    source = board.stage / BUNDLE / "us"
+    frozen = release.ROOT / FROZEN_RUN
+    manifest = json.loads(base_blob(SNAPSHOT_DIR / "manifest.json"))
+    pin = board.upgrade.sha256[EXCLUSIONS]
+    release.verify_references(source, frozen, manifest, pin, board.upgrade)
+    if location == "manifest":
+        manifest["source_run_artifacts"][RUN]["files"][name] = "0" * 64
+    else:
+        path = (source if location == "stage" else frozen) / name
+        path.write_bytes(path.read_bytes() + b" ")
+    with pytest.raises(SystemExit, match=f"{name}.*changed|Manifest pin for {name}"):
+        release.verify_references(source, frozen, manifest, pin, board.upgrade)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ("committed_snapshot_artifacts", "us_reference_outputs.csv"),
+        ("audit_annotation_artifacts", "files", EXPLANATIONS),
+    ],
+)
+def test_MOCK_reference_gate_checks_additional_committed_and_explanation_pins(
+    MOCK_upgraded_board, path
+):
+    """MOCK: a previous freeze's extra reference and explanation pins must match."""
+    board = MOCK_upgraded_board
+    manifest = json.loads(base_blob(SNAPSHOT_DIR / "manifest.json"))
+    _set(manifest, path, "0" * 64)
+    with pytest.raises(SystemExit, match="Manifest pin for"):
+        release.verify_references(
+            board.stage / BUNDLE / "us",
+            release.ROOT / FROZEN_RUN,
+            manifest,
+            board.upgrade.sha256[EXCLUSIONS],
+            board.upgrade,
+        )
+
+
+def test_MOCK_adjudication_gate_accepts_only_kept_ruled_and_recorded_drops(
+    MOCK_upgraded_board,
+):
+    """MOCK: regenerated ruled cells have no decision and WI_042's is dropped."""
+    board = MOCK_upgraded_board
+    assert (
+        release.verify_adjudication_record(
+            board.stage / BUNDLE / "annotations" / ADJUDICATIONS,
+            board.stage / BUNDLE / "us",
+            frozenset(),
+            [],
+            board.stage / "audit/cases",
+            board.upgrade,
+        )
+        == 0
+    )
+
+
+@pytest.mark.parametrize(
+    "defect",
+    ["dropped_restored", "kept_dropped", "unruled_rewritten", "extra_decision"],
+)
+def test_MOCK_adjudication_gate_refuses_any_other_decision_change(
+    MOCK_upgraded_board, defect
+):
+    """MOCK: an upgrade permits only the driver's exact decisions and drops."""
+    board = MOCK_upgraded_board
+    path = board.stage / BUNDLE / "annotations" / ADJUDICATIONS
+    record = json.loads(path.read_text())
+    if defect == "dropped_restored":
+        prepared = json.loads((board.stage / "stage.json").read_text())
+        record["adjudications"].append(prepared["adjudications_dropped"][0]["entry"])
+    elif defect == "kept_dropped":
+        record["adjudications"].pop()
+    elif defect == "unruled_rewritten":
+        record["adjudications"][0]["reasoning"] += " MOCK extra reasoning."
+    else:
+        entry = copy.deepcopy(record["adjudications"][0])
+        entry["scenario_id"] = "MOCK_extra"
+        record["adjudications"].append(entry)
+    path.write_text(driver.record_text(record))
+    with pytest.raises(SystemExit):
+        release.verify_adjudication_record(
+            path,
+            board.stage / BUNDLE / "us",
+            frozenset(),
+            [],
+            board.stage / "audit/cases",
+            board.upgrade,
+        )
+
+
+def test_MOCK_added_exclusions_freeze_only_as_the_spec_decides_them(
+    MOCK_upgraded_board, spec, tmp_path
+):
+    """MOCK: an upgrade's new exclusions (the two Indiana county outputs) pass
+    when the spec's upgrade_adjudications decide exactly them, and are refused
+    when it decides none."""
+    board = MOCK_upgraded_board
+    made = mock_builds.real_build(
+        tmp_path / "MOCK-added",
+        regenerated={**mock_builds.MOCK_REGENERATED_RULED, mock_builds.WI_042: 0.0},
+    )
+    _install_MOCK_build(board.stage, board.receipt, made)
+    with pytest.raises(SystemExit, match="must decide exactly"):
+        release.verify_upgrade(board.stage, board.receipt)
+    spec["upgrade_adjudications"] = release_spec()["upgrade_adjudications"]
+    assert {driver.spec_key(i) for i in spec["upgrade_adjudications"]} == set(
+        mock_builds.MOCK_NEW
+    )
+    upgrade = release.verify_upgrade(board.stage, board.receipt)
+    assert upgrade.added == frozenset(mock_builds.MOCK_NEW)
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_MOCK_upgraded_stage_passes_freeze(MOCK_upgraded_board, dry_run):
+    """MOCK: upgraded references, narratives, counts and pins pass the freeze."""
+    board = MOCK_upgraded_board
+    before = workspace_files()
+    release.main(["--stage-dir", str(board.stage)] + ["--dry-run"] * dry_run)
+    if dry_run:
+        assert workspace_files() == before and board.calls == []
+    else:
+        manifest = json.loads(
+            (release.ROOT / SNAPSHOT_DIR / "manifest.json").read_text()
+        )
+        assert manifest["reference_exclusions"]["outputs"] == board.upgrade.records
+        assert (
+            manifest["reference_exclusions"]["scored_outputs_per_model"]
+            == board.upgrade.scored_outputs
+        )
+        pins = driver.upgraded_reference_pins(board.upgrade)
+        assert all(
+            sha(release.ROOT / FROZEN_RUN / name) == pin for name, pin in pins.items()
+        )
+        assert (
+            manifest["reference_output_refresh"]["policyengine_us_version"] == "2.37.1"
+        )
+        assert (
+            manifest["audit_annotation_artifacts"]["files"][EXPLANATIONS]
+            == board.upgrade.sha256[EXPLANATIONS]
+        )
+
+
+def test_MOCK_upgraded_freeze_can_run_twice_with_identical_files(MOCK_upgraded_board):
+    """MOCK: a repeated freeze accepts the installed build's committed pins."""
+    release.main(["--stage-dir", str(MOCK_upgraded_board.stage)])
+    before = workspace_files()
+    release.main(["--stage-dir", str(MOCK_upgraded_board.stage)])
+    assert workspace_files() == before
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "csv_bytes",
+        "top_csv_bytes",
+        "meta_bytes",
+        "exclusions_bytes",
+        "explanations_bytes",
+        "scenario_bytes",
+        "csv_pin",
+        "meta_pin",
+        "explanations_pin",
+        "committed_csv_pin",
+        "exclusions_pin",
+        "exclusion_count",
+        "scored_count",
+        "refresh_engine",
+        "refresh_date",
+        "refresh_csv_pin",
+        "unlisted_manifest",
+        *[
+            f"refresh:{field}"
+            for field in (
+                "regenerated_at_utc",
+                "policyengine_version",
+                "policyengine_us_data_build_id",
+                "policyengine_us_dataset",
+                "policyengine_us_dataset_uri",
+                "policyengine_us_data_artifact_sha256",
+            )
+        ],
+    ],
+)
+def test_MOCK_verify_frozen_refuses_incorrect_build_files_pins_and_counts(
+    MOCK_upgraded_board, defect
+):
+    """MOCK: allowed manifest changes must still state the exact installed build."""
+    board = MOCK_upgraded_board
+    release.main(["--stage-dir", str(board.stage)])
+    snapshot = release.ROOT / SNAPSHOT_DIR
+    annotations = release.ROOT / ANNOTATIONS_DIR
+    files = ("source_run_artifacts", RUN, "files")
+    paths = {
+        "csv_pin": (*files, "reference_outputs.csv"),
+        "meta_pin": (*files, "reference_outputs.csv.meta.json"),
+        "explanations_pin": ("audit_annotation_artifacts", "files", EXPLANATIONS),
+        "committed_csv_pin": (
+            "committed_snapshot_artifacts",
+            "us_reference_outputs.csv",
+        ),
+        "exclusions_pin": (*files, EXCLUSIONS),
+        "exclusion_count": ("reference_exclusions", "outputs"),
+        "scored_count": ("reference_exclusions", "scored_outputs_per_model"),
+        "refresh_engine": ("reference_output_refresh", "policyengine_us_version"),
+        "refresh_date": ("reference_output_refresh", "date"),
+        "refresh_csv_pin": ("reference_output_refresh", "reference_csv_sha256"),
+        "unlisted_manifest": ("population_weight_artifact", "sha256"),
+        **{
+            f"refresh:{field}": ("reference_output_refresh", field)
+            for field in (
+                "regenerated_at_utc",
+                "policyengine_version",
+                "policyengine_us_data_build_id",
+                "policyengine_us_dataset",
+                "policyengine_us_dataset_uri",
+                "policyengine_us_data_artifact_sha256",
+            )
+        },
+    }
+    byte_paths = {
+        "csv_bytes": snapshot / "runs" / RUN / "reference_outputs.csv",
+        "top_csv_bytes": snapshot / "us_reference_outputs.csv",
+        "meta_bytes": snapshot / "runs" / RUN / "reference_outputs.csv.meta.json",
+        "exclusions_bytes": snapshot / "runs" / RUN / EXCLUSIONS,
+        "explanations_bytes": annotations / EXPLANATIONS,
+        "scenario_bytes": snapshot / "runs" / RUN / "scenarios.csv",
+    }
+    if defect in byte_paths:
+        path = byte_paths[defect]
+        path.write_bytes(path.read_bytes() + b" ")
+    else:
+        _edit_json(
+            snapshot / "manifest.json", lambda m: _set(m, paths[defect], "MOCK wrong")
+        )
+    serving = base_serving()
+    with pytest.raises(SystemExit):
+        release.verify_frozen(
+            stage=board.stage,
+            snapshot=snapshot,
+            annotations=annotations,
+            exclusions_sha256=board.upgrade.sha256[EXCLUSIONS],
+            pointer=json.loads((release.ROOT / release.POINTER).read_text()),
+            window=WINDOW,
+            snapshot_date="2026-10-09",
+            previous_serving=serving,
+            incumbents=set(serving["models"]),
+            runs=RUNS,
+            upgrade=board.upgrade,
+        )
+
+
+def test_MOCK_upgrade_manifest_permissions_name_only_the_new_paths(MOCK_upgraded_board):
+    """MOCK: explicitly allowed upgrade leaves move; every other leaf stays pinned."""
+    upgrade = MOCK_upgraded_board.upgrade
+    before = json.loads(_manifest_text())
+    allowed = set(release.UPGRADE_MANIFEST_CHANGES) | set(
+        release.UPGRADE_MANIFEST_UNPINNED
+    )
+    for path in _leaves():
+        after = copy.deepcopy(before)
+        _set(after, path, "MOCK changed")
+        expected = [] if _allowed(path) or path in allowed else [path]
+        assert release.manifest_problems(before, after, upgrade) == expected, path
+    after = copy.deepcopy(before)
+    after["reference_output_refresh"]["MOCK_unlisted"] = "MOCK"
+    assert release.manifest_problems(before, after, upgrade) == [
+        ("reference_output_refresh", "MOCK_unlisted")
+    ]
+
+
+def test_MOCK_versions_count_records_on_the_build_engine(MOCK_upgraded_board, tmp_path):
+    """MOCK: a new engine's retained records appear in the description's counts."""
+    made = mock_builds.real_build(
+        tmp_path / "MOCK-engine-count",
+        regenerated={**mock_builds.MOCK_REGENERATED_RULED, mock_builds.WI_042: 0.0},
+    )
+    upgrade = mock_builds.load(made)
+    records = json.loads(upgrade.exclusions_text)["exclusions"]
+    versions = release.release_versions(head_versions(), records, "2026-10-09", upgrade)
+    description = _live_version(versions)["description"]
+    assert description.startswith(
+        f"Scored reference outputs from {upgrade.engine_version} ("
+    )
+    assert "2 from 2.37.1" in description
+    assert "were re-reviewed" not in description
+    assert (
+        release.release_versions(versions, records, "2026-10-09", upgrade) == versions
+    )
+    records[-1] = {**records[-1], "engine_version": "MOCK unsupported engine"}
+    with pytest.raises(SystemExit, match="counts exclusions decided on"):
+        release.release_versions(head_versions(), records, "2026-10-09", upgrade)
+
+
+def _MOCK_description_upgrade() -> driver.Upgrade:
+    """MOCK: minimal upgrade data solely for the version description formatter."""
+    return driver.Upgrade(
+        engine_version=mock_builds.MOCK_ENGINE,
+        previous_engine_version=driver.BASE_ENGINE,
+        revision={"excluded_outputs_rechecked": []},
+        changed={},
+        regenerated_base=frozenset(),
+        regenerated_ruled=frozenset(),
+        added=frozenset(),
+        records=driver.RELEASE_EXCLUSIONS,
+        exclusions_text=release_exclusions_text(),
+        sha256={},
+    )
+
+
+@pytest.fixture
+def MOCK_refresh_sidecar(tmp_path):
+    """MOCK: a retained sidecar for timestamp validation alone, without an audit."""
+    stage = tmp_path / "MOCK-stage"
+    retained = stage / driver.BUILD_COPY
+    retained.mkdir(parents=True)
+    meta = json.loads(base_blob(FROZEN_RUN / driver.META_NAME))
+    meta["policyengine_bundles"]["us"]["model_version"] = "2.37.1"
+    path = retained / driver.META_NAME
+    upgrade = replace(_MOCK_description_upgrade(), sha256={driver.CSV_NAME: "f" * 64})
+    return types.SimpleNamespace(stage=stage, path=path, meta=meta, upgrade=upgrade)
+
+
+@pytest.mark.parametrize(
+    "defect, timestamp",
+    [
+        ("missing", None),
+        ("none", None),
+        ("integer", 20261009),
+        ("boolean", True),
+        ("empty", ""),
+        ("whitespace", " "),
+        ("date_only", "2026-10-09"),
+        ("naive", "2026-10-09T18:00:00"),
+        ("non_utc", "2026-10-09T18:00:00+01:00"),
+        ("invalid_date", "2026-10-32T18:00:00+00:00"),
+        ("invalid", "MOCK bad timestamp"),
+        ("compact_date", "20261009T18:00:00Z"),
+    ],
+)
+def test_MOCK_refresh_timestamp_refuses_missing_or_non_UTC_ISO_values(
+    MOCK_refresh_sidecar, defect, timestamp
+):
+    """MOCK: malformed timestamps cannot determine a frozen regeneration date."""
+    sidecar = MOCK_refresh_sidecar
+    if defect == "missing":
+        sidecar.meta.pop("regenerated_at_utc", None)
+    else:
+        sidecar.meta["regenerated_at_utc"] = timestamp
+    sidecar.path.write_text(json.dumps(sidecar.meta))
+    with pytest.raises(SystemExit, match="nonempty ISO timestamp in UTC"):
+        release.upgraded_reference_refresh(sidecar.stage, sidecar.upgrade)
+
+
+@pytest.mark.parametrize(
+    "timestamp", ["2026-10-09T18:00:00Z", "2026-10-09T18:00:00+00:00"]
+)
+def test_MOCK_refresh_timestamp_preserves_valid_UTC_spellings(
+    MOCK_refresh_sidecar, timestamp
+):
+    """MOCK: both explicit UTC offsets remain byte-for-byte as the sidecar states."""
+    sidecar = MOCK_refresh_sidecar
+    sidecar.meta["regenerated_at_utc"] = timestamp
+    sidecar.path.write_text(json.dumps(sidecar.meta))
+    refresh = release.upgraded_reference_refresh(sidecar.stage, sidecar.upgrade)
+    assert refresh["date"] == "2026-10-09"
+    assert refresh["regenerated_at_utc"] == timestamp
+    assert refresh["reference_csv_sha256"] == sidecar.upgrade.sha256[driver.CSV_NAME]
+
+
+@examples(25)
+@given(count=st.integers(min_value=0, max_value=74))
+def test_MOCK_version_rechecks_count_and_engine_are_truthful_and_idempotent(count):
+    """MOCK: every recheck count updates the clause and keeps repeated output exact."""
+    upgrade = _MOCK_description_upgrade()
+    upgrade = replace(
+        upgrade,
+        revision={"excluded_outputs_rechecked": [{"MOCK": i} for i in range(count)]},
+    )
+    versions = release.release_versions(
+        head_versions(), release_exclusions(), "2026-10-09", upgrade
+    )
+    description = _live_version(versions)["description"]
+    assert description.startswith(
+        f"Scored reference outputs from {upgrade.engine_version} ("
+    )
+    assert "move on 2.15.17 were re-reviewed" not in description
+    if count:
+        assert (
+            f"and the {count} that move on 2.37.1 were re-reviewed and stay excluded"
+            in description
+        )
+    else:
+        assert "were re-reviewed" not in description
+    assert (
+        release.release_versions(versions, release_exclusions(), "2026-10-09", upgrade)
+        == versions
+    )
+
+
+def test_MOCK_omitted_recheck_list_has_the_same_description_as_zero_rechecks():
+    """MOCK: the driver permits an omitted empty recheck claim in the sidecar."""
+    upgrade = _MOCK_description_upgrade()
+    records = release_exclusions()
+    expected = release.release_versions(head_versions(), records, "2026-10-09", upgrade)
+    omitted = replace(upgrade, revision={})
+    assert (
+        release.release_versions(head_versions(), records, "2026-10-09", omitted)
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "MOCK reference outputs from",
+        "Scored reference outputs from policyengine-us 9.9",
+    ],
+)
+def test_MOCK_versions_refuse_an_unexpected_scored_reference_prefix(prefix):
+    """MOCK: an unrelated engine description cannot be silently rewritten."""
+    versions = head_versions()
+    live = _live_version(versions)
+    live["description"] = live["description"].replace(
+        "Scored reference outputs from policyengine-us 2.15.17", prefix, 1
+    )
+    with pytest.raises(SystemExit, match="unexpected reference engine"):
+        release.release_versions(
+            versions, release_exclusions(), "2026-10-09", _MOCK_description_upgrade()
+        )
+
+
+@pytest.mark.parametrize(
+    "defect", ["missing_anchor", "unknown_engine", "malformed_clause"]
+)
+def test_MOCK_versions_refuse_an_unexpected_recheck_description_shape(defect):
+    """MOCK: an unrecognized re-review clause must never survive into a release."""
+    versions = head_versions()
+    live = _live_version(versions)
+    old, new = {
+        "missing_anchor": ("); same household facts", "); MOCK different facts"),
+        "unknown_engine": (
+            "move on 2.15.17 were re-reviewed",
+            "move on 9.9 were re-reviewed",
+        ),
+        "malformed_clause": (
+            "were re-reviewed and stay excluded",
+            "MOCK unreviewed and stay excluded",
+        ),
+    }[defect]
+    live["description"] = live["description"].replace(old, new, 1)
+    with pytest.raises(SystemExit, match="unexpected re-review shape"):
+        release.release_versions(
+            versions, release_exclusions(), "2026-10-09", _MOCK_description_upgrade()
+        )
+
+
+@examples(5)
+@given(
+    day=st.dates(
+        min_value=datetime.date(2026, 1, 1), max_value=datetime.date(2030, 12, 31)
+    )
+)
+def test_without_an_upgrade_optional_arguments_preserve_existing_freeze_behavior(
+    frozen_board, spec, day
+):
+    """Absent and explicit None upgrades freeze identical files for any date."""
+    board = frozen_board
+    assert (
+        release.verify_upgrade(
+            board.stage, json.loads((board.stage / "release-ready.json").read_text())
+        )
+        is None
+    )
+    records = release_exclusions()
+    country = _payload_country(records)
+    assert release.verify_scored_outputs(
+        country, records
+    ) == release.verify_scored_outputs(country, records, None)
+    assert release.release_versions(
+        head_versions(), records, day.isoformat()
+    ) == release.release_versions(head_versions(), records, day.isoformat(), None)
+    before = json.loads(_manifest_text())
+    assert release.manifest_problems(before, before) == release.manifest_problems(
+        before, before, None
+    )
+    spec["snapshot_date"] = day.isoformat()
+
+    def published_files():
+        relative = board.stage.relative_to(release.ROOT)
+        return {
+            path: blob
+            for path, blob in workspace_files().items()
+            if not path.is_relative_to(relative)
+        }
+
+    _record_installed(
+        board.stage, lambda record: record.pop("references_installed", None)
+    )
+    board.rebind(restamp_stage=False)
+    release.main(["--stage-dir", str(board.stage)])
+    absent = published_files()
+    _record_installed(
+        board.stage, lambda record: record.update(references_installed=None)
+    )
+    board.rebind(restamp_stage=False)
+    release.main(["--stage-dir", str(board.stage)])
+    assert published_files() == absent
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [
+        Path(
+            "/Users/maxghenis/PolicyEngine/policybench-wt/release-haiku55/results/local/release-haiku55/stage"
+        ),
+        REPO / "results/local/upgrade-scratch/install-references",
+    ],
+)
+def test_optional_live_stage_upgrade_bindings_are_read_only(stage):
+    """Read-only optional stages, including the MOCK install-references rehearsal."""
+    path = stage / "stage.json"
+    if not path.is_file():
+        pytest.skip("no live stage in this checkout")
+    before = {p: p.read_bytes() for p in stage.rglob("*") if p.is_file()}
+    prepared = json.loads(path.read_text())
+    if prepared.get("references_installed"):
+        driver.verify_installed_references(stage, prepared)
+    else:
+        assert driver.stage_upgrade(stage) is None
+    assert {p: p.read_bytes() for p in stage.rglob("*") if p.is_file()} == before
 
 
 # --- The version list --------------------------------------------------------------

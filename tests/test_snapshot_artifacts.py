@@ -902,7 +902,7 @@ def test_manifest_names_the_build_the_households_came_from():
     # (latest_c_*.py), the Maryland output-scope adapter, and the stated-hours
     # alias its builder note records.
     sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
-    (upgrade,) = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"]
+    upgrade = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"][-1]
     modules = {entry["module"] for entry in upgrade["fix_modules"]}
     conventions = {m for m in modules if m.startswith("latest_c_")}
     assert modules - conventions == {
@@ -958,6 +958,396 @@ def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
     assert refresh["date"] == generated[:10]
     assert refresh["snapshot_date"] == manifest["snapshot_date"]
     assert refresh["date"] <= refresh["snapshot_date"]
+
+
+def _MOCK_engine_upgrade(convention_count=9, **changes):
+    """A MOCK sidecar revision, never evidence of a real engine build."""
+    return {
+        "kind": "engine_upgrade",
+        "fix_modules": [
+            {"module": f"latest_c_MOCK_{index}.py"} for index in range(convention_count)
+        ]
+        + [
+            {"module": "latest_conventions.py"},
+            {"module": "latest_md_local_output_scope.py"},
+        ],
+        "builder": "MOCK builder: weekly_hours_worked_before_lsr",
+        **changes,
+    }
+
+
+@pytest.mark.parametrize("previous_count", [0, 1, 3])
+def test_MOCK_engine_setup_uses_the_last_upgrade(tmp_path, monkeypatch, previous_count):
+    """Earlier MOCK upgrade modules cannot supply the final upgrade's count."""
+    from scripts import freeze_snapshot
+
+    sidecar = tmp_path / "MOCK_reference_outputs.csv.meta.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "revisions": [_MOCK_engine_upgrade(1) for _ in range(previous_count)]
+                + [_MOCK_engine_upgrade(7)]
+            }
+        )
+    )
+    monkeypatch.setattr(freeze_snapshot, "REFERENCE_META_SOURCE", sidecar)
+    assert freeze_snapshot.read_reference_engine_setup() == {
+        "convention_count": 7,
+        "output_scope_adapter_count": 1,
+    }
+
+
+@pytest.mark.parametrize(
+    ("revisions", "message"),
+    [
+        ([], "needs a final engine_upgrade revision"),
+        ([{"kind": "MOCK_other"}], "needs a final engine_upgrade revision"),
+        (
+            [_MOCK_engine_upgrade(), {"kind": "MOCK_other"}],
+            "needs a final engine_upgrade revision",
+        ),
+        (
+            [_MOCK_engine_upgrade(), _MOCK_engine_upgrade(fix_modules=[])],
+            "unexpected engine_upgrade fix_modules",
+        ),
+        (
+            [_MOCK_engine_upgrade(), _MOCK_engine_upgrade(builder="MOCK missing")],
+            "names no stated-hours alias",
+        ),
+    ],
+)
+def test_MOCK_engine_setup_refuses_an_invalid_last_revision(
+    tmp_path, monkeypatch, revisions, message
+):
+    """A valid earlier MOCK revision cannot rescue invalid final metadata."""
+    from scripts import freeze_snapshot
+
+    sidecar = tmp_path / "MOCK_reference_outputs.csv.meta.json"
+    sidecar.write_text(json.dumps({"revisions": revisions}))
+    monkeypatch.setattr(freeze_snapshot, "REFERENCE_META_SOURCE", sidecar)
+    with pytest.raises(SystemExit, match=message):
+        freeze_snapshot.read_reference_engine_setup()
+
+
+@pytest.mark.parametrize(
+    ("changes", "missing", "message"),
+    [
+        ({}, "fix_modules", "fix_modules must be a list of module objects"),
+        ({"fix_modules": None}, None, "fix_modules must be a list of module objects"),
+        ({"fix_modules": {}}, None, "fix_modules must be a list of module objects"),
+        (
+            {"fix_modules": "MOCK_module.py"},
+            None,
+            "fix_modules must be a list of module objects",
+        ),
+        ({"fix_modules": [None]}, None, "needs a nonempty string module"),
+        ({"fix_modules": ["MOCK_module.py"]}, None, "needs a nonempty string module"),
+        ({"fix_modules": [{}]}, None, "needs a nonempty string module"),
+        ({"fix_modules": [{"module": None}]}, None, "needs a nonempty string module"),
+        ({"fix_modules": [{"module": 7}]}, None, "needs a nonempty string module"),
+        ({"fix_modules": [{"module": ""}]}, None, "needs a nonempty string module"),
+        ({"fix_modules": [{"module": " "}]}, None, "needs a nonempty string module"),
+        ({"builder": None}, None, "builder note must be a string"),
+        ({"builder": 7}, None, "builder note must be a string"),
+        ({"builder": []}, None, "builder note must be a string"),
+        ({"builder": {}}, None, "builder note must be a string"),
+    ],
+)
+def test_MOCK_engine_setup_refuses_malformed_last_upgrade_fields(
+    tmp_path, monkeypatch, changes, missing, message
+):
+    """Malformed MOCK final module/builder shapes receive explicit refusals."""
+    from scripts import freeze_snapshot
+
+    upgrade = _MOCK_engine_upgrade(**changes)
+    if missing is not None:
+        del upgrade[missing]
+    sidecar = tmp_path / "MOCK_reference_outputs.csv.meta.json"
+    sidecar.write_text(json.dumps({"revisions": [_MOCK_engine_upgrade(), upgrade]}))
+    monkeypatch.setattr(freeze_snapshot, "REFERENCE_META_SOURCE", sidecar)
+    with pytest.raises(SystemExit, match=message):
+        freeze_snapshot.read_reference_engine_setup()
+
+
+@pytest.mark.parametrize(
+    ("metadata", "message"),
+    [
+        ([], "the reference sidecar must be an object"),
+        (None, "the reference sidecar must be an object"),
+        ({"revisions": None}, "revisions must be a list of objects"),
+        ({"revisions": {}}, "revisions must be a list of objects"),
+        ({"revisions": [None]}, "revisions must be a list of objects"),
+        ({"revisions": ["MOCK_revision"]}, "revisions must be a list of objects"),
+    ],
+)
+def test_MOCK_engine_setup_refuses_malformed_sidecar_shapes(
+    tmp_path, monkeypatch, metadata, message
+):
+    """A malformed MOCK sidecar container is refused before reading revisions."""
+    from scripts import freeze_snapshot
+
+    sidecar = tmp_path / "MOCK_reference_outputs.csv.meta.json"
+    sidecar.write_text(json.dumps(metadata))
+    monkeypatch.setattr(freeze_snapshot, "REFERENCE_META_SOURCE", sidecar)
+    with pytest.raises(SystemExit, match=message):
+        freeze_snapshot.read_reference_engine_setup()
+
+
+@pytest.mark.parametrize(
+    ("has_previous_alias", "support_modules", "builder_suffix", "accepted"),
+    [
+        (True, ["latest_final.py", "r19_irs_sales_tax_2025.json"], "", True),
+        (False, ["latest_final.py", "r19_irs_sales_tax_2025.json"], "", False),
+        (True, ["latest_final.py"], "", False),
+        (True, [], "", False),
+        (True, ["latest_final.py", "r19_irs_sales_tax_2025.json"], "MOCK", False),
+        (None, ["latest_final.py", "r19_irs_sales_tax_2025.json"], "", False),
+    ],
+)
+def test_MOCK_engine_setup_checks_the_known_upgrade_builder(
+    tmp_path,
+    monkeypatch,
+    has_previous_alias,
+    support_modules,
+    builder_suffix,
+    accepted,
+):
+    """The known builder route preserves only a recorded MOCK alias lineage."""
+    from scripts import freeze_snapshot
+
+    previous = _MOCK_engine_upgrade(
+        builder=(
+            None
+            if has_previous_alias is None
+            else (
+                "MOCK weekly_hours_worked_before_lsr"
+                if has_previous_alias
+                else "MOCK missing"
+            )
+        )
+    )
+    latest = _MOCK_engine_upgrade(
+        builder=freeze_snapshot.UPGRADE_BUILDER + builder_suffix
+    )
+    latest["fix_modules"] += [{"module": name} for name in support_modules]
+    sidecar = tmp_path / "MOCK_reference_outputs.csv.meta.json"
+    sidecar.write_text(json.dumps({"revisions": [previous, latest]}))
+    monkeypatch.setattr(freeze_snapshot, "REFERENCE_META_SOURCE", sidecar)
+    if accepted:
+        assert freeze_snapshot.read_reference_engine_setup() == {
+            "convention_count": 9,
+            "output_scope_adapter_count": 1,
+        }
+    else:
+        with pytest.raises(
+            SystemExit,
+            match="unexpected engine_upgrade fix_modules|names no stated-hours alias",
+        ):
+            freeze_snapshot.read_reference_engine_setup()
+
+
+def test_MOCK_reference_refresh_reads_the_latest_bundle_and_timestamp(
+    tmp_path, monkeypatch
+):
+    """Refresh fields follow the latest MOCK build's top-level sidecar pins."""
+    from scripts import freeze_snapshot
+
+    reference = tmp_path / "reference_outputs.csv"
+    reference.write_text("scenario_id,variable,value\nMOCK_case,MOCK_variable,7\n")
+    bundle = {
+        "policyengine_version": "MOCK_python",
+        "model_version": "MOCK_latest",
+        "certified_data_build_id": "MOCK_build",
+        "default_dataset": "MOCK_dataset",
+        "default_dataset_uri": "MOCK_uri",
+        "certified_data_artifact_sha256": "MOCK_digest",
+    }
+    sidecar = reference.with_name(reference.name + ".meta.json")
+    sidecar.write_text(
+        json.dumps(
+            {
+                "generated_at_utc": "2026-06-12T00:00:00Z",
+                "regenerated_at_utc": "2026-10-09T12:34:56Z",
+                "policyengine_bundles": {"us": bundle},
+                "revisions": [_MOCK_engine_upgrade(), _MOCK_engine_upgrade()],
+            }
+        )
+    )
+    monkeypatch.setattr(freeze_snapshot, "REFERENCE_META_SOURCE", sidecar)
+    monkeypatch.setattr(freeze_snapshot, "RUN_DEST", tmp_path)
+    monkeypatch.setattr(freeze_snapshot, "SNAPSHOT_DATE", "2026-10-09")
+    assert freeze_snapshot.read_reference_refresh() == {
+        "date": "2026-10-09",
+        "generated_at_utc": "2026-06-12T00:00:00Z",
+        "regenerated_at_utc": "2026-10-09T12:34:56Z",
+        "snapshot_date": "2026-10-09",
+        "reference_csv_sha256": sha256(reference),
+        "row_count": 1,
+        "policyengine_version": "MOCK_python",
+        "policyengine_us_version": "MOCK_latest",
+        "policyengine_us_data_build_id": "MOCK_build",
+        "policyengine_us_dataset": "MOCK_dataset",
+        "policyengine_us_dataset_uri": "MOCK_uri",
+        "policyengine_us_data_artifact_sha256": "MOCK_digest",
+    }
+
+
+def _MOCK_freeze_run_setup(tmp_path, monkeypatch, *, upgraded):
+    """A tiny MOCK compact run; no live stage or real freezer main is used."""
+    from scripts import freeze_snapshot
+
+    source = tmp_path / "MOCK_source" / "us"
+    source.mkdir(parents=True)
+    snapshot = tmp_path / "MOCK_snapshot"
+    run = snapshot / "runs" / "MOCK_run"
+    run.mkdir(parents=True)
+
+    def write_reference(directory, value, version):
+        reference = directory / "reference_outputs.csv"
+        reference.write_text(
+            f"scenario_id,variable,value\nMOCK_case,MOCK_variable,{value}\n"
+        )
+        metadata = {
+            "country": "us",
+            "reference_csv_sha256": sha256(reference),
+            "row_count": 1,
+            "policyengine_bundles": {
+                "us": {
+                    "model_package": "policyengine-us",
+                    "model_version": version,
+                    "data_package": "MOCK_data",
+                    "data_version": "MOCK_version",
+                    "default_dataset": "MOCK_dataset",
+                    "default_dataset_uri": "MOCK_uri",
+                }
+            },
+        }
+        reference.with_name(reference.name + ".meta.json").write_text(
+            json.dumps(metadata)
+        )
+
+    write_reference(run, 1, "MOCK_previous")
+    write_reference(
+        source, 2 if upgraded else 1, "MOCK_upgraded" if upgraded else "MOCK_previous"
+    )
+    (source / "scenarios.csv").write_text("scenario_id\nMOCK_case\n")
+    (source / "scenarios.csv.meta.json").write_text('{"MOCK": "scenario metadata"}')
+    (source / "predictions.csv").write_text("MOCK_prediction\n7\n")
+    (source / "reference_exclusions.json").write_text('{"MOCK": "exclusions"}')
+    (run / "MOCK_preserved").write_text("MOCK pre-freeze sentinel")
+    names = ("reference_outputs.csv", "reference_outputs.csv.meta.json")
+    committed_pins = {name: sha256(run / name) for name in names}
+    replacement_pins = {name: sha256(source / name) for name in names}
+    (snapshot / "manifest.json").write_text(
+        json.dumps({"source_run_artifacts": {"MOCK_run": {"files": committed_pins}}})
+    )
+    dashboard = tmp_path / "MOCK_dashboard.json"
+    dashboard.write_text(json.dumps({"countries": {"us": {"MOCK": "payload"}}}))
+    monkeypatch.setattr(freeze_snapshot, "SOURCE_US", source)
+    monkeypatch.setattr(freeze_snapshot, "SNAPSHOT_DIR", snapshot)
+    monkeypatch.setattr(freeze_snapshot, "RUN_DEST", run)
+    monkeypatch.setattr(freeze_snapshot, "RUN_LABEL", "MOCK_run")
+    monkeypatch.setattr(
+        freeze_snapshot,
+        "REFERENCE_META_SOURCE",
+        (source if upgraded else run) / "reference_outputs.csv.meta.json",
+    )
+    monkeypatch.setattr(
+        freeze_snapshot, "REFERENCE_PINS", replacement_pins if upgraded else None
+    )
+    monkeypatch.setattr(freeze_snapshot, "PUBLISHED_DASHBOARD_SOURCE", dashboard)
+    monkeypatch.setattr(
+        freeze_snapshot,
+        "PUBLISHED_DASHBOARD_ARTIFACT",
+        {"bytes": dashboard.stat().st_size, "sha256": sha256(dashboard)},
+    )
+
+    def MOCK_analysis(destination):
+        destination.mkdir()
+        for name in (*freeze_snapshot.ANALYSIS_CSVS, "report.md"):
+            (destination / name).write_text("MOCK analysis\n")
+
+    monkeypatch.setattr(freeze_snapshot, "regenerate_analysis", MOCK_analysis)
+    return source, run
+
+
+@pytest.mark.parametrize("upgraded", [False, True])
+def test_MOCK_freeze_run_binds_the_right_reference_source(
+    tmp_path, monkeypatch, upgraded
+):
+    """MOCK upgrades validate publish provenance; baseline provenance is unchanged."""
+    from scripts import freeze_snapshot
+
+    source, run = _MOCK_freeze_run_setup(tmp_path, monkeypatch, upgraded=upgraded)
+    validate = freeze_snapshot.reference_policyengine_bundles
+    checked = []
+
+    def record_validation(path, *args, **kwargs):
+        checked.append(path)
+        return validate(path, *args, **kwargs)
+
+    monkeypatch.setattr(
+        freeze_snapshot, "reference_policyengine_bundles", record_validation
+    )
+    files = freeze_snapshot.freeze_run()
+    assert checked == [(source if upgraded else run) / "reference_outputs.csv"]
+    assert (run / "reference_outputs.csv").read_bytes() == (
+        source / "reference_outputs.csv"
+    ).read_bytes()
+    assert (run / "reference_outputs.csv.meta.json").read_bytes() == (
+        source / "reference_outputs.csv.meta.json"
+    ).read_bytes()
+    assert files["reference_outputs.csv"] == sha256(source / "reference_outputs.csv")
+    assert files["reference_outputs.csv.meta.json"] == sha256(
+        source / "reference_outputs.csv.meta.json"
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "message"),
+    [
+        ("reference_outputs.csv", "Publish reference outputs differ"),
+        ("reference_outputs.csv.meta.json", "Reference metadata differs"),
+    ],
+)
+def test_MOCK_freeze_run_refuses_changed_replacement_pins_before_writing(
+    tmp_path, monkeypatch, name, message
+):
+    """A changed MOCK replacement CSV or sidecar leaves the old run untouched."""
+    from scripts import freeze_snapshot
+
+    source, run = _MOCK_freeze_run_setup(tmp_path, monkeypatch, upgraded=True)
+    (source / name).write_bytes((source / name).read_bytes() + b" ")
+    previous = {path.name: path.read_bytes() for path in run.iterdir()}
+    with pytest.raises(SystemExit, match=message):
+        freeze_snapshot.freeze_run()
+    assert {path.name: path.read_bytes() for path in run.iterdir()} == previous
+
+
+def test_MOCK_freeze_run_refuses_inconsistent_replacement_provenance_before_writing(
+    tmp_path, monkeypatch
+):
+    """Correct MOCK file pins cannot rescue a sidecar with an incorrect CSV pin."""
+    from policybench.full_run_export import ReferenceProvenanceError
+    from scripts import freeze_snapshot
+
+    source, run = _MOCK_freeze_run_setup(tmp_path, monkeypatch, upgraded=True)
+    sidecar = source / "reference_outputs.csv.meta.json"
+    metadata = json.loads(sidecar.read_text())
+    metadata["reference_csv_sha256"] = "MOCK_wrong"
+    sidecar.write_text(json.dumps(metadata))
+    monkeypatch.setattr(
+        freeze_snapshot,
+        "REFERENCE_PINS",
+        {
+            "reference_outputs.csv": sha256(source / "reference_outputs.csv"),
+            "reference_outputs.csv.meta.json": sha256(sidecar),
+        },
+    )
+    previous = {path.name: path.read_bytes() for path in run.iterdir()}
+    with pytest.raises(ReferenceProvenanceError, match="hash does not match"):
+        freeze_snapshot.freeze_run()
+    assert {path.name: path.read_bytes() for path in run.iterdir()} == previous
 
 
 def _frozen_run_dir(manifest: dict) -> Path:

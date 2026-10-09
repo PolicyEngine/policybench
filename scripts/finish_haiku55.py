@@ -4599,24 +4599,20 @@ def verify_recorded_drops(stage: Path, upgrade: Upgrade) -> None:
 
 
 def export_on_base_references(bundle: Path, live: dict, record: Path) -> dict:
-    """export_full_run on a scratch copy of the bundle's export inputs with
-    release 20261006's five reference files put back (from git) and
-    ``record`` as the exclusion record: the upgrade's scope export, read only
-    for its modelStats.
+    """release_20261006.export_payload on a scratch copy of the bundle's export
+    inputs with release 20261006's five reference files put back (from git)
+    and ``record`` as the exclusion record: the upgrade's scope export, read
+    only for its modelStats.
 
-    As release_20261006.export_payload builds it (Fable 5's usage carried from
-    ``live``), except that the dashboard schema is checked without requiring
-    a failure annotation on every wrong answer: the stage's annotations follow
-    the upgraded references, so an answer the new reference makes right and
-    the old one wrong has none here. The release's own payload, on the
-    upgraded references, is checked with that requirement (build_payload).
+    The dashboard schema is checked without requiring a failure annotation on
+    every wrong answer: the stage's annotations follow the upgraded
+    references, so an answer the new reference makes right and the old one
+    wrong has none here. The release's own payload, on the upgraded
+    references, is checked with that requirement (build_payload).
     """
     import tempfile
 
-    from release_20261006 import CARRIED_USAGE, EXPORT_INPUTS
-
-    from policybench.dashboard_schema import validate_dashboard_payload
-    from policybench.full_run_export import export_full_run
+    from release_20261006 import EXPORT_INPUTS, export_payload
 
     with tempfile.TemporaryDirectory(dir=bundle.parent, prefix="base-refs-") as scratch:
         copy_root = Path(scratch) / bundle.name
@@ -4625,18 +4621,9 @@ def export_on_base_references(bundle: Path, live: dict, record: Path) -> dict:
             shutil.copyfile(bundle / rel, copy_root / rel)
         for name in REFERENCE_FILES:
             (copy_root / "us" / name).write_bytes(base_reference_bytes(name))
-        shutil.copyfile(record, copy_root / "us" / "reference_exclusions.json")
-        payload = export_full_run(copy_root, countries=["us"], skip_app_data=True)
-    previous = {row["model"]: row for row in live["countries"]["us"]["modelStats"]}
-    for model, fields in CARRIED_USAGE.items():
-        row = next(
-            r for r in payload["countries"]["us"]["modelStats"] if r["model"] == model
+        return export_payload(
+            copy_root, live, record, require_failure_annotations=False
         )
-        for field in fields:
-            row[field] = previous[model][field]
-    errors = validate_dashboard_payload(payload, require_failure_annotations=False)
-    require(not errors, f"dashboard schema (scope export): {errors[:5]}")
-    return payload
 
 
 def parse_args(argv=None):

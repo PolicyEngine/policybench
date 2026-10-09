@@ -228,7 +228,9 @@ def test_methodology_recheck_count_is_the_sidecar_record():
             / "reference_outputs.csv.meta.json"
         ).read_text()
     )
-    upgrade = next(r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade")
+    upgrade = next(
+        r for r in reversed(sidecar["revisions"]) if r["kind"] == "engine_upgrade"
+    )
     source = (ROOT / "app/src/lib/referenceEngine.ts").read_text()
     engine = upgrade["engine_version"].removeprefix("policyengine-us ")
     assert f'engineVersion: "{engine}"' in source
@@ -679,7 +681,9 @@ def test_live_version_description_states_the_reference_engines():
         / "us_full_run_20260612_policyengine_4_16_1_populace"
     )
     sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
-    upgrade = next(r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade")
+    upgrade = next(
+        r for r in reversed(sidecar["revisions"]) if r["kind"] == "engine_upgrade"
+    )
     engine = upgrade["engine_version"].removeprefix("policyengine-us ")
     previous = upgrade["previous_engine_version"].removeprefix("policyengine-us ")
     exclusions = json.loads((run_dir / "reference_exclusions.json").read_text())[
@@ -748,7 +752,9 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
         / "us_full_run_20260612_policyengine_4_16_1_populace"
     )
     sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
-    upgrade = next(r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade")
+    upgrade = next(
+        r for r in reversed(sidecar["revisions"]) if r["kind"] == "engine_upgrade"
+    )
     engine = upgrade["engine_version"].removeprefix("policyengine-us ")
     previous = upgrade["previous_engine_version"].removeprefix("policyengine-us ")
     exclusions = json.loads((run_dir / "reference_exclusions.json").read_text())[

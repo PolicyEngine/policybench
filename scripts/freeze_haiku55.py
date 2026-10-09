@@ -7,10 +7,11 @@ without changing repository files. Both rebuild the payload from the bound
 bundle, as export builds it, and refuse a staged payload that differs.
 
 The release folds one model onto release 20261006 and installs the ten
-exclusions Max ruled on 2026-10-06 (docs/haiku55/spec.json). The reference
-outputs, the scenarios and their sidecars must equal release 20261006's pinned
-bytes. The exclusion record must be release 20261006's plus the ten ruled
-records, as finish_haiku55.build_release_exclusions spells it. The
+exclusions Max ruled on 2026-10-06 (docs/haiku55/spec.json). Without an engine
+upgrade, references stay release 20261006's and the exclusion record is that
+release's plus the ten ruled records. An installed upgrade must still pass
+the driver's build and drop-log gates; its references, explanations and
+exclusions are frozen byte for byte. Scenarios always stay 20261006's. The
 adjudications may change only through a staged record that triage applied and
 export bound: the ruled outputs' entries, a re-opened case's judge fields, and
 date conventions that name the 2026-10-06 wave. The committed wording
@@ -42,10 +43,9 @@ import finish_haiku55 as driver  # noqa: E402
 # The treatment check is release-independent; reuse it unchanged.
 from freeze_adds0928 import validate_treatment  # noqa: E402
 
-# The manifest comparison and the version description's exclusion counts are
-# release 20261006's, which also added exclusions; reuse them unchanged.
+# Reuse release 20261006's manifest comparison and baseline version counts.
 from release_20261006 import leaf_paths  # noqa: E402
-from release_20261006 import versions_description as count_exclusions  # noqa: E402
+from release_20261006 import versions_description as base_count_exclusions  # noqa: E402
 
 RUN = driver.RUN_NAME
 NEW_MODELS = dict(driver.MODELS)
@@ -53,13 +53,13 @@ BOARD_MODELS = driver.BOARD_MODELS
 ADJUDICATIONS = "us_adjudications.json"
 # The published annotations the adjudications and amendments are applied to.
 ANNOTATION_CSVS = ("us_audit_row_annotations.csv", "us_case_notes.csv")
-# The reference narratives a judge's prompt carries. This release rewords
-# none, so the staged file must be release 20261006's.
+# The reference narratives a judge's prompt carries: release 20261006's,
+# unless an installed engine upgrade regenerates them.
 EXPLANATIONS = "us_case_reference_explanations.csv"
 # The wording amendments record, as it is committed beside the adjudications.
 COMMITTED_AMENDMENTS = f"us_{driver.AMENDMENTS}"
 EXCLUSIONS = "reference_exclusions.json"
-# The reference files this release may not change at all.
+# The references pinned for a stage without an engine upgrade.
 PINNED_REFERENCES = tuple(
     name for name in driver.BASE_REFERENCE_SHA256 if name != EXCLUSIONS
 )
@@ -97,6 +97,28 @@ MANIFEST_CHANGES = (
 MANIFEST_PINNED = frozenset(
     {
         *(("source_run_artifacts", RUN, "files", name) for name in PINNED_REFERENCES),
+        ("audit_annotation_artifacts", "files", EXPLANATIONS),
+    }
+)
+# Additional leaves written from an installed build's sidecar. Each is named
+# explicitly; the scenario pins, household dataset and other refresh fields
+# remain release 20261006's, including row_count and generated_at_utc.
+UPGRADE_MANIFEST_CHANGES = (
+    ("committed_snapshot_artifacts", "us_reference_outputs.csv"),
+    ("reference_output_refresh", "date"),
+    ("reference_output_refresh", "regenerated_at_utc"),
+    ("reference_output_refresh", "reference_csv_sha256"),
+    ("reference_output_refresh", "policyengine_version"),
+    ("reference_output_refresh", "policyengine_us_version"),
+    ("reference_output_refresh", "policyengine_us_data_build_id"),
+    ("reference_output_refresh", "policyengine_us_dataset"),
+    ("reference_output_refresh", "policyengine_us_dataset_uri"),
+    ("reference_output_refresh", "policyengine_us_data_artifact_sha256"),
+)
+UPGRADE_MANIFEST_UNPINNED = frozenset(
+    {
+        ("source_run_artifacts", RUN, "files", "reference_outputs.csv"),
+        ("source_run_artifacts", RUN, "files", "reference_outputs.csv.meta.json"),
         ("audit_annotation_artifacts", "files", EXPLANATIONS),
     }
 )
@@ -210,6 +232,56 @@ def engine_upgrade_installed(stage: Path) -> bool:
     return isinstance(receipt, dict) and bool(receipt.get("references_installed"))
 
 
+def verify_upgrade(stage: Path, receipt: dict) -> driver.Upgrade | None:
+    """Re-gate the installed build and drops, all bound by strict export.
+
+    The driver checks the build against git and the spec, then every installed
+    copy. The export must bind every retained build file independently of
+    stage.json. A build adding exclusions freezes only when the spec's
+    upgrade_adjudications decide exactly those outputs (driver.upgrade_decisions).
+    """
+    prepared = read_json(stage / "stage.json")
+    installed = prepared.get("references_installed")
+    if not installed:
+        return None
+    if not isinstance(installed, dict):
+        raise SystemExit("stage.json's references_installed is not an installed build")
+    required = [str(Path(driver.BUILD_COPY) / n) for n in driver.BUILD_COPY_FILES]
+    unbound = [name for name in required if name not in receipt["files"]]
+    if unbound:
+        raise SystemExit(
+            f"Strict export receipt does not bind the installed build: {unbound}"
+        )
+    upgrade = driver.verify_installed_references(stage, prepared)
+    for name in ("scenarios.csv", "scenarios.csv.meta.json"):
+        path = stage / "scoring" / name
+        if not path.is_file() or digest(path) != driver.BASE_REFERENCE_SHA256[name]:
+            raise SystemExit(f"Staged scoring/{name} is not release 20261006's")
+    superseded = installed.get("superseded")
+    if (
+        not isinstance(superseded, list)
+        or not all(isinstance(item, dict) for item in superseded)
+        or driver.references_record(upgrade, installed) != installed
+    ):
+        raise SystemExit(
+            "stage.json's references_installed is not the installed build's record"
+        )
+    wrong = [
+        name
+        for name in driver.BUILD_COPY_FILES
+        if receipt["files"][str(Path(driver.BUILD_COPY) / name)] != upgrade.sha256[name]
+    ]
+    if wrong:
+        raise SystemExit(
+            f"Strict export receipt does not bind the installed build's bytes: {wrong}"
+        )
+    driver.verify_recorded_drops(stage, upgrade)
+    # The outputs it newly excludes are decided by the spec's
+    # upgrade_adjudications, which verify_adjudication_record holds exact.
+    driver.upgrade_decisions(upgrade)
+    return upgrade
+
+
 def verify_verdicts(stage: Path) -> None:
     """Every judged verdict passes the driver's own gate against the bound seed.
 
@@ -292,7 +364,9 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
     return receipt
 
 
-def verify_installed_exclusions(stage: Path, receipt: dict, text: str) -> str:
+def verify_installed_exclusions(
+    stage: Path, receipt: dict, text: str, upgrade: driver.Upgrade | None = None
+) -> str:
     """The stage scores on the release's exclusion record, as installed.
 
     ``text`` is release 20261006's record plus the ten ruled records
@@ -307,6 +381,10 @@ def verify_installed_exclusions(stage: Path, receipt: dict, text: str) -> str:
     expected = hashlib.sha256(text.encode()).hexdigest()
     staged = stage / bound
     if not staged.is_file() or staged.read_bytes() != text.encode():
+        if upgrade is not None:
+            raise SystemExit(
+                f"Staged {EXCLUSIONS} is not the installed engine upgrade's record"
+            )
         raise SystemExit(
             f"Staged {EXCLUSIONS} is not release 20261006's record plus the "
             f"{driver.NEW_EXCLUSIONS} ruled records ({driver.SPEC_PATH}); run "
@@ -319,24 +397,39 @@ def verify_installed_exclusions(stage: Path, receipt: dict, text: str) -> str:
     prepared = read_json(stage / "stage.json")
     installed = prepared.get("exclusions_installed")
     recorded = prepared.get("files")
+    records = driver.RELEASE_EXCLUSIONS if upgrade is None else upgrade.records
     if (
         not isinstance(installed, dict)
         or not isinstance(recorded, dict)
         or installed.get("sha256") != expected
         or installed.get("base_sha256") != driver.BASE_REFERENCE_SHA256[EXCLUSIONS]
-        or installed.get("records") != driver.RELEASE_EXCLUSIONS
+        or installed.get("records") != records
         or recorded.get(bound) != expected
+        or (
+            upgrade is not None
+            and (
+                installed.get("source") != f"{driver.BUILD_COPY}/{EXCLUSIONS}"
+                or installed.get("engine_version") != upgrade.engine_version
+                or installed.get("spec_sha256")
+                != digest(driver.ROOT / driver.SPEC_PATH)
+                or expected != upgrade.sha256[EXCLUSIONS]
+                or text != upgrade.exclusions_text
+            )
+        )
     ):
+        step = "install-exclusions" if upgrade is None else "install-references"
         raise SystemExit(
-            f"stage.json does not record the release's {driver.RELEASE_EXCLUSIONS} "
-            "exclusions as --step install-exclusions writes them "
+            f"stage.json does not record the release's {records} "
+            f"exclusions as --step {step} writes them "
             f"(exclusions_installed {installed!r}); run it, then triage and "
             "export again"
         )
     return expected
 
 
-def verify_scored_outputs(country: dict, exclusions: list[dict]) -> None:
+def verify_scored_outputs(
+    country: dict, exclusions: list[dict], upgrade: driver.Upgrade | None = None
+) -> None:
     """The payload publishes the release's exclusions and scores what remains.
 
     Its referenceExclusions name the record's outputs, in the record's order,
@@ -348,6 +441,11 @@ def verify_scored_outputs(country: dict, exclusions: list[dict]) -> None:
         for item in country.get("referenceExclusions", [])
     ]
     expected = [driver.spec_key(record) for record in exclusions]
+    if upgrade is not None and len(expected) != upgrade.records:
+        raise SystemExit(
+            "The payload's exclusion record does not count the installed "
+            "build's outputs"
+        )
     if published != expected:
         differ = sorted(set(published) ^ set(expected)) or ["their order"]
         raise SystemExit(
@@ -355,11 +453,10 @@ def verify_scored_outputs(country: dict, exclusions: list[dict]) -> None:
             f"release's {len(expected)}: {differ[:8]}"
         )
     scored = {row["model"]: row.get("n") for row in country["modelStats"]}
-    off = {model: n for model, n in scored.items() if n != driver.RELEASE_SCORED}
+    count = driver.RELEASE_SCORED if upgrade is None else upgrade.scored_outputs
+    off = {model: n for model, n in scored.items() if n != count}
     if off:
-        raise SystemExit(
-            f"Every model must be scored on {driver.RELEASE_SCORED} outputs: {off}"
-        )
+        raise SystemExit(f"Every model must be scored on {count} outputs: {off}")
 
 
 def verify_judge_provenance(
@@ -389,9 +486,13 @@ def verify_judge_provenance(
 
 
 def verify_references(
-    source_us: Path, frozen_run: Path, manifest: dict, exclusions_sha256: str
+    source_us: Path,
+    frozen_run: Path,
+    manifest: dict,
+    exclusions_sha256: str,
+    upgrade: driver.Upgrade | None = None,
 ) -> None:
-    """The references are release 20261006's; only the exclusion record moves.
+    """References match the baseline or the gated installed upgrade's pins.
 
     The reference outputs, the scenarios and their sidecars must equal release
     20261006's pins in the stage, in the committed snapshot and in the
@@ -399,8 +500,12 @@ def verify_references(
     (``exclusions_sha256``). Its committed copy and its manifest pin are
     release 20261006's before this freeze and the release's after it, so a
     second freeze finds either.
+    With an upgrade, the build's three reference files replace the staged
+    pins, while committed copies and manifest pins may be baseline or build.
+    Scenarios and their sidecar remain pinned to release 20261006.
     """
     pins = manifest["source_run_artifacts"][RUN]["files"]
+    upgraded = {} if upgrade is None else driver.upgraded_reference_pins(upgrade)
 
     def matches(path: Path, allowed: set[str]) -> bool:
         return path.is_file() and digest(path) in allowed
@@ -413,25 +518,73 @@ def verify_references(
             staged, committed = {exclusions_sha256}, {pin, exclusions_sha256}
             reason = "it is not the release's record"
             whose = "neither release 20261006's nor this release's"
+        elif upgrade is not None and name in driver.UPGRADED_FILES:
+            staged, committed = {upgraded[name]}, {pin, upgraded[name]}
+            reason = "it is not the installed engine upgrade's file"
+            whose = "neither release 20261006's nor the installed engine upgrade's"
         if not matches(source_us / name, staged):
             raise SystemExit(f"Staged {name} changed: {reason}")
         if not matches(frozen_run / name, committed):
             raise SystemExit(f"Committed {name} changed: it is {whose}")
         if pins.get(name) not in committed:
             raise SystemExit(f"Manifest pin for {name} is {whose}")
+    if upgrade is not None:
+        allowed = {
+            driver.BASE_REFERENCE_SHA256[driver.CSV_NAME],
+            upgraded[driver.CSV_NAME],
+        }
+        if not matches(frozen_run.parents[1] / "us_reference_outputs.csv", allowed):
+            raise SystemExit(
+                "Committed us_reference_outputs.csv changed: it is neither "
+                "release 20261006's nor the installed engine upgrade's"
+            )
+        if (
+            manifest["committed_snapshot_artifacts"].get("us_reference_outputs.csv")
+            not in allowed
+        ):
+            raise SystemExit(
+                "Manifest pin for us_reference_outputs.csv is neither release "
+                "20261006's nor the installed engine upgrade's"
+            )
+        if manifest["audit_annotation_artifacts"]["files"].get(EXPLANATIONS) not in {
+            driver.BASE_EXPLANATIONS_SHA256,
+            upgrade.sha256[EXPLANATIONS],
+        }:
+            raise SystemExit(
+                f"Manifest pin for {EXPLANATIONS} is neither release "
+                "20261006's nor the installed engine upgrade's"
+            )
 
 
-def verify_explanations(staged_annotations: Path) -> None:
-    """The staged reference explanations are release 20261006's, from git.
+def verify_explanations(
+    staged_annotations: Path,
+    upgrade: driver.Upgrade | None = None,
+    *,
+    stage: Path | None = None,
+) -> None:
+    """Explanations are baseline bytes or the installed build's exact bytes.
 
     A judge's prompt carries them, and this release rewords none: prepare
     copies the committed file, and no step writes it. The payload publishes
     them, so an explanation edited after export, with the payload rebuilt to
-    match and every hash updated, would otherwise pass.
+    match and every hash updated, would otherwise pass. An installed upgrade
+    instead pins them to its retained explanations file, byte for byte.
     """
-    base = driver.base_commit_blob(ANNOTATIONS / EXPLANATIONS)
+    if upgrade is None:
+        base = driver.base_commit_blob(ANNOTATIONS / EXPLANATIONS)
+    else:
+        stage = staged_annotations.parents[2] if stage is None else stage
+        built = stage / driver.BUILD_COPY / EXPLANATIONS
+        if not built.is_file() or digest(built) != upgrade.sha256[EXPLANATIONS]:
+            raise SystemExit(f"The installed build's {EXPLANATIONS} changed")
+        base = built.read_bytes()
     staged = staged_annotations / EXPLANATIONS
     if not staged.is_file() or staged.read_bytes() != base:
+        if upgrade is not None:
+            raise SystemExit(
+                f"Staged {EXPLANATIONS} is not the installed engine upgrade's "
+                "file byte for byte"
+            )
         raise SystemExit(
             f"Staged {EXPLANATIONS} changed: this release rewords no reference "
             "explanation"
@@ -444,6 +597,7 @@ def verify_adjudication_record(
     rejudged: frozenset[str],
     amendments: list[dict],
     cases_dir: Path,
+    upgrade: driver.Upgrade | None = None,
 ) -> int:
     """The staged record changes release 20261006's only as the release says.
 
@@ -467,20 +621,51 @@ def verify_adjudication_record(
         load_reference_exclusions,
     )
 
-    driver.verify_record_form(staged.read_text(), driver.base_adjudication_record())
+    decisions = driver.upgrade_decisions(upgrade)
+    driver.verify_record_form(
+        staged.read_text(),
+        driver.base_adjudication_record(),
+        driver.upgrade_wave(decisions),
+    )
     after = load_adjudications(staged)
     base = driver.base_adjudications()
-    added = driver.verify_adjudication_changes(
-        base, after, rejudged, amendments, cases_dir
+    if upgrade is None:
+        added = driver.verify_adjudication_changes(
+            base, after, rejudged, amendments, cases_dir
+        )
+        dropped = frozenset()
+    else:
+        # The outputs the upgrade newly excludes, and the triage decisions on
+        # its re-opened cases, are the spec's, gated exactly as triage gates
+        # them (driver.stage_adjudications).
+        dropped = upgrade.dropped_cases
+        added = driver.verify_adjudication_changes(
+            base,
+            after,
+            rejudged,
+            amendments,
+            cases_dir,
+            regenerated=upgrade.regenerated_ruled,
+            dropped=dropped,
+            added=decisions,
+            triage=driver.triage_items(upgrade),
+        )
+    # A dropped decision is gone, so an entry on its case is new, not restated.
+    driver.verify_restatements(
+        [entry for entry in base if driver.case_id(entry) not in dropped],
+        after,
+        rejudged,
+        cases_dir,
     )
-    driver.verify_restatements(base, after, rejudged, cases_dir)
     decided = excluded_case_keys(after)
     excluded = exclusion_keys(load_reference_exclusions(source_us))
     if decided != excluded:
+        count = driver.RELEASE_EXCLUSIONS if upgrade is None else upgrade.records
+        source = "the spec" if upgrade is None else "the installed build"
         raise SystemExit(
             "Staged adjudications and the staged exclusion record disagree on "
             f"the excluded outputs: {sorted(decided ^ excluded)[:8]}; the release "
-            f"excludes the {driver.RELEASE_EXCLUSIONS} the spec lists"
+            f"excludes the {count} {source} lists"
         )
     return added
 
@@ -522,7 +707,13 @@ def payload_differences(
     return found[:limit]
 
 
-def rebuild_payload(stage: Path, receipt: dict, payload_path: Path, live: dict) -> None:
+def rebuild_payload(
+    stage: Path,
+    receipt: dict,
+    payload_path: Path,
+    live: dict,
+    upgrade: driver.Upgrade | None = None,
+) -> None:
     """The staged payload must be what export builds from the bound bundle.
 
     The receipt binds the payload only by a hash that sits beside it, so a
@@ -549,7 +740,8 @@ def rebuild_payload(stage: Path, receipt: dict, payload_path: Path, live: dict) 
             shutil.copyfile(stage / name, target)
             if digest(target) != expected:
                 raise SystemExit(f"Staged evidence changed since strict export: {name}")
-        rebuilt = driver.payload_text(driver.build_payload(copy_root, live))
+        options = {} if upgrade is None else {"upgrade": upgrade}
+        rebuilt = driver.payload_text(driver.build_payload(copy_root, live, **options))
     staged = payload_path.read_bytes()
     if rebuilt.encode() != staged:
         differ = payload_differences(json.loads(rebuilt), json.loads(staged))
@@ -837,8 +1029,69 @@ def release_pointer(tag: str, payload_path: Path, payload_hash: str) -> dict:
     }
 
 
+def count_exclusions(
+    text: str, exclusions: list[dict], upgrade: driver.Upgrade | None = None
+) -> str:
+    """Count the record's engines, including the installed build's engine."""
+    if upgrade is None:
+        return base_count_exclusions(text, exclusions)
+    engines = (*sorted(EXCLUSION_ENGINES), upgrade.engine_version)
+    version = upgrade.engine_version.removeprefix("policyengine-us ")
+    counts = {
+        engine: sum(r["engine_version"] == engine for r in exclusions)
+        for engine in engines
+    }
+    pattern = (
+        r"the \d+ excluded outputs keep the values they were decided on: \d+ from "
+        r"policyengine-us 1\.755\.4, \d+ from 2\.15\.17"
+        rf"(?:, \d+ from {re.escape(version)})?"
+    )
+    if len(re.findall(pattern, text)) != 1:
+        raise SystemExit("the version description changed form")
+    described = [
+        f"{counts[engine]} from "
+        + (engine if i == 0 else engine.removeprefix("policyengine-us "))
+        for i, engine in enumerate(engines)
+        if i < len(EXCLUSION_ENGINES) or counts[engine]
+    ]
+    counted = (
+        f"the {len(exclusions)} excluded outputs keep the values they were decided on: "
+        + ", ".join(described)
+    )
+    text = re.sub(pattern, counted, text)
+    previous = driver.BASE_ENGINE.removeprefix("policyengine-us ")
+    versions = rf"(?:{re.escape(previous)}|{re.escape(version)})"
+    text, changed = re.subn(
+        rf"^Scored reference outputs from policyengine-us {versions} \(",
+        f"Scored reference outputs from {upgrade.engine_version} (",
+        text,
+    )
+    if changed != 1:
+        raise SystemExit("the version description names an unexpected reference engine")
+    rechecked = len(upgrade.revision.get("excluded_outputs_rechecked", []))
+    clause = (
+        f", and the {rechecked} that move on {version} were re-reviewed "
+        "and stay excluded"
+        if rechecked
+        else ""
+    )
+    text, changed = re.subn(
+        rf"({re.escape(counted)})(?:, and the \d+ that move on {versions} "
+        r"were re-reviewed "
+        r"and stay excluded)?\); same household facts",
+        lambda match: match[1] + clause + "); same household facts",
+        text,
+    )
+    if changed != 1:
+        raise SystemExit("the version description has an unexpected re-review shape")
+    return text
+
+
 def release_versions(
-    versions: dict, exclusions: list[dict], snapshot_date: str
+    versions: dict,
+    exclusions: list[dict],
+    snapshot_date: str,
+    upgrade: driver.Upgrade | None = None,
 ) -> dict:
     """The version list with the live version describing this release.
 
@@ -853,15 +1106,20 @@ def release_versions(
     if len(live) != 1 or live[0].get("artifact") != {"pointer": "live"}:
         raise SystemExit("The default version is not the one live-pointer version")
     engines = {record["engine_version"] for record in exclusions}
-    if engines != EXCLUSION_ENGINES:
+    allowed = (
+        EXCLUSION_ENGINES
+        if upgrade is None
+        else EXCLUSION_ENGINES | {upgrade.engine_version}
+    )
+    if (upgrade is None and engines != allowed) or not engines <= allowed:
         raise SystemExit(
             "The live version description counts exclusions decided on "
-            f"{sorted(EXCLUSION_ENGINES)}; the record's are {sorted(engines)}"
+            f"{sorted(allowed)}; the record's are {sorted(engines)}"
         )
     description, changed = re.subn(
         r" - \d+ models$",
         f" - {BOARD_MODELS} models",
-        count_exclusions(live[0]["description"], exclusions),
+        count_exclusions(live[0]["description"], exclusions, upgrade),
     )
     if changed != 1:
         raise SystemExit("Live version description has an unexpected model-count shape")
@@ -869,19 +1127,75 @@ def release_versions(
     return out
 
 
-def manifest_problems(before: dict, after: dict) -> list[tuple]:
+def manifest_problems(
+    before: dict, after: dict, upgrade: driver.Upgrade | None = None
+) -> list[tuple]:
     """The manifest leaves that differ outside what the release may change.
 
     A leaf may differ only under a MANIFEST_CHANGES path, and never at a
     MANIFEST_PINNED one: the pinned references and the reference explanations
     keep release 20261006's hashes.
     """
+    pinned = MANIFEST_PINNED
+    changes = MANIFEST_CHANGES
+    if upgrade is not None:
+        pinned = pinned - UPGRADE_MANIFEST_UNPINNED
+        changes += UPGRADE_MANIFEST_CHANGES
     return [
         path
         for path in leaf_paths(before, after)
-        if path in MANIFEST_PINNED
-        or not any(path[: len(prefix)] == prefix for prefix in MANIFEST_CHANGES)
+        if path in pinned
+        or not any(path[: len(prefix)] == prefix for prefix in changes)
     ]
+
+
+def upgraded_reference_refresh(stage: Path, upgrade: driver.Upgrade) -> dict:
+    """The exact refresh leaves the retained sidecar writes to the manifest.
+
+    The build gate checks the engine version; the freezer also needs the
+    complete bundle's provenance. Refuse missing or malformed fields before
+    any destination is written, with the same values used after freezing.
+    """
+    meta = read_json(stage / driver.BUILD_COPY / driver.META_NAME)
+    regenerated = meta.get("regenerated_at_utc")
+    try:
+        if not isinstance(regenerated, str) or not re.match(
+            r"\d{4}-\d{2}-\d{2}T", regenerated
+        ):
+            raise ValueError
+        timestamp = datetime.datetime.fromisoformat(regenerated)
+        if timestamp.utcoffset() != datetime.timedelta(0):
+            raise ValueError
+    except ValueError:
+        raise SystemExit(
+            "The installed engine upgrade's regenerated_at_utc must be a "
+            "nonempty ISO timestamp in UTC"
+        ) from None
+    bundle = meta["policyengine_bundles"]["us"]
+    fields = {
+        "policyengine_version": "policyengine_version",
+        "policyengine_us_version": "model_version",
+        "policyengine_us_data_build_id": "certified_data_build_id",
+        "policyengine_us_dataset": "default_dataset",
+        "policyengine_us_dataset_uri": "default_dataset_uri",
+        "policyengine_us_data_artifact_sha256": "certified_data_artifact_sha256",
+    }
+    invalid = [
+        field
+        for field in fields.values()
+        if not isinstance(bundle.get(field), str) or not bundle[field].strip()
+    ]
+    if invalid:
+        raise SystemExit(
+            "The installed engine upgrade's reference bundle metadata is "
+            f"incomplete or malformed: {invalid}"
+        )
+    return {
+        "date": regenerated[:10],
+        "regenerated_at_utc": regenerated,
+        "reference_csv_sha256": upgrade.sha256[driver.CSV_NAME],
+        **{name: bundle[field] for name, field in fields.items()},
+    }
 
 
 def verify_frozen(
@@ -896,6 +1210,7 @@ def verify_frozen(
     previous_serving: dict,
     incumbents: set[str],
     runs: dict[str, str],
+    upgrade: driver.Upgrade | None = None,
 ) -> None:
     """What the freezer wrote is the release, checked file by file.
 
@@ -911,7 +1226,21 @@ def verify_frozen(
     """
     staged_annotations = stage / "publish" / RUN / "annotations"
     frozen_run = snapshot / "runs" / RUN
-    driver.verify_reference_pins(frozen_run, "frozen reference", exclusions_sha256)
+    if upgrade is None:
+        driver.verify_reference_pins(frozen_run, "frozen reference", exclusions_sha256)
+    else:
+        for name, pin in driver.upgraded_reference_pins(upgrade).items():
+            path = frozen_run / name
+            if not path.is_file() or digest(path) != pin:
+                raise SystemExit(
+                    f"Frozen {name} is not the installed engine upgrade's file"
+                )
+        path = snapshot / "us_reference_outputs.csv"
+        if not path.is_file() or digest(path) != upgrade.sha256[driver.CSV_NAME]:
+            raise SystemExit(
+                "Frozen us_reference_outputs.csv is not the installed engine "
+                "upgrade's file"
+            )
     copied = (ADJUDICATIONS, *ANNOTATION_CSVS, EXPLANATIONS)
     frozen = sorted(path.name for path in annotations.iterdir() if path.is_file())
     if frozen != sorted((*copied, COMMITTED_AMENDMENTS)):
@@ -922,7 +1251,9 @@ def verify_frozen(
         ).read_bytes():
             raise SystemExit(f"The frozen {name} is not the staged one")
     driver.verify_record_form(
-        (annotations / ADJUDICATIONS).read_text(), driver.base_adjudication_record()
+        (annotations / ADJUDICATIONS).read_text(),
+        driver.base_adjudication_record(),
+        driver.upgrade_wave(driver.upgrade_decisions(upgrade)),
     )
     if (annotations / COMMITTED_AMENDMENTS).read_bytes() != committed_amendments(stage):
         raise SystemExit(
@@ -939,7 +1270,7 @@ def verify_frozen(
         raise SystemExit(f"Frozen serving configuration: {serving[:8]}")
     manifest = read_json(snapshot / "manifest.json")
     base = json.loads(driver.base_commit_blob(SNAPSHOT / "manifest.json"))
-    outside = manifest_problems(base, manifest)
+    outside = manifest_problems(base, manifest, upgrade)
     if outside:
         named = [".".join(map(str, path)) for path in outside[:8]]
         raise SystemExit(f"The frozen manifest changes outside the release: {named}")
@@ -952,11 +1283,11 @@ def verify_frozen(
         "model_response_date": (manifest["model_response_date"], window),
         "reference_exclusions.outputs": (
             excluded["outputs"],
-            driver.RELEASE_EXCLUSIONS,
+            driver.RELEASE_EXCLUSIONS if upgrade is None else upgrade.records,
         ),
         "reference_exclusions.scored_outputs_per_model": (
             excluded["scored_outputs_per_model"],
-            driver.RELEASE_SCORED,
+            driver.RELEASE_SCORED if upgrade is None else upgrade.scored_outputs,
         ),
         "published_dashboard_artifact": (
             manifest["published_dashboard_artifact"],
@@ -968,6 +1299,34 @@ def verify_frozen(
             exclusions_sha256,
         ),
     }
+    if upgrade is not None:
+        stated.update(
+            {
+                f"source_run_artifacts {name}": (
+                    manifest["source_run_artifacts"][RUN]["files"].get(name),
+                    pin,
+                )
+                for name, pin in driver.upgraded_reference_pins(upgrade).items()
+            }
+        )
+        stated["committed_snapshot_artifacts.us_reference_outputs.csv"] = (
+            manifest["committed_snapshot_artifacts"].get("us_reference_outputs.csv"),
+            upgrade.sha256[driver.CSV_NAME],
+        )
+        stated[f"audit_annotation_artifacts.files.{EXPLANATIONS}"] = (
+            manifest["audit_annotation_artifacts"]["files"].get(EXPLANATIONS),
+            upgrade.sha256[EXPLANATIONS],
+        )
+        refresh = upgraded_reference_refresh(stage, upgrade)
+        stated.update(
+            {
+                f"reference_output_refresh.{name}": (
+                    manifest["reference_output_refresh"].get(name),
+                    value,
+                )
+                for name, value in refresh.items()
+            }
+        )
     wrong = {name: got for name, (got, want) in stated.items() if got != want}
     if wrong:
         raise SystemExit(f"The frozen manifest does not state the release: {wrong}")
@@ -985,6 +1344,7 @@ def configure_freezer(
     previous_serving: dict,
     incumbents: set[str],
     runs: dict[str, str],
+    upgrade: driver.Upgrade | None = None,
 ) -> None:
     """Point freeze_snapshot at the stage and this release.
 
@@ -996,6 +1356,9 @@ def configure_freezer(
     freezer.SOURCE_US = source_run / "us"
     freezer.SOURCE_ANNOTATIONS = source_run / "annotations"
     freezer.REFERENCE_META_SOURCE = source_run / "us/reference_outputs.csv.meta.json"
+    freezer.REFERENCE_PINS = (
+        None if upgrade is None else driver.upgraded_reference_pins(upgrade)
+    )
     freezer.PUBLISHED_DASHBOARD_SOURCE = payload_path
     freezer.PUBLISHED_DASHBOARD_ARTIFACT = {
         key: pointer[key] for key in ("tag", "asset", "url", "sha256", "bytes")
@@ -1032,14 +1395,6 @@ def main(argv: list[str] | None = None) -> None:
     stage = args.stage_dir.resolve()
     if not stage.is_relative_to(ROOT):
         parser.error("--stage-dir must be inside this checkout")
-    if engine_upgrade_installed(stage):
-        raise SystemExit(
-            "The stage carries an engine upgrade of the references (stage.json "
-            "references_installed, from finish_haiku55.py --step "
-            "install-references). This freeze builds a release only on release "
-            "20261006's references; extend it for the upgrade before freezing."
-        )
-
     import freeze_snapshot as freezer
     import pandas as pd
 
@@ -1052,12 +1407,20 @@ def main(argv: list[str] | None = None) -> None:
     payload_path = stage / f"data-board{BOARD_MODELS}.json"
     receipt = verify_receipt(stage, payload_path, args.tag)
     spec = release_spec(args.tag)
+    upgrade = verify_upgrade(stage, receipt)
     snapshot_date = spec["snapshot_date"]
     # The release's exclusion record, rebuilt from git and the spec: what the
     # stage must score on and the freeze must commit.
-    exclusions = driver.build_release_exclusions(driver.base_exclusion_record(), spec)
+    if upgrade is None:
+        exclusions = driver.build_release_exclusions(
+            driver.base_exclusion_record(), spec
+        )
+        exclusions_text = driver.exclusions_text(exclusions)
+    else:
+        exclusions_text = upgrade.exclusions_text
+        exclusions = json.loads(exclusions_text)
     exclusions_sha256 = verify_installed_exclusions(
-        stage, receipt, driver.exclusions_text(exclusions)
+        stage, receipt, exclusions_text, upgrade
     )
     # Claude Haiku 5.5's run files are the committed pins' and its bundle rows
     # are its run file's, every column: its cost, tokens and latency included.
@@ -1091,18 +1454,44 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(
             f"Frozen incumbent roster and staged {BOARD_MODELS}-model roster disagree"
         )
-    verify_scored_outputs(payload["countries"]["us"], exclusions["exclusions"])
+    verify_scored_outputs(payload["countries"]["us"], exclusions["exclusions"], upgrade)
     source_run = stage / "publish" / RUN
     source_us = source_run / "us"
     staged_annotations = source_run / "annotations"
     verify_references(
-        source_us, frozen_run, read_json(snapshot / "manifest.json"), exclusions_sha256
+        source_us,
+        frozen_run,
+        read_json(snapshot / "manifest.json"),
+        exclusions_sha256,
+        upgrade,
     )
-    verify_explanations(staged_annotations)
+    verify_explanations(staged_annotations, upgrade, stage=stage)
+    if upgrade is not None:
+        # The engine-setup note must be supported before any destination is
+        # written, including the pointer. Restore the freezer's input path so
+        # dry-run leaves its configuration alone.
+        previous_meta = freezer.REFERENCE_META_SOURCE
+        try:
+            freezer.REFERENCE_META_SOURCE = source_us / driver.META_NAME
+            setup = freezer.read_reference_engine_setup()
+            if setup["convention_count"] not in freezer.NUMBER_WORDS:
+                raise SystemExit(
+                    "The installed engine upgrade names an unsupported "
+                    f"publication convention count: {setup['convention_count']}"
+                )
+        finally:
+            freezer.REFERENCE_META_SOURCE = previous_meta
+        upgraded_reference_refresh(stage, upgrade)
+        freezer.reference_policyengine_bundles(
+            source_us / driver.CSV_NAME,
+            "us",
+            require_digest=True,
+            manifest_reference_sha256=upgrade.sha256[driver.CSV_NAME],
+        )
     del payload, stats
     # Export's own build, the incumbents' scope check included.
     base = driver.base_payload_from_commit()
-    rebuild_payload(stage, receipt, payload_path, base)
+    rebuild_payload(stage, receipt, payload_path, base, upgrade)
     del base
     verify_verdicts(stage)
     rejudged = driver.rejudged_cases(stage)
@@ -1110,7 +1499,12 @@ def main(argv: list[str] | None = None) -> None:
     amendments = driver.load_amendments(stage, rejudged)
     cases_dir = stage / "audit" / "cases"
     added = verify_adjudication_record(
-        staged_annotations / ADJUDICATIONS, source_us, rejudged, amendments, cases_dir
+        staged_annotations / ADJUDICATIONS,
+        source_us,
+        rejudged,
+        amendments,
+        cases_dir,
+        upgrade,
     )
     verify_annotation_amendments(staged_annotations, amendments, stage / "audit")
     previous_rows = base_prediction_rows()
@@ -1167,13 +1561,26 @@ def main(argv: list[str] | None = None) -> None:
     pointer = release_pointer(args.tag, payload_path, payload_hash)
     versions_path = ROOT / VERSIONS
     versions = release_versions(
-        read_json(versions_path), exclusions["exclusions"], snapshot_date
+        read_json(versions_path), exclusions["exclusions"], snapshot_date, upgrade
     )
     if args.dry_run:
+        references = (
+            "references unchanged"
+            if upgrade is None
+            else f"references upgraded to {upgrade.engine_version}"
+        )
+        records = driver.RELEASE_EXCLUSIONS if upgrade is None else upgrade.records
+        new = (
+            driver.NEW_EXCLUSIONS
+            if upgrade is None
+            else driver.NEW_EXCLUSIONS
+            - len(upgrade.regenerated_ruled)
+            + len(upgrade.added)
+        )
         print(
             f"Validated local release inputs: {args.tag}, {BOARD_MODELS} models, "
-            f"{payload_hash}; references unchanged; {driver.RELEASE_EXCLUSIONS} "
-            f"exclusions ({driver.NEW_EXCLUSIONS} new); {added} adjudications "
+            f"{payload_hash}; {references}; {records} "
+            f"exclusions ({new} new); {added} adjudications "
             f"added beyond the ruled outputs; {len(amendments)} wording "
             f"amendments; model responses {window}; snapshot {snapshot_date}; "
             "nothing written"
@@ -1191,6 +1598,7 @@ def main(argv: list[str] | None = None) -> None:
         previous_serving=previous_serving,
         incumbents=incumbents,
         runs=runs,
+        upgrade=upgrade,
     )
     write_json(ROOT / POINTER, pointer)
     write_json(versions_path, versions)
@@ -1214,6 +1622,7 @@ def main(argv: list[str] | None = None) -> None:
         previous_serving=previous_serving,
         incumbents=incumbents,
         runs=runs,
+        upgrade=upgrade,
     )
     cache = ROOT / "app/.cache" / f"dashboard-data-{payload_hash[:16]}.json"
     cache.parent.mkdir(parents=True, exist_ok=True)
