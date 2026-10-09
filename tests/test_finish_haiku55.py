@@ -184,13 +184,6 @@ def test_the_spec_names_this_drivers_release_and_base():
     assert spec["decided_on"] == "2026-10-06"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="open item: docs/haiku55/spec.json does not name "
-    "adjudications_written_on, which release_date_conventions, triage and the "
-    "freeze read; remove this marker once it does",
-)
 def test_the_spec_names_the_day_the_decisions_were_written():
     written = real_spec().get("adjudications_written_on")
     assert isinstance(written, str) and re.fullmatch(r"2026-\d\d-\d\d", written)

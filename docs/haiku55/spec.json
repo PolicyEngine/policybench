@@ -192,5 +192,6 @@
       "with": "PolicyEngine/policyengine-us#9948",
       "source": "merged 2026-10-09; regenerating the reference waits for a release with an engine bump (d1022)"
     }
-  ]
+  ],
+  "adjudications_written_on": "2026-10-09"
 }
