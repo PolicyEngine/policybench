@@ -1650,3 +1650,72 @@ def test_a_series_keeps_every_part_in_order(parts):
         position = text.index(part, position) + len(part)
     assert text.count(" and ") == (1 if len(parts) >= 2 else 0)
     assert text.count(", ") == max(0, len(parts) - 2)
+
+
+def _MOCK_october_timing(check: dict) -> dict:
+    """MOCK timing record for the frozen engine, never a real sweep's."""
+    engine = r.policyengine_us_version
+    return {
+        "pypi": {
+            "read_at_utc": "2026-10-10T08:15:00Z",
+            "newest_at_read": check["engine"],
+            "wheel_uploaded_at_utc": {engine: "2026-10-10T02:20:11.5Z"},
+        },
+        "reference_sweep": {
+            "engine": engine,
+            "first_output_at_utc": "2026-10-10T02:41:00Z",
+        },
+        "publication_check": check,
+    }
+
+
+def _with_timing(tmp_path, monkeypatch, record: dict | None) -> PaperResults:
+    from policybench import paper_results
+
+    path = tmp_path / "sweep_timing.json"
+    if record is not None:
+        path.write_text(json.dumps(record))
+    monkeypatch.setattr(paper_results, "OCTOBER_SWEEP_TIMING", path)
+    return PaperResults()
+
+
+def test_the_upgrade_timing_sentence_states_the_timing_record(tmp_path, monkeypatch):
+    """MOCK records: the sentence gives the sweep's day, the engine's upload
+    time and what the publication check found; without a record it is empty,
+    and a check that moved outputs, or none, stops the render."""
+    engine = r.policyengine_us_version
+    assert (
+        _with_timing(tmp_path, monkeypatch, None).engine_upgrade_timing_sentence == ""
+    )
+    still = _with_timing(
+        tmp_path, monkeypatch, _MOCK_october_timing({"engine": engine})
+    )
+    assert still.engine_upgrade_timing_sentence == (
+        f"policyengine-us {engine} was the newest release when PolicyBench began "
+        "sweeping the references on 2026-10-10 (uploaded 02:20 UTC). It was still "
+        "the newest release when PolicyBench checked PyPI on 2026-10-10 at 08:15 UTC."
+    )
+    same = {"engine": "9.9.9", "outputs": 1984, "same": 1984, "differ": []}
+    newer = _with_timing(tmp_path, monkeypatch, _MOCK_october_timing(same))
+    assert newer.engine_upgrade_timing_sentence.endswith(
+        "policyengine-us 9.9.9, the newest release when PolicyBench checked PyPI on "
+        f"2026-10-10 at 08:15 UTC, gives the same value as {engine} for all 1,984 "
+        "outputs under the same conventions and adapter."
+    )
+    moved = {"engine": "9.9.9", "outputs": 1984, "same": 1983, "differ": ["s|v"]}
+    with pytest.raises(ValueError, match="state what the publication check found"):
+        _with_timing(
+            tmp_path, monkeypatch, _MOCK_october_timing(moved)
+        ).engine_upgrade_timing_sentence
+    unchecked = _MOCK_october_timing({"engine": engine})
+    del unchecked["publication_check"]
+    with pytest.raises(ValueError, match="records no publication check"):
+        _with_timing(tmp_path, monkeypatch, unchecked).engine_upgrade_timing_sentence
+    other = _MOCK_october_timing({"engine": engine})
+    other["reference_sweep"]["engine"] = "0.0.1"
+    with pytest.raises(ValueError, match="times policyengine-us 0.0.1"):
+        _with_timing(tmp_path, monkeypatch, other).engine_upgrade_timing_sentence
+    assert (
+        "`{python} r.engine_upgrade_timing_sentence`"
+        in (ROOT / "paper/index.qmd").read_text()
+    )

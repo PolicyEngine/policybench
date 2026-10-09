@@ -71,6 +71,13 @@ SWEEP_TIMING = UPGRADE_VERIFICATION / "sweep_timing.json"
 # What each exclusion sweep re-run on the reference engine moves.
 RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
 
+# The 2026-10-09 move's audit: its builder, and the timing record and
+# publication check scripts/sweep_timing.py writes there.
+OCTOBER_UPGRADE_AUDIT = "reference_audit/2026-10-09-engine-upgrade"
+OCTOBER_SWEEP_TIMING = (
+    ROOT / OCTOBER_UPGRADE_AUDIT / "verification" / "sweep_timing.json"
+)
+
 # How the paper names each engine defect an upgrade can fix, after the audits'
 # own statements of them (reference_audit/2026-09-22/root_causes.json and
 # reference_audit/2026-10-05-reference-adversary/proposed_changes.json). An
@@ -1796,6 +1803,58 @@ class PaperResults:
     @property
     def engine_upgrade_restored_count_word(self) -> str:
         return count_word(self.engine_upgrade_restored_count)
+
+    @cached_property
+    def engine_upgrade_timing(self) -> dict | None:
+        """The last upgrade's sweep timing record, when that upgrade is the
+        2026-10-09 audit's build and the record is written (None before)."""
+        last = self.last_engine_upgrade
+        if last is None or not str(last.revision.get("builder", "")).startswith(
+            OCTOBER_UPGRADE_AUDIT
+        ):
+            return None
+        if not OCTOBER_SWEEP_TIMING.is_file():
+            return None
+        timing = json.loads(OCTOBER_SWEEP_TIMING.read_text())
+        if timing["reference_sweep"]["engine"] != last.engine_version:
+            raise ValueError(
+                f"{OCTOBER_SWEEP_TIMING} times policyengine-us "
+                f"{timing['reference_sweep']['engine']}, not {last.engine_version}"
+            )
+        return timing
+
+    @property
+    def engine_upgrade_timing_sentence(self) -> str:
+        """When the last upgrade's sweep began and what the publication check
+        found, from its timing record; empty until the record is written."""
+        timing = self.engine_upgrade_timing
+        if timing is None:
+            return ""
+        engine = timing["reference_sweep"]["engine"]
+        began = timing["reference_sweep"]["first_output_at_utc"][:10]
+        uploaded = timing["pypi"]["wheel_uploaded_at_utc"][engine][11:16]
+        read_at = timing["pypi"]["read_at_utc"]
+        check = timing.get("publication_check")
+        if check is None or check["engine"] != timing["pypi"]["newest_at_read"]:
+            raise ValueError(f"{OCTOBER_SWEEP_TIMING} records no publication check")
+        when = f"PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC"
+        if check["engine"] == engine:
+            checked = f"It was still the newest release when {when}."
+        elif check["same"] == check["outputs"]:
+            checked = (
+                f"policyengine-us {check['engine']}, the newest release when {when}, "
+                f"gives the same value as {engine} for all {check['outputs']:,} "
+                "outputs under the same conventions and adapter."
+            )
+        else:
+            raise ValueError(
+                f"policyengine-us {check['engine']} moves {check['differ']}; state "
+                "what the publication check found before publishing"
+            )
+        return (
+            f"policyengine-us {engine} was the newest release when PolicyBench began "
+            f"sweeping the references on {began} (uploaded {uploaded} UTC). {checked}"
+        )
 
     @property
     def engine_upgrade_restored_fixes(self) -> list[tuple[str, int, list[str]]]:
