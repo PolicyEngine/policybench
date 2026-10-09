@@ -553,6 +553,24 @@ def test_a_tag_that_is_not_a_dated_release_is_refused(freeze_preflight):
         release.main(["--stage-dir", str(stage), "--tag", "latest", "--dry-run"])
 
 
+def test_the_freeze_refuses_a_stage_with_an_engine_upgrade(freeze_preflight):
+    """finish_haiku55.py --step install-references moves the stage's
+    references to a newer engine; this freeze builds only on release
+    20261006's references, so it refuses before reading or writing anything."""
+    stage, _, _ = freeze_preflight
+    assert not release.engine_upgrade_installed(stage)  # stage.json is not JSON
+    assert not release.engine_upgrade_installed(stage / "absent")
+    (stage / "stage.json").write_text(
+        json.dumps({"references_installed": {"engine_version": "MOCK 2.37.1"}})
+    )
+    assert release.engine_upgrade_installed(stage)
+    before = workspace_files()
+    for dry_run in ([], ["--dry-run"]):
+        with pytest.raises(SystemExit, match="engine upgrade of the references"):
+            release.main(["--stage-dir", str(stage), *dry_run])
+    assert workspace_files() == before
+
+
 @pytest.mark.parametrize(
     "defect",
     [

@@ -200,6 +200,16 @@ def release_spec(tag: str) -> dict:
     return spec
 
 
+def engine_upgrade_installed(stage: Path) -> bool:
+    """Whether the stage's stage.json records an installed engine upgrade of
+    the references; an unreadable stage.json is left to the later gates."""
+    try:
+        receipt = read_json(stage / "stage.json")
+    except (OSError, ValueError):
+        return False
+    return isinstance(receipt, dict) and bool(receipt.get("references_installed"))
+
+
 def verify_verdicts(stage: Path) -> None:
     """Every judged verdict passes the driver's own gate against the bound seed.
 
@@ -1022,6 +1032,13 @@ def main(argv: list[str] | None = None) -> None:
     stage = args.stage_dir.resolve()
     if not stage.is_relative_to(ROOT):
         parser.error("--stage-dir must be inside this checkout")
+    if engine_upgrade_installed(stage):
+        raise SystemExit(
+            "The stage carries an engine upgrade of the references (stage.json "
+            "references_installed, from finish_haiku55.py --step "
+            "install-references). This freeze builds a release only on release "
+            "20261006's references; extend it for the upgrade before freezing."
+        )
 
     import freeze_snapshot as freezer
     import pandas as pd

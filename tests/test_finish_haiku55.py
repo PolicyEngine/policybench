@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import csv
 import functools
 import gzip
 import hashlib
 import inspect
+import io
 import json
 import re
 import shutil
@@ -3484,7 +3486,7 @@ def scope(monkeypatch):
     import policybench.dashboard_schema
     import policybench.full_run_export
 
-    state = SimpleNamespace(stats=None, scoped=None, calls=[], gates=[])
+    state = SimpleNamespace(stats=None, scoped=None, calls=[], gates=[], references=[])
 
     def export_full_run(run_dir, **kwargs):
         state.calls.append(("export_full_run", Path(run_dir), kwargs))
@@ -3493,6 +3495,14 @@ def scope(monkeypatch):
     def export_payload(bundle, base, exclusions=None):
         state.calls.append(
             ("export_payload", Path(bundle), base, Path(exclusions).read_bytes())
+        )
+        # The reference files the scope export reads, where the bundle has them.
+        state.references.append(
+            {
+                name: (Path(bundle) / "us" / name).read_bytes()
+                for name in driver.REFERENCE_FILES
+                if (Path(bundle) / "us" / name).is_file()
+            }
         )
         return {"countries": {"us": {"modelStats": copy.deepcopy(state.scoped)}}}
 
@@ -3507,11 +3517,24 @@ def scope(monkeypatch):
     )
     monkeypatch.setattr(driver, "base_exclusion_record", base_record)
 
-    def build(stats, scoped, live_stats, *, partial=False, early=False, bundle=None):
+    def build(
+        stats,
+        scoped,
+        live_stats,
+        *,
+        partial=False,
+        early=False,
+        bundle=None,
+        upgrade=None,
+    ):
         state.stats, state.scoped = stats, scoped
         live = {"countries": {"us": {"modelStats": live_stats}}}
         return driver.build_payload(
-            bundle or Path("bundle"), live, partial=partial, early=early
+            bundle or Path("bundle"),
+            live,
+            partial=partial,
+            early=early,
+            upgrade=upgrade,
         )
 
     state.build = build
@@ -4769,3 +4792,2045 @@ def test_the_provenance_record_of_the_live_stage_passes_the_export_gate():
         path = Path(scratch) / "judge_provenance.json"
         path.write_text(json.dumps(record))
         driver.verify_judge_provenance(cases, rejudged, path)
+
+
+# --- An engine upgrade of the references (--step install-references) ---------
+#
+# MOCK DATA. Every build below is synthetic: its engine version, its moves, its
+# new exclusion records, its traces and its narratives are invented for these
+# tests. They are shaped like the hub's preview sweep (reviews/policybench-pe-
+# upgrade-2026-10-09/cells_pe2.37.1.md) and like the records reference_audit/
+# 2026-10-09-engine-upgrade/scripts/build_references_upgrade.py writes, but
+# they are not published references and must never be read as results.
+
+MOCK_ENGINE = "policyengine-us 2.37.1"
+MOCK_DATE = "2026-10-09"
+CSV_NAME, META_NAME = "reference_outputs.csv", "reference_outputs.csv.meta.json"
+TRACES_NAME = "reference_traces.json"
+EXPLANATIONS_PATH = Path("annotations") / driver.RUN_NAME / driver.EXPLANATIONS_NAME
+STATE_TAX = "state_income_tax_before_refundable_credits"
+TAIL = ("scenario_023", "head_medicaid_eligible")
+# A scored output the mock engine moves beyond the tolerance, approved.
+MOCK_APPROVED = {("scenario_076", STATE_TAX): 6828.34}
+# Two scored outputs the mock engine moves onto an unstated county: new
+# unlisted-input exclusions, frozen at the mock engine's values.
+MOCK_NEW = {
+    ("scenario_015", "local_income_tax"): 670.55,
+    ("scenario_067", "local_income_tax"): 1348.83,
+}
+# The four d1022 engine-defect cells, regenerated near their records'
+# alternative values (as cells_pe2.37.1 shows them).
+MOCK_REGENERATED_RULED = {
+    ("scenario_018", STATE_TAX): 1137.30,
+    ("scenario_025", STATE_TAX): 1916.61,
+    ("scenario_043", "state_refundable_credits"): 0.0,
+    ("scenario_082", "state_refundable_credits"): 1187.61,
+}
+# A release 20261006 engine-defect record (r06 + r32, alternative $0) the mock
+# engine fixes.
+WI_042 = ("scenario_042", STATE_TAX)
+WI_042_CASE = "us__scenario_042__state_income_tax_before_refundable_credits"
+# A release 20261006 unlisted-input record (no engine can fix it).
+MEDICARE_007 = ("scenario_007", "head_medicare_eligible")
+
+
+def sha(data) -> str:
+    raw = data.read_bytes() if isinstance(data, Path) else data
+    return hashlib.sha256(raw).hexdigest()
+
+
+def mock_new_record(key, value, engine=MOCK_ENGINE) -> dict:
+    """MOCK: a new unlisted-input exclusion on the mock engine."""
+    return {
+        "scenario_id": key[0],
+        "variable": key[1],
+        "reason_code": "reference_depends_on_unlisted_input",
+        "unlisted_input": "county_fips",
+        "alternative_reading": "MOCK: the household lives in a county with no tax.",
+        "frozen_value": value,
+        "alternative_value": 0.0,
+        "engine_version": engine,
+        "decided_on": MOCK_DATE,
+        "decided_by": "developer",
+        "note": "MOCK record for the install-references tests.",
+    }
+
+
+def csv_with(base: bytes, values: dict) -> bytes:
+    """The base reference CSV with each listed output's value field rewritten
+    and every other row byte for byte, as the builder writes it."""
+    lines = base.decode().splitlines(keepends=True)
+    out = [lines[0]]
+    for line in lines[1:]:
+        fields = next(csv.reader([line]))
+        if (fields[0], fields[1]) in values:
+            fields[2] = repr(float(values[(fields[0], fields[1])]))
+            buffer = io.StringIO()
+            csv.writer(buffer, lineterminator="\n").writerow(fields)
+            line = buffer.getvalue()
+        out.append(line)
+    return "".join(out).encode()
+
+
+def explanations_with(base: bytes, values: dict) -> bytes:
+    """The base explanations with each listed output's row rewritten as the
+    narratives script rewrites it (MOCK narrative text)."""
+    rows = list(csv.reader(io.StringIO(base.decode(), newline="")))
+    header = rows[0]
+    index = {name: header.index(name) for name in header}
+    for row in rows[1:]:
+        key = (row[index["scenario_id"]], row[index["variable"]])
+        if key in values:
+            row[index["reference_value"]] = repr(float(values[key]))
+            row[index["trace_lines"]] = "3"
+            row[index["explanation"]] = (
+                f"MOCK narrative: PolicyEngine calculated ${values[key]:,.2f}."
+            )
+            row[index["error"]] = ""
+    buffer = io.StringIO()
+    csv.writer(buffer, lineterminator="\n").writerows(rows)
+    return buffer.getvalue().encode()
+
+
+def write_build(
+    root: Path,
+    base_files: dict,
+    base_explanations: bytes,
+    release_doc: dict,
+    ruled_keys,
+    *,
+    approved=None,
+    regenerated=None,
+    added=None,
+    rechecked=None,
+    engine=MOCK_ENGINE,
+) -> SimpleNamespace:
+    """MOCK: a reference build in the shape build_references_upgrade.py writes.
+
+    ``approved`` and ``regenerated`` map outputs to their new values,
+    ``added`` maps outputs to new exclusion records (frozen at the new value),
+    ``rechecked`` maps kept excluded outputs to their mock-engine values. The
+    build's exclusion record is ``release_doc`` less the regenerated records,
+    with the added ones before the trailing audit record.
+    """
+    approved, regenerated = dict(approved or {}), dict(regenerated or {})
+    added, rechecked = dict(added or {}), dict(rechecked or {})
+    base_values = driver.reference_values(base_files[CSV_NAME])
+    records = {driver.spec_key(r): r for r in release_doc["exclusions"]}
+    moves = {**approved, **regenerated}
+    moves |= {key: float(record["frozen_value"]) for key, record in added.items()}
+    moved = {k: v for k, v in moves.items() if float(v) != base_values[k]}
+    csv_blob = csv_with(base_files[CSV_NAME], moved)
+    doc = copy.deepcopy(release_doc)
+    kept = [r for r in doc["exclusions"] if driver.spec_key(r) not in regenerated]
+    tail = kept[-1:] if kept and driver.spec_key(kept[-1]) == TAIL else []
+    doc["exclusions"] = kept[: len(kept) - len(tail)]
+    doc["exclusions"] += [added[k] for k in sorted(added)] + tail
+    doc["derivation"] += f" MOCK: on {MOCK_DATE} the references moved to {engine}."
+    number = engine.removeprefix("policyengine-us ")
+    kept_ruled = [
+        {"scenario_id": k[0], "variable": k[1]}
+        for k in sorted(set(ruled_keys) - set(regenerated))
+    ]
+    actions = {
+        "engine": engine,
+        "previous_engine": driver.BASE_ENGINE,
+        "date": MOCK_DATE,
+        "draft": False,
+        "approved": [
+            {
+                "scenario_id": k[0],
+                "variable": k[1],
+                "value": v,
+                "cause": "mock_move",
+                "basis": "MOCK basis.",
+            }
+            for k, v in sorted(approved.items())
+        ],
+        "regenerated_exclusions": [
+            {
+                "scenario_id": k[0],
+                "variable": k[1],
+                "alternative_value": records[k]["alternative_value"],
+                "tolerance": 1.0,
+                "upstream": "MOCK upstream fix",
+                "basis": "MOCK basis.",
+            }
+            for k in sorted(regenerated)
+        ],
+        "new_exclusions": [added[k] for k in sorted(added)],
+        "excluded_rechecked": [
+            {"scenario_id": k[0], "variable": k[1], "reason": "MOCK reason."}
+            for k in sorted(rechecked)
+        ],
+        "kept_exclusions_from_release": kept_ruled,
+    }
+    actions_blob = (json.dumps(actions, indent=2) + "\n").encode()
+    changed = [
+        {
+            "scenario_id": k[0],
+            "variable": k[1],
+            "frozen": base_values[k],
+            "previous": base_values[k],
+            "regenerated": float(v),
+            "cause": "mock",
+            "basis": "MOCK basis.",
+        }
+        for k, v in sorted(moved.items())
+    ]
+    revision = {
+        "date": MOCK_DATE,
+        "kind": "engine_upgrade",
+        "root_cause": "engine_upgrade_policyengine_us_" + number.replace(".", "_"),
+        "outputs": "every scored output",
+        "rule": "MOCK rule.",
+        "engine_version": engine,
+        "previous_engine_version": driver.BASE_ENGINE,
+        "policyengine_py": "MOCK",
+        "fix_modules": [],
+        "builder": "MOCK",
+        "provenance": {
+            "actions_sha256": sha(actions_blob),
+            "base_commit": driver.BASE_COMMIT,
+        },
+        "excluded_outputs_untouched": True,
+        "kept_exclusions_from_release": kept_ruled,
+        "excluded_outputs_rechecked": [
+            {
+                "scenario_id": k[0],
+                "variable": k[1],
+                "kept_value": base_values[k],
+                "value_on_" + number.replace(".", "_"): v,
+                "reason": "MOCK reason.",
+            }
+            for k, v in sorted(rechecked.items())
+        ],
+        "regenerated_exclusions": [
+            {
+                "scenario_id": k[0],
+                "variable": k[1],
+                "regenerated": float(v),
+                "removed_record": records[k],
+            }
+            for k, v in sorted(regenerated.items())
+        ],
+        "new_exclusions": [
+            {"scenario_id": k[0], "variable": k[1]} for k in sorted(added)
+        ],
+        "changed": changed,
+    }
+    meta = json.loads(base_files[META_NAME])
+    meta["policyengine_bundles"]["us"]["model_version"] = number
+    meta["reference_csv_sha256"] = sha(csv_blob)
+    meta["regenerated_at_utc"] = f"{MOCK_DATE}T18:00:00+00:00"
+    meta["revisions"].append(revision)
+    out = root / "out"
+    out.mkdir(parents=True)
+    (out / CSV_NAME).write_bytes(csv_blob)
+    (out / META_NAME).write_text(json.dumps(meta, indent=2) + "\n")
+    (out / EXCLUSIONS_NAME).write_text(driver.exclusions_text(doc))
+    traces = {
+        f"{item['scenario_id']}|{item['variable']}": {
+            "pe_variable": item["variable"],
+            "trace": "MOCK trace",
+        }
+        for item in changed
+    }
+    (out / TRACES_NAME).write_text(json.dumps(traces, indent=1))
+    explanations = root / driver.EXPLANATIONS_NAME
+    explanations.write_bytes(explanations_with(base_explanations, moved))
+    actions_path = root / driver.ACTIONS_NAME
+    actions_path.write_bytes(actions_blob)
+    return SimpleNamespace(
+        built=out,
+        explanations=explanations,
+        actions=actions_path,
+        moved=moved,
+        root=root,
+    )
+
+
+@functools.cache
+def _real_baseline_files() -> tuple:
+    files = {name: base_blob(SNAPSHOT_PATH / name) for name in driver.UPGRADED_FILES}
+    return files, base_blob(EXPLANATIONS_PATH)
+
+
+def upgrade_spec_dict(regenerated=MOCK_REGENERATED_RULED) -> dict:
+    spec = real_spec()
+    spec["regenerated_by_upgrade"] = {
+        "note": "MOCK: the d1022 engine-defect records the upgrade regenerates.",
+        "outputs": [list(key) for key in sorted(regenerated)],
+    }
+    return spec
+
+
+@pytest.fixture
+def upgrade_spec(monkeypatch):
+    """The spec with regenerated_by_upgrade naming the four d1022 defects."""
+    spec = upgrade_spec_dict()
+    monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
+    return spec
+
+
+def real_build(root: Path, **changes) -> SimpleNamespace:
+    """MOCK: a build on release 20261006's real references: one approved move,
+    two new county exclusions and the four d1022 cells regenerated, unless
+    ``changes`` says otherwise."""
+    files, explanations = _real_baseline_files()
+    options = {
+        "approved": MOCK_APPROVED,
+        "regenerated": MOCK_REGENERATED_RULED,
+        "added": {k: mock_new_record(k, v) for k, v in MOCK_NEW.items()},
+    }
+    options.update(changes)
+    return write_build(
+        root,
+        files,
+        explanations,
+        json.loads(release_text()),
+        set(_records_by_key()),
+        **options,
+    )
+
+
+def load(build: SimpleNamespace, baseline=None):
+    return driver.load_build(
+        build.built, build.explanations, build.actions, baseline=baseline
+    )
+
+
+def edit_json(path: Path, change, *, indent=2) -> None:
+    value = json.loads(path.read_text())
+    change(value)
+    path.write_text(json.dumps(value, indent=indent) + "\n")
+
+
+def repin_csv(build: SimpleNamespace) -> None:
+    """Rebind the sidecar to the build's (edited) reference CSV."""
+    edit_json(
+        build.built / META_NAME,
+        lambda meta: meta.update(reference_csv_sha256=sha(build.built / CSV_NAME)),
+    )
+
+
+def last_revision(meta: dict) -> dict:
+    return meta["revisions"][-1]
+
+
+def test_the_upgrade_constants_name_release_20261006s_files():
+    """The pins an upgrade is gated against are release 20261006's, from git."""
+    assert driver.UPGRADED_FILES == (CSV_NAME, META_NAME, EXCLUSIONS_NAME)
+    assert set(driver.UPGRADED_FILES) < set(driver.REFERENCE_FILES)
+    assert driver.BASE_EXPLANATIONS_SHA256 == sha(base_blob(EXPLANATIONS_PATH))
+    assert driver.base_explanations_bytes() == base_blob(EXPLANATIONS_PATH)
+    for name in driver.UPGRADED_FILES:
+        assert driver.base_reference_bytes(name) == base_blob(SNAPSHOT_PATH / name)
+    meta = json.loads(base_blob(SNAPSHOT_PATH / META_NAME))
+    assert last_revision(meta)["kind"] == "engine_upgrade"
+    assert last_revision(meta)["engine_version"] == driver.BASE_ENGINE
+
+
+def test_a_build_on_release_20261006_passes_every_gate(upgrade_spec, tmp_path):
+    """MOCK build: one approved move, two new exclusions, the four d1022
+    defect cells regenerated. 74 - 4 + 2 = 72 records, 1,912 scored outputs."""
+    build = real_build(tmp_path)
+    upgrade = load(build)
+    assert upgrade.engine_version == MOCK_ENGINE
+    assert upgrade.previous_engine_version == driver.BASE_ENGINE
+    assert set(upgrade.changed) == {*MOCK_APPROVED, *MOCK_NEW, *MOCK_REGENERATED_RULED}
+    assert upgrade.changed == pytest.approx(build.moved)
+    assert upgrade.regenerated_ruled == frozenset(MOCK_REGENERATED_RULED)
+    assert upgrade.regenerated_base == frozenset()
+    assert upgrade.added == frozenset(MOCK_NEW)
+    assert upgrade.records == 72 and upgrade.scored_outputs == 1912
+    assert upgrade.sha256 == {
+        **{name: sha(build.built / name) for name in driver.BUILT_FILES},
+        driver.EXPLANATIONS_NAME: sha(build.explanations),
+        driver.ACTIONS_NAME: sha(build.actions),
+    }
+    assert upgrade.upgraded_cases == {driver.output_case(k) for k in build.moved}
+    assert upgrade.dropped_cases == frozenset()
+    assert upgrade.exclusions_text == (build.built / EXCLUSIONS_NAME).read_text()
+
+
+def test_a_build_may_regenerate_a_20261006_engine_defect(upgrade_spec, tmp_path):
+    """WI 042 lands on its record's alternative ($0): its record leaves, and
+    its release 20261006 decision is the one adjudicate-exclusions drops."""
+    regenerated = {**MOCK_REGENERATED_RULED, WI_042: 0.4}
+    upgrade = load(real_build(tmp_path, regenerated=regenerated))
+    assert upgrade.regenerated_base == {WI_042}
+    assert upgrade.regenerated == frozenset(regenerated)
+    assert upgrade.records == 71
+    assert upgrade.dropped_cases == {WI_042_CASE}
+
+
+def test_without_regenerated_by_upgrade_the_ruled_records_stay(tmp_path, monkeypatch):
+    """The spec as committed names no regenerated record: a build that keeps
+    all ten passes, one that regenerates the four is refused."""
+    spec = real_spec()
+    spec.pop("regenerated_by_upgrade", None)
+    monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
+    kept = load(real_build(tmp_path / "kept", regenerated={}))
+    assert kept.regenerated_ruled == frozenset() and kept.records == 76
+    with pytest.raises(SystemExit, match="regenerated_by_upgrade names \\[\\]"):
+        load(real_build(tmp_path / "regenerated"))
+
+
+def _edit_revision(change):
+    return lambda meta: change(last_revision(meta))
+
+
+SIDECAR_TAMPERS = {
+    "an_earlier_revision": (
+        lambda meta: meta["revisions"][0].update(date="2026-09-21"),
+        "keep release 20261006's revisions and add one",
+    ),
+    "two_revisions": (
+        lambda meta: meta["revisions"].append(copy.deepcopy(meta["revisions"][-1])),
+        "keep release 20261006's revisions and add one",
+    ),
+    "not_an_upgrade": (
+        _edit_revision(lambda r: r.update(kind="convention")),
+        "is not an engine_upgrade",
+    ),
+    "from_another_engine": (
+        _edit_revision(
+            lambda r: r.update(previous_engine_version="policyengine-us 2.15.16")
+        ),
+        "does not upgrade from policyengine-us 2.15.17",
+    ),
+    "to_the_same_engine": (
+        _edit_revision(lambda r: r.update(engine_version=driver.BASE_ENGINE)),
+        "names no newer engine",
+    ),
+    "unpinned_csv": (
+        lambda meta: meta.update(reference_csv_sha256="0" * 64),
+        "does not pin the built reference CSV",
+    ),
+    "another_field": (
+        lambda meta: meta.update(seed=43),
+        r"changes \['seed'\]",
+    ),
+    "another_bundle": (
+        lambda meta: meta["policyengine_bundles"]["us"].update(model_version="2.37.0"),
+        "bundle does not name",
+    ),
+    "touched_exclusions": (
+        _edit_revision(lambda r: r.update(excluded_outputs_untouched=False)),
+        "keep every excluded output untouched",
+    ),
+    "provenance": (
+        _edit_revision(lambda r: r["provenance"].update(base_commit="0" * 40)),
+        "provenance does not name these actions",
+    ),
+}
+
+
+@pytest.mark.parametrize("tamper", sorted(SIDECAR_TAMPERS))
+def test_a_sidecar_that_is_not_20261006s_plus_one_upgrade_is_refused(
+    upgrade_spec, tmp_path, tamper
+):
+    build = real_build(tmp_path)
+    change, problem = SIDECAR_TAMPERS[tamper]
+    edit_json(build.built / META_NAME, change)
+    with pytest.raises(SystemExit, match=problem):
+        load(build)
+
+
+def _bump(build, key, delta):
+    base = (build.built / CSV_NAME).read_bytes()
+    values = driver.reference_values(base)
+    (build.built / CSV_NAME).write_bytes(csv_with(base, {key: values[key] + delta}))
+    repin_csv(build)
+
+
+def _unlist(build, key):
+    edit_json(
+        build.built / META_NAME,
+        _edit_revision(
+            lambda r: r.update(
+                changed=[
+                    c for c in r["changed"] if (c["scenario_id"], c["variable"]) != key
+                ]
+            )
+        ),
+    )
+
+
+def _list_unmoved(build, key, value):
+    entry = {
+        "scenario_id": key[0],
+        "variable": key[1],
+        "frozen": value,
+        "previous": value,
+        "regenerated": value,
+        "cause": "mock",
+        "basis": "MOCK",
+    }
+    edit_json(
+        build.built / META_NAME,
+        _edit_revision(lambda r: r["changed"].append(entry)),
+    )
+
+
+def _impact_weight(build):
+    lines = (build.built / CSV_NAME).read_text().splitlines(keepends=True)
+    fields = next(csv.reader([lines[5]]))
+    fields[3] = str(float(fields[3] or 0) + 1)
+    buffer = io.StringIO()
+    csv.writer(buffer, lineterminator="\n").writerow(fields)
+    lines[5] = buffer.getvalue()
+    (build.built / CSV_NAME).write_text("".join(lines))
+    repin_csv(build)
+
+
+def _swap_rows(build):
+    lines = (build.built / CSV_NAME).read_text().splitlines(keepends=True)
+    lines[1], lines[2] = lines[2], lines[1]
+    (build.built / CSV_NAME).write_text("".join(lines))
+    repin_csv(build)
+
+
+SNAP_000 = ("scenario_000", "snap")
+CSV_TAMPERS = {
+    "an_unlisted_move": (
+        lambda b: _bump(b, ("scenario_000", "payroll_tax"), 25.0),
+        "outside the build's changed list: unlisted moves",
+    ),
+    "an_unlisted_cent": (
+        lambda b: _bump(b, ("scenario_000", "payroll_tax"), 0.01),
+        "outside the build's changed list: unlisted moves",
+    ),
+    "a_change_dropped_from_the_list": (
+        lambda b: _unlist(b, next(iter(MOCK_APPROVED))),
+        "outside the build's changed list: unlisted moves",
+    ),
+    "a_listed_change_that_did_not_happen": (
+        lambda b: _list_unmoved(
+            b,
+            ("scenario_000", "payroll_tax"),
+            driver.reference_values(_real_baseline_files()[0][CSV_NAME])[
+                ("scenario_000", "payroll_tax")
+            ],
+        ),
+        "listed changes that did not happen",
+    ),
+    "a_misstated_value": (
+        lambda b: edit_json(
+            b.built / META_NAME,
+            _edit_revision(lambda r: r["changed"][0].update(regenerated=1.0)),
+        ),
+        "misstates the previous or regenerated value",
+    ),
+    "an_impact_weight": (_impact_weight, "reference impact_weight changed"),
+    "two_rows_swapped": (_swap_rows, "outputs or their order changed"),
+}
+
+
+@pytest.mark.parametrize("tamper", sorted(CSV_TAMPERS))
+def test_a_reference_csv_that_differs_outside_the_changed_list_is_refused(
+    upgrade_spec, tmp_path, tamper
+):
+    build = real_build(tmp_path)
+    change, problem = CSV_TAMPERS[tamper]
+    change(build)
+    with pytest.raises(SystemExit, match=problem):
+        load(build)
+
+
+@functools.cache
+def _scored_unmoved_keys() -> tuple:
+    """Release 20261006's outputs the mock build neither moves nor excludes."""
+    files, _ = _real_baseline_files()
+    excluded = {driver.spec_key(r) for r in json.loads(release_text())["exclusions"]}
+    moved = {*MOCK_APPROVED, *MOCK_NEW, *MOCK_REGENERATED_RULED}
+    return tuple(
+        sorted(set(driver.reference_values(files[CSV_NAME])) - excluded - moved)
+    )
+
+
+@functools.cache
+def _real_baseline():
+    with mock.patch.object(driver, "load_spec", lambda: upgrade_spec_dict()):
+        return driver.upgrade_baseline()
+
+
+@settings(max_examples=40, deadline=None)
+@given(
+    index=st.integers(min_value=0, max_value=10**6),
+    delta=st.one_of(
+        st.floats(min_value=1e-6, max_value=1e5),
+        st.floats(min_value=-1e5, max_value=-1e-6),
+    ),
+    listed=st.booleans(),
+)
+def test_any_tampered_reference_or_extra_changed_entry_is_refused(index, delta, listed):
+    """For any output the build leaves alone: moving its value by any amount
+    without listing it is refused, and listing it without moving it is
+    refused."""
+    keys = _scored_unmoved_keys()
+    key = keys[index % len(keys)]
+    with tempfile.TemporaryDirectory() as scratch:
+        build = real_build(Path(scratch))
+        if listed:
+            value = driver.reference_values((build.built / CSV_NAME).read_bytes())[key]
+            _list_unmoved(build, key, value)
+            problem = "listed changes that did not happen"
+        else:
+            _bump(build, key, delta)
+            problem = "unlisted moves"
+        with pytest.raises(SystemExit, match=problem):
+            load(build, baseline=_real_baseline())
+
+
+def _edit_record(build, change):
+    edit_json(build.built / EXCLUSIONS_NAME, change)
+
+
+def _record_in(doc, key):
+    return next(r for r in doc["exclusions"] if driver.spec_key(r) == key)
+
+
+EXCLUSION_TAMPERS = {
+    "a_20261006_record_edited": (
+        lambda b: _edit_record(
+            b, lambda doc: _record_in(doc, WI_042).update(note="Rewritten.")
+        ),
+        "changes release 20261006's record",
+    ),
+    "a_kept_ruled_record_edited": (
+        lambda b: _edit_record(
+            b,
+            lambda doc: _record_in(doc, SCENARIO_051).update(note="Rewritten."),
+        ),
+        "changes the release's ruled record",
+    ),
+    "a_record_nobody_declared": (
+        lambda b: _edit_record(
+            b,
+            lambda doc: doc["exclusions"].insert(
+                0, mock_new_record(("scenario_000", "payroll_tax"), 1.0)
+            ),
+        ),
+        "not its actions'",
+    ),
+    "a_20261006_record_dropped": (
+        lambda b: _edit_record(
+            b,
+            lambda doc: doc.update(
+                exclusions=[
+                    r for r in doc["exclusions"] if driver.spec_key(r) != WI_042
+                ]
+            ),
+        ),
+        "regenerated at 284.74",
+    ),
+    "the_tail_moved": (
+        lambda b: _edit_record(
+            b,
+            lambda doc: doc["exclusions"].insert(0, doc["exclusions"].pop()),
+        ),
+        "is not last",
+    ),
+    "records_reordered": (
+        lambda b: _edit_record(
+            b,
+            lambda doc: doc["exclusions"].insert(1, doc["exclusions"].pop(0)),
+        ),
+        "changed their order",
+    ),
+    "another_form": (
+        lambda b: edit_json(b.built / EXCLUSIONS_NAME, lambda doc: None, indent=1),
+        "not in the builder's form",
+    ),
+    "another_rule": (
+        lambda b: _edit_record(b, lambda doc: doc.update(rule="Another rule.")),
+        "outside its records and derivation",
+    ),
+    "a_new_record_on_the_old_engine": (
+        lambda b: _edit_record(
+            b,
+            lambda doc: _record_in(doc, next(iter(MOCK_NEW))).update(
+                engine_version=driver.BASE_ENGINE
+            ),
+        ),
+        "not computed on policyengine-us 2.37.1",
+    ),
+}
+
+
+@pytest.mark.parametrize("tamper", sorted(EXCLUSION_TAMPERS))
+def test_an_exclusion_record_other_than_the_releases_is_refused(
+    upgrade_spec, tmp_path, tamper
+):
+    build = real_build(tmp_path)
+    change, problem = EXCLUSION_TAMPERS[tamper]
+    change(build)
+    with pytest.raises(SystemExit, match=problem):
+        load(build)
+
+
+def test_a_regenerated_record_off_its_alternative_is_refused(upgrade_spec, tmp_path):
+    """WI 042's record says $0; the build regenerates it at $1.50."""
+    regenerated = {**MOCK_REGENERATED_RULED, WI_042: 1.5}
+    with pytest.raises(SystemExit, match=r"not within \$1 of its record's"):
+        load(real_build(tmp_path, regenerated=regenerated))
+
+
+def test_only_an_engine_defect_can_be_regenerated(upgrade_spec, tmp_path):
+    """An unlisted input stays unlisted on any engine: scenario_007's
+    Medicare record cannot leave, even on its alternative value."""
+    regenerated = {**MOCK_REGENERATED_RULED, MEDICARE_007: 1.0}
+    with pytest.raises(SystemExit, match="regenerates only an engine defect"):
+        load(real_build(tmp_path, regenerated=regenerated))
+
+
+def test_an_excluded_output_keeps_the_value_it_was_decided_on(upgrade_spec, tmp_path):
+    """Rule 5: a kept record's output moved (and listed) is refused."""
+    build = real_build(tmp_path, approved={**MOCK_APPROVED, WI_042: 290.0})
+    with pytest.raises(SystemExit, match="keeps the value it was decided on"):
+        load(build)
+
+
+def test_the_build_must_regenerate_exactly_the_specs_ruled_records(
+    tmp_path, monkeypatch
+):
+    three = dict(list(MOCK_REGENERATED_RULED.items())[:3])
+    spec = upgrade_spec_dict(three)
+    monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
+    with pytest.raises(SystemExit, match="but the spec's regenerated_by_upgrade"):
+        load(real_build(tmp_path))
+    assert load(real_build(tmp_path / "three", regenerated=three)).records == 73
+
+
+@pytest.mark.parametrize(
+    "outputs, problem",
+    [
+        ([["scenario_018"]], "is not a list of"),
+        ("scenario_018", "is not a list of"),
+        ([list(SCENARIO_051)], "regenerates only an engine-defect record"),
+        ([["scenario_000", "snap"]], "does not rule on"),
+        (
+            [
+                ["scenario_018", STATE_TAX],
+                ["scenario_018", STATE_TAX],
+            ],
+            "names an output twice",
+        ),
+    ],
+)
+def test_the_specs_regenerated_section_names_ruled_engine_defects(outputs, problem):
+    spec = {**real_spec(), "regenerated_by_upgrade": {"outputs": outputs}}
+    with pytest.raises(SystemExit, match=problem):
+        driver.spec_regenerated(spec)
+
+
+def test_the_specs_regenerated_section_is_read_as_written():
+    assert driver.spec_regenerated(real_spec() | {"x": 1}) == (
+        frozenset()
+        if "regenerated_by_upgrade" not in real_spec()
+        else driver.spec_regenerated(real_spec())
+    )
+    assert driver.spec_regenerated(upgrade_spec_dict()) == frozenset(
+        MOCK_REGENERATED_RULED
+    )
+
+
+@settings(max_examples=60)
+@given(
+    variable=st.sampled_from(
+        ["state_income_tax_before_refundable_credits", "snap", "head_medicaid_eligible"]
+    ),
+    alternative=st.floats(min_value=0, max_value=1e5),
+    delta=st.floats(min_value=-3, max_value=3),
+)
+def test_a_regeneration_lands_within_a_dollar_or_on_the_flag(
+    variable, alternative, delta
+):
+    """An amount lands within $1 of the alternative; a flag lands only on it."""
+    if variable.endswith("_eligible"):
+        alternative = float(round(alternative) % 2)
+        value = float(round(alternative + delta) % 2)
+        assert driver.regeneration_lands(variable, value, alternative) == (
+            value == alternative
+        )
+    else:
+        value = alternative + delta
+        assert driver.regeneration_lands(variable, value, alternative) == (
+            abs(value - alternative) <= 1.0
+        )
+
+
+ENGINE_DEFECTS = tuple(
+    sorted(
+        driver.spec_key(r)
+        for r in json.loads(base_blob(SNAPSHOT_PATH / EXCLUSIONS_NAME))["exclusions"]
+        if r["reason_code"] == "reference_engine_defect"
+    )
+)
+NEW_POOL = (*MOCK_NEW, ("scenario_000", "payroll_tax"))
+
+
+@settings(max_examples=30, deadline=None)
+@given(
+    regenerate_base=st.sets(st.sampled_from(ENGINE_DEFECTS), max_size=4),
+    regenerate_ruled=st.sets(st.sampled_from(sorted(MOCK_REGENERATED_RULED))),
+    add=st.sets(st.sampled_from(NEW_POOL)),
+    offset=st.floats(min_value=-0.9, max_value=0.9),
+    mutation=st.sampled_from(["none", "drop_kept", "add_undeclared"]),
+)
+def test_the_release_record_is_exactly_base_less_regenerated_plus_kept_plus_new(
+    regenerate_base, regenerate_ruled, add, offset, mutation
+):
+    """For any regenerated 20261006 engine defects, any subset of the four
+    d1022 cells (the spec naming that subset) and any new exclusions: the gate
+    accepts the build exactly when its record is 20261006's records less the
+    regenerated, plus the kept ruled, plus the new; and then it names each set.
+    Dropping a kept record or adding an undeclared one is refused."""
+    files, explanations = _real_baseline_files()
+    base = _real_baseline()
+    baseline = driver.Baseline(
+        base.files, base.explanations, base.ruled, frozenset(regenerate_ruled)
+    )
+    release = json.loads(release_text())
+    records = {driver.spec_key(r): r for r in release["exclusions"]}
+    values = driver.reference_values(files[CSV_NAME])
+    regenerated = {
+        key: float(records[key]["alternative_value"]) + offset
+        for key in regenerate_base
+    }
+    regenerated |= {key: MOCK_REGENERATED_RULED[key] for key in regenerate_ruled}
+    added = {key: mock_new_record(key, values[key] + 50.0) for key in add}
+    with tempfile.TemporaryDirectory() as scratch:
+        build = write_build(
+            Path(scratch),
+            files,
+            explanations,
+            release,
+            set(base.ruled),
+            approved={},
+            regenerated=regenerated,
+            added=added,
+        )
+        expected = (set(records) - set(regenerated)) | set(added)
+        if mutation == "none":
+            upgrade = load(build, baseline=baseline)
+            got = {
+                driver.spec_key(r)
+                for r in json.loads(upgrade.exclusions_text)["exclusions"]
+            }
+            assert got == expected
+            assert upgrade.regenerated_base == frozenset(regenerate_base)
+            assert upgrade.regenerated_ruled == frozenset(regenerate_ruled)
+            assert upgrade.added == frozenset(add)
+            assert upgrade.records == 74 - len(regenerated) + len(added)
+            return
+        if mutation == "drop_kept":
+            victim = sorted(expected - set(added) - {TAIL})[0]
+            _edit_record(
+                build,
+                lambda doc: doc.update(
+                    exclusions=[
+                        r for r in doc["exclusions"] if driver.spec_key(r) != victim
+                    ]
+                ),
+            )
+        else:
+            _edit_record(
+                build,
+                lambda doc: doc["exclusions"].insert(
+                    0, mock_new_record(("scenario_001", "payroll_tax"), 1.0)
+                ),
+            )
+        with pytest.raises(SystemExit):
+            load(build, baseline=baseline)
+
+
+def test_the_traces_must_cover_exactly_the_changed_outputs(upgrade_spec, tmp_path):
+    build = real_build(tmp_path)
+    traces = json.loads((build.built / TRACES_NAME).read_text())
+    traces.pop(sorted(traces)[0])
+    (build.built / TRACES_NAME).write_text(json.dumps(traces))
+    with pytest.raises(SystemExit, match="traces do not cover exactly"):
+        load(build)
+
+
+def _explanation_rows(build):
+    return list(csv.reader(io.StringIO(build.explanations.read_text(), newline="")))
+
+
+def _write_explanations(build, rows):
+    buffer = io.StringIO()
+    csv.writer(buffer, lineterminator="\n").writerows(rows)
+    build.explanations.write_text(buffer.getvalue())
+
+
+def _explain(build, key, column, text):
+    rows = _explanation_rows(build)
+    header = rows[0]
+    for row in rows[1:]:
+        if (row[1], row[2]) == key:
+            row[header.index(column)] = text
+    _write_explanations(build, rows)
+
+
+EXPLANATION_TAMPERS = {
+    "an_unchanged_row_reworded": (
+        lambda b: _explain(b, SNAP_000, "explanation", "Reworded."),
+        "rewrite outputs it did not change",
+    ),
+    "a_stale_value": (
+        lambda b: _explain(b, next(iter(MOCK_APPROVED)), "reference_value", "6818.34"),
+        "do not state the new reference",
+    ),
+    "an_empty_narrative": (
+        lambda b: _explain(b, next(iter(MOCK_APPROVED)), "explanation", " "),
+        "do not state the new reference",
+    ),
+    "rows_swapped": (
+        lambda b: _write_explanations(
+            b, [(rows := _explanation_rows(b))[0], rows[2], rows[1], *rows[3:]]
+        ),
+        "outputs or their order changed",
+    ),
+    "a_column_renamed": (
+        lambda b: _write_explanations(
+            b,
+            [
+                [
+                    "narrative" if c == "explanation" else c
+                    for c in _explanation_rows(b)[0]
+                ],
+                *_explanation_rows(b)[1:],
+            ],
+        ),
+        "columns changed",
+    ),
+}
+
+
+@pytest.mark.parametrize("tamper", sorted(EXPLANATION_TAMPERS))
+def test_explanations_must_differ_from_20261006s_only_on_changed_outputs(
+    upgrade_spec, tmp_path, tamper
+):
+    build = real_build(tmp_path)
+    change, problem = EXPLANATION_TAMPERS[tamper]
+    change(build)
+    with pytest.raises(SystemExit, match=problem):
+        load(build)
+
+
+ACTION_TAMPERS = {
+    "another_engine": (
+        lambda plan: plan.update(engine="policyengine-us 2.37.2"),
+        "actions name 'policyengine-us 2.37.2'",
+    ),
+    "an_approved_value_off_by_a_cent": (
+        lambda plan: plan["approved"][0].update(value=6828.35),
+        "approve moves the build did not make",
+    ),
+    "an_undeclared_new_record": (
+        lambda plan: plan.update(new_exclusions=plan["new_exclusions"][:1]),
+        "new exclusions are not its actions'",
+    ),
+    "another_previous_engine": (
+        lambda plan: plan.update(previous_engine="policyengine-us 2.15.16"),
+        "upgrade from 'policyengine-us 2.15.16'",
+    ),
+    "a_regeneration_left_out": (
+        lambda plan: plan.update(
+            regenerated_exclusions=plan["regenerated_exclusions"][1:]
+        ),
+        "actions' regenerated_exclusions names",
+    ),
+    "a_kept_ruled_output_left_out": (
+        lambda plan: plan.update(
+            kept_exclusions_from_release=plan["kept_exclusions_from_release"][1:]
+        ),
+        "actions' kept_exclusions_from_release names",
+    ),
+}
+
+
+@pytest.mark.parametrize("tamper", sorted(ACTION_TAMPERS))
+def test_actions_that_do_not_describe_the_build_are_refused(
+    upgrade_spec, tmp_path, tamper
+):
+    """Each edit also changes the actions' bytes, which the revision's
+    provenance pins; the refusal names the first disagreement."""
+    build = real_build(tmp_path)
+    change, problem = ACTION_TAMPERS[tamper]
+    edit_json(build.actions, change)
+    pinned = sha(build.actions)
+    edit_json(
+        build.built / META_NAME,
+        _edit_revision(lambda r: r["provenance"].update(actions_sha256=pinned)),
+    )
+    with pytest.raises(SystemExit, match=problem):
+        load(build)
+
+
+def test_actions_edited_after_the_build_are_refused(upgrade_spec, tmp_path):
+    """The revision's provenance pins the actions file the build ran on."""
+    build = real_build(tmp_path)
+    edit_json(build.actions, lambda plan: plan.update(review="An edit."))
+    with pytest.raises(SystemExit, match="provenance does not name these actions"):
+        load(build)
+
+
+def test_an_approved_value_within_half_a_cent_passes(upgrade_spec, tmp_path):
+    build = real_build(tmp_path)
+    edit_json(build.actions, lambda plan: plan["approved"][0].update(value=6828.344))
+    pinned = sha(build.actions)
+    edit_json(
+        build.built / META_NAME,
+        _edit_revision(lambda r: r["provenance"].update(actions_sha256=pinned)),
+    )
+    assert load(build).records == 72
+
+
+def test_a_rechecked_output_must_stay_excluded_at_its_value(upgrade_spec, tmp_path):
+    """MOCK: CA 005 federal moves on the mock engine and stays excluded; the
+    revision and the actions recheck it, keeping its 20261006 value."""
+    key = ("scenario_005", "federal_income_tax_before_refundable_credits")
+    build = real_build(tmp_path, rechecked={key: 107833.15625})
+    assert load(build).records == 72
+    edit_json(
+        build.built / META_NAME,
+        _edit_revision(
+            lambda r: r["excluded_outputs_rechecked"][0].update(kept_value=1.0)
+        ),
+    )
+    with pytest.raises(SystemExit, match="rechecks outputs it does not keep"):
+        load(build)
+
+
+# --- Installing a build on a stage ---------------------------------------------
+
+TINY_META = {
+    "country": "us",
+    "policyengine_bundles": {
+        "us": {"model_package": "policyengine-us", "model_version": "2.15.17"}
+    },
+    "reference_csv_sha256": None,
+    "revisions": [{"kind": "engine_upgrade", "engine_version": driver.BASE_ENGINE}],
+    "regenerated_at_utc": "2026-09-29T15:04:45+00:00",
+}
+TINY_RECORD = {
+    "schema_version": 1,
+    "rule": "MOCK rule.",
+    "derivation": "MOCK derivation.",
+    "exclusions": [],
+}
+EXPLANATION_FIELDS = [
+    "country",
+    "scenario_id",
+    "variable",
+    "reference_value",
+    "trace_lines",
+    "explanation",
+    "error",
+]
+
+
+def _tiny_explanations() -> bytes:
+    """Release 20261006's stand-in explanations for the two-household board:
+    a row per output, with no narrative, so no seed prompt renders one."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(EXPLANATION_FIELDS)
+    for row in REFERENCE_ROWS:
+        writer.writerow(
+            ["us", row["scenario_id"], row["variable"], repr(row["value"]), 1, "", ""]
+        )
+    return buffer.getvalue().encode()
+
+
+def tiny_upgrade_stage(root: Path, stack: contextlib.ExitStack, haiku=None):
+    """A prepared stage on the two-household board (seeded_stage's), with
+    release 20261006 stood in by the board's own references: a sidecar, an
+    empty exclusion record and narrative-free explanations, bound in
+    stage.json. Claude Haiku 5.5 misses s0 alone (JOINS_S0) unless ``haiku``
+    says otherwise; s0's new verdict is written. Every patch goes on ``stack``.
+    """
+    from policybench.audit import prepare_audit
+
+    def patch(name, value):
+        stack.enter_context(mock.patch.object(driver, name, value))
+
+    patch("reworded_since_seed", lambda: frozenset())
+    grounding = root / "grounding.csv"
+    pd.DataFrame(
+        [{"scenario_id": "s1", "variable": "snap", "grounding": "Gross test: pass."}]
+    ).to_csv(grounding, index=False)
+    patch("GROUNDING_SHA256", sha(grounding))
+    lookup = {("s1", "snap"): "Gross test: pass."}
+    seed = root / "seed"
+    seed_board = _board(root / "seed-board", INCUMBENT_ROWS)
+    with driver.object_strings():
+        prepare_audit(seed_board / "us", seed, grounding_lookup=lookup)
+    for item in map(json.loads, (seed / "cases.jsonl").read_text().splitlines()):
+        write_verdict(
+            seed / "cases" / item["case_id"],
+            _verdict(item["wrong_models"]),
+            judge_model_requested="default",
+            judge_model_reported=["gpt-6.1-sol"],
+            prompt_sha256=None,
+        )
+    digest_text = driver.seed_digest_text(driver.seed_digest(seed))
+    patch("SEED_DIGEST_SHA256", sha(digest_text.encode()))
+    stage = root / "stage"
+    bundle = _board(
+        stage / "publish" / driver.RUN_NAME, INCUMBENT_ROWS + (haiku or JOINS_S0)
+    )
+    us = bundle / "us"
+    meta = {**TINY_META, "reference_csv_sha256": sha(us / CSV_NAME)}
+    (us / META_NAME).write_text(json.dumps(meta, indent=2) + "\n")
+    (us / EXCLUSIONS_NAME).write_text(driver.exclusions_text(TINY_RECORD))
+    (bundle / "annotations").mkdir()
+    explanations = _tiny_explanations()
+    (bundle / "annotations" / driver.EXPLANATIONS_NAME).write_bytes(explanations)
+    (stage / "scoring").mkdir()
+    base = {name: (us / name).read_bytes() for name in driver.UPGRADED_FILES}
+    for name, blob in base.items():
+        (stage / "scoring" / name).write_bytes(blob)
+    patch(
+        "BASE_REFERENCE_SHA256",
+        {**driver.BASE_REFERENCE_SHA256, **{n: sha(b) for n, b in base.items()}},
+    )
+    patch("BASE_EXPLANATIONS_SHA256", sha(explanations))
+    patch("base_reference_bytes", lambda name: base[name])
+    patch("base_explanations_bytes", lambda: explanations)
+    baseline = driver.Baseline(base, explanations, {}, frozenset())
+    patch("upgrade_baseline", lambda spec=None: baseline)
+    patch("release_exclusions_sha256", lambda: "e" * 64)
+    args = SimpleNamespace(stage_dir=stage, audit_seed=seed, grounding=grounding)
+    with driver.object_strings():
+        binding = driver.prepare_cases(args, bundle)
+    files = {f"publish/{driver.RUN_NAME}/us/{n}": sha(b) for n, b in base.items()}
+    (stage / "stage.json").write_text(
+        json.dumps({"partial": False, "early": False, "files": files, "seed": binding})
+    )
+    audit = stage / "audit"
+    if (audit / "cases/us__s0__snap").is_dir():
+        write_verdict(audit / "cases/us__s0__snap", _verdict(["m1", "m2", NEW]))
+    counter = iter(range(10**6))
+
+    def build(approved, **options):
+        return write_build(
+            root / f"build-{next(counter)}",
+            base,
+            explanations,
+            TINY_RECORD,
+            (),
+            approved=approved,
+            **options,
+        )
+
+    def install(made):
+        driver.install_references(
+            SimpleNamespace(
+                stage_dir=stage,
+                built=made.built,
+                explanations=made.explanations,
+                actions=made.actions,
+                grounding=grounding,
+            )
+        )
+
+    return SimpleNamespace(
+        stage=stage,
+        audit=audit,
+        seed=seed,
+        bundle=bundle,
+        base=base,
+        explanations=explanations,
+        grounding=grounding,
+        build=build,
+        install=install,
+    )
+
+
+@pytest.fixture
+def upgrade_stage(tmp_path):
+    with contextlib.ExitStack() as stack:
+        yield tiny_upgrade_stage(tmp_path, stack)
+
+
+def stage_files(stage: Path) -> dict:
+    return {
+        str(p.relative_to(stage)): p.read_bytes()
+        for p in sorted(stage.rglob("*"))
+        if p.is_file()
+    }
+
+
+S0, S1, S2 = "us__s0__snap", "us__s1__snap", "us__s2__snap"
+# s1's reference moves by 40 cents: every model's answer keeps its class (Claude
+# Haiku 5.5's $300 still matches), but the prompt renders the new value and
+# narrative, so the incumbent-only case is re-opened.
+S1_MOVE = {("s1", "snap"): 300.4}
+
+
+def test_install_references_reopens_only_the_cases_whose_prompts_change(
+    upgrade_stage,
+):
+    s = upgrade_stage
+    assert json.loads((s.stage / driver.PROMPT_CHANGES).read_text()) == {
+        "added": [],
+        "changed": [S0],
+        "kept": [S1],
+    }
+    kept_verdict = (s.audit / "cases" / S0 / "verdict.json").read_bytes()
+    seed_verdict = (s.audit / "cases" / S1 / "verdict.json").read_bytes()
+    s.install(s.build(S1_MOVE))
+    assert json.loads((s.stage / driver.PROMPT_CHANGES).read_text()) == {
+        "added": [],
+        "changed": [S0, S1],
+        "kept": [],
+    }
+    assert json.loads((s.stage / "pending.json").read_text()) == [S1]
+    # s0's prompt did not change, so its new verdict stays, byte for byte.
+    assert (s.audit / "cases" / S0 / "verdict.json").read_bytes() == kept_verdict
+    # s1's seed verdict is set aside with its reason, never deleted.
+    assert not (s.audit / "cases" / S1 / "verdict.json").exists()
+    (aside,) = (s.stage / "rejected-verdicts" / S1).iterdir()
+    assert (aside / "verdict.json").read_bytes() == seed_verdict
+    assert "install-references" in (aside / "reason.txt").read_text()
+    prompt = (s.audit / "cases" / S1 / "prompt.md").read_text()
+    assert "$300.40" in prompt and "MOCK narrative" in prompt
+    # The gates that re-derive the lists agree; s1 is re-opened by the upgrade.
+    assert driver.upgraded_cases(s.stage) == {S1}
+    assert driver.rejudged_cases(s.stage) == {S0, S1}
+    seed = driver.load_seed(s.stage)
+    assert driver.validate_verdicts(s.audit, seed=seed) == [S1]
+    write_verdict(s.audit / "cases" / S1, _verdict(["m2"]))
+    assert driver.validate_verdicts(s.audit, seed=seed) == []
+
+
+def test_install_references_installs_and_binds_the_build(upgrade_stage):
+    s = upgrade_stage
+    made = s.build(S1_MOVE)
+    s.install(made)
+    receipt = json.loads((s.stage / "stage.json").read_text())
+    upgrade = driver.load_build(made.built, made.explanations, made.actions)
+    for name in driver.UPGRADED_FILES:
+        blob = (made.built / name).read_bytes()
+        assert (s.stage / "scoring" / name).read_bytes() == blob
+        assert (s.bundle / "us" / name).read_bytes() == blob
+        assert receipt["files"][f"publish/{driver.RUN_NAME}/us/{name}"] == sha(blob)
+    bound = f"publish/{driver.RUN_NAME}/annotations/{driver.EXPLANATIONS_NAME}"
+    assert receipt["files"][bound] == sha(made.explanations)
+    for name in driver.BUILD_COPY_FILES:
+        source = made.explanations if name == driver.EXPLANATIONS_NAME else None
+        source = made.actions if name == driver.ACTIONS_NAME else source
+        source = source or made.built / name
+        assert (s.stage / driver.BUILD_COPY / name).read_bytes() == source.read_bytes()
+    installed = receipt["references_installed"]
+    assert installed["engine_version"] == MOCK_ENGINE
+    assert installed["previous_engine_version"] == driver.BASE_ENGINE
+    assert installed["sha256"] == upgrade.sha256
+    assert installed["actions_sha256"] == sha(made.actions)
+    assert installed["changed"] == [["s1", "snap"]]
+    assert installed["records"] == 0 and installed["scored_outputs"] == 1984
+    assert installed["superseded"] == []
+    assert receipt["exclusions_installed"] == {
+        "base_sha256": driver.BASE_REFERENCE_SHA256[EXCLUSIONS_NAME],
+        "sha256": upgrade.sha256[EXCLUSIONS_NAME],
+        "spec_sha256": driver.digest(REPO / driver.SPEC_PATH),
+        "records": 0,
+        "source": f"{driver.BUILD_COPY}/{EXCLUSIONS_NAME}",
+        "engine_version": MOCK_ENGINE,
+    }
+    # Every binding the resume check reads holds, and the stage re-gates.
+    for name, pin in receipt["files"].items():
+        assert driver.digest(s.stage / name) == pin
+    assert driver.stage_upgrade(s.stage) == upgrade
+    # BASE_REFERENCE_SHA256 stays the base's; the staged files are the build's.
+    assert driver.upgraded_reference_pins(upgrade)[CSV_NAME] == sha(
+        made.built / CSV_NAME
+    )
+    pins = driver.upgraded_reference_pins(upgrade)
+    assert {name: pins[name] for name in driver.UPGRADED_FILES} == {
+        name: driver.digest(s.bundle / "us" / name) for name in driver.UPGRADED_FILES
+    }
+    assert pins["scenarios.csv"] == driver.BASE_REFERENCE_SHA256["scenarios.csv"]
+
+
+def test_installing_the_same_build_again_changes_nothing(upgrade_stage):
+    s = upgrade_stage
+    made = s.build(S1_MOVE)
+    s.install(made)
+    once = stage_files(s.stage)
+    s.install(made)
+    assert stage_files(s.stage) == once
+
+
+TINY_VALUES = {
+    "s0": st.sampled_from([0.0, 0.3, 50.0, 250.0]),
+    "s1": st.sampled_from([300.0, 300.4, 299.2, 310.0, 0.0]),
+    "s2": st.sampled_from([100.0, 100.5, 150.0]),
+}
+
+
+@settings(
+    max_examples=12,
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow],
+)
+@given(
+    values=st.fixed_dictionaries(TINY_VALUES), haiku_s2=st.sampled_from([100.0, 150.0])
+)
+def test_install_references_is_idempotent_for_any_build(values, haiku_s2):
+    """For any moves of the three references (and either answer of Claude
+    Haiku 5.5 on s2): installing the build gives a stage whose gates agree,
+    every verdict whose prompt kept its bytes keeps its bytes, and installing
+    it again changes no byte of the stage."""
+    haiku = [
+        (NEW, "s0", 99.0, "Guessed."),
+        (NEW, "s1", 300.0, "Right."),
+        (NEW, "s2", haiku_s2, "Computed."),
+    ]
+    moves = {
+        (scenario, "snap"): value
+        for scenario, value in values.items()
+        if value != {"s0": 0.0, "s1": 300.0, "s2": 100.0}[scenario]
+    }
+    with tempfile.TemporaryDirectory() as scratch, contextlib.ExitStack() as stack:
+        s = tiny_upgrade_stage(Path(scratch), stack, haiku=haiku)
+        prompts = {
+            case.name: (case / "prompt.md").read_text()
+            for case in (s.audit / "cases").iterdir()
+        }
+        verdicts = {
+            case.name: (case / "verdict.json").read_bytes()
+            for case in (s.audit / "cases").iterdir()
+            if (case / "verdict.json").is_file()
+        }
+        made = s.build(moves)
+        try:
+            s.install(made)
+        except SystemExit as refusal:
+            # Only a seed case that leaves the audit may refuse: the moves
+            # cannot open an unexplained case.
+            assert "seed cases vanished" in str(refusal)
+            return
+        once = stage_files(s.stage)
+        s.install(made)
+        assert stage_files(s.stage) == once
+        assert driver.upgraded_cases(s.stage) == {
+            driver.output_case(key) for key in moves
+        }
+        driver.load_seed(s.stage)
+        for case, blob in verdicts.items():
+            path = s.audit / "cases" / case
+            if path.is_dir() and (path / "prompt.md").read_text() == prompts[case]:
+                assert (path / "verdict.json").read_bytes() == blob
+
+
+def test_a_move_that_makes_the_new_model_miss_reopens_the_case_with_it(
+    upgrade_stage,
+):
+    """s1 moves to $310: Claude Haiku 5.5's $300 is now wrong, so the case
+    re-opens with it among the wrong models, as the predictions bear out."""
+    s = upgrade_stage
+    s.install(s.build({("s1", "snap"): 310.0}))
+    manifest = {
+        item["case_id"]: item
+        for item in map(json.loads, (s.audit / "cases.jsonl").read_text().splitlines())
+    }
+    assert NEW in manifest[S1]["wrong_models"]
+    assert driver.rejudged_cases(s.stage) == {S0, S1}
+
+
+def test_a_case_the_upgrade_adds_without_the_new_model_is_reopened(tmp_path):
+    """s2's reference moves from $100 to $150, which Claude Haiku 5.5 answered
+    and the incumbents did not: an incumbent-only case appears, which only the
+    upgrade explains, and its earlier Haiku-only verdict is set aside."""
+    haiku = [
+        (NEW, "s0", 99.0, "Guessed."),
+        (NEW, "s1", 300.0, "Right."),
+        (NEW, "s2", 150.0, "Computed."),
+    ]
+    with contextlib.ExitStack() as stack:
+        s = tiny_upgrade_stage(tmp_path, stack, haiku=haiku)
+        assert json.loads((s.stage / driver.PROMPT_CHANGES).read_text())["added"] == [
+            S2
+        ]
+        write_verdict(s.audit / "cases" / S2, _verdict([NEW]))
+        s.install(s.build({("s2", "snap"): 150.0}))
+        assert json.loads((s.stage / driver.PROMPT_CHANGES).read_text()) == {
+            "added": [S2],
+            "changed": [S0],
+            "kept": [S1],
+        }
+        manifest = {
+            item["case_id"]: item
+            for item in map(
+                json.loads, (s.audit / "cases.jsonl").read_text().splitlines()
+            )
+        }
+        assert NEW not in manifest[S2]["wrong_models"]
+        assert json.loads((s.stage / "pending.json").read_text()) == [S2]
+        assert (s.stage / "rejected-verdicts" / S2).is_dir()
+        driver.load_seed(s.stage)
+
+
+def test_the_upgrade_allowance_admits_only_the_cases_it_changed():
+    """classify_prompt_changes: an incumbent-only changed or added case passes
+    only when the upgrade (or a rewording) changed its reference."""
+    manifest = [
+        {"case_id": S0, "wrong_models": ["m1"], "parse_failure_only": False},
+        {"case_id": S1, "wrong_models": ["m1"], "parse_failure_only": False},
+    ]
+    prompts = {S0: "a" * 64, S1: "b" * 64}
+    seeded = {S0: "c" * 64}
+    assert driver.classify_prompt_changes(
+        manifest, prompts, seeded, frozenset(), frozenset({S0, S1})
+    ) == {"kept": [], "changed": [S0], "added": [S1]}
+    with pytest.raises(SystemExit, match=re.escape(f"[{S1!r}]")):
+        driver.classify_prompt_changes(
+            manifest, prompts, seeded, frozenset(), frozenset({S0})
+        )
+    with pytest.raises(SystemExit, match="incumbent-only case prompts changed"):
+        driver.classify_prompt_changes(manifest, prompts, seeded, frozenset())
+
+
+@settings(max_examples=150, deadline=None)
+@given(
+    flags=st.lists(
+        st.fixed_dictionaries(
+            {
+                "seeded": st.booleans(),
+                "same_prompt": st.booleans(),
+                "new_wrong": st.booleans(),
+                "reworded": st.booleans(),
+                "upgraded": st.booleans(),
+            }
+        ),
+        max_size=7,
+    )
+)
+def test_classify_prompt_changes_follows_its_rule_with_an_upgrade(flags):
+    """For any audit: a changed or added case is refused exactly when neither
+    the new model, a rewording nor the upgrade explains it."""
+    manifest, prompts, seeded = [], {}, {}
+    reworded, upgraded = set(), set()
+    for index, f in enumerate(flags):
+        case = f"us__s{index}__snap"
+        wrong = ["m1", *([NEW] if f["new_wrong"] else [])]
+        manifest.append(
+            {"case_id": case, "wrong_models": wrong, "parse_failure_only": False}
+        )
+        prompts[case] = f"{index:064d}"
+        if f["seeded"]:
+            seeded[case] = prompts[case] if f["same_prompt"] else "f" * 64
+        if f["reworded"]:
+            reworded.add(case)
+        if f["upgraded"]:
+            upgraded.add(case)
+    offending = [
+        item["case_id"]
+        for item, f in zip(manifest, flags)
+        if not (f["seeded"] and f["same_prompt"])
+        and not f["new_wrong"]
+        and not f["reworded"]
+        and not f["upgraded"]
+    ]
+    unrendered = sorted(
+        c for c, f in zip(seeded, flags) if False
+    )  # no reworded case outside the manifest here
+    changed_or_added = {
+        item["case_id"]
+        for item, f in zip(manifest, flags)
+        if not (f["seeded"] and f["same_prompt"])
+    }
+    unrendered = sorted(reworded - {c for c in changed_or_added if c in seeded})
+    if offending:
+        with pytest.raises(SystemExit, match="incumbent-only case prompts changed"):
+            driver.classify_prompt_changes(
+                manifest, prompts, seeded, frozenset(reworded), frozenset(upgraded)
+            )
+    elif unrendered:
+        with pytest.raises(SystemExit, match="reworded cases whose prompts"):
+            driver.classify_prompt_changes(
+                manifest, prompts, seeded, frozenset(reworded), frozenset(upgraded)
+            )
+    else:
+        out = driver.classify_prompt_changes(
+            manifest, prompts, seeded, frozenset(reworded), frozenset(upgraded)
+        )
+        assert set(out["changed"]) | set(out["added"]) == changed_or_added
+
+
+def test_install_references_refuses_a_tampered_build_and_writes_nothing(
+    upgrade_stage,
+):
+    s = upgrade_stage
+    made = s.build(S1_MOVE)
+    values = driver.reference_values((made.built / CSV_NAME).read_bytes())
+    (made.built / CSV_NAME).write_bytes(
+        csv_with(
+            (made.built / CSV_NAME).read_bytes(),
+            {("s2", "snap"): values[("s2", "snap")] + 1},
+        )
+    )
+    repin_csv(made)
+    before = stage_files(s.stage)
+    with pytest.raises(SystemExit, match="unlisted moves"):
+        s.install(made)
+    assert stage_files(s.stage) == before
+
+
+def test_install_references_refuses_a_stage_off_the_base(upgrade_stage):
+    s = upgrade_stage
+    path = s.stage / "scoring" / CSV_NAME
+    path.write_bytes(path.read_bytes() + b"s9,snap,1.0\n")
+    before = stage_files(s.stage)
+    with pytest.raises(SystemExit, match="neither release 20261006's nor an"):
+        s.install(s.build(S1_MOVE))
+    assert stage_files(s.stage) == before
+
+
+def test_install_references_refuses_another_grounding(upgrade_stage):
+    s = upgrade_stage
+    s.grounding.write_text(s.grounding.read_text() + "s2,snap,Other.\n")
+    with pytest.raises(SystemExit, match="grounding differs"):
+        s.install(s.build(S1_MOVE))
+
+
+def test_a_second_build_replaces_the_first_and_is_recorded(upgrade_stage):
+    """The engine moves again (as the hub lands more fixes): the second build
+    replaces the first, gated against release 20261006 as the first was; the
+    receipt keeps the first under superseded; and going back to the first
+    build reinstalls it."""
+    s = upgrade_stage
+    first = s.build(S1_MOVE)
+    s.install(first)
+    recorded = json.loads((s.stage / "stage.json").read_text())["references_installed"]
+    second = s.build(
+        {("s1", "snap"): 300.4, ("s2", "snap"): 100.5},
+        engine="policyengine-us 2.38.0",
+    )
+    s.install(second)
+    installed = json.loads((s.stage / "stage.json").read_text())["references_installed"]
+    assert installed["engine_version"] == "policyengine-us 2.38.0"
+    assert installed["superseded"] == [
+        {k: v for k, v in recorded.items() if k != "superseded"}
+    ]
+    assert driver.upgraded_cases(s.stage) == {S1, S2}
+    driver.load_seed(s.stage)
+    assert driver.stage_upgrade(s.stage).engine_version == "policyengine-us 2.38.0"
+
+
+def test_a_staged_reference_outside_the_revision_stops_every_seed_read(
+    upgrade_stage,
+):
+    """upgraded_cases derives its cases from the staged files against the base
+    in git, so a staged CSV (or explanation) edited after the install stops
+    load_seed rather than widening what may re-open."""
+    s = upgrade_stage
+    s.install(s.build(S1_MOVE))
+    path = s.bundle / "us" / CSV_NAME
+    path.write_bytes(csv_with(path.read_bytes(), {("s2", "snap"): 101.5}))
+    with pytest.raises(SystemExit, match="outside the installed revision's changed"):
+        driver.load_seed(s.stage)
+
+
+def test_later_steps_regate_the_installed_build(upgrade_stage):
+    s = upgrade_stage
+    s.install(s.build(S1_MOVE))
+    copy_path = s.stage / driver.BUILD_COPY / driver.ACTIONS_NAME
+    copy_path.write_text(copy_path.read_text() + " ")
+    receipt = json.loads((s.stage / "stage.json").read_text())
+    with pytest.raises(SystemExit, match="installed build's final_actions.json"):
+        driver.verify_installed_references(s.stage, receipt)
+
+
+def test_install_exclusions_on_an_upgraded_stage_keeps_the_builds_record(
+    upgrade_stage,
+):
+    """With an upgrade installed, install-exclusions re-gates the build and
+    binds its record; build_release_exclusions is never consulted."""
+    s = upgrade_stage
+    made = s.build(S1_MOVE)
+    s.install(made)
+    once = stage_files(s.stage)
+    with mock.patch.object(
+        driver, "build_release_exclusions", lambda *a: pytest.fail("rebuilt")
+    ):
+        driver.install_exclusions(SimpleNamespace(stage_dir=s.stage))
+    assert stage_files(s.stage) == once
+
+
+def test_without_an_install_a_stage_has_no_upgrade(seeded_stage):
+    """The 2.15.17 path: nothing reads a build, nothing is derived from one."""
+    _, stage, prepare = seeded_stage
+    prepare(JOINS_S0)
+    assert driver.stage_upgrade(stage) is None
+    assert driver.upgraded_cases(stage) == frozenset()
+    assert driver.stage_upgrade(stage / "no-such-stage") is None
+
+
+@pytest.mark.parametrize(
+    "missing", ["--built", "--explanations", "--actions", "--grounding"]
+)
+def test_install_references_needs_the_build_its_explanations_actions_and_grounding(
+    tmp_path, capsys, missing
+):
+    options = {
+        "--built": tmp_path / "out",
+        "--explanations": tmp_path / "e.csv",
+        "--actions": tmp_path / "a.json",
+        "--grounding": tmp_path / "g.csv",
+    }
+    argv = ["--stage-dir", str(tmp_path / "stage"), "--step", "install-references"]
+    for name, value in options.items():
+        if name != missing:
+            argv += [name, str(value)]
+    with pytest.raises(SystemExit):
+        driver.parse_args(argv)
+    assert f"install-references requires {missing}" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        driver.parse_args([*argv, missing, str(options[missing]), "--early"])
+
+
+def test_main_runs_install_references_on_a_resumable_stage(workspace, monkeypatch):
+    calls = []
+    monkeypatch.setattr(driver, "install_references", lambda args: calls.append(args))
+    stage = workspace / "results/local/stage"
+    _resumable(stage, None)
+    sources = {}
+    for name in ("out", "e.csv", "a.json", "g.csv"):
+        sources[name] = workspace / "results/local/build" / name
+    argv = ["--stage-dir", str(stage), "--step", "install-references"]
+    argv += ["--built", str(sources["out"]), "--explanations", str(sources["e.csv"])]
+    argv += ["--actions", str(sources["a.json"]), "--grounding", str(sources["g.csv"])]
+    driver.main(argv)
+    assert [args.built for args in calls] == [sources["out"].resolve()]
+
+
+@pytest.mark.parametrize("step", ["triage", "export", "adjudicate-exclusions"])
+def test_later_steps_take_the_releases_record_from_the_installed_build(
+    workspace, monkeypatch, step
+):
+    """With references_installed, main holds exclusions_installed to the
+    re-gated build's record, not to build_release_exclusions'."""
+    built = SimpleNamespace(sha256={EXCLUSIONS_NAME: "b" * 64})
+    monkeypatch.setattr(driver, "verify_installed_references", lambda *a: built)
+    monkeypatch.setattr(
+        driver, "release_exclusions_sha256", lambda: pytest.fail("fallback read")
+    )
+    called = step.replace("-", "_")
+    calls = []
+    for name in ("triage", "adjudicate_exclusions"):
+        monkeypatch.setattr(driver, name, lambda *a, n=name: calls.append(n))
+    monkeypatch.setattr(driver, "export", lambda *a: calls.append("export"))
+    monkeypatch.setattr(driver, "resolve_live_base", lambda args: {})
+    stage = workspace / "results/local/stage"
+    _resumable(stage, {"sha256": "b" * 64})
+    receipt = json.loads((stage / "stage.json").read_text())
+    receipt["references_installed"] = {"engine_version": MOCK_ENGINE}
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    driver.main(["--stage-dir", str(stage), "--step", step])
+    assert calls[-1] == called
+    receipt["exclusions_installed"] = {"sha256": release_sha()}
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    with pytest.raises(SystemExit, match="run --step install-exclusions"):
+        driver.main(["--stage-dir", str(stage), "--step", step])
+
+
+# --- Adjudications with an upgrade installed -----------------------------------
+
+
+@pytest.fixture
+def upgraded(tmp_path, monkeypatch, upgrade_spec):
+    """MOCK: a real-base build that regenerates the four d1022 cells and WI 042
+    and adds no exclusion, installed (as far as the adjudication gates see) on
+    a stage whose cases hold the verdicts the decisions need."""
+    monkeypatch.setitem(upgrade_spec, "adjudications_written_on", WRITTEN_ON)
+    regenerated = {**MOCK_REGENERATED_RULED, WI_042: 0.0}
+    build = real_build(tmp_path / "build", regenerated=regenerated, added={})
+    upgrade = load(build)
+    stage = tmp_path / "stage"
+    cases = _all_verdicts(
+        _ruled_verdicts(stage / "audit" / "cases"),
+        base_adjudication_record()["adjudications"],
+    )
+    (stage / "stage.json").write_text(json.dumps({"files": {}}))
+    monkeypatch.setattr(driver, "stage_upgrade", lambda stage_dir: upgrade)
+    return SimpleNamespace(upgrade=upgrade, stage=stage, cases=cases, build=build)
+
+
+REGENERATED_RULED_CASES = frozenset(
+    driver.output_case(key) for key in MOCK_REGENERATED_RULED
+)
+KEPT_RULED_CASES = RULED_CASES - REGENERATED_RULED_CASES
+
+
+def test_adjudicate_exclusions_decides_the_kept_and_drops_the_regenerated(upgraded):
+    """Six ruled outputs stay excluded (five new entries and scenario_051
+    restated); the four regenerated d1022 cells get none; WI 042's 20261006
+    decision is dropped and the drop recorded. The record excludes exactly the
+    build's 69 records."""
+    from policybench.adjudications import excluded_case_keys, parse_adjudications
+    from policybench.reference_exclusions import exclusion_keys
+
+    path = _write_stage_record(upgraded.stage, base_adjudication_record())
+    driver.adjudicate_exclusions(SimpleNamespace(stage_dir=upgraded.stage))
+    written = json.loads(path.read_text())
+    assert path.read_text() == driver.record_text(written)
+    entries = parse_adjudications(written, path)
+    cases = {driver.case_id(entry) for entry in entries}
+    assert len(entries) == 77 - 1 + 5
+    assert KEPT_RULED_CASES <= cases
+    assert not REGENERATED_RULED_CASES & cases and WI_042_CASE not in cases
+    built = json.loads(upgraded.upgrade.exclusions_text)["exclusions"]
+    assert excluded_case_keys(entries) == exclusion_keys(built)
+    assert len(built) == 69
+    receipt = json.loads((upgraded.stage / "stage.json").read_text())
+    (drop,) = receipt["adjudications_dropped"]
+    assert drop["case_id"] == WI_042_CASE
+    assert drop["entry"] == next(
+        e
+        for e in base_adjudication_record()["adjudications"]
+        if driver.case_id(e) == WI_042_CASE
+    )
+    assert "#178" in drop["reason"]
+    driver.verify_recorded_drops(upgraded.stage, upgraded.upgrade)
+    # The triage gate accepts exactly that record.
+    with mock.patch.object(
+        driver, "base_adjudication_record", base_adjudication_record
+    ):
+        staged = driver.stage_adjudications(
+            path,
+            RULED_CASES | {WI_042_CASE},
+            [],
+            upgraded.cases,
+            regenerated=upgraded.upgrade.regenerated_ruled,
+            dropped=upgraded.upgrade.dropped_cases,
+        )
+    assert len(staged) == 81
+
+
+def test_adjudicate_exclusions_refuses_a_record_deciding_a_regenerated_output(
+    upgraded,
+):
+    """A record decided before the upgrade was installed (all ten ruled) must
+    be put back to release 20261006's first."""
+    record = driver.exclusion_adjudications(base_adjudication_record(), upgraded.cases)
+    path = _write_stage_record(upgraded.stage, record)
+    text = path.read_text()
+    with pytest.raises(SystemExit, match="already decided|engine upgrade regenerated"):
+        driver.adjudicate_exclusions(SimpleNamespace(stage_dir=upgraded.stage))
+    assert path.read_text() == text
+
+
+@pytest.fixture
+def decided(upgraded):
+    """The staged record adjudicate-exclusions writes on the upgraded stage."""
+    from policybench.adjudications import parse_adjudications
+
+    path = _write_stage_record(upgraded.stage, base_adjudication_record())
+    driver.adjudicate_exclusions(SimpleNamespace(stage_dir=upgraded.stage))
+    record = json.loads(path.read_text())
+    return SimpleNamespace(
+        **vars(upgraded),
+        path=path,
+        record=record,
+        entries=parse_adjudications(record, path),
+    )
+
+
+def _gate(decided, entries, **overrides):
+    options = {
+        "regenerated": decided.upgrade.regenerated_ruled,
+        "dropped": decided.upgrade.dropped_cases,
+    }
+    options.update(overrides)
+    return driver.verify_adjudication_changes(
+        driver.base_adjudications(),
+        entries,
+        RULED_CASES | {WI_042_CASE},
+        [],
+        decided.cases,
+        **options,
+    )
+
+
+def test_the_adjudication_gate_accepts_exactly_the_upgrades_drops(decided):
+    # The ruled entries are the ruled gate's; no other decision is new.
+    assert _gate(decided, decided.entries) == 0
+    base_051 = next(e for e in decided.entries if driver.case_id(e) == CASE_051)
+    # WI 042's decision kept: refused.
+    wi = next(
+        e
+        for e in base_adjudication_record()["adjudications"]
+        if driver.case_id(e) == WI_042_CASE
+    )
+    with pytest.raises(SystemExit, match="keep the decisions of records the engine"):
+        _gate(decided, [*decided.entries, wi])
+    # Another decision dropped: refused.
+    other = [
+        e
+        for e in decided.entries
+        if driver.case_id(e) != driver.case_id(decided.record["adjudications"][0])
+    ]
+    with pytest.raises(SystemExit, match="drop recorded decisions"):
+        _gate(decided, other)
+    # Without the upgrade's view the same record fails the ruled gate.
+    with pytest.raises(SystemExit, match="ruled outputs"):
+        _gate(decided, decided.entries, regenerated=frozenset(), dropped=frozenset())
+    # A regenerated ruled output decided as excluded: refused.
+    excluded = {**base_051, "scenario_id": "scenario_018"}
+    excluded["variable"] = STATE_TAX
+    with pytest.raises(SystemExit, match="regenerated this output"):
+        _gate(decided, [*decided.entries, excluded])
+    # A drop of a decision release 20261006 lacks: refused.
+    with pytest.raises(SystemExit, match="drop decisions release 20261006 lacks"):
+        _gate(
+            decided,
+            decided.entries,
+            dropped=decided.upgrade.dropped_cases | {"us__x__y"},
+        )
+
+
+def test_triage_requires_the_recorded_drops(decided):
+    receipt_path = decided.stage / "stage.json"
+    receipt = json.loads(receipt_path.read_text())
+    driver.verify_recorded_drops(decided.stage, decided.upgrade)
+    for edit, problem in (
+        (lambda r: r.pop("adjudications_dropped"), "records no dropped"),
+        (lambda r: r.update(adjudications_dropped=[]), "are not the regenerated"),
+        (
+            lambda r: r["adjudications_dropped"][0]["entry"].update(reasoning="X."),
+            "not release 20261006's",
+        ),
+    ):
+        edited = copy.deepcopy(receipt)
+        edit(edited)
+        receipt_path.write_text(json.dumps(edited))
+        with pytest.raises(SystemExit, match=problem):
+            driver.verify_recorded_drops(decided.stage, decided.upgrade)
+
+
+@settings(
+    max_examples=40,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+@given(data=st.data())
+def test_the_excluded_set_equality_holds_for_any_dropped_decisions(unruled_spec, data):
+    """For any set of release 20261006's excluding decisions dropped as
+    regenerated: the gate accepts the record without them exactly when the
+    drop set is that set, and the record then excludes 20261006's exclusions
+    less the regenerated outputs, as the build's record does."""
+    from policybench.adjudications import excluded_case_keys
+
+    base = driver.base_adjudications()
+    excluding = sorted(
+        driver.case_id(e) for e in base if e.get("excluded_from_scoring")
+    )
+    dropped = frozenset(data.draw(st.sets(st.sampled_from(excluding), max_size=6)))
+    staged = [e for e in base if driver.case_id(e) not in dropped]
+    with tempfile.TemporaryDirectory() as scratch:
+        cases = Path(scratch)
+        assert (
+            driver.verify_adjudication_changes(
+                base, staged, frozenset(), [], cases, dropped=dropped
+            )
+            == 0
+        )
+        expected = excluded_case_keys(base) - {
+            tuple(case.split("__", 2)[1:]) for case in dropped
+        }
+        assert excluded_case_keys(staged) == expected
+        other = data.draw(st.sampled_from(excluding))
+        wrong = dropped ^ {other}
+        with pytest.raises(SystemExit):
+            driver.verify_adjudication_changes(
+                base, staged, frozenset(), [], cases, dropped=wrong
+            )
+
+
+# --- Export with an upgrade installed ------------------------------------------
+
+
+@pytest.fixture
+def upgrade_bundle(tmp_path, upgrade_spec):
+    """MOCK: a bundle holding a real-base build's references, the export
+    inputs the scope export copies, and the build gated."""
+    build = real_build(tmp_path / "build")
+    upgrade = load(build)
+    bundle = tmp_path / "stage" / "publish" / driver.RUN_NAME
+    base_references(bundle / "us")
+    for name in driver.UPGRADED_FILES:
+        (bundle / "us" / name).write_bytes((build.built / name).read_bytes())
+    (bundle / "us" / "predictions.csv").write_text("model,scenario_id,variable\n")
+    (bundle / "annotations").mkdir()
+    for name in ("us_audit_row_annotations.csv", "us_case_notes.csv"):
+        (bundle / "annotations" / name).write_text("country\n")
+    (bundle / "annotations" / driver.EXPLANATIONS_NAME).write_bytes(
+        build.explanations.read_bytes()
+    )
+    return SimpleNamespace(build=build, upgrade=upgrade, bundle=bundle)
+
+
+def test_the_upgrade_scope_check_puts_back_the_base_references_and_record(
+    scope, upgrade_bundle
+):
+    """(a) The scope export reads release 20261006's five reference files and
+    exclusion record, never the build's; (b) every model is scored on 1,984
+    less the build's 72 records."""
+    incumbents = _incumbents()
+    stats = _exported(incumbents)
+    for row in stats:
+        row["n"] = 1912
+    payload = scope.build(
+        stats,
+        _scoped(incumbents),
+        incumbents,
+        bundle=upgrade_bundle.bundle,
+        upgrade=upgrade_bundle.upgrade,
+    )
+    assert {row["n"] for row in payload["countries"]["us"]["modelStats"]} == {1912}
+    (references,) = scope.references
+    assert references == {
+        name: base_blob(SNAPSHOT_PATH / name) for name in driver.REFERENCE_FILES
+    }
+    (_, _, _, record) = scope.calls[-1]
+    assert sha(record) == driver.BASE_REFERENCE_SHA256[EXCLUSIONS_NAME]
+    # The scratch copy is gone; the bundle keeps the build's files.
+    assert (upgrade_bundle.bundle / "us" / CSV_NAME).read_bytes() == (
+        upgrade_bundle.build.built / CSV_NAME
+    ).read_bytes()
+    assert [p.name for p in upgrade_bundle.bundle.parent.iterdir()] == [driver.RUN_NAME]
+
+
+@settings(
+    max_examples=40,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+@given(
+    counts=st.lists(
+        st.sampled_from([1912, 1912, 1910, 1920, 1911]), min_size=47, max_size=47
+    )
+)
+def test_with_an_upgrade_every_model_is_scored_on_1984_less_its_records(
+    scope, upgrade_bundle, counts
+):
+    incumbents = _incumbents()
+    stats = _exported(incumbents)
+    for row, n in zip(stats, counts):
+        row["n"] = n
+    run = functools.partial(
+        scope.build,
+        stats,
+        _scoped(incumbents),
+        incumbents,
+        bundle=upgrade_bundle.bundle,
+        upgrade=upgrade_bundle.upgrade,
+    )
+    if set(counts) == {1912}:
+        run()
+    else:
+        with pytest.raises(SystemExit, match="must be scored on 1912 outputs"):
+            run()
+
+
+def test_the_upgrade_scope_check_refuses_incumbent_drift(scope, upgrade_bundle):
+    incumbents = _incumbents()
+    stats = _exported(incumbents)
+    for row in stats:
+        row["n"] = 1912
+    scoped = _scoped(incumbents)
+    scoped[3]["exact"] += 0.01
+    with pytest.raises(
+        SystemExit,
+        match=r"references and exclusion record, incumbent modelStats drift: "
+        r"\['incumbent-03'\]",
+    ):
+        scope.build(
+            stats,
+            scoped,
+            incumbents,
+            bundle=upgrade_bundle.bundle,
+            upgrade=upgrade_bundle.upgrade,
+        )
+
+
+def test_export_holds_the_staged_references_to_the_installed_build(
+    exporting, monkeypatch, upgrade_spec, tmp_path
+):
+    """Export with an upgrade: the staged references must be the build's, the
+    committed ones release 20261006's until the freeze."""
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    build = real_build(tmp_path / "build")
+    upgrade = load(build)
+    monkeypatch.setattr(driver, "stage_upgrade", lambda stage_dir: upgrade)
+    # The annotation CSVs the scope export copies with the references.
+    for name in ("us_audit_row_annotations.csv", "us_case_notes.csv"):
+        (bundle / "annotations" / name).write_text("country\n")
+    (bundle / "annotations" / driver.EXPLANATIONS_NAME).write_bytes(
+        build.explanations.read_bytes()
+    )
+    incumbents = _incumbents()
+    stats = _exported(incumbents)
+    for row in stats:
+        row["n"] = 1912
+    with pytest.raises(SystemExit, match="it is not the installed engine upgrade's"):
+        run(stats, incumbents)
+    # install-references writes the build's files and rebinds them.
+    receipt = json.loads((stage / "stage.json").read_text())
+    for name in driver.UPGRADED_FILES:
+        (bundle / "us" / name).write_bytes((build.built / name).read_bytes())
+        receipt["files"][f"publish/{driver.RUN_NAME}/us/{name}"] = sha(
+            build.built / name
+        )
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    run(stats, incumbents)
+    assert (stage / "release-ready.json").is_file()
+
+
+def test_triage_holds_the_record_to_the_installed_upgrade(triage_stage, monkeypatch):
+    """With an upgrade installed, triage checks the recorded drops and gives
+    the adjudication gate the upgrade's regenerated outputs and drops."""
+    stage, _, run = triage_stage
+    upgrade = SimpleNamespace(
+        regenerated_ruled=frozenset(MOCK_REGENERATED_RULED),
+        dropped_cases=frozenset({WI_042_CASE}),
+    )
+    monkeypatch.setattr(driver, "stage_upgrade", lambda stage_dir: upgrade)
+    checked, given = [], []
+    monkeypatch.setattr(
+        driver, "verify_recorded_drops", lambda *a: checked.append(a[1])
+    )
+
+    def gate(*args, **kwargs):
+        given.append(kwargs)
+        raise SystemExit("gate reached")
+
+    monkeypatch.setattr(driver, "stage_adjudications", gate)
+    with pytest.raises(SystemExit, match="gate reached"):
+        run()
+    assert checked == [upgrade]
+    assert given == [
+        {
+            "regenerated": frozenset(MOCK_REGENERATED_RULED),
+            "dropped": frozenset({WI_042_CASE}),
+        }
+    ]
+
+
+def test_install_references_needs_the_seed_binding(upgrade_stage):
+    s = upgrade_stage
+    receipt = json.loads((s.stage / "stage.json").read_text())
+    del receipt["seed"]
+    (s.stage / "stage.json").write_text(json.dumps(receipt))
+    before = stage_files(s.stage)
+    with pytest.raises(SystemExit, match="does not bind the audit seed"):
+        s.install(s.build(S1_MOVE))
+    assert stage_files(s.stage) == before

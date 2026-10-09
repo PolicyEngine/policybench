@@ -7,11 +7,18 @@ exclusions Max ruled on 2026-10-06 (d994, d1022), so an incumbent's modelStats
 may change only as those records explain. All outputs, including audit
 verdicts and adjudications, stay in --stage-dir. See docs/haiku55/design.md for
 the run and release procedure.
+
+--step install-references (Max, 2026-10-09: "yes i want to wait for hte fixed
+engine") may instead move the references to a newer policyengine-us: it gates
+a reference build against release 20261006 and installs it, and every later
+step then holds the stage to that build (see "An engine upgrade of the
+references" below). A stage that never runs it is staged exactly as before.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import gzip
 import hashlib
 import json
@@ -235,18 +242,28 @@ def write_json(path: Path, value: object) -> None:
 
 
 def verify_reference_pins(
-    directory: Path, label: str, exclusions_sha256: str | None = None
+    directory: Path,
+    label: str,
+    exclusions_sha256: str | None = None,
+    pins: dict[str, str] | None = None,
 ) -> None:
     """Every reference file in ``directory`` must equal its 20261006 pin; the
-    exclusion record may instead be the release's (``exclusions_sha256``)."""
-    for name, pin in BASE_REFERENCE_SHA256.items():
+    exclusion record may instead be the release's (``exclusions_sha256``).
+
+    ``pins`` replaces the 20261006 pins outright: an installed engine upgrade
+    names its build's hashes (upgraded_reference_pins)."""
+    for name, pin in (BASE_REFERENCE_SHA256 if pins is None else pins).items():
         if name == "reference_exclusions.json" and exclusions_sha256 is not None:
             pin = exclusions_sha256
         path = directory / name
         require(
             path.is_file() and digest(path) == pin,
-            f"{label} {name} does not match its pin; this release revises no "
-            "reference value",
+            f"{label} {name} does not match its pin; "
+            + (
+                "this release revises no reference value"
+                if pins is None
+                else "it is not the installed engine upgrade's build"
+            ),
         )
 
 
@@ -842,6 +859,18 @@ def install_exclusions(args) -> None:
     receipt = json.loads(receipt_path.read_text())
     bound = f"publish/{RUN_NAME}/us/reference_exclusions.json"
     require(bound in receipt["files"], "stage.json does not bind the exclusions")
+    if receipt.get("references_installed"):
+        # With an engine upgrade installed the release's exclusion record is
+        # the build's, never build_release_exclusions(): re-gate the installed
+        # build (upgrade_exclusion_records) and bind its record again.
+        upgrade = verify_installed_references(stage, receipt)
+        bind_build_exclusions(stage, receipt, upgrade)
+        write_json(receipt_path, receipt)
+        print(
+            f"Installed the {upgrade.engine_version} build's {upgrade.records} "
+            f"exclusions: {upgrade.sha256[EXCLUSIONS_NAME]}"
+        )
+        return
     text = exclusions_text(
         build_release_exclusions(base_exclusion_record(), load_spec())
     )
@@ -933,19 +962,32 @@ def exclusion_entry(
     return entry
 
 
-def exclusion_adjudications(record: dict, cases_dir: Path) -> dict:
+def exclusion_adjudications(
+    record: dict, cases_dir: Path, regenerated: frozenset = frozenset()
+) -> dict:
     """``record`` (the staged adjudication record) with the ruled outputs
     decided: an existing entry is restated in place, a new one appended in the
-    spec's order, and the date conventions name the 2026-10-06 wave."""
+    spec's order, and the date conventions name the 2026-10-06 wave.
+
+    ``regenerated`` names the ruled outputs an installed engine upgrade
+    regenerated (spec_regenerated); they are scored again, so none is decided.
+    """
     import copy
 
     spec = load_spec()
-    records = {spec_key(r): r for r in spec_records(spec)}
+    records = {
+        spec_key(r): r for r in spec_records(spec) if spec_key(r) not in regenerated
+    }
+    items = [
+        item for item in spec["adjudications"] if spec_key(item) not in regenerated
+    ]
     require(
-        set(records) == {spec_key(item) for item in spec["adjudications"]},
+        set(records) == {spec_key(item) for item in items},
         "the spec's adjudications and records name different outputs",
     )
-    restated = {spec_key(item) for item in spec.get("restated_adjudications", [])}
+    restated = {
+        spec_key(item) for item in spec.get("restated_adjudications", [])
+    } - regenerated
     out = copy.deepcopy(record)
     by_key = {
         spec_key(entry): index for index, entry in enumerate(out["adjudications"])
@@ -956,7 +998,7 @@ def exclusion_adjudications(record: dict, cases_dir: Path) -> dict:
         f"{sorted(set(by_key) & set(records))}",
     )
     appended = []
-    for item in spec["adjudications"]:
+    for item in items:
         k = spec_key(item)
         case_dir = cases_dir / f"us__{k[0]}__{k[1]}"
         if k in by_key:
@@ -989,23 +1031,55 @@ def release_date_conventions(conventions: str) -> str:
 
 
 def adjudicate_exclusions(args) -> None:
-    """Decide the ruled outputs in the staged record (after judge and restate)."""
+    """Decide the ruled outputs in the staged record (after judge and restate).
+
+    With an engine upgrade installed it decides only the ruled outputs the
+    build keeps excluded, and drops the decisions of the release 20261006
+    records the build regenerated, as release 20260922c dropped scenario_045
+    SNAP's (#178). Each drop is recorded in stage.json (adjudications_dropped)
+    before the record is written, so triage can hold the record to it.
+    """
     from policybench.adjudications import parse_adjudications
 
     path = args.stage_dir / "publish" / RUN_NAME / "annotations" / ADJUDICATIONS
     record = json.loads(path.read_text())
+    upgrade = stage_upgrade(args.stage_dir)
+    regenerated = frozenset() if upgrade is None else upgrade.regenerated_ruled
     keys = {spec_key(item) for item in load_spec()["adjudications"]}
     require(
         not any(
-            entry.get("excluded_from_scoring") and spec_key(entry) in keys
+            entry.get("excluded_from_scoring") and spec_key(entry) in keys - regenerated
             for entry in record["adjudications"]
         ),
         "the ruled outputs are already decided in the staged record",
     )
-    staged = exclusion_adjudications(record, args.stage_dir / "audit" / "cases")
+    require(
+        not any(
+            entry.get("excluded_from_scoring") and spec_key(entry) in regenerated
+            for entry in record["adjudications"]
+        ),
+        "the staged record excludes ruled outputs the engine upgrade regenerated; "
+        "put the staged record back to release 20261006's (from git at "
+        "BASE_COMMIT), then restate and decide again",
+    )
+    staged = exclusion_adjudications(
+        record, args.stage_dir / "audit" / "cases", regenerated
+    )
+    dropped: list[dict] = []
+    if upgrade is not None:
+        staged, dropped = drop_regenerated_adjudications(staged, upgrade)
     parse_adjudications(staged, path)
+    if upgrade is not None:
+        receipt_path = args.stage_dir / "stage.json"
+        receipt = json.loads(receipt_path.read_text())
+        receipt["adjudications_dropped"] = dropped
+        write_json(receipt_path, receipt)
     path.write_text(record_text(staged))
-    print(f"Decided {NEW_EXCLUSIONS} ruled outputs in {path}")
+    decided = len(keys - regenerated)
+    print(
+        f"Decided {decided} ruled outputs in {path}"
+        + (f"; dropped {len(dropped)} regenerated decisions" if upgrade else "")
+    )
 
 
 def record_text(record: dict) -> str:
@@ -1192,12 +1266,19 @@ def _record_amendments(amendments: list[dict]) -> dict[str, list[dict]]:
 
 
 def ruled_adjudication_problems(
-    before: dict[str, dict], after: dict[str, dict], cases_dir: Path
+    before: dict[str, dict],
+    after: dict[str, dict],
+    cases_dir: Path,
+    regenerated: frozenset = frozenset(),
 ) -> list[str]:
     """Where the staged decisions on the ten ruled outputs are not exactly what
     exclusion_entry builds: a new one from its case's bound verdict, and
     scenario_051's from its release 20261006 entry with the judge fields the
-    restate script gave it."""
+    restate script gave it.
+
+    A ruled output an installed engine upgrade regenerated (``regenerated``)
+    is scored again: no staged decision may exclude it, and any other decision
+    on it is an ordinary re-opened case's (verify_adjudication_changes)."""
     from restate_gpt61sol_adjudications import JUDGE_FIELDS
 
     spec = load_spec()
@@ -1206,6 +1287,13 @@ def ruled_adjudication_problems(
     for item in spec["adjudications"]:
         k = spec_key(item)
         case = f"us__{k[0]}__{k[1]}"
+        if k in regenerated:
+            if after.get(case, {}).get("excluded_from_scoring"):
+                problems.append(
+                    f"{case}: the engine upgrade regenerated this output, so no "
+                    "decision may exclude it"
+                )
+            continue
         if case not in after:
             problems.append(f"{case}: no staged decision")
             continue
@@ -1242,6 +1330,9 @@ def verify_adjudication_changes(
     rejudged: frozenset[str],
     amendments: list[dict],
     cases_dir: Path,
+    *,
+    regenerated: frozenset = frozenset(),
+    dropped: frozenset[str] = frozenset(),
 ) -> int:
     """A staged record differs from 20261006's only where it has a reason to.
 
@@ -1252,6 +1343,11 @@ def verify_adjudication_changes(
     included, and the committed entries keep their order. A new entry may only
     decide a re-opened case, and none may be dropped. Returns how many staged
     entries are new.
+
+    With an engine upgrade installed, ``regenerated`` names the ruled outputs
+    it regenerated (no longer decided as ruled) and ``dropped`` the cases of
+    the release 20261006 records it regenerated: exactly those decisions must
+    be gone, and every other one stays.
     """
     from restate_gpt61sol_adjudications import JUDGE_FIELDS
 
@@ -1266,13 +1362,29 @@ def verify_adjudication_changes(
 
     before = {case_id(entry): entry for entry in base}
     after = {case_id(entry): entry for entry in staged}
-    ruled = ruled_adjudication_problems(before, after, cases_dir)
+    ruled = ruled_adjudication_problems(before, after, cases_dir, regenerated)
     require(not ruled, f"Staged adjudications of the ruled outputs: {ruled[:8]}")
     ruled_cases = {
         f"us__{k[0]}__{k[1]}"
         for k in (spec_key(item) for item in load_spec()["adjudications"])
+        if k not in regenerated
     }
-    before = {case: entry for case, entry in before.items() if case not in ruled_cases}
+    stray = sorted(dropped - set(before))
+    require(
+        not stray,
+        f"Staged adjudications drop decisions release 20261006 lacks: {stray[:8]}",
+    )
+    kept = sorted(dropped & set(after))
+    require(
+        not kept,
+        "Staged adjudications keep the decisions of records the engine upgrade "
+        f"regenerated; run --step adjudicate-exclusions: {kept[:8]}",
+    )
+    before = {
+        case: entry
+        for case, entry in before.items()
+        if case not in ruled_cases and case not in dropped
+    }
     after = {case: entry for case, entry in after.items() if case not in ruled_cases}
     dropped = sorted(set(before) - set(after))
     require(not dropped, f"Staged adjudications drop recorded decisions: {dropped}")
@@ -1313,12 +1425,20 @@ def verify_adjudication_changes(
 
 
 def stage_adjudications(
-    path: Path, rejudged: frozenset[str], amendments: list[dict], cases_dir: Path
+    path: Path,
+    rejudged: frozenset[str],
+    amendments: list[dict],
+    cases_dir: Path,
+    *,
+    regenerated: frozenset = frozenset(),
+    dropped: frozenset[str] = frozenset(),
 ) -> list[dict]:
     """The staged record, with its listed reasoning amendments applied.
 
     Checked in memory against release 20261006's record (from git) and the
     stage's verdicts; written back only when an amendment was not applied yet.
+    ``regenerated`` and ``dropped`` describe an installed engine upgrade
+    (verify_adjudication_changes).
     """
     from freeze_snapshot import verify_adjudications_keep_judge_verdicts
 
@@ -1344,7 +1464,15 @@ def stage_adjudications(
     text = record_text(record)
     verify_record_form(text, base_record)
     entries = parse_adjudications(json.loads(text), path)
-    verify_adjudication_changes(base, entries, rejudged, amendments, cases_dir)
+    verify_adjudication_changes(
+        base,
+        entries,
+        rejudged,
+        amendments,
+        cases_dir,
+        regenerated=regenerated,
+        dropped=dropped,
+    )
     verify_restatements(base, entries, rejudged, cases_dir)
     verify_adjudications_keep_judge_verdicts(entries, cases_dir)
     if applied:
@@ -1667,11 +1795,16 @@ def verify_prompt_changes(stage: Path, seed: dict[str, dict[str, str]]) -> None:
     A case whose prompt is the seed's is kept, one whose prompt differs is
     changed and one the seed lacks is added; Claude Haiku 5.5 must be among the
     wrong models of every changed or added case, and no seed case may vanish
-    (check_prompt_changes, as prepare applies it). The staged predictions
-    must agree (verify_reopened_by_predictions).
+    (check_prompt_changes, as prepare applies it). With an engine upgrade
+    installed, a case whose reference value or explanation the installed
+    revision changed may change or appear without it (upgraded_cases, derived
+    from the staged files against release 20261006's in git). The staged
+    predictions must agree (verify_reopened_by_predictions).
     """
     derived = check_prompt_changes(
-        stage / "audit", {case: item["prompt_sha256"] for case, item in seed.items()}
+        stage / "audit",
+        {case: item["prompt_sha256"] for case, item in seed.items()},
+        upgraded=upgraded_cases(stage),
     )
     recorded = json.loads((stage / PROMPT_CHANGES).read_text())
     differ = sorted(
@@ -1697,7 +1830,10 @@ def verify_reopened_by_predictions(stage: Path, derived: dict[str, list]) -> Non
     used to list each case's wrong models. A changed or added case must list
     the new model exactly when its prediction is wrong; any other case it
     gets wrong must be parse-failure-only as the manifest records it, so a
-    kept case needs the new model's prediction right.
+    kept case needs the new model's prediction right. The staged references
+    are the installed engine upgrade's when one is installed, so a case the
+    upgrade re-opened without the new model (its prediction right on the new
+    reference) passes, and one the upgrade made it miss must list it.
     """
     from policybench.audit import _case_id, _load_manifest
     from policybench.case_annotations import wrong_prediction_rows
@@ -1812,7 +1948,9 @@ def reworded_since_seed() -> frozenset[str]:
     return derived
 
 
-def check_prompt_changes(audit: Path, seeded: dict[str, str]) -> dict[str, list]:
+def check_prompt_changes(
+    audit: Path, seeded: dict[str, str], upgraded: frozenset[str] = frozenset()
+) -> dict[str, list]:
     """Only a case Claude Haiku 5.5 joins, or one release 20261006 reworded,
     may change or appear.
 
@@ -1820,24 +1958,51 @@ def check_prompt_changes(audit: Path, seeded: dict[str, str]) -> dict[str, list]
     committed snapshot and the pinned grounding, so an incumbent-only case
     whose prompt differs (or that is new) means an input changed under the
     carried-over verdicts, unless its reference explanation is one release
-    20261006 reworded (reworded_since_seed); that case is re-judged.
+    20261006 reworded (reworded_since_seed), or its reference value or
+    explanation is one an installed engine upgrade changed (``upgraded``,
+    upgraded_cases); that case is re-judged.
     """
     manifest = [
         json.loads(line) for line in (audit / "cases.jsonl").read_text().splitlines()
     ]
+    prompts = {
+        item["case_id"]: digest(audit / "cases" / item["case_id"] / "prompt.md")
+        for item in manifest
+        if not item["parse_failure_only"]
+    }
+    return classify_prompt_changes(
+        manifest, prompts, seeded, reworded_since_seed(), upgraded
+    )
+
+
+def classify_prompt_changes(
+    manifest: list[dict],
+    prompts: dict[str, str],
+    seeded: dict[str, str],
+    reworded: frozenset[str],
+    upgraded: frozenset[str] = frozenset(),
+) -> dict[str, list]:
+    """check_prompt_changes' rule on a manifest and its prompts' sha256.
+
+    install-references applies it to the audit it is about to write, so it
+    refuses before it writes anything.
+    """
     new_models = set(MODELS.values())
-    reworded = reworded_since_seed()
     changed, added, kept, offending = [], [], [], []
     for item in manifest:
         if item["parse_failure_only"]:
             continue
         case_id = item["case_id"]
-        prompt = digest(audit / "cases" / case_id / "prompt.md")
+        prompt = prompts[case_id]
         if seeded.get(case_id) == prompt:
             kept.append(case_id)
             continue
         (changed if case_id in seeded else added).append(case_id)
-        if not new_models & set(item["wrong_models"]) and case_id not in reworded:
+        if (
+            not new_models & set(item["wrong_models"])
+            and case_id not in reworded
+            and case_id not in upgraded
+        ):
             offending.append(case_id)
     require(
         not offending,
@@ -1861,8 +2026,6 @@ def prepare_cases(args, bundle) -> dict[str, dict[str, str]]:
 
     Returns the seed digest, which main binds in stage.json.
     """
-    import pandas as pd
-
     from policybench.audit import prepare_audit
 
     require(
@@ -1888,11 +2051,7 @@ def prepare_cases(args, bundle) -> dict[str, dict[str, str]]:
             for name in ("prompt.md", "verdict.json", "verdict.meta.json", "codex.log"):
                 if (source / name).is_file():
                     shutil.copyfile(source / name, target / name)
-    grounding = pd.read_csv(args.grounding)
-    lookup = {
-        (str(r.scenario_id), str(r.variable)): str(r.grounding)
-        for r in grounding.itertuples()
-    }
+    lookup = grounding_lookup(args.grounding)
     prepare_audit(bundle / "us", audit, grounding_lookup=lookup)
     changes = check_prompt_changes(audit, seeded)
     write_json(
@@ -2430,8 +2589,16 @@ def triage(args, bundle) -> None:
     annotations = bundle / "annotations"
     rejudged = rejudged_cases(args.stage_dir)
     amendments = load_amendments(args.stage_dir, rejudged)
+    upgrade = stage_upgrade(args.stage_dir)
+    if upgrade is not None:
+        verify_recorded_drops(args.stage_dir, upgrade)
     decisions = stage_adjudications(
-        annotations / ADJUDICATIONS, rejudged, amendments, audit / "cases"
+        annotations / ADJUDICATIONS,
+        rejudged,
+        amendments,
+        audit / "cases",
+        regenerated=frozenset() if upgrade is None else upgrade.regenerated_ruled,
+        dropped=frozenset() if upgrade is None else upgrade.dropped_cases,
     )
     rows, cases, _ = apply_adjudications(rows, cases, decisions)
     amend_annotations(rows, cases, amendments)
@@ -2495,7 +2662,12 @@ def payload_text(payload: dict) -> str:
 
 
 def build_payload(
-    bundle: Path, live: dict, *, partial: bool = False, early: bool = False
+    bundle: Path,
+    live: dict,
+    *,
+    partial: bool = False,
+    early: bool = False,
+    upgrade: Upgrade | None = None,
 ) -> dict:
     """The payload export writes, built from ``bundle``; the one definition.
 
@@ -2505,6 +2677,11 @@ def build_payload(
     dashboard schema. The freeze rebuilds the staged payload with this.
     export_full_run writes data.json, us/data.json and us/analysis/ into
     ``bundle``.
+
+    With an engine upgrade installed (``upgrade``) the scope check is two-sided:
+    (a) with release 20261006's references and exclusion record both put back,
+    every incumbent's modelStats is release 20261006's byte for byte; (b)
+    every model is scored on 1,984 outputs less the build's exclusion count.
     """
     from policybench.dashboard_schema import validate_dashboard_payload
     from policybench.full_run_export import export_full_run
@@ -2530,13 +2707,16 @@ def build_payload(
             for key in keys:
                 row[key] = previous[model][key]
         scored = {row["model"]: row["n"] for row in stats}
+        expected = RELEASE_SCORED if upgrade is None else upgrade.scored_outputs
         require(
-            set(scored.values()) == {RELEASE_SCORED},
-            f"every model must be scored on {RELEASE_SCORED} outputs: {scored}",
+            set(scored.values()) == {expected},
+            f"every model must be scored on {expected} outputs: {scored}",
         )
         # The scope check: with release 20261006's exclusion record put back,
         # every incumbent's modelStats is release 20261006's byte for byte, so
-        # every incumbent change comes from the ten ruled records.
+        # every incumbent change comes from the ten ruled records. With an
+        # engine upgrade, its references are put back too, so every change
+        # comes from the build's references and exclusion record.
         import tempfile
 
         from release_20261006 import export_payload
@@ -2544,14 +2724,19 @@ def build_payload(
         with tempfile.TemporaryDirectory() as scratch:
             record = Path(scratch) / "reference_exclusions.json"
             record.write_text(exclusions_text(base_exclusion_record()))
-            scoped = export_payload(bundle, live, record)
+            if upgrade is None:
+                scoped = export_payload(bundle, live, record)
+            else:
+                scoped = export_on_base_references(bundle, live, record)
         scoped_stats = scoped["countries"]["us"]["modelStats"]
         require(len(scoped_stats) == BOARD_MODELS, "scope export lost a model")
         drift = incumbent_drift(scoped_stats, previous)
+        put_back = (
+            "exclusion record" if upgrade is None else "references and exclusion record"
+        )
         require(
             not drift,
-            "with release 20261006's exclusion record, incumbent modelStats "
-            f"drift: {drift}",
+            f"with release 20261006's {put_back}, incumbent modelStats drift: {drift}",
         )
     errors = validate_dashboard_payload(payload, require_failure_annotations=not early)
     require(not errors, f"payload validation failed: {errors[:8]}")
@@ -2564,7 +2749,8 @@ def build_payload(
 
 def export(args, bundle, live) -> dict:
     """Export into scratch, preserve incumbent statistics, and gate release."""
-    if not args.partial:
+    upgrade = None if args.partial else stage_upgrade(args.stage_dir)
+    if not args.partial and upgrade is None:
         # After the freeze the pointer and committed record are this release's.
         release = release_exclusions_sha256()
         frozen = live_pointer()["tag"] == RELEASE_TAG
@@ -2572,6 +2758,16 @@ def export(args, bundle, live) -> dict:
             SNAPSHOT, "committed reference", release if frozen else None
         )
         verify_reference_pins(bundle / "us", "staged reference", release)
+    elif upgrade is not None:
+        # The staged references are the installed build's (BASE_REFERENCE_SHA256
+        # stays release 20261006's); the committed ones are release 20261006's
+        # until the freeze and the build's after it.
+        pins = upgraded_reference_pins(upgrade)
+        frozen = live_pointer()["tag"] == RELEASE_TAG
+        verify_reference_pins(
+            SNAPSHOT, "committed reference", pins=pins if frozen else None
+        )
+        verify_reference_pins(bundle / "us", "staged reference", pins=pins)
     if not args.early:
         verify_new_model_inputs(args.stage_dir)
         verify_judge_provenance(
@@ -2579,7 +2775,9 @@ def export(args, bundle, live) -> dict:
             rejudged_cases(args.stage_dir),
             JUDGE_PROVENANCE,
         )
-    payload = build_payload(bundle, live, partial=args.partial, early=args.early)
+    payload = build_payload(
+        bundle, live, partial=args.partial, early=args.early, upgrade=upgrade
+    )
     stats = payload["countries"]["us"]["modelStats"]
     path = args.stage_dir / (
         f"PARTIAL-data-board{BOARD_MODELS}.json"
@@ -2603,6 +2801,10 @@ def export(args, bundle, live) -> dict:
             bundle / "us" / name for name in (*REFERENCE_FILES, "predictions.csv")
         ]
         pinned += [p for p in (args.stage_dir / "inputs").rglob("*") if p.is_file()]
+        # An installed engine upgrade's build, verbatim (absent otherwise).
+        pinned += [
+            p for p in sorted((args.stage_dir / BUILD_COPY).glob("*")) if p.is_file()
+        ]
         # The cases Claude Haiku 5.5 re-opened, the listed wording amendments and the
         # seed binding decide what the adjudication and verdict gates allow;
         # stage.json and model-provenance.json hold the prepare-time hashes.
@@ -2652,6 +2854,1336 @@ def export(args, bundle, live) -> dict:
     return payload
 
 
+# --- An engine upgrade of the references (--step install-references) ---------
+#
+# Max, 2026-10-09: "yes i want to wait for hte fixed engine". The release may
+# move its references from policyengine-us 2.15.17 to a newer release. A
+# builder adapted from PR #182's (reference_audit/2026-09-28/scripts/
+# build_references_latest.py) reads release 20261006's references from git,
+# recomputes all 1,984 outputs and writes BUILT_FILES into a directory; the
+# narratives script regenerates the reference explanation of each output it
+# changed. --step install-references gates that build against release
+# 20261006 (load_build) and installs it; every later step holds the stage to
+# the installed build (verify_installed_references). The build's revision is
+# the sidecar's last, kind engine_upgrade, as #182's was. A stage that never
+# runs the step is staged exactly as before, on the 20261006 pins.
+
+BUILT_FILES = (
+    "reference_outputs.csv",
+    "reference_outputs.csv.meta.json",
+    "reference_exclusions.json",
+    "reference_traces.json",
+)
+CSV_NAME, META_NAME, EXCLUSIONS_NAME, TRACES_NAME = BUILT_FILES
+# The reference files a build replaces in the stage's scoring source and
+# bundle; scenarios.csv and its sidecar keep their 20261006 pins.
+UPGRADED_FILES = (CSV_NAME, META_NAME, EXCLUSIONS_NAME)
+EXPLANATIONS_NAME = "us_case_reference_explanations.csv"
+ACTIONS_NAME = "final_actions.json"
+# The stage directory that keeps the installed build verbatim: the four built
+# files, the regenerated explanations and the build's actions. Later steps
+# re-gate it, and export binds it.
+BUILD_COPY = "reference-build"
+BUILD_COPY_FILES = (*BUILT_FILES, EXPLANATIONS_NAME, ACTIONS_NAME)
+# Release 20261006's reference explanations, us_case_reference_explanations.csv
+# as committed at BASE_COMMIT.
+BASE_EXPLANATIONS_SHA256 = (
+    "18787448808ec4fdbfbe092d385e6ad7329d4d7d919658f1bcc743f63b53afbe"
+)
+# The engine release 20261006's references were computed on: its sidecar's last
+# revision, the 2026-09-29 engine_upgrade.
+BASE_ENGINE = "policyengine-us 2.15.17"
+ENGINE_PREFIX = "policyengine-us "
+# The sidecar fields a build rewrites; every other field must stay 20261006's.
+SIDECAR_REWRITTEN = frozenset(
+    {"policyengine_bundles", "reference_csv_sha256", "regenerated_at_utc", "revisions"}
+)
+# A regenerated record's output must come back within this of the record's
+# alternative_value, the value its exclusion said the law gives.
+REGENERATION_TOLERANCE = 1.0
+# An excluded output keeps the value it was decided on (rule 5); the loader's
+# own tolerance for a record's frozen_value (verify_exclusions_against_reference).
+FROZEN_TOLERANCE = 1e-3
+# How far an approved move's engine value may sit from the value its action
+# approves: the builder's APPROVED_TOL, half a cent.
+APPROVED_TOLERANCE = 0.005
+
+
+@dataclass(frozen=True)
+class Baseline:
+    """What a build is gated against: release 20261006's reference files and
+    explanations, read from git and pinned; the release's ruled records, as
+    build_release_exclusions spells them (record_edits applied); and the ruled
+    outputs the spec says an engine upgrade regenerates (spec_regenerated)."""
+
+    files: dict
+    explanations: bytes
+    ruled: dict
+    regenerated: frozenset
+
+
+@dataclass(frozen=True)
+class Upgrade:
+    """An installed, gated engine upgrade of the references.
+
+    ``changed`` maps each output whose reference the build moved to its new
+    value. ``regenerated_base`` and ``regenerated_ruled`` are the release
+    20261006 records and ruled records the build regenerated (scored again);
+    ``added`` the records it newly excludes. ``records`` counts the build's
+    exclusion record, ``exclusions_text`` is its bytes, and ``sha256`` binds
+    each of BUILD_COPY_FILES.
+    """
+
+    engine_version: str
+    previous_engine_version: str
+    revision: dict
+    changed: dict
+    regenerated_base: frozenset
+    regenerated_ruled: frozenset
+    added: frozenset
+    records: int
+    exclusions_text: str
+    sha256: dict
+
+    @property
+    def regenerated(self) -> frozenset:
+        return self.regenerated_base | self.regenerated_ruled
+
+    @property
+    def scored_outputs(self) -> int:
+        return BASE_OUTPUTS - self.records
+
+    @property
+    def upgraded_cases(self) -> frozenset[str]:
+        """The audit cases whose reference value or explanation it changed."""
+        return frozenset(output_case(key) for key in self.changed)
+
+    @property
+    def dropped_cases(self) -> frozenset[str]:
+        """The cases whose release 20261006 decision it drops (#178)."""
+        return frozenset(output_case(key) for key in self.regenerated_base)
+
+
+def output_case(key: tuple[str, str]) -> str:
+    """The audit case id of a US output."""
+    return f"us__{key[0]}__{key[1]}"
+
+
+def base_reference_bytes(name: str) -> bytes:
+    """A release 20261006 reference file, read from BASE_COMMIT and pinned."""
+    raw = base_commit_blob(Path("paper/snapshot/20260501/runs") / RUN_NAME / name)
+    require(
+        hashlib.sha256(raw).hexdigest() == BASE_REFERENCE_SHA256[name],
+        f"release 20261006's {name} does not match its pin",
+    )
+    return raw
+
+
+def base_explanations_bytes() -> bytes:
+    """Release 20261006's reference explanations, read from BASE_COMMIT."""
+    raw = base_commit_blob(REFERENCE_EXPLANATIONS)
+    require(
+        hashlib.sha256(raw).hexdigest() == BASE_EXPLANATIONS_SHA256,
+        f"release 20261006's {EXPLANATIONS_NAME} does not match its pin",
+    )
+    return raw
+
+
+def spec_regenerated(spec: dict) -> frozenset[tuple[str, str]]:
+    """The ruled outputs an installed engine upgrade regenerates.
+
+    docs/haiku55/spec.json's regenerated_by_upgrade.outputs names them; every
+    other ruled output stays excluded (kept). Each must be a ruled record with
+    reason code reference_engine_defect: an upgrade can fix the engine, never
+    an unlisted input or a figure published after the freeze. The field is
+    read only with an upgrade installed; an absent field names none.
+    """
+    from policybench.reference_exclusions import ENGINE_DEFECT
+
+    section = spec.get("regenerated_by_upgrade")
+    if section is None:
+        return frozenset()
+    outputs = section.get("outputs") if isinstance(section, dict) else None
+    require(
+        isinstance(outputs, list)
+        and all(
+            isinstance(o, list) and len(o) == 2 and all(isinstance(p, str) for p in o)
+            for o in outputs
+        ),
+        "the spec's regenerated_by_upgrade.outputs is not a list of "
+        "[scenario_id, variable] pairs",
+    )
+    keys = [tuple(output) for output in outputs]
+    require(
+        len(set(keys)) == len(keys),
+        f"the spec's regenerated_by_upgrade names an output twice: {keys}",
+    )
+    ruled = {spec_key(record): record for record in spec_records(spec)}
+    unknown = sorted(set(keys) - set(ruled))
+    require(
+        not unknown,
+        f"the spec's regenerated_by_upgrade names outputs it does not rule on: "
+        f"{unknown}",
+    )
+    other = sorted(k for k in keys if ruled[k]["reason_code"] != ENGINE_DEFECT)
+    require(
+        not other,
+        "an engine upgrade regenerates only an engine-defect record; the spec's "
+        f"regenerated_by_upgrade names {other}",
+    )
+    return frozenset(keys)
+
+
+def upgrade_baseline(spec: dict | None = None) -> Baseline:
+    """The Baseline a build is gated against, from git and the spec."""
+    spec = load_spec() if spec is None else spec
+    files = {name: base_reference_bytes(name) for name in UPGRADED_FILES}
+    release = build_release_exclusions(json.loads(files[EXCLUSIONS_NAME]), spec)
+    ruled_keys = {spec_key(record) for record in spec_records(spec)}
+    ruled = {
+        spec_key(record): record
+        for record in release["exclusions"]
+        if spec_key(record) in ruled_keys
+    }
+    return Baseline(files, base_explanations_bytes(), ruled, spec_regenerated(spec))
+
+
+def regeneration_lands(variable: str, value: float, alternative: float) -> bool:
+    """Whether a regenerated output lands on its record's alternative_value:
+    within REGENERATION_TOLERANCE ($1, the exact-match tolerance) for an
+    amount, equal for a 0/1 flag (policybench.paper_results'
+    moves_beyond_tolerance, which the builder applies too)."""
+    from policybench.paper_results import moves_beyond_tolerance
+
+    return abs(value - alternative) <= REGENERATION_TOLERANCE and not (
+        moves_beyond_tolerance(variable, alternative, value)
+    )
+
+
+def _number(value) -> bool:
+    import math
+
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
+
+
+def _same(a, b, tolerance: float = 1e-9) -> bool:
+    return _number(a) and _number(b) and abs(float(a) - float(b)) <= tolerance
+
+
+def reference_values(blob: bytes) -> dict[tuple[str, str], float]:
+    """Each output's reference value in a reference CSV."""
+    import io
+
+    import pandas as pd
+
+    frame = pd.read_csv(io.BytesIO(blob))
+    return {
+        (str(s), str(v)): float(x)
+        for s, v, x in zip(frame.scenario_id, frame.variable, frame.value)
+    }
+
+
+def reference_value_changes(base: bytes, new: bytes) -> dict[tuple[str, str], float]:
+    """The outputs whose reference value differs between two reference CSVs.
+
+    The CSVs must hold the same outputs in the same order and the same columns,
+    and every column but ``value`` (impact_weight among them) must be equal on
+    every row, as PR #182's driver required (reference_revision). Any change
+    to a value, however small, counts.
+    """
+    import io
+
+    import pandas as pd
+
+    before = pd.read_csv(io.BytesIO(base))
+    after = pd.read_csv(io.BytesIO(new))
+    require(
+        list(after.columns) == list(before.columns),
+        f"reference columns changed: {list(before.columns)} -> {list(after.columns)}",
+    )
+    require(
+        "value" in before.columns and set(KEY) <= set(before.columns),
+        f"the reference CSV lacks {KEY} or value",
+    )
+    keys = [tuple(map(str, row)) for row in before[KEY].itertuples(index=False)]
+    require(
+        len(after) == len(before)
+        and [tuple(map(str, row)) for row in after[KEY].itertuples(index=False)]
+        == keys,
+        "the reference CSV's outputs or their order changed",
+    )
+    for column in before.columns:
+        if column in (*KEY, "value"):
+            continue
+        same = (before[column] == after[column]) | (
+            before[column].isna() & after[column].isna()
+        )
+        moved = [keys[i] for i in range(len(keys)) if not bool(same.iloc[i])]
+        require(not moved, f"reference {column} changed: {moved[:5]}")
+    values = after["value"].astype(float)
+    require(not values.isna().any(), "a reference value is missing")
+    base_values = before["value"].astype(float)
+    return {
+        keys[i]: float(values.iloc[i])
+        for i in range(len(keys))
+        if float(values.iloc[i]) != float(base_values.iloc[i])
+    }
+
+
+def explanation_rows(blob: bytes, label: str) -> tuple[list[str], list[tuple]]:
+    """A reference explanations CSV's header and its (output, row) pairs, as
+    text exactly as written."""
+    import csv
+    import io
+
+    try:
+        rows = list(csv.reader(io.StringIO(blob.decode("utf-8"), newline="")))
+    except (UnicodeDecodeError, csv.Error) as error:
+        raise SystemExit(f"{label} {EXPLANATIONS_NAME} is not a CSV: {error}")
+    require(
+        bool(rows) and {"scenario_id", "variable"} <= set(rows[0]),
+        f"{label} {EXPLANATIONS_NAME} has no scenario_id and variable columns",
+    )
+    header = rows[0]
+    s, v = header.index("scenario_id"), header.index("variable")
+    require(
+        all(len(row) == len(header) for row in rows[1:]),
+        f"{label} {EXPLANATIONS_NAME} has a row of the wrong width",
+    )
+    return header, [((row[s], row[v]), row) for row in rows[1:]]
+
+
+def explanation_changes(
+    base: bytes, new: bytes
+) -> tuple[frozenset[tuple[str, str]], dict[tuple[str, str], dict]]:
+    """The outputs whose explanation row differs from release 20261006's, and
+    every new row by output.
+
+    The new file must have the base's columns and the base's outputs in the
+    base's order; a row is compared field by field as text, so every row the
+    narratives did not rewrite must be the base's, byte for byte.
+    """
+    header, before = explanation_rows(base, "release 20261006's")
+    new_header, after = explanation_rows(new, "the build's")
+    require(
+        new_header == header,
+        f"the reference explanations' columns changed: {header} -> {new_header}",
+    )
+    require(
+        [key for key, _ in after] == [key for key, _ in before],
+        "the reference explanations' outputs or their order changed",
+    )
+    differ = frozenset(
+        key for (key, row), (_, old) in zip(after, before, strict=True) if row != old
+    )
+    return differ, {key: dict(zip(header, row)) for key, row in after}
+
+
+def upgrade_revision(base_meta: dict, meta: dict, csv_sha256: str) -> dict:
+    """The build's engine_upgrade revision, once its sidecar is shown to be
+    release 20261006's with exactly that revision added.
+
+    Every field but SIDECAR_REWRITTEN keeps 20261006's value, in 20261006's
+    order; the sidecar pins the built CSV; release 20261006's revisions stay,
+    and one engine_upgrade revision follows them, from BASE_ENGINE to a newer
+    policyengine-us that the sidecar's bundle names; the revision lists its
+    changes and keeps every excluded output untouched (rule 5).
+    """
+    require(
+        isinstance(meta, dict) and list(meta) == list(base_meta),
+        "the build's sidecar does not have release 20261006's fields in order",
+    )
+    moved = sorted(
+        key
+        for key in base_meta
+        if key not in SIDECAR_REWRITTEN
+        and json.dumps(meta[key]) != json.dumps(base_meta[key])
+    )
+    require(
+        not moved,
+        f"the build's sidecar changes {moved}; a build rewrites only "
+        f"{sorted(SIDECAR_REWRITTEN)}",
+    )
+    require(
+        meta["reference_csv_sha256"] == csv_sha256,
+        "the build's sidecar does not pin the built reference CSV",
+    )
+    require(
+        isinstance(meta["regenerated_at_utc"], str),
+        "the build's sidecar does not date its regeneration",
+    )
+    revisions, before = meta["revisions"], base_meta["revisions"]
+    require(
+        isinstance(revisions, list)
+        and len(revisions) == len(before) + 1
+        and json.dumps(revisions[:-1]) == json.dumps(before),
+        "the build's sidecar does not keep release 20261006's revisions and add one",
+    )
+    revision = revisions[-1]
+    require(
+        isinstance(revision, dict) and revision.get("kind") == "engine_upgrade",
+        "the build's added revision is not an engine_upgrade",
+    )
+    previous = before[-1].get("engine_version")
+    engine = revision.get("engine_version")
+    require(
+        isinstance(engine, str)
+        and engine.startswith(ENGINE_PREFIX)
+        and engine != previous,
+        f"the build's revision names no newer engine than {previous}: {engine!r}",
+    )
+    require(
+        revision.get("previous_engine_version") == previous,
+        f"the build's revision does not upgrade from {previous}, release "
+        f"20261006's engine: {revision.get('previous_engine_version')!r}",
+    )
+    bundles = meta["policyengine_bundles"]
+    require(
+        isinstance(bundles, dict)
+        and set(bundles) == set(base_meta["policyengine_bundles"])
+        and isinstance(bundles.get("us"), dict)
+        and bundles["us"].get("model_version") == engine.removeprefix(ENGINE_PREFIX),
+        f"the build's sidecar bundle does not name {engine}",
+    )
+    require(
+        revision.get("excluded_outputs_untouched") is True,
+        "the build's revision does not keep every excluded output untouched",
+    )
+    changed = revision.get("changed")
+    require(
+        isinstance(changed, list)
+        and all(
+            isinstance(item, dict)
+            and isinstance(item.get("scenario_id"), str)
+            and isinstance(item.get("variable"), str)
+            and _number(item.get("previous"))
+            and _number(item.get("regenerated"))
+            for item in changed
+        ),
+        "the build's revision does not list each change's output, previous and "
+        "regenerated value",
+    )
+    rechecked = revision.get("excluded_outputs_rechecked", [])
+    require(
+        isinstance(rechecked, list)
+        and all(
+            isinstance(item, dict)
+            and isinstance(item.get("scenario_id"), str)
+            and isinstance(item.get("variable"), str)
+            and _number(item.get("kept_value"))
+            for item in rechecked
+        ),
+        "the build's revision lists a malformed excluded_outputs_rechecked entry",
+    )
+    return revision
+
+
+def declared_exclusions(plan: dict) -> dict[tuple[str, str], dict]:
+    """The records a build's actions newly exclude: new_exclusions, each the
+    record itself, and audit_exclusions, each carrying its record (#182)."""
+    require(
+        all(
+            isinstance(plan.get(name, []), list)
+            for name in ("approved", "new_exclusions", "audit_exclusions")
+        )
+        and isinstance(plan.get("excluded_rechecked", []), list),
+        "the build's actions are not lists of actions",
+    )
+    declared: dict[tuple[str, str], dict] = {}
+    items = [
+        *((item, item) for item in plan.get("new_exclusions", [])),
+        *((item, item.get("exclusion")) for item in plan.get("audit_exclusions", [])),
+    ]
+    for item, record in items:
+        require(
+            isinstance(item, dict) and isinstance(record, dict),
+            "the build's actions list a malformed new exclusion",
+        )
+        key = spec_key(item)
+        require(
+            spec_key(record) == key and key not in declared,
+            f"the build's actions list {key} twice or under another output",
+        )
+        declared[key] = record
+    return declared
+
+
+def upgrade_exclusion_records(
+    baseline: Baseline,
+    text: str,
+    values: dict[tuple[str, str], float],
+    changed: dict[tuple[str, str], float],
+    plan: dict,
+    engine: str,
+) -> tuple[list[dict], frozenset, frozenset, frozenset]:
+    """The build's exclusion record, gated: the release's record.
+
+    It must be release 20261006's records, minus the ones the build
+    regenerated, plus the spec's kept ruled records, plus the records the
+    build's actions newly exclude, and nothing else. So the regenerated ruled
+    records are exactly the spec's regenerated_by_upgrade; each regenerated
+    record is an engine defect whose output the built CSV now scores within
+    REGENERATION_TOLERANCE of its alternative_value; a kept record keeps its
+    bytes and its output its value (rule 5: unlisted in ``changed``); a new
+    record is its action's, computed on the build's engine and frozen at the
+    built value. Release 20261006's records keep their order and its last
+    (the audit's scenario_023 record) stays last. The record is in the
+    builder's form and passes the loader. Returns the records and the
+    regenerated base, regenerated ruled and added outputs.
+    """
+    import tempfile
+
+    from policybench.reference_exclusions import (
+        ENGINE_DEFECT,
+        ReferenceExclusionError,
+        load_reference_exclusions,
+    )
+
+    try:
+        doc = json.loads(text)
+    except ValueError as error:
+        raise SystemExit(f"the build's exclusion record is not JSON: {error}")
+    require(
+        isinstance(doc, dict) and text == exclusions_text(doc),
+        "the build's exclusion record is not in the builder's form (duplicate keys "
+        "or other bytes the gates cannot see); write it with json.dumps(indent=2)",
+    )
+    base_doc = json.loads(baseline.files[EXCLUSIONS_NAME])
+    require(
+        list(doc) == list(base_doc)
+        and all(
+            doc[key] == base_doc[key]
+            for key in base_doc
+            if key not in ("exclusions", "derivation")
+        )
+        and isinstance(doc["derivation"], str)
+        and doc["derivation"].strip(),
+        "the build's exclusion record changes release 20261006's fields outside "
+        "its records and derivation",
+    )
+    with tempfile.TemporaryDirectory() as scratch:
+        (Path(scratch) / EXCLUSIONS_NAME).write_text(text)
+        try:
+            load_reference_exclusions(Path(scratch))
+        except ReferenceExclusionError as error:
+            raise SystemExit(f"the build's exclusion record fails the loader: {error}")
+    built = {spec_key(record): record for record in doc["exclusions"]}
+    base = {spec_key(record): record for record in base_doc["exclusions"]}
+    known = set(base) | set(baseline.ruled)
+    regenerated = known - set(built)
+    added = set(built) - known
+    regenerated_ruled = frozenset(regenerated & set(baseline.ruled))
+    regenerated_base = frozenset(regenerated & set(base))
+    require(
+        regenerated_ruled == baseline.regenerated,
+        "the build regenerates ruled records "
+        f"{sorted(regenerated_ruled)}, but the spec's regenerated_by_upgrade "
+        f"names {sorted(baseline.regenerated)}",
+    )
+    declared = declared_exclusions(plan)
+    require(
+        added == set(declared),
+        "the build's new exclusions are not its actions': unlisted "
+        f"{sorted(added - set(declared))[:8]}, listed but absent "
+        f"{sorted(set(declared) - added)[:8]}",
+    )
+    problems = []
+
+    def dumps(record: dict) -> str:
+        return json.dumps(record, ensure_ascii=False)
+
+    for key in sorted(set(built) & set(base)):
+        if dumps(built[key]) != dumps(base[key]):
+            problems.append(f"{key}: changes release 20261006's record")
+    for key in sorted(set(built) & set(baseline.ruled)):
+        if dumps(built[key]) != dumps(baseline.ruled[key]):
+            problems.append(f"{key}: changes the release's ruled record")
+    for key in sorted(set(built) & known):
+        frozen = float(built[key]["frozen_value"])
+        if key in changed or abs(values[key] - frozen) > FROZEN_TOLERANCE:
+            problems.append(
+                f"{key}: an excluded output keeps the value it was decided on "
+                f"({frozen}), but the build gives {values[key]}"
+            )
+    for key in sorted(added):
+        record = built[key]
+        if dumps(record) != dumps(declared[key]):
+            problems.append(f"{key}: the new record is not its action's")
+        if record.get("engine_version") != engine:
+            problems.append(f"{key}: the new record is not computed on {engine}")
+        if abs(values[key] - float(record["frozen_value"])) > FROZEN_TOLERANCE:
+            problems.append(f"{key}: the new record's frozen_value is not the build's")
+    for key in sorted(regenerated):
+        record = base.get(key) or baseline.ruled[key]
+        if record["reason_code"] != ENGINE_DEFECT:
+            problems.append(
+                f"{key}: an engine upgrade regenerates only an engine defect, not "
+                f"a {record['reason_code']} record"
+            )
+        if not regeneration_lands(
+            key[1], values[key], float(record["alternative_value"])
+        ):
+            problems.append(
+                f"{key}: regenerated at {values[key]}, not within "
+                f"${REGENERATION_TOLERANCE:g} of its record's alternative_value "
+                f"{record['alternative_value']}"
+            )
+    order = [key for key in map(spec_key, doc["exclusions"]) if key in base]
+    if order != [key for key in map(spec_key, base_doc["exclusions"]) if key in built]:
+        problems.append("release 20261006's records changed their order")
+    if base_doc["exclusions"]:
+        tail = spec_key(base_doc["exclusions"][-1])
+        if tail in built and spec_key(doc["exclusions"][-1]) != tail:
+            problems.append(f"release 20261006's last record {tail} is not last")
+    require(not problems, f"the build's exclusion record: {problems[:8]}")
+    return doc["exclusions"], regenerated_base, regenerated_ruled, frozenset(added)
+
+
+def load_build(
+    built: Path, explanations: Path, actions: Path, baseline: Baseline | None = None
+) -> Upgrade:
+    """Gate a reference build against release 20261006 and describe it.
+
+    The build's base must be the pinned release 20261006: its sidecar is
+    20261006's with one engine_upgrade revision added (upgrade_revision). Its
+    reference CSV differs from 20261006's exactly in that revision's changed
+    list, at the listed values (reference_value_changes); its exclusion record
+    is the release's (upgrade_exclusion_records); its traces cover every
+    changed output; its explanations differ from 20261006's only on changed
+    outputs, each row stating its new value (explanation_changes); and its
+    actions name its engine, approve only listed moves at their values, and
+    recheck exactly the excluded outputs the revision rechecks, reasons
+    verbatim.
+    """
+    for path in [*(built / name for name in BUILT_FILES), explanations, actions]:
+        require(path.is_file(), f"the reference build lacks {path}")
+    baseline = upgrade_baseline() if baseline is None else baseline
+    blobs = {name: (built / name).read_bytes() for name in BUILT_FILES}
+    blobs[EXPLANATIONS_NAME] = explanations.read_bytes()
+    blobs[ACTIONS_NAME] = actions.read_bytes()
+    try:
+        meta = json.loads(blobs[META_NAME])
+        traces = json.loads(blobs[TRACES_NAME])
+        plan = json.loads(blobs[ACTIONS_NAME])
+        text = blobs[EXCLUSIONS_NAME].decode("utf-8")
+    except ValueError as error:
+        raise SystemExit(f"the reference build's records do not parse: {error}")
+    require(isinstance(plan, dict), "the build's actions are not an object")
+    revision = upgrade_revision(
+        json.loads(baseline.files[META_NAME]),
+        meta,
+        hashlib.sha256(blobs[CSV_NAME]).hexdigest(),
+    )
+    engine = revision["engine_version"]
+    base_values = reference_values(baseline.files[CSV_NAME])
+    values = reference_values(blobs[CSV_NAME])
+    changed = reference_value_changes(baseline.files[CSV_NAME], blobs[CSV_NAME])
+    listed: dict[tuple[str, str], dict] = {}
+    for item in revision["changed"]:
+        key = (item["scenario_id"], item["variable"])
+        require(key not in listed, f"the build's revision lists {key} twice")
+        listed[key] = item
+    require(
+        set(changed) == set(listed),
+        "the reference CSV differs from release 20261006's outside the build's "
+        f"changed list: unlisted moves {sorted(set(changed) - set(listed))[:8]}, "
+        f"listed changes that did not happen {sorted(set(listed) - set(changed))[:8]}",
+    )
+    misstated = sorted(
+        key
+        for key, item in listed.items()
+        if not _same(item["regenerated"], changed[key])
+        or not _same(item["previous"], base_values[key])
+    )
+    require(
+        not misstated,
+        f"the build's changed list misstates the previous or regenerated value of "
+        f"{misstated[:8]}",
+    )
+    records, regenerated_base, regenerated_ruled, added = upgrade_exclusion_records(
+        baseline, text, values, changed, plan, engine
+    )
+    expected_traces = {f"{s}|{v}" for s, v in changed}
+    require(
+        isinstance(traces, dict)
+        and set(traces) == expected_traces
+        and all(
+            isinstance(item, dict)
+            and isinstance(item.get("pe_variable"), str)
+            and isinstance(item.get("trace"), str)
+            for item in traces.values()
+        ),
+        "the build's traces do not cover exactly its changed outputs: "
+        f"{sorted(set(traces) ^ expected_traces)[:8]}",
+    )
+    rewritten, rows = explanation_changes(
+        baseline.explanations, blobs[EXPLANATIONS_NAME]
+    )
+    outside = sorted(rewritten - set(changed))
+    require(
+        not outside,
+        f"the build's explanations rewrite outputs it did not change: {outside[:8]}",
+    )
+    stale = sorted(
+        key
+        for key in changed
+        if (
+            "reference_value" in rows[key]
+            and not _same(_float(rows[key]["reference_value"]), changed[key], 1e-6)
+        )
+        or not rows[key].get("explanation", "x").strip()
+    )
+    require(
+        not stale,
+        "the build's explanations do not state the new reference of "
+        f"{stale[:8]}; run the narratives for every changed output",
+    )
+    require(
+        plan.get("engine") == engine,
+        f"the build's actions name {plan.get('engine')!r}, not {engine}",
+    )
+    approved = {}
+    for item in plan.get("approved", []):
+        require(isinstance(item, dict), "the build's actions list a malformed move")
+        approved[spec_key(item)] = item
+    off = sorted(
+        key
+        for key, item in approved.items()
+        if key not in changed
+        or not _same(item.get("value"), changed[key], APPROVED_TOLERANCE)
+    )
+    require(
+        not off,
+        f"the build's actions approve moves the build did not make: {off[:8]}",
+    )
+    rechecked = {
+        spec_key(item): item for item in revision.get("excluded_outputs_rechecked", [])
+    }
+    planned = {spec_key(item): item for item in plan.get("excluded_rechecked", [])}
+    excluded = {spec_key(record) for record in records}
+    require(
+        set(rechecked) == set(planned),
+        "the build's revision and actions recheck different excluded outputs: "
+        f"{sorted(set(rechecked) ^ set(planned))[:8]}",
+    )
+    wrong = sorted(
+        key
+        for key, item in rechecked.items()
+        if key not in excluded
+        or not _same(item["kept_value"], values[key], FROZEN_TOLERANCE)
+        or ("reason" in planned[key] and planned[key]["reason"] != item.get("reason"))
+    )
+    require(
+        not wrong,
+        "the build rechecks outputs it does not keep excluded at their value, or "
+        f"with another reason: {wrong[:8]}",
+    )
+    claims = builder_claim_problems(
+        baseline,
+        revision,
+        plan,
+        values,
+        regenerated_base | regenerated_ruled,
+        regenerated_ruled,
+        added,
+        hashlib.sha256(blobs[ACTIONS_NAME]).hexdigest(),
+    )
+    require(
+        not claims,
+        f"the build's account of the upgrade disagrees with its records: {claims[:8]}",
+    )
+    return Upgrade(
+        engine_version=engine,
+        previous_engine_version=revision["previous_engine_version"],
+        revision=revision,
+        changed=changed,
+        regenerated_base=regenerated_base,
+        regenerated_ruled=regenerated_ruled,
+        added=added,
+        records=len(records),
+        exclusions_text=text,
+        sha256={name: hashlib.sha256(blob).hexdigest() for name, blob in blobs.items()},
+    )
+
+
+def builder_claim_problems(
+    baseline: Baseline,
+    revision: dict,
+    plan: dict,
+    values: dict[tuple[str, str], float],
+    regenerated: frozenset,
+    regenerated_ruled: frozenset,
+    added: frozenset,
+    actions_sha256: str,
+) -> list[str]:
+    """Where the builder's own account of the upgrade disagrees with the
+    records: reference_audit/2026-10-09-engine-upgrade/scripts/
+    build_references_upgrade.py lists the regenerated records (each with the
+    record it removed and its new value), the ruled records kept, and the new
+    exclusions, in its revision and its actions, and its revision's
+    provenance names its actions' sha256 and release 20261006's commit."""
+
+    def outputs(items) -> set:
+        return {spec_key(item) for item in items if isinstance(item, dict)}
+
+    kept = set(baseline.ruled) - regenerated_ruled
+    stated = {
+        "the revision's regenerated_exclusions": (
+            revision.get("regenerated_exclusions", []),
+            regenerated,
+        ),
+        "the actions' regenerated_exclusions": (
+            plan.get("regenerated_exclusions", []),
+            regenerated,
+        ),
+        "the revision's kept_exclusions_from_release": (
+            revision.get("kept_exclusions_from_release", []),
+            kept,
+        ),
+        "the actions' kept_exclusions_from_release": (
+            plan.get("kept_exclusions_from_release", []),
+            kept,
+        ),
+        "the revision's new_exclusions": (revision.get("new_exclusions", []), added),
+    }
+    problems = []
+    for label, (items, want) in stated.items():
+        if not isinstance(items, list):
+            problems.append(f"{label} is not a list")
+        elif outputs(items) != set(want) or len(items) != len(want):
+            problems.append(f"{label} names {sorted(outputs(items) ^ set(want))[:4]}")
+    base = {
+        spec_key(record): record
+        for record in json.loads(baseline.files[EXCLUSIONS_NAME])["exclusions"]
+    }
+    for item in revision.get("regenerated_exclusions", []):
+        if not isinstance(item, dict):
+            continue
+        key = spec_key(item)
+        record = base.get(key) or baseline.ruled.get(key)
+        if record is not None and json.dumps(item.get("removed_record")) != (
+            json.dumps(record)
+        ):
+            problems.append(f"{key}: the revision's removed_record is not the record")
+        # The builder writes a value that moved by no more than 1e-6 as it was.
+        if key in values and not _same(item.get("regenerated"), values[key], 1e-6):
+            problems.append(f"{key}: the revision's regenerated value is not the CSV's")
+    provenance = revision.get("provenance")
+    if (
+        not isinstance(provenance, dict)
+        or provenance.get("actions_sha256") != actions_sha256
+        or provenance.get("base_commit") != BASE_COMMIT
+    ):
+        problems.append(
+            "the revision's provenance does not name these actions and release "
+            f"20261006's commit {BASE_COMMIT[:12]}"
+        )
+    if plan.get("previous_engine") != revision["previous_engine_version"]:
+        problems.append(
+            f"the actions upgrade from {plan.get('previous_engine')!r}, not "
+            f"{revision['previous_engine_version']}"
+        )
+    return problems
+
+
+def _float(text: str) -> float | None:
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def upgraded_reference_pins(upgrade: Upgrade) -> dict[str, str]:
+    """Release 20261006's reference pins with the build's three files'."""
+    return {
+        **BASE_REFERENCE_SHA256,
+        **{name: upgrade.sha256[name] for name in UPGRADED_FILES},
+    }
+
+
+def grounding_lookup(path: Path) -> dict[tuple[str, str], str]:
+    """The audit grounding by output, as prepare_audit takes it."""
+    import pandas as pd
+
+    grounding = pd.read_csv(path)
+    return {
+        (str(r.scenario_id), str(r.variable)): str(r.grounding)
+        for r in grounding.itertuples()
+    }
+
+
+@contextlib.contextmanager
+def object_strings():
+    """Render prompts as prepare rendered the stage's: resolve_base turns
+    pandas 3's inferred Arrow strings off before prepare runs."""
+    import pandas as pd
+
+    if hasattr(pd.options, "future") and hasattr(pd.options.future, "infer_string"):
+        with pd.option_context("future.infer_string", False):
+            yield
+    else:
+        yield
+
+
+def render_audit_with(
+    bundle: Path, sources: dict[str, bytes], lookup: dict
+) -> list[tuple[str, str, dict]]:
+    """Each audit case (id, prompt, manifest row) the bundle gives once the
+    build's references and explanations are in it, rendered in memory.
+
+    A scratch run directory links every other bundle file and holds the
+    build's, so nothing in the stage changes. The order is prepare_audit's.
+    """
+    import tempfile
+
+    from policybench.audit import build_audit_cases, render_case_prompt
+
+    with tempfile.TemporaryDirectory(prefix="install-references-") as scratch:
+        run = Path(scratch) / bundle.name
+        for part in ("us", "annotations"):
+            (run / part).mkdir(parents=True)
+            if (bundle / part).is_dir():
+                for path in sorted((bundle / part).iterdir()):
+                    if path.is_file():
+                        os.symlink(path.resolve(), run / part / path.name)
+        replaced = {
+            **{run / "us" / name: sources[name] for name in UPGRADED_FILES},
+            run / "annotations" / EXPLANATIONS_NAME: sources[EXPLANATIONS_NAME],
+        }
+        for path, blob in replaced.items():
+            path.unlink(missing_ok=True)
+            path.write_bytes(blob)
+        with object_strings():
+            cases = build_audit_cases(run / "us", grounding_lookup=lookup)
+            return [
+                (case.case_id, render_case_prompt(case), case.to_manifest_row())
+                for case in cases
+            ]
+
+
+def verify_install_target(stage: Path, receipt: dict) -> None:
+    """The stage's references are release 20261006's (its exclusion record
+    perhaps the release's, from install-exclusions) or an earlier install's,
+    in the scoring source and the bundle; its explanations likewise."""
+    previous = (receipt.get("references_installed") or {}).get("sha256", {})
+    for name in UPGRADED_FILES:
+        allowed = {BASE_REFERENCE_SHA256[name]}
+        if name in previous:
+            allowed.add(previous[name])
+        if name == EXCLUSIONS_NAME:
+            allowed.add(release_exclusions_sha256())
+        for target in (stage / "scoring", stage / "publish" / RUN_NAME / "us"):
+            path = target / name
+            require(
+                path.is_file() and digest(path) in allowed,
+                f"the stage's {path.relative_to(stage)} is neither release "
+                "20261006's nor an installed build's; prepare a new stage",
+            )
+    path = stage / "publish" / RUN_NAME / "annotations" / EXPLANATIONS_NAME
+    allowed = {BASE_EXPLANATIONS_SHA256, previous.get(EXPLANATIONS_NAME)}
+    require(
+        path.is_file() and digest(path) in allowed,
+        f"the stage's {EXPLANATIONS_NAME} is neither release 20261006's nor an "
+        "installed build's; prepare a new stage",
+    )
+
+
+def references_record(upgrade: Upgrade, previous: dict | None) -> dict:
+    """What stage.json records of an installed build (references_installed).
+
+    Installing the same build again records the same thing; installing another
+    keeps the one it replaces under ``superseded``.
+    """
+
+    def keys(outputs) -> list[list[str]]:
+        return [list(key) for key in sorted(outputs)]
+
+    record = {
+        "engine_version": upgrade.engine_version,
+        "previous_engine_version": upgrade.previous_engine_version,
+        "actions_sha256": upgrade.sha256[ACTIONS_NAME],
+        "sha256": dict(upgrade.sha256),
+        "base_sha256": {
+            **{name: BASE_REFERENCE_SHA256[name] for name in UPGRADED_FILES},
+            EXPLANATIONS_NAME: BASE_EXPLANATIONS_SHA256,
+        },
+        "changed": keys(upgrade.changed),
+        "regenerated_base": keys(upgrade.regenerated_base),
+        "regenerated_ruled": keys(upgrade.regenerated_ruled),
+        "added": keys(upgrade.added),
+        "records": upgrade.records,
+        "scored_outputs": upgrade.scored_outputs,
+        "spec_sha256": digest(ROOT / SPEC_PATH),
+    }
+    superseded = list((previous or {}).get("superseded", []))
+    if previous and {k: v for k, v in previous.items() if k != "superseded"} != record:
+        superseded.append({k: v for k, v in previous.items() if k != "superseded"})
+    record["superseded"] = superseded
+    return record
+
+
+def bind_build_exclusions(stage: Path, receipt: dict, upgrade: Upgrade) -> None:
+    """Write the build's exclusion record into the stage and bind it as the
+    release's (exclusions_installed); the receipt is written by the caller."""
+    blob = upgrade.exclusions_text.encode("utf-8")
+    for target in (stage / "scoring", stage / "publish" / RUN_NAME / "us"):
+        (target / EXCLUSIONS_NAME).write_bytes(blob)
+    receipt["files"][f"publish/{RUN_NAME}/us/{EXCLUSIONS_NAME}"] = upgrade.sha256[
+        EXCLUSIONS_NAME
+    ]
+    receipt["exclusions_installed"] = {
+        "base_sha256": BASE_REFERENCE_SHA256[EXCLUSIONS_NAME],
+        "sha256": upgrade.sha256[EXCLUSIONS_NAME],
+        "spec_sha256": digest(ROOT / SPEC_PATH),
+        "records": upgrade.records,
+        "source": f"{BUILD_COPY}/{EXCLUSIONS_NAME}",
+        "engine_version": upgrade.engine_version,
+    }
+
+
+def install_references(args) -> None:
+    """Install a gated engine upgrade of the references into the stage.
+
+    load_build gates the build against release 20261006 before anything is
+    written, and the audit the new references give is rendered in memory and
+    held to check_prompt_changes' rule, so a build that would re-open a case
+    nothing explains is refused first. Then the build goes, verbatim, into
+    BUILD_COPY; its three reference files into the scoring source and the
+    bundle, its explanations into the bundle's annotations; stage.json binds
+    them (files, references_installed with the build's sha256s, engine and
+    actions, and exclusions_installed for the build's record). Then
+    policybench.audit.prepare_audit runs again in place on stage/audit with
+    the pinned grounding: every verdict whose prompt changes (or whose case
+    leaves the audit) is set aside first, with its judge evidence, in
+    rejected-verdicts/, and every other verdict keeps its bytes. Last,
+    prompt-changes.json and pending.json are written anew. Installing the same
+    build again changes nothing; another build replaces it.
+    """
+    stage = args.stage_dir
+    require(
+        digest(args.grounding) == GROUNDING_SHA256,
+        "grounding differs from the one the 20260929 audit was rendered with",
+    )
+    receipt_path = stage / "stage.json"
+    receipt = json.loads(receipt_path.read_text())
+    require(
+        "seed" in receipt,
+        "stage.json does not bind the audit seed; run --step bind-seed first",
+    )
+    seed = receipt["seed"]
+    verify_seed(seed)
+    upgrade = load_build(args.built, args.explanations, args.actions)
+    verify_install_target(stage, receipt)
+    sources = {name: (args.built / name).read_bytes() for name in BUILT_FILES}
+    sources[EXPLANATIONS_NAME] = args.explanations.read_bytes()
+    sources[ACTIONS_NAME] = args.actions.read_bytes()
+    require(
+        {name: hashlib.sha256(blob).hexdigest() for name, blob in sources.items()}
+        == upgrade.sha256,
+        "the reference build changed while it was gated",
+    )
+    bundle = stage / "publish" / RUN_NAME
+    audit = stage / "audit"
+    lookup = grounding_lookup(args.grounding)
+    rendered = render_audit_with(bundle, sources, lookup)
+    texts = {
+        case: text for case, text, row in rendered if not row["parse_failure_only"]
+    }
+    seeded = {case: item["prompt_sha256"] for case, item in seed.items()}
+    upgraded = upgrade.upgraded_cases
+    changes = classify_prompt_changes(
+        [row for _, _, row in rendered],
+        {
+            case: hashlib.sha256(text.encode()).hexdigest()
+            for case, text in texts.items()
+        },
+        seeded,
+        reworded_since_seed(),
+        upgraded,
+    )
+    reopen, kept = {}, {}
+    for case in sorted((audit / "cases").iterdir()):
+        if not case.is_dir() or not (
+            (case / "verdict.json").exists() or (case / "verdict.meta.json").exists()
+        ):
+            continue
+        prompt = case / "prompt.md"
+        if case.name not in texts:
+            reopen[case.name] = (
+                f"install-references: the case leaves the audit on "
+                f"{upgrade.engine_version}"
+            )
+        elif not prompt.is_file() or prompt.read_text() != texts[case.name]:
+            reopen[case.name] = (
+                "install-references: its prompt re-renders on "
+                f"{upgrade.engine_version}, whose reference value or explanation "
+                "it shows"
+            )
+        elif (case / "verdict.json").is_file():
+            kept[case.name] = digest(case / "verdict.json")
+
+    # Install the build and bind it before the audit is touched: a stage left
+    # partway is resumed by installing the same build again.
+    copy = stage / BUILD_COPY
+    copy.mkdir(exist_ok=True)
+    for name, blob in sources.items():
+        (copy / name).write_bytes(blob)
+    for target in (stage / "scoring", bundle / "us"):
+        for name in UPGRADED_FILES:
+            (target / name).write_bytes(sources[name])
+    (bundle / "annotations").mkdir(exist_ok=True)
+    (bundle / "annotations" / EXPLANATIONS_NAME).write_bytes(sources[EXPLANATIONS_NAME])
+    for name in UPGRADED_FILES:
+        receipt["files"][f"publish/{RUN_NAME}/us/{name}"] = upgrade.sha256[name]
+    receipt["files"][f"publish/{RUN_NAME}/annotations/{EXPLANATIONS_NAME}"] = (
+        upgrade.sha256[EXPLANATIONS_NAME]
+    )
+    receipt["references_installed"] = references_record(
+        upgrade, receipt.get("references_installed")
+    )
+    bind_build_exclusions(stage, receipt, upgrade)
+    pending_receipt = receipt_path.with_name("stage.json.installing")
+    write_json(pending_receipt, receipt)
+    os.replace(pending_receipt, receipt_path)
+
+    from policybench.audit import prepare_audit
+
+    for case, reason in reopen.items():
+        set_aside(audit, case, reason)
+    with object_strings():
+        prepare_audit(bundle / "us", audit, grounding_lookup=lookup)
+    manifest = [
+        json.loads(line) for line in (audit / "cases.jsonl").read_text().splitlines()
+    ]
+    require(
+        manifest == [row for _, _, row in rendered]
+        and all(
+            (audit / "cases" / case / "prompt.md").read_text() == text
+            for case, text in texts.items()
+        ),
+        "prepare_audit rendered the stage's audit unlike the in-memory rendering",
+    )
+    moved = sorted(
+        case
+        for case, sha in kept.items()
+        if not (audit / "cases" / case / "verdict.json").is_file()
+        or digest(audit / "cases" / case / "verdict.json") != sha
+    )
+    require(not moved, f"verdicts whose prompts did not change moved: {moved[:8]}")
+    on_disk = check_prompt_changes(audit, seeded, upgraded)
+    require(
+        on_disk == changes, "the written audit's prompt changes are not the rendered"
+    )
+    write_json(
+        stage / PROMPT_CHANGES, {key: sorted(value) for key, value in changes.items()}
+    )
+    pending = validate_verdicts(audit, remove_invalid=True, seed=seed)
+    write_json(stage / "pending.json", pending)
+    verify_prompt_changes(stage, seed)
+    print(
+        f"Installed the {upgrade.engine_version} references: {len(upgrade.changed)} "
+        f"outputs changed, {len(upgrade.regenerated)} exclusions regenerated, "
+        f"{len(upgrade.added)} added, {upgrade.records} records "
+        f"({upgrade.scored_outputs} scored). Audit: {len(changes['kept'])} prompts "
+        f"unchanged, {len(changes['changed'])} changed and {len(changes['added'])} "
+        f"new; {len(reopen)} verdicts set aside; {len(pending)} cases need Opus 5.5"
+    )
+
+
+def verify_installed_references(stage: Path, receipt: dict) -> Upgrade:
+    """The stage's installed engine upgrade, gated again.
+
+    The build kept in BUILD_COPY must be the bytes stage.json records, must
+    pass load_build against git and the spec as they are now, must name the
+    recorded engine, and the stage's scoring source, bundle and explanations
+    must be its files.
+    """
+    installed = receipt["references_installed"]
+    copy = stage / BUILD_COPY
+    pins = installed.get("sha256")
+    require(
+        isinstance(pins, dict) and set(pins) == set(BUILD_COPY_FILES),
+        "stage.json's references_installed does not bind the build's files",
+    )
+    for name, pin in pins.items():
+        require(
+            (copy / name).is_file() and digest(copy / name) == pin,
+            f"the installed build's {name} changed; run --step install-references "
+            "again",
+        )
+    upgrade = load_build(copy, copy / EXPLANATIONS_NAME, copy / ACTIONS_NAME)
+    require(
+        upgrade.engine_version == installed.get("engine_version")
+        and upgrade.sha256 == pins,
+        "the installed build is not the one stage.json records",
+    )
+    bundle = stage / "publish" / RUN_NAME
+    targets = [stage / "scoring" / name for name in UPGRADED_FILES]
+    targets += [bundle / "us" / name for name in UPGRADED_FILES]
+    for path in targets:
+        require(
+            path.is_file() and digest(path) == pins[path.name],
+            f"the stage's {path.relative_to(stage)} is not the installed build's; "
+            "run --step install-references again",
+        )
+    path = bundle / "annotations" / EXPLANATIONS_NAME
+    require(
+        path.is_file() and digest(path) == pins[EXPLANATIONS_NAME],
+        f"the stage's {EXPLANATIONS_NAME} is not the installed build's",
+    )
+    return upgrade
+
+
+def stage_upgrade(stage: Path) -> Upgrade | None:
+    """The stage's installed engine upgrade, re-gated, or None without one."""
+    path = stage / "stage.json"
+    if not path.is_file():
+        return None
+    receipt = json.loads(path.read_text())
+    if not receipt.get("references_installed"):
+        return None
+    return verify_installed_references(stage, receipt)
+
+
+def upgraded_cases(stage: Path) -> frozenset[str]:
+    """The cases whose reference value or explanation the installed engine
+    upgrade changed, derived like reworded_since_seed: from the staged
+    references and explanations against release 20261006's in git.
+
+    They must be exactly the installed revision's changed outputs (each
+    explanation the narratives rewrote among them). Without an install, none.
+    """
+    receipt = json.loads((stage / "stage.json").read_text())
+    if not receipt.get("references_installed"):
+        return frozenset()
+    bundle = stage / "publish" / RUN_NAME
+    meta = json.loads((bundle / "us" / META_NAME).read_text())
+    revision = (meta.get("revisions") or [{}])[-1]
+    listed = {
+        (item["scenario_id"], item["variable"])
+        for item in revision.get("changed", [])
+        if revision.get("kind") == "engine_upgrade"
+    }
+    values = reference_value_changes(
+        base_reference_bytes(CSV_NAME), (bundle / "us" / CSV_NAME).read_bytes()
+    )
+    texts, _ = explanation_changes(
+        base_explanations_bytes(),
+        (bundle / "annotations" / EXPLANATIONS_NAME).read_bytes(),
+    )
+    require(
+        set(values) == listed and texts <= listed,
+        "the staged references or explanations differ from release 20261006's "
+        "outside the installed revision's changed list: "
+        f"{sorted((set(values) | texts) ^ listed)[:8]}; run --step "
+        "install-references again",
+    )
+    return frozenset(output_case(key) for key in set(values) | texts)
+
+
+def drop_regenerated_adjudications(
+    record: dict, upgrade: Upgrade
+) -> tuple[dict, list[dict]]:
+    """``record`` without the decisions of the release 20261006 records the
+    upgrade regenerated, and what was dropped, as stage.json records it.
+
+    Each regenerated record has exactly one decision, which excludes it; it
+    is dropped outright, as #178 dropped scenario_045 SNAP's.
+    """
+    dropped, kept = [], []
+    for entry in record["adjudications"]:
+        if case_id(entry) not in upgrade.dropped_cases:
+            kept.append(entry)
+            continue
+        require(
+            entry.get("excluded_from_scoring") is True,
+            f"{case_id(entry)}: the decision on a regenerated record does not "
+            "exclude it",
+        )
+        dropped.append(
+            {
+                "case_id": case_id(entry),
+                "reason": (
+                    f"Regenerated on {upgrade.engine_version}: the upgrade fixes "
+                    "the engine defect behind this exclusion, so its record leaves "
+                    "the exclusion record and this decision leaves the "
+                    "adjudication record, as release 20260922c dropped "
+                    "scenario_045 SNAP's (#178)."
+                ),
+                "entry": entry,
+            }
+        )
+    named = [item["case_id"] for item in dropped]
+    require(
+        len(named) == len(set(named)) and set(named) == upgrade.dropped_cases,
+        "the staged record does not hold one decision for each regenerated "
+        f"record: {sorted(set(named) ^ upgrade.dropped_cases)[:8]}",
+    )
+    return {**record, "adjudications": kept}, dropped
+
+
+def verify_recorded_drops(stage: Path, upgrade: Upgrade) -> None:
+    """stage.json records the drop of exactly the decisions of the records the
+    upgrade regenerated, each release 20261006's outside its judge fields."""
+    from restate_gpt61sol_adjudications import JUDGE_FIELDS
+
+    receipt = json.loads((stage / "stage.json").read_text())
+    recorded = receipt.get("adjudications_dropped")
+    require(
+        isinstance(recorded, list) and all(isinstance(i, dict) for i in recorded),
+        "stage.json records no dropped adjudications; run --step adjudicate-exclusions",
+    )
+    named = [item.get("case_id") for item in recorded]
+    require(
+        len(named) == len(set(named)) and set(named) == upgrade.dropped_cases,
+        "stage.json's dropped adjudications are not the regenerated records': "
+        f"{sorted(set(named) ^ upgrade.dropped_cases)[:8]}",
+    )
+    base = {
+        case_id(entry): entry for entry in base_adjudication_record()["adjudications"]
+    }
+
+    def outside_judge(entry: dict) -> dict:
+        # stage.json is written with sorted keys, so compare values only.
+        return {k: v for k, v in entry.items() if k not in JUDGE_FIELDS}
+
+    wrong = [
+        item["case_id"]
+        for item in recorded
+        if not isinstance(item.get("entry"), dict)
+        or item["case_id"] not in base
+        or case_id(item["entry"]) != item["case_id"]
+        or outside_judge(item["entry"]) != outside_judge(base[item["case_id"]])
+    ]
+    require(
+        not wrong,
+        f"stage.json records dropped decisions that are not release 20261006's: "
+        f"{wrong[:8]}",
+    )
+
+
+def export_on_base_references(bundle: Path, live: dict, record: Path) -> dict:
+    """release_20261006.export_payload on a scratch copy of the bundle's export
+    inputs with release 20261006's five reference files put back (from git)
+    and ``record`` as the exclusion record: the upgrade's scope export."""
+    import tempfile
+
+    from release_20261006 import EXPORT_INPUTS, export_payload
+
+    with tempfile.TemporaryDirectory(dir=bundle.parent, prefix="base-refs-") as scratch:
+        copy_root = Path(scratch) / bundle.name
+        for rel in EXPORT_INPUTS:
+            (copy_root / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(bundle / rel, copy_root / rel)
+        for name in REFERENCE_FILES:
+            (copy_root / "us" / name).write_bytes(base_reference_bytes(name))
+        return export_payload(copy_root, live, record)
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--runs-root", type=Path)
@@ -2662,6 +4194,22 @@ def parse_args(argv=None):
     parser.add_argument("--base-payload", type=Path, default=SNAPSHOT / "data.json.gz")
     parser.add_argument("--audit-seed", type=Path)
     parser.add_argument("--grounding", type=Path)
+    parser.add_argument(
+        "--built",
+        type=Path,
+        help="install-references: the reference build's output directory "
+        f"({', '.join(BUILT_FILES)})",
+    )
+    parser.add_argument(
+        "--explanations",
+        type=Path,
+        help=f"install-references: the build's regenerated {EXPLANATIONS_NAME}",
+    )
+    parser.add_argument(
+        "--actions",
+        type=Path,
+        help=f"install-references: the build's {ACTIONS_NAME}",
+    )
     parser.add_argument(
         "--early", action="store_true", help="fold and export without paid judging"
     )
@@ -2676,6 +4224,7 @@ def parse_args(argv=None):
             "pin-inputs",
             "prepare",
             "bind-seed",
+            "install-references",
             "install-exclusions",
             "judge",
             "adjudicate-exclusions",
@@ -2686,7 +4235,9 @@ def parse_args(argv=None):
         default="prepare",
         help="pin-inputs writes the finished run's file hashes to "
         f"{INPUT_PINS_PATH} (no stage); bind-seed binds the audit seed in the "
-        "stage.json of a stage prepared before prepare bound it",
+        "stage.json of a stage prepared before prepare bound it; "
+        "install-references installs an engine upgrade of the references "
+        "(--built, --explanations, --actions, --grounding)",
     )
     args = parser.parse_args(argv)
     if args.partial and not args.early:
@@ -2695,6 +4246,16 @@ def parse_args(argv=None):
         parser.error("--early only applies to prepare")
     if args.step in ("prepare", "pin-inputs") and not args.runs_root:
         parser.error(f"{args.step} requires --runs-root")
+    if args.step == "install-references":
+        missing = [
+            f"--{name}"
+            for name in ("built", "explanations", "actions", "grounding")
+            if getattr(args, name) is None
+        ]
+        if missing:
+            parser.error(f"install-references requires {' '.join(missing)}")
+        for name in ("built", "explanations", "actions", "grounding"):
+            setattr(args, name, getattr(args, name).resolve())
     if args.step != "pin-inputs":
         if args.stage_dir is None:
             parser.error(f"{args.step} requires --stage-dir")
@@ -2709,7 +4270,16 @@ def main(argv=None) -> None:
         return
     sources = [SNAPSHOT, ANNOTATIONS, args.base_predictions, args.base_payload]
     sources += [
-        p for p in (args.runs_root, args.audit_seed, args.grounding) if p is not None
+        p
+        for p in (
+            args.runs_root,
+            args.audit_seed,
+            args.grounding,
+            args.built,
+            args.explanations,
+            args.actions,
+        )
+        if p is not None
     ]
     validate_stage_path(args.stage_dir, sources)
     stage = args.stage_dir
@@ -2762,13 +4332,22 @@ def main(argv=None) -> None:
         (stage / "release-ready.json").unlink(missing_ok=True)
         if args.step in ("triage", "export", "adjudicate-exclusions"):
             installed = receipt.get("exclusions_installed") or {}
+            if receipt.get("references_installed"):
+                # The release's record is the installed build's, re-gated here.
+                expected = verify_installed_references(stage, receipt).sha256[
+                    EXCLUSIONS_NAME
+                ]
+            else:
+                expected = release_exclusions_sha256()
             require(
-                installed.get("sha256") == release_exclusions_sha256(),
+                installed.get("sha256") == expected,
                 "the stage's exclusions are not the release's; run "
                 "--step install-exclusions",
             )
         if args.step == "bind-seed":
             bind_seed(args)
+        elif args.step == "install-references":
+            install_references(args)
         elif args.step == "install-exclusions":
             install_exclusions(args)
         elif args.step == "adjudicate-exclusions":
