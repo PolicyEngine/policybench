@@ -967,15 +967,103 @@ def exclusion_entry(
     return entry
 
 
+# A triage decision's fields, in release 20261006's entry order (an affirmed
+# reference carries no excluded_from_scoring, as release 20261006's do not).
+TRIAGE_FIELDS = (
+    "country",
+    "scenario_id",
+    "variable",
+    "judge_model",
+    "judge_failure_source",
+    "judge_failure_subtype",
+    "adjudicated_failure_source",
+    "adjudicated_failure_subtype",
+    "adjudicated_on",
+    "adjudicator",
+    "judge_reference_suspect",
+    "reference_verdict",
+    "reference_basis",
+    "reasoning",
+    "judged_on_utc",
+)
+TRIAGE_ITEM_KEYS = frozenset(
+    {
+        "scenario_id",
+        "variable",
+        "adjudicated_failure_source",
+        "adjudicated_failure_subtype",
+        "adjudicated_on",
+        "reference_verdict",
+        "reference_basis",
+        "reasoning",
+    }
+)
+
+
+def triage_items(upgrade, spec: dict | None = None) -> list[dict]:
+    """docs/haiku55/spec.json's triage_adjudications: the developer's decisions
+    on re-opened cases whose verdict triage could not accept as it stands (a
+    reference flag the decision answers). Each affirms the reference: the
+    output stays scored and the case's rows take the decided class. They
+    answer the upgraded references' verdicts, so they are read only with an
+    engine upgrade installed; without one, none."""
+    if upgrade is None:
+        return []
+    spec = load_spec() if spec is None else spec
+    items = spec.get("triage_adjudications", [])
+    require(
+        isinstance(items, list)
+        and all(isinstance(i, dict) and set(i) == TRIAGE_ITEM_KEYS for i in items),
+        f"the spec's triage_adjudications must be items with {sorted(TRIAGE_ITEM_KEYS)}",
+    )
+    keys = [spec_key(item) for item in items]
+    require(len(set(keys)) == len(keys), f"a triage decision is listed twice: {keys}")
+    require(
+        all(item["reference_verdict"] == "affirmed" for item in items),
+        "a triage decision may only affirm a reference; an exclusion is ruled",
+    )
+    return sorted(items, key=spec_key)
+
+
+def triage_entry(item: dict, case_dir: Path) -> dict:
+    """The adjudication of a triage decision, with the case's bound Opus 5.5
+    verdict as its judge fields."""
+    from date_adds0928_judge_verdicts import _judge
+    from release_20261006 import bound_verdict
+
+    verdict, meta = bound_verdict(case_dir)
+    entry = {
+        "country": "us",
+        "scenario_id": item["scenario_id"],
+        "variable": item["variable"],
+        "judge_model": _judge(meta),
+        "judge_failure_source": verdict["case_failure_source"],
+        "judge_failure_subtype": verdict["case_failure_subtype"],
+        "adjudicated_failure_source": item["adjudicated_failure_source"],
+        "adjudicated_failure_subtype": item["adjudicated_failure_subtype"],
+        "adjudicated_on": item["adjudicated_on"],
+        "adjudicator": "developer",
+        "judge_reference_suspect": bool(verdict.get("reference_suspect")),
+        "reference_verdict": item["reference_verdict"],
+        "reference_basis": item["reference_basis"],
+        "reasoning": item["reasoning"],
+        "judged_on_utc": meta["judged_at_utc"][:10],
+    }
+    require(list(entry) == list(TRIAGE_FIELDS), "triage entry fields out of order")
+    return entry
+
+
 def exclusion_adjudications(
     record: dict,
     cases_dir: Path,
     regenerated: frozenset = frozenset(),
     added: list[tuple[dict, dict]] | tuple = (),
+    triage: list[dict] | tuple = (),
 ) -> dict:
     """``record`` (the staged adjudication record) with the ruled outputs
     decided: an existing entry is restated in place, a new one appended in the
-    spec's order, and the date conventions name the 2026-10-06 wave.
+    spec's order, and the date conventions name the 2026-10-06 wave. Each
+    ``triage`` item (triage_items) is appended last (triage_entry).
 
     ``regenerated`` names the ruled outputs an installed engine upgrade
     regenerated (spec_regenerated); they are scored again, so none is decided.
@@ -1034,6 +1122,20 @@ def exclusion_adjudications(
                 adjudicated_on=upgraded["decided_on"],
             )
         )
+    waves = {"2026-10-06", upgrade_wave(added)} - {None}
+    for item in triage:
+        k = spec_key(item)
+        require(
+            item["adjudicated_on"] in waves,
+            f"{k}: a triage decision is dated by a wave this release names "
+            f"({sorted(waves)}), not {item['adjudicated_on']}",
+        )
+        require(
+            k not in by_key,
+            f"{k}: a triage decision on a case that already has a decision; "
+            "restating one is not supported",
+        )
+        appended.append(triage_entry(item, cases_dir / f"us__{k[0]}__{k[1]}"))
     out["adjudications"] = out["adjudications"] + appended
     out["date_conventions"] = release_date_conventions(
         out["date_conventions"], upgrade_wave(added)
@@ -1170,12 +1272,18 @@ def adjudicate_exclusions(args) -> None:
         "put the staged record back to release 20261006's (from git at "
         "BASE_COMMIT), then restate and decide again",
     )
-    staged = exclusion_adjudications(
-        record, args.stage_dir / "audit" / "cases", regenerated, added
-    )
+    # Drop the regenerated records' decisions first, so a triage decision may
+    # affirm a regenerated reference on the same case.
     dropped: list[dict] = []
     if upgrade is not None:
-        staged, dropped = drop_regenerated_adjudications(staged, upgrade)
+        record, dropped = drop_regenerated_adjudications(record, upgrade)
+    staged = exclusion_adjudications(
+        record,
+        args.stage_dir / "audit" / "cases",
+        regenerated,
+        added,
+        triage_items(upgrade),
+    )
     parse_adjudications(staged, path)
     if upgrade is not None:
         receipt_path = args.stage_dir / "stage.json"
@@ -1380,6 +1488,7 @@ def ruled_adjudication_problems(
     cases_dir: Path,
     regenerated: frozenset = frozenset(),
     added: list[tuple[dict, dict]] | tuple = (),
+    triage: list[dict] | tuple = (),
 ) -> list[str]:
     """Where the staged decisions on the ten ruled outputs are not exactly what
     exclusion_entry builds: a new one from its case's bound verdict, and
@@ -1450,6 +1559,17 @@ def ruled_adjudication_problems(
             expected, ensure_ascii=False
         ):
             problems.append(f"{case}: differs from the upgrade's entry")
+    for item in triage:
+        k = spec_key(item)
+        case = f"us__{k[0]}__{k[1]}"
+        if case not in after:
+            problems.append(f"{case}: no staged triage decision")
+            continue
+        expected = triage_entry(item, cases_dir / case)
+        if json.dumps(after[case], ensure_ascii=False) != json.dumps(
+            expected, ensure_ascii=False
+        ):
+            problems.append(f"{case}: differs from the triage decision's entry")
     return problems
 
 
@@ -1463,6 +1583,7 @@ def verify_adjudication_changes(
     regenerated: frozenset = frozenset(),
     dropped: frozenset[str] = frozenset(),
     added: list[tuple[dict, dict]] | tuple = (),
+    triage: list[dict] | tuple = (),
 ) -> int:
     """A staged record differs from 20261006's only where it has a reason to.
 
@@ -1494,7 +1615,18 @@ def verify_adjudication_changes(
     before = {case_id(entry): entry for entry in base}
     after = {case_id(entry): entry for entry in staged}
     ruled = ruled_adjudication_problems(
-        before, after, cases_dir, regenerated, added
+        before, after, cases_dir, regenerated, added, triage
+    )
+    triage_cases = {f"us__{k[0]}__{k[1]}" for k in map(spec_key, triage)}
+    require(
+        triage_cases <= rejudged,
+        "triage decisions name cases Claude Haiku 5.5's stage did not re-open: "
+        f"{sorted(triage_cases - rejudged)[:8]}",
+    )
+    require(
+        not (triage_cases & set(before)) or triage_cases & set(before) <= dropped,
+        "a triage decision replaces a recorded decision: "
+        f"{sorted((triage_cases & set(before)) - dropped)[:8]}",
     )
     require(not ruled, f"Staged adjudications of the ruled outputs: {ruled[:8]}")
     ruled_cases = {
@@ -1502,12 +1634,15 @@ def verify_adjudication_changes(
         for k in (spec_key(item) for item in load_spec()["adjudications"])
         if k not in regenerated
     } | {f"us__{k[0]}__{k[1]}" for k in (spec_key(item) for item, _ in added)}
+    ruled_cases |= triage_cases
     stray = sorted(dropped - set(before))
     require(
         not stray,
         f"Staged adjudications drop decisions release 20261006 lacks: {stray[:8]}",
     )
-    kept = sorted(dropped & set(after))
+    # A regenerated record's decision is gone; a triage decision may affirm the
+    # regenerated reference in its place (it is in ruled_cases, gated above).
+    kept = sorted((dropped & set(after)) - triage_cases)
     require(
         not kept,
         "Staged adjudications keep the decisions of records the engine upgrade "
@@ -1566,6 +1701,7 @@ def stage_adjudications(
     regenerated: frozenset = frozenset(),
     dropped: frozenset[str] = frozenset(),
     added: list[tuple[dict, dict]] | tuple = (),
+    triage: list[dict] | tuple = (),
 ) -> list[dict]:
     """The staged record, with its listed reasoning amendments applied.
 
@@ -1608,8 +1744,15 @@ def stage_adjudications(
         regenerated=regenerated,
         dropped=dropped,
         added=added,
+        triage=triage,
     )
-    verify_restatements(base, entries, rejudged, cases_dir)
+    # A dropped decision is gone, so an entry on its case is new, not restated.
+    verify_restatements(
+        [entry for entry in base if case_id(entry) not in dropped],
+        entries,
+        rejudged,
+        cases_dir,
+    )
     verify_adjudications_keep_judge_verdicts(entries, cases_dir)
     if applied:
         pending = path.with_name(path.name + ".amending")
@@ -2740,6 +2883,7 @@ def triage(args, bundle) -> None:
         regenerated=frozenset() if upgrade is None else upgrade.regenerated_ruled,
         dropped=frozenset() if upgrade is None else upgrade.dropped_cases,
         added=upgrade_decisions(upgrade),
+        triage=triage_items(upgrade),
     )
     rows, cases, _ = apply_adjudications(rows, cases, decisions)
     amend_annotations(rows, cases, amendments)
@@ -4455,12 +4599,24 @@ def verify_recorded_drops(stage: Path, upgrade: Upgrade) -> None:
 
 
 def export_on_base_references(bundle: Path, live: dict, record: Path) -> dict:
-    """release_20261006.export_payload on a scratch copy of the bundle's export
-    inputs with release 20261006's five reference files put back (from git)
-    and ``record`` as the exclusion record: the upgrade's scope export."""
+    """export_full_run on a scratch copy of the bundle's export inputs with
+    release 20261006's five reference files put back (from git) and
+    ``record`` as the exclusion record: the upgrade's scope export, read only
+    for its modelStats.
+
+    As release_20261006.export_payload builds it (Fable 5's usage carried from
+    ``live``), except that the dashboard schema is checked without requiring
+    a failure annotation on every wrong answer: the stage's annotations follow
+    the upgraded references, so an answer the new reference makes right and
+    the old one wrong has none here. The release's own payload, on the
+    upgraded references, is checked with that requirement (build_payload).
+    """
     import tempfile
 
-    from release_20261006 import EXPORT_INPUTS, export_payload
+    from release_20261006 import CARRIED_USAGE, EXPORT_INPUTS
+
+    from policybench.dashboard_schema import validate_dashboard_payload
+    from policybench.full_run_export import export_full_run
 
     with tempfile.TemporaryDirectory(dir=bundle.parent, prefix="base-refs-") as scratch:
         copy_root = Path(scratch) / bundle.name
@@ -4469,7 +4625,18 @@ def export_on_base_references(bundle: Path, live: dict, record: Path) -> dict:
             shutil.copyfile(bundle / rel, copy_root / rel)
         for name in REFERENCE_FILES:
             (copy_root / "us" / name).write_bytes(base_reference_bytes(name))
-        return export_payload(copy_root, live, record)
+        shutil.copyfile(record, copy_root / "us" / "reference_exclusions.json")
+        payload = export_full_run(copy_root, countries=["us"], skip_app_data=True)
+    previous = {row["model"]: row for row in live["countries"]["us"]["modelStats"]}
+    for model, fields in CARRIED_USAGE.items():
+        row = next(
+            r for r in payload["countries"]["us"]["modelStats"] if r["model"] == model
+        )
+        for field in fields:
+            row[field] = previous[model][field]
+    errors = validate_dashboard_payload(payload, require_failure_annotations=False)
+    require(not errors, f"dashboard schema (scope export): {errors[:5]}")
+    return payload
 
 
 def parse_args(argv=None):

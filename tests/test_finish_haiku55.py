@@ -54,6 +54,11 @@ BOUND_EXCLUSIONS = f"publish/{driver.RUN_NAME}/us/{EXCLUSIONS_NAME}"
 # nothing here writes to them.
 SEED = REPO / "results/local/release-haiku55/seed-20261006"
 STAGE = REPO / "results/local/release-haiku55/stage"
+# The working stage carrying the engine upgrade of the references: an APFS
+# clone of STAGE with a reference build installed (local only). STAGE stays
+# the 2.15.17 fallback. The committed judge provenance record describes it.
+REHEARSAL = REPO / "results/local/rehearsal-2372"
+WORKING_STAGE = REHEARSAL / "stage"
 GROUNDING = Path(
     "/Users/maxghenis/PolicyEngine/policybench/results/local/unified_audit/"
     "grounding.csv"
@@ -4572,10 +4577,12 @@ def test_the_committed_provenance_record_describes_the_stage():
     against the live stage, every isolated transcript included."""
     if not driver.JUDGE_PROVENANCE.is_file():
         pytest.skip("docs/haiku55/judge_provenance.json is not written yet")
-    if not (STAGE / "audit/cases").is_dir():
-        pytest.skip("needs the Claude Haiku 5.5 stage")
+    if not (WORKING_STAGE / "audit/cases").is_dir():
+        pytest.skip("needs the Claude Haiku 5.5 working stage")
     driver.verify_judge_provenance(
-        STAGE / "audit/cases", driver.rejudged_cases(STAGE), driver.JUDGE_PROVENANCE
+        WORKING_STAGE / "audit/cases",
+        driver.rejudged_cases(WORKING_STAGE),
+        driver.JUDGE_PROVENANCE,
     )
 
 
@@ -4778,9 +4785,9 @@ def test_the_provenance_record_refuses_an_unknown_account_or_an_unisolated_verdi
 
 def test_the_provenance_record_of_the_live_stage_passes_the_export_gate():
     """Local: once every re-opened case has its verdict, the record built from
-    the live stage's sidecars passes verify_judge_provenance (transcripts
+    the working stage's sidecars passes verify_judge_provenance (transcripts
     included), so export accepts it."""
-    stage = STAGE
+    stage = WORKING_STAGE
     if not (stage / "prompt-changes.json").is_file():
         pytest.skip("no live stage")
     cases = stage / "audit" / "cases"
@@ -5073,6 +5080,7 @@ def upgrade_spec_dict(regenerated=MOCK_REGENERATED_RULED) -> dict:
     decisions: a mock build decides its own new exclusions (upgraded_added)."""
     spec = real_spec()
     spec.pop("upgrade_adjudications", None)
+    spec.pop("triage_adjudications", None)
     spec["regenerated_by_upgrade"] = {
         "note": "MOCK: the d1022 engine-defect records the upgrade regenerates.",
         "outputs": [list(key) for key in sorted(regenerated)],
@@ -5147,9 +5155,8 @@ def test_the_upgrade_constants_name_release_20261006s_files():
 
 
 # A real build_references_upgrade.py build, its narratives and its actions, on
-# policyengine-us 2.37.2 (local only): the driver's gates read what the real
-# builder writes, not only the mock build above.
-REHEARSAL = REPO / "results/local/rehearsal-2372"
+# policyengine-us 2.37.2 (local only, REHEARSAL): the driver's gates read what
+# the real builder writes, not only the mock build above.
 
 
 def test_a_real_builders_build_passes_the_drivers_gates():
@@ -6737,6 +6744,100 @@ def test_the_spec_must_decide_exactly_the_upgrades_new_exclusions(upgraded_added
     assert driver.upgrade_decisions(None, spec) == []
 
 
+# MOCK: a triage decision affirming WI 042's regenerated reference, whose
+# release 20261006 decision the upgrade drops.
+MOCK_TRIAGE = {
+    "scenario_id": WI_042[0],
+    "variable": WI_042[1],
+    "adjudicated_failure_source": "llm_error",
+    "adjudicated_failure_subtype": "taxable_income_or_deductions",
+    "adjudicated_on": "2026-10-06",
+    "reference_verdict": "affirmed",
+    "reference_basis": "MOCK basis",
+    "reasoning": "MOCK: the judge's reference hypothesis fails.",
+}
+
+
+def test_a_triage_decision_affirms_a_regenerated_reference(
+    upgraded, upgrade_spec, monkeypatch
+):
+    """WI 042's 20261006 decision is dropped, and the triage decision takes its
+    case: a new entry from the item and the case's bound verdict, which the
+    triage gate accepts and holds exact."""
+    from policybench.adjudications import parse_adjudications
+
+    monkeypatch.setitem(upgrade_spec, "triage_adjudications", [dict(MOCK_TRIAGE)])
+    spec = driver.load_spec()
+    assert spec["triage_adjudications"] == [MOCK_TRIAGE]
+    path = _write_stage_record(upgraded.stage, base_adjudication_record())
+    driver.adjudicate_exclusions(SimpleNamespace(stage_dir=upgraded.stage))
+    record = json.loads(path.read_text())
+    entries = parse_adjudications(record, path)
+    entry = next(e for e in entries if driver.case_id(e) == WI_042_CASE)
+    assert list(entry) == list(driver.TRIAGE_FIELDS)
+    assert "excluded_from_scoring" not in entry
+    assert entry["reference_verdict"] == "affirmed"
+    assert entry["reasoning"] == MOCK_TRIAGE["reasoning"]
+    triage = driver.triage_items(upgraded.upgrade)
+    gate = dict(
+        regenerated=upgraded.upgrade.regenerated_ruled,
+        dropped=upgraded.upgrade.dropped_cases,
+        triage=triage,
+    )
+    rejudged = RULED_CASES | {WI_042_CASE}
+    base = driver.base_adjudications()
+    assert (
+        driver.verify_adjudication_changes(base, entries, rejudged, [], upgraded.cases, **gate)
+        == 0
+    )
+    # Without the triage item the gate refuses the entry as a kept decision.
+    with pytest.raises(SystemExit, match="keep the decisions"):
+        driver.verify_adjudication_changes(
+            base,
+            entries,
+            rejudged,
+            [],
+            upgraded.cases,
+            regenerated=upgraded.upgrade.regenerated_ruled,
+            dropped=upgraded.upgrade.dropped_cases,
+        )
+    # An edited entry, or one on a case the stage did not re-open, is refused.
+    edited = copy.deepcopy(entries)
+    next(e for e in edited if driver.case_id(e) == WI_042_CASE)["reasoning"] = "x"
+    with pytest.raises(SystemExit, match="triage decision's entry"):
+        driver.verify_adjudication_changes(base, edited, rejudged, [], upgraded.cases, **gate)
+    with pytest.raises(SystemExit, match="did not re-open"):
+        driver.verify_adjudication_changes(
+            base, entries, RULED_CASES, [], upgraded.cases, **gate
+        )
+
+
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        ({"reference_verdict": "excluded"}, "may only affirm"),
+        ({"adjudicated_on": "2026-10-01"}, "dated by a wave"),
+        ({"extra": 1}, "must be items with"),
+    ],
+)
+def test_a_triage_decision_must_affirm_on_a_named_wave(
+    upgraded, upgrade_spec, monkeypatch, change, message
+):
+    item = {**MOCK_TRIAGE, **change}
+    monkeypatch.setitem(upgrade_spec, "triage_adjudications", [item])
+    path = _write_stage_record(upgraded.stage, base_adjudication_record())
+    text = path.read_text()
+    with pytest.raises(SystemExit, match=message):
+        driver.adjudicate_exclusions(SimpleNamespace(stage_dir=upgraded.stage))
+    assert path.read_text() == text
+
+
+def test_triage_decisions_are_read_only_with_an_upgrade():
+    spec = {"triage_adjudications": [MOCK_TRIAGE]}
+    assert driver.triage_items(None, spec) == []
+    assert driver.triage_items(object(), spec) == [MOCK_TRIAGE]
+
+
 def test_the_upgrades_wave_needs_its_written_day(upgraded_added, monkeypatch):
     monkeypatch.delitem(upgraded_added.spec, "upgrade_adjudications_written_on")
     path = _write_stage_record(upgraded_added.stage, base_adjudication_record())
@@ -7024,8 +7125,10 @@ def test_triage_holds_the_record_to_the_installed_upgrade(triage_stage, monkeypa
         added=frozenset(),
     )
     monkeypatch.setattr(driver, "stage_upgrade", lambda stage_dir: upgrade)
-    # MOCK: the upgrade excludes nothing new, so it decides nothing new.
+    # MOCK: the upgrade excludes nothing new and triages nothing, so it decides
+    # nothing new.
     monkeypatch.setattr(driver, "upgrade_decisions", lambda u: [])
+    monkeypatch.setattr(driver, "triage_items", lambda u: [])
     checked, given = [], []
     monkeypatch.setattr(
         driver, "verify_recorded_drops", lambda *a: checked.append(a[1])
@@ -7044,6 +7147,7 @@ def test_triage_holds_the_record_to_the_installed_upgrade(triage_stage, monkeypa
             "regenerated": frozenset(MOCK_REGENERATED_RULED),
             "dropped": frozenset({WI_042_CASE}),
             "added": [],
+            "triage": [],
         }
     ]
 

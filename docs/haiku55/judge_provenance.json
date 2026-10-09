@@ -1,7 +1,7 @@
 {
  "counts": {
-  "isolated: setup-token 2": 210,
-  "isolated: subfleet lane claude-18": 21
+  "isolated: setup-token 2": 205,
+  "isolated: subfleet lane claude-18": 27
  },
  "note": "Provenance of the new Opus 5.5 judge verdicts in the Claude Haiku 5.5 stage: every case Claude Haiku 5.5 re-opened, which includes the nine cases release 20261006 reworded. Every verdict ran through scripts/run_audit_claude.sh from an empty directory outside the repo, with no tools, an allowlisted environment, no user settings and a token login, at effort xhigh; each transcript passes the runner's checks. Most ran on Max's second setup-token login (2026-09-30 opt-in); those judged after that login's weekly limit ran on subfleet lane claude-18's token. Counts are by group. Scores do not depend on judge verdicts.",
  "verdicts": [
@@ -396,6 +396,19 @@
    "verdict_sha256": "f4b21ebd85c8bbb6ee29eb6ee7004db26fad2dd289bdde6f6d5a2d067b1bbf7e"
   },
   {
+   "case_id": "us__scenario_015__local_income_tax",
+   "group": "isolated: subfleet lane claude-18",
+   "isolated": true,
+   "judge_account_declared": "claude:<account withheld> (subfleet lane claude-18)",
+   "judge_effort": "xhigh",
+   "judge_model_reported": [
+    "claude-opus-5-5"
+   ],
+   "judged_at_utc": "2026-10-09T15:27:58.790322+00:00",
+   "prompt_sha256": "5529b594a9660a1acf2e1e5208b5ac71724caa13b57f1f9f06dba11128d38a1b",
+   "verdict_sha256": "a37617aa49c5c34553328a36f1a467aa17e277a5411f50df6f7ec284598939a8"
+  },
+  {
    "case_id": "us__scenario_015__state_income_tax_before_refundable_credits",
    "group": "isolated: setup-token 2",
    "isolated": true,
@@ -430,9 +443,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T11:03:49.698119+00:00",
-   "prompt_sha256": "386f8b75d853aaecb9f0cc39f5b6c8aa02977b3793a048a9d1d503c650d1211a",
-   "verdict_sha256": "924f4ce10391cc240fd94107b9827edb2e701a9f7dfc5272b4e9da7d63c6be5c"
+   "judged_at_utc": "2026-10-09T15:29:29.449067+00:00",
+   "prompt_sha256": "e5f9c3426b0cda4be510ba43e1f0dc9148ab6dec15e32704631da000ef5f70d2",
+   "verdict_sha256": "9fdc69a9a287df5ba8155a962b9c174f73f460f55a05928e40921f663d5185a1"
   },
   {
    "case_id": "us__scenario_020__federal_income_tax_before_refundable_credits",
@@ -625,9 +638,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T11:07:17.998488+00:00",
-   "prompt_sha256": "23693929dfd81923b10f2c920cc7b6d0099f6518df7cb60f17db7ca0fed6a2a6",
-   "verdict_sha256": "c4c0774348d5369cefce947fc4f4c1b70a7ee203a297447b54a74360d38c36cb"
+   "judged_at_utc": "2026-10-09T15:31:22.432921+00:00",
+   "prompt_sha256": "e00e7ce10d4f32d7981d96047c22ca2b9ed0d7336da9f81e5ef1945e46d66ee9",
+   "verdict_sha256": "2d77da2d10cf79702e7fa3e15de0b4fa5450c1a0ab6b725f4f4ba43e1df9b152"
   },
   {
    "case_id": "us__scenario_026__child1_medicaid_eligible",
@@ -1112,16 +1125,16 @@
   },
   {
    "case_id": "us__scenario_039__state_income_tax_before_refundable_credits",
-   "group": "isolated: setup-token 2",
+   "group": "isolated: subfleet lane claude-18",
    "isolated": true,
-   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
+   "judge_account_declared": "claude:<account withheld> (subfleet lane claude-18)",
    "judge_effort": "xhigh",
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-08T23:23:35.964616+00:00",
-   "prompt_sha256": "80c675248b930feac368e1eb6dc0f650368d1dcd1f1097d02602f085e55da70b",
-   "verdict_sha256": "0646728439325dbca1d4b658c8957b7ac17f9b1f679819648599ead34f27cde7"
+   "judged_at_utc": "2026-10-09T15:32:44.090621+00:00",
+   "prompt_sha256": "4ed3f2a920aea1196cb3a314f02848fbf7b2474f1ff498763062bbd38d02cfe3",
+   "verdict_sha256": "3f9557f03e6f43636c1cdd4dcf7e02032f399e6ea24e1dc33b97e751f1e9450e"
   },
   {
    "case_id": "us__scenario_040__payroll_tax",
@@ -1210,9 +1223,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T11:09:57.168364+00:00",
-   "prompt_sha256": "aaadbf6a452a6d234714e353c97adc682331c9be997a96897bf6e6afaaf9aab6",
-   "verdict_sha256": "2fbea308007324f6cf9196d91f0b20f3b7ec8dc68752a86a6a2fa4dcf6a34997"
+   "judged_at_utc": "2026-10-09T15:33:18.249282+00:00",
+   "prompt_sha256": "21a10434fcf0c35bc9dd7ba2d1e10860eacfec594252767bb2be2e28a8667336",
+   "verdict_sha256": "d4ea87983a45686b25365662c7e50e0e0ff939c351a5fd17b3e2b0e998f085c5"
   },
   {
    "case_id": "us__scenario_045__federal_income_tax_before_refundable_credits",
@@ -1619,16 +1632,16 @@
   },
   {
    "case_id": "us__scenario_064__federal_income_tax_before_refundable_credits",
-   "group": "isolated: setup-token 2",
+   "group": "isolated: subfleet lane claude-18",
    "isolated": true,
-   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
+   "judge_account_declared": "claude:<account withheld> (subfleet lane claude-18)",
    "judge_effort": "xhigh",
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T00:09:03.939529+00:00",
-   "prompt_sha256": "a81b691d9ca49ef0789aaf650e6678b6237eac0354dd9e16606ed0b75ac1ee2f",
-   "verdict_sha256": "6d9cd02f6c930da34af56704cc6b7ea7d64b79da85722c7b74b1f46133770e91"
+   "judged_at_utc": "2026-10-09T15:35:48.592879+00:00",
+   "prompt_sha256": "590f6f9b34e3def892ea8a317ce53f977b6a7c4e96960439e10afebab8d0fcf6",
+   "verdict_sha256": "3cea3c2a2b4b2ee86adb0de6d44bfc9d11bb8b965f57472e26567371b465d83e"
   },
   {
    "case_id": "us__scenario_064__payroll_tax",
@@ -1645,16 +1658,16 @@
   },
   {
    "case_id": "us__scenario_064__state_income_tax_before_refundable_credits",
-   "group": "isolated: setup-token 2",
+   "group": "isolated: subfleet lane claude-18",
    "isolated": true,
-   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
+   "judge_account_declared": "claude:<account withheld> (subfleet lane claude-18)",
    "judge_effort": "xhigh",
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T00:14:02.545660+00:00",
-   "prompt_sha256": "6a8b85a8a99d9ff1aeea708e21c9faa28e9e0ca6c74f6ab97362e93102cc68ec",
-   "verdict_sha256": "fe39e09e26e120b1bbb866d9fce405b7712527981998db3a3492063643a1b165"
+   "judged_at_utc": "2026-10-09T15:41:45.092438+00:00",
+   "prompt_sha256": "00e1f8c0d9be721acde7de113eaf1bbedfac0a92643f2ff10175eab13855bc06",
+   "verdict_sha256": "03c2169363c02688bac672569d73ece7c86d71e700ef3717c4817d1e093347ba"
   },
   {
    "case_id": "us__scenario_066__federal_refundable_credits",
@@ -1736,16 +1749,16 @@
   },
   {
    "case_id": "us__scenario_067__local_income_tax",
-   "group": "isolated: setup-token 2",
+   "group": "isolated: subfleet lane claude-18",
    "isolated": true,
-   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
+   "judge_account_declared": "claude:<account withheld> (subfleet lane claude-18)",
    "judge_effort": "xhigh",
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T00:17:21.058604+00:00",
-   "prompt_sha256": "19912a6da300e23417510a460bd73a8f8e90d786f7f06df07c91ccaf341d88fb",
-   "verdict_sha256": "93c319f6bbf36cc36c22cc23d2bdb35f05d85078c02ee8e14747ce30dd8e576f"
+   "judged_at_utc": "2026-10-09T15:42:59.163878+00:00",
+   "prompt_sha256": "0a504cc4257e3d50228a5a0aeca401d64a69eaa2fdc695427c9231f2a3d13d18",
+   "verdict_sha256": "faee57ba43f2a484ba86e4c8f547cac62db572a68179ee828d199c7c3ffd2fad"
   },
   {
    "case_id": "us__scenario_067__payroll_tax",
@@ -1892,16 +1905,16 @@
   },
   {
    "case_id": "us__scenario_076__state_income_tax_before_refundable_credits",
-   "group": "isolated: setup-token 2",
+   "group": "isolated: subfleet lane claude-18",
    "isolated": true,
-   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
+   "judge_account_declared": "claude:<account withheld> (subfleet lane claude-18)",
    "judge_effort": "xhigh",
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T00:27:33.581732+00:00",
-   "prompt_sha256": "61a084e010af442da77674af310a44702a1e74f55135a4ec08c02d47ea00c9c6",
-   "verdict_sha256": "bab7798bb54696e82a0087490705c0eaf606ba8a273d95b0749a6cfc9afa9aa8"
+   "judged_at_utc": "2026-10-09T15:45:33.076358+00:00",
+   "prompt_sha256": "deda91c487702cd2cb011b6310239f0913e298b1c2958b1dfb664dc9bdca6995",
+   "verdict_sha256": "c60d82b9cb0e4d375e34421b34a8f282e7b51f78430b671922e7631b7572e7e0"
   },
   {
    "case_id": "us__scenario_076__state_refundable_credits",
@@ -2146,9 +2159,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T11:22:52.349018+00:00",
-   "prompt_sha256": "287811a909c1997ebca5f6670d8f8c17688691c20f13960da4a8a2ebf37b1007",
-   "verdict_sha256": "5a93e3bf37183683efb79be9cf724cb36b3fadf0c596209eee823a2acd4d5127"
+   "judged_at_utc": "2026-10-09T15:47:25.930152+00:00",
+   "prompt_sha256": "684db8b3f10ce52e893e3742921d199856f51bd06230acd12b8b4baeb2ea44c5",
+   "verdict_sha256": "7dfb69d357f4937c31db4be3023ca6a11f06c1620a9c2cc47179b00708ad0292"
   },
   {
    "case_id": "us__scenario_083__payroll_tax",
