@@ -651,18 +651,22 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     # scored rows (8 outputs x 46 models), all below full bounded score; 333
     # had a legacy threshold score below 1, all exact misses and all
     # annotated (325 llm_error, 8 parse_contract_failure), and 35 did not.
+    # Release 20261009: Claude Haiku 5.5's rows join, and the outputs the
+    # 2026-10-06 rulings and the engine upgrade exclude leave the universe
+    # while the ones it regenerates return (release 20261006: annotated 7,527,
+    # below full bounded score 9,599, llm_error 6,883, parse failures 644).
     expected_audit_counts = {
         "us": {
-            "annotated": 7_527,
-            "exact_misses": 7_523,
-            "annotated_exact_misses": 7_523,
+            "annotated": 7_507,
+            "exact_misses": 7_503,
+            "annotated_exact_misses": 7_503,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 9_599,
-            "unannotated_below_full_bounded_score": 2_072,
+            "below_full_bounded_score": 9_622,
+            "unannotated_below_full_bounded_score": 2_115,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 6_883, "parse_contract_failure": 644},
+        "us": {"llm_error": 6_861, "parse_contract_failure": 646},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -860,6 +864,9 @@ def test_frozen_payload_provenance_matches_the_reference_sidecar():
         assert payload["policyengineBundles"][country]["model_version"] == expected
 
 
+STATED_HOURS = "weekly_hours_worked_before_lsr"
+
+
 def test_manifest_names_the_build_the_households_came_from():
     """PolicyBench computes each scored reference with policyengine_us.Simulation
     from the household's own listed inputs, so no dataset enters a reference.
@@ -902,16 +909,33 @@ def test_manifest_names_the_build_the_households_came_from():
     # the sidecar's engine_upgrade revision pins: the publication conventions
     # (latest_c_*.py), the Maryland output-scope adapter, and the stated-hours
     # alias its builder note records.
+    # A later upgrade (build_references_upgrade.py) inherits the conventions,
+    # pins latest_final.py and the sales-tax table beside them, and records its
+    # builder's note; the stated-hours alias is the earlier upgrade's, which
+    # it builds households through (the delta review's finding 6).
+    from scripts import freeze_snapshot
+
     sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
-    upgrade = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"][-1]
+    upgrades = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"]
+    upgrade = upgrades[-1]
     modules = {entry["module"] for entry in upgrade["fix_modules"]}
     conventions = {m for m in modules if m.startswith("latest_c_")}
-    assert modules - conventions == {
-        "latest_conventions.py",
-        "latest_md_local_output_scope.py",
-    }
+    base_modules = {"latest_conventions.py", "latest_md_local_output_scope.py"}
+    if upgrade["builder"] == freeze_snapshot.UPGRADE_BUILDER:
+        assert modules - conventions == base_modules | (
+            freeze_snapshot.UPGRADE_SUPPORT_MODULES
+        )
+        earlier = [u for u in upgrades[:-1] if STATED_HOURS in u["builder"]]
+        assert earlier
+        assert conventions == {
+            e["module"]
+            for e in earlier[-1]["fix_modules"]
+            if e["module"].startswith("latest_c_")
+        }
+    else:
+        assert modules - conventions == base_modules
+        assert STATED_HOURS in upgrade["builder"]
     assert len(conventions) == 9
-    assert "weekly_hours_worked_before_lsr" in upgrade["builder"]
     assert (
         "PolicyBench computes each scored reference output with "
         "policyengine_us.Simulation from policyengine-us "

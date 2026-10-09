@@ -2130,6 +2130,42 @@ def test_the_manifest_paths_the_release_may_change():
 # --- MOCK installed engine upgrades -----------------------------------------------
 
 
+def _builder_setup(inherited: dict) -> dict:
+    """The setup build_references_upgrade.py records on a later upgrade (the
+    delta review's finding 6): the inherited conventions, composer and
+    adapter with their paths, then latest_final.py and the sales-tax table,
+    each pinned to its committed bytes, and the builder's note."""
+    fixes = "reference_audit/2026-09-28/fixes"
+    entries = [
+        {"module": e["module"], "path": f"{fixes}/{e['module']}", "sha256": e["sha256"]}
+        for e in inherited["fix_modules"]
+    ]
+    for name, path in (
+        ("latest_final.py", f"{fixes}/latest_final.py"),
+        (
+            "r19_irs_sales_tax_2025.json",
+            "reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json",
+        ),
+    ):
+        digest = hashlib.sha256(base_blob(Path(path))).hexdigest()
+        entries.append({"module": name, "path": path, "sha256": digest})
+    return {"fix_modules": entries, "builder": freezer.UPGRADE_BUILDER}
+
+
+def test_the_mock_setup_is_the_real_builders():
+    """The MOCK builds' setup is the one the real 2.37.2 rehearsal build
+    recorded, where that build is on this machine."""
+    meta = REPO / "results/local/rehearsal-2372/build" / driver.META_NAME
+    if not meta.is_file():
+        pytest.skip("needs the local 2.37.2 rehearsal build")
+    real = json.loads(meta.read_text())["revisions"][-1]
+    inherited = json.loads(base_blob(FROZEN_RUN / driver.META_NAME))["revisions"][-1]
+    assert _builder_setup(inherited) == {
+        "fix_modules": real["fix_modules"],
+        "builder": real["builder"],
+    }
+
+
 def _install_MOCK_build(
     stage: Path, receipt: dict, build, *, with_inherited_setup: bool = True
 ) -> driver.Upgrade:
@@ -2139,15 +2175,14 @@ def _install_MOCK_build(
     rendering a real install is unsuitable here. The build itself is gated
     against the real release 20261006 by load_build, without replacing it.
     """
-    # MOCK values/narratives retain the inherited convention setup; the real
-    # freezer still validates the sidecar's setup note before its first write.
+    # MOCK values/narratives take the real builder's setup on the inherited
+    # conventions; the real freezer still validates the sidecar's setup note
+    # and pins before its first write.
     inherited = json.loads(base_blob(FROZEN_RUN / driver.META_NAME))["revisions"][-1]
     if with_inherited_setup:
         mock_builds.edit_json(
             build.built / driver.META_NAME,
-            lambda meta: meta["revisions"][-1].update(
-                fix_modules=inherited["fix_modules"], builder=inherited["builder"]
-            ),
+            lambda meta: meta["revisions"][-1].update(_builder_setup(inherited)),
         )
     upgrade = mock_builds.load(build)
     copy_dir = stage / driver.BUILD_COPY
@@ -2410,10 +2445,7 @@ def test_MOCK_unsupported_manifest_sidecar_is_refused_before_any_write(
 
     def edit(meta):
         revision = meta["revisions"][-1]
-        revision.update(
-            fix_modules=copy.deepcopy(inherited["fix_modules"]),
-            builder=inherited["builder"],
-        )
+        revision.update(copy.deepcopy(_builder_setup(inherited)))
         if defect == "missing_bundle_field":
             meta["policyengine_bundles"]["us"].pop("policyengine_version")
         elif defect == "empty_regeneration_timestamp":
